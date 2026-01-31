@@ -24,7 +24,7 @@ const (
 )
 
 // DefaultModel is the model used when BUILDMAX_MODEL is not set.
-const DefaultModel = ModelGemma327bItFree
+const DefaultModel = ModelGLM45AirFree
 
 // LoadLLM loads LLM config from environment.
 // OPENROUTER_API_KEY or BUILDMAX_API_KEY for API key;

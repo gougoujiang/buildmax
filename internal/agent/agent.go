@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"buildmax/internal/llm"
 )
@@ -29,10 +30,10 @@ type LLMCaller interface {
 
 // Agent runs the agent loop: LLM call → execute tool_calls if any → repeat until final reply.
 type Agent struct {
-	caller     LLMCaller
-	tools      []Tool
-	maxIter    int
-	toolDefs   []llm.ToolDef // cached from tools for each request
+	caller      LLMCaller
+	tools       []Tool
+	maxIter     int
+	toolDefs    []llm.ToolDef // cached from tools for each request
 	toolsByName map[string]Tool
 }
 
@@ -77,6 +78,7 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 	messages := []llm.Message{
 		{Role: "user", Content: userMessage},
 	}
+	slog.Info("user message", "content", userMessage)
 	for i := 0; i < a.maxIter; i++ {
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
 		content, toolCalls, err := a.caller.ChatWithTools(ctx, messages, a.toolDefs)
@@ -85,10 +87,10 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 			return "", fmt.Errorf("llm call: %w", err)
 		}
 		if len(toolCalls) == 0 {
-			slog.Debug("agent reply", "len", len(content))
+			slog.Debug("agent reply", "content", content)
 			return content, nil
 		}
-		slog.Debug("tool calls", "n", len(toolCalls))
+		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
 		messages = append(messages, llm.Message{
 			Role:      "assistant",
 			Content:   content,
@@ -120,6 +122,7 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 			}
 			result, err := tool.Execute(ctx, args)
 			if err != nil {
+				slog.Debug("tool result", "tool", tc.Name, "error", err.Error())
 				messages = append(messages, llm.Message{
 					Role:       "tool",
 					Content:    fmt.Sprintf("error: %v", err),
@@ -127,6 +130,11 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 				})
 				continue
 			}
+			resultPreview := result
+			if len(resultPreview) > 500 {
+				resultPreview = resultPreview[:500] + "..."
+			}
+			slog.Debug("tool result", "tool", tc.Name, "content", resultPreview)
 			messages = append(messages, llm.Message{
 				Role:       "tool",
 				Content:    result,
@@ -136,4 +144,17 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 	}
 	slog.Warn("agent max iterations exceeded")
 	return "", errors.New("agent: max iterations exceeded")
+}
+
+// toolCallsSummary returns a short summary of tool calls for logging.
+func toolCallsSummary(calls []llm.ToolCall) []string {
+	s := make([]string, 0, len(calls))
+	for _, tc := range calls {
+		args := tc.Arguments
+		if len(args) > 80 {
+			args = args[:80] + "..."
+		}
+		s = append(s, tc.Name+": "+strings.TrimSpace(args))
+	}
+	return s
 }

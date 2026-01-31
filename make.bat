@@ -25,7 +25,10 @@ if not exist testing-sandbox mkdir testing-sandbox
 set "HOME_DIR=%CD%\testing-sandbox"
 go build -o buildmax.exe ./cmd/buildmax
 if errorlevel 1 exit /b 1
+rem reset log level to debug
+set "BUILDMAX_LOG_LEVEL=debug"
 buildmax.exe -p "what can you do"
+buildmax.exe -p "show me the code of the main.go"
 exit /b %errorlevel%
 
 :usage
