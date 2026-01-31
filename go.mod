@@ -2,7 +2,10 @@ module github.com/gougoujiang/buildmax
 
 go 1.21
 
-require github.com/charmbracelet/bubbletea v0.26.2
+require (
+	github.com/charmbracelet/bubbletea v0.26.2
+	github.com/sashabaranov/go-openai v1.23.0
+)
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
