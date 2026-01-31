@@ -3,7 +3,7 @@ package app
 
 import (
 	"github.com/charmbracelet/bubbletea"
-	"github.com/gougoujiang/buildmax/internal/tui"
+	"buildmax/internal/tui"
 )
 
 // NewModel returns the root Bubble Tea model for the TUI.

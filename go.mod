@@ -1,4 +1,4 @@
-module github.com/gougoujiang/buildmax
+module buildmax
 
 go 1.21
 

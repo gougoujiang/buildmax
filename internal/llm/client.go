@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	"buildmax/internal/config"
 	openai "github.com/sashabaranov/go-openai"
 )
 

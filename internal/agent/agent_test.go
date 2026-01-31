@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/llm"
+	"buildmax/internal/llm"
 )
 
 // mockLLMCaller is a fake LLM that returns configured content and tool calls.

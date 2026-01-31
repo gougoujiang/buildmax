@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/llm"
+	"buildmax/internal/llm"
 )
 
 // DefaultMaxIterations is the default cap on agent loop iterations.
