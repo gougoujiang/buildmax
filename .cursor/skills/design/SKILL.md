@@ -26,7 +26,7 @@ This skill complements the interview skill: interview produces *what* to build a
    - Where the new work fits and what it will extend or replace
 
 3. **Produce design**  
-   Output a single design document (e.g. `design/NNN-design.md` or in chat) using the [design template](template.md). Fill: modules, structure, method design, and how they work together.
+   Output a single design document (e.g. `task/NNN-design.md` or in chat) using the [design template](template.md). Fill: modules, structure, method design, and how they work together.
 
 4. **Summarize changes**  
    End with a concrete "Changes for review" section: new/edited packages, files, types, and methods so the user can approve before implementation.
@@ -54,5 +54,5 @@ Use the structure in [template.md](template.md). Summary:
 
 ## Output
 
-- **Primary**: One markdown design document (e.g. `design/002-design.md`) with modules, structure, method design, flows, and "Changes for review".
+- **Primary**: One markdown design document (e.g. `task/002-design.md`) with modules, structure, method design, flows, and "Changes for review".
 - **Optional**: Short summary in chat (modules + main APIs + flow) so the user can confirm before implementation.

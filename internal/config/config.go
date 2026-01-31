@@ -1,7 +1,10 @@
 // Package config provides configuration loading and defaults.
 package config
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 // LLM holds LLM provider settings (OpenRouter/OpenAI-compatible).
 type LLM struct {
@@ -34,4 +37,16 @@ func LoadLLM() LLM {
 		model = DefaultModel
 	}
 	return LLM{APIKey: apiKey, BaseURL: baseURL, Model: model}
+}
+
+// DataDir returns the application data folder path.
+// If HOME_DIR is set (non-empty), returns filepath.Clean(os.Getenv("HOME_DIR")).
+// Otherwise returns filepath.Join(os.UserHomeDir(), ".buildmax").
+// Does not create the directory; callers must create it if needed.
+func DataDir() string {
+	if dir := os.Getenv("HOME_DIR"); dir != "" {
+		return filepath.Clean(dir)
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".buildmax")
 }

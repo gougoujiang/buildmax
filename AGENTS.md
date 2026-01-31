@@ -1,84 +1,89 @@
-# BuildMax - 项目设计文档
+# BuildMax - Project Design Document
 
-## 1. 项目概述
+## 1. Overview
 
-BuildMax 是一个 **AI Agent 项目**，目标是构建一个**通用型 Agent**，让用户能够：
+BuildMax is an **AI Agent project** aimed at building a **general-purpose Agent** so that users can:
 
-- **快速运行**：开箱即用，最小化配置与依赖
-- **获得 AI Agent 能力**：具备与 LLM 交互、任务规划、工具调用等典型 Agent 能力
+- **Run quickly**: Out of the box with minimal configuration and dependencies
+- **Get AI Agent capabilities**: Typical Agent features such as LLM interaction, task planning, and tool calling
 
-项目面向希望本地或私有化部署 AI Agent 的用户，提供统一、可扩展的 Agent 运行时。
+The project targets users who want to deploy AI Agents locally or privately, providing a unified, extensible Agent runtime.
 
-## 2. 技术选型
+## 2. Technology Choices
 
-### 2.1 语言与生态
+### 2.1 Language and Ecosystem
 
-- **主语言：Golang (Go)**
-- **原则：尽量所有组件都用 Golang 实现**，包括：
-  - 核心 Agent 逻辑
-  - CLI 与 TUI 界面
-  - 与 LLM 的通信、插件/工具封装
-  - 配置、日志、持久化等基础设施
+- **Primary language: Golang (Go)**
+- **Principle: Implement all components in Golang where possible**, including:
+  - Core Agent logic
+  - CLI and TUI interface
+  - LLM communication and plugin/tool wrappers
+  - Infrastructure such as config, logging, and persistence
 
-这样做的目的：单一语言降低维护成本，便于交叉编译与单二进制分发，利于团队协作与贡献。
+Rationale: A single language reduces maintenance cost, enables cross-compilation and single-binary distribution, and facilitates collaboration and contribution.
 
-### 2.2 用户界面
+### 2.2 User Interface
 
-- **形态：命令行程序 (CLI)**
-- **交互方式：TUI (Text User Interface)**
-- **实现：基于 [Bubble Tea](https://github.com/charmbracelet/bubbletea)**
-  - 纯 Go 的 TUI 框架，与项目“全 Go 栈”一致
-  - 支持多组件、消息驱动、键盘/鼠标交互，适合构建 Agent 对话、状态展示、菜单等
+- **Form: Command-line program (CLI)**
+- **Interaction: TUI (Text User Interface)**
+- **Implementation: Based on [Bubble Tea](https://github.com/charmbracelet/bubbletea)**
+  - Pure Go TUI framework, aligned with the project’s “all-Go stack”
+  - Supports multiple components, message-driven flow, and keyboard/mouse interaction; suitable for Agent chat, status display, menus, etc.
 
-用户通过一条命令启动程序，即可在终端内获得完整的 Agent TUI 体验。
+Users get a full Agent TUI experience in the terminal by running a single command.
 
-## 3. 目标与原则
+## 3. Goals and Principles
 
-| 目标 | 说明 |
-|------|------|
-| 通用性 | Agent 可配置接入不同 LLM、不同工具，而非绑定单一服务 |
-| 易用性 | 默认配置即可运行，进阶用户可扩展模型与工具 |
-| 可移植性 | 单二进制或少量文件，便于在服务器、本机、容器中部署 |
-| 全 Go 实现 | 核心与周边尽量用 Go，必要时通过 Go 调用外部 API，不引入 Python/Node 运行时依赖 |
+| Goal | Description |
+|------|-------------|
+| Generality | Agent can be configured to use different LLMs and tools, not tied to a single service |
+| Ease of use | Runs with default configuration; advanced users can extend models and tools |
+| Portability | Single binary or few files, easy to deploy on servers, local machines, or containers |
+| All-Go implementation | Core and surrounding code in Go; call external APIs from Go when needed; no Python/Node runtime dependencies |
 
-## 4. 核心能力（规划）
+## 4. Core Capabilities (Planned)
 
-- **LLM 接入**：支持主流 API（OpenAI 兼容、本地模型等），统一抽象
-- **对话与历史**：多轮对话、上下文管理、可选持久化
-- **工具/插件**：可扩展的工具调用（如搜索、执行命令、读文件等），接口用 Go 定义
-- **TUI 体验**：基于 Bubble Tea 的聊天式界面、状态栏、简单菜单与配置入口
+- **LLM integration**: Support mainstream APIs (OpenAI-compatible, local models, etc.) with a unified abstraction
+- **Conversation and history**: Multi-turn dialogue, context management, optional persistence
+- **Tools/plugins**: Extensible tool calls (e.g. search, run commands, read files); interfaces defined in Go
+- **TUI experience**: Bubble Tea–based chat UI, status bar, simple menus and config entry points
 
-## 5. 项目目录结构
+## 5. Project Directory Structure
 
-遵循一般 Golang 项目约定，当前结构如下：
+Following common Golang project conventions, the current structure is:
 
 ```
 buildmax/
 ├── cmd/
-│   └── buildmax/          # 可执行程序入口
+│   └── buildmax/          # Executable entry point
 │       └── main.go
-├── internal/              # 私有包（仅本项目使用）
-│   ├── app/               # 应用启动与 TUI 程序入口
-│   ├── tui/               # Bubble Tea 模型与视图
-│   ├── agent/             # 核心 Agent 逻辑（规划/工具/对话）
-│   ├── llm/               # LLM 客户端抽象与实现
-│   └── config/            # 配置加载与默认值
-├── configs/               # 配置文件（示例等）
-├── design/                # 设计文档
-├── scripts/               # 构建、安装等脚本
+├── internal/              # Private packages (this project only)
+│   ├── app/               # App bootstrap and TUI program entry
+│   ├── tui/               # Bubble Tea models and views
+│   ├── agent/             # Core Agent logic (planning/tools/conversation)
+│   ├── llm/               # LLM client abstraction and implementations
+│   └── config/            # Config loading and defaults
+├── configs/               # Config files (examples, etc.)
+├── task/                  # Task documents
+├── scripts/               # Build, install, and other scripts
 ├── go.mod
 ├── go.sum
 └── README.md
 ```
 
-- **cmd/**：每个子目录对应一个可执行程序，`cmd/buildmax` 为当前唯一 CLI。
-- **internal/**：不对外暴露的包，便于后续拆分或开放部分到 **pkg/**。
+- **cmd/**: Each subdirectory corresponds to one executable; `cmd/buildmax` is the only CLI for now.
+- **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
 
-## 6. 文档与仓库
+## 6. Documentation and Repository
 
-- 设计文档：`design/project.md`（本文档）
-- 代码与脚本：仓库根目录，Go Module 管理
+- Task docs: e.g `task/001.md`, and design doc 'task/001-design.md'
+- Code and scripts: repository root, managed with Go modules
+
+## 7. Build&Test
+- Use ./make build to build the project after code change
+- Use ./make test to run go test
+- Do NOT use ./make run, as it is for maunal testing
 
 ---
 
-*本文档随项目演进持续更新。*
+*This document is updated as the project evolves.*
