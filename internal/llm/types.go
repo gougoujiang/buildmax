@@ -4,10 +4,10 @@ package llm
 
 // Message represents a chat message for the API (user, assistant, or tool).
 type Message struct {
-	Role       string     // "user", "assistant", "system", or "tool"
-	Content    string     // message content
-	ToolCallID string     // for role "tool": the ID of the tool call this result answers
-	ToolCalls  []ToolCall // for role "assistant": tool calls made by the model
+	Role       string     `json:"role"`                    // "user", "assistant", "system", or "tool"
+	Content    string     `json:"content,omitempty"`       // message content
+	ToolCallID string     `json:"tool_call_id,omitempty"`  // for role "tool": the ID of the tool call this result answers
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`    // for role "assistant": tool calls made by the model
 }
 
 // ToolDef describes a tool (function) the model can call.
@@ -19,7 +19,7 @@ type ToolDef struct {
 
 // ToolCall is a tool invocation returned by the model.
 type ToolCall struct {
-	ID        string // unique id for this call
-	Name      string // tool name to invoke
-	Arguments string // JSON object of arguments
+	ID        string `json:"id"`               // unique id for this call
+	Name      string `json:"name"`             // tool name to invoke
+	Arguments string `json:"arguments,omitempty"` // JSON object of arguments
 }

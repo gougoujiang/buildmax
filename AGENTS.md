@@ -79,6 +79,12 @@ buildmax/
 - Task docs: e.g `task/001.md`, and design doc 'task/001-design.md'
 - Code and scripts: repository root, managed with Go modules
 
+### 6.1 Persistence naming style
+
+- **Use the same naming style for all persisted data** (e.g. session files, config, any JSON on disk).
+- **Convention: snake_case** for JSON object keys (e.g. `created_at`, `tool_call_id`, `tool_calls`).
+- Ensure structs that are serialized to disk have explicit `json:"snake_case"` tags so the on-disk format is consistent; do not rely on Go’s default (PascalCase) for persisted fields.
+
 ## 7. Build&Test
 - Use ./make build to build the project after code change
 - Use ./make test to run go test

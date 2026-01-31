@@ -2,11 +2,25 @@
 package session
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
 	"buildmax/internal/llm"
 )
+
+// sessionFile is the JSON representation of a session on disk.
+// Used only for encoding/decoding; Session's internal fields stay unexported.
+// omitempty skips null/empty values so persisted JSON stays minimal.
+type sessionFile struct {
+	ID        string        `json:"id"`
+	Title     string        `json:"title,omitempty"`
+	CreatedAt string        `json:"created_at"` // RFC3339
+	Messages  []llm.Message `json:"messages,omitempty"`
+}
 
 // Session holds conversation history (user, assistant, tool messages) and metadata.
 // The system message is not stored; it is prepended at call time by the agent.
@@ -25,6 +39,22 @@ func NewSession(title string) *Session {
 		title:     title,
 		createdAt: time.Now(),
 		messages:  nil,
+	}
+}
+
+// NewSessionFromData constructs a Session from persisted data (e.g. after LoadFromDir).
+// Used to restore a session without exporting Session's internal fields.
+func NewSessionFromData(id, title string, createdAt time.Time, messages []llm.Message) *Session {
+	var msgs []llm.Message
+	if len(messages) > 0 {
+		msgs = make([]llm.Message, len(messages))
+		copy(msgs, messages)
+	}
+	return &Session{
+		id:        id,
+		title:     title,
+		createdAt: createdAt,
+		messages:  msgs,
 	}
 }
 
@@ -63,4 +93,46 @@ func (s *Session) CreatedAt() time.Time {
 // SetTitle sets the session title (for future use).
 func (s *Session) SetTitle(title string) {
 	s.title = title
+}
+
+// SaveToDir serializes the session to JSON and writes it to dir/<s.ID()>.json.
+// Creates dir (and parents) if it does not exist.
+func SaveToDir(s *Session, dir string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	f := sessionFile{
+		ID:        s.ID(),
+		Title:     s.Title(),
+		CreatedAt: s.CreatedAt().Format(time.RFC3339),
+		Messages:  s.Messages(),
+	}
+	data, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, s.ID()+".json")
+	return os.WriteFile(path, data, 0644)
+}
+
+// LoadFromDir reads dir/<sessionID>.json and returns a Session.
+// Returns a clear error if the file is missing or the JSON is invalid.
+func LoadFromDir(dir string, sessionID string) (*Session, error) {
+	path := filepath.Join(dir, sessionID+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("session not found: %s", sessionID)
+		}
+		return nil, err
+	}
+	var f sessionFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return nil, fmt.Errorf("invalid session file: %w", err)
+	}
+	createdAt, err := time.Parse(time.RFC3339, f.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid session file: bad created_at: %w", err)
+	}
+	return NewSessionFromData(f.ID, f.Title, createdAt, f.Messages), nil
 }

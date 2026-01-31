@@ -3,6 +3,8 @@ setlocal
 
 rem API key for OpenRouter (used by make run)
 set "OPENROUTER_API_KEY=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"
+set "GITHUB_TOKEN=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"
+
 
 if "%~1"=="" goto usage
 if /i "%~1"=="build" goto build
@@ -27,7 +29,7 @@ go build -o buildmax.exe ./cmd/buildmax
 if errorlevel 1 exit /b 1
 rem reset log level to debug
 set "BUILDMAX_LOG_LEVEL=debug"
-buildmax.exe -p "What is said in file example/Shakespeare.txt?"
+buildmax.exe -p "What is said in file example/shakespeare.txt?"
 exit /b %errorlevel%
 
 :usage

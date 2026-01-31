@@ -1,6 +1,9 @@
 package session
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -89,5 +92,118 @@ func TestID_Title_SetTitle(t *testing.T) {
 	s.SetTitle("new")
 	if s.Title() != "new" {
 		t.Errorf("after SetTitle: Title() = %q, want new", s.Title())
+	}
+}
+
+func TestSaveToDir_CreatesFileWithValidJSON(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSession("test title")
+	s.Append(llm.Message{Role: "user", Content: "hello"})
+
+	if err := SaveToDir(s, dir); err != nil {
+		t.Fatalf("SaveToDir: %v", err)
+	}
+	path := filepath.Join(dir, s.ID()+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var f sessionFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatalf("JSON invalid: %v", err)
+	}
+	if f.ID != s.ID() || f.Title != s.Title() {
+		t.Errorf("id=%q title=%q, want %q %q", f.ID, f.Title, s.ID(), s.Title())
+	}
+	if f.CreatedAt == "" {
+		t.Error("created_at empty")
+	}
+	if _, err := time.Parse(time.RFC3339, f.CreatedAt); err != nil {
+		t.Errorf("created_at not RFC3339: %v", err)
+	}
+	if len(f.Messages) != 1 || f.Messages[0].Content != "hello" {
+		t.Errorf("messages = %v", f.Messages)
+	}
+}
+
+func TestLoadFromDir_AfterSaveReturnsSameSession(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSession("round-trip")
+	s.Append(llm.Message{Role: "user", Content: "a"})
+	s.Append(llm.Message{Role: "assistant", Content: "b"})
+	if err := SaveToDir(s, dir); err != nil {
+		t.Fatalf("SaveToDir: %v", err)
+	}
+
+	loaded, err := LoadFromDir(dir, s.ID())
+	if err != nil {
+		t.Fatalf("LoadFromDir: %v", err)
+	}
+	if loaded.ID() != s.ID() {
+		t.Errorf("ID() = %q, want %q", loaded.ID(), s.ID())
+	}
+	if loaded.Title() != s.Title() {
+		t.Errorf("Title() = %q, want %q", loaded.Title(), s.Title())
+	}
+	// RFC3339 has second precision; round-trip may truncate subsecond
+	if !loaded.CreatedAt().Truncate(time.Second).Equal(s.CreatedAt().Truncate(time.Second)) {
+		t.Errorf("CreatedAt() = %v, want %v", loaded.CreatedAt(), s.CreatedAt())
+	}
+	got := loaded.Messages()
+	want := s.Messages()
+	if len(got) != len(want) {
+		t.Fatalf("Messages() length = %d, want %d", len(got), len(want))
+	}
+	for i := range got {
+		if got[i].Role != want[i].Role || got[i].Content != want[i].Content {
+			t.Errorf("Messages()[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestLoadFromDir_MissingFileReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	_, err := LoadFromDir(dir, "nonexistent-id")
+	if err == nil {
+		t.Fatal("LoadFromDir: want error for missing file")
+	}
+	if err.Error() != "session not found: nonexistent-id" {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
+func TestLoadFromDir_InvalidJSONReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad-id.json")
+	if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	_, err := LoadFromDir(dir, "bad-id")
+	if err == nil {
+		t.Fatal("LoadFromDir: want error for invalid JSON")
+	}
+}
+
+func TestSaveToDir_LoadFromDir_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSession("")
+	s.Append(llm.Message{Role: "user", Content: "Hi"})
+	s.Append(llm.Message{Role: "assistant", Content: "Hello"})
+	if err := SaveToDir(s, dir); err != nil {
+		t.Fatalf("SaveToDir: %v", err)
+	}
+	loaded, err := LoadFromDir(dir, s.ID())
+	if err != nil {
+		t.Fatalf("LoadFromDir: %v", err)
+	}
+	got := loaded.Messages()
+	want := s.Messages()
+	if len(got) != len(want) {
+		t.Fatalf("Messages() length = %d, want %d", len(got), len(want))
+	}
+	for i := range got {
+		if got[i].Role != want[i].Role || got[i].Content != want[i].Content {
+			t.Errorf("Messages()[%d] = %+v, want %+v", i, got[i], want[i])
+		}
 	}
 }
