@@ -16,8 +16,15 @@ type LLM struct {
 // DefaultOpenRouterBaseURL is the OpenRouter OpenAI-compatible API base URL.
 const DefaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"
 
-// DefaultModel is a common default model on OpenRouter.
-const DefaultModel = "openai/gpt-3.5-turbo"
+// Model names on OpenRouter (switch DefaultModel to use one).
+const (
+	ModelGPT35Turbo      = "openai/gpt-3.5-turbo" // NOT FREE
+	ModelGemma327bItFree = "google/gemma-3-27b-it:free"
+	ModelGLM45AirFree    = "z-ai/glm-4.5-air:free"
+)
+
+// DefaultModel is the model used when BUILDMAX_MODEL is not set.
+const DefaultModel = ModelGemma327bItFree
 
 // LoadLLM loads LLM config from environment.
 // OPENROUTER_API_KEY or BUILDMAX_API_KEY for API key;

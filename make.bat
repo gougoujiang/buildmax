@@ -23,11 +23,8 @@ exit /b %errorlevel%
 :run
 if not exist testing-sandbox mkdir testing-sandbox
 set "HOME_DIR=%CD%\testing-sandbox"
-if not exist buildmax.exe (
-  echo building first...
-  call go build -o buildmax.exe ./cmd/buildmax
-  if errorlevel 1 exit /b 1
-)
+go build -o buildmax.exe ./cmd/buildmax
+if errorlevel 1 exit /b 1
 buildmax.exe -p "what can you do"
 exit /b %errorlevel%
 
