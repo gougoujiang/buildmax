@@ -33,4 +33,4 @@ go.work.sum
 buildmax.exe
 buildmax
 
-./testing-sandbox/
+testing-sandbox/

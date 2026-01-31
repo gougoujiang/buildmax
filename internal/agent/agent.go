@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"buildmax/internal/llm"
 )
@@ -72,24 +73,27 @@ func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
 
 // Process runs the agent loop for one user message and returns the final assistant reply.
 func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, err error) {
+	slog.Info("agent process started")
 	messages := []llm.Message{
 		{Role: "user", Content: userMessage},
 	}
 	for i := 0; i < a.maxIter; i++ {
+		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
 		content, toolCalls, err := a.caller.ChatWithTools(ctx, messages, a.toolDefs)
 		if err != nil {
+			slog.Error("LLM call failed", "err", err)
 			return "", fmt.Errorf("llm call: %w", err)
 		}
 		if len(toolCalls) == 0 {
+			slog.Debug("agent reply", "len", len(content))
 			return content, nil
 		}
-		// Append assistant message (content + tool_calls)
+		slog.Debug("tool calls", "n", len(toolCalls))
 		messages = append(messages, llm.Message{
 			Role:      "assistant",
 			Content:   content,
 			ToolCalls: toolCalls,
 		})
-		// Execute each tool and append tool result messages
 		for _, tc := range toolCalls {
 			tool, ok := a.toolsByName[tc.Name]
 			if !ok {
@@ -130,5 +134,6 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 			})
 		}
 	}
+	slog.Warn("agent max iterations exceeded")
 	return "", errors.New("agent: max iterations exceeded")
 }
