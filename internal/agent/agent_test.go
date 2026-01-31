@@ -132,6 +132,54 @@ func TestProcess_WithToolCall(t *testing.T) {
 	}
 }
 
+// recordingLLMCaller wraps an LLMCaller and records the messages from the first ChatWithTools call.
+type recordingLLMCaller struct {
+	inner    *mockLLMCaller
+	firstMsg []llm.Message
+	once     sync.Once
+}
+
+func (r *recordingLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, err error) {
+	r.once.Do(func() {
+		r.firstMsg = make([]llm.Message, len(messages))
+		copy(r.firstMsg, messages)
+	})
+	return r.inner.ChatWithTools(ctx, messages, tools)
+}
+
+// TestProcess_SystemPromptPrepend verifies that the first ChatWithTools call receives
+// a system message with DefaultSystemPrompt first, then the user message.
+func TestProcess_SystemPromptPrepend(t *testing.T) {
+	ctx := context.Background()
+	userMsg := "Hello, assistant."
+	inner := &mockLLMCaller{
+		responses: []mockResponse{
+			{content: "Hi there.", toolCalls: nil},
+		},
+	}
+	rec := &recordingLLMCaller{inner: inner}
+	a := NewAgent(rec, nil)
+	_, err := a.Process(ctx, userMsg)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(rec.firstMsg) < 2 {
+		t.Fatalf("first call: len(messages) = %d, want at least 2", len(rec.firstMsg))
+	}
+	if rec.firstMsg[0].Role != "system" {
+		t.Errorf("messages[0].Role = %q, want \"system\"", rec.firstMsg[0].Role)
+	}
+	if rec.firstMsg[0].Content != DefaultSystemPrompt {
+		t.Errorf("messages[0].Content = %q, want %q", rec.firstMsg[0].Content, DefaultSystemPrompt)
+	}
+	if rec.firstMsg[1].Role != "user" {
+		t.Errorf("messages[1].Role = %q, want \"user\"", rec.firstMsg[1].Role)
+	}
+	if rec.firstMsg[1].Content != userMsg {
+		t.Errorf("messages[1].Content = %q, want %q", rec.firstMsg[1].Content, userMsg)
+	}
+}
+
 // TestProcess_MaxIterationsExceeded asserts that when the LLM keeps returning tool_calls
 // without ever returning final content, Process returns an error after max iterations.
 func TestProcess_MaxIterationsExceeded(t *testing.T) {

@@ -15,6 +15,13 @@ import (
 // DefaultMaxIterations is the default cap on agent loop iterations.
 const DefaultMaxIterations = 10
 
+// DefaultSystemPrompt is the default system message sent at the start of every Process run.
+// It declares the assistant role and behavioral guidelines so the LLM behaves consistently.
+const DefaultSystemPrompt = `You are BuildMax, an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
+
+# Professional objectivity
+Prioritize technical accuracy and truthfulness over validating the user's beliefs. Focus on facts and problem-solving, providing direct, objective technical info without any unnecessary superlatives, praise, or emotional validation. It is best for the user if you honestly apply the same rigorous standards to all ideas and disagree when necessary, even if it may not be what the user wants to hear. Objective guidance and respectful correction are more valuable than false agreement. Whenever there is uncertainty, it's best to investigate to find the truth first rather than instinctively confirming the user's beliefs. Avoid using over-the-top validation or excessive praise when responding to users such as "You're absolutely right" or similar phrases.`
+
 // Tool is a capability the agent can invoke by name.
 type Tool interface {
 	Name() string
@@ -76,6 +83,7 @@ func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
 func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, err error) {
 	slog.Info("agent process started")
 	messages := []llm.Message{
+		{Role: "system", Content: DefaultSystemPrompt},
 		{Role: "user", Content: userMessage},
 	}
 	slog.Info("user message", "content", userMessage)
