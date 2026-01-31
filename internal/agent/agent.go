@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"buildmax/internal/llm"
+	"buildmax/internal/session"
 )
 
 // DefaultMaxIterations is the default cap on agent loop iterations.
 const DefaultMaxIterations = 10
 
-// DefaultSystemPrompt is the default system message sent at the start of every Process run.
+// DefaultSystemPrompt is the default system message sent at the start of every agent run.
 // It declares the assistant role and behavioral guidelines so the LLM behaves consistently.
 const DefaultSystemPrompt = `You are BuildMax, an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
 
@@ -79,16 +80,17 @@ func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
 	return a
 }
 
-// Process runs the agent loop for one user message and returns the final assistant reply.
-func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, err error) {
-	slog.Info("agent process started")
-	messages := []llm.Message{
-		{Role: "system", Content: DefaultSystemPrompt},
-		{Role: "user", Content: userMessage},
-	}
+// Process runs the agent loop for one user message using the given session:
+// appends the user message to the session, builds messages as system + session.Messages(),
+// runs the loop (LLM call → tool calls if any → append to session), and returns the final assistant reply.
+func (a *Agent) Process(ctx context.Context, sess *session.Session, userMessage string) (reply string, err error) {
+	slog.Info("agent process with session started")
+	sess.Append(llm.Message{Role: "user", Content: userMessage})
 	slog.Info("user message", "content", userMessage)
+
 	for i := 0; i < a.maxIter; i++ {
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
+		messages := append([]llm.Message{{Role: "system", Content: DefaultSystemPrompt}}, sess.Messages()...)
 		content, toolCalls, err := a.caller.ChatWithTools(ctx, messages, a.toolDefs)
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)
@@ -96,10 +98,11 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 		}
 		if len(toolCalls) == 0 {
 			slog.Debug("agent reply", "content", content)
+			sess.Append(llm.Message{Role: "assistant", Content: content})
 			return content, nil
 		}
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
-		messages = append(messages, llm.Message{
+		sess.Append(llm.Message{
 			Role:      "assistant",
 			Content:   content,
 			ToolCalls: toolCalls,
@@ -107,7 +110,7 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 		for _, tc := range toolCalls {
 			tool, ok := a.toolsByName[tc.Name]
 			if !ok {
-				messages = append(messages, llm.Message{
+				sess.Append(llm.Message{
 					Role:       "tool",
 					Content:    fmt.Sprintf("error: unknown tool %q", tc.Name),
 					ToolCallID: tc.ID,
@@ -117,7 +120,7 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 			var args map[string]any
 			if tc.Arguments != "" {
 				if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-					messages = append(messages, llm.Message{
+					sess.Append(llm.Message{
 						Role:       "tool",
 						Content:    fmt.Sprintf("error: invalid arguments: %v", err),
 						ToolCallID: tc.ID,
@@ -131,7 +134,7 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 			result, err := tool.Execute(ctx, args)
 			if err != nil {
 				slog.Debug("tool result", "tool", tc.Name, "error", err.Error())
-				messages = append(messages, llm.Message{
+				sess.Append(llm.Message{
 					Role:       "tool",
 					Content:    fmt.Sprintf("error: %v", err),
 					ToolCallID: tc.ID,
@@ -143,7 +146,7 @@ func (a *Agent) Process(ctx context.Context, userMessage string) (reply string, 
 				resultPreview = resultPreview[:500] + "..."
 			}
 			slog.Debug("tool result", "tool", tc.Name, "content", resultPreview)
-			messages = append(messages, llm.Message{
+			sess.Append(llm.Message{
 				Role:       "tool",
 				Content:    result,
 				ToolCallID: tc.ID,
