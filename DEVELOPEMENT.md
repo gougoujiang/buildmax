@@ -1,0 +1,3 @@
+OpenRouter API Key:
+
+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
