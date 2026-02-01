@@ -20,6 +20,12 @@ var messageBarStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)
 // userMessageStyle gives user message text a lighter, tinted color so it's easy to distinguish from assistant messages.
 var userMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#B8D4E3"))
 
+// bannerBoxStyle wraps the banner + version in a wireframe box (light sky blue border).
+var bannerBoxStyle = lipgloss.NewStyle().
+	BorderStyle(lipgloss.RoundedBorder()).
+	BorderForeground(lightSkyBlue).
+	Padding(0, 1)
+
 // formatMessage returns display lines for a single chat message:
 // user → content only (leading ">" added in buildViewportContent); assistant → content plus " * name (args)" per tool call (leading bullet in buildViewportContent);
 // tool → optional " * result: ..." or omit.
@@ -129,10 +135,17 @@ func buildViewportContent(sess *session.Session, version string, width int, busy
 	}
 	var b strings.Builder
 	// Top margin so the banner is not clipped by the terminal title/tab bar.
+	b.WriteString("\n\n")
+	b.WriteString(bannerBoxStyle.Render(strings.TrimSuffix(bannerWithVersion(version), "\n")))
 	b.WriteString("\n")
-	b.WriteString(bannerWithVersion(version))
-	b.WriteString("\n")
-	for _, m := range sess.Messages() {
+	messages := sess.Messages()
+	if len(messages) > 0 {
+		b.WriteString("\n") // margin between banner and first message
+	}
+	for i, m := range messages {
+		if i > 0 {
+			b.WriteString("\n") // margin between messages
+		}
 		for _, line := range formatMessage(m) {
 			var prefix string
 			switch m.Role {
@@ -150,6 +163,9 @@ func buildViewportContent(sess *session.Session, version string, width int, busy
 		}
 	}
 	if busy {
+		if len(messages) > 0 {
+			b.WriteString("\n") // margin before carousel, same as between messages
+		}
 		dots := []string{".", "..", "..."}
 		idx := carouselDots % 3
 		line := messageBarStyle.Render("• ") + dots[idx]
