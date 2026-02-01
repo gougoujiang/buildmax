@@ -29,6 +29,9 @@ const (
 // a handler with the same level. Defaults to Info so SetOutput without Init still works.
 var currentLevel = slog.LevelInfo
 
+// fileWriter is the rotating log file writer, if Init() created one. Used by DisableConsole.
+var fileWriter io.Writer
+
 // Init configures slog.Default() with level from BUILDMAX_LOG_LEVEL, creates
 // config.DataDir()/logs, and sets output to both stderr and a rotating file
 // (buildmax.log) via Lumberjack.
@@ -39,6 +42,7 @@ func Init() {
 	logsDir := filepath.Join(config.DataDir(), logsSubdir)
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		// Fall back to stderr only if we cannot create logs dir
+		fileWriter = nil
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 		return
 	}
@@ -50,9 +54,22 @@ func Init() {
 		MaxAge:     logMaxAgeDays,
 		Compress:   logCompress,
 	}
+	fileWriter = lj
 
 	w := io.MultiWriter(os.Stderr, lj)
 	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})))
+}
+
+// DisableConsole reconfigures slog.Default() to stop writing to the terminal
+// (stderr). In TUI mode the console is used for user interaction, so logs
+// must not be sent there. Logs continue to go to the file if one was created
+// in Init(); otherwise they are discarded.
+func DisableConsole() {
+	if fileWriter != nil {
+		slog.SetDefault(slog.New(slog.NewTextHandler(fileWriter, &slog.HandlerOptions{Level: currentLevel})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: currentLevel})))
+	}
 }
 
 // SetOutput replaces slog.Default() with a logger that writes only to w,
