@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"buildmax/internal/agent"
 	"buildmax/internal/app"
@@ -24,12 +25,14 @@ const rootLong = `BuildMax – AI Agent CLI
 
   buildmax                    Start the TUI (new session)
   buildmax -r ID              Start the TUI with session ID
+  buildmax -c                 Resume the most recent session (TUI or prompt mode)
   buildmax -p PROMPT          Send PROMPT to the LLM and print the response (no TUI)
   buildmax -r ID -p PROMPT    Resume session ID, send PROMPT, then save
 
 Sessions:
   Each run with -p saves the session under the app data directory (see HOME_DIR or ~/.buildmax).
   Use -r/--resume <session-id> to continue a previous session (TUI or prompt mode).
+  Use -c/--continue to resume the most recent session (by creation time); -r takes precedence if both are set.
 
 Environment (for -p):
   OPENROUTER_API_KEY or BUILDMAX_API_KEY   API key (required for -p)
@@ -47,6 +50,7 @@ func newRootCommand() *cobra.Command {
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
 	root.Flags().StringP("prompt", "p", "", "prompt to send to the LLM; prints response and exits")
 	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or prompt mode)")
+	root.Flags().BoolP("continue", "c", false, "resume the most recent session (by creation time)")
 	root.AddCommand(newVersionCommand())
 	return root
 }
@@ -54,6 +58,22 @@ func newRootCommand() *cobra.Command {
 func runRoot(cmd *cobra.Command, _ []string) error {
 	prompt, _ := cmd.Flags().GetString("prompt")
 	resumeID, _ := cmd.Flags().GetString("resume")
+	cont, _ := cmd.Flags().GetBool("continue")
+	if cont && resumeID == "" {
+		sessionsDir := filepath.Join(config.DataDir(), "sessions")
+		list, err := session.LoadList(sessionsDir)
+		if err != nil {
+			slog.Error("load session list failed", "err", err)
+			return fmt.Errorf("load session list: %w", err)
+		}
+		last := session.LastByCreatedAt(list)
+		if last == nil {
+			fmt.Fprintln(os.Stderr, "no sessions found; create one with -p PROMPT or start the TUI")
+			return fmt.Errorf("no sessions to continue")
+		}
+		resumeID = last.ID
+		slog.Info("continue with last session", "id", resumeID)
+	}
 	if prompt != "" {
 		slog.Info("running prompt mode")
 		runPromptMode(prompt, resumeID)
@@ -176,8 +196,20 @@ func runPromptMode(prompt string, resumeID string) {
 		os.Exit(1)
 	}
 
+	session.EnsureTitleFromFirstUserMessage(sess, 100)
 	if err := session.SaveToDir(sess, sessionsDir); err != nil {
 		slog.Error("save session failed", "err", err)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	entry := session.ListEntry{
+		ID:        sess.ID(),
+		Title:     sess.Title(),
+		Workspace: cwd,
+		CreatedAt: sess.CreatedAt().Format(time.RFC3339),
+	}
+	if err := session.UpsertListEntry(sessionsDir, entry); err != nil {
+		slog.Error("upsert session list failed", "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

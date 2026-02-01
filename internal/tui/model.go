@@ -269,9 +269,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, false, 0)
 			m.viewport.SetContent(content)
 			m.viewport.GotoBottom()
+			session.EnsureTitleFromFirstUserMessage(m.opts.Session, 100)
 			if err := session.SaveToDir(m.opts.Session, m.opts.SessionsDir); err != nil {
 				slog.Error("save session failed", "err", err)
 				m.err = err.Error()
+			} else {
+				entry := session.ListEntry{
+					ID:        m.opts.Session.ID(),
+					Title:     m.opts.Session.Title(),
+					Workspace: m.opts.Workspace,
+					CreatedAt: m.opts.Session.CreatedAt().Format(time.RFC3339),
+				}
+				if err := session.UpsertListEntry(m.opts.SessionsDir, entry); err != nil {
+					slog.Error("upsert session list failed", "err", err)
+					m.err = err.Error()
+				}
 			}
 		}
 		return m, nil
