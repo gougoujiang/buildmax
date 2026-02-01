@@ -79,20 +79,38 @@ func shortArgs(raw string) string {
 	return raw[:maxArgsDisplayLen-3] + "..."
 }
 
-// wrapLine breaks line into chunks of at most width runes (view port width); returns one or more lines.
+// wrapLine breaks line into chunks of at most width runes, preferring to break at spaces so words are not split.
 func wrapLine(line string, width int) []string {
 	if width <= 0 {
 		return []string{line}
 	}
 	var out []string
 	runes := []rune(line)
-	for len(runes) > 0 {
-		n := width
-		if n > len(runes) {
-			n = len(runes)
+	start := 0
+	for start < len(runes) {
+		end := start + width
+		if end > len(runes) {
+			end = len(runes)
 		}
-		out = append(out, string(runes[:n]))
-		runes = runes[n:]
+		if end == len(runes) {
+			out = append(out, string(runes[start:end]))
+			start = end
+			continue
+		}
+		// Prefer break at last space in this chunk so we don't split a word.
+		lastSpace := -1
+		for i := start; i < end; i++ {
+			if runes[i] == ' ' || runes[i] == '\t' {
+				lastSpace = i
+			}
+		}
+		if lastSpace >= start {
+			out = append(out, string(runes[start:lastSpace+1]))
+			start = lastSpace + 1
+		} else {
+			out = append(out, string(runes[start:end]))
+			start = end
+		}
 	}
 	if len(out) == 0 {
 		out = append(out, "")

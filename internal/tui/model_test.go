@@ -135,4 +135,12 @@ func TestWrapLine(t *testing.T) {
 			t.Errorf("wrapLine(%q, %d) returned %d lines, want %d: %q", tt.line, tt.width, len(got), tt.expect, got)
 		}
 	}
+	// Word wrap: break at space so "Operations" is not split into "Op" + "erations"
+	got := wrapLine("**File Operations:**", 12)
+	if len(got) != 2 {
+		t.Fatalf("wrapLine(\"**File Operations:**\", 12) want 2 lines, got %d: %q", len(got), got)
+	}
+	if got[0] != "**File " || got[1] != "Operations:**" {
+		t.Errorf("wrapLine(\"**File Operations:**\", 12) = %q, want [\"**File \", \"Operations:**\"]", got)
+	}
 }

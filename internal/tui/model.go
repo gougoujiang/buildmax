@@ -14,14 +14,14 @@ import (
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 const (
 	footerLines   = 1
 	inputMinLines = 1
-	inputMaxLines = 5
+	inputMaxLines = 3   // max lines for input; grows from 1 as user types, viewport shrinks
 	carouselTick  = 400 // ms between carousel dot updates
 )
 
@@ -74,10 +74,8 @@ func NewModel(opts TUIOpts) Model {
 	ti := textarea.New()
 	ti.Placeholder = "Type a message..."
 	ti.ShowLineNumbers = false
-	ti.SetHeight(inputMinLines)
-	ti.SetWidth(76) // leave room for input box border and padding
-	// Allow multi-line input: max inputMaxLines so long messages wrap and chat stays visible.
-	ti.SetHeight(inputMaxLines)
+	ti.SetHeight(inputMinLines) // start as one line; syncInputHeight will grow up to inputMaxLines as user types
+	ti.SetWidth(76)             // leave room for input box border and padding
 	// Set focus on the textarea so it receives keys and shows the cursor.
 	// (Init() receives a copy of the model, so Focus() there would not persist.)
 	ti.Focus()
@@ -97,6 +95,32 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, m.input.Focus())
 }
 
+// desiredInputHeight returns how many lines the input should use (1 to inputMaxLines) based on wrapped content.
+func desiredInputHeight(value string, width int) int {
+	if width <= 0 {
+		return inputMinLines
+	}
+	n := 0
+	for _, line := range strings.Split(value, "\n") {
+		n += len(wrapLine(line, width))
+	}
+	if n == 0 {
+		return inputMinLines
+	}
+	if n > inputMaxLines {
+		return inputMaxLines
+	}
+	return n
+}
+
+// syncInputHeight sets the textarea height to match wrapped content (1 to inputMaxLines).
+func (m *Model) syncInputHeight() {
+	want := desiredInputHeight(m.input.Value(), m.input.Width())
+	if want != m.input.Height() {
+		m.input.SetHeight(want)
+	}
+}
+
 // runAgentAfterUserAppended runs agent.ProcessAfterUserAppended in the background (user message already in session).
 func runAgentAfterUserAppended(opts TUIOpts) tea.Msg {
 	reply, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session)
@@ -113,6 +137,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
+		case tea.KeyEscape:
+			if !m.busy {
+				m.input.Reset()
+				(&m).syncInputHeight()
+			}
+			return m, nil
 		case tea.KeyEnter:
 			if m.busy {
 				return m, nil
@@ -122,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.input.Reset()
+			(&m).syncInputHeight() // shrink back to 1 line after send
 			m.opts.Session.Append(llm.Message{Role: "user", Content: text})
 			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, true, 0)
 			m.viewport.SetContent(content)
@@ -140,6 +171,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Forward all keys (including runes for typing) to input
 		m.input, cmd = m.input.Update(msg)
+		(&m).syncInputHeight() // grow up to 3 lines as user types
 		return m, cmd
 
 	case tea.WindowSizeMsg:
@@ -159,6 +191,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			inputW = 8
 		}
 		m.input.SetWidth(inputW)
+		(&m).syncInputHeight() // recompute height after width change
 		return m, nil
 
 	case agentDoneMsg:
@@ -196,6 +229,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward other keys to input
 	m.input, cmd = m.input.Update(msg)
+	(&m).syncInputHeight()
 	return m, cmd
 }
 
@@ -226,7 +260,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	// Footer
-	footer := "model: " + m.opts.ModelName + " | " + m.opts.Workspace + " | ctrl+c: quit"
+	footer := "model: " + m.opts.ModelName + " | @" + m.opts.Workspace + " | ctrl+c: quit | esc: clear"
 	if m.err != "" {
 		footer += " | error: " + m.err
 	}
