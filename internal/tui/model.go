@@ -62,6 +62,7 @@ func NewModel(opts TUIOpts) Model {
 
 	ti := textarea.New()
 	ti.Placeholder = "Type a message..."
+	ti.ShowLineNumbers = false
 	ti.SetHeight(inputMinLines)
 	ti.SetWidth(76) // leave room for input box border and padding
 	// Set focus on the textarea so it receives keys and shows the cursor.
