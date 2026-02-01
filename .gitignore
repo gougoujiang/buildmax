@@ -30,7 +30,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-buildmax.exe
-buildmax
+# Built binary at repo root (do not ignore cmd/buildmax source)
+/buildmax.exe
+/buildmax
 
 testing-sandbox/
