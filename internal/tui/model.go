@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	footerLines   = 1
-	inputMinLines = 1
-	inputMaxLines = 3   // max lines for input; grows from 1 as user types, viewport shrinks
-	carouselTick  = 400 // ms between carousel dot updates
+	footerLines      = 1
+	inputMinLines    = 1
+	inputMaxLines    = 3   // max lines for input; grows from 1 as user types, viewport shrinks
+	carouselTick     = 400 // ms between carousel dot updates
+	scrollIdleDelay  = 1500 // ms of no scroll before focus returns to input
 )
 
 // Light sky blue theme color for input border and message bar.
@@ -53,6 +54,9 @@ type agentDoneMsg struct {
 // carouselTickMsg is sent by tea.Tick to advance the assistant "..." carousel.
 type carouselTickMsg struct{}
 
+// scrollIdleMsg is sent after scrollIdleDelay ms of no scroll; when its id matches lastScrollID, focus returns to input.
+type scrollIdleMsg struct{ id int }
+
 // Model is the root Bubble Tea model: viewport (banner + chat), input, footer.
 type Model struct {
 	opts         TUIOpts
@@ -63,6 +67,8 @@ type Model struct {
 	width        int
 	height       int
 	carouselDots int // 0, 1, 2 for ".", "..", "..."
+	focusInput   bool // true = input has focus; false = viewport has scroll focus
+	lastScrollID int // used to ignore stale scroll-idle timers when user scrolls again
 }
 
 // NewModel builds a TUI model with viewport (banner + chat), input, and stored opts.
@@ -81,11 +87,12 @@ func NewModel(opts TUIOpts) Model {
 	ti.Focus()
 
 	m := Model{
-		opts:     opts,
-		viewport: vp,
-		input:    ti,
-		width:    80,
-		height:   24,
+		opts:       opts,
+		viewport:   vp,
+		input:      ti,
+		width:      80,
+		height:     24,
+		focusInput: true, // input focused by default
 	}
 	return m
 }
@@ -127,16 +134,77 @@ func runAgentAfterUserAppended(opts TUIOpts) tea.Msg {
 	return agentDoneMsg{Reply: reply, Err: err}
 }
 
-// Update handles messages: keys (quit, submit), resize, agentDoneMsg.
+// FocusInput returns true when the input has focus, false when the viewport has scroll focus.
+// Used by tests to assert focus state.
+func (m Model) FocusInput() bool {
+	return m.focusInput
+}
+
+// isScrollKey returns true for keys that scroll the viewport (Up, Down, PgUp, PgDown, Home, End).
+func isScrollKey(msg tea.KeyMsg) bool {
+	switch msg.Type {
+	case tea.KeyUp, tea.KeyDown, tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:
+		return true
+	default:
+		return false
+	}
+}
+
+// scheduleScrollIdleReturn increments lastScrollID and returns a Cmd that sends scrollIdleMsg after scrollIdleDelay.
+// When that message is received and its id matches lastScrollID, focus returns to input.
+func (m *Model) scheduleScrollIdleReturn() tea.Cmd {
+	m.lastScrollID++
+	id := m.lastScrollID
+	return tea.Tick(scrollIdleDelay*time.Millisecond, func(t time.Time) tea.Msg { return scrollIdleMsg{id: id} })
+}
+
+// Update handles messages: keys (quit, submit, focus toggle, scroll), resize, agentDoneMsg.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Only intercept quit and submit by key type; forward everything else to input so typing works.
+		// Global quit (before focus routing)
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
+		case tea.KeyRunes:
+			if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
+				return m, tea.Quit
+			}
+		}
+		// Tab toggles focus between input and viewport
+		if msg.Type == tea.KeyTab {
+			m.focusInput = !m.focusInput
+			if m.focusInput {
+				m.input.Focus()
+			} else {
+				m.input.Blur()
+				return m, m.scheduleScrollIdleReturn()
+			}
+			return m, nil
+		}
+		// When viewport has scroll focus: Enter/Esc return focus to input; other keys scroll viewport
+		if !m.focusInput {
+			if msg.Type == tea.KeyEnter || msg.Type == tea.KeyEscape {
+				m.focusInput = true
+				m.input.Focus()
+				return m, nil
+			}
+			var vpCmd tea.Cmd
+			m.viewport, vpCmd = m.viewport.Update(msg)
+			return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
+		}
+		// Input focused: scroll keys (Up/Down/PgUp/PgDown/Home/End) move focus to viewport and scroll
+		if m.focusInput && isScrollKey(msg) {
+			m.focusInput = false
+			m.input.Blur()
+			var vpCmd tea.Cmd
+			m.viewport, vpCmd = m.viewport.Update(msg)
+			return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
+		}
+		// Input focused: existing behaviour (submit, clear, typing)
+		switch msg.Type {
 		case tea.KeyEscape:
 			if !m.busy {
 				m.input.Reset()
@@ -164,12 +232,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
 				tea.Cmd(func() tea.Msg { return runAgentAfterUserAppended(m.opts) }),
 			)
-		case tea.KeyRunes:
-			if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
-				return m, tea.Quit
-			}
 		}
-		// Forward all keys (including runes for typing) to input
+		// Forward all other keys to input (typing)
 		m.input, cmd = m.input.Update(msg)
 		(&m).syncInputHeight() // grow up to 3 lines as user types
 		return m, cmd
@@ -222,9 +286,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
+		// Handle wheel: if user was on input, move focus to viewport so scroll works;
+		// then scroll. (When focus is on input, some terminals deliver wheel to input and we
+		// never see it; after Tab or a scroll key, focus is on viewport and wheel works.)
+		if msg.Action == tea.MouseActionPress {
+			delta := m.viewport.MouseWheelDelta
+			if delta <= 0 {
+				delta = 3
+			}
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
+				if m.focusInput {
+					m.focusInput = false
+					m.input.Blur()
+				}
+				m.viewport.ScrollUp(delta)
+				return m, m.scheduleScrollIdleReturn()
+			case tea.MouseButtonWheelDown:
+				if m.focusInput {
+					m.focusInput = false
+					m.input.Blur()
+				}
+				m.viewport.ScrollDown(delta)
+				return m, m.scheduleScrollIdleReturn()
+			}
+		}
 		var vpCmd tea.Cmd
 		m.viewport, vpCmd = m.viewport.Update(msg)
 		return m, vpCmd
+	case scrollIdleMsg:
+		// After user stops scrolling (no scroll for scrollIdleDelay ms), return focus to input.
+		if msg.id == m.lastScrollID && !m.focusInput {
+			m.focusInput = true
+			m.input.Focus()
+		}
+		return m, nil
 	}
 
 	// Forward other keys to input

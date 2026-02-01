@@ -6,6 +6,8 @@ import (
 
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestFormatMessage(t *testing.T) {
@@ -114,6 +116,35 @@ func TestBuildViewportContent_BusyCarousel(t *testing.T) {
 	content2 := buildViewportContent(sess, "", 80, true, 2)
 	if !strings.Contains(content2, "...") {
 		t.Errorf("buildViewportContent(carouselDots=2) should contain ..., got: %s", content2)
+	}
+}
+
+func TestModelFocusToggle(t *testing.T) {
+	opts := TUIOpts{
+		Session: session.NewSession(""),
+		Version: "0.0.1",
+	}
+	m := NewModel(opts)
+	if !m.FocusInput() {
+		t.Error("initial focus should be on input")
+	}
+	// Tab: switch to viewport focus
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	mod, ok := m2.(Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want Model", m2)
+	}
+	if mod.FocusInput() {
+		t.Error("after Tab, focus should be on viewport")
+	}
+	// Tab again: switch back to input focus
+	m3, _ := mod.Update(tea.KeyMsg{Type: tea.KeyTab})
+	mod2, ok := m3.(Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want Model", m3)
+	}
+	if !mod2.FocusInput() {
+		t.Error("after second Tab, focus should be on input again")
 	}
 }
 
