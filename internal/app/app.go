@@ -6,7 +6,7 @@ import (
 	"buildmax/internal/tui"
 )
 
-// NewModel returns the root Bubble Tea model for the TUI.
-func NewModel() tea.Model {
-	return tui.NewModel()
+// NewModel returns the root Bubble Tea model for the TUI with the given opts.
+func NewModel(opts tui.TUIOpts) tea.Model {
+	return tui.NewModel(opts)
 }

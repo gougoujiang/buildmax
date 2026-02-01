@@ -1,10 +1,8 @@
 @echo off
 setlocal
 
-rem API key for OpenRouter (used by make run)
-set "OPENROUTER_API_KEY=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"
-set "GITHUB_TOKEN=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"
-
+rem Load env from .env if present (copy .env.example to .env and fill in keys)
+call "%~dp0loadenv.bat"
 
 if "%~1"=="" goto usage
 if /i "%~1"=="build" goto build

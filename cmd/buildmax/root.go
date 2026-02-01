@@ -14,6 +14,7 @@ import (
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
 	"buildmax/internal/tools"
+	"buildmax/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -21,13 +22,14 @@ import (
 
 const rootLong = `BuildMax – AI Agent CLI
 
-  buildmax                    Start the TUI
-  buildmax -p PROMPT           Send PROMPT to the LLM and print the response (no TUI)
-  buildmax --resume ID -p PROMPT   Resume session ID, send PROMPT, then save
+  buildmax                    Start the TUI (new session)
+  buildmax -r ID              Start the TUI with session ID
+  buildmax -p PROMPT          Send PROMPT to the LLM and print the response (no TUI)
+  buildmax -r ID -p PROMPT    Resume session ID, send PROMPT, then save
 
-Sessions (prompt mode):
+Sessions:
   Each run with -p saves the session under the app data directory (see HOME_DIR or ~/.buildmax).
-  Use --resume <session-id> to continue a previous session.
+  Use -r/--resume <session-id> to continue a previous session (TUI or prompt mode).
 
 Environment (for -p):
   OPENROUTER_API_KEY or BUILDMAX_API_KEY   API key (required for -p)
@@ -44,7 +46,7 @@ func newRootCommand() *cobra.Command {
 	}
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
 	root.Flags().StringP("prompt", "p", "", "prompt to send to the LLM; prints response and exits")
-	root.Flags().String("resume", "r", "session id to resume (requires -p)")
+	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or prompt mode)")
 	root.AddCommand(newVersionCommand())
 	return root
 }
@@ -52,16 +54,65 @@ func newRootCommand() *cobra.Command {
 func runRoot(cmd *cobra.Command, _ []string) error {
 	prompt, _ := cmd.Flags().GetString("prompt")
 	resumeID, _ := cmd.Flags().GetString("resume")
-	if resumeID != "" && prompt == "" {
-		return fmt.Errorf("--resume requires -p. Usage: buildmax --resume <session-id> -p PROMPT")
-	}
 	if prompt != "" {
 		slog.Info("running prompt mode")
 		runPromptMode(prompt, resumeID)
 		return nil
 	}
 	slog.Info("starting TUI")
-	p := tea.NewProgram(app.NewModel(), tea.WithAltScreen())
+	if err := runTUI(resumeID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// runTUI builds agent, session (new or load), ensures sessions dir exists, and runs the TUI.
+func runTUI(resumeID string) error {
+	cfg := config.LoadLLM()
+	if cfg.APIKey == "" {
+		slog.Error("API key required for TUI")
+		return fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("get working directory", "err", err)
+		return fmt.Errorf("get working directory: %w", err)
+	}
+	readFileTool, err := tools.NewReadFile(cwd)
+	if err != nil {
+		slog.Error("create read_file tool", "err", err)
+		return fmt.Errorf("create read_file tool: %w", err)
+	}
+	client := llm.NewClient(cfg)
+	a := agent.NewAgent(client, []agent.Tool{readFileTool})
+
+	sessionsDir := filepath.Join(config.DataDir(), "sessions")
+	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
+		slog.Error("create sessions dir", "err", err)
+		return fmt.Errorf("create sessions dir: %w", err)
+	}
+
+	var sess *session.Session
+	if resumeID != "" {
+		sess, err = session.LoadFromDir(sessionsDir, resumeID)
+		if err != nil {
+			slog.Error("load session failed", "err", err)
+			return fmt.Errorf("load session: %w", err)
+		}
+		slog.Info("resumed session", "id", sess.ID())
+	} else {
+		sess = session.NewSession("")
+	}
+
+	opts := tui.TUIOpts{
+		Agent:       a,
+		Session:     sess,
+		ModelName:  cfg.Model,
+		Workspace:  cwd,
+		Version:    Version,
+		SessionsDir: sessionsDir,
+	}
+	p := tea.NewProgram(app.NewModel(opts), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		slog.Error("TUI failed", "err", err)
 		return fmt.Errorf("TUI: %w", err)

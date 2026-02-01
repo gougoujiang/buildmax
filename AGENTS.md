@@ -53,12 +53,12 @@ Users get a full Agent TUI experience in the terminal by running a single comman
 - **Default system prompt**: Prepended in agent `Process` (e.g. "You are a helpful AI assistant.")
 - **Chat session**: In-memory session in `internal/session` (id, title, created_at, message history); multi-turn via same session
 - **Session persistence**: Save/load under `DataDir()/sessions/<id>.json`; prompt mode saves after each run; `--resume <id> -p PROMPT` to resume
-- **TUI**: Bubble Tea entry via `internal/app` + `internal/tui`; default when running `buildmax` with no flags
+- **TUI**: Bubble Tea entry via `internal/app` + `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner "BUILDMAX" + version, then chat history), input at bottom, footer (model, workspace, ctrl+c: quit). Run `buildmax` to start a new session; run `buildmax --resume <id>` to start the TUI with that session loaded. Session is persisted after each assistant reply.
 - **CLI**: Cobra in `cmd/buildmax` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand
 
 ### 4.2 Planned / Not yet implemented
 
-- Session list/delete from CLI; TUI session picker or resume
+- Session list/delete from CLI; TUI session picker
 - Config subcommand, Viper, or config-file binding
 - Additional tools (e.g. search, run commands)
 - Shell completion (e.g. `buildmax completion bash`)
