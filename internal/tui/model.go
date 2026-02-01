@@ -6,8 +6,10 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	"buildmax/internal/agent"
+	"buildmax/internal/llm"
 	"buildmax/internal/session"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -19,12 +21,17 @@ import (
 const (
 	footerLines   = 1
 	inputMinLines = 1
+	inputMaxLines = 5
+	carouselTick  = 400 // ms between carousel dot updates
 )
 
-// inputBoxStyle wraps the input area in a wireframe box.
+// Light sky blue theme color for input border and message bar.
+var lightSkyBlue = lipgloss.Color("#87CEFA")
+
+// inputBoxStyle wraps the input area in a wireframe box (light sky blue border).
 var inputBoxStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240")).
+	BorderForeground(lightSkyBlue).
 	Padding(0, 1)
 
 // TUIOpts holds dependencies and display config for the TUI (agent, session, model name, paths).
@@ -43,21 +50,25 @@ type agentDoneMsg struct {
 	Err   error
 }
 
+// carouselTickMsg is sent by tea.Tick to advance the assistant "..." carousel.
+type carouselTickMsg struct{}
+
 // Model is the root Bubble Tea model: viewport (banner + chat), input, footer.
 type Model struct {
-	opts    TUIOpts
-	viewport viewport.Model
-	input   textarea.Model
-	busy    bool
-	err     string // last error to show
-	width   int
-	height  int
+	opts         TUIOpts
+	viewport     viewport.Model
+	input        textarea.Model
+	busy         bool
+	err          string // last error to show
+	width        int
+	height       int
+	carouselDots int // 0, 1, 2 for ".", "..", "..."
 }
 
 // NewModel builds a TUI model with viewport (banner + chat), input, and stored opts.
 func NewModel(opts TUIOpts) Model {
 	vp := viewport.New(80, 20)
-	vp.SetContent(buildViewportContent(opts.Session, opts.Version))
+	vp.SetContent(buildViewportContent(opts.Session, opts.Version, 80, false, 0))
 	vp.MouseWheelEnabled = true
 
 	ti := textarea.New()
@@ -65,6 +76,8 @@ func NewModel(opts TUIOpts) Model {
 	ti.ShowLineNumbers = false
 	ti.SetHeight(inputMinLines)
 	ti.SetWidth(76) // leave room for input box border and padding
+	// Allow multi-line input: max inputMaxLines so long messages wrap and chat stays visible.
+	ti.SetHeight(inputMaxLines)
 	// Set focus on the textarea so it receives keys and shows the cursor.
 	// (Init() receives a copy of the model, so Focus() there would not persist.)
 	ti.Focus()
@@ -84,9 +97,9 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, m.input.Focus())
 }
 
-// runAgent runs agent.Process in the background and sends agentDoneMsg.
-func runAgent(opts TUIOpts, text string) tea.Msg {
-	reply, err := opts.Agent.Process(context.Background(), opts.Session, text)
+// runAgentAfterUserAppended runs agent.ProcessAfterUserAppended in the background (user message already in session).
+func runAgentAfterUserAppended(opts TUIOpts) tea.Msg {
+	reply, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session)
 	return agentDoneMsg{Reply: reply, Err: err}
 }
 
@@ -109,9 +122,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.input.Reset()
+			m.opts.Session.Append(llm.Message{Role: "user", Content: text})
+			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, true, 0)
+			m.viewport.SetContent(content)
+			m.viewport.GotoBottom()
 			m.busy = true
 			m.err = ""
-			return m, tea.Cmd(func() tea.Msg { return runAgent(m.opts, text) })
+			m.carouselDots = 0
+			return m, tea.Batch(
+				tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
+				tea.Cmd(func() tea.Msg { return runAgentAfterUserAppended(m.opts) }),
+			)
 		case tea.KeyRunes:
 			if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
 				return m, tea.Quit
@@ -142,17 +163,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentDoneMsg:
 		m.busy = false
+		m.carouselDots = 0
 		if msg.Err != nil {
 			m.err = msg.Err.Error()
 			slog.Error("agent failed", "err", msg.Err)
 		} else {
-			content := buildViewportContent(m.opts.Session, m.opts.Version)
+			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, false, 0)
 			m.viewport.SetContent(content)
 			m.viewport.GotoBottom()
 			if err := session.SaveToDir(m.opts.Session, m.opts.SessionsDir); err != nil {
 				slog.Error("save session failed", "err", err)
 				m.err = err.Error()
 			}
+		}
+		return m, nil
+
+	case carouselTickMsg:
+		if m.busy {
+			m.carouselDots = (m.carouselDots + 1) % 3
+			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots)
+			m.viewport.SetContent(content)
+			m.viewport.GotoBottom()
+			return m, tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} })
 		}
 		return m, nil
 
@@ -187,7 +219,7 @@ func (m Model) View() string {
 		boxWidth = 10
 	}
 	if m.busy {
-		b.WriteString(inputBoxStyle.Width(boxWidth).Render("... thinking ..."))
+		b.WriteString(inputBoxStyle.Width(boxWidth).Render("Waiting for reply…"))
 	} else {
 		b.WriteString(inputBoxStyle.Width(boxWidth).Render(m.input.View()))
 	}

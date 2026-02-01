@@ -81,13 +81,33 @@ func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
 }
 
 // Process runs the agent loop for one user message using the given session:
-// appends the user message to the session, builds messages as system + session.Messages(),
-// runs the loop (LLM call → tool calls if any → append to session), and returns the final assistant reply.
+// appends the user message to the session, then runs the loop (LLM call → tool calls if any → append to session),
+// and returns the final assistant reply.
 func (a *Agent) Process(ctx context.Context, sess *session.Session, userMessage string) (reply string, err error) {
 	slog.Info("agent process with session started")
 	sess.Append(llm.Message{Role: "user", Content: userMessage})
 	slog.Info("user message", "content", userMessage)
+	return a.processLoop(ctx, sess)
+}
 
+// ProcessAfterUserAppended runs the agent loop when the last message in the session is already the user message.
+// It does not append the user message; use this when the caller (e.g. TUI) has already appended it and refreshed the view.
+// Returns an error if the session is empty or the last message is not from the user.
+func (a *Agent) ProcessAfterUserAppended(ctx context.Context, sess *session.Session) (reply string, err error) {
+	msgs := sess.Messages()
+	if len(msgs) == 0 {
+		return "", errors.New("agent: session has no messages")
+	}
+	last := msgs[len(msgs)-1]
+	if last.Role != "user" {
+		return "", fmt.Errorf("agent: last message is %q, not user", last.Role)
+	}
+	slog.Info("agent process after user appended", "content", last.Content)
+	return a.processLoop(ctx, sess)
+}
+
+// processLoop runs the LLM loop: build messages (system + session), call LLM, handle tool_calls, append to session, repeat until final reply.
+func (a *Agent) processLoop(ctx context.Context, sess *session.Session) (reply string, err error) {
 	for i := 0; i < a.maxIter; i++ {
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
 		messages := append([]llm.Message{{Role: "system", Content: DefaultSystemPrompt}}, sess.Messages()...)

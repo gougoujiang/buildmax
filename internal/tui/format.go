@@ -8,9 +8,14 @@ import (
 
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 const maxArgsDisplayLen = 60
+
+// messageBarStyle is the light sky blue vertical bar at the start of user/assistant lines.
+var messageBarStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)
 
 // formatMessage returns display lines for a single chat message:
 // user → "you: content"; assistant → "assistant: content" plus " * name (args)" per tool call;
@@ -74,14 +79,56 @@ func shortArgs(raw string) string {
 	return raw[:maxArgsDisplayLen-3] + "..."
 }
 
-// buildViewportContent returns the full scrollable content: ASCII banner plus all message lines.
-func buildViewportContent(sess *session.Session, version string) string {
+// wrapLine breaks line into chunks of at most width runes (view port width); returns one or more lines.
+func wrapLine(line string, width int) []string {
+	if width <= 0 {
+		return []string{line}
+	}
+	var out []string
+	runes := []rune(line)
+	for len(runes) > 0 {
+		n := width
+		if n > len(runes) {
+			n = len(runes)
+		}
+		out = append(out, string(runes[:n]))
+		runes = runes[n:]
+	}
+	if len(out) == 0 {
+		out = append(out, "")
+	}
+	return out
+}
+
+// buildViewportContent returns the full scrollable content: banner plus message lines (with bar for user/assistant, wrapped to width).
+// If busy is true, appends a carousel line "assistant: ." / ".." / "..." based on carouselDots (0, 1, 2).
+func buildViewportContent(sess *session.Session, version string, width int, busy bool, carouselDots int) string {
+	if width <= 0 {
+		width = 80
+	}
 	var b strings.Builder
 	b.WriteString(bannerWithVersion(version))
 	b.WriteString("\n")
 	for _, m := range sess.Messages() {
 		for _, line := range formatMessage(m) {
-			b.WriteString(line)
+			prefix := ""
+			if m.Role == "user" || m.Role == "assistant" {
+				prefix = messageBarStyle.Render("| ") + line
+			} else {
+				prefix = "  " + line
+			}
+			for _, w := range wrapLine(prefix, width) {
+				b.WriteString(w)
+				b.WriteString("\n")
+			}
+		}
+	}
+	if busy {
+		dots := []string{".", "..", "..."}
+		idx := carouselDots % 3
+		line := messageBarStyle.Render("| ") + "assistant: " + dots[idx]
+		for _, w := range wrapLine(line, width) {
+			b.WriteString(w)
 			b.WriteString("\n")
 		}
 	}

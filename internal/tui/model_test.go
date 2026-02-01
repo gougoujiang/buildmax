@@ -82,7 +82,7 @@ func TestBuildViewportContent(t *testing.T) {
 	sess.Append(llm.Message{Role: "user", Content: "hi"})
 	sess.Append(llm.Message{Role: "assistant", Content: "Hello!"})
 
-	content := buildViewportContent(sess, "0.0.1")
+	content := buildViewportContent(sess, "0.0.1", 80, false, 0)
 	if !strings.Contains(content, "AI Agent TUI") {
 		t.Errorf("buildViewportContent() should contain banner tagline, got: %s", content)
 	}
@@ -94,5 +94,45 @@ func TestBuildViewportContent(t *testing.T) {
 	}
 	if !strings.Contains(content, "assistant:") {
 		t.Errorf("buildViewportContent() should contain assistant:, got: %s", content)
+	}
+}
+
+func TestBuildViewportContent_BusyCarousel(t *testing.T) {
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "user", Content: "hi"})
+	content := buildViewportContent(sess, "", 80, true, 0)
+	if !strings.Contains(content, "assistant:") {
+		t.Errorf("buildViewportContent(busy=true) should contain assistant:, got: %s", content)
+	}
+	if !strings.Contains(content, ".") {
+		t.Errorf("buildViewportContent(busy=true, carouselDots=0) should contain carousel dot, got: %s", content)
+	}
+	content1 := buildViewportContent(sess, "", 80, true, 1)
+	if !strings.Contains(content1, "..") {
+		t.Errorf("buildViewportContent(carouselDots=1) should contain .., got: %s", content1)
+	}
+	content2 := buildViewportContent(sess, "", 80, true, 2)
+	if !strings.Contains(content2, "...") {
+		t.Errorf("buildViewportContent(carouselDots=2) should contain ..., got: %s", content2)
+	}
+}
+
+func TestWrapLine(t *testing.T) {
+	tests := []struct {
+		line   string
+		width  int
+		expect int // number of lines
+	}{
+		{"short", 80, 1},
+		{"", 10, 1},
+		{"abcdefghij", 5, 2},
+		{"abc", 3, 1},
+		{"abcd", 2, 2},
+	}
+	for _, tt := range tests {
+		got := wrapLine(tt.line, tt.width)
+		if len(got) != tt.expect {
+			t.Errorf("wrapLine(%q, %d) returned %d lines, want %d: %q", tt.line, tt.width, len(got), tt.expect, got)
+		}
 	}
 }

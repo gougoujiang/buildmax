@@ -306,3 +306,61 @@ func TestProcessWithSession(t *testing.T) {
 		t.Errorf("lastMsg[3] = %q %q", lastMsg[3].Role, lastMsg[3].Content)
 	}
 }
+
+// TestProcessAfterUserAppended asserts that when the session already has a user message appended,
+// ProcessAfterUserAppended runs the loop without appending again and returns the assistant reply.
+func TestProcessAfterUserAppended(t *testing.T) {
+	ctx := context.Background()
+	mock := &mockLLMCaller{
+		responses: []mockResponse{
+			{content: "Reply to you.", toolCalls: nil},
+		},
+	}
+	a := NewAgent(mock, nil)
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "user", Content: "Hello"})
+
+	reply, err := a.ProcessAfterUserAppended(ctx, sess)
+	if err != nil {
+		t.Fatalf("ProcessAfterUserAppended: %v", err)
+	}
+	if reply != "Reply to you." {
+		t.Errorf("reply = %q, want %q", reply, "Reply to you.")
+	}
+	msgs := sess.Messages()
+	if len(msgs) != 2 {
+		t.Fatalf("session has %d messages, want 2 (user + assistant)", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "Hello" {
+		t.Errorf("msgs[0] = %q %q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "Reply to you." {
+		t.Errorf("msgs[1] = %q %q", msgs[1].Role, msgs[1].Content)
+	}
+	if mock.callCount() != 1 {
+		t.Errorf("LLM called %d times, want 1", mock.callCount())
+	}
+}
+
+// TestProcessAfterUserAppended_EmptySession returns an error when session has no messages.
+func TestProcessAfterUserAppended_EmptySession(t *testing.T) {
+	ctx := context.Background()
+	a := NewAgent(&mockLLMCaller{}, nil)
+	sess := session.NewSession("")
+	_, err := a.ProcessAfterUserAppended(ctx, sess)
+	if err == nil {
+		t.Fatal("ProcessAfterUserAppended: expected error for empty session")
+	}
+}
+
+// TestProcessAfterUserAppended_LastNotUser returns an error when last message is not user.
+func TestProcessAfterUserAppended_LastNotUser(t *testing.T) {
+	ctx := context.Background()
+	a := NewAgent(&mockLLMCaller{}, nil)
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "assistant", Content: "Hi"})
+	_, err := a.ProcessAfterUserAppended(ctx, sess)
+	if err == nil {
+		t.Fatal("ProcessAfterUserAppended: expected error when last message is assistant")
+	}
+}
