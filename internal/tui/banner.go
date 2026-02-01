@@ -21,9 +21,9 @@ const bannerArt = `
 func bannerWithVersion(version string) string {
 	art := strings.TrimPrefix(bannerArt, "\n")
 	if version != "" {
-		art += fmt.Sprintf("\n  AI Agent TUI  ·  v%s\n", version)
+		art += fmt.Sprintf("\n  v%s\n", version)
 	} else {
-		art += "\n  AI Agent TUI\n"
+		art += "\n"
 	}
 	return art
 }

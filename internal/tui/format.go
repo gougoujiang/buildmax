@@ -17,16 +17,19 @@ const maxArgsDisplayLen = 60
 // messageBarStyle is the light sky blue vertical bar at the start of user/assistant lines.
 var messageBarStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)
 
+// userMessageStyle gives user message text a lighter, tinted color so it's easy to distinguish from assistant messages.
+var userMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#B8D4E3"))
+
 // formatMessage returns display lines for a single chat message:
-// user → "you: content"; assistant → "assistant: content" plus " * name (args)" per tool call;
+// user → content only (leading ">" added in buildViewportContent); assistant → content plus " * name (args)" per tool call (leading bullet in buildViewportContent);
 // tool → optional " * result: ..." or omit.
 func formatMessage(m llm.Message) []string {
 	var lines []string
 	switch m.Role {
 	case "user":
-		lines = append(lines, "you: "+m.Content)
+		lines = append(lines, m.Content)
 	case "assistant":
-		lines = append(lines, "assistant: "+m.Content)
+		lines = append(lines, m.Content)
 		for _, tc := range m.ToolCalls {
 			args := shortArgs(tc.Arguments)
 			lines = append(lines, " * "+tc.Name+" ("+args+")")
@@ -119,20 +122,25 @@ func wrapLine(line string, width int) []string {
 }
 
 // buildViewportContent returns the full scrollable content: banner plus message lines (with bar for user/assistant, wrapped to width).
-// If busy is true, appends a carousel line "assistant: ." / ".." / "..." based on carouselDots (0, 1, 2).
+// If busy is true, appends a carousel line "• ." / ".." / "..." based on carouselDots (0, 1, 2).
 func buildViewportContent(sess *session.Session, version string, width int, busy bool, carouselDots int) string {
 	if width <= 0 {
 		width = 80
 	}
 	var b strings.Builder
+	// Top margin so the banner is not clipped by the terminal title/tab bar.
+	b.WriteString("\n")
 	b.WriteString(bannerWithVersion(version))
 	b.WriteString("\n")
 	for _, m := range sess.Messages() {
 		for _, line := range formatMessage(m) {
-			prefix := ""
-			if m.Role == "user" || m.Role == "assistant" {
-				prefix = messageBarStyle.Render("| ") + line
-			} else {
+			var prefix string
+			switch m.Role {
+			case "user":
+				prefix = messageBarStyle.Render("> ") + userMessageStyle.Render(line)
+			case "assistant":
+				prefix = messageBarStyle.Render("• ") + line
+			default:
 				prefix = "  " + line
 			}
 			for _, w := range wrapLine(prefix, width) {
@@ -144,7 +152,7 @@ func buildViewportContent(sess *session.Session, version string, width int, busy
 	if busy {
 		dots := []string{".", "..", "..."}
 		idx := carouselDots % 3
-		line := messageBarStyle.Render("| ") + "assistant: " + dots[idx]
+		line := messageBarStyle.Render("• ") + dots[idx]
 		for _, w := range wrapLine(line, width) {
 			b.WriteString(w)
 			b.WriteString("\n")

@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	footerLines      = 1
-	inputMinLines    = 1
-	inputMaxLines    = 3   // max lines for input; grows from 1 as user types, viewport shrinks
-	carouselTick     = 400 // ms between carousel dot updates
-	scrollIdleDelay  = 1500 // ms of no scroll before focus returns to input
+	footerLines     = 1
+	inputMinLines   = 1
+	inputMaxLines   = 3    // max lines for input; grows from 1 as user types, viewport shrinks
+	carouselTick    = 400  // ms between carousel dot updates
+	scrollIdleDelay = 1500 // ms of no scroll before focus returns to input
 )
 
 // Light sky blue theme color for input border and message bar.
@@ -66,9 +66,9 @@ type Model struct {
 	err          string // last error to show
 	width        int
 	height       int
-	carouselDots int // 0, 1, 2 for ".", "..", "..."
+	carouselDots int  // 0, 1, 2 for ".", "..", "..."
 	focusInput   bool // true = input has focus; false = viewport has scroll focus
-	lastScrollID int // used to ignore stale scroll-idle timers when user scrolls again
+	lastScrollID int  // used to ignore stale scroll-idle timers when user scrolls again
 }
 
 // NewModel builds a TUI model with viewport (banner + chat), input, and stored opts.
@@ -78,6 +78,7 @@ func NewModel(opts TUIOpts) Model {
 	vp.MouseWheelEnabled = true
 
 	ti := textarea.New()
+	ti.Prompt = "> "
 	ti.Placeholder = "Type a message..."
 	ti.ShowLineNumbers = false
 	ti.SetHeight(inputMinLines) // start as one line; syncInputHeight will grow up to inputMaxLines as user types
@@ -356,7 +357,7 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	// Footer
-	footer := "model: " + m.opts.ModelName + " | @" + m.opts.Workspace + " | ctrl+c: quit | esc: clear"
+	footer := "model: " + m.opts.ModelName + " | @" + m.opts.Workspace + " | ctrl+c: quit | esc: clear/focus input"
 	if m.err != "" {
 		footer += " | error: " + m.err
 	}

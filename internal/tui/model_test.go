@@ -21,7 +21,6 @@ func TestFormatMessage(t *testing.T) {
 			name: "user message",
 			msg:  llm.Message{Role: "user", Content: "hello"},
 			wantSub: []string{
-				"you:",
 				"hello",
 			},
 		},
@@ -29,7 +28,6 @@ func TestFormatMessage(t *testing.T) {
 			name: "assistant message",
 			msg:  llm.Message{Role: "assistant", Content: "Hi there"},
 			wantSub: []string{
-				"assistant:",
 				"Hi there",
 			},
 		},
@@ -43,7 +41,6 @@ func TestFormatMessage(t *testing.T) {
 				},
 			},
 			wantSub: []string{
-				"assistant:",
 				"Reading the file.",
 				" * ",
 				"read_file",
@@ -85,17 +82,20 @@ func TestBuildViewportContent(t *testing.T) {
 	sess.Append(llm.Message{Role: "assistant", Content: "Hello!"})
 
 	content := buildViewportContent(sess, "0.0.1", 80, false, 0)
-	if !strings.Contains(content, "AI Agent TUI") {
-		t.Errorf("buildViewportContent() should contain banner tagline, got: %s", content)
-	}
 	if !strings.Contains(content, "v0.0.1") {
 		t.Errorf("buildViewportContent() should contain version v0.0.1, got: %s", content)
 	}
-	if !strings.Contains(content, "you:") {
-		t.Errorf("buildViewportContent() should contain you:, got: %s", content)
+	if !strings.Contains(content, ">") {
+		t.Errorf("buildViewportContent() should contain > for user line, got: %s", content)
 	}
-	if !strings.Contains(content, "assistant:") {
-		t.Errorf("buildViewportContent() should contain assistant:, got: %s", content)
+	if !strings.Contains(content, "hi") {
+		t.Errorf("buildViewportContent() should contain user message hi, got: %s", content)
+	}
+	if !strings.Contains(content, "•") {
+		t.Errorf("buildViewportContent() should contain • for assistant line, got: %s", content)
+	}
+	if !strings.Contains(content, "Hello!") {
+		t.Errorf("buildViewportContent() should contain assistant message Hello!, got: %s", content)
 	}
 }
 
@@ -103,8 +103,8 @@ func TestBuildViewportContent_BusyCarousel(t *testing.T) {
 	sess := session.NewSession("")
 	sess.Append(llm.Message{Role: "user", Content: "hi"})
 	content := buildViewportContent(sess, "", 80, true, 0)
-	if !strings.Contains(content, "assistant:") {
-		t.Errorf("buildViewportContent(busy=true) should contain assistant:, got: %s", content)
+	if !strings.Contains(content, "•") {
+		t.Errorf("buildViewportContent(busy=true) should contain • for carousel, got: %s", content)
 	}
 	if !strings.Contains(content, ".") {
 		t.Errorf("buildViewportContent(busy=true, carouselDots=0) should contain carousel dot, got: %s", content)
