@@ -1,6 +1,7 @@
 // Package log configures the application's default slog logger: level from
-// BUILDMAX_LOG_LEVEL, dual output (stderr + rotating file under config.DataDir()/logs),
-// and SetOutput for tests.
+// BUILDMAX_LOG_LEVEL, file-only output (rotating file under config.DataDir()/logs).
+// Logs are never written to stdout/stderr so TUI rendering and prompt-mode output
+// stay clean. SetOutput is provided for tests.
 package log
 
 import (
@@ -33,17 +34,16 @@ var currentLevel = slog.LevelInfo
 var fileWriter io.Writer
 
 // Init configures slog.Default() with level from BUILDMAX_LOG_LEVEL, creates
-// config.DataDir()/logs, and sets output to both stderr and a rotating file
-// (buildmax.log) via Lumberjack.
+// config.DataDir()/logs, and sets output to a rotating file (buildmax.log) only.
+// Nothing is written to stdout/stderr so TUI and prompt mode output stay clean.
 func Init() {
 	level := parseLevel(os.Getenv("BUILDMAX_LOG_LEVEL"))
 	currentLevel = level
 
 	logsDir := filepath.Join(config.DataDir(), logsSubdir)
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
-		// Fall back to stderr only if we cannot create logs dir
 		fileWriter = nil
-		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: level})))
 		return
 	}
 
@@ -55,15 +55,12 @@ func Init() {
 		Compress:   logCompress,
 	}
 	fileWriter = lj
-
-	w := io.MultiWriter(os.Stderr, lj)
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})))
+	slog.SetDefault(slog.New(slog.NewTextHandler(lj, &slog.HandlerOptions{Level: level})))
 }
 
-// DisableConsole reconfigures slog.Default() to stop writing to the terminal
-// (stderr). In TUI mode the console is used for user interaction, so logs
-// must not be sent there. Logs continue to go to the file if one was created
-// in Init(); otherwise they are discarded.
+// DisableConsole reconfigures slog.Default() to write only to the file (or
+// discard if no file). Init() already uses file-only output; this is for
+// callers that need to re-apply file-only after changing the default logger.
 func DisableConsole() {
 	if fileWriter != nil {
 		slog.SetDefault(slog.New(slog.NewTextHandler(fileWriter, &slog.HandlerOptions{Level: currentLevel})))

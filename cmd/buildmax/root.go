@@ -12,7 +12,6 @@ import (
 	"buildmax/internal/app"
 	"buildmax/internal/config"
 	"buildmax/internal/llm"
-	log "buildmax/internal/log"
 	"buildmax/internal/session"
 	"buildmax/internal/tools"
 	"buildmax/internal/tui"
@@ -61,7 +60,6 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 	slog.Info("starting TUI")
-	log.DisableConsole() // TUI uses the terminal; do not send logs to stderr
 	if err := runTUI(resumeID); err != nil {
 		return err
 	}
