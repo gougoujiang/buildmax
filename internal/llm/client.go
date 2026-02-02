@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"buildmax/internal/config"
+
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -25,24 +26,6 @@ func NewClient(cfg config.LLM) *Client {
 	}
 }
 
-// Chat sends a single user message and returns the assistant reply.
-func (c *Client) Chat(ctx context.Context, userMessage string) (string, error) {
-	req := openai.ChatCompletionRequest{
-		Model: c.model,
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleUser, Content: userMessage},
-		},
-	}
-	resp, err := c.client.CreateChatCompletion(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("chat completion: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
-	}
-	return resp.Choices[0].Message.Content, nil
-}
-
 // ChatWithTools sends messages and tool definitions, returns assistant content and any tool calls.
 func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, err error) {
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
@@ -56,7 +39,7 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 			msg.ToolCalls = make([]openai.ToolCall, 0, len(m.ToolCalls))
 			for _, tc := range m.ToolCalls {
 				msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
-					ID: tc.ID,
+					ID:   tc.ID,
 					Type: openai.ToolTypeFunction,
 					Function: openai.FunctionCall{
 						Name:      tc.Name,

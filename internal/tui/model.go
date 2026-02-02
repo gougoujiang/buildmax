@@ -74,7 +74,6 @@ type Model struct {
 // NewModel builds a TUI model with viewport (banner + chat), input, and stored opts.
 func NewModel(opts TUIOpts) Model {
 	vp := viewport.New(80, 20)
-	vp.SetContent(buildViewportContent(opts.Session, opts.Version, 80, false, 0))
 	vp.MouseWheelEnabled = true
 
 	ti := textarea.New()
@@ -95,6 +94,7 @@ func NewModel(opts TUIOpts) Model {
 		height:     24,
 		focusInput: true, // input focused by default
 	}
+	refreshViewportAndGotoBottom(&m, false, 0)
 	return m
 }
 
@@ -159,187 +159,184 @@ func (m *Model) scheduleScrollIdleReturn() tea.Cmd {
 	return tea.Tick(scrollIdleDelay*time.Millisecond, func(t time.Time) tea.Msg { return scrollIdleMsg{id: id} })
 }
 
-// Update handles messages: keys (quit, submit, focus toggle, scroll), resize, agentDoneMsg.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
+// refreshViewportAndGotoBottom builds viewport content from session/version/width/busy/carouselDots,
+// sets it on the viewport, and scrolls to the bottom.
+func refreshViewportAndGotoBottom(m *Model, busy bool, carouselDots int) {
+	content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, busy, carouselDots)
+	m.viewport.SetContent(content)
+	m.viewport.GotoBottom()
+}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		// Global quit (before focus routing)
-		switch msg.Type {
-		case tea.KeyCtrlC:
+func handleKeyMsg(m Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	case tea.KeyRunes:
+		if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
 			return m, tea.Quit
-		case tea.KeyRunes:
-			if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
-				return m, tea.Quit
-			}
 		}
-		// Tab toggles focus between input and viewport
-		if msg.Type == tea.KeyTab {
-			m.focusInput = !m.focusInput
-			if m.focusInput {
-				m.input.Focus()
-			} else {
-				m.input.Blur()
-				return m, m.scheduleScrollIdleReturn()
-			}
-			return m, nil
-		}
-		// When viewport has scroll focus: Enter/Esc return focus to input; other keys scroll viewport
-		if !m.focusInput {
-			if msg.Type == tea.KeyEnter || msg.Type == tea.KeyEscape {
-				m.focusInput = true
-				m.input.Focus()
-				return m, nil
-			}
-			var vpCmd tea.Cmd
-			m.viewport, vpCmd = m.viewport.Update(msg)
-			return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
-		}
-		// Input focused: scroll keys (Up/Down/PgUp/PgDown/Home/End) move focus to viewport and scroll
-		if m.focusInput && isScrollKey(msg) {
-			m.focusInput = false
-			m.input.Blur()
-			var vpCmd tea.Cmd
-			m.viewport, vpCmd = m.viewport.Update(msg)
-			return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
-		}
-		// Input focused: existing behaviour (submit, clear, typing)
-		switch msg.Type {
-		case tea.KeyEscape:
-			if !m.busy {
-				m.input.Reset()
-				(&m).syncInputHeight()
-			}
-			return m, nil
-		case tea.KeyEnter:
-			if m.busy {
-				return m, nil
-			}
-			text := strings.TrimSpace(m.input.Value())
-			if text == "" {
-				return m, nil
-			}
-			m.input.Reset()
-			(&m).syncInputHeight() // shrink back to 1 line after send
-			m.opts.Session.Append(llm.Message{Role: "user", Content: text})
-			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, true, 0)
-			m.viewport.SetContent(content)
-			m.viewport.GotoBottom()
-			m.busy = true
-			m.err = ""
-			m.carouselDots = 0
-			return m, tea.Batch(
-				tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
-				tea.Cmd(func() tea.Msg { return runAgentAfterUserAppended(m.opts) }),
-			)
-		}
-		// Forward all other keys to input (typing)
-		m.input, cmd = m.input.Update(msg)
-		(&m).syncInputHeight() // grow up to 3 lines as user types
-		return m, cmd
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		// Viewport height = total - input - footer
-		inputH := m.input.Height()
-		vpHeight := m.height - inputH - footerLines
-		if vpHeight < 1 {
-			vpHeight = 1
-		}
-		m.viewport.Width = m.width
-		m.viewport.Height = vpHeight
-		// Input width leaves room for wireframe box (border + padding)
-		inputW := m.width - 4
-		if inputW < 8 {
-			inputW = 8
-		}
-		m.input.SetWidth(inputW)
-		(&m).syncInputHeight() // recompute height after width change
-		return m, nil
-
-	case agentDoneMsg:
-		m.busy = false
-		m.carouselDots = 0
-		if msg.Err != nil {
-			m.err = msg.Err.Error()
-			slog.Error("agent failed", "err", msg.Err)
-		} else {
-			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, false, 0)
-			m.viewport.SetContent(content)
-			m.viewport.GotoBottom()
-			session.EnsureTitleFromFirstUserMessage(m.opts.Session, 100)
-			if err := session.SaveToDir(m.opts.Session, m.opts.SessionsDir); err != nil {
-				slog.Error("save session failed", "err", err)
-				m.err = err.Error()
-			} else {
-				entry := session.ListEntry{
-					ID:        m.opts.Session.ID(),
-					Title:     m.opts.Session.Title(),
-					Workspace: m.opts.Workspace,
-					CreatedAt: m.opts.Session.CreatedAt().Format(time.RFC3339),
-				}
-				if err := session.UpsertListEntry(m.opts.SessionsDir, entry); err != nil {
-					slog.Error("upsert session list failed", "err", err)
-					m.err = err.Error()
-				}
-			}
-		}
-		return m, nil
-
-	case carouselTickMsg:
-		if m.busy {
-			m.carouselDots = (m.carouselDots + 1) % 3
-			content := buildViewportContent(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots)
-			m.viewport.SetContent(content)
-			m.viewport.GotoBottom()
-			return m, tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} })
-		}
-		return m, nil
-
-	case tea.MouseMsg:
-		// Handle wheel: if user was on input, move focus to viewport so scroll works;
-		// then scroll. (When focus is on input, some terminals deliver wheel to input and we
-		// never see it; after Tab or a scroll key, focus is on viewport and wheel works.)
-		if msg.Action == tea.MouseActionPress {
-			delta := m.viewport.MouseWheelDelta
-			if delta <= 0 {
-				delta = 3
-			}
-			switch msg.Button {
-			case tea.MouseButtonWheelUp:
-				if m.focusInput {
-					m.focusInput = false
-					m.input.Blur()
-				}
-				m.viewport.ScrollUp(delta)
-				return m, m.scheduleScrollIdleReturn()
-			case tea.MouseButtonWheelDown:
-				if m.focusInput {
-					m.focusInput = false
-					m.input.Blur()
-				}
-				m.viewport.ScrollDown(delta)
-				return m, m.scheduleScrollIdleReturn()
-			}
-		}
-		var vpCmd tea.Cmd
-		m.viewport, vpCmd = m.viewport.Update(msg)
-		return m, vpCmd
-	case scrollIdleMsg:
-		// After user stops scrolling (no scroll for scrollIdleDelay ms), return focus to input.
-		if msg.id == m.lastScrollID && !m.focusInput {
-			m.focusInput = true
+	}
+	if msg.Type == tea.KeyTab {
+		m.focusInput = !m.focusInput
+		if m.focusInput {
 			m.input.Focus()
+		} else {
+			m.input.Blur()
+			return m, m.scheduleScrollIdleReturn()
 		}
 		return m, nil
 	}
-
-	// Forward other keys to input
+	if !m.focusInput {
+		if msg.Type == tea.KeyEnter || msg.Type == tea.KeyEscape {
+			m.focusInput = true
+			m.input.Focus()
+			return m, nil
+		}
+		var vpCmd tea.Cmd
+		m.viewport, vpCmd = m.viewport.Update(msg)
+		return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
+	}
+	if m.focusInput && isScrollKey(msg) {
+		m.focusInput = false
+		m.input.Blur()
+		var vpCmd tea.Cmd
+		m.viewport, vpCmd = m.viewport.Update(msg)
+		return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
+	}
+	switch msg.Type {
+	case tea.KeyEscape:
+		if !m.busy {
+			m.input.Reset()
+			(&m).syncInputHeight()
+		}
+		return m, nil
+	case tea.KeyEnter:
+		if m.busy {
+			return m, nil
+		}
+		text := strings.TrimSpace(m.input.Value())
+		if text == "" {
+			return m, nil
+		}
+		m.input.Reset()
+		(&m).syncInputHeight()
+		m.opts.Session.Append(llm.Message{Role: "user", Content: text})
+		refreshViewportAndGotoBottom(&m, true, 0)
+		m.busy = true
+		m.err = ""
+		m.carouselDots = 0
+		return m, tea.Batch(
+			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
+			tea.Cmd(func() tea.Msg { return runAgentAfterUserAppended(m.opts) }),
+		)
+	}
+	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	(&m).syncInputHeight()
 	return m, cmd
+}
+
+func handleWindowSize(m Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.width = msg.Width
+	m.height = msg.Height
+	inputH := m.input.Height()
+	vpHeight := m.height - inputH - footerLines
+	if vpHeight < 1 {
+		vpHeight = 1
+	}
+	m.viewport.Width = m.width
+	m.viewport.Height = vpHeight
+	inputW := m.width - 4
+	if inputW < 8 {
+		inputW = 8
+	}
+	m.input.SetWidth(inputW)
+	(&m).syncInputHeight()
+	return m, nil
+}
+
+func handleAgentDone(m Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
+	m.busy = false
+	m.carouselDots = 0
+	if msg.Err != nil {
+		m.err = msg.Err.Error()
+		slog.Error("agent failed", "err", msg.Err)
+	} else {
+		refreshViewportAndGotoBottom(&m, false, 0)
+		if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
+			slog.Error("persist session failed", "err", err)
+			m.err = err.Error()
+		}
+	}
+	return m, nil
+}
+
+func handleCarouselTick(m Model, msg carouselTickMsg) (tea.Model, tea.Cmd) {
+	if m.busy {
+		m.carouselDots = (m.carouselDots + 1) % 3
+		refreshViewportAndGotoBottom(&m, true, m.carouselDots)
+		return m, tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} })
+	}
+	return m, nil
+}
+
+func handleMouseMsg(m Model, msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action == tea.MouseActionPress {
+		delta := m.viewport.MouseWheelDelta
+		if delta <= 0 {
+			delta = 3
+		}
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			if m.focusInput {
+				m.focusInput = false
+				m.input.Blur()
+			}
+			m.viewport.ScrollUp(delta)
+			return m, m.scheduleScrollIdleReturn()
+		case tea.MouseButtonWheelDown:
+			if m.focusInput {
+				m.focusInput = false
+				m.input.Blur()
+			}
+			m.viewport.ScrollDown(delta)
+			return m, m.scheduleScrollIdleReturn()
+		}
+	}
+	var vpCmd tea.Cmd
+	m.viewport, vpCmd = m.viewport.Update(msg)
+	return m, vpCmd
+}
+
+func handleScrollIdle(m Model, msg scrollIdleMsg) (tea.Model, tea.Cmd) {
+	if msg.id == m.lastScrollID && !m.focusInput {
+		m.focusInput = true
+		m.input.Focus()
+	}
+	return m, nil
+}
+
+// Update handles messages: keys (quit, submit, focus toggle, scroll), resize, agentDoneMsg.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		return handleKeyMsg(m, msg)
+	case tea.WindowSizeMsg:
+		return handleWindowSize(m, msg)
+	case agentDoneMsg:
+		return handleAgentDone(m, msg)
+	case carouselTickMsg:
+		return handleCarouselTick(m, msg)
+	case tea.MouseMsg:
+		return handleMouseMsg(m, msg)
+	case scrollIdleMsg:
+		return handleScrollIdle(m, msg)
+	default:
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		(&m).syncInputHeight()
+		return m, cmd
+	}
 }
 
 // View renders viewport, input, and footer.

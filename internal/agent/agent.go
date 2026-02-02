@@ -128,53 +128,60 @@ func (a *Agent) processLoop(ctx context.Context, sess *session.Session) (reply s
 			ToolCalls: toolCalls,
 		})
 		for _, tc := range toolCalls {
-			tool, ok := a.toolsByName[tc.Name]
-			if !ok {
-				sess.Append(llm.Message{
-					Role:       "tool",
-					Content:    fmt.Sprintf("error: unknown tool %q", tc.Name),
-					ToolCallID: tc.ID,
-				})
-				continue
-			}
-			var args map[string]any
-			if tc.Arguments != "" {
-				if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-					sess.Append(llm.Message{
-						Role:       "tool",
-						Content:    fmt.Sprintf("error: invalid arguments: %v", err),
-						ToolCallID: tc.ID,
-					})
-					continue
-				}
-			}
-			if args == nil {
-				args = make(map[string]any)
-			}
-			result, err := tool.Execute(ctx, args)
-			if err != nil {
-				slog.Debug("tool result", "tool", tc.Name, "error", err.Error())
-				sess.Append(llm.Message{
-					Role:       "tool",
-					Content:    fmt.Sprintf("error: %v", err),
-					ToolCallID: tc.ID,
-				})
-				continue
-			}
-			resultPreview := result
-			if len(resultPreview) > 500 {
-				resultPreview = resultPreview[:500] + "..."
-			}
-			slog.Debug("tool result", "tool", tc.Name, "content", resultPreview)
-			sess.Append(llm.Message{
-				Role:       "tool",
-				Content:    result,
-				ToolCallID: tc.ID,
-			})
+			processOneToolCall(ctx, a, sess, tc)
 		}
 	}
 	slog.Warn("agent max iterations exceeded")
 	return "", errors.New("agent: max iterations exceeded")
+}
+
+// processOneToolCall resolves the tool by name, parses arguments, executes, and appends
+// exactly one tool message (result or error) to the session. The assistant message with
+// toolCalls is already appended by processLoop before the loop.
+func processOneToolCall(ctx context.Context, a *Agent, sess *session.Session, tc llm.ToolCall) {
+	tool, ok := a.toolsByName[tc.Name]
+	if !ok {
+		sess.Append(llm.Message{
+			Role:       "tool",
+			Content:    fmt.Sprintf("error: unknown tool %q", tc.Name),
+			ToolCallID: tc.ID,
+		})
+		return
+	}
+	var args map[string]any
+	if tc.Arguments != "" {
+		if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
+			sess.Append(llm.Message{
+				Role:       "tool",
+				Content:    fmt.Sprintf("error: invalid arguments: %v", err),
+				ToolCallID: tc.ID,
+			})
+			return
+		}
+	}
+	if args == nil {
+		args = make(map[string]any)
+	}
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		slog.Debug("tool result", "tool", tc.Name, "error", err.Error())
+		sess.Append(llm.Message{
+			Role:       "tool",
+			Content:    fmt.Sprintf("error: %v", err),
+			ToolCallID: tc.ID,
+		})
+		return
+	}
+	resultPreview := result
+	if len(resultPreview) > 500 {
+		resultPreview = resultPreview[:500] + "..."
+	}
+	slog.Debug("tool result", "tool", tc.Name, "content", resultPreview)
+	sess.Append(llm.Message{
+		Role:       "tool",
+		Content:    result,
+		ToolCallID: tc.ID,
+	})
 }
 
 // toolCallsSummary returns a short summary of tool calls for logging.

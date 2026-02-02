@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
 	"buildmax/internal/agent"
 	"buildmax/internal/app"
@@ -76,7 +75,10 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	}
 	if prompt != "" {
 		slog.Info("running prompt mode")
-		runPromptMode(prompt, resumeID)
+		if err := runPromptMode(prompt, resumeID); err != nil {
+			slog.Error("prompt mode failed", "err", err)
+			os.Exit(1)
+		}
 		return nil
 	}
 	slog.Info("starting TUI")
@@ -86,50 +88,59 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// runTUI builds agent, session (new or load), ensures sessions dir exists, and runs the TUI.
-func runTUI(resumeID string) error {
+// setupAgentAndSession loads config, creates readFile tool and LLM client, builds the agent,
+// ensures sessions dir exists, and loads or creates the session. Returns values needed by
+// both runTUI and runPromptMode.
+func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Session, sessionsDir, cwd string, err error) {
 	cfg := config.LoadLLM()
 	if cfg.APIKey == "" {
-		slog.Error("API key required for TUI")
-		return fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
+		return nil, nil, "", "", fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
 	}
-	cwd, err := os.Getwd()
+	cwd, err = os.Getwd()
 	if err != nil {
 		slog.Error("get working directory", "err", err)
-		return fmt.Errorf("get working directory: %w", err)
+		return nil, nil, "", "", fmt.Errorf("get working directory: %w", err)
 	}
 	readFileTool, err := tools.NewReadFile(cwd)
 	if err != nil {
 		slog.Error("create read_file tool", "err", err)
-		return fmt.Errorf("create read_file tool: %w", err)
+		return nil, nil, "", "", fmt.Errorf("create read_file tool: %w", err)
 	}
 	client := llm.NewClient(cfg)
-	a := agent.NewAgent(client, []agent.Tool{readFileTool})
+	a = agent.NewAgent(client, []agent.Tool{readFileTool})
 
-	sessionsDir := filepath.Join(config.DataDir(), "sessions")
-	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
+	sessionsDir = filepath.Join(config.DataDir(), "sessions")
+	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
 		slog.Error("create sessions dir", "err", err)
-		return fmt.Errorf("create sessions dir: %w", err)
+		return nil, nil, "", "", fmt.Errorf("create sessions dir: %w", err)
 	}
 
-	var sess *session.Session
 	if resumeID != "" {
 		sess, err = session.LoadFromDir(sessionsDir, resumeID)
 		if err != nil {
 			slog.Error("load session failed", "err", err)
-			return fmt.Errorf("load session: %w", err)
+			return nil, nil, "", "", fmt.Errorf("load session: %w", err)
 		}
 		slog.Info("resumed session", "id", sess.ID())
 	} else {
 		sess = session.NewSession("")
 	}
+	return a, sess, sessionsDir, cwd, nil
+}
 
+// runTUI builds agent and session via setupAgentAndSession, then runs the TUI.
+func runTUI(resumeID string) error {
+	a, sess, sessionsDir, cwd, err := setupAgentAndSession(resumeID)
+	if err != nil {
+		return err
+	}
+	cfg := config.LoadLLM()
 	opts := tui.TUIOpts{
 		Agent:       a,
 		Session:     sess,
-		ModelName:  cfg.Model,
-		Workspace:  cwd,
-		Version:    Version,
+		ModelName:   cfg.Model,
+		Workspace:   cwd,
+		Version:     Version,
 		SessionsDir: sessionsDir,
 	}
 	p := tea.NewProgram(app.NewModel(opts), tea.WithAltScreen())
@@ -150,69 +161,26 @@ func newVersionCommand() *cobra.Command {
 	}
 }
 
-func runPromptMode(prompt string, resumeID string) {
-	cfg := config.LoadLLM()
-	if cfg.APIKey == "" {
-		slog.Error("API key required")
-		fmt.Fprintln(os.Stderr, "error: API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY.")
-		os.Exit(1)
-	}
-	cwd, err := os.Getwd()
+func runPromptMode(prompt string, resumeID string) error {
+	a, sess, sessionsDir, cwd, err := setupAgentAndSession(resumeID)
 	if err != nil {
-		slog.Error("get working directory", "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
-	readFileTool, err := tools.NewReadFile(cwd)
-	if err != nil {
-		slog.Error("create read_file tool", "err", err)
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-	client := llm.NewClient(cfg)
-	a := agent.NewAgent(client, []agent.Tool{readFileTool})
 	ctx := context.Background()
-
-	sessionsDir := filepath.Join(config.DataDir(), "sessions")
-	var sess *session.Session
-	if resumeID != "" {
-		sess, err = session.LoadFromDir(sessionsDir, resumeID)
-		if err != nil {
-			slog.Error("load session failed", "err", err)
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-		slog.Info("resumed session", "id", sess.ID())
-	} else {
-		sess = session.NewSession("")
-	}
-
 	reply, err := a.Process(ctx, sess, prompt)
 	slog.Debug("session details", "id", sess.ID(), "title", sess.Title(), "created_at", sess.CreatedAt())
 	slog.Debug("session history", "messages", sess.Messages())
 	if err != nil {
-		slog.Error("agent failed", "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("agent: %w", err)
 	}
-
-	session.EnsureTitleFromFirstUserMessage(sess, 100)
-	if err := session.SaveToDir(sess, sessionsDir); err != nil {
-		slog.Error("save session failed", "err", err)
+	if err := session.PersistAfterReply(sess, sessionsDir, cwd, 100); err != nil {
+		slog.Error("persist session failed", "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-	entry := session.ListEntry{
-		ID:        sess.ID(),
-		Title:     sess.Title(),
-		Workspace: cwd,
-		CreatedAt: sess.CreatedAt().Format(time.RFC3339),
-	}
-	if err := session.UpsertListEntry(sessionsDir, entry); err != nil {
-		slog.Error("upsert session list failed", "err", err)
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("persist session: %w", err)
 	}
 	slog.Info("agent reply", "len", len(reply))
 	fmt.Println(reply)
+	return nil
 }
