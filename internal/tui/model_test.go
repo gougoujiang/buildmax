@@ -130,18 +130,18 @@ func TestModelFocusToggle(t *testing.T) {
 	}
 	// Tab: switch to viewport focus
 	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	mod, ok := m2.(Model)
+	mod, ok := m2.(*Model)
 	if !ok {
-		t.Fatalf("Update returned %T, want Model", m2)
+		t.Fatalf("Update returned %T, want *Model", m2)
 	}
 	if mod.FocusInput() {
 		t.Error("after Tab, focus should be on viewport")
 	}
 	// Tab again: switch back to input focus
 	m3, _ := mod.Update(tea.KeyMsg{Type: tea.KeyTab})
-	mod2, ok := m3.(Model)
+	mod2, ok := m3.(*Model)
 	if !ok {
-		t.Fatalf("Update returned %T, want Model", m3)
+		t.Fatalf("Update returned %T, want *Model", m3)
 	}
 	if !mod2.FocusInput() {
 		t.Error("after second Tab, focus should be on input again")
@@ -166,12 +166,12 @@ func TestWrapLine(t *testing.T) {
 			t.Errorf("wrapLine(%q, %d) returned %d lines, want %d: %q", tt.line, tt.width, len(got), tt.expect, got)
 		}
 	}
-	// Word wrap: break at space so "Operations" is not split into "Op" + "erations"
+	// Word wrap: break at space so "**File " is first line; remainder wraps to "Operations:*" then "*" (3 lines total)
 	got := wrapLine("**File Operations:**", 12)
-	if len(got) != 2 {
-		t.Fatalf("wrapLine(\"**File Operations:**\", 12) want 2 lines, got %d: %q", len(got), got)
+	if len(got) != 3 {
+		t.Fatalf("wrapLine(\"**File Operations:**\", 12) want 3 lines, got %d: %q", len(got), got)
 	}
-	if got[0] != "**File " || got[1] != "Operations:**" {
-		t.Errorf("wrapLine(\"**File Operations:**\", 12) = %q, want [\"**File \", \"Operations:**\"]", got)
+	if got[0] != "**File " || got[1] != "Operations:*" || got[2] != "*" {
+		t.Errorf("wrapLine(\"**File Operations:**\", 12) = %q, want [\"**File \", \"Operations:*\", \"*\"]", got)
 	}
 }
