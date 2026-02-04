@@ -35,7 +35,7 @@ func NewReadFile(root string) (*ReadFile, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (r *ReadFile) Name() string { return "read_file" }
+func (r *ReadFile) Name() string { return "Read" }
 
 // DefaultLimit is the default number of lines returned when limit is not specified.
 const DefaultLimit = 1000
