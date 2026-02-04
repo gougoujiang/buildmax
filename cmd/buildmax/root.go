@@ -106,8 +106,13 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create read_file tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create read_file tool: %w", err)
 	}
+	writeFileTool, err := tools.NewWriteFile(cwd)
+	if err != nil {
+		slog.Error("create write_file tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create write_file tool: %w", err)
+	}
 	client := llm.NewClient(cfg)
-	a = agent.NewAgent(client, []agent.Tool{readFileTool})
+	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool})
 
 	sessionsDir = filepath.Join(config.DataDir(), "sessions")
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {

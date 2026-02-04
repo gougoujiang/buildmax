@@ -105,6 +105,13 @@ buildmax/
 - **Convention: snake_case** for JSON object keys (e.g. `created_at`, `tool_call_id`, `tool_calls`).
 - Ensure structs that are serialized to disk have explicit `json:"snake_case"` tags so the on-disk format is consistent; do not rely on Go’s default (PascalCase) for persisted fields.
 
+### 6.2 Tool output for LLM
+
+- **Tools are built for the LLM.** The agent passes tool results back to the model as tool-role messages.
+- **Output meaningful results on both success and failure** so the LLM can understand what happened and decide on next steps (e.g. retry, inform the user, or continue).
+- Success: return a clear, concise message (e.g. what was done or what was returned).
+- Failure: return a clear error message (e.g. "path outside allowed root", "file not found"); the agent prefixes tool errors with `error: ` when sending to the LLM.
+
 ## 7. Build & Test
 
 - **Build**: `make.bat build` (Windows) or `go build -o buildmax.exe ./cmd/buildmax` — builds from `cmd/buildmax`.
