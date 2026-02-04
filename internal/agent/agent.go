@@ -109,6 +109,7 @@ func (a *Agent) ProcessAfterUserAppended(ctx context.Context, sess *session.Sess
 // processLoop runs the LLM loop: build messages (system + session), call LLM, handle tool_calls, append to session, repeat until final reply.
 func (a *Agent) processLoop(ctx context.Context, sess *session.Session) (reply string, err error) {
 	for i := 0; i < a.maxIter; i++ {
+		ctx = session.CtxWithSessionID(ctx, sess.ID())
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
 		messages := append([]llm.Message{{Role: "system", Content: DefaultSystemPrompt}}, sess.Messages()...)
 		content, toolCalls, err := a.caller.ChatWithTools(ctx, messages, a.toolDefs)

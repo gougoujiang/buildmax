@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"buildmax/internal/agent"
 	"buildmax/internal/app"
@@ -88,9 +89,9 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// setupAgentAndSession loads config, creates readFile tool and LLM client, builds the agent,
-// ensures sessions dir exists, and loads or creates the session. Returns values needed by
-// both runTUI and runPromptMode.
+// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite),
+// builds the agent, ensures sessions dir exists, and loads or creates the session.
+// Returns values needed by both runTUI and runPromptMode.
 func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Session, sessionsDir, cwd string, err error) {
 	cfg := config.LoadLLM()
 	if cfg.APIKey == "" {
@@ -101,6 +102,7 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("get working directory", "err", err)
 		return nil, nil, "", "", fmt.Errorf("get working directory: %w", err)
 	}
+	client := llm.NewClient(cfg)
 	readFileTool, err := tools.NewReadFile(cwd)
 	if err != nil {
 		slog.Error("create read_file tool", "err", err)
@@ -111,8 +113,17 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create write_file tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create write_file tool: %w", err)
 	}
-	client := llm.NewClient(cfg)
-	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool})
+	webFetchTool, err := tools.NewWebFetch(client, 15*time.Minute)
+	if err != nil {
+		slog.Error("create webfetch tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create webfetch tool: %w", err)
+	}
+	todoWriteTool, err := tools.NewTodoWrite()
+	if err != nil {
+		slog.Error("create todowrite tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create todowrite tool: %w", err)
+	}
+	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool})
 
 	sessionsDir = filepath.Join(config.DataDir(), "sessions")
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {

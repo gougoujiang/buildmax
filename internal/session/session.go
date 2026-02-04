@@ -2,15 +2,34 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/google/uuid"
 	"buildmax/internal/llm"
+
+	"github.com/google/uuid"
 )
+
+// ctxKey is the type for context keys in this package (private to avoid collisions).
+type ctxKey struct{}
+
+var sessionIDKey = &ctxKey{}
+
+// CtxWithSessionID returns a context that carries the given session ID.
+// Tools can read it via SessionIDFromContext.
+func CtxWithSessionID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, sessionIDKey, id)
+}
+
+// SessionIDFromContext returns the session ID from ctx, or ("", false) if not set.
+func SessionIDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(sessionIDKey).(string)
+	return id, ok
+}
 
 // sessionFile is the JSON representation of a session on disk.
 // Used only for encoding/decoding; Session's internal fields stay unexported.
