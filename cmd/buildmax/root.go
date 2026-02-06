@@ -89,7 +89,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite),
+// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite, Bash),
 // builds the agent, ensures sessions dir exists, and loads or creates the session.
 // Returns values needed by both runTUI and runPromptMode.
 func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Session, sessionsDir, cwd string, err error) {
@@ -123,7 +123,12 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create todowrite tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create todowrite tool: %w", err)
 	}
-	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool})
+	bashTool, err := tools.NewBash(cwd)
+	if err != nil {
+		slog.Error("create bash tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create bash tool: %w", err)
+	}
+	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool})
 
 	sessionsDir = filepath.Join(config.DataDir(), "sessions")
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
