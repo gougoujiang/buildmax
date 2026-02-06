@@ -118,6 +118,9 @@ buildmax/
 - **Test**: `make.bat test` — sets `HOME_DIR` to `./testing-sandbox` and runs `go test ./...`. Use this after code changes.
 - **Do not use** `make.bat run` for automated flows; it is for manual testing (build + run with sample prompt).
 
+## 8. Run command
+prefer powershell syntax to run command instead of batch on windows platform
+
 ---
 
 *This document is updated as the project evolves.*
