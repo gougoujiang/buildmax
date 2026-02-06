@@ -11,10 +11,9 @@ Helps commit current changes, generate a commit message from the diff, and push 
 
 1. **Inspect changes** – Run `git status` and `git diff` (or `git diff --staged` if already staged) to see what will be committed.
 2. **Generate commit message** – From the diff, write a single commit message in conventional format (see below).
-IMPORTANT:
-do NOT add "co-authored-by " or similar messages
 3. **Stage and commit** – Run `git add` as needed, then `git commit -m "<message>"`. Request **git_write** when running these commands.
 4. **Push** – Run `git push` (or `git push origin <branch>`). Request **git_write** and **network** if the tool requires it.
+5. **IMPORTANT** - do NOT add "co-authored-by " or similar messages, do NOT use --trailer flag
 
 ## Commit message format
 
