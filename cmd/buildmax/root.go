@@ -128,7 +128,12 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create bash tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create bash tool: %w", err)
 	}
-	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool})
+	globTool, err := tools.NewGlob(cwd)
+	if err != nil {
+		slog.Error("create glob tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create glob tool: %w", err)
+	}
+	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool, globTool})
 
 	sessionsDir = filepath.Join(config.DataDir(), "sessions")
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
