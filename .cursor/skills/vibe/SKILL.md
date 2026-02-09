@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, and detect code smells. Sub-commands: start, clarify, design, code, done, smell. All artifacts stored under .vibe/ directory."
+description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, and build knowledge base. Sub-commands: start, clarify, design, code, done, smell, kb. All artifacts stored under .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -19,6 +19,7 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe code [id]` | Implement from design |
 | `/vibe done [id]` | Mark task finished |
 | `/vibe smell [path]` | Detect code smells and propose refactors |
+| `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
 
 ## Resolving the target task
 
@@ -234,3 +235,45 @@ Analyzes code for smells and refactor opportunities. Produces a written proposal
 
 - **Primary**: One markdown file (e.g. `.vibe/smell-20260210.md`) with scope, summary, and numbered proposals.
 - **Optional**: Short summary in chat (number of proposals, high-priority items).
+
+---
+
+## `/vibe kb` — Codebase Knowledge Base
+
+Analyzes the codebase and produces organized knowledge documents under `.vibe/kb/`. Each document covers one topic — a package, a subsystem, a pattern, or an architectural concept.
+
+### When to use
+
+- The user wants to document how a part of the codebase works
+- They say "document X", "explain package Y", "build knowledge base", or just `/vibe kb`
+- They want a new team member (or future AI agent) to quickly understand the project
+
+### Topic resolution
+
+1. If the user specifies a topic (e.g. `/vibe kb agent loop`, `/vibe kb internal/tools`), produce or update the document for that topic.
+2. If no topic is given (`/vibe kb`), scan the codebase and produce an **index** (`.vibe/kb/index.md`) listing all packages and subsystems, with links to individual topic files. Then ask which topics to expand, or generate the most important ones.
+
+### Workflow
+
+1. **Identify topic** — Determine the scope: a package (e.g. `internal/agent`), a subsystem (e.g. "tool calling"), a cross-cutting concern (e.g. "configuration"), or the full project overview.
+2. **Inspect codebase** — Read the relevant source files, types, interfaces, and call patterns. Also check AGENTS.md and existing `.vibe/kb/` docs to avoid duplication.
+3. **Write the knowledge doc** — Create or update `.vibe/kb/<topic-slug>.md` using the [knowledge template](templates/kb-template.md). Fill: purpose, key types, how it works, dependencies, and examples.
+4. **Update the index** — If `.vibe/kb/index.md` exists, add or update the entry for this topic. If it doesn't exist, create it with at least this one entry.
+
+### Naming convention
+
+- File names use kebab-case slugs derived from the topic: e.g. `agent-loop.md`, `llm-client.md`, `tool-calling.md`, `project-overview.md`.
+- The index file is always `.vibe/kb/index.md`.
+
+### Rules
+
+- **Accuracy over volume.** Only document what the code actually does; don't speculate.
+- **Keep it current.** If a doc already exists, update it rather than creating a duplicate.
+- **One topic per file.** Each file covers one cohesive subject.
+- **Link between docs.** Use relative links (e.g. `[LLM client](llm-client.md)`) to cross-reference related topics.
+- **Code examples welcome.** Include short code snippets or signatures to illustrate key points, but don't dump entire files.
+
+### Output
+
+- **Primary**: One or more markdown files under `.vibe/kb/` plus an updated `index.md`.
+- **Optional**: Short summary in chat listing which docs were created or updated.
