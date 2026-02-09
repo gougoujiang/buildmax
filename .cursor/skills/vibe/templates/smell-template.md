@@ -1,4 +1,4 @@
-# Refactor Proposal - [Date or Scope Name]
+# Smell Proposal - [Date or Scope Name]
 
 ## Scope
 
@@ -24,7 +24,7 @@
 **Current state**
 
 - [What the code does now.]
-- [Why it’s a smell: duplication, length, mixed concern, unclear name, etc.]
+- [Why it's a smell: duplication, length, mixed concern, unclear name, etc.]
 
 **Proposed change**
 

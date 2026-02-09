@@ -84,7 +84,7 @@ buildmax/
 │   └── tools/             # Tool implementations (e.g. readfile)
 ├── configs/               # Config file examples (e.g. config.example.yaml)
 ├── example/               # Example files for tools (e.g. shakespeare.txt)
-├── tasks/                 # Task documents and design docs
+├── .vibe/                 # Task documents and design docs (vibe lifecycle)
 ├── make.bat               # Windows: build, test, run (build uses cmd/buildmax)
 ├── go.mod
 ├── go.sum
@@ -96,7 +96,7 @@ buildmax/
 
 ## 6. Documentation and Repository
 
-- **Task docs**: `tasks/NNN.md` (e.g. `tasks/001.md`); design docs `tasks/NNN-design.md` (e.g. `tasks/008-design.md`). TOC: `tasks/000-TOC.md`.
+- **Task docs**: `.vibe/NNN.md` (e.g. `.vibe/001.md`); design docs `.vibe/NNN-design.md` (e.g. `.vibe/008-design.md`). TOC: `.vibe/000-TOC.md`.
 - Code and scripts: repository root, managed with Go modules
 
 ### 6.1 Persistence naming style
