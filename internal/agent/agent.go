@@ -38,11 +38,12 @@ type LLMCaller interface {
 
 // Agent runs the agent loop: LLM call → execute tool_calls if any → repeat until final reply.
 type Agent struct {
-	caller      LLMCaller
-	tools       []Tool
-	maxIter     int
-	toolDefs    []llm.ToolDef // cached from tools for each request
-	toolsByName map[string]Tool
+	caller       LLMCaller
+	tools        []Tool
+	maxIter      int
+	systemPrompt string
+	toolDefs     []llm.ToolDef // cached from tools for each request
+	toolsByName  map[string]Tool
 }
 
 // Option configures an Agent.
@@ -52,6 +53,14 @@ type Option func(*Agent)
 func MaxIterations(n int) Option {
 	return func(a *Agent) {
 		a.maxIter = n
+	}
+}
+
+// SystemPrompt overrides the default system prompt used by the agent loop.
+// This allows sub-agents to use role-specific prompts instead of DefaultSystemPrompt.
+func SystemPrompt(prompt string) Option {
+	return func(a *Agent) {
+		a.systemPrompt = prompt
 	}
 }
 
@@ -68,11 +77,12 @@ func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
 		byName[t.Name()] = t
 	}
 	a := &Agent{
-		caller:      caller,
-		tools:       tools,
-		maxIter:     DefaultMaxIterations,
-		toolDefs:    toolDefs,
-		toolsByName: byName,
+		caller:       caller,
+		tools:        tools,
+		maxIter:      DefaultMaxIterations,
+		systemPrompt: DefaultSystemPrompt,
+		toolDefs:     toolDefs,
+		toolsByName:  byName,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -111,7 +121,7 @@ func (a *Agent) processLoop(ctx context.Context, sess *session.Session) (reply s
 	for i := 0; i < a.maxIter; i++ {
 		ctx = session.CtxWithSessionID(ctx, sess.ID())
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
-		messages := append([]llm.Message{{Role: "system", Content: DefaultSystemPrompt}}, sess.Messages()...)
+		messages := append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, sess.Messages()...)
 		content, toolCalls, err := a.caller.ChatWithTools(ctx, messages, a.toolDefs)
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)

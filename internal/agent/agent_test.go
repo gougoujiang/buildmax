@@ -364,3 +364,31 @@ func TestProcessAfterUserAppended_LastNotUser(t *testing.T) {
 		t.Fatal("ProcessAfterUserAppended: expected error when last message is assistant")
 	}
 }
+
+// TestSystemPromptOption verifies that the SystemPrompt option overrides the default system prompt
+// used in processLoop, so the first message sent to ChatWithTools uses the custom prompt.
+func TestSystemPromptOption(t *testing.T) {
+	ctx := context.Background()
+	customPrompt := "You are a specialized sub-agent for code exploration."
+	inner := &mockLLMCaller{
+		responses: []mockResponse{
+			{content: "Done.", toolCalls: nil},
+		},
+	}
+	rec := &recordingLLMCaller{inner: inner}
+	a := NewAgent(rec, nil, SystemPrompt(customPrompt))
+	sess := session.NewSession("")
+	_, err := a.Process(ctx, sess, "explore the code")
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(rec.firstMsg) < 2 {
+		t.Fatalf("first call: len(messages) = %d, want at least 2", len(rec.firstMsg))
+	}
+	if rec.firstMsg[0].Role != "system" {
+		t.Errorf("messages[0].Role = %q, want \"system\"", rec.firstMsg[0].Role)
+	}
+	if rec.firstMsg[0].Content != customPrompt {
+		t.Errorf("messages[0].Content = %q, want custom prompt", rec.firstMsg[0].Content)
+	}
+}

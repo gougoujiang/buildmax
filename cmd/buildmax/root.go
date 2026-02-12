@@ -89,8 +89,8 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite, Bash, Glob, Edit, Grep),
-// builds the agent, ensures sessions dir exists, and loads or creates the session.
+// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite, Bash, Glob, Edit, Grep, Task),
+// builds the agent with built-in and user-defined sub-agent types, ensures sessions dir exists, and loads or creates the session.
 // Returns values needed by both runTUI and runPromptMode.
 func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Session, sessionsDir, cwd string, err error) {
 	cfg := config.LoadLLM()
@@ -143,7 +143,77 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create grep tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create grep tool: %w", err)
 	}
-	a = agent.NewAgent(client, []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool, globTool, editFileTool, grepTool})
+
+	// All base tools (Task is excluded — sub-agents must not recurse).
+	baseTools := []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool, globTool, editFileTool, grepTool}
+
+	// Build tool-by-name lookup for resolving user-defined agent tool lists.
+	toolsByName := make(map[string]agent.Tool, len(baseTools))
+	for _, t := range baseTools {
+		toolsByName[t.Name()] = t
+	}
+
+	// Built-in sub-agent type configurations.
+	agentTypes := map[string]tools.AgentTypeConfig{
+		"general": {
+			Tools:        baseTools,
+			SystemPrompt: tools.GeneralSubAgentPrompt,
+			Description:  "General-purpose agent with all tools for multi-step tasks.",
+		},
+		"explore": {
+			Tools:        []agent.Tool{readFileTool, globTool, grepTool},
+			SystemPrompt: tools.ExploreSubAgentPrompt,
+			Description:  "Read-only agent for fast codebase exploration (Read, Glob, Grep).",
+		},
+		"shell": {
+			Tools:        []agent.Tool{bashTool},
+			SystemPrompt: tools.ShellSubAgentPrompt,
+			Description:  "Command execution specialist (Bash only).",
+		},
+	}
+
+	// Load user-defined agent definitions from <workspace>/.agents/agents/.
+	agentDefsDir := filepath.Join(cwd, ".agents", "agents")
+	defs, err := tools.LoadAgentDefs(agentDefsDir)
+	if err != nil {
+		slog.Warn("load agent defs failed", "dir", agentDefsDir, "err", err)
+	}
+	for _, def := range defs {
+		// Skip if name conflicts with a built-in type.
+		if _, exists := agentTypes[def.Name]; exists {
+			slog.Warn("skip user-defined agent: name conflicts with built-in", "name", def.Name)
+			continue
+		}
+		// Resolve tool names to tool instances.
+		var resolved []agent.Tool
+		for _, tn := range def.ToolNames {
+			t, ok := toolsByName[tn]
+			if !ok {
+				slog.Warn("skip unknown tool in agent def", "agent", def.Name, "tool", tn)
+				continue
+			}
+			resolved = append(resolved, t)
+		}
+		if len(resolved) == 0 {
+			slog.Warn("skip user-defined agent: no valid tools resolved", "name", def.Name)
+			continue
+		}
+		agentTypes[def.Name] = tools.AgentTypeConfig{
+			Tools:        resolved,
+			SystemPrompt: def.SystemPrompt,
+			Description:  def.Description,
+		}
+		slog.Info("loaded user-defined agent", "name", def.Name, "tools", len(resolved))
+	}
+
+	// Create the Task tool with all agent type configs (built-in + user-defined).
+	taskTool, err := tools.NewTask(client, agentTypes)
+	if err != nil {
+		slog.Error("create task tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create task tool: %w", err)
+	}
+
+	a = agent.NewAgent(client, append(baseTools, taskTool))
 
 	sessionsDir = filepath.Join(config.DataDir(), "sessions")
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
