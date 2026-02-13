@@ -54,7 +54,7 @@ Users get a full Agent TUI experience in the terminal by running a single comman
 - **Chat session**: In-memory session in `internal/session` (id, title, created_at, message history); multi-turn via same session
 - **Session persistence**: Save/load under `DataDir()/sessions/<id>.json`; prompt mode saves after each run; `--resume <id> -p PROMPT` to resume
 - **TUI**: Bubble Tea entry via `internal/app` + `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner "BUILDMAX" + version, then chat history), input at bottom, footer (model, workspace, ctrl+c: quit). Run `buildmax` to start a new session; run `buildmax --resume <id>` to start the TUI with that session loaded. Session is persisted after each assistant reply.
-- **CLI**: Cobra in `cmd/buildmax` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand
+- **CLI**: Cobra in `internal/cmd` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand; `cmd/buildmax/main.go` is the thin entry point
 
 ### 4.2 Planned / Not yet implemented
 
@@ -71,9 +71,9 @@ Following common Golang project conventions, the current structure is:
 buildmax/
 ├── cmd/
 │   └── buildmax/          # Executable entry point
-│       ├── main.go        # main(), log init, root.Execute(), runPromptMode()
-│       └── root.go        # Cobra root command, -p/--resume, version subcommand
+│       └── main.go        # main(), log init, cmd.NewRootCommand().Execute()
 ├── internal/              # Private packages (this project only)
+│   ├── cmd/               # Cobra root command, flags, version subcommand, prompt/TUI runners
 │   ├── app/               # App bootstrap and TUI program entry
 │   ├── tui/               # Bubble Tea models and views
 │   ├── agent/             # Core Agent logic (Process, tools, system prompt)
@@ -91,7 +91,8 @@ buildmax/
 └── README.md
 ```
 
-- **cmd/buildmax**: Single CLI; `main.go` + `root.go` (Cobra). Build with `go build -o buildmax.exe ./cmd/buildmax` or `make.bat build`.
+- **cmd/buildmax**: Single CLI entry point; `main.go` only. Build with `go build -o buildmax.exe ./cmd/buildmax` or `make.bat build`.
+- **internal/cmd**: Cobra root command, CLI flags, version subcommand, prompt mode and TUI runners.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
 
 ## 6. Documentation and Repository
