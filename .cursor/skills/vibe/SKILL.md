@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, and build knowledge base. Sub-commands: start, clarify, design, code, done, smell, kb. All artifacts stored under .vibe/ directory."
+description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, and build knowledge base. Sub-commands: start, clarify, design, code, done, smell, kb, help. All artifacts stored under .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -20,6 +20,7 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe done [id]` | Mark task finished |
 | `/vibe smell [path]` | Detect code smells and propose refactors |
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
+| `/vibe help` | Show all sub-commands and brief descriptions |
 
 ## Resolving the target task
 
@@ -277,3 +278,39 @@ Analyzes the codebase and produces organized knowledge documents under `.vibe/kb
 
 - **Primary**: One or more markdown files under `.vibe/kb/` plus an updated `index.md`.
 - **Optional**: Short summary in chat listing which docs were created or updated.
+
+---
+
+## `/vibe help` — Show Available Commands
+
+Prints a quick-reference summary of all sub-commands directly in chat.
+
+### When to use
+
+- The user types `/vibe help`, `/vibe ?`, or asks what vibe commands are available
+- The user seems unsure which sub-command to use
+
+### Output
+
+Print the following table in chat (no files created or modified):
+
+```
+Vibe — Development Lifecycle
+
+  /vibe start <desc>    Create a new task
+  /vibe clarify [id]    Clarify requirements and produce implementation-ready spec
+  /vibe design [id]     Technical design document
+  /vibe code [id]       Implement from design
+  /vibe done [id]       Mark task finished
+  /vibe smell [path]    Detect code smells and propose refactors
+  /vibe kb [topic]      Organize and maintain codebase knowledge base
+  /vibe help            Show this help message
+
+[id] is optional — defaults to the last TODO task in .vibe/000-TOC.md.
+All artifacts are stored under the .vibe/ directory.
+```
+
+### Rules
+
+- **Chat only.** Do not create or modify any files.
+- **Keep it concise.** One line per command, aligned for readability.
