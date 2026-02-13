@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, and build knowledge base. Sub-commands: start, clarify, design, code, done, smell, kb, help. All artifacts stored under .vibe/ directory."
+description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, and push. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, help. All artifacts stored under .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -20,6 +20,8 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe done [id]` | Mark task finished |
 | `/vibe smell [path]` | Detect code smells and propose refactors |
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
+| `/vibe commit` | Stage and commit changes with a generated message |
+| `/vibe push` | Push local commits to the remote branch |
 | `/vibe help` | Show all sub-commands and brief descriptions |
 
 ## Resolving the target task
@@ -281,6 +283,75 @@ Analyzes the codebase and produces organized knowledge documents under `.vibe/kb
 
 ---
 
+## `/vibe commit` — Stage and Commit Changes
+
+Inspects current changes, generates a conventional commit message, and commits.
+
+### When to use
+
+- The user wants to commit current work, save changes to git, or generate a commit message from the diff
+- After completing a coding task and wanting to checkpoint progress
+
+### Workflow
+
+1. **Inspect changes** — Run `git status` and `git diff` (or `git diff --staged` if already staged) to see what will be committed.
+2. **Check for problems** — Ensure no unintended files (e.g. secrets, build artifacts) are in the diff; adjust `.gitignore` or unstage if needed.
+3. **Generate commit message** — From the diff, write a single commit message in conventional format (see below).
+4. **Stage and commit** — Run `git add` as needed, then `git commit -m "<message>"`.
+
+### Commit message format
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <short description>
+
+[optional body]
+```
+
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`.
+
+**Examples:**
+
+- `feat(agent): add tool-call handling`
+- `fix(llm): correct API error mapping`
+- `docs: update README setup steps`
+- `chore(deps): bump go version`
+
+Keep the subject line under ~72 characters; start with a verb in imperative mood.
+
+### Rules
+
+- **One logical change per commit.** Split into multiple commits if the diff mixes unrelated changes.
+- **Message matches the actual change set.** Do not describe things that aren't in the diff.
+- **Do NOT add "Co-authored-by"** or similar trailers; do NOT use the `--trailer` flag.
+- **No files created or modified** beyond the git commit itself.
+
+---
+
+## `/vibe push` — Push to Remote
+
+Pushes local commits to the remote branch.
+
+### When to use
+
+- The user wants to push committed changes to the remote repository
+- After `/vibe commit` when the user also wants to push
+
+### Workflow
+
+1. **Check status** — Run `git status` to confirm there are local commits ahead of the remote.
+2. **Push** — Run `git push` (or `git push -u origin <branch>` if no upstream is set).
+3. **Report** — Confirm success or relay any errors to the user.
+
+### Rules
+
+- **Only push when asked.** Do not automatically push after commit unless the user explicitly requests it.
+- **Never force push** (`--force`, `--force-with-lease`) unless the user explicitly requests it.
+- **Never push to main/master** with force; warn the user if they request it.
+
+---
+
 ## `/vibe help` — Show Available Commands
 
 Prints a quick-reference summary of all sub-commands directly in chat.
@@ -304,6 +375,8 @@ Vibe — Development Lifecycle
   /vibe done [id]       Mark task finished
   /vibe smell [path]    Detect code smells and propose refactors
   /vibe kb [topic]      Organize and maintain codebase knowledge base
+  /vibe commit          Stage and commit changes with a generated message
+  /vibe push            Push local commits to the remote branch
   /vibe help            Show this help message
 
 [id] is optional — defaults to the last TODO task in .vibe/000-TOC.md.
