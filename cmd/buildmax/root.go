@@ -89,7 +89,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite, Bash, Glob, Edit, Grep, Task),
+// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite, Bash, Glob, Edit, Grep, Skill, Task),
 // builds the agent with built-in and user-defined sub-agent types, ensures sessions dir exists, and loads or creates the session.
 // Returns values needed by both runTUI and runPromptMode.
 func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Session, sessionsDir, cwd string, err error) {
@@ -143,9 +143,19 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create grep tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create grep tool: %w", err)
 	}
+	skillSearchPaths := []string{
+		filepath.Join(cwd, ".buildmax", "skills"),
+		filepath.Join(cwd, ".cursor", "skills"),
+		filepath.Join(config.DataDir(), "skills"),
+	}
+	skillTool, err := tools.NewSkill(skillSearchPaths)
+	if err != nil {
+		slog.Error("create skill tool", "err", err)
+		return nil, nil, "", "", fmt.Errorf("create skill tool: %w", err)
+	}
 
 	// All base tools (Task is excluded — sub-agents must not recurse).
-	baseTools := []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool, globTool, editFileTool, grepTool}
+	baseTools := []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool, globTool, editFileTool, grepTool, skillTool}
 
 	// Build tool-by-name lookup for resolving user-defined agent tool lists.
 	toolsByName := make(map[string]agent.Tool, len(baseTools))
