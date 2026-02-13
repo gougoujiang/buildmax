@@ -76,89 +76,78 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	}
 	if prompt != "" {
 		slog.Info("running prompt mode")
-		if err := runPromptMode(prompt, resumeID); err != nil {
-			slog.Error("prompt mode failed", "err", err)
-			os.Exit(1)
-		}
-		return nil
+		return runPromptMode(prompt, resumeID)
 	}
 	slog.Info("starting TUI")
-	if err := runTUI(resumeID); err != nil {
-		return err
-	}
-	return nil
+	return runTUI(resumeID)
 }
 
-// setupAgentAndSession loads config, creates LLM client and tools (Read, Write, WebFetch, TodoWrite, Bash, Glob, Edit, Grep, Skill, Task),
-// builds the agent with built-in and user-defined sub-agent types, ensures sessions dir exists, and loads or creates the session.
-// Returns values needed by both runTUI and runPromptMode.
-func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Session, sessionsDir, cwd string, err error) {
-	cfg := config.LoadLLM()
-	if cfg.APIKey == "" {
-		return nil, nil, "", "", fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
-	}
-	cwd, err = os.Getwd()
-	if err != nil {
-		slog.Error("get working directory", "err", err)
-		return nil, nil, "", "", fmt.Errorf("get working directory: %w", err)
-	}
-	client := llm.NewClient(cfg)
+// setupResult holds everything returned by setupAgentAndSession.
+type setupResult struct {
+	Agent       *agent.Agent
+	Session     *session.Session
+	SessionsDir string
+	CWD         string
+	ModelName   string
+}
+
+// buildBaseTools constructs all base tools (Task is excluded — sub-agents must not recurse).
+// Returns the tool slice and a name→tool lookup map.
+func buildBaseTools(client *llm.Client, cwd string, skillPaths []string) ([]agent.Tool, map[string]agent.Tool, error) {
 	readFileTool, err := tools.NewReadFile(cwd)
 	if err != nil {
-		slog.Error("create read_file tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create read_file tool: %w", err)
+		return nil, nil, fmt.Errorf("create read_file tool: %w", err)
 	}
 	writeFileTool, err := tools.NewWriteFile(cwd)
 	if err != nil {
-		slog.Error("create write_file tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create write_file tool: %w", err)
+		return nil, nil, fmt.Errorf("create write_file tool: %w", err)
 	}
 	webFetchTool, err := tools.NewWebFetch(client, 15*time.Minute)
 	if err != nil {
-		slog.Error("create webfetch tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create webfetch tool: %w", err)
+		return nil, nil, fmt.Errorf("create webfetch tool: %w", err)
 	}
 	todoWriteTool, err := tools.NewTodoWrite()
 	if err != nil {
-		slog.Error("create todowrite tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create todowrite tool: %w", err)
+		return nil, nil, fmt.Errorf("create todowrite tool: %w", err)
 	}
 	bashTool, err := tools.NewBash(cwd)
 	if err != nil {
-		slog.Error("create bash tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create bash tool: %w", err)
+		return nil, nil, fmt.Errorf("create bash tool: %w", err)
 	}
 	globTool, err := tools.NewGlob(cwd)
 	if err != nil {
-		slog.Error("create glob tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create glob tool: %w", err)
+		return nil, nil, fmt.Errorf("create glob tool: %w", err)
 	}
 	editFileTool, err := tools.NewEditFile(cwd)
 	if err != nil {
-		slog.Error("create edit_file tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create edit_file tool: %w", err)
+		return nil, nil, fmt.Errorf("create edit_file tool: %w", err)
 	}
 	grepTool, err := tools.NewGrep(cwd)
 	if err != nil {
-		slog.Error("create grep tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create grep tool: %w", err)
+		return nil, nil, fmt.Errorf("create grep tool: %w", err)
 	}
-	skillTool, err := tools.NewSkill(config.SkillSearchPaths(cwd))
+	skillTool, err := tools.NewSkill(skillPaths)
 	if err != nil {
-		slog.Error("create skill tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create skill tool: %w", err)
+		return nil, nil, fmt.Errorf("create skill tool: %w", err)
 	}
 
-	// All base tools (Task is excluded — sub-agents must not recurse).
 	baseTools := []agent.Tool{readFileTool, writeFileTool, webFetchTool, todoWriteTool, bashTool, globTool, editFileTool, grepTool, skillTool}
 
-	// Build tool-by-name lookup for resolving user-defined agent tool lists.
 	toolsByName := make(map[string]agent.Tool, len(baseTools))
 	for _, t := range baseTools {
 		toolsByName[t.Name()] = t
 	}
+	return baseTools, toolsByName, nil
+}
 
-	// Built-in sub-agent type configurations.
+// buildAgentTypes defines built-in sub-agent types and merges user-defined agent definitions.
+func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, cwd string) map[string]tools.AgentTypeConfig {
+	// Resolve specific tools by name for built-in types.
+	readFileTool := toolsByName["read_file"]
+	globTool := toolsByName["glob"]
+	grepTool := toolsByName["grep"]
+	bashTool := toolsByName["bash"]
+
 	agentTypes := map[string]tools.AgentTypeConfig{
 		"general": {
 			Tools:        baseTools,
@@ -183,12 +172,10 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Warn("load agent defs failed", "err", err)
 	}
 	for _, def := range defs {
-		// Skip if name conflicts with a built-in type.
 		if _, exists := agentTypes[def.Name]; exists {
 			slog.Warn("skip user-defined agent: name conflicts with built-in", "name", def.Name)
 			continue
 		}
-		// Resolve tool names to tool instances.
 		var resolved []agent.Tool
 		for _, tn := range def.ToolNames {
 			t, ok := toolsByName[tn]
@@ -210,48 +197,79 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Info("loaded user-defined agent", "name", def.Name, "tools", len(resolved))
 	}
 
-	// Create the Task tool with all agent type configs (built-in + user-defined).
+	return agentTypes
+}
+
+// setupAgentAndSession loads config, builds tools and agent types, creates the agent,
+// ensures the sessions directory exists, and loads or creates the session.
+func setupAgentAndSession(resumeID string) (setupResult, error) {
+	cfg := config.LoadLLM()
+	if cfg.APIKey == "" {
+		return setupResult{}, fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("get working directory", "err", err)
+		return setupResult{}, fmt.Errorf("get working directory: %w", err)
+	}
+	client := llm.NewClient(cfg)
+
+	baseTools, toolsByName, err := buildBaseTools(client, cwd, config.SkillSearchPaths(cwd))
+	if err != nil {
+		slog.Error("build base tools", "err", err)
+		return setupResult{}, err
+	}
+
+	agentTypes := buildAgentTypes(baseTools, toolsByName, cwd)
+
 	taskTool, err := tools.NewTask(client, agentTypes)
 	if err != nil {
 		slog.Error("create task tool", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create task tool: %w", err)
+		return setupResult{}, fmt.Errorf("create task tool: %w", err)
 	}
 
-	a = agent.NewAgent(client, append(baseTools, taskTool))
+	a := agent.NewAgent(client, append(baseTools, taskTool))
 
-	sessionsDir = filepath.Join(config.DataDir(), "sessions")
+	sessionsDir := filepath.Join(config.DataDir(), "sessions")
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
 		slog.Error("create sessions dir", "err", err)
-		return nil, nil, "", "", fmt.Errorf("create sessions dir: %w", err)
+		return setupResult{}, fmt.Errorf("create sessions dir: %w", err)
 	}
 
+	var sess *session.Session
 	if resumeID != "" {
 		sess, err = session.LoadFromDir(sessionsDir, resumeID)
 		if err != nil {
 			slog.Error("load session failed", "err", err)
-			return nil, nil, "", "", fmt.Errorf("load session: %w", err)
+			return setupResult{}, fmt.Errorf("load session: %w", err)
 		}
 		slog.Info("resumed session", "id", sess.ID())
 	} else {
 		sess = session.NewSession("")
 	}
-	return a, sess, sessionsDir, cwd, nil
+
+	return setupResult{
+		Agent:       a,
+		Session:     sess,
+		SessionsDir: sessionsDir,
+		CWD:         cwd,
+		ModelName:   cfg.Model,
+	}, nil
 }
 
 // runTUI builds agent and session via setupAgentAndSession, then runs the TUI.
 func runTUI(resumeID string) error {
-	a, sess, sessionsDir, cwd, err := setupAgentAndSession(resumeID)
+	res, err := setupAgentAndSession(resumeID)
 	if err != nil {
 		return err
 	}
-	cfg := config.LoadLLM()
 	opts := tui.TUIOpts{
-		Agent:       a,
-		Session:     sess,
-		ModelName:   cfg.Model,
-		Workspace:   cwd,
+		Agent:       res.Agent,
+		Session:     res.Session,
+		ModelName:   res.ModelName,
+		Workspace:   res.CWD,
 		Version:     Version,
-		SessionsDir: sessionsDir,
+		SessionsDir: res.SessionsDir,
 	}
 	p := tea.NewProgram(app.NewModel(opts), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -272,20 +290,20 @@ func newVersionCommand() *cobra.Command {
 }
 
 func runPromptMode(prompt string, resumeID string) error {
-	a, sess, sessionsDir, cwd, err := setupAgentAndSession(resumeID)
+	res, err := setupAgentAndSession(resumeID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return err
 	}
 	ctx := context.Background()
-	reply, err := a.Process(ctx, sess, prompt)
-	slog.Debug("session details", "id", sess.ID(), "title", sess.Title(), "created_at", sess.CreatedAt())
-	slog.Debug("session history", "messages", sess.Messages())
+	reply, err := res.Agent.Process(ctx, res.Session, prompt)
+	slog.Debug("session details", "id", res.Session.ID(), "title", res.Session.Title(), "created_at", res.Session.CreatedAt())
+	slog.Debug("session history", "messages", res.Session.Messages())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return fmt.Errorf("agent: %w", err)
 	}
-	if err := session.PersistAfterReply(sess, sessionsDir, cwd, 100); err != nil {
+	if err := session.PersistAfterReply(res.Session, res.SessionsDir, res.CWD, 100); err != nil {
 		slog.Error("persist session failed", "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return fmt.Errorf("persist session: %w", err)
