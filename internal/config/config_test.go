@@ -32,3 +32,87 @@ func TestDataDir_Override(t *testing.T) {
 		t.Errorf("DataDir() = %q, want %q", dir, want)
 	}
 }
+
+func TestSkillSearchPaths_Order(t *testing.T) {
+	t.Setenv("HOME_DIR", "")
+	workspace := filepath.Join("C:", "projects", "myapp")
+	paths := SkillSearchPaths(workspace)
+
+	if len(paths) != 3 {
+		t.Fatalf("SkillSearchPaths returned %d paths, want 3", len(paths))
+	}
+
+	// 1. project-level .buildmax/skills
+	want0 := filepath.Join(workspace, ".buildmax", "skills")
+	if paths[0] != want0 {
+		t.Errorf("paths[0] = %q, want %q", paths[0], want0)
+	}
+
+	// 2. compat .cursor/skills
+	want1 := filepath.Join(workspace, ".cursor", "skills")
+	if paths[1] != want1 {
+		t.Errorf("paths[1] = %q, want %q", paths[1], want1)
+	}
+
+	// 3. global DataDir()/skills
+	want2 := filepath.Join(DataDir(), "skills")
+	if paths[2] != want2 {
+		t.Errorf("paths[2] = %q, want %q", paths[2], want2)
+	}
+}
+
+func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME_DIR", tmp)
+	workspace := filepath.Join("D:", "work", "project")
+	paths := SkillSearchPaths(workspace)
+
+	if len(paths) != 3 {
+		t.Fatalf("SkillSearchPaths returned %d paths, want 3", len(paths))
+	}
+
+	// Global path should use the overridden DataDir.
+	wantGlobal := filepath.Join(filepath.Clean(tmp), "skills")
+	if paths[2] != wantGlobal {
+		t.Errorf("paths[2] = %q, want %q (HOME_DIR override)", paths[2], wantGlobal)
+	}
+}
+
+func TestAgentDefsSearchPaths_Order(t *testing.T) {
+	t.Setenv("HOME_DIR", "")
+	workspace := filepath.Join("C:", "projects", "myapp")
+	paths := AgentDefsSearchPaths(workspace)
+
+	if len(paths) != 2 {
+		t.Fatalf("AgentDefsSearchPaths returned %d paths, want 2", len(paths))
+	}
+
+	// 1. project-level .buildmax/agents
+	want0 := filepath.Join(workspace, ".buildmax", "agents")
+	if paths[0] != want0 {
+		t.Errorf("paths[0] = %q, want %q", paths[0], want0)
+	}
+
+	// 2. global DataDir()/agents
+	want1 := filepath.Join(DataDir(), "agents")
+	if paths[1] != want1 {
+		t.Errorf("paths[1] = %q, want %q", paths[1], want1)
+	}
+}
+
+func TestAgentDefsSearchPaths_HomeDirOverride(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME_DIR", tmp)
+	workspace := filepath.Join("D:", "work", "project")
+	paths := AgentDefsSearchPaths(workspace)
+
+	if len(paths) != 2 {
+		t.Fatalf("AgentDefsSearchPaths returned %d paths, want 2", len(paths))
+	}
+
+	// Global path should use the overridden DataDir.
+	wantGlobal := filepath.Join(filepath.Clean(tmp), "agents")
+	if paths[1] != wantGlobal {
+		t.Errorf("paths[1] = %q, want %q (HOME_DIR override)", paths[1], wantGlobal)
+	}
+}

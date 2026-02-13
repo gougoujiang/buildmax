@@ -57,3 +57,31 @@ func DataDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".buildmax")
 }
+
+// SkillSearchPaths returns the ordered list of directories to scan for skills.
+// Priority (first wins on name conflict):
+//  1. <workspace>/.buildmax/skills  (project-level)
+//  2. <workspace>/.cursor/skills    (backward compatibility with Cursor layouts)
+//  3. <DataDir>/skills              (global-level, e.g. ~/.buildmax/skills)
+//
+// Missing directories are not created; callers handle absent dirs gracefully.
+func SkillSearchPaths(workspace string) []string {
+	return []string{
+		filepath.Join(workspace, ".buildmax", "skills"),
+		filepath.Join(workspace, ".cursor", "skills"),
+		filepath.Join(DataDir(), "skills"),
+	}
+}
+
+// AgentDefsSearchPaths returns the ordered list of directories to scan for agent definitions.
+// Priority (first wins on name conflict):
+//  1. <workspace>/.buildmax/agents  (project-level)
+//  2. <DataDir>/agents              (global-level, e.g. ~/.buildmax/agents)
+//
+// Missing directories are not created; callers handle absent dirs gracefully.
+func AgentDefsSearchPaths(workspace string) []string {
+	return []string{
+		filepath.Join(workspace, ".buildmax", "agents"),
+		filepath.Join(DataDir(), "agents"),
+	}
+}

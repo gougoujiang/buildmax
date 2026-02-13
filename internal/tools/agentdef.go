@@ -139,6 +139,35 @@ func parseFrontmatter(block string) map[string]string {
 	return kv
 }
 
+// LoadAgentDefsFromPaths loads agent definitions from multiple directories in priority order.
+// Directories are scanned in order; if two directories contain a definition with the same Name,
+// the first one wins (project-level overrides global-level). Missing directories are gracefully
+// skipped (same behavior as LoadAgentDefs). Returns the merged list sorted alphabetically by Name.
+func LoadAgentDefsFromPaths(dirs []string) ([]AgentDef, error) {
+	seen := make(map[string]bool)
+	var merged []AgentDef
+
+	for _, dir := range dirs {
+		defs, err := LoadAgentDefs(dir)
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range defs {
+			if seen[d.Name] {
+				slog.Debug("skip duplicate agent def", "name", d.Name, "dir", dir)
+				continue
+			}
+			seen[d.Name] = true
+			merged = append(merged, d)
+		}
+	}
+
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Name < merged[j].Name
+	})
+	return merged, nil
+}
+
 // splitAndTrim splits s by sep and returns trimmed, non-empty parts.
 func splitAndTrim(s, sep string) []string {
 	parts := strings.Split(s, sep)

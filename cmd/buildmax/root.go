@@ -143,12 +143,7 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		slog.Error("create grep tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create grep tool: %w", err)
 	}
-	skillSearchPaths := []string{
-		filepath.Join(cwd, ".buildmax", "skills"),
-		filepath.Join(cwd, ".cursor", "skills"),
-		filepath.Join(config.DataDir(), "skills"),
-	}
-	skillTool, err := tools.NewSkill(skillSearchPaths)
+	skillTool, err := tools.NewSkill(config.SkillSearchPaths(cwd))
 	if err != nil {
 		slog.Error("create skill tool", "err", err)
 		return nil, nil, "", "", fmt.Errorf("create skill tool: %w", err)
@@ -182,11 +177,10 @@ func setupAgentAndSession(resumeID string) (a *agent.Agent, sess *session.Sessio
 		},
 	}
 
-	// Load user-defined agent definitions from <workspace>/.agents/agents/.
-	agentDefsDir := filepath.Join(cwd, ".agents", "agents")
-	defs, err := tools.LoadAgentDefs(agentDefsDir)
+	// Load user-defined agent definitions from project and global directories.
+	defs, err := tools.LoadAgentDefsFromPaths(config.AgentDefsSearchPaths(cwd))
 	if err != nil {
-		slog.Warn("load agent defs failed", "dir", agentDefsDir, "err", err)
+		slog.Warn("load agent defs failed", "err", err)
 	}
 	for _, def := range defs {
 		// Skip if name conflicts with a built-in type.

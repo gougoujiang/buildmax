@@ -14,7 +14,7 @@ import (
 )
 
 // DefaultMaxIterations is the default cap on agent loop iterations.
-const DefaultMaxIterations = 10
+const DefaultMaxIterations = 200
 
 // DefaultSystemPrompt is the default system message sent at the start of every agent run.
 // It declares the assistant role and behavioral guidelines so the LLM behaves consistently.
