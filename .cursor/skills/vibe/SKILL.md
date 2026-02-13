@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, and push. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, help. All artifacts stored under .vibe/ directory."
+description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, push, and autopilot. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, go, help. All artifacts stored under .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -22,6 +22,7 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
 | `/vibe commit` | Stage and commit changes with a generated message |
 | `/vibe push` | Push local commits to the remote branch |
+| `/vibe go <desc>` | Autopilot: run the full lifecycle non-interactively |
 | `/vibe help` | Show all sub-commands and brief descriptions |
 
 ## Resolving the target task
@@ -352,6 +353,52 @@ Pushes local commits to the remote branch.
 
 ---
 
+## `/vibe go` — Autopilot (Full Lifecycle)
+
+Runs the entire lifecycle for a small, well-defined task **without pausing for confirmation** at each step. Equivalent to executing: **start → clarify → design → code → done → commit → push** in one shot.
+
+### When to use
+
+- The user has a small, clearly-scoped task and wants it done end-to-end in one go
+- The user says "just do it", "handle this", or `/vibe go <description>`
+
+### Workflow
+
+Execute each phase sequentially. Use the same rules and workflows defined in each sub-command's section above, but **do not stop to ask the user for input between phases**. Make reasonable decisions and keep moving.
+
+1. **Start** — Create the task (`/vibe start` workflow). Use `<desc>` as the title.
+2. **Clarify** — Write the spec (`/vibe clarify` workflow). Infer scope from the codebase; do not ask the user. Keep it tight — one goal, minimal scope.
+3. **Design** — Produce the design doc (`/vibe design` workflow). For small tasks, the design can be brief.
+4. **Code** — Implement and verify (`/vibe code` workflow). Build and test must pass.
+5. **Done** — Move the task to Finished (`/vibe done` workflow).
+6. **Commit** — Stage and commit all changes (`/vibe commit` workflow). The commit message should cover both the `.vibe/` artifacts and the code changes.
+7. **Push** — Push to remote (`/vibe push` workflow).
+
+### Abort conditions
+
+Stop the pipeline and report to the user if any of these occur:
+
+- **Build fails** — after the code phase, `go build ./...` does not succeed.
+- **Tests fail** — after the code phase, `go test ./...` does not succeed.
+- **Scope is too large** — during clarify, if the task clearly requires touching more than ~3-4 files or multiple packages, stop and suggest the user break it down or run each phase interactively.
+- **Ambiguity** — if the description is too vague to infer a single clear goal, stop and ask the user to clarify.
+
+When aborting, report which phase failed and why, and leave all artifacts created so far in place (task file, design doc, partial code) so the user can resume with individual sub-commands.
+
+### Rules
+
+- **No interactive prompts.** Make decisions autonomously based on the codebase and project conventions.
+- **Small tasks only.** This command is designed for focused, single-goal changes. Do not use it for large features.
+- **All sub-command rules still apply.** Each phase follows the same rules as its standalone sub-command.
+- **One commit for all changes.** Bundle `.vibe/` artifacts and code into a single commit.
+
+### Output
+
+- **Primary**: A fully implemented, committed, and pushed task — code changes, `.vibe/` artifacts, and a git commit on the remote.
+- **In chat**: A brief end-to-end summary: task id, what was done, files changed, commit hash.
+
+---
+
 ## `/vibe help` — Show Available Commands
 
 Prints a quick-reference summary of all sub-commands directly in chat.
@@ -377,6 +424,7 @@ Vibe — Development Lifecycle
   /vibe kb [topic]      Organize and maintain codebase knowledge base
   /vibe commit          Stage and commit changes with a generated message
   /vibe push            Push local commits to the remote branch
+  /vibe go <desc>       Autopilot: full lifecycle non-interactively
   /vibe help            Show this help message
 
 [id] is optional — defaults to the last TODO task in .vibe/000-TOC.md.
