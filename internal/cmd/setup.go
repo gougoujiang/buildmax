@@ -83,10 +83,10 @@ func buildBaseTools(client *llm.Client, cwd string, skillPaths []string) ([]agen
 // buildAgentTypes defines built-in sub-agent types and merges user-defined agent definitions.
 func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, cwd string) map[string]tools.AgentTypeConfig {
 	// Resolve specific tools by name for built-in types.
-	readFileTool := toolsByName["read_file"]
-	globTool := toolsByName["glob"]
-	grepTool := toolsByName["grep"]
-	bashTool := toolsByName["bash"]
+	readFileTool := toolsByName["Read"]
+	globTool := toolsByName["Glob"]
+	grepTool := toolsByName["Grep"]
+	bashTool := toolsByName["Bash"]
 
 	agentTypes := map[string]tools.AgentTypeConfig{
 		"general": {
