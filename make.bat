@@ -27,7 +27,7 @@ go build -o buildmax.exe ./cmd/buildmax
 if errorlevel 1 exit /b 1
 rem reset log level to debug
 set "BUILDMAX_LOG_LEVEL=debug"
-buildmax.exe -p "What is said in file example/shakespeare.txt?"
+buildmax.exe -p "/smoke 0"
 exit /b %errorlevel%
 
 :usage
