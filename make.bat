@@ -7,7 +7,7 @@ call "%~dp0loadenv.bat"
 if "%~1"=="" goto usage
 if /i "%~1"=="build" goto build
 if /i "%~1"=="test" goto test
-if /i "%~1"=="run" goto run
+if /i "%~1"=="smoke" goto smoke
 goto usage
 
 :build
@@ -20,7 +20,7 @@ set "HOME_DIR=%CD%\testing-sandbox"
 go test ./...
 exit /b %errorlevel%
 
-:run
+:smoke
 if not exist testing-sandbox mkdir testing-sandbox
 set "HOME_DIR=%CD%\testing-sandbox"
 go build -o buildmax.exe ./cmd/buildmax
@@ -34,5 +34,5 @@ exit /b %errorlevel%
 echo Usage: make.bat ^<command^>
 echo   build   Build buildmax.exe
 echo   test    Run go test with testing-sandbox as data dir
-echo   run     Manual test run: build and run with -p, HOME_DIR=testing-sandbox
+echo   smoke   Smoke test: build and run with /smoke 0, HOME_DIR=testing-sandbox
 exit /b 0
