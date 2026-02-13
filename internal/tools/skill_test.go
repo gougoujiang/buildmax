@@ -162,7 +162,7 @@ func TestNewSkill_NoSearchPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if tool.Name() != "Skill" {
+	if tool.Name() != ToolNameSkill {
 		t.Errorf("expected name 'Skill', got %q", tool.Name())
 	}
 	if len(tool.skills) != 0 {

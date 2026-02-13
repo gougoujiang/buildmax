@@ -39,7 +39,7 @@ func NewSkill(searchPaths []string) (*SkillTool, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (s *SkillTool) Name() string { return "Skill" }
+func (s *SkillTool) Name() string { return ToolNameSkill }
 
 // Description returns a static preamble followed by a dynamic listing of discovered skills.
 func (s *SkillTool) Description() string {

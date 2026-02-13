@@ -37,7 +37,7 @@ func NewTodoWrite() (*TodoWrite, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (t *TodoWrite) Name() string { return "TodoWrite" }
+func (t *TodoWrite) Name() string { return ToolNameTodoWrite }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (t *TodoWrite) Description() string {

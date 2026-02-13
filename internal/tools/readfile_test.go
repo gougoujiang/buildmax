@@ -37,7 +37,7 @@ func TestReadFile_Name_Description_Parameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Name() != "Read" {
+	if r.Name() != ToolNameRead {
 		t.Errorf("Name() = %q, want Read", r.Name())
 	}
 	if r.Description() == "" {

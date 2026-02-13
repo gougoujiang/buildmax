@@ -46,7 +46,7 @@ func NewBash(root string) (*Bash, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (b *Bash) Name() string { return "Bash" }
+func (b *Bash) Name() string { return ToolNameBash }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (b *Bash) Description() string {

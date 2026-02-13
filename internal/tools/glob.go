@@ -40,7 +40,7 @@ func NewGlob(root string) (*Glob, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (g *Glob) Name() string { return "Glob" }
+func (g *Glob) Name() string { return ToolNameGlob }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (g *Glob) Description() string {

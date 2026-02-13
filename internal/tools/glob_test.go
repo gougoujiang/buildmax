@@ -37,7 +37,7 @@ func TestGlob_Name_Description_Parameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Name() != "Glob" {
+	if g.Name() != ToolNameGlob {
 		t.Errorf("Name() = %q, want Glob", g.Name())
 	}
 	if g.Description() == "" {

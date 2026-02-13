@@ -41,7 +41,7 @@ func TestGrep_Name_Description_Parameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Name() != "Grep" {
+	if g.Name() != ToolNameGrep {
 		t.Errorf("Name() = %q, want Grep", g.Name())
 	}
 	if g.Description() == "" {

@@ -36,7 +36,7 @@ func TestWriteFile_Name_Description_Parameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.Name() != "Write" {
+	if w.Name() != ToolNameWrite {
 		t.Errorf("Name() = %q, want Write", w.Name())
 	}
 	if w.Description() == "" {

@@ -16,7 +16,7 @@ func TestNewTodoWrite(t *testing.T) {
 	if w == nil {
 		t.Fatal("NewTodoWrite returned nil")
 	}
-	if w.Name() != "TodoWrite" {
+	if w.Name() != ToolNameTodoWrite {
 		t.Errorf("Name() = %q, want TodoWrite", w.Name())
 	}
 	var _ agent.Tool = (*TodoWrite)(nil)
@@ -136,7 +136,7 @@ func TestTodoWrite_NameDescriptionParameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.Name() != "TodoWrite" {
+	if w.Name() != ToolNameTodoWrite {
 		t.Errorf("Name() = %q", w.Name())
 	}
 	desc := w.Description()

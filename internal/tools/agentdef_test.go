@@ -35,7 +35,7 @@ You are a senior software architect.`
 	if d.Description != "Designs feature architectures" {
 		t.Errorf("Description = %q", d.Description)
 	}
-	if len(d.ToolNames) != 3 || d.ToolNames[0] != "Glob" || d.ToolNames[1] != "Grep" || d.ToolNames[2] != "Read" {
+	if len(d.ToolNames) != 3 || d.ToolNames[0] != ToolNameGlob || d.ToolNames[1] != ToolNameGrep || d.ToolNames[2] != ToolNameRead {
 		t.Errorf("ToolNames = %v, want [Glob Grep Read]", d.ToolNames)
 	}
 	if d.SystemPrompt != "You are a senior software architect." {
@@ -160,7 +160,7 @@ Prompt.`
 	if len(defs) != 1 {
 		t.Fatalf("got %d defs, want 1", len(defs))
 	}
-	want := []string{"Glob", "Grep", "Read"}
+	want := []string{ToolNameGlob, ToolNameGrep, ToolNameRead}
 	if len(defs[0].ToolNames) != len(want) {
 		t.Fatalf("ToolNames = %v, want %v", defs[0].ToolNames, want)
 	}

@@ -60,7 +60,7 @@ func NewWebFetch(caller agent.LLMCaller, cacheTTL time.Duration) (*WebFetch, err
 }
 
 // Name returns the tool name for the LLM.
-func (w *WebFetch) Name() string { return "WebFetch" }
+func (w *WebFetch) Name() string { return ToolNameWebFetch }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (w *WebFetch) Description() string {

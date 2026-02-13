@@ -21,15 +21,54 @@ const (
 	ShellSubAgentPrompt = `You are a command execution sub-agent. You have access to the Bash tool for running shell commands. Execute the requested commands and return the results. Be careful with destructive operations.`
 )
 
-// builtinTypeOrder defines the fixed display order for built-in agent types.
-var builtinTypeOrder = []string{"general", "explore", "shell"}
-
-// builtinNames is a set for quick lookup.
-var builtinNames = map[string]bool{
-	"general": true,
-	"explore": true,
-	"shell":   true,
+// BuiltinAgentDef describes a built-in sub-agent type declaratively.
+// ToolNames lists tool names resolved at runtime; nil means all base tools.
+type BuiltinAgentDef struct {
+	Name         string
+	ToolNames    []string // nil ⇒ all base tools
+	SystemPrompt string
+	Description  string
 }
+
+// BuiltinAgentDefs defines the built-in sub-agent types in display order.
+var BuiltinAgentDefs = []BuiltinAgentDef{
+	{
+		Name:         "general",
+		ToolNames:    nil, // all base tools
+		SystemPrompt: GeneralSubAgentPrompt,
+		Description:  "General-purpose agent with all tools for multi-step tasks.",
+	},
+	{
+		Name:         "explore",
+		ToolNames:    []string{ToolNameRead, ToolNameGlob, ToolNameGrep},
+		SystemPrompt: ExploreSubAgentPrompt,
+		Description:  "Read-only agent for fast codebase exploration (Read, Glob, Grep).",
+	},
+	{
+		Name:         "shell",
+		ToolNames:    []string{ToolNameBash},
+		SystemPrompt: ShellSubAgentPrompt,
+		Description:  "Command execution specialist (Bash only).",
+	},
+}
+
+// builtinTypeOrder returns the names in declaration order (derived from BuiltinAgentDefs).
+var builtinTypeOrder = func() []string {
+	names := make([]string, len(BuiltinAgentDefs))
+	for i, d := range BuiltinAgentDefs {
+		names[i] = d.Name
+	}
+	return names
+}()
+
+// builtinNames is a set for quick lookup (derived from BuiltinAgentDefs).
+var builtinNames = func() map[string]bool {
+	m := make(map[string]bool, len(BuiltinAgentDefs))
+	for _, d := range BuiltinAgentDefs {
+		m[d.Name] = true
+	}
+	return m
+}()
 
 // AgentTypeConfig holds the configuration for one agent type (built-in or user-defined).
 type AgentTypeConfig struct {
@@ -81,7 +120,7 @@ func NewTask(caller agent.LLMCaller, agentTypes map[string]AgentTypeConfig) (*Ta
 }
 
 // Name returns the tool name for the LLM.
-func (t *TaskTool) Name() string { return "Task" }
+func (t *TaskTool) Name() string { return ToolNameTask }
 
 // Description returns a dynamically built description listing all available agent types.
 func (t *TaskTool) Description() string {

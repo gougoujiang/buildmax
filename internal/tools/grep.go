@@ -77,7 +77,7 @@ func NewGrep(root string) (*Grep, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (g *Grep) Name() string { return "Grep" }
+func (g *Grep) Name() string { return ToolNameGrep }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (g *Grep) Description() string {

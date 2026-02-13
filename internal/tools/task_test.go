@@ -35,17 +35,17 @@ var _ agent.Tool = (*TaskTool)(nil)
 func testAgentTypes() map[string]AgentTypeConfig {
 	return map[string]AgentTypeConfig{
 		"general": {
-			Tools:        []agent.Tool{&mockAgentTool{name: "Read"}},
+			Tools:        []agent.Tool{&mockAgentTool{name: ToolNameRead}},
 			SystemPrompt: "General prompt.",
 			Description:  "General-purpose agent.",
 		},
 		"explore": {
-			Tools:        []agent.Tool{&mockAgentTool{name: "Read"}},
+			Tools:        []agent.Tool{&mockAgentTool{name: ToolNameRead}},
 			SystemPrompt: "Explore prompt.",
 			Description:  "Read-only agent.",
 		},
 		"custom-agent": {
-			Tools:        []agent.Tool{&mockAgentTool{name: "Grep"}},
+			Tools:        []agent.Tool{&mockAgentTool{name: ToolNameGrep}},
 			SystemPrompt: "Custom prompt.",
 			Description:  "A custom user-defined agent.",
 		},
@@ -71,8 +71,8 @@ func TestTaskTool_Name(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tool.Name() != "Task" {
-		t.Errorf("Name() = %q, want %q", tool.Name(), "Task")
+	if tool.Name() != ToolNameTask {
+		t.Errorf("Name() = %q, want %q", tool.Name(), ToolNameTask)
 	}
 }
 

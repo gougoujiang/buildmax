@@ -36,7 +36,7 @@ func TestEditFile_Name_Description_Parameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Name() != "Edit" {
+	if e.Name() != ToolNameEdit {
 		t.Errorf("Name() = %q, want Edit", e.Name())
 	}
 	if e.Description() == "" {

@@ -34,7 +34,7 @@ func NewWriteFile(root string) (*WriteFile, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (w *WriteFile) Name() string { return "Write" }
+func (w *WriteFile) Name() string { return ToolNameWrite }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (w *WriteFile) Description() string {

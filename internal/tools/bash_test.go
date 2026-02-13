@@ -38,7 +38,7 @@ func TestBash_Name_Description_Parameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.Name() != "Bash" {
+	if b.Name() != ToolNameBash {
 		t.Errorf("Name() = %q, want Bash", b.Name())
 	}
 	if b.Description() == "" {

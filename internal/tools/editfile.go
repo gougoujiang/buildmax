@@ -35,7 +35,7 @@ func NewEditFile(root string) (*EditFile, error) {
 }
 
 // Name returns the tool name for the LLM.
-func (e *EditFile) Name() string { return "Edit" }
+func (e *EditFile) Name() string { return ToolNameEdit }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (e *EditFile) Description() string {

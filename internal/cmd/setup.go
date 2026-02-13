@@ -80,30 +80,29 @@ func buildBaseTools(client *llm.Client, cwd string, skillPaths []string) ([]agen
 	return b.result()
 }
 
-// buildAgentTypes defines built-in sub-agent types and merges user-defined agent definitions.
+// buildAgentTypes resolves built-in sub-agent types from tools.BuiltinAgentDefs
+// and merges user-defined agent definitions.
 func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, cwd string) map[string]tools.AgentTypeConfig {
-	// Resolve specific tools by name for built-in types.
-	readFileTool := toolsByName["Read"]
-	globTool := toolsByName["Glob"]
-	grepTool := toolsByName["Grep"]
-	bashTool := toolsByName["Bash"]
-
-	agentTypes := map[string]tools.AgentTypeConfig{
-		"general": {
-			Tools:        baseTools,
-			SystemPrompt: tools.GeneralSubAgentPrompt,
-			Description:  "General-purpose agent with all tools for multi-step tasks.",
-		},
-		"explore": {
-			Tools:        []agent.Tool{readFileTool, globTool, grepTool},
-			SystemPrompt: tools.ExploreSubAgentPrompt,
-			Description:  "Read-only agent for fast codebase exploration (Read, Glob, Grep).",
-		},
-		"shell": {
-			Tools:        []agent.Tool{bashTool},
-			SystemPrompt: tools.ShellSubAgentPrompt,
-			Description:  "Command execution specialist (Bash only).",
-		},
+	agentTypes := make(map[string]tools.AgentTypeConfig, len(tools.BuiltinAgentDefs))
+	for _, def := range tools.BuiltinAgentDefs {
+		var resolved []agent.Tool
+		if def.ToolNames == nil {
+			// nil means all base tools.
+			resolved = baseTools
+		} else {
+			for _, tn := range def.ToolNames {
+				if t, ok := toolsByName[tn]; ok {
+					resolved = append(resolved, t)
+				} else {
+					slog.Warn("built-in agent references unknown tool", "agent", def.Name, "tool", tn)
+				}
+			}
+		}
+		agentTypes[def.Name] = tools.AgentTypeConfig{
+			Tools:        resolved,
+			SystemPrompt: def.SystemPrompt,
+			Description:  def.Description,
+		}
 	}
 
 	// Load user-defined agent definitions from project and global directories.

@@ -326,7 +326,7 @@ func TestWebFetch_NameAndParameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.Name() != "WebFetch" {
+	if w.Name() != ToolNameWebFetch {
 		t.Errorf("Name() = %q, want WebFetch", w.Name())
 	}
 	params := w.Parameters()
