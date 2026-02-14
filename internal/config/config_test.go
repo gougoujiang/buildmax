@@ -168,7 +168,10 @@ func TestLoadSettings_ValidOneModel(t *testing.T) {
 	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
 		t.Fatal(err)
 	}
-	s := LoadSettings(path)
+	s, err := LoadSettings(path)
+	if err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
 	if len(s.Models) != 1 {
 		t.Fatalf("len(Models) = %d, want 1", len(s.Models))
 	}
@@ -184,7 +187,10 @@ func TestLoadSettings_ValidTwoModels(t *testing.T) {
 	if err := os.WriteFile(path, []byte(settingsValidTwo), 0644); err != nil {
 		t.Fatal(err)
 	}
-	s := LoadSettings(path)
+	s, err := LoadSettings(path)
+	if err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
 	if len(s.Models) != 2 {
 		t.Fatalf("len(Models) = %d, want 2", len(s.Models))
 	}
@@ -196,12 +202,12 @@ func TestLoadSettings_ValidTwoModels(t *testing.T) {
 func TestLoadSettings_MissingFile(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "nonexistent.json")
-	s := LoadSettings(path)
-	if s.Models != nil {
-		t.Errorf("LoadSettings(missing) should return empty Models, got len=%d", len(s.Models))
+	_, err := LoadSettings(path)
+	if err == nil {
+		t.Error("LoadSettings(nonexistent explicit path) should return error")
 	}
 	// Explicit path: file is not created (only default path gets default file).
-	if _, err := os.Stat(path); err == nil {
+	if _, statErr := os.Stat(path); statErr == nil {
 		t.Error("LoadSettings(nonexistent explicit path) should not create file")
 	}
 }
@@ -213,7 +219,10 @@ func TestLoadSettings_CreatesDefaultFileWhenMissing(t *testing.T) {
 	if _, err := os.Stat(path); err == nil {
 		t.Fatal("settings.json should not exist yet")
 	}
-	s := LoadSettings("")
+	s, err := LoadSettings("")
+	if err != nil {
+		t.Fatalf("LoadSettings(\"\"): %v", err)
+	}
 	if s.Models != nil {
 		t.Errorf("LoadSettings(empty path) with new dir should return empty Models, got len=%d", len(s.Models))
 	}
@@ -233,7 +242,10 @@ func TestLoadSettings_EmptyModels(t *testing.T) {
 	if err := os.WriteFile(path, []byte(settingsEmptyModels), 0644); err != nil {
 		t.Fatal(err)
 	}
-	s := LoadSettings(path)
+	s, err := LoadSettings(path)
+	if err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
 	if len(s.Models) != 0 {
 		t.Errorf("len(Models) = %d, want 0", len(s.Models))
 	}
@@ -245,9 +257,9 @@ func TestLoadSettings_InvalidJSON(t *testing.T) {
 	if err := os.WriteFile(path, []byte(settingsInvalidJSON), 0644); err != nil {
 		t.Fatal(err)
 	}
-	s := LoadSettings(path)
-	if len(s.Models) != 0 {
-		t.Errorf("LoadSettings(invalid JSON) should return empty Models, got len=%d", len(s.Models))
+	_, err := LoadSettings(path)
+	if err == nil {
+		t.Error("LoadSettings(invalid JSON) should return error")
 	}
 }
 
@@ -259,7 +271,10 @@ func TestLoadSettings_EmptyPathUsesSettingsPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// LoadSettings("") should read from SettingsPath() which is tmp/settings.json
-	s := LoadSettings("")
+	s, err := LoadSettings("")
+	if err != nil {
+		t.Fatalf("LoadSettings(\"\"): %v", err)
+	}
 	if len(s.Models) != 1 {
 		t.Fatalf("LoadSettings(\"\") with file present: len(Models) = %d, want 1", len(s.Models))
 	}
@@ -294,17 +309,17 @@ func TestEffectiveLLM_FromFile_DisplayNameFallbackToModel(t *testing.T) {
 	}
 }
 
-func TestEffectiveLLM_FallbackWhenNoFile(t *testing.T) {
+func TestEffectiveLLM_FallbackWhenNoSettings(t *testing.T) {
 	tmp := t.TempDir()
-	path := filepath.Join(tmp, "nonexistent.json")
 	t.Setenv("BUILDMAX_HOME", tmp)
 	t.Setenv("OPENROUTER_API_KEY", "")
 	t.Setenv("BUILDMAX_API_KEY", "env-key")
 	t.Setenv("BUILDMAX_BASE_URL", "https://env.url")
 	t.Setenv("BUILDMAX_MODEL", "env-model")
-	cfg, displayName := EffectiveLLM(path)
+	// Use default path (empty string): auto-creates empty settings.json, then falls back to env.
+	cfg, displayName := EffectiveLLM("")
 	if cfg.APIKey != "env-key" || cfg.BaseURL != "https://env.url" || cfg.Model != "env-model" {
-		t.Errorf("EffectiveLLM(no file) should fall back to LoadLLM(), got %+v", cfg)
+		t.Errorf("EffectiveLLM(\"\") should fall back to LoadLLM(), got %+v", cfg)
 	}
 	if displayName != "env-model" {
 		t.Errorf("displayName = %q, want env-model", displayName)

@@ -133,10 +133,6 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return m, tea.Quit
-	case tea.KeyRunes:
-		if len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
-			return m, tea.Quit
-		}
 	}
 	if msg.Type == tea.KeyTab {
 		m.focusInput = !m.focusInput

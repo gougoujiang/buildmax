@@ -92,26 +92,28 @@ func SettingsPath() string {
 }
 
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.
-// On missing file (default path only): creates DataDir and the file with content "{}", then returns empty Settings.
-// On other read error or invalid JSON, returns empty Settings (no error).
-func LoadSettings(path string) Settings {
-	if path == "" {
+// On missing file (default path only): creates DataDir and the file with content "{}", then returns (Settings{}, nil).
+// Returns an error for invalid JSON, unreadable files, or non-default missing paths.
+func LoadSettings(path string) (Settings, error) {
+	isDefault := path == ""
+	if isDefault {
 		path = SettingsPath()
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// When using the default path, create settings.json with {} if it does not exist.
-		if path == SettingsPath() && os.IsNotExist(err) {
+		if os.IsNotExist(err) && isDefault {
+			// Auto-create default settings file.
 			_ = os.MkdirAll(DataDir(), 0755)
 			_ = os.WriteFile(path, []byte("{}\n"), 0644)
+			return Settings{}, nil
 		}
-		return Settings{}
+		return Settings{}, fmt.Errorf("read settings: %w", err)
 	}
 	var s Settings
 	if err := json.Unmarshal(data, &s); err != nil {
-		return Settings{}
+		return Settings{}, fmt.Errorf("parse settings: %w", err)
 	}
-	return s
+	return s, nil
 }
 
 // EffectiveLLMWithSelector returns the LLM config and display name to use at startup,
@@ -122,10 +124,10 @@ func LoadSettings(path string) Settings {
 // whose model or name equals modelSelector (first match wins); otherwise an error
 // is returned.
 func EffectiveLLMWithSelector(settingsPath string, modelSelector string) (LLM, string, error) {
-	if settingsPath == "" {
-		settingsPath = SettingsPath()
+	s, err := LoadSettings(settingsPath)
+	if err != nil {
+		return LLM{}, "", fmt.Errorf("load settings: %w", err)
 	}
-	s := LoadSettings(settingsPath)
 	if modelSelector == "" {
 		if len(s.Models) == 0 {
 			cfg := LoadLLM()

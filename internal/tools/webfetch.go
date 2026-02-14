@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"net/url"
 	"strings"
 	"sync"
@@ -23,6 +24,8 @@ const (
 	MaxContentRunes = 200_000
 	// fetchTimeout is the HTTP client timeout for fetches.
 	fetchTimeout = 30 * time.Second
+	// maxCacheEntries is the upper bound on cached URL results.
+	maxCacheEntries = 100
 )
 
 // errRedirectToOtherHost is returned by CheckRedirect when redirect goes to a different host.
@@ -175,9 +178,40 @@ func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, er
 
 	// 9. Cache store (key = final request URL) and return
 	w.cacheMu.Lock()
+	w.evictExpired()
+	if len(w.cache) >= maxCacheEntries {
+		w.evictOldest()
+	}
 	w.cache[finalURL] = cacheEntry{result: content, expiresAt: time.Now().Add(w.cacheTTL)}
 	w.cacheMu.Unlock()
 	return content, nil
+}
+
+// evictExpired removes all expired cache entries. Must be called with cacheMu held.
+func (w *WebFetch) evictExpired() {
+	now := time.Now()
+	for k, e := range w.cache {
+		if now.After(e.expiresAt) {
+			delete(w.cache, k)
+		}
+	}
+}
+
+// evictOldest removes the cache entry with the earliest expiresAt. Must be called with cacheMu held.
+func (w *WebFetch) evictOldest() {
+	var oldestKey string
+	var oldestTime time.Time
+	first := true
+	for k, e := range w.cache {
+		if first || e.expiresAt.Before(oldestTime) {
+			oldestKey = k
+			oldestTime = e.expiresAt
+			first = false
+		}
+	}
+	if !first {
+		delete(w.cache, oldestKey)
+	}
 }
 
 // normalizeURL returns the URL with scheme set to https if it was http.
@@ -245,19 +279,5 @@ func truncateContent(content string, maxRunes int) string {
 	}
 	runes := []rune(content)
 	n := len(runes)
-	return string(runes[:maxRunes]) + "\n(content truncated; total " + itoa(n) + " characters)"
-}
-
-func itoa(n int) string {
-	if n <= 0 {
-		return "0"
-	}
-	var b [20]byte
-	i := len(b) - 1
-	for n > 0 {
-		b[i] = byte('0' + n%10)
-		n /= 10
-		i--
-	}
-	return string(b[i+1:])
+	return string(runes[:maxRunes]) + "\n(content truncated; total " + strconv.Itoa(n) + " characters)"
 }
