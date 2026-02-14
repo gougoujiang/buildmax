@@ -13,7 +13,7 @@ usage() {
   echo "Usage: ./make.sh <command>"
   echo "  build   Build $BINARY"
   echo "  test    Run go test with testing-sandbox as data dir"
-  echo "  run     Manual test run: build and run with -p, BUILDMAX_HOME=testing-sandbox"
+  echo "  smoke   Smoke test: build and run with /smoke 0, BUILDMAX_HOME=testing-sandbox"
 }
 
 cmd="${1:-}"
@@ -26,12 +26,12 @@ case "${cmd}" in
     export BUILDMAX_HOME="$SCRIPT_DIR/testing-sandbox"
     go test ./...
     ;;
-  run)
+  smoke)
     mkdir -p testing-sandbox
     export BUILDMAX_HOME="$SCRIPT_DIR/testing-sandbox"
-    export BUILDMAX_LOG_LEVEL=debug
     go build -o "$BINARY" ./cmd/buildmax
-    ./"$BINARY" -p "What is said in file example/shakespeare.txt?"
+    export BUILDMAX_LOG_LEVEL=debug
+    ./"$BINARY" -p "/smoke 0"
     ;;
   *)
     usage
