@@ -35,6 +35,7 @@ var inputBoxStyle = lipgloss.NewStyle().
 // TUIOpts holds dependencies and display config for the TUI (agent, session, model name, paths).
 type TUIOpts struct {
 	Agent       *agent.Agent
+	LLMClient   *llm.Client
 	Session     *session.Session
 	ModelName   string
 	Workspace   string
@@ -50,6 +51,12 @@ type agentDoneMsg struct {
 
 // carouselTickMsg is sent by tea.Tick to advance the assistant "..." carousel.
 type carouselTickMsg struct{}
+
+// titleGeneratedMsg is sent when the async LLM title generation finishes.
+type titleGeneratedMsg struct {
+	Title string
+	Err   error
+}
 
 // scrollIdleMsg is sent after scrollIdleDelay ms of no scroll; when its id matches lastScrollID, focus returns to input.
 type scrollIdleMsg struct{ id int }
@@ -207,12 +214,50 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		m.err = msg.Err.Error()
 		slog.Error("agent failed", "err", msg.Err)
-	} else {
-		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0)
-		if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
-			slog.Error("persist session failed", "err", err)
-			m.err = err.Error()
+		return m, nil
+	}
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0)
+
+	// Remember whether the session had no title before persist (i.e. first turn).
+	needsLLMTitle := m.opts.Session.Title() == ""
+
+	if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
+		slog.Error("persist session failed", "err", err)
+		m.err = err.Error()
+		return m, nil
+	}
+
+	// Fire async LLM title generation for new sessions.
+	if needsLLMTitle && m.opts.LLMClient != nil {
+		return m, generateTitleCmd(m.opts)
+	}
+	return m, nil
+}
+
+// generateTitleCmd returns a tea.Cmd that calls the LLM to generate a session title in the background.
+func generateTitleCmd(opts TUIOpts) tea.Cmd {
+	return func() tea.Msg {
+		chatFn := func(ctx context.Context, msgs []llm.Message) (string, error) {
+			content, _, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
+			return content, err
 		}
+		title, err := session.GenerateTitle(context.Background(), chatFn, opts.Session.Messages())
+		return titleGeneratedMsg{Title: title, Err: err}
+	}
+}
+
+func handleTitleGenerated(m *Model, msg titleGeneratedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		slog.Warn("LLM title generation failed", "err", msg.Err)
+		return m, nil
+	}
+	if msg.Title == "" {
+		return m, nil
+	}
+	m.opts.Session.SetTitle(msg.Title)
+	// Re-persist with the LLM-generated title.
+	if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
+		slog.Error("re-persist session with LLM title failed", "err", err)
 	}
 	return m, nil
 }
@@ -270,6 +315,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleWindowSize(m, msg)
 	case agentDoneMsg:
 		return handleAgentDone(m, msg)
+	case titleGeneratedMsg:
+		return handleTitleGenerated(m, msg)
 	case carouselTickMsg:
 		return handleCarouselTick(m, msg)
 	case tea.MouseMsg:

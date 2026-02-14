@@ -16,6 +16,7 @@ import (
 // setupResult holds everything returned by setupAgentAndSession.
 type setupResult struct {
 	Agent       *agent.Agent
+	LLMClient   *llm.Client
 	Session     *session.Session
 	SessionsDir string
 	CWD         string
@@ -188,6 +189,7 @@ func setupAgentAndSession(resumeID string) (setupResult, error) {
 
 	return setupResult{
 		Agent:       a,
+		LLMClient:   client,
 		Session:     sess,
 		SessionsDir: sessionsDir,
 		CWD:         cwd,

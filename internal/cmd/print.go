@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"buildmax/internal/llm"
 	"buildmax/internal/session"
 )
 
@@ -25,6 +26,19 @@ func runPrintMode(prompt string, resumeID string) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return fmt.Errorf("agent: %w", err)
+	}
+	// Generate an LLM title for new sessions (no title yet).
+	if res.Session.Title() == "" {
+		chatFn := func(ctx context.Context, msgs []llm.Message) (string, error) {
+			content, _, err := res.LLMClient.ChatWithTools(ctx, msgs, nil)
+			return content, err
+		}
+		title, err := session.GenerateTitle(ctx, chatFn, res.Session.Messages())
+		if err != nil {
+			slog.Warn("LLM title generation failed, using fallback", "err", err)
+		} else if title != "" {
+			res.Session.SetTitle(title)
+		}
 	}
 	if err := session.PersistAfterReply(res.Session, res.SessionsDir, res.CWD, 100); err != nil {
 		slog.Error("persist session failed", "err", err)

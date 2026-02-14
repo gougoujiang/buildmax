@@ -18,6 +18,7 @@ func runTUI(resumeID string) error {
 	}
 	opts := tui.TUIOpts{
 		Agent:       res.Agent,
+		LLMClient:   res.LLMClient,
 		Session:     res.Session,
 		ModelName:   res.ModelName,
 		Workspace:   res.CWD,
