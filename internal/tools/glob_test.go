@@ -10,33 +10,24 @@ import (
 
 func TestNewGlob(t *testing.T) {
 	t.Run("empty root uses cwd", func(t *testing.T) {
-		g, err := NewGlob("")
-		if err != nil {
-			t.Fatalf("NewGlob(\"\"): %v", err)
-		}
-		if g.root == "" {
+		g := NewGlob(testWorkspace(t, ""))
+		if g.ws.Root == "" {
 			t.Error("root should not be empty")
 		}
 	})
 	t.Run("root is normalized", func(t *testing.T) {
 		dir := t.TempDir()
-		g, err := NewGlob(dir)
-		if err != nil {
-			t.Fatalf("NewGlob: %v", err)
-		}
+		g := NewGlob(testWorkspace(t, dir))
 		abs, _ := filepath.Abs(dir)
-		if g.root != filepath.Clean(abs) {
-			t.Errorf("root = %q, want %q", g.root, filepath.Clean(abs))
+		if g.ws.Root != filepath.Clean(abs) {
+			t.Errorf("root = %q, want %q", g.ws.Root, filepath.Clean(abs))
 		}
 	})
 }
 
 func TestGlob_Name_Description_Parameters(t *testing.T) {
 	dir := t.TempDir()
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	if g.Name() != ToolNameGlob {
 		t.Errorf("Name() = %q, want Glob", g.Name())
 	}
@@ -78,10 +69,7 @@ func TestGlob_Execute_success_simplePattern(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := g.Execute(ctx, map[string]any{"pattern": "*.go"})
 	if err != nil {
@@ -109,10 +97,7 @@ func TestGlob_Execute_success_recursivePattern(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := g.Execute(ctx, map[string]any{"pattern": "**/*.txt"})
 	if err != nil {
@@ -125,10 +110,7 @@ func TestGlob_Execute_success_recursivePattern(t *testing.T) {
 
 func TestGlob_Execute_noMatches(t *testing.T) {
 	dir := t.TempDir()
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := g.Execute(ctx, map[string]any{"pattern": "*.nonexistent"})
 	if err != nil {
@@ -153,10 +135,7 @@ func TestGlob_Execute_optionalPath(t *testing.T) {
 	if err := os.WriteFile(fileInRoot, []byte("x"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := g.Execute(ctx, map[string]any{"pattern": "*.go", "path": "sub"})
 	if err != nil {
@@ -172,12 +151,9 @@ func TestGlob_Execute_optionalPath(t *testing.T) {
 
 func TestGlob_Execute_pathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = g.Execute(ctx, map[string]any{"pattern": "*.go", "path": ".."})
+	_, err := g.Execute(ctx, map[string]any{"pattern": "*.go", "path": ".."})
 	if err == nil {
 		t.Fatal("Execute should return error for path outside root")
 	}
@@ -192,12 +168,9 @@ func TestGlob_Execute_pathNotDirectory(t *testing.T) {
 	if err := os.WriteFile(filePath, []byte("x"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = g.Execute(ctx, map[string]any{"pattern": "*.go", "path": "file.txt"})
+	_, err := g.Execute(ctx, map[string]any{"pattern": "*.go", "path": "file.txt"})
 	if err == nil {
 		t.Fatal("Execute should return error when path is a file")
 	}
@@ -208,12 +181,9 @@ func TestGlob_Execute_pathNotDirectory(t *testing.T) {
 
 func TestGlob_Execute_missingPattern(t *testing.T) {
 	dir := t.TempDir()
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = g.Execute(ctx, map[string]any{})
+	_, err := g.Execute(ctx, map[string]any{})
 	if err == nil {
 		t.Fatal("Execute should return error when pattern is missing")
 	}
@@ -224,12 +194,9 @@ func TestGlob_Execute_missingPattern(t *testing.T) {
 
 func TestGlob_Execute_emptyPattern(t *testing.T) {
 	dir := t.TempDir()
-	g, err := NewGlob(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := NewGlob(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = g.Execute(ctx, map[string]any{"pattern": "   "})
+	_, err := g.Execute(ctx, map[string]any{"pattern": "   "})
 	if err == nil {
 		t.Fatal("Execute should return error when pattern is empty after trim")
 	}

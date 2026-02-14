@@ -7,30 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"buildmax/internal/util"
 )
 
-// WriteFile is a tool that writes content to a local file under a root directory.
+// WriteFile is a tool that writes content to a local file under a workspace root.
 // It implements the agent.Tool interface.
 type WriteFile struct {
-	root string // absolute path; all resolved paths must be under this
+	ws *util.Workspace
 }
 
-// NewWriteFile creates a WriteFile tool that allows writing files under root.
-// If root is empty, the current working directory is used.
-// root is normalized and absolutized; an error is returned if it cannot be resolved.
-func NewWriteFile(root string) (*WriteFile, error) {
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &WriteFile{root: filepath.Clean(abs)}, nil
+// NewWriteFile creates a WriteFile tool that writes files under the given workspace.
+func NewWriteFile(ws *util.Workspace) *WriteFile {
+	return &WriteFile{ws: ws}
 }
 
 // Name returns the tool name for the LLM.
@@ -84,26 +73,10 @@ func (w *WriteFile) Execute(ctx context.Context, args map[string]any) (string, e
 		return "", errors.New("content must be a string")
 	}
 
-	// Resolve path against root: join then clean then absolutize
-	joined := filepath.Join(w.root, filePath)
-	resolved, err := filepath.Abs(filepath.Clean(joined))
+	// Resolve path under root (join, clean, boundary check including Windows-safe prefix).
+	resolved, err := w.ws.ResolvePath(filePath)
 	if err != nil {
 		return "", err
-	}
-
-	// Ensure resolved path is under root (reject path traversal and paths outside root)
-	rel, err := filepath.Rel(w.root, resolved)
-	if err != nil {
-		return "", errors.New("path outside allowed root")
-	}
-	if rel == ".." || strings.HasPrefix(rel, "..") {
-		return "", errors.New("path outside allowed root")
-	}
-	// On Windows, Rel can return an absolute path when roots differ; ensure resolved is under root.
-	cleanRoot := filepath.Clean(w.root)
-	resolvedClean := filepath.Clean(resolved)
-	if resolvedClean != cleanRoot && !strings.HasPrefix(resolvedClean, cleanRoot+string(filepath.Separator)) {
-		return "", errors.New("path outside allowed root")
 	}
 
 	// If path exists, it must be a file (not a directory)

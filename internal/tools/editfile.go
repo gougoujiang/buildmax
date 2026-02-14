@@ -6,32 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"buildmax/internal/util"
 )
 
-// EditFile is a tool that performs exact string replacements in a file under a root directory.
+// EditFile is a tool that performs exact string replacements in a file under a workspace root.
 // It implements the agent.Tool interface.
 type EditFile struct {
-	root string // absolute path; all resolved paths must be under this
+	ws *util.Workspace
 }
 
-// NewEditFile creates an EditFile tool that allows editing files under root.
-// If root is empty, the current working directory is used.
-// root is normalized and absolutized; an error is returned if it cannot be resolved.
-func NewEditFile(root string) (*EditFile, error) {
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &EditFile{root: filepath.Clean(abs)}, nil
+// NewEditFile creates an EditFile tool that edits files under the given workspace.
+func NewEditFile(ws *util.Workspace) *EditFile {
+	return &EditFile{ws: ws}
 }
 
 // Name returns the tool name for the LLM.
@@ -118,26 +106,10 @@ func (e *EditFile) Execute(ctx context.Context, args map[string]any) (string, er
 		// If not bool, ignore (defaults to false)
 	}
 
-	// Resolve path against root: join then clean then absolutize
-	joined := filepath.Join(e.root, filePath)
-	resolved, err := filepath.Abs(filepath.Clean(joined))
+	// Resolve path under root (join, clean, boundary check including Windows-safe prefix).
+	resolved, err := e.ws.ResolvePath(filePath)
 	if err != nil {
 		return "", err
-	}
-
-	// Ensure resolved path is under root (reject path traversal and paths outside root)
-	rel, err := filepath.Rel(e.root, resolved)
-	if err != nil {
-		return "", errors.New("path outside allowed root")
-	}
-	if rel == ".." || strings.HasPrefix(rel, "..") {
-		return "", errors.New("path outside allowed root")
-	}
-	// On Windows, Rel can return an absolute path when roots differ; ensure resolved is under root.
-	cleanRoot := filepath.Clean(e.root)
-	resolvedClean := filepath.Clean(resolved)
-	if resolvedClean != cleanRoot && !strings.HasPrefix(resolvedClean, cleanRoot+string(filepath.Separator)) {
-		return "", errors.New("path outside allowed root")
 	}
 
 	// Verify file exists and is not a directory

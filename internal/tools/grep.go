@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 
+	"buildmax/internal/util"
+
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -52,28 +54,15 @@ type fileResult struct {
 	matches []fileMatch // matching lines
 }
 
-// Grep is a tool that searches file contents by regex pattern under a root directory.
+// Grep is a tool that searches file contents by regex pattern under a workspace root.
 // It implements the agent.Tool interface.
 type Grep struct {
-	root string // absolute path; all resolved paths must be under this
+	ws *util.Workspace
 }
 
-// NewGrep creates a Grep tool that searches file contents under root.
-// If root is empty, the current working directory is used.
-// root is normalized and absolutized; an error is returned if it cannot be resolved.
-func NewGrep(root string) (*Grep, error) {
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &Grep{root: filepath.Clean(abs)}, nil
+// NewGrep creates a Grep tool that searches file contents under the given workspace.
+func NewGrep(ws *util.Workspace) *Grep {
+	return &Grep{ws: ws}
 }
 
 // Name returns the tool name for the LLM.
@@ -151,23 +140,23 @@ func (g *Grep) Parameters() any {
 // Returns formatted results based on output_mode, or "No matches found.", or an error.
 func (g *Grep) Execute(ctx context.Context, args map[string]any) (string, error) {
 	// Parse pattern (required)
-	pattern, err := parseGrepPattern(args)
+	pattern, err := util.ParseRequiredString(args, "pattern")
 	if err != nil {
 		return "", err
 	}
 
 	// Parse optional flags
-	caseInsensitive := parseBool(args, "case_insensitive", false)
-	multiline := parseBool(args, "multiline", false)
-	lineNumbers := parseBool(args, "line_numbers", true)
-	outputMode := parseString(args, "output_mode", "files_with_matches")
-	globFilter := parseString(args, "glob", "")
-	typeFilter := parseString(args, "type", "")
-	beforeCtx := parseInt(args, "before_context", 0)
-	afterCtx := parseInt(args, "after_context", 0)
-	ctxBoth := parseInt(args, "context", 0)
-	headLimit := parseInt(args, "head_limit", 0)
-	offset := parseInt(args, "offset", 0)
+	caseInsensitive := util.ParseOptionalBool(args, "case_insensitive", false)
+	multiline := util.ParseOptionalBool(args, "multiline", false)
+	lineNumbers := util.ParseOptionalBool(args, "line_numbers", true)
+	outputMode := util.ParseOptionalString(args, "output_mode", "files_with_matches")
+	globFilter := util.ParseOptionalString(args, "glob", "")
+	typeFilter := util.ParseOptionalString(args, "type", "")
+	beforeCtx := util.ParseOptionalInt(args, "before_context", 0)
+	afterCtx := util.ParseOptionalInt(args, "after_context", 0)
+	ctxBoth := util.ParseOptionalInt(args, "context", 0)
+	headLimit := util.ParseOptionalInt(args, "head_limit", 0)
+	offset := util.ParseOptionalInt(args, "offset", 0)
 
 	// context overrides before_context and after_context if set
 	if ctxBoth > 0 {
@@ -242,7 +231,7 @@ func (g *Grep) compilePattern(pattern string, caseInsensitive, multiline bool) (
 func (g *Grep) resolvePath(args map[string]any) (resolved string, isFile bool, err error) {
 	v, ok := args["path"]
 	if !ok || v == nil {
-		return g.root, false, nil
+		return g.ws.Root, false, nil
 	}
 	s, ok := v.(string)
 	if !ok {
@@ -250,20 +239,12 @@ func (g *Grep) resolvePath(args map[string]any) (resolved string, isFile bool, e
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return g.root, false, nil
+		return g.ws.Root, false, nil
 	}
 
-	joined := filepath.Join(g.root, s)
-	resolved, err = filepath.Abs(filepath.Clean(joined))
+	resolved, err = g.ws.ResolvePath(s)
 	if err != nil {
 		return "", false, err
-	}
-	rel, err := filepath.Rel(g.root, resolved)
-	if err != nil {
-		return "", false, errors.New("path outside allowed root")
-	}
-	if rel == ".." || strings.HasPrefix(rel, "..") {
-		return "", false, errors.New("path outside allowed root")
 	}
 
 	info, err := os.Stat(resolved)
@@ -648,75 +629,3 @@ func mergeRanges(ranges []lineRange) []lineRange {
 	return merged
 }
 
-// --- Arg parsing helpers ---
-
-// parseGrepPattern extracts and validates the required pattern argument.
-func parseGrepPattern(args map[string]any) (string, error) {
-	v, ok := args["pattern"]
-	if !ok {
-		return "", errors.New("missing pattern")
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", errors.New("pattern must be a string")
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", errors.New("pattern is empty")
-	}
-	return s, nil
-}
-
-// parseString extracts an optional string argument with a default.
-func parseString(args map[string]any, key, defaultVal string) string {
-	v, ok := args[key]
-	if !ok || v == nil {
-		return defaultVal
-	}
-	s, ok := v.(string)
-	if !ok {
-		return defaultVal
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return defaultVal
-	}
-	return s
-}
-
-// parseBool extracts an optional boolean argument with a default.
-func parseBool(args map[string]any, key string, defaultVal bool) bool {
-	v, ok := args[key]
-	if !ok || v == nil {
-		return defaultVal
-	}
-	b, ok := v.(bool)
-	if !ok {
-		return defaultVal
-	}
-	return b
-}
-
-// parseInt extracts an optional integer argument with a default.
-// JSON numbers arrive as float64.
-func parseInt(args map[string]any, key string, defaultVal int) int {
-	v, ok := args[key]
-	if !ok || v == nil {
-		return defaultVal
-	}
-	switch x := v.(type) {
-	case float64:
-		if x >= 0 {
-			return int(x)
-		}
-	case int:
-		if x >= 0 {
-			return x
-		}
-	case int64:
-		if x >= 0 {
-			return int(x)
-		}
-	}
-	return defaultVal
-}

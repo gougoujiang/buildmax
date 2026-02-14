@@ -10,33 +10,24 @@ import (
 
 func TestNewReadFile(t *testing.T) {
 	t.Run("empty root uses cwd", func(t *testing.T) {
-		r, err := NewReadFile("")
-		if err != nil {
-			t.Fatalf("NewReadFile(\"\"): %v", err)
-		}
-		if r.root == "" {
+		r := NewReadFile(testWorkspace(t, ""))
+		if r.ws.Root == "" {
 			t.Error("root should not be empty")
 		}
 	})
 	t.Run("root is normalized", func(t *testing.T) {
 		dir := t.TempDir()
-		r, err := NewReadFile(dir)
-		if err != nil {
-			t.Fatalf("NewReadFile: %v", err)
-		}
+		r := NewReadFile(testWorkspace(t, dir))
 		abs, _ := filepath.Abs(dir)
-		if r.root != filepath.Clean(abs) {
-			t.Errorf("root = %q, want %q", r.root, filepath.Clean(abs))
+		if r.ws.Root != filepath.Clean(abs) {
+			t.Errorf("root = %q, want %q", r.ws.Root, filepath.Clean(abs))
 		}
 	})
 }
 
 func TestReadFile_Name_Description_Parameters(t *testing.T) {
 	dir := t.TempDir()
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	if r.Name() != ToolNameRead {
 		t.Errorf("Name() = %q, want Read", r.Name())
 	}
@@ -76,10 +67,7 @@ func TestReadFile_Execute_success(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := r.Execute(ctx, map[string]any{"file_path": "f.txt"})
 	if err != nil {
@@ -98,10 +86,7 @@ func TestReadFile_Execute_withOffsetLimit(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
 
 	// offset=2, limit=2 -> lines 2-3 (with note since file has 5 lines)
@@ -134,10 +119,7 @@ func TestReadFile_Execute_defaultLimit(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := r.Execute(ctx, map[string]any{"file_path": "f.txt"})
 	if err != nil {
@@ -156,10 +138,7 @@ func TestReadFile_Execute_partialRangeShowsNote(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := r.Execute(ctx, map[string]any{"file_path": "f.txt", "limit": float64(2)})
 	if err != nil {
@@ -181,10 +160,7 @@ func TestReadFile_Execute_offsetPastEnd(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
 	result, err := r.Execute(ctx, map[string]any{"file_path": "f.txt", "offset": float64(10)})
 	if err != nil {
@@ -200,12 +176,9 @@ func TestReadFile_Execute_offsetPastEnd(t *testing.T) {
 
 func TestReadFile_Execute_notFound(t *testing.T) {
 	dir := t.TempDir()
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = r.Execute(ctx, map[string]any{"file_path": "nonexistent.txt"})
+	_, err := r.Execute(ctx, map[string]any{"file_path": "nonexistent.txt"})
 	if err == nil {
 		t.Fatal("Execute: expected error for nonexistent file")
 	}
@@ -216,14 +189,11 @@ func TestReadFile_Execute_notFound(t *testing.T) {
 
 func TestReadFile_Execute_pathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
 
 	// Path with .. escaping root
-	_, err = r.Execute(ctx, map[string]any{"file_path": ".." + string(filepath.Separator) + "etc"})
+	_, err := r.Execute(ctx, map[string]any{"file_path": ".." + string(filepath.Separator) + "etc"})
 	if err == nil {
 		t.Fatal("Execute: expected error for path outside root (..)")
 	}
@@ -249,12 +219,9 @@ func TestReadFile_Execute_directoryReturnsError(t *testing.T) {
 	if err := os.Mkdir(subdir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = r.Execute(ctx, map[string]any{"file_path": "sub"})
+	_, err := r.Execute(ctx, map[string]any{"file_path": "sub"})
 	if err == nil {
 		t.Fatal("Execute: expected error for directory path")
 	}
@@ -265,12 +232,9 @@ func TestReadFile_Execute_directoryReturnsError(t *testing.T) {
 
 func TestReadFile_Execute_missingFilepath(t *testing.T) {
 	dir := t.TempDir()
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = r.Execute(ctx, map[string]any{})
+	_, err := r.Execute(ctx, map[string]any{})
 	if err == nil {
 		t.Fatal("Execute: expected error for missing file_path")
 	}
@@ -281,12 +245,9 @@ func TestReadFile_Execute_missingFilepath(t *testing.T) {
 
 func TestReadFile_Execute_filepathNotString(t *testing.T) {
 	dir := t.TempDir()
-	r, err := NewReadFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := NewReadFile(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = r.Execute(ctx, map[string]any{"file_path": 123})
+	_, err := r.Execute(ctx, map[string]any{"file_path": 123})
 	if err == nil {
 		t.Fatal("Execute: expected error for non-string file_path")
 	}

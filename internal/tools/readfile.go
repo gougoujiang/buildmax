@@ -5,33 +5,21 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
+
+	"buildmax/internal/util"
 )
 
-// ReadFile is a tool that reads a local file under a root directory.
+// ReadFile is a tool that reads a local file under a workspace root.
 // It implements the agent.Tool interface.
 type ReadFile struct {
-	root string // absolute path; all resolved paths must be under this
+	ws *util.Workspace
 }
 
-// NewReadFile creates a ReadFile tool that allows reading files under root.
-// If root is empty, the current working directory is used.
-// root is normalized and absolutized; an error is returned if it cannot be resolved.
-func NewReadFile(root string) (*ReadFile, error) {
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &ReadFile{root: filepath.Clean(abs)}, nil
+// NewReadFile creates a ReadFile tool that reads files under the given workspace.
+func NewReadFile(ws *util.Workspace) *ReadFile {
+	return &ReadFile{ws: ws}
 }
 
 // Name returns the tool name for the LLM.
@@ -83,20 +71,10 @@ func (r *ReadFile) Execute(ctx context.Context, args map[string]any) (string, er
 		return "", errors.New("file_path is empty")
 	}
 
-	// Resolve path against root: join then clean then absolutize
-	joined := filepath.Join(r.root, filePath)
-	resolved, err := filepath.Abs(filepath.Clean(joined))
+	// Resolve path under root (join, clean, boundary check including Windows-safe prefix).
+	resolved, err := r.ws.ResolvePath(filePath)
 	if err != nil {
 		return "", err
-	}
-
-	// Ensure resolved path is under root (reject path traversal and paths outside root)
-	rel, err := filepath.Rel(r.root, resolved)
-	if err != nil {
-		return "", errors.New("path outside allowed root")
-	}
-	if rel == ".." || strings.HasPrefix(rel, "..") {
-		return "", errors.New("path outside allowed root")
 	}
 
 	info, err := os.Stat(resolved)
@@ -131,30 +109,18 @@ func parseOffsetLimit(args map[string]any) (offset, limit int) {
 	offset = 1
 	limit = DefaultLimit
 	if v, ok := args["offset"]; ok && v != nil {
-		if f, ok := toFloat(v); ok && f >= 1 {
+		if f, ok := util.ToFloat64(v); ok && f >= 1 {
 			offset = int(f)
 		}
 	}
 	if v, ok := args["limit"]; ok && v != nil {
-		if f, ok := toFloat(v); ok && f >= 1 {
+		if f, ok := util.ToFloat64(v); ok && f >= 1 {
 			limit = int(f)
 		}
 	}
 	return offset, limit
 }
 
-func toFloat(v any) (float64, bool) {
-	switch x := v.(type) {
-	case float64:
-		return x, true
-	case int:
-		return float64(x), true
-	case int64:
-		return float64(x), true
-	default:
-		return 0, false
-	}
-}
 
 // extractLineRange returns lines [offset, offset+limit) (1-based offset), joined by newline.
 // If the range is past the end of the file, returns available lines and a trailing note if there were more lines.

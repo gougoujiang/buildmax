@@ -1,4 +1,4 @@
-package git
+package util
 
 import (
 	"os/exec"

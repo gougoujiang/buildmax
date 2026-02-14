@@ -5,14 +5,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
+
+	"buildmax/internal/util"
 )
 
 const (
@@ -24,25 +23,12 @@ const (
 // Bash is a tool that runs a shell command in the workspace (one command per call).
 // It implements the agent.Tool interface.
 type Bash struct {
-	root string // absolute path; working directory for commands
+	ws *util.Workspace
 }
 
-// NewBash creates a Bash tool that runs commands with root as the working directory.
-// If root is empty, the current working directory is used.
-// root is normalized and absolutized; an error is returned if it cannot be resolved.
-func NewBash(root string) (*Bash, error) {
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &Bash{root: filepath.Clean(abs)}, nil
+// NewBash creates a Bash tool that runs commands under the given workspace.
+func NewBash(ws *util.Workspace) *Bash {
+	return &Bash{ws: ws}
 }
 
 // Name returns the tool name for the LLM.
@@ -75,7 +61,7 @@ func (b *Bash) Parameters() any {
 // On success (exit 0) returns output and nil error. On non-zero exit or timeout returns a clear message and nil error so the LLM receives a readable result.
 // Returns error only for argument validation (missing or empty command).
 func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error) {
-	command, err := parseCommand(args)
+	command, err := util.ParseRequiredString(args, "command")
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +72,7 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 
 	name, shellArgs := b.shellInvocation(command)
 	cmd := exec.CommandContext(runCtx, name, shellArgs...)
-	cmd.Dir = b.root
+	cmd.Dir = b.ws.Root
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -109,26 +95,10 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 	return output, nil
 }
 
-func parseCommand(args map[string]any) (string, error) {
-	v, ok := args["command"]
-	if !ok {
-		return "", errors.New("missing command")
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", errors.New("command must be a string")
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", errors.New("command is empty")
-	}
-	return s, nil
-}
-
 func parseTimeout(args map[string]any) time.Duration {
 	ms := defaultTimeoutMs
 	if v, ok := args["timeout"]; ok && v != nil {
-		if f, ok := toFloat64(v); ok && f > 0 {
+		if f, ok := util.ToFloat64(v); ok && f > 0 {
 			if f > maxTimeoutMs {
 				f = maxTimeoutMs
 			}
@@ -136,19 +106,6 @@ func parseTimeout(args map[string]any) time.Duration {
 		}
 	}
 	return time.Duration(ms) * time.Millisecond
-}
-
-func toFloat64(v any) (float64, bool) {
-	switch x := v.(type) {
-	case float64:
-		return x, true
-	case int:
-		return float64(x), true
-	case int64:
-		return float64(x), true
-	default:
-		return 0, false
-	}
 }
 
 // shellInvocation returns the executable name and args to run the given command string.

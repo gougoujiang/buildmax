@@ -11,6 +11,7 @@ import (
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
 	"buildmax/internal/tools"
+	"buildmax/internal/util"
 )
 
 // setupResult holds everything returned by setupAgentAndSession.
@@ -52,6 +53,15 @@ func (b *toolBuilder) add(t agent.Tool, err error) {
 	b.byName[t.Name()] = t
 }
 
+// addTool appends a tool that cannot fail (e.g. workspace-based tools).
+func (b *toolBuilder) addTool(t agent.Tool) {
+	if b.err != nil {
+		return
+	}
+	b.tools = append(b.tools, t)
+	b.byName[t.Name()] = t
+}
+
 // result returns the accumulated tools and lookup map, or the stored error.
 func (b *toolBuilder) result() ([]agent.Tool, map[string]agent.Tool, error) {
 	if b.err != nil {
@@ -66,16 +76,16 @@ func (b *toolBuilder) result() ([]agent.Tool, map[string]agent.Tool, error) {
 
 // buildBaseTools constructs all base tools (Task is excluded — sub-agents must not recurse).
 // Returns the tool slice and a name→tool lookup map.
-func buildBaseTools(client *llm.Client, cwd string, skillPaths []string) ([]agent.Tool, map[string]agent.Tool, error) {
+func buildBaseTools(client *llm.Client, ws *util.Workspace, skillPaths []string) ([]agent.Tool, map[string]agent.Tool, error) {
 	b := newToolBuilder()
-	b.add(tools.NewReadFile(cwd))
-	b.add(tools.NewWriteFile(cwd))
+	b.addTool(tools.NewReadFile(ws))
+	b.addTool(tools.NewWriteFile(ws))
 	b.add(tools.NewWebFetch(client, 15*time.Minute))
 	b.add(tools.NewTodoWrite())
-	b.add(tools.NewBash(cwd))
-	b.add(tools.NewGlob(cwd))
-	b.add(tools.NewEditFile(cwd))
-	b.add(tools.NewGrep(cwd))
+	b.addTool(tools.NewBash(ws))
+	b.addTool(tools.NewGlob(ws))
+	b.addTool(tools.NewEditFile(ws))
+	b.addTool(tools.NewGrep(ws))
 	b.add(tools.NewSkill(skillPaths))
 	return b.result()
 }
@@ -155,9 +165,14 @@ func setupAgentAndSession(resumeID string, modelSelector string) (setupResult, e
 		slog.Error("get working directory", "err", err)
 		return setupResult{}, fmt.Errorf("get working directory: %w", err)
 	}
+	ws, err := util.NewWorkspace(cwd)
+	if err != nil {
+		slog.Error("create workspace", "err", err)
+		return setupResult{}, fmt.Errorf("create workspace: %w", err)
+	}
 	client := llm.NewClient(cfg)
 
-	baseTools, toolsByName, err := buildBaseTools(client, cwd, config.SkillSearchPaths(cwd))
+	baseTools, toolsByName, err := buildBaseTools(client, ws, config.SkillSearchPaths(cwd))
 	if err != nil {
 		slog.Error("build base tools", "err", err)
 		return setupResult{}, err

@@ -10,33 +10,22 @@ import (
 	"sort"
 	"strings"
 
+	"buildmax/internal/util"
+
 	"github.com/bmatcuk/doublestar/v4"
 )
 
-// Glob is a tool that lists files matching a glob pattern under a root directory.
+// Glob is a tool that lists files matching a glob pattern under a workspace root.
 // It implements the agent.Tool interface.
 // Symlinks: doublestar.Glob with WithFilesOnly does not follow symlinks to directories;
 // symlinks to files are included as matches.
 type Glob struct {
-	root string // absolute path; all resolved paths must be under this
+	ws *util.Workspace
 }
 
-// NewGlob creates a Glob tool that searches for files under root.
-// If root is empty, the current working directory is used.
-// root is normalized and absolutized; an error is returned if it cannot be resolved.
-func NewGlob(root string) (*Glob, error) {
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &Glob{root: filepath.Clean(abs)}, nil
+// NewGlob creates a Glob tool that searches for files under the given workspace.
+func NewGlob(ws *util.Workspace) *Glob {
+	return &Glob{ws: ws}
 }
 
 // Name returns the tool name for the LLM.
@@ -68,7 +57,7 @@ func (g *Glob) Parameters() any {
 // Execute lists files under the search directory that match the pattern, sorted by modification time (newest first).
 // Returns one absolute path per line, or "No files matched the pattern.", or an error for validation/system failures.
 func (g *Glob) Execute(ctx context.Context, args map[string]any) (string, error) {
-	pattern, err := parsePattern(args)
+	pattern, err := util.ParseRequiredString(args, "pattern")
 	if err != nil {
 		return "", err
 	}
@@ -125,27 +114,12 @@ func (g *Glob) Execute(ctx context.Context, args map[string]any) (string, error)
 	return sb.String(), nil
 }
 
-func parsePattern(args map[string]any) (string, error) {
-	v, ok := args["pattern"]
-	if !ok {
-		return "", errors.New("missing pattern")
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", errors.New("pattern must be a string")
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", errors.New("pattern is empty")
-	}
-	return s, nil
-}
 
 // resolveSearchDir returns the directory to search: g.root, or g.root joined with optional path (under root).
 func (g *Glob) resolveSearchDir(args map[string]any) (string, error) {
 	v, ok := args["path"]
 	if !ok || v == nil {
-		return g.root, nil
+		return g.ws.Root, nil
 	}
 	s, ok := v.(string)
 	if !ok {
@@ -153,20 +127,12 @@ func (g *Glob) resolveSearchDir(args map[string]any) (string, error) {
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return g.root, nil
+		return g.ws.Root, nil
 	}
 
-	joined := filepath.Join(g.root, s)
-	resolved, err := filepath.Abs(filepath.Clean(joined))
+	resolved, err := g.ws.ResolvePath(s)
 	if err != nil {
 		return "", err
-	}
-	rel, err := filepath.Rel(g.root, resolved)
-	if err != nil {
-		return "", errors.New("path outside allowed root")
-	}
-	if rel == ".." || strings.HasPrefix(rel, "..") {
-		return "", errors.New("path outside allowed root")
 	}
 
 	info, err := os.Stat(resolved)

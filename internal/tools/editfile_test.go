@@ -9,33 +9,24 @@ import (
 
 func TestNewEditFile(t *testing.T) {
 	t.Run("empty root uses cwd", func(t *testing.T) {
-		e, err := NewEditFile("")
-		if err != nil {
-			t.Fatalf("NewEditFile(\"\"): %v", err)
-		}
-		if e.root == "" {
+		e := NewEditFile(testWorkspace(t, ""))
+		if e.ws.Root == "" {
 			t.Error("root should not be empty")
 		}
 	})
 	t.Run("root is normalized", func(t *testing.T) {
 		dir := t.TempDir()
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatalf("NewEditFile: %v", err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		abs, _ := filepath.Abs(dir)
-		if e.root != filepath.Clean(abs) {
-			t.Errorf("root = %q, want %q", e.root, filepath.Clean(abs))
+		if e.ws.Root != filepath.Clean(abs) {
+			t.Errorf("root = %q, want %q", e.ws.Root, filepath.Clean(abs))
 		}
 	})
 }
 
 func TestEditFile_Name_Description_Parameters(t *testing.T) {
 	dir := t.TempDir()
-	e, err := NewEditFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	e := NewEditFile(testWorkspace(t, dir))
 	if e.Name() != ToolNameEdit {
 		t.Errorf("Name() = %q, want Edit", e.Name())
 	}
@@ -78,10 +69,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte(original), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "foo bar",
@@ -110,10 +98,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte(original), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":   "test.txt",
 			"old_string":  "hello",
@@ -138,11 +123,8 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("file not found returns error", func(t *testing.T) {
 		dir := t.TempDir()
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "nonexistent.txt",
 			"old_string": "foo",
 			"new_string":  "bar",
@@ -162,11 +144,8 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.MkdirAll(otherDir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "../other/x.txt",
 			"old_string": "foo",
 			"new_string":  "bar",
@@ -181,11 +160,8 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("path traversal rejected", func(t *testing.T) {
 		dir := t.TempDir()
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "../outside.txt",
 			"old_string": "foo",
 			"new_string":  "bar",
@@ -200,7 +176,7 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("missing file_path", func(t *testing.T) {
 		dir := t.TempDir()
-		e, _ := NewEditFile(dir)
+		e := NewEditFile(testWorkspace(t, dir))
 		_, err := e.Execute(ctx, map[string]any{
 			"old_string": "foo",
 			"new_string":  "bar",
@@ -215,7 +191,7 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("empty file_path", func(t *testing.T) {
 		dir := t.TempDir()
-		e, _ := NewEditFile(dir)
+		e := NewEditFile(testWorkspace(t, dir))
 		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "  ",
 			"old_string": "foo",
@@ -231,7 +207,7 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("missing old_string", func(t *testing.T) {
 		dir := t.TempDir()
-		e, _ := NewEditFile(dir)
+		e := NewEditFile(testWorkspace(t, dir))
 		_, err := e.Execute(ctx, map[string]any{
 			"file_path": "test.txt",
 			"new_string": "bar",
@@ -246,7 +222,7 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("empty old_string", func(t *testing.T) {
 		dir := t.TempDir()
-		e, _ := NewEditFile(dir)
+		e := NewEditFile(testWorkspace(t, dir))
 		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "",
@@ -262,7 +238,7 @@ func TestEditFile_Execute(t *testing.T) {
 
 	t.Run("missing new_string", func(t *testing.T) {
 		dir := t.TempDir()
-		e, _ := NewEditFile(dir)
+		e := NewEditFile(testWorkspace(t, dir))
 		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "foo",
@@ -281,11 +257,8 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("hello world"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "notfound",
 			"new_string": "bar",
@@ -304,11 +277,8 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("hello world\nhello again"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "hello",
 			"new_string": "hi",
@@ -328,10 +298,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte(original), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":   "test.txt",
 			"old_string":  "hello",
@@ -360,11 +327,8 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.MkdirAll(subDir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "subdir",
 			"old_string": "foo",
 			"new_string": "bar",
@@ -386,10 +350,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(subPath, []byte("hello world"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		// Use relative path
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":  "sub/test.txt",
@@ -417,10 +378,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("hello world"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "hello ",
@@ -448,10 +406,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("line1\r\nline2\r\nline3\r\n"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		// LLM sends old_string with \n only (typical JSON behavior)
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":  "crlf.txt",
@@ -481,10 +436,7 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("aaa\r\nbbb\r\nccc\r\n"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		e := NewEditFile(testWorkspace(t, dir))
 		// old_string also has \r\n — should still match after normalization
 		result, err := e.Execute(ctx, map[string]any{
 			"file_path":  "crlf2.txt",
@@ -513,11 +465,8 @@ func TestEditFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("hello world"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		e, err := NewEditFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.Execute(ctx, map[string]any{
+		e := NewEditFile(testWorkspace(t, dir))
+		_, err := e.Execute(ctx, map[string]any{
 			"file_path":  "test.txt",
 			"old_string": "notfound",
 			"new_string": "bar",

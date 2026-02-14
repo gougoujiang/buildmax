@@ -9,33 +9,24 @@ import (
 
 func TestNewWriteFile(t *testing.T) {
 	t.Run("empty root uses cwd", func(t *testing.T) {
-		w, err := NewWriteFile("")
-		if err != nil {
-			t.Fatalf("NewWriteFile(\"\"): %v", err)
-		}
-		if w.root == "" {
+		w := NewWriteFile(testWorkspace(t, ""))
+		if w.ws.Root == "" {
 			t.Error("root should not be empty")
 		}
 	})
 	t.Run("root is normalized", func(t *testing.T) {
 		dir := t.TempDir()
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatalf("NewWriteFile: %v", err)
-		}
+		w := NewWriteFile(testWorkspace(t, dir))
 		abs, _ := filepath.Abs(dir)
-		if w.root != filepath.Clean(abs) {
-			t.Errorf("root = %q, want %q", w.root, filepath.Clean(abs))
+		if w.ws.Root != filepath.Clean(abs) {
+			t.Errorf("root = %q, want %q", w.ws.Root, filepath.Clean(abs))
 		}
 	})
 }
 
 func TestWriteFile_Name_Description_Parameters(t *testing.T) {
 	dir := t.TempDir()
-	w, err := NewWriteFile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	w := NewWriteFile(testWorkspace(t, dir))
 	if w.Name() != ToolNameWrite {
 		t.Errorf("Name() = %q, want Write", w.Name())
 	}
@@ -73,10 +64,7 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("write new file under root", func(t *testing.T) {
 		dir := t.TempDir()
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		w := NewWriteFile(testWorkspace(t, dir))
 		content := "hello\nworld"
 		result, err := w.Execute(ctx, map[string]any{"file_path": "a.txt", "content": content})
 		if err != nil {
@@ -101,12 +89,9 @@ func TestWriteFile_Execute(t *testing.T) {
 		if err := os.WriteFile(path, []byte("old"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		w := NewWriteFile(testWorkspace(t, dir))
 		newContent := "new content"
-		_, err = w.Execute(ctx, map[string]any{"file_path": "b.txt", "content": newContent})
+		_, err := w.Execute(ctx, map[string]any{"file_path": "b.txt", "content": newContent})
 		if err != nil {
 			t.Fatalf("Execute: %v", err)
 		}
@@ -126,12 +111,9 @@ func TestWriteFile_Execute(t *testing.T) {
 		if err := os.MkdirAll(otherDir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		w := NewWriteFile(testWorkspace(t, dir))
 		// Relative path that escapes root (sibling dir)
-		_, err = w.Execute(ctx, map[string]any{"file_path": "../other/x.txt", "content": "x"})
+		_, err := w.Execute(ctx, map[string]any{"file_path": "../other/x.txt", "content": "x"})
 		if err == nil {
 			t.Fatal("expected error for path outside root")
 		}
@@ -142,11 +124,8 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("path traversal rejected", func(t *testing.T) {
 		dir := t.TempDir()
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = w.Execute(ctx, map[string]any{"file_path": "../outside.txt", "content": "x"})
+		w := NewWriteFile(testWorkspace(t, dir))
+		_, err := w.Execute(ctx, map[string]any{"file_path": "../outside.txt", "content": "x"})
 		if err == nil {
 			t.Fatal("expected error for path traversal")
 		}
@@ -157,7 +136,7 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("missing file_path", func(t *testing.T) {
 		dir := t.TempDir()
-		w, _ := NewWriteFile(dir)
+		w := NewWriteFile(testWorkspace(t, dir))
 		_, err := w.Execute(ctx, map[string]any{"content": "x"})
 		if err == nil {
 			t.Fatal("expected error for missing file_path")
@@ -169,7 +148,7 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("empty file_path", func(t *testing.T) {
 		dir := t.TempDir()
-		w, _ := NewWriteFile(dir)
+		w := NewWriteFile(testWorkspace(t, dir))
 		_, err := w.Execute(ctx, map[string]any{"file_path": "  ", "content": "x"})
 		if err == nil {
 			t.Fatal("expected error for empty file_path")
@@ -181,7 +160,7 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("missing content", func(t *testing.T) {
 		dir := t.TempDir()
-		w, _ := NewWriteFile(dir)
+		w := NewWriteFile(testWorkspace(t, dir))
 		_, err := w.Execute(ctx, map[string]any{"file_path": "f.txt"})
 		if err == nil {
 			t.Fatal("expected error for missing content")
@@ -193,12 +172,9 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("parent directory created when missing", func(t *testing.T) {
 		dir := t.TempDir()
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		w := NewWriteFile(testWorkspace(t, dir))
 		path := filepath.Join(dir, "sub", "deep", "f.txt")
-		_, err = w.Execute(ctx, map[string]any{"file_path": "sub/deep/f.txt", "content": "ok"})
+		_, err := w.Execute(ctx, map[string]any{"file_path": "sub/deep/f.txt", "content": "ok"})
 		if err != nil {
 			t.Fatalf("Execute: %v", err)
 		}
@@ -217,11 +193,8 @@ func TestWriteFile_Execute(t *testing.T) {
 		if err := os.MkdirAll(subDir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = w.Execute(ctx, map[string]any{"file_path": "subdir", "content": "x"})
+		w := NewWriteFile(testWorkspace(t, dir))
+		_, err := w.Execute(ctx, map[string]any{"file_path": "subdir", "content": "x"})
 		if err == nil {
 			t.Fatal("expected error when target is directory")
 		}
@@ -232,11 +205,8 @@ func TestWriteFile_Execute(t *testing.T) {
 
 	t.Run("empty content allowed", func(t *testing.T) {
 		dir := t.TempDir()
-		w, err := NewWriteFile(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = w.Execute(ctx, map[string]any{"file_path": "empty.txt", "content": ""})
+		w := NewWriteFile(testWorkspace(t, dir))
+		_, err := w.Execute(ctx, map[string]any{"file_path": "empty.txt", "content": ""})
 		if err != nil {
 			t.Fatalf("Execute with empty content: %v", err)
 		}

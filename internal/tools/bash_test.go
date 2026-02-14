@@ -11,33 +11,24 @@ import (
 
 func TestNewBash(t *testing.T) {
 	t.Run("empty root uses cwd", func(t *testing.T) {
-		b, err := NewBash("")
-		if err != nil {
-			t.Fatalf("NewBash(\"\"): %v", err)
-		}
-		if b.root == "" {
+		b := NewBash(testWorkspace(t, ""))
+		if b.ws.Root == "" {
 			t.Error("root should not be empty")
 		}
 	})
 	t.Run("root is normalized", func(t *testing.T) {
 		dir := t.TempDir()
-		b, err := NewBash(dir)
-		if err != nil {
-			t.Fatalf("NewBash: %v", err)
-		}
+		b := NewBash(testWorkspace(t, dir))
 		abs, _ := filepath.Abs(dir)
-		if b.root != filepath.Clean(abs) {
-			t.Errorf("root = %q, want %q", b.root, filepath.Clean(abs))
+		if b.ws.Root != filepath.Clean(abs) {
+			t.Errorf("root = %q, want %q", b.ws.Root, filepath.Clean(abs))
 		}
 	})
 }
 
 func TestBash_Name_Description_Parameters(t *testing.T) {
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	if b.Name() != ToolNameBash {
 		t.Errorf("Name() = %q, want Bash", b.Name())
 	}
@@ -72,10 +63,7 @@ func TestBash_Name_Description_Parameters(t *testing.T) {
 
 func TestBash_Execute_success(t *testing.T) {
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
 	out, err := b.Execute(ctx, map[string]any{"command": "echo hello"})
 	if err != nil {
@@ -89,10 +77,7 @@ func TestBash_Execute_success(t *testing.T) {
 
 func TestBash_Execute_nonZeroExit(t *testing.T) {
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
 	out, err := b.Execute(ctx, map[string]any{"command": "exit 2"})
 	if err != nil {
@@ -109,10 +94,7 @@ func TestBash_Execute_timeout(t *testing.T) {
 		t.Skip("timeout test skipped on Windows (process kill on context cancel may not be reliable)")
 	}
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
 	out, err := b.Execute(ctx, map[string]any{"command": "sleep 2", "timeout": 50})
 	if err != nil {
@@ -132,10 +114,7 @@ func TestBash_Execute_truncation(t *testing.T) {
 	if err := os.WriteFile(bigFile, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
 	var cmd string
 	if runtime.GOOS == "windows" {
@@ -160,12 +139,9 @@ func TestBash_Execute_truncation(t *testing.T) {
 
 func TestBash_Execute_missingCommand(t *testing.T) {
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = b.Execute(ctx, map[string]any{})
+	_, err := b.Execute(ctx, map[string]any{})
 	if err == nil {
 		t.Fatal("Execute should return error when command is missing")
 	}
@@ -176,12 +152,9 @@ func TestBash_Execute_missingCommand(t *testing.T) {
 
 func TestBash_Execute_emptyCommand(t *testing.T) {
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
-	_, err = b.Execute(ctx, map[string]any{"command": "   "})
+	_, err := b.Execute(ctx, map[string]any{"command": "   "})
 	if err == nil {
 		t.Fatal("Execute should return error when command is empty")
 	}
@@ -192,10 +165,7 @@ func TestBash_Execute_emptyCommand(t *testing.T) {
 
 func TestBash_Execute_invalidTimeoutUsesDefault(t *testing.T) {
 	dir := t.TempDir()
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
 	// Invalid timeout (negative) should fall back to default; command should still run
 	out, err := b.Execute(ctx, map[string]any{"command": "echo ok", "timeout": -100})
@@ -213,10 +183,7 @@ func TestBash_Execute_runsInRoot(t *testing.T) {
 	if err := os.MkdirAll(sub, 0755); err != nil {
 		t.Fatal(err)
 	}
-	b, err := NewBash(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := NewBash(testWorkspace(t, dir))
 	ctx := context.Background()
 	var listCmd string
 	if runtime.GOOS == "windows" {

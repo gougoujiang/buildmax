@@ -1,5 +1,4 @@
-// Package git provides minimal Git integration (e.g. current branch) for display.
-package git
+package util
 
 import (
 	"os/exec"
