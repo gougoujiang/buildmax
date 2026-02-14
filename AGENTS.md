@@ -47,7 +47,7 @@ Users get a full Agent TUI experience in the terminal by running a single comman
 
 - **LLM integration**: OpenAI-compatible client (OpenRouter default); env-based config (`OPENROUTER_API_KEY`/`BUILDMAX_API_KEY`, `BUILDMAX_BASE_URL`, `BUILDMAX_MODEL`)
 - **Agent loop**: Single-turn flow with tool calling (LLM → tool_calls → execute tools → re-call LLM → reply) in `internal/agent`
-- **Application data folder**: `config.DataDir()` — default `~/.buildmax`, override via `HOME_DIR`; `make test` uses `testing-sandbox`
+- **Application data folder**: `config.DataDir()` — default `~/.buildmax`, override via `BUILDMAX_HOME`; `make test` uses `testing-sandbox`
 - **Logging**: `log/slog` via `internal/log`; level from `BUILDMAX_LOG_LEVEL`; file-only (rotated file under `DataDir()/logs`, Lumberjack); no stdout/stderr so TUI and prompt output stay clean
 - **Read file tool**: `internal/tools` — `read_file` with path under a configurable root (e.g. CWD); used in prompt mode
 - **Default system prompt**: Prepended in agent `Process` (e.g. "You are a helpful AI assistant.")
@@ -116,7 +116,7 @@ buildmax/
 ## 7. Build & Test
 
 - **Build**: `make.bat build` (Windows) or `go build -o buildmax.exe ./cmd/buildmax` — builds from `cmd/buildmax`.
-- **Test**: `make.bat test` — sets `HOME_DIR` to `./testing-sandbox` and runs `go test ./...`. Use this after code changes.
+- **Test**: `make.bat test` — sets `BUILDMAX_HOME` to `./testing-sandbox` and runs `go test ./...`. Use this after code changes.
 - **Do not use** `make.bat run` for automated flows; it is for manual testing (build + run with sample prompt).
 
 ## 8. Run command

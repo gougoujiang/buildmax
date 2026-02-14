@@ -47,11 +47,11 @@ func LoadLLM() LLM {
 }
 
 // DataDir returns the application data folder path.
-// If HOME_DIR is set (non-empty), returns filepath.Clean(os.Getenv("HOME_DIR")).
+// If BUILDMAX_HOME is set (non-empty), returns filepath.Clean(os.Getenv("BUILDMAX_HOME")).
 // Otherwise returns filepath.Join(os.UserHomeDir(), ".buildmax").
 // Does not create the directory; callers must create it if needed.
 func DataDir() string {
-	if dir := os.Getenv("HOME_DIR"); dir != "" {
+	if dir := os.Getenv("BUILDMAX_HOME"); dir != "" {
 		return filepath.Clean(dir)
 	}
 	home, _ := os.UserHomeDir()
@@ -80,7 +80,6 @@ func LogsDir() string {
 func SkillSearchPaths(workspace string) []string {
 	return []string{
 		filepath.Join(workspace, ".buildmax", "skills"),
-		filepath.Join(workspace, ".cursor", "skills"),
 		filepath.Join(DataDir(), "skills"),
 	}
 }

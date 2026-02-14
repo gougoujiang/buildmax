@@ -8,8 +8,8 @@ import (
 )
 
 func TestDataDir_Default(t *testing.T) {
-	// Ensure HOME_DIR does not affect this test (unset or restore after).
-	t.Setenv("HOME_DIR", "")
+	// Ensure BUILDMAX_HOME does not affect this test (unset or restore after).
+	t.Setenv("BUILDMAX_HOME", "")
 	dir := DataDir()
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -25,7 +25,7 @@ func TestDataDir_Default(t *testing.T) {
 
 func TestDataDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	dir := DataDir()
 	want := filepath.Clean(tmp)
 	if dir != want {
@@ -34,7 +34,7 @@ func TestDataDir_Override(t *testing.T) {
 }
 
 func TestSessionsDir_Default(t *testing.T) {
-	t.Setenv("HOME_DIR", "")
+	t.Setenv("BUILDMAX_HOME", "")
 	dir := SessionsDir()
 	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "sessions")) {
 		t.Errorf("SessionsDir() = %q, want path ending with .buildmax/sessions", dir)
@@ -43,7 +43,7 @@ func TestSessionsDir_Default(t *testing.T) {
 
 func TestSessionsDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	dir := SessionsDir()
 	want := filepath.Join(filepath.Clean(tmp), "sessions")
 	if dir != want {
@@ -52,7 +52,7 @@ func TestSessionsDir_Override(t *testing.T) {
 }
 
 func TestLogsDir_Default(t *testing.T) {
-	t.Setenv("HOME_DIR", "")
+	t.Setenv("BUILDMAX_HOME", "")
 	dir := LogsDir()
 	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "logs")) {
 		t.Errorf("LogsDir() = %q, want path ending with .buildmax/logs", dir)
@@ -61,7 +61,7 @@ func TestLogsDir_Default(t *testing.T) {
 
 func TestLogsDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	dir := LogsDir()
 	want := filepath.Join(filepath.Clean(tmp), "logs")
 	if dir != want {
@@ -70,7 +70,7 @@ func TestLogsDir_Override(t *testing.T) {
 }
 
 func TestSkillSearchPaths_Order(t *testing.T) {
-	t.Setenv("HOME_DIR", "")
+	t.Setenv("BUILDMAX_HOME", "")
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := SkillSearchPaths(workspace)
 
@@ -99,7 +99,7 @@ func TestSkillSearchPaths_Order(t *testing.T) {
 
 func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	workspace := filepath.Join("D:", "work", "project")
 	paths := SkillSearchPaths(workspace)
 
@@ -110,12 +110,12 @@ func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
 	// Global path should use the overridden DataDir.
 	wantGlobal := filepath.Join(filepath.Clean(tmp), "skills")
 	if paths[2] != wantGlobal {
-		t.Errorf("paths[2] = %q, want %q (HOME_DIR override)", paths[2], wantGlobal)
+		t.Errorf("paths[2] = %q, want %q (BUILDMAX_HOME override)", paths[2], wantGlobal)
 	}
 }
 
 func TestAgentDefsSearchPaths_Order(t *testing.T) {
-	t.Setenv("HOME_DIR", "")
+	t.Setenv("BUILDMAX_HOME", "")
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := AgentDefsSearchPaths(workspace)
 
@@ -138,7 +138,7 @@ func TestAgentDefsSearchPaths_Order(t *testing.T) {
 
 func TestAgentDefsSearchPaths_HomeDirOverride(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	workspace := filepath.Join("D:", "work", "project")
 	paths := AgentDefsSearchPaths(workspace)
 
@@ -149,6 +149,6 @@ func TestAgentDefsSearchPaths_HomeDirOverride(t *testing.T) {
 	// Global path should use the overridden DataDir.
 	wantGlobal := filepath.Join(filepath.Clean(tmp), "agents")
 	if paths[1] != wantGlobal {
-		t.Errorf("paths[1] = %q, want %q (HOME_DIR override)", paths[1], wantGlobal)
+		t.Errorf("paths[1] = %q, want %q (BUILDMAX_HOME override)", paths[1], wantGlobal)
 	}
 }

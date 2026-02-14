@@ -16,13 +16,13 @@ exit /b %errorlevel%
 
 :test
 if not exist testing-sandbox mkdir testing-sandbox
-set "HOME_DIR=%CD%\testing-sandbox"
+set "BUILDMAX_HOME=%CD%\testing-sandbox"
 go test ./...
 exit /b %errorlevel%
 
 :smoke
 if not exist testing-sandbox mkdir testing-sandbox
-set "HOME_DIR=%CD%\testing-sandbox"
+set "BUILDMAX_HOME=%CD%\testing-sandbox"
 go build -o buildmax.exe ./cmd/buildmax
 if errorlevel 1 exit /b 1
 rem reset log level to debug
@@ -34,5 +34,5 @@ exit /b %errorlevel%
 echo Usage: make.bat ^<command^>
 echo   build   Build buildmax.exe
 echo   test    Run go test with testing-sandbox as data dir
-echo   smoke   Smoke test: build and run with /smoke 0, HOME_DIR=testing-sandbox
+echo   smoke   Smoke test: build and run with /smoke 0, BUILDMAX_HOME=testing-sandbox
 exit /b 0

@@ -24,7 +24,7 @@ const rootLong = `BuildMax – AI Agent CLI
   buildmax -r ID -p QUERY     Resume session ID, send QUERY, then print and save
 
 Sessions:
-  Each run with -p saves the session under the app data directory (see HOME_DIR or ~/.buildmax).
+  Each run with -p saves the session under the app data directory (see BUILDMAX_HOME or ~/.buildmax).
   Use -r/--resume <session-id> to continue a previous session (TUI or print mode).
   Use -c/--continue to resume the most recent session (by creation time); -r takes precedence if both are set.
 

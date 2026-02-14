@@ -10,7 +10,7 @@ import (
 func TestLevelFiltering(t *testing.T) {
 	// Use temp dir so Init() does not touch real ~/.buildmax
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	t.Setenv("BUILDMAX_LOG_LEVEL", "info")
 	Init()
 
@@ -35,7 +35,7 @@ func TestLevelFiltering(t *testing.T) {
 
 func TestEnvDefault_Debug(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	t.Setenv("BUILDMAX_LOG_LEVEL", "debug")
 	Init()
 
@@ -54,7 +54,7 @@ func TestEnvDefault_Debug(t *testing.T) {
 
 func TestOutputContent(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	t.Setenv("BUILDMAX_LOG_LEVEL", "info")
 	Init()
 
@@ -74,7 +74,7 @@ func TestOutputContent(t *testing.T) {
 
 func TestParseLevel_InvalidDefaultsToInfo(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME_DIR", tmp)
+	t.Setenv("BUILDMAX_HOME", tmp)
 	t.Setenv("BUILDMAX_LOG_LEVEL", "invalid")
 	Init()
 

@@ -30,7 +30,7 @@ Returns the path to the application's data folder:
 
 | Condition | Path |
 |-----------|------|
-| `HOME_DIR` env var set | `filepath.Clean($HOME_DIR)` |
+| `BUILDMAX_HOME` env var set | `filepath.Clean($BUILDMAX_HOME)` |
 | Otherwise | `~/.buildmax` |
 
 The data directory stores:
@@ -54,6 +54,6 @@ ModelGLM45AirFree    = "z-ai/glm-4.5-air:free"      // current default
 
 ## Notes
 
-- Setting `HOME_DIR` is useful for testing (`make.bat test` sets it to `./testing-sandbox`).
+- Setting `BUILDMAX_HOME` is useful for testing (`make.bat test` sets it to `./testing-sandbox`).
 - Config files (YAML/Viper) are planned but not yet implemented.
 - See also: [LLM Client](llm-client.md), [CLI](cli.md), [Project Overview](project-overview.md).
