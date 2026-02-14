@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"buildmax/internal/app"
+	"buildmax/internal/git"
 	"buildmax/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,6 +23,7 @@ func runTUI(resumeID string) error {
 		Session:     res.Session,
 		ModelName:   res.ModelName,
 		Workspace:   res.CWD,
+		Branch:      git.CurrentBranch(res.CWD),
 		Version:     Version,
 		SessionsDir: res.SessionsDir,
 	}

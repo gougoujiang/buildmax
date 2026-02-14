@@ -32,6 +32,10 @@ var inputBoxStyle = lipgloss.NewStyle().
 	BorderForeground(lightSkyBlue).
 	Padding(0, 1)
 
+// Footer styles: model in green, workspace/branch in sky blue.
+var footerModelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")) // green
+var footerBranchStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)             // sky blue
+
 // TUIOpts holds dependencies and display config for the TUI (agent, session, model name, paths).
 type TUIOpts struct {
 	Agent       *agent.Agent
@@ -39,6 +43,7 @@ type TUIOpts struct {
 	Session     *session.Session
 	ModelName   string
 	Workspace   string
+	Branch      string // current git branch (empty if not a repo); footer shows "branch: -" when empty
 	Version     string
 	SessionsDir string
 }
@@ -355,8 +360,13 @@ func (m *Model) View() string {
 	}
 	b.WriteString("\n")
 
-	// Footer
-	footer := "model: " + m.opts.ModelName + " | @" + m.opts.Workspace + " | ctrl+c: quit | esc: clear/focus input"
+	// Footer: workspace as @path or @path (branch); model=green, workspace/branch=sky blue
+	workspacePart := "@" + m.opts.Workspace
+	if m.opts.Branch != "" {
+		workspacePart += " (|-" + m.opts.Branch + ")"
+	}
+	footer := footerModelStyle.Render("model: "+m.opts.ModelName) + " | " +
+		footerBranchStyle.Render(workspacePart) + " | ctrl+c: quit | esc: clear/focus input"
 	if m.err != "" {
 		footer += " | error: " + m.err
 	}
