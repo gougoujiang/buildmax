@@ -89,7 +89,7 @@ func (m *Model) Init() tea.Cmd {
 
 // runAgentAfterUserAppended runs agent.ProcessAfterUserAppended in the background (user message already in session).
 func runAgentAfterUserAppended(opts TUIOpts) tea.Msg {
-	reply, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session)
+	reply, _, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session)
 	return agentDoneMsg{Reply: reply, Err: err}
 }
 

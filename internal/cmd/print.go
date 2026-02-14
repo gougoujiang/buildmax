@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"buildmax/internal/session"
 )
@@ -16,7 +17,9 @@ func runPrintMode(prompt string, resumeID string) error {
 		return err
 	}
 	ctx := context.Background()
-	reply, err := res.Agent.Process(ctx, res.Session, prompt)
+	start := time.Now()
+	reply, stats, err := res.Agent.Process(ctx, res.Session, prompt)
+	elapsed := time.Since(start)
 	slog.Debug("session details", "id", res.Session.ID(), "title", res.Session.Title(), "created_at", res.Session.CreatedAt())
 	slog.Debug("session history", "messages", res.Session.Messages())
 	if err != nil {
@@ -30,5 +33,21 @@ func runPrintMode(prompt string, resumeID string) error {
 	}
 	slog.Info("agent reply", "len", len(reply))
 	fmt.Println(reply)
+
+	// Print run statistics.
+	fmt.Fprintf(os.Stdout, "\n---\nSession:    %s\nTool calls: %d\nDuration:   %s\n", res.Session.ID(), stats.ToolCalls, formatDuration(elapsed))
 	return nil
+}
+
+// formatDuration formats a duration in a human-friendly way (e.g. "1m23s", "4.5s", "120ms").
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	m := int(d.Minutes())
+	s := int(d.Seconds()) % 60
+	return fmt.Sprintf("%dm%ds", m, s)
 }

@@ -81,12 +81,15 @@ func TestProcessWithSession_NoToolCall(t *testing.T) {
 	}
 	a := NewAgent(mock, []Tool{tool})
 	sess := session.NewSession("")
-	reply, err := a.Process(ctx, sess, "Hi")
+	reply, stats, err := a.Process(ctx, sess, "Hi")
 	if err != nil {
 		t.Fatalf("ProcessWithSession: %v", err)
 	}
 	if reply != "Hello, I am the final reply." {
 		t.Errorf("reply = %q, want %q", reply, "Hello, I am the final reply.")
+	}
+	if stats.ToolCalls != 0 {
+		t.Errorf("stats.ToolCalls = %d, want 0", stats.ToolCalls)
 	}
 	if tool.executionCount() != 0 {
 		t.Errorf("tool executed %d times, want 0", tool.executionCount())
@@ -120,12 +123,15 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 	}
 	a := NewAgent(mock, []Tool{tool})
 	sess := session.NewSession("")
-	reply, err := a.Process(ctx, sess, "What is the weather in Boston?")
+	reply, stats, err := a.Process(ctx, sess, "What is the weather in Boston?")
 	if err != nil {
 		t.Fatalf("ProcessWithSession: %v", err)
 	}
 	if reply != "The weather in Boston is nice." {
 		t.Errorf("reply = %q, want %q", reply, "The weather in Boston is nice.")
+	}
+	if stats.ToolCalls != 1 {
+		t.Errorf("stats.ToolCalls = %d, want 1", stats.ToolCalls)
 	}
 	if tool.executionCount() != 1 {
 		t.Errorf("tool executed %d times, want 1", tool.executionCount())
@@ -184,7 +190,7 @@ func TestProcessWithSession_SystemPromptPrepend(t *testing.T) {
 	rec := &recordingLLMCaller{inner: inner}
 	a := NewAgent(rec, nil)
 	sess := session.NewSession("")
-	_, err := a.Process(ctx, sess, userMsg)
+	_, _, err := a.Process(ctx, sess, userMsg)
 	if err != nil {
 		t.Fatalf("ProcessWithSession: %v", err)
 	}
@@ -228,9 +234,12 @@ func TestProcessWithSession_MaxIterationsExceeded(t *testing.T) {
 	}
 	a := NewAgent(mock, []Tool{tool}, MaxIterations(3))
 	sess := session.NewSession("")
-	_, err := a.Process(ctx, sess, "ping")
+	_, stats, err := a.Process(ctx, sess, "ping")
 	if err == nil {
 		t.Fatal("ProcessWithSession: expected error for max iterations exceeded")
+	}
+	if stats.ToolCalls != 3 {
+		t.Errorf("stats.ToolCalls = %d, want 3", stats.ToolCalls)
 	}
 	if mock.callCount() != 3 {
 		t.Errorf("LLM called %d times, want 3 (max iter)", mock.callCount())
@@ -254,7 +263,7 @@ func TestProcessWithSession(t *testing.T) {
 	a := NewAgent(rec, nil)
 	sess := session.NewSession("")
 
-	reply1, err := a.Process(ctx, sess, "First message")
+	reply1, _, err := a.Process(ctx, sess, "First message")
 	if err != nil {
 		t.Fatalf("first ProcessWithSession: %v", err)
 	}
@@ -262,7 +271,7 @@ func TestProcessWithSession(t *testing.T) {
 		t.Errorf("first reply = %q, want %q", reply1, firstReply)
 	}
 
-	reply2, err := a.Process(ctx, sess, "Second message")
+	reply2, _, err := a.Process(ctx, sess, "Second message")
 	if err != nil {
 		t.Fatalf("second ProcessWithSession: %v", err)
 	}
@@ -320,7 +329,7 @@ func TestProcessAfterUserAppended(t *testing.T) {
 	sess := session.NewSession("")
 	sess.Append(llm.Message{Role: "user", Content: "Hello"})
 
-	reply, err := a.ProcessAfterUserAppended(ctx, sess)
+	reply, _, err := a.ProcessAfterUserAppended(ctx, sess)
 	if err != nil {
 		t.Fatalf("ProcessAfterUserAppended: %v", err)
 	}
@@ -347,7 +356,7 @@ func TestProcessAfterUserAppended_EmptySession(t *testing.T) {
 	ctx := context.Background()
 	a := NewAgent(&mockLLMCaller{}, nil)
 	sess := session.NewSession("")
-	_, err := a.ProcessAfterUserAppended(ctx, sess)
+	_, _, err := a.ProcessAfterUserAppended(ctx, sess)
 	if err == nil {
 		t.Fatal("ProcessAfterUserAppended: expected error for empty session")
 	}
@@ -359,7 +368,7 @@ func TestProcessAfterUserAppended_LastNotUser(t *testing.T) {
 	a := NewAgent(&mockLLMCaller{}, nil)
 	sess := session.NewSession("")
 	sess.Append(llm.Message{Role: "assistant", Content: "Hi"})
-	_, err := a.ProcessAfterUserAppended(ctx, sess)
+	_, _, err := a.ProcessAfterUserAppended(ctx, sess)
 	if err == nil {
 		t.Fatal("ProcessAfterUserAppended: expected error when last message is assistant")
 	}
@@ -378,7 +387,7 @@ func TestSystemPromptOption(t *testing.T) {
 	rec := &recordingLLMCaller{inner: inner}
 	a := NewAgent(rec, nil, SystemPrompt(customPrompt))
 	sess := session.NewSession("")
-	_, err := a.Process(ctx, sess, "explore the code")
+	_, _, err := a.Process(ctx, sess, "explore the code")
 	if err != nil {
 		t.Fatalf("Process: %v", err)
 	}

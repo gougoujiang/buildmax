@@ -187,7 +187,7 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 	// Filter out the Task tool itself to prevent infinite recursion.
 	var subTools []agent.Tool
 	for _, tool := range config.Tools {
-		if tool.Name() != "Task" {
+		if tool.Name() != ToolNameTask {
 			subTools = append(subTools, tool)
 		}
 	}
@@ -198,7 +198,7 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 
 	slog.Info("task: spawning sub-agent", "type", subagentType, "description", description)
 
-	reply, err := subAgent.Process(ctx, sess, prompt)
+	reply, _, err := subAgent.Process(ctx, sess, prompt)
 	if err != nil {
 		return "", fmt.Errorf("sub-agent failed: %w", err)
 	}
