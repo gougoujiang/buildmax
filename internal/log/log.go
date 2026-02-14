@@ -23,7 +23,6 @@ const (
 	logMaxAgeDays  = 7
 	logCompress    = true
 	logFilename    = "buildmax.log"
-	logsSubdir     = "logs"
 )
 
 // currentLevel is the minimum level set in Init(); used by SetOutput to build
@@ -40,7 +39,7 @@ func Init() {
 	level := parseLevel(os.Getenv("BUILDMAX_LOG_LEVEL"))
 	currentLevel = level
 
-	logsDir := filepath.Join(config.DataDir(), logsSubdir)
+	logsDir := config.LogsDir()
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		fileWriter = nil
 		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: level})))

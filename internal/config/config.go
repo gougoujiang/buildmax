@@ -58,6 +58,18 @@ func DataDir() string {
 	return filepath.Join(home, ".buildmax")
 }
 
+// SessionsDir returns the path to the sessions directory under DataDir.
+// Does not create the directory; callers must create it if needed.
+func SessionsDir() string {
+	return filepath.Join(DataDir(), "sessions")
+}
+
+// LogsDir returns the path to the logs directory under DataDir.
+// Does not create the directory; callers must create it if needed.
+func LogsDir() string {
+	return filepath.Join(DataDir(), "logs")
+}
+
 // SkillSearchPaths returns the ordered list of directories to scan for skills.
 // Priority (first wins on name conflict):
 //  1. <workspace>/.buildmax/skills  (project-level)

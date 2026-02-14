@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"time"
 
 	"buildmax/internal/agent"
@@ -169,7 +168,7 @@ func setupAgentAndSession(resumeID string) (setupResult, error) {
 
 	a := agent.NewAgent(client, append(baseTools, taskTool))
 
-	sessionsDir := filepath.Join(config.DataDir(), "sessions")
+	sessionsDir := config.SessionsDir()
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
 		slog.Error("create sessions dir", "err", err)
 		return setupResult{}, fmt.Errorf("create sessions dir: %w", err)

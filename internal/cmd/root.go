@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"buildmax/internal/config"
 	"buildmax/internal/session"
@@ -80,7 +79,7 @@ func resolveResumeID(resumeID string, cont bool) (string, error) {
 	if !cont || resumeID != "" {
 		return resumeID, nil
 	}
-	sessionsDir := filepath.Join(config.DataDir(), "sessions")
+	sessionsDir := config.SessionsDir()
 	list, err := session.LoadList(sessionsDir)
 	if err != nil {
 		slog.Error("load session list failed", "err", err)

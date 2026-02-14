@@ -33,6 +33,42 @@ func TestDataDir_Override(t *testing.T) {
 	}
 }
 
+func TestSessionsDir_Default(t *testing.T) {
+	t.Setenv("HOME_DIR", "")
+	dir := SessionsDir()
+	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "sessions")) {
+		t.Errorf("SessionsDir() = %q, want path ending with .buildmax/sessions", dir)
+	}
+}
+
+func TestSessionsDir_Override(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME_DIR", tmp)
+	dir := SessionsDir()
+	want := filepath.Join(filepath.Clean(tmp), "sessions")
+	if dir != want {
+		t.Errorf("SessionsDir() = %q, want %q", dir, want)
+	}
+}
+
+func TestLogsDir_Default(t *testing.T) {
+	t.Setenv("HOME_DIR", "")
+	dir := LogsDir()
+	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "logs")) {
+		t.Errorf("LogsDir() = %q, want path ending with .buildmax/logs", dir)
+	}
+}
+
+func TestLogsDir_Override(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME_DIR", tmp)
+	dir := LogsDir()
+	want := filepath.Join(filepath.Clean(tmp), "logs")
+	if dir != want {
+		t.Errorf("LogsDir() = %q, want %q", dir, want)
+	}
+}
+
 func TestSkillSearchPaths_Order(t *testing.T) {
 	t.Setenv("HOME_DIR", "")
 	workspace := filepath.Join("C:", "projects", "myapp")
