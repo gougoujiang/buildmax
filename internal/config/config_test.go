@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+const settingsValidOne = `{"models":[{"model":"glm4.5","name":"My GLM","api_url":"https://api.example.com","api_key":"sk-xxx"}]}`
+const settingsValidTwo = `{"models":[{"model":"a","name":"","api_url":"https://a","api_key":"k1"},{"model":"b","name":"B","api_url":"https://b","api_key":"k2"}]}`
+const settingsEmptyModels = `{"models":[]}`
+const settingsInvalidJSON = `{invalid`
+
 func TestDataDir_Default(t *testing.T) {
 	// Ensure BUILDMAX_HOME does not affect this test (unset or restore after).
 	t.Setenv("BUILDMAX_HOME", "")
@@ -74,8 +79,8 @@ func TestSkillSearchPaths_Order(t *testing.T) {
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := SkillSearchPaths(workspace)
 
-	if len(paths) != 3 {
-		t.Fatalf("SkillSearchPaths returned %d paths, want 3", len(paths))
+	if len(paths) != 2 {
+		t.Fatalf("SkillSearchPaths returned %d paths, want 2", len(paths))
 	}
 
 	// 1. project-level .buildmax/skills
@@ -84,16 +89,10 @@ func TestSkillSearchPaths_Order(t *testing.T) {
 		t.Errorf("paths[0] = %q, want %q", paths[0], want0)
 	}
 
-	// 2. compat .cursor/skills
-	want1 := filepath.Join(workspace, ".cursor", "skills")
+	// 2. global DataDir()/skills
+	want1 := filepath.Join(DataDir(), "skills")
 	if paths[1] != want1 {
 		t.Errorf("paths[1] = %q, want %q", paths[1], want1)
-	}
-
-	// 3. global DataDir()/skills
-	want2 := filepath.Join(DataDir(), "skills")
-	if paths[2] != want2 {
-		t.Errorf("paths[2] = %q, want %q", paths[2], want2)
 	}
 }
 
@@ -103,14 +102,14 @@ func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
 	workspace := filepath.Join("D:", "work", "project")
 	paths := SkillSearchPaths(workspace)
 
-	if len(paths) != 3 {
-		t.Fatalf("SkillSearchPaths returned %d paths, want 3", len(paths))
+	if len(paths) != 2 {
+		t.Fatalf("SkillSearchPaths returned %d paths, want 2", len(paths))
 	}
 
 	// Global path should use the overridden DataDir.
 	wantGlobal := filepath.Join(filepath.Clean(tmp), "skills")
-	if paths[2] != wantGlobal {
-		t.Errorf("paths[2] = %q, want %q (BUILDMAX_HOME override)", paths[2], wantGlobal)
+	if paths[1] != wantGlobal {
+		t.Errorf("paths[1] = %q, want %q (BUILDMAX_HOME override)", paths[1], wantGlobal)
 	}
 }
 
@@ -150,5 +149,183 @@ func TestAgentDefsSearchPaths_HomeDirOverride(t *testing.T) {
 	wantGlobal := filepath.Join(filepath.Clean(tmp), "agents")
 	if paths[1] != wantGlobal {
 		t.Errorf("paths[1] = %q, want %q (BUILDMAX_HOME override)", paths[1], wantGlobal)
+	}
+}
+
+func TestSettingsPath(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_HOME", tmp)
+	got := SettingsPath()
+	want := filepath.Join(filepath.Clean(tmp), "settings.json")
+	if got != want {
+		t.Errorf("SettingsPath() = %q, want %q", got, want)
+	}
+}
+
+func TestLoadSettings_ValidOneModel(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := LoadSettings(path)
+	if len(s.Models) != 1 {
+		t.Fatalf("len(Models) = %d, want 1", len(s.Models))
+	}
+	m := s.Models[0]
+	if m.Model != "glm4.5" || m.Name != "My GLM" || m.APIURL != "https://api.example.com" || m.APIKey != "sk-xxx" {
+		t.Errorf("first model = %+v", m)
+	}
+}
+
+func TestLoadSettings_ValidTwoModels(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidTwo), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := LoadSettings(path)
+	if len(s.Models) != 2 {
+		t.Fatalf("len(Models) = %d, want 2", len(s.Models))
+	}
+	if s.Models[0].Model != "a" || s.Models[1].Model != "b" {
+		t.Errorf("models = %+v", s.Models)
+	}
+}
+
+func TestLoadSettings_MissingFile(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "nonexistent.json")
+	s := LoadSettings(path)
+	if s.Models != nil {
+		t.Errorf("LoadSettings(missing) should return empty Models, got len=%d", len(s.Models))
+	}
+	// Explicit path: file is not created (only default path gets default file).
+	if _, err := os.Stat(path); err == nil {
+		t.Error("LoadSettings(nonexistent explicit path) should not create file")
+	}
+}
+
+func TestLoadSettings_CreatesDefaultFileWhenMissing(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_HOME", tmp)
+	path := SettingsPath()
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("settings.json should not exist yet")
+	}
+	s := LoadSettings("")
+	if s.Models != nil {
+		t.Errorf("LoadSettings(empty path) with new dir should return empty Models, got len=%d", len(s.Models))
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("settings.json should have been created: %v", err)
+	}
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed != "{}" {
+		t.Errorf("default settings.json content = %q, want %q", trimmed, "{}")
+	}
+}
+
+func TestLoadSettings_EmptyModels(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsEmptyModels), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := LoadSettings(path)
+	if len(s.Models) != 0 {
+		t.Errorf("len(Models) = %d, want 0", len(s.Models))
+	}
+}
+
+func TestLoadSettings_InvalidJSON(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsInvalidJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := LoadSettings(path)
+	if len(s.Models) != 0 {
+		t.Errorf("LoadSettings(invalid JSON) should return empty Models, got len=%d", len(s.Models))
+	}
+}
+
+func TestLoadSettings_EmptyPathUsesSettingsPath(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_HOME", tmp)
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// LoadSettings("") should read from SettingsPath() which is tmp/settings.json
+	s := LoadSettings("")
+	if len(s.Models) != 1 {
+		t.Fatalf("LoadSettings(\"\") with file present: len(Models) = %d, want 1", len(s.Models))
+	}
+}
+
+func TestEffectiveLLM_FromFile(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, displayName := EffectiveLLM(path)
+	if cfg.Model != "glm4.5" || cfg.BaseURL != "https://api.example.com" || cfg.APIKey != "sk-xxx" {
+		t.Errorf("EffectiveLLM = %+v", cfg)
+	}
+	if displayName != "My GLM" {
+		t.Errorf("displayName = %q, want My GLM", displayName)
+	}
+}
+
+func TestEffectiveLLM_FromFile_DisplayNameFallbackToModel(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	// name is empty; display name should be model id
+	json := `{"models":[{"model":"x","name":"","api_url":"https://u","api_key":"k"}]}`
+	if err := os.WriteFile(path, []byte(json), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, displayName := EffectiveLLM(path)
+	if displayName != "x" {
+		t.Errorf("displayName = %q, want x", displayName)
+	}
+}
+
+func TestEffectiveLLM_FallbackWhenNoFile(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "nonexistent.json")
+	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("BUILDMAX_API_KEY", "env-key")
+	t.Setenv("BUILDMAX_BASE_URL", "https://env.url")
+	t.Setenv("BUILDMAX_MODEL", "env-model")
+	cfg, displayName := EffectiveLLM(path)
+	if cfg.APIKey != "env-key" || cfg.BaseURL != "https://env.url" || cfg.Model != "env-model" {
+		t.Errorf("EffectiveLLM(no file) should fall back to LoadLLM(), got %+v", cfg)
+	}
+	if displayName != "env-model" {
+		t.Errorf("displayName = %q, want env-model", displayName)
+	}
+}
+
+func TestEffectiveLLM_FallbackWhenEmptyModels(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsEmptyModels), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("BUILDMAX_API_KEY", "fallback-key")
+	t.Setenv("BUILDMAX_BASE_URL", "https://fallback.url")
+	t.Setenv("BUILDMAX_MODEL", "fallback-model")
+	cfg, displayName := EffectiveLLM(path)
+	if cfg.APIKey != "fallback-key" || cfg.Model != "fallback-model" {
+		t.Errorf("EffectiveLLM(empty models) should fall back to LoadLLM(), got %+v", cfg)
+	}
+	if displayName != "fallback-model" {
+		t.Errorf("displayName = %q, want fallback-model", displayName)
 	}
 }

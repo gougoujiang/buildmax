@@ -1,0 +1,16 @@
+{
+  "models": [
+    {
+      "model": "openai/gpt-3.5-turbo",
+      "name": "GPT-3.5-turbo",
+      "api_url": "https://openrouter.ai/api/v1",
+      "api_key": "your-openrouter-api-key"
+    },
+    {
+      "model": "google/gemma-3-27b-it:free",
+      "name": "Gemma 3 27B (free)",
+      "api_url": "https://openrouter.ai/api/v1",
+      "api_key": "your-openrouter-api-key"
+    }
+  ]
+}

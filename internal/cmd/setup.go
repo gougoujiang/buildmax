@@ -142,7 +142,7 @@ func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, 
 // setupAgentAndSession loads config, builds tools and agent types, creates the agent,
 // ensures the sessions directory exists, and loads or creates the session.
 func setupAgentAndSession(resumeID string) (setupResult, error) {
-	cfg := config.LoadLLM()
+	cfg, modelName := config.EffectiveLLM("")
 	if cfg.APIKey == "" {
 		return setupResult{}, fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
 	}
@@ -193,6 +193,6 @@ func setupAgentAndSession(resumeID string) (setupResult, error) {
 		Session:     sess,
 		SessionsDir: sessionsDir,
 		CWD:         cwd,
-		ModelName:   cfg.Model,
+		ModelName:   modelName,
 	}, nil
 }

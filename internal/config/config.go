@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 )
@@ -11,6 +12,19 @@ type LLM struct {
 	APIKey  string
 	BaseURL string
 	Model   string
+}
+
+// Settings is the root structure for settings.json (e.g. under DataDir).
+type Settings struct {
+	Models []ModelEntry `json:"models"`
+}
+
+// ModelEntry is one LLM model entry in settings (snake_case on disk).
+type ModelEntry struct {
+	Model  string `json:"model"`
+	Name   string `json:"name"`
+	APIURL string `json:"api_url"`
+	APIKey string `json:"api_key"`
 }
 
 // DefaultOpenRouterBaseURL is the OpenRouter OpenAI-compatible API base URL.
@@ -70,11 +84,60 @@ func LogsDir() string {
 	return filepath.Join(DataDir(), "logs")
 }
 
+// SettingsPath returns the path to the settings file under DataDir.
+func SettingsPath() string {
+	return filepath.Join(DataDir(), "settings.json")
+}
+
+// LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.
+// On missing file (default path only): creates DataDir and the file with content "{}", then returns empty Settings.
+// On other read error or invalid JSON, returns empty Settings (no error).
+func LoadSettings(path string) Settings {
+	if path == "" {
+		path = SettingsPath()
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// When using the default path, create settings.json with {} if it does not exist.
+		if path == SettingsPath() && os.IsNotExist(err) {
+			_ = os.MkdirAll(DataDir(), 0755)
+			_ = os.WriteFile(path, []byte("{}\n"), 0644)
+		}
+		return Settings{}
+	}
+	var s Settings
+	if err := json.Unmarshal(data, &s); err != nil {
+		return Settings{}
+	}
+	return s
+}
+
+// EffectiveLLM returns the LLM config and display name to use at startup.
+// If path is empty, the default settings path is used. When the settings file
+// has at least one model, the first entry is used; otherwise LoadLLM() is used.
+// Display name is the entry's name if set, else the model id.
+func EffectiveLLM(path string) (LLM, string) {
+	s := LoadSettings(path)
+	if len(s.Models) == 0 {
+		cfg := LoadLLM()
+		return cfg, cfg.Model
+	}
+	m := s.Models[0]
+	displayName := m.Name
+	if displayName == "" {
+		displayName = m.Model
+	}
+	return LLM{
+		APIKey:  m.APIKey,
+		BaseURL: m.APIURL,
+		Model:   m.Model,
+	}, displayName
+}
+
 // SkillSearchPaths returns the ordered list of directories to scan for skills.
 // Priority (first wins on name conflict):
 //  1. <workspace>/.buildmax/skills  (project-level)
-//  2. <workspace>/.cursor/skills    (backward compatibility with Cursor layouts)
-//  3. <DataDir>/skills              (global-level, e.g. ~/.buildmax/skills)
+//  2. <DataDir>/skills              (global-level, e.g. ~/.buildmax/skills)
 //
 // Missing directories are not created; callers handle absent dirs gracefully.
 func SkillSearchPaths(workspace string) []string {

@@ -10,13 +10,16 @@ usage() {
   echo "Usage: ./make <command>"
   echo ""
   echo "Commands:"
-  echo "  build   Build $BINARY (output: $SCRIPT_DIR/$BINARY)"
-  echo "  test    Run go test with BUILDMAX_HOME=testing-sandbox"
-  echo "  smoke   Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
+  echo "  build         Build $BINARY (output: $SCRIPT_DIR/$BINARY)"
+  echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
+  echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
+  echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
   echo ""
   echo "Examples:"
   echo "  ./make build"
   echo "  ./make test"
+  echo "  ./make bump        # 0.0.2 -> 0.0.3"
+  echo "  ./make bump minor  # 0.0.2 -> 0.1.0"
 }
 
 cmd_build() {
@@ -50,6 +53,42 @@ cmd_smoke() {
   ./"$BINARY" -p "/smoke 0"
 }
 
+cmd_bump_version() {
+  local root_go="$SCRIPT_DIR/internal/cmd/root.go"
+  if [[ ! -f "$root_go" ]]; then
+    echo "Error: $root_go not found"
+    return 1
+  fi
+  local bump="${1:-patch}"
+  local current
+  current=$(grep -E '^\s*var Version = ' "$root_go" | sed -n 's/.*"\([^"]*\)".*/\1/p')
+  if [[ -z "$current" ]]; then
+    echo "Error: could not find var Version in $root_go"
+    return 1
+  fi
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "$current"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+  case "$bump" in
+    patch) patch=$((patch + 1)); minor=$minor; major=$major ;;
+    minor) patch=0; minor=$((minor + 1)); major=$major ;;
+    major) patch=0; minor=0; major=$((major + 1)) ;;
+    *)
+      echo "Error: bump must be patch, minor, or major (got: $bump)"
+      return 1
+      ;;
+  esac
+  local new_version="${major}.${minor}.${patch}"
+  if [[ "$(uname -s)" = Darwin ]]; then
+    sed -i '' "s/var Version = \"[^\"]*\"/var Version = \"$new_version\"/" "$root_go"
+  else
+    sed -i "s/var Version = \"[^\"]*\"/var Version = \"$new_version\"/" "$root_go"
+  fi
+  echo "Bumped version: $current -> $new_version ($bump)"
+}
+
 cmd="${1:-}"
 
 if [[ -z "$cmd" ]]; then
@@ -66,6 +105,9 @@ case "$cmd" in
     ;;
   smoke)
     cmd_smoke
+    ;;
+  bump)
+    cmd_bump_version "${2:-patch}"
     ;;
   -h|--help|help)
     usage
