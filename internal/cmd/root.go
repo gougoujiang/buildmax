@@ -43,9 +43,10 @@ func NewRootCommand() *cobra.Command {
 		RunE:  runRoot,
 	}
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
-	root.Flags().StringP("print", "p", "", "send prompt to the LLM and print the response (no TUI)")
+	root.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
 	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
 	root.Flags().BoolP("continue", "c", false, "resume the most recent session (by creation time)")
+	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().BoolP("version", "v", false, "print version and exit")
 	root.AddCommand(newVersionCommand())
 	return root
@@ -59,6 +60,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	prompt, _ := cmd.Flags().GetString("print")
 	resumeID, _ := cmd.Flags().GetString("resume")
 	cont, _ := cmd.Flags().GetBool("continue")
+	model, _ := cmd.Flags().GetString("model")
 
 	resumeID, err := resolveResumeID(resumeID, cont)
 	if err != nil {
@@ -67,10 +69,10 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 
 	if prompt != "" {
 		slog.Info("running print mode")
-		return runPrintMode(prompt, resumeID)
+		return runPrintMode(prompt, resumeID, model)
 	}
 	slog.Info("starting TUI")
-	return runTUI(resumeID)
+	return runTUI(resumeID, model)
 }
 
 // resolveResumeID resolves the --continue flag: if cont is true and resumeID

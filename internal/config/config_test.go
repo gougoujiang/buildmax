@@ -329,3 +329,93 @@ func TestEffectiveLLM_FallbackWhenEmptyModels(t *testing.T) {
 		t.Errorf("displayName = %q, want fallback-model", displayName)
 	}
 }
+
+func TestEffectiveLLMWithSelector_EmptySelectorSameAsEffectiveLLM(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, name, err := EffectiveLLMWithSelector(path, "")
+	if err != nil {
+		t.Fatalf("EffectiveLLMWithSelector(path, \"\") should not error: %v", err)
+	}
+	if cfg.Model != "glm4.5" || name != "My GLM" {
+		t.Errorf("EffectiveLLMWithSelector(path, \"\") = %+v, name %q; want first model", cfg, name)
+	}
+}
+
+func TestEffectiveLLMWithSelector_MatchByModel(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidTwo), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, name, err := EffectiveLLMWithSelector(path, "b")
+	if err != nil {
+		t.Fatalf("EffectiveLLMWithSelector(..., \"b\") err: %v", err)
+	}
+	if cfg.Model != "b" || cfg.BaseURL != "https://b" || cfg.APIKey != "k2" {
+		t.Errorf("EffectiveLLMWithSelector(..., \"b\") = %+v", cfg)
+	}
+	if name != "B" {
+		t.Errorf("displayName = %q, want B", name)
+	}
+}
+
+func TestEffectiveLLMWithSelector_MatchByName(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, name, err := EffectiveLLMWithSelector(path, "My GLM")
+	if err != nil {
+		t.Fatalf("EffectiveLLMWithSelector(..., \"My GLM\") err: %v", err)
+	}
+	if cfg.Model != "glm4.5" {
+		t.Errorf("EffectiveLLMWithSelector(..., \"My GLM\") = %+v", cfg)
+	}
+	if name != "My GLM" {
+		t.Errorf("displayName = %q, want My GLM", name)
+	}
+}
+
+func TestEffectiveLLMWithSelector_NoMatchReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsValidTwo), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := EffectiveLLMWithSelector(path, "nonexistent")
+	if err == nil {
+		t.Error("EffectiveLLMWithSelector(..., \"nonexistent\") should return error")
+	}
+	if err != nil && !strings.Contains(err.Error(), "nonexistent") {
+		t.Errorf("error message should contain selector: %v", err)
+	}
+}
+
+func TestEffectiveLLMWithSelector_NoModelsAndSelectorSetReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "settings.json")
+	if err := os.WriteFile(path, []byte(settingsEmptyModels), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := EffectiveLLMWithSelector(path, "any")
+	if err == nil {
+		t.Error("EffectiveLLMWithSelector(empty models, \"any\") should return error")
+	}
+	if err != nil && !strings.Contains(err.Error(), "no models in settings") {
+		t.Errorf("error message should mention no models: %v", err)
+	}
+}
+
+func TestEffectiveLLMWithSelector_MissingFileAndSelectorSetReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "nonexistent.json")
+	_, _, err := EffectiveLLMWithSelector(path, "any")
+	if err == nil {
+		t.Error("EffectiveLLMWithSelector(missing file, \"any\") should return error")
+	}
+}

@@ -141,8 +141,12 @@ func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, 
 
 // setupAgentAndSession loads config, builds tools and agent types, creates the agent,
 // ensures the sessions directory exists, and loads or creates the session.
-func setupAgentAndSession(resumeID string) (setupResult, error) {
-	cfg, modelName := config.EffectiveLLM("")
+// modelSelector selects a model from settings by id or name when non-empty; empty means default (first model or env fallback).
+func setupAgentAndSession(resumeID string, modelSelector string) (setupResult, error) {
+	cfg, modelName, err := config.EffectiveLLMWithSelector("", modelSelector)
+	if err != nil {
+		return setupResult{}, err
+	}
 	if cfg.APIKey == "" {
 		return setupResult{}, fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
 	}

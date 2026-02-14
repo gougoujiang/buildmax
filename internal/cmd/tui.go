@@ -12,8 +12,8 @@ import (
 )
 
 // runTUI builds agent and session via setupAgentAndSession, then runs the TUI.
-func runTUI(resumeID string) error {
-	res, err := setupAgentAndSession(resumeID)
+func runTUI(resumeID string, modelSelector string) error {
+	res, err := setupAgentAndSession(resumeID, modelSelector)
 	if err != nil {
 		return err
 	}

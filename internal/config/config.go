@@ -3,6 +3,8 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -112,26 +114,60 @@ func LoadSettings(path string) Settings {
 	return s
 }
 
+// EffectiveLLMWithSelector returns the LLM config and display name to use at startup,
+// optionally selecting a model by id or name. settingsPath is passed to LoadSettings
+// (empty means default SettingsPath()). When modelSelector is empty, behaviour equals
+// EffectiveLLM: first model from settings or LoadLLM() fallback; no error. When
+// modelSelector is non-empty, settings must have at least one model and an entry
+// whose model or name equals modelSelector (first match wins); otherwise an error
+// is returned.
+func EffectiveLLMWithSelector(settingsPath string, modelSelector string) (LLM, string, error) {
+	if settingsPath == "" {
+		settingsPath = SettingsPath()
+	}
+	s := LoadSettings(settingsPath)
+	if modelSelector == "" {
+		if len(s.Models) == 0 {
+			cfg := LoadLLM()
+			return cfg, cfg.Model, nil
+		}
+		m := s.Models[0]
+		displayName := m.Name
+		if displayName == "" {
+			displayName = m.Model
+		}
+		return LLM{
+			APIKey:  m.APIKey,
+			BaseURL: m.APIURL,
+			Model:   m.Model,
+		}, displayName, nil
+	}
+	if len(s.Models) == 0 {
+		return LLM{}, "", errors.New("no models in settings; add settings or omit --model")
+	}
+	for _, m := range s.Models {
+		if m.Model == modelSelector || m.Name == modelSelector {
+			displayName := m.Name
+			if displayName == "" {
+				displayName = m.Model
+			}
+			return LLM{
+				APIKey:  m.APIKey,
+				BaseURL: m.APIURL,
+				Model:   m.Model,
+			}, displayName, nil
+		}
+	}
+	return LLM{}, "", fmt.Errorf("model not found: %q", modelSelector)
+}
+
 // EffectiveLLM returns the LLM config and display name to use at startup.
 // If path is empty, the default settings path is used. When the settings file
 // has at least one model, the first entry is used; otherwise LoadLLM() is used.
 // Display name is the entry's name if set, else the model id.
 func EffectiveLLM(path string) (LLM, string) {
-	s := LoadSettings(path)
-	if len(s.Models) == 0 {
-		cfg := LoadLLM()
-		return cfg, cfg.Model
-	}
-	m := s.Models[0]
-	displayName := m.Name
-	if displayName == "" {
-		displayName = m.Model
-	}
-	return LLM{
-		APIKey:  m.APIKey,
-		BaseURL: m.APIURL,
-		Model:   m.Model,
-	}, displayName
+	cfg, name, _ := EffectiveLLMWithSelector(path, "")
+	return cfg, name
 }
 
 // SkillSearchPaths returns the ordered list of directories to scan for skills.

@@ -11,8 +11,8 @@ import (
 	"buildmax/internal/session"
 )
 
-func runPrintMode(prompt string, resumeID string) error {
-	res, err := setupAgentAndSession(resumeID)
+func runPrintMode(prompt string, resumeID string, modelSelector string) error {
+	res, err := setupAgentAndSession(resumeID, modelSelector)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return err
