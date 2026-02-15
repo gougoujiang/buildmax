@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"embed"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +13,9 @@ import (
 
 	"buildmax/internal/store"
 )
+
+//go:embed static/openapi.json static/swagger.html
+var staticFS embed.FS
 
 const shutdownTimeout = 10 * time.Second
 
@@ -31,284 +35,6 @@ type Server struct {
 	srv *http.Server
 	cfg Config
 }
-
-// openAPISpec is the minimal OpenAPI 3.0 spec for the server endpoints.
-const openAPISpec = `{
-  "openapi": "3.0.3",
-  "info": { "title": "BuildMax API", "version": "0.0.5" },
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
-  },
-  "paths": {
-    "/healthz": {
-      "get": {
-        "summary": "Health check",
-        "description": "Returns 200 when the server is alive.",
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/api/login": {
-      "post": {
-        "summary": "Login",
-        "description": "Authenticate by email. Returns JWT and user info on success.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["email"],
-                "properties": { "email": { "type": "string" } }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "token": { "type": "string" },
-                    "user": {
-                      "type": "object",
-                      "properties": {
-                        "id": { "type": "string" },
-                        "email": { "type": "string" },
-                        "name": { "type": "string" }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "description": "User not found" },
-          "400": { "description": "Invalid request body" }
-        }
-      }
-    },
-    "/api/workspaces": {
-      "get": {
-        "summary": "List workspaces",
-        "description": "Returns workspaces for the authenticated user. Creates a Default workspace if none exist. Requires Bearer JWT.",
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string" },
-                      "name": { "type": "string" },
-                      "owner_user_id": { "type": "string" },
-                      "created_at": { "type": "integer" }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "description": "Unauthorized" }
-        }
-      }
-    },
-    "/api/workspaces/{workspace_id}/projects": {
-      "get": {
-        "summary": "List projects",
-        "description": "Returns projects for the given workspace. Caller must own the workspace. Requires Bearer JWT.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string" },
-                      "workspace_id": { "type": "string" },
-                      "name": { "type": "string" },
-                      "description": { "type": "string" },
-                      "created_at": { "type": "integer" }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden (workspace not owned)" }
-        }
-      },
-      "post": {
-        "summary": "Create project",
-        "description": "Creates a project under the given workspace. Caller must own the workspace. Requires Bearer JWT.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name"],
-                "properties": {
-                  "name": { "type": "string" },
-                  "description": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "workspace_id": { "type": "string" },
-                    "name": { "type": "string" },
-                    "description": { "type": "string" },
-                    "created_at": { "type": "integer" }
-                  }
-                }
-              }
-            }
-          },
-          "400": { "description": "Bad request (name missing)" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" }
-        }
-      }
-    },
-    "/api/projects/{project_id}/tasks": {
-      "get": {
-        "summary": "List tasks",
-        "description": "Returns tasks for the project. Caller must own the project's workspace. Requires Bearer JWT.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string" },
-                      "project_id": { "type": "string" },
-                      "status": { "type": "string" },
-                      "input": { "type": "string" },
-                      "output": { "type": "string" },
-                      "created_by": { "type": "string" },
-                      "created_at": { "type": "integer" },
-                      "started_at": { "type": "integer" },
-                      "ended_at": { "type": "integer" },
-                      "error_message": { "type": "string" }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Project not found" },
-          "503": { "description": "Tasks not configured" }
-        }
-      },
-      "post": {
-        "summary": "Create task",
-        "description": "Creates a task under the project. Caller must own the project's workspace. Requires Bearer JWT.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["input"],
-                "properties": { "input": { "type": "string" } }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "project_id": { "type": "string" },
-                    "status": { "type": "string" },
-                    "input": { "type": "string" },
-                    "output": { "type": "string" },
-                    "created_by": { "type": "string" },
-                    "created_at": { "type": "integer" },
-                    "started_at": { "type": "integer" },
-                    "ended_at": { "type": "integer" },
-                    "error_message": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "400": { "description": "Bad request (input missing)" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Project not found" },
-          "503": { "description": "Tasks not configured" }
-        }
-      }
-    }
-  }
-}`
-
-// swaggerUIHTML loads Swagger UI from CDN and points it at /openapi.json.
-const swaggerUIHTML = `<!DOCTYPE html>
-<html>
-<head>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css">
-</head>
-<body>
-  <div id="swagger-ui"></div>
-  <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
-  <script>
-    SwaggerUIBundle({ url: "/openapi.json", dom_id: "#swagger-ui" });
-  </script>
-</body>
-</html>
-`
 
 // New builds an HTTP server with routes for /healthz, /openapi.json, /swagger/, and POST /api/login.
 func New(cfg Config) *Server {
@@ -385,21 +111,19 @@ func requestLoggingMiddleware(h http.Handler) http.Handler {
 }
 
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func openAPIHandler(w http.ResponseWriter, _ *http.Request) {
-	// Validate that the constant is valid JSON at init would be possible; for simplicity we write it directly.
-	// Pretty-print not required; the raw constant is already readable.
+	data, _ := staticFS.ReadFile("static/openapi.json")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(openAPISpec))
+	_, _ = w.Write(data)
 }
 
 func swaggerUIHandler(w http.ResponseWriter, _ *http.Request) {
+	data, _ := staticFS.ReadFile("static/swagger.html")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(swaggerUIHTML))
+	_, _ = w.Write(data)
 }

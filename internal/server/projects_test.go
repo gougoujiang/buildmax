@@ -2,64 +2,14 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"buildmax/internal/store"
 )
-
-// mockProjectStore is an in-memory ProjectStore for tests.
-type mockProjectStore struct {
-	list     []store.Project
-	listErr  error
-	create   *store.Project
-	createErr error
-}
-
-func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*store.Project, error) {
-	for i := range m.list {
-		if m.list[i].ProjectID == projectID {
-			return &m.list[i], nil
-		}
-	}
-	return nil, nil
-}
-
-func (m *mockProjectStore) ListProjectsByWorkspace(_ context.Context, workspaceID string) ([]store.Project, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
-	}
-	// return only projects for this workspace
-	var out []store.Project
-	for _, p := range m.list {
-		if p.WorkspaceID == workspaceID {
-			out = append(out, p)
-		}
-	}
-	return out, nil
-}
-
-func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, description string) (*store.Project, error) {
-	if m.createErr != nil {
-		return nil, m.createErr
-	}
-	if m.create != nil {
-		return m.create, nil
-	}
-	// default: return a stub
-	return &store.Project{
-		ProjectID:   "proj1",
-		WorkspaceID: workspaceID,
-		Name:        name,
-		Description: description,
-		CreatedAt:   time.Now().Unix(),
-	}, nil
-}
 
 func TestListProjectsHandler(t *testing.T) {
 	secret := "test-projects-secret"
@@ -290,9 +240,3 @@ func TestCreateProjectHandler(t *testing.T) {
 		})
 	}
 }
-
-// signJWT is used by projects_test; reuse the one from workspaces_test (same package).
-// Declared in workspaces_test.go - so we need to ensure it's available. It's in the same package server.
-// Actually workspaces_test.go has signJWT - same package so it's not exported (lowercase). So when we run "go test ./internal/server/..." both test files are in the same package, so signJWT from workspaces_test.go is visible in projects_test.go. Good.
-// But wait - test files are only compiled with the package when running tests. So signJWT in workspaces_test.go is in package server and is available to projects_test.go when both are built together. So we're good. Let me verify - we don't define signJWT in projects_test.go, we use it. So we need signJWT to be in the same package. It's in workspaces_test.go. So when we run `go test ./internal/server` both _test.go files get compiled and signJWT is available. Good.
-// Double-check: in Go, all *_test.go files in the same directory that are in package X are compiled together. So signJWT in workspaces_test.go is visible in projects_test.go. We're good.

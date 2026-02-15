@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,15 +9,6 @@ import (
 
 	"buildmax/internal/store"
 )
-
-// mockUserStore is an in-memory UserStore for tests.
-type mockUserStore struct {
-	userByEmail map[string]*store.User
-}
-
-func (m *mockUserStore) UserByEmail(ctx context.Context, email string) (*store.User, error) {
-	return m.userByEmail[email], nil
-}
 
 func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"

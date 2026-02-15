@@ -7,6 +7,17 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// requireAuth extracts the user id from the request and writes 401 if missing or invalid.
+// Returns (userID, true) on success; on failure writes JSON error and returns ("", false).
+func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (string, bool) {
+	userID, ok := userIDFromRequest(r, jwtSecret)
+	if !ok {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	return userID, true
+}
+
 // userIDFromRequest extracts the user id from the Authorization: Bearer <token> header.
 // Returns (userID, true) if the JWT is valid and contains a sub claim, or ("", false) otherwise.
 func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {

@@ -36,44 +36,27 @@ const jwtExpiry = 24 * time.Hour
 
 func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.UserStore == nil || s.cfg.JWTSecret == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"error":"login not configured"}`))
-		return
-	}
-
-	if r.Method != http.MethodPost {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_, _ = w.Write([]byte(`{"error":"method not allowed"}`))
+		writeJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"invalid request body"}`))
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Email == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"email required"}`))
+		writeJSONError(w, http.StatusBadRequest, "email required")
 		return
 	}
 
 	user, err := s.cfg.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if user == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error":"user not found"}`))
+		writeJSONError(w, http.StatusUnauthorized, "user not found")
 		return
 	}
 
@@ -88,9 +71,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(s.cfg.JWTSecret))
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
@@ -102,7 +83,5 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 			Name:  user.Name,
 		},
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	writeJSON(w, http.StatusOK, resp)
 }

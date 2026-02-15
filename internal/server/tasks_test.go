@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,44 +10,6 @@ import (
 
 	"buildmax/internal/store"
 )
-
-// mockTaskStore is an in-memory TaskStore for tests.
-type mockTaskStore struct {
-	list     []store.Task
-	listErr  error
-	create   *store.Task
-	createErr error
-}
-
-func (m *mockTaskStore) ListTasksByProject(_ context.Context, projectID string) ([]store.Task, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
-	}
-	var out []store.Task
-	for _, t := range m.list {
-		if t.ProjectID == projectID {
-			out = append(out, t)
-		}
-	}
-	return out, nil
-}
-
-func (m *mockTaskStore) CreateTask(_ context.Context, projectID, input, createdBy string) (*store.Task, error) {
-	if m.createErr != nil {
-		return nil, m.createErr
-	}
-	if m.create != nil {
-		return m.create, nil
-	}
-	return &store.Task{
-		TaskID:    "task-uuid-1",
-		ProjectID: projectID,
-		Status:    "PENDING",
-		Input:     input,
-		CreatedBy: createdBy,
-		CreatedAt: 12345,
-	}, nil
-}
 
 func TestListTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"

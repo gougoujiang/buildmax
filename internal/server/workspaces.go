@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,39 +16,37 @@ type WorkspaceResponse struct {
 	CreatedAt   int64  `json:"created_at"`
 }
 
+// ensureWorkspaceDirs creates directory root/id for each id. Ignores errors (best-effort).
+func ensureWorkspaceDirs(root string, workspaceIDs []string) {
+	for _, id := range workspaceIDs {
+		_ = os.MkdirAll(filepath.Join(root, id), 0755)
+	}
+}
+
 func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.WorkspaceStore == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"error":"workspaces not configured"}`))
+		writeJSONError(w, http.StatusServiceUnavailable, "workspaces not configured")
 		return
 	}
-	userID, ok := userIDFromRequest(r, s.cfg.JWTSecret)
+	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
 	if !ok {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 		return
 	}
 	ctx := r.Context()
 	if err := s.cfg.WorkspaceStore.EnsureDefaultWorkspaceForUser(ctx, userID); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	list, err := s.cfg.WorkspaceStore.ListWorkspacesByOwner(ctx, userID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	root := config.WorkspacesDir()
-	for _, w := range list {
-		dir := filepath.Join(root, w.WorkspaceID)
-		_ = os.MkdirAll(dir, 0755)
+	ids := make([]string, len(list))
+	for i := range list {
+		ids[i] = list[i].WorkspaceID
 	}
+	ensureWorkspaceDirs(config.WorkspacesDir(), ids)
 	out := make([]WorkspaceResponse, len(list))
 	for i := range list {
 		out[i] = WorkspaceResponse{
@@ -59,7 +56,5 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   list[i].CreatedAt,
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(out)
+	writeJSON(w, http.StatusOK, out)
 }

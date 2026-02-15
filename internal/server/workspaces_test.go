@@ -1,50 +1,14 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"buildmax/internal/store"
-
-	"github.com/golang-jwt/jwt/v5"
 )
-
-// mockWorkspaceStore is an in-memory WorkspaceStore for tests.
-type mockWorkspaceStore struct {
-	ensureErr error
-	list      []store.Workspace
-	listErr   error
-}
-
-func (m *mockWorkspaceStore) EnsureDefaultWorkspaceForUser(_ context.Context, _ string) error {
-	return m.ensureErr
-}
-
-func (m *mockWorkspaceStore) ListWorkspacesByOwner(_ context.Context, _ string) ([]store.Workspace, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
-	}
-	return m.list, nil
-}
-
-func signJWT(sub, secret string) string {
-	now := time.Now()
-	claims := jwtClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(now),
-		},
-		Sub: sub,
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	s, _ := token.SignedString([]byte(secret))
-	return s
-}
 
 func TestWorkspacesHandler(t *testing.T) {
 	secret := "test-workspaces-secret"

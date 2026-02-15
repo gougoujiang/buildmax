@@ -1,0 +1,260 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "BuildMax API", "version": "0.0.5" },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns 200 when the server is alive.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Authenticate by email. Returns JWT and user info on success.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": { "email": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "email": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "User not found" },
+          "400": { "description": "Invalid request body" }
+        }
+      }
+    },
+    "/api/workspaces": {
+      "get": {
+        "summary": "List workspaces",
+        "description": "Returns workspaces for the authenticated user. Creates a Default workspace if none exist. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "owner_user_id": { "type": "string" },
+                      "created_at": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/projects": {
+      "get": {
+        "summary": "List projects",
+        "description": "Returns projects for the given workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "workspace_id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "description": { "type": "string" },
+                      "created_at": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden (workspace not owned)" }
+        }
+      },
+      "post": {
+        "summary": "Create project",
+        "description": "Creates a project under the given workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "workspace_id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "description": { "type": "string" },
+                    "created_at": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (name missing)" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/api/projects/{project_id}/tasks": {
+      "get": {
+        "summary": "List tasks",
+        "description": "Returns tasks for the project. Caller must own the project's workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "project_id": { "type": "string" },
+                      "status": { "type": "string" },
+                      "input": { "type": "string" },
+                      "output": { "type": "string" },
+                      "created_by": { "type": "string" },
+                      "created_at": { "type": "integer" },
+                      "started_at": { "type": "integer" },
+                      "ended_at": { "type": "integer" },
+                      "error_message": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Project not found" },
+          "503": { "description": "Tasks not configured" }
+        }
+      },
+      "post": {
+        "summary": "Create task",
+        "description": "Creates a task under the project. Caller must own the project's workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["input"],
+                "properties": { "input": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "project_id": { "type": "string" },
+                    "status": { "type": "string" },
+                    "input": { "type": "string" },
+                    "output": { "type": "string" },
+                    "created_by": { "type": "string" },
+                    "created_at": { "type": "integer" },
+                    "started_at": { "type": "integer" },
+                    "ended_at": { "type": "integer" },
+                    "error_message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (input missing)" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Project not found" },
+          "503": { "description": "Tasks not configured" }
+        }
+      }
+    }
+  }
+}

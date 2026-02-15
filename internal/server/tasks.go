@@ -42,134 +42,102 @@ func taskToResponse(t store.Task) TaskResponse {
 }
 
 func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromRequest(r, s.cfg.JWTSecret)
+	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
 	if !ok {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 		return
 	}
 	projectID := r.PathValue("project_id")
 	if projectID == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"project_id required"}`))
+		writeJSONError(w, http.StatusBadRequest, "project_id required")
 		return
 	}
 	if s.cfg.ProjectStore == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
 		return
 	}
 	project, err := s.cfg.ProjectStore.GetProject(r.Context(), projectID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if project == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error":"project not found"}`))
+		writeJSONError(w, http.StatusNotFound, "project not found")
 		return
 	}
-	if !s.userOwnsWorkspace(r, userID, project.WorkspaceID) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(`{"error":"forbidden"}`))
+	owned, err := s.userOwnsWorkspace(r, userID, project.WorkspaceID)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if !owned {
+		writeJSONError(w, http.StatusForbidden, "forbidden")
 		return
 	}
 	if s.cfg.TaskStore == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"error":"tasks not configured"}`))
+		writeJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
 		return
 	}
 	list, err := s.cfg.TaskStore.ListTasksByProject(r.Context(), projectID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	out := make([]TaskResponse, len(list))
 	for i := range list {
 		out[i] = taskToResponse(list[i])
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(out)
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromRequest(r, s.cfg.JWTSecret)
+	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
 	if !ok {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 		return
 	}
 	projectID := r.PathValue("project_id")
 	if projectID == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"project_id required"}`))
+		writeJSONError(w, http.StatusBadRequest, "project_id required")
 		return
 	}
 	if s.cfg.ProjectStore == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
 		return
 	}
 	project, err := s.cfg.ProjectStore.GetProject(r.Context(), projectID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if project == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error":"project not found"}`))
+		writeJSONError(w, http.StatusNotFound, "project not found")
 		return
 	}
-	if !s.userOwnsWorkspace(r, userID, project.WorkspaceID) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(`{"error":"forbidden"}`))
+	owned, err := s.userOwnsWorkspace(r, userID, project.WorkspaceID)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if !owned {
+		writeJSONError(w, http.StatusForbidden, "forbidden")
 		return
 	}
 	if s.cfg.TaskStore == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"error":"tasks not configured"}`))
+		writeJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
 		return
 	}
 	var req createTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"invalid request body"}`))
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Input == "" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"input required"}`))
+		writeJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
 	task, err := s.cfg.TaskStore.CreateTask(r.Context(), projectID, req.Input, userID)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(taskToResponse(*task))
+	writeJSON(w, http.StatusCreated, taskToResponse(*task))
 }
