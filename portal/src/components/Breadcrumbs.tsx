@@ -7,8 +7,9 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ route }: BreadcrumbsProps) {
+  const workspaceId = route.workspaceId
   const crumbs: { label: string; route: Route }[] = [
-    { label: "Home", route: { name: "workspace" } },
+    { label: "Home", route: { name: "workspace", workspaceId } },
   ]
 
   if (route.name !== "workspace") {
@@ -17,7 +18,7 @@ export function Breadcrumbs({ route }: BreadcrumbsProps) {
     const project: Project | undefined = getProjectById(projectId)
     crumbs.push({
       label: project?.name ?? "Project",
-      route: { name: "project", projectId },
+      route: { name: "project", workspaceId, projectId },
     })
 
     if (route.name === "task") {

@@ -48,10 +48,35 @@ body {
   white-space: nowrap;
 }
 
-.topbar__workspace {
+.topbar__workspace-wrap {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.topbar__workspace-label {
   font-size: 0.85rem;
   color: #bbb;
+  white-space: nowrap;
+}
+
+.topbar__workspace-select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: #fff;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  min-width: 10rem;
+}
+
+.topbar__workspace-select:hover,
+.topbar__workspace-select:focus {
+  border-color: #777;
+  outline: none;
 }
 
 .topbar__profile {

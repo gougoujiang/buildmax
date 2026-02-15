@@ -3,6 +3,7 @@ import type { Project } from "../types"
 import { navigate } from "../router"
 
 interface WorkspaceHomeProps {
+  workspaceId: string
   projects: Project[]
 }
 
@@ -13,7 +14,7 @@ const QUICK_ACTIONS = [
   "Draft email",
 ]
 
-export function WorkspaceHome({ projects }: WorkspaceHomeProps) {
+export function WorkspaceHome({ workspaceId, projects }: WorkspaceHomeProps) {
   const [prompt, setPrompt] = useState("")
 
   function handleRun() {
@@ -51,7 +52,13 @@ export function WorkspaceHome({ projects }: WorkspaceHomeProps) {
               <button
                 type="button"
                 className="page-workspace__project-link"
-                onClick={() => navigate({ name: "project", projectId: p.id })}
+                onClick={() =>
+                  navigate({
+                    name: "project",
+                    workspaceId,
+                    projectId: p.id,
+                  })
+                }
               >
                 <span className="page-workspace__project-name">{p.name}</span>
                 <span className="page-workspace__project-status">

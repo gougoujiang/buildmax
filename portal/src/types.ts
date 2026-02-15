@@ -33,7 +33,7 @@ export interface Artifact {
 // --- Route types ---
 
 export type Route =
-  | { name: "workspace" }
-  | { name: "project"; projectId: string }
-  | { name: "task"; projectId: string; taskId: string }
-  | { name: "artifact"; projectId: string; artifactId: string }
+  | { name: "workspace"; workspaceId: string }
+  | { name: "project"; workspaceId: string; projectId: string }
+  | { name: "task"; workspaceId: string; projectId: string; taskId: string }
+  | { name: "artifact"; workspaceId: string; projectId: string; artifactId: string }

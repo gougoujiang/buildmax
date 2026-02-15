@@ -1,6 +1,8 @@
-import { useHashRoute } from "./router"
+import { useEffect } from "react"
+import { useHashRoute, navigate } from "./router"
 import {
-  MOCK_WORKSPACE,
+  listWorkspaces,
+  getWorkspaceById,
   listProjectsForWorkspace,
   getProjectById,
   listTasksForProject,
@@ -16,23 +18,56 @@ import { ArtifactViewer } from "./pages/ArtifactViewer"
 
 function App() {
   const route = useHashRoute()
-  const projects = listProjectsForWorkspace(MOCK_WORKSPACE.id)
+  const workspaces = listWorkspaces()
+  const defaultWorkspaceId = workspaces[0]?.id ?? ""
 
-  // Resolve the selected project id from any route that carries one
+  // Validate workspace: redirect to first workspace home if missing or invalid
+  const currentWorkspaceFromRoute = getWorkspaceById(route.workspaceId)
+  const needsRedirect =
+    !route.workspaceId || !currentWorkspaceFromRoute
+
+  useEffect(() => {
+    if (needsRedirect && defaultWorkspaceId) {
+      navigate({ name: "workspace", workspaceId: defaultWorkspaceId })
+    }
+  }, [needsRedirect, defaultWorkspaceId])
+
+  if (needsRedirect) {
+    return null
+  }
+
+  const currentWorkspace = currentWorkspaceFromRoute!
+  const projects = listProjectsForWorkspace(route.workspaceId)
   const selectedProjectId =
     route.name !== "workspace" ? route.projectId : null
 
-  // Render the page for the current route
+  function onWorkspaceChange(workspaceId: string) {
+    navigate({ name: "workspace", workspaceId })
+  }
+
   function renderPage() {
     switch (route.name) {
       case "workspace":
-        return <WorkspaceHome projects={projects} />
+        return (
+          <WorkspaceHome
+            workspaceId={route.workspaceId}
+            projects={projects}
+          />
+        )
 
       case "project": {
         const project = getProjectById(route.projectId)
-        if (!project) return <WorkspaceHome projects={projects} />
+        if (!project || project.workspaceId !== route.workspaceId) {
+          return (
+            <WorkspaceHome
+              workspaceId={route.workspaceId}
+              projects={projects}
+            />
+          )
+        }
         return (
           <ProjectDashboard
+            workspaceId={route.workspaceId}
             project={project}
             tasks={listTasksForProject(project.id)}
             artifacts={listArtifactsForProject(project.id)}
@@ -43,11 +78,18 @@ function App() {
       case "task": {
         const task = getTaskById(route.projectId, route.taskId)
         if (!task) {
-          // Fallback to project dashboard if task not found
           const project = getProjectById(route.projectId)
-          if (!project) return <WorkspaceHome projects={projects} />
+          if (!project || project.workspaceId !== route.workspaceId) {
+            return (
+              <WorkspaceHome
+                workspaceId={route.workspaceId}
+                projects={projects}
+              />
+            )
+          }
           return (
             <ProjectDashboard
+              workspaceId={route.workspaceId}
               project={project}
               tasks={listTasksForProject(project.id)}
               artifacts={listArtifactsForProject(project.id)}
@@ -61,9 +103,17 @@ function App() {
         const artifact = getArtifactById(route.projectId, route.artifactId)
         if (!artifact) {
           const project = getProjectById(route.projectId)
-          if (!project) return <WorkspaceHome projects={projects} />
+          if (!project || project.workspaceId !== route.workspaceId) {
+            return (
+              <WorkspaceHome
+                workspaceId={route.workspaceId}
+                projects={projects}
+              />
+            )
+          }
           return (
             <ProjectDashboard
+              workspaceId={route.workspaceId}
               project={project}
               tasks={listTasksForProject(project.id)}
               artifacts={listArtifactsForProject(project.id)}
@@ -77,10 +127,12 @@ function App() {
 
   return (
     <AppShell
-      workspaceName={MOCK_WORKSPACE.name}
+      currentWorkspace={currentWorkspace}
+      workspaces={workspaces}
       projects={projects}
       selectedProjectId={selectedProjectId}
       route={route}
+      onWorkspaceChange={onWorkspaceChange}
     >
       {renderPage()}
     </AppShell>

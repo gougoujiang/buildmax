@@ -3,40 +3,48 @@ import type { Route } from "./types"
 
 /**
  * Parse window.location.hash into a typed Route.
- * Supported patterns:
- *   (empty) | #workspace         → { name: "workspace" }
- *   #project/<id>                → { name: "project", projectId }
- *   #task/<projectId>/<taskId>   → { name: "task", projectId, taskId }
- *   #artifact/<projectId>/<id>   → { name: "artifact", projectId, artifactId }
+ * Hash format: #<workspaceId> | #<workspaceId>/project/<id> | #<workspaceId>/task/<p>/<t> | #<workspaceId>/artifact/<p>/<id>
+ * First segment = workspaceId (use as-is; if missing, "").
  */
 export function parseHash(hash: string): Route {
-  // Strip leading "#" or "#/"
   const raw = hash.replace(/^#\/?/, "")
   const parts = raw.split("/").filter(Boolean)
 
-  if (parts[0] === "project" && parts[1]) {
-    return { name: "project", projectId: parts[1] }
+  const workspaceId = parts[0] ?? ""
+
+  if (parts[1] === "project" && parts[2]) {
+    return { name: "project", workspaceId, projectId: parts[2] }
   }
-  if (parts[0] === "task" && parts[1] && parts[2]) {
-    return { name: "task", projectId: parts[1], taskId: parts[2] }
+  if (parts[1] === "task" && parts[2] && parts[3]) {
+    return {
+      name: "task",
+      workspaceId,
+      projectId: parts[2],
+      taskId: parts[3],
+    }
   }
-  if (parts[0] === "artifact" && parts[1] && parts[2]) {
-    return { name: "artifact", projectId: parts[1], artifactId: parts[2] }
+  if (parts[1] === "artifact" && parts[2] && parts[3]) {
+    return {
+      name: "artifact",
+      workspaceId,
+      projectId: parts[2],
+      artifactId: parts[3],
+    }
   }
-  return { name: "workspace" }
+  return { name: "workspace", workspaceId }
 }
 
 /** Convert a Route into a canonical hash string (includes leading #). */
 export function buildHash(route: Route): string {
   switch (route.name) {
     case "workspace":
-      return "#workspace"
+      return `#${route.workspaceId}`
     case "project":
-      return `#project/${route.projectId}`
+      return `#${route.workspaceId}/project/${route.projectId}`
     case "task":
-      return `#task/${route.projectId}/${route.taskId}`
+      return `#${route.workspaceId}/task/${route.projectId}/${route.taskId}`
     case "artifact":
-      return `#artifact/${route.projectId}/${route.artifactId}`
+      return `#${route.workspaceId}/artifact/${route.projectId}/${route.artifactId}`
   }
 }
 

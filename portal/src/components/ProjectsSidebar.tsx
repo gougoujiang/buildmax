@@ -2,11 +2,13 @@ import type { Project } from "../types"
 import { navigate } from "../router"
 
 interface ProjectsSidebarProps {
+  workspaceId: string
   projects: Project[]
   selectedProjectId: string | null
 }
 
 export function ProjectsSidebar({
+  workspaceId,
   projects,
   selectedProjectId,
 }: ProjectsSidebarProps) {
@@ -22,7 +24,9 @@ export function ProjectsSidebar({
                 "sidebar__link" +
                 (p.id === selectedProjectId ? " sidebar__link--active" : "")
               }
-              onClick={() => navigate({ name: "project", projectId: p.id })}
+              onClick={() =>
+                navigate({ name: "project", workspaceId, projectId: p.id })
+              }
             >
               <span className="sidebar__project-name">{p.name}</span>
               <span className="sidebar__project-meta">

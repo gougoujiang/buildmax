@@ -3,6 +3,7 @@ import type { Project, Task, Artifact } from "../types"
 import { navigate } from "../router"
 
 interface ProjectDashboardProps {
+  workspaceId: string
   project: Project
   tasks: Task[]
   artifacts: Artifact[]
@@ -22,6 +23,7 @@ function statusIcon(status: Task["status"]): string {
 }
 
 export function ProjectDashboard({
+  workspaceId,
   project,
   tasks,
   artifacts,
@@ -80,6 +82,7 @@ export function ProjectDashboard({
                   onClick={() =>
                     navigate({
                       name: "artifact",
+                      workspaceId,
                       projectId: project.id,
                       artifactId: a.id,
                     })
@@ -107,6 +110,7 @@ export function ProjectDashboard({
                   onClick={() =>
                     navigate({
                       name: "task",
+                      workspaceId,
                       projectId: project.id,
                       taskId: t.id,
                     })
