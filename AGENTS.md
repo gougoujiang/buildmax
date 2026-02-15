@@ -31,6 +31,16 @@ Rationale: A single language reduces maintenance cost, enables cross-compilation
   - Users get a full Agent TUI experience in the terminal by running a single binary; no Node dependency for normal CLI use.
 - **Portal (web)**: A separate web-based entry point under `portal/` — a minimal React (Vite + TypeScript) app that builds and runs independently. It provides a "BuildMax Portal" landing as a frontend foundation; chat, sessions, and API integration are planned for later. See `portal/README.md` for install, build, and dev commands.
 
+### 2.3 Portal product vision (design reference)
+
+High-level direction for the Portal / Nexus-style workspace (detailed design: **[design/001-about-portal.md](design/001-about-portal.md)** — read that doc on demand for full context):
+
+- **Intent over tools**: User states goals; agent operates on a versioned text workspace (Markdown, CSV, JSON, YAML). Flow: Human → Agent → Workspace → Versioned state.
+- **Agent loop**: Observe → Plan → Act → Observe. Agent reads/edits files, runs code, commits; user does not interact with files directly.
+- **Workspace model**: Workspace (context) → Project (work unit) → Task (single run). Git is the hidden version engine; user sees timeline + restore, not commits/branches.
+- **Principles**: Intent first; text as primary representation; state versioned and reversible; mechanisms hidden, meaning visible; workspace as the agent’s body.
+- **Mental model**: User feels “I describe what I want” and “I can always go back,” not “I am operating software” or “I am managing versions.”
+
 ## 3. Goals and Principles
 
 | Goal | Description |
@@ -106,6 +116,7 @@ buildmax/
 ## 6. Documentation and Repository
 
 - **Task docs**: `.vibe/NNN.md` (e.g. `.vibe/001.md`); design docs `.vibe/NNN-design.md` (e.g. `.vibe/008-design.md`). TOC: `.vibe/000-TOC.md`.
+- **Product design (Portal)**: [design/001-about-portal.md](design/001-about-portal.md) — agent-mediated AI-native workspace vision, concepts, principles, wireframe. Read on demand for Portal/Nexus context.
 - Code and scripts: repository root, managed with Go modules
 
 ### 6.1 Persistence naming style
