@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, push, and autopilot. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, go, help. All artifacts stored under .vibe/ directory."
+description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, push, archive, and autopilot. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, archive, go, help. All artifacts stored under .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -22,6 +22,7 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
 | `/vibe commit` | Stage and commit changes with a generated message |
 | `/vibe push` | Push local commits to the remote branch |
+| `/vibe archive` | Move older task/design files to archive; TOC: Recent (last 10) → TODO → Archive |
 | `/vibe go <desc>` | Autopilot: run the full lifecycle non-interactively |
 | `/vibe help` | Show all sub-commands and brief descriptions |
 
@@ -353,6 +354,60 @@ Pushes local commits to the remote branch.
 
 ---
 
+## `/vibe archive` — Archive Old Tasks
+
+Moves older task and design files into `.vibe/archive/` so that only the **last 10 tasks** remain in `.vibe/`. Updates `.vibe/000-TOC.md` to a three-part structure: **Recent** (last 10) at top, **TODO** in the middle, and **Archive** at bottom (archived items with links to `archive/NNN.md`).
+
+### When to use
+
+- There are many task files under `.vibe/` and the user wants to reduce clutter
+- The user wants to keep only recent tasks in the active directory and move older ones to archive, while keeping the full task list in the TOC with updated links
+
+### Archive location
+
+- **Directory**: `.vibe/archive/`
+- Create it if it does not exist.
+
+### What gets archived
+
+- **Task files**: `NNN.md` (exactly three digits, not `000-TOC.md`).
+- **Design files**: `NNN-design.md` for the same task number, moved together with the task file.
+- Only **task numbers** that are **not** in the "last 10" are archived. The last 10 = the 10 highest task numbers present (e.g. if you have 001–030, keep 021–030 and archive 001–020).
+
+### TOC structure after archive
+
+`.vibe/000-TOC.md` has three sections in order:
+
+1. **Recent (last 10)** — At the top. One table listing the 10 most recent tasks (by task number). Each row: `| NNN | [Title](NNN.md) |`. Links point to `NNN.md` in `.vibe/` (files that remain there).
+2. **TODO** — In the middle. Table of unfinished tasks only (same format). Links point to `NNN.md` for tasks in the last 10. Use placeholder `*(Planned tasks will be added here.)*` if no TODO.
+3. **Archive** — At the bottom. Table of all archived task numbers with titles. Each row: `| NNN | [Title](archive/NNN.md) |`. Links point to files under `.vibe/archive/`.
+
+Preserve task titles from the existing TOC when building each section.
+
+### Workflow
+
+1. **List task numbers** — List `.vibe/*.md`. Collect all filenames that match exactly three digits + `.md` (e.g. `001.md`, `030.md`). Do **not** include `000-TOC.md` or `*-design.md` in this list; the task number comes from the base task file only. Sort these numbers ascending.
+2. **Determine which to archive** — If there are 10 or fewer tasks, do nothing and report that no archive is needed. Otherwise, take all task numbers **except** the 10 largest (e.g. if you have 001–025, keep 016–025 and archive 001–015).
+3. **Ensure archive dir exists** — Create `.vibe/archive/` if it does not exist.
+4. **Move files** — For each archived task number `NNN`:
+   - Move `.vibe/NNN.md` to `.vibe/archive/NNN.md`.
+   - If `.vibe/NNN-design.md` exists, move it to `.vibe/archive/NNN-design.md`.
+5. **Update the TOC** — Read `.vibe/000-TOC.md` to get task numbers and titles from the current **Finished** and **TODO** tables. Rewrite the file with the three-part structure above: **(1) Recent** — table of the last 10 tasks, links `NNN.md`; **(2) TODO** — table of unfinished tasks (only those still in `.vibe/`), links `NNN.md`; **(3) Archive** — table of archived task numbers with titles, links `archive/NNN.md`. Preserve titles from the existing TOC for all tasks.
+
+### Rules
+
+- **Move, don’t copy.** Files are moved into `.vibe/archive/`, not duplicated.
+- **Task + design together.** For each archived task, move both `NNN.md` and `NNN-design.md` (if present).
+- **Exactly last 10.** Keep the 10 highest task numbers in `.vibe/`; archive all others.
+- **TOC lists everything.** Recent and TODO use `NNN.md`; Archive section lists archived tasks with `archive/NNN.md` so all tasks remain discoverable from the TOC.
+
+### Output
+
+- **Primary**: Older task/design files moved to `.vibe/archive/`; `.vibe/000-TOC.md` rewritten with Recent (last 10), TODO, and Archive sections and correct links.
+- **Optional**: Short summary in chat (how many tasks archived, which numbers, and that TOC was updated).
+
+---
+
 ## `/vibe go` — Autopilot (Full Lifecycle)
 
 Runs the entire lifecycle for a small, well-defined task **without pausing for confirmation** at each step. Equivalent to executing: **start → clarify → design → code → done → commit → push** in one shot.
@@ -424,6 +479,7 @@ Vibe — Development Lifecycle
   /vibe kb [topic]      Organize and maintain codebase knowledge base
   /vibe commit          Stage and commit changes with a generated message
   /vibe push            Push local commits to the remote branch
+  /vibe archive         Move older task/design files to archive; TOC: Recent (last 10) → TODO → Archive
   /vibe go <desc>       Autopilot: full lifecycle non-interactively
   /vibe help            Show this help message
 
