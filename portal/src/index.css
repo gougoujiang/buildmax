@@ -433,11 +433,39 @@ body {
 
 /* === Page: Workspace Home === */
 
-.page-workspace__heading {
+.page-workspace__heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin: 0 0 0.75rem;
+}
+
+.page-workspace__heading {
+  margin: 0;
   font-size: 1rem;
   font-weight: 600;
   color: #333;
+}
+
+.page-workspace__new-project {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #6b7fff;
+  border-radius: 6px;
+  background: #6b7fff;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.page-workspace__new-project:hover:not(:disabled) {
+  background: #5a6aeb;
+  border-color: #5a6aeb;
+}
+
+.page-workspace__new-project:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .page-workspace__list {

@@ -1,15 +1,13 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { Project } from "./lib"
 import { useHashRoute, navigate } from "./lib"
 import {
-  listProjectsForWorkspace,
-  getProjectById,
   listTasksForProject,
   listArtifactsForProject,
   getTaskById,
   getArtifactById,
 } from "./data"
-import { getWorkspaces, type ApiWorkspace } from "./lib/api"
+import { getWorkspaces, getProjects, apiProjectToProject, type ApiWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { AppShell } from "./components/AppShell"
 import { LoginPage } from "./pages/LoginPage"
@@ -25,6 +23,8 @@ function AppContent() {
   const route = useHashRoute()
   const [workspaces, setWorkspaces] = useState<ApiWorkspace[]>([])
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loadingProjects, setLoadingProjects] = useState(false)
 
   useEffect(() => {
     if (!token) {
@@ -38,6 +38,27 @@ function AppContent() {
       .catch(() => setWorkspaces([]))
       .finally(() => setLoadingWorkspaces(false))
   }, [token])
+
+  const refetchProjects = useCallback(() => {
+    if (!token || !route.workspaceId) return
+    setLoadingProjects(true)
+    getProjects(route.workspaceId, token)
+      .then((list) => setProjects(list.map(apiProjectToProject)))
+      .catch(() => setProjects([]))
+      .finally(() => setLoadingProjects(false))
+  }, [token, route.workspaceId])
+
+  useEffect(() => {
+    if (!token || !route.workspaceId) {
+      setProjects([])
+      return
+    }
+    setLoadingProjects(true)
+    getProjects(route.workspaceId, token)
+      .then((list) => setProjects(list.map(apiProjectToProject)))
+      .catch(() => setProjects([]))
+      .finally(() => setLoadingProjects(false))
+  }, [token, route.workspaceId])
 
   const defaultWorkspaceId = workspaces[0]?.id ?? ""
   const currentWorkspaceFromRoute = workspaces.find((w) => w.id === route.workspaceId)
@@ -62,7 +83,10 @@ function AppContent() {
   }
 
   const currentWorkspace = { id: currentWorkspaceFromRoute!.id, name: currentWorkspaceFromRoute!.name }
-  const projects = listProjectsForWorkspace(route.workspaceId)
+
+  function getProjectById(projectId: string): Project | undefined {
+    return projects.find((p) => p.id === projectId)
+  }
 
   function onWorkspaceChange(workspaceId: string) {
     navigate({ name: "workspace", workspaceId })
@@ -70,7 +94,12 @@ function AppContent() {
 
   function renderPage() {
     const fallbackHome = (
-      <WorkspaceHome workspaceId={route.workspaceId} projects={projects} />
+      <WorkspaceHome
+        workspaceId={route.workspaceId}
+        projects={projects}
+        token={token}
+        onRefetchProjects={refetchProjects}
+      />
     )
     const fallbackProject = (project: Project) => (
       <ProjectDashboard

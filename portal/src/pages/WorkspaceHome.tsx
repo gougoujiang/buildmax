@@ -1,11 +1,14 @@
 import { useState } from "react"
 import type { Project } from "../lib/types"
 import { navigate } from "../lib/router"
+import { createProject } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 
 interface WorkspaceHomeProps {
   workspaceId: string
   projects: Project[]
+  token?: string
+  onRefetchProjects?: () => void
 }
 
 const QUICK_ACTIONS = [
@@ -15,12 +18,35 @@ const QUICK_ACTIONS = [
   "Draft email",
 ]
 
-export function WorkspaceHome({ workspaceId, projects }: WorkspaceHomeProps) {
+export function WorkspaceHome({
+  workspaceId,
+  projects,
+  token,
+  onRefetchProjects,
+}: WorkspaceHomeProps) {
   const [prompt, setPrompt] = useState("")
+  const [creating, setCreating] = useState(false)
 
   function handleRun() {
     if (prompt.trim()) {
       console.log("Run (no-op):", prompt.trim())
+    }
+  }
+
+  async function handleNewProject() {
+    if (!token || !onRefetchProjects) return
+    const name = window.prompt("Project name")
+    if (!name?.trim()) return
+    const description = window.prompt("Description (optional)") || undefined
+    setCreating(true)
+    try {
+      const p = await createProject(workspaceId, { name: name.trim(), description }, token)
+      onRefetchProjects()
+      navigate({ name: "project", workspaceId, projectId: p.id })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create project")
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -34,7 +60,19 @@ export function WorkspaceHome({ workspaceId, projects }: WorkspaceHomeProps) {
 
       {/* Project list */}
       <section className="page-workspace__projects">
-        <h2 className="page-workspace__heading">Projects</h2>
+        <div className="page-workspace__heading-row">
+          <h2 className="page-workspace__heading">Projects</h2>
+          {token && onRefetchProjects && (
+            <button
+              type="button"
+              className="page-workspace__new-project"
+              onClick={handleNewProject}
+              disabled={creating}
+            >
+              {creating ? "Creating…" : "New project"}
+            </button>
+          )}
+        </div>
         <ul className="page-workspace__list">
           {projects.map((p) => (
             <li key={p.id} className="page-workspace__project-card">

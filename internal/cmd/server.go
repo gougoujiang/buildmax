@@ -49,6 +49,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		Addr:           ":" + strconv.Itoa(port),
 		UserStore:      st,
 		WorkspaceStore: st,
+		ProjectStore:   st,
 		JWTSecret:      jwtSecret,
 		CORSOrigin:     corsOrigin,
 	}

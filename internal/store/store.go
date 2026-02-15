@@ -38,6 +38,20 @@ func (Workspace) TableName() string {
 	return "workspaces"
 }
 
+// Project is the project model. JSON uses snake_case per project convention.
+type Project struct {
+	ID          string `gorm:"type:varchar(36);primaryKey" json:"id"`
+	WorkspaceID string `gorm:"type:varchar(36);not null;index" json:"workspace_id"`
+	Name        string `gorm:"type:varchar(255);not null" json:"name"`
+	Description string `gorm:"type:text" json:"description"`
+	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName returns the table name for GORM.
+func (Project) TableName() string {
+	return "projects"
+}
+
 // UserStore looks up users by email.
 type UserStore interface {
 	UserByEmail(ctx context.Context, email string) (*User, error)
@@ -49,7 +63,13 @@ type WorkspaceStore interface {
 	ListWorkspacesByOwner(ctx context.Context, userID string) ([]Workspace, error)
 }
 
-// Store implements UserStore and WorkspaceStore with a MySQL backend.
+// ProjectStore provides project persistence.
+type ProjectStore interface {
+	ListProjectsByWorkspace(ctx context.Context, workspaceID string) ([]Project, error)
+	CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error)
+}
+
+// Store implements UserStore, WorkspaceStore, and ProjectStore with a MySQL backend.
 type Store struct {
 	db *gorm.DB
 }
@@ -61,7 +81,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Project{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -103,6 +123,28 @@ func (s *Store) ListWorkspacesByOwner(ctx context.Context, userID string) ([]Wor
 	var list []Workspace
 	err := s.db.WithContext(ctx).Where("owner_user_id = ?", userID).Order("created_at ASC").Find(&list).Error
 	return list, err
+}
+
+// ListProjectsByWorkspace returns all projects for the given workspace, ordered by created_at.
+func (s *Store) ListProjectsByWorkspace(ctx context.Context, workspaceID string) ([]Project, error) {
+	var list []Project
+	err := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Order("created_at ASC").Find(&list).Error
+	return list, err
+}
+
+// CreateProject inserts a new project and returns it.
+func (s *Store) CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error) {
+	p := &Project{
+		ID:          uuid.New().String(),
+		WorkspaceID: workspaceID,
+		Name:        name,
+		Description: description,
+		CreatedAt:   time.Now().Unix(),
+	}
+	if err := s.db.WithContext(ctx).Create(p).Error; err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 // Close closes the underlying DB connection. Optional for server lifecycle.

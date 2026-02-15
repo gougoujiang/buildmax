@@ -20,6 +20,7 @@ type Config struct {
 	Addr           string                  // Listen address (e.g. ":5678")
 	UserStore      store.UserStore        // Optional; required for login
 	WorkspaceStore store.WorkspaceStore   // Optional; required for GET /api/workspaces
+	ProjectStore   store.ProjectStore     // Optional; required for project list/create
 	JWTSecret      string                 // Required for login when UserStore is set
 	CORSOrigin     string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 }
@@ -121,6 +122,84 @@ const openAPISpec = `{
           "401": { "description": "Unauthorized" }
         }
       }
+    },
+    "/api/workspaces/{workspace_id}/projects": {
+      "get": {
+        "summary": "List projects",
+        "description": "Returns projects for the given workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "workspace_id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "description": { "type": "string" },
+                      "created_at": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden (workspace not owned)" }
+        }
+      },
+      "post": {
+        "summary": "Create project",
+        "description": "Creates a project under the given workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "workspace_id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "description": { "type": "string" },
+                    "created_at": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (name missing)" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
     }
   }
 }`
@@ -152,6 +231,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
 	mux.HandleFunc("POST /api/login", s.loginHandler)
 	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/projects", s.listProjectsHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/projects", s.createProjectHandler)
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {
