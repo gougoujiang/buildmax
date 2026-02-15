@@ -111,6 +111,16 @@ export function listProjectsForWorkspace(workspaceId: string): Project[] {
   return MOCK_PROJECTS.filter((p) => p.workspaceId === workspaceId)
 }
 
+export function listTasksForWorkspace(workspaceId: string): Task[] {
+  const projectIds = listProjectsForWorkspace(workspaceId).map((p) => p.id)
+  return MOCK_TASKS.filter((t) => projectIds.includes(t.projectId))
+}
+
+export function listArtifactsForWorkspace(workspaceId: string): Artifact[] {
+  const projectIds = listProjectsForWorkspace(workspaceId).map((p) => p.id)
+  return MOCK_ARTIFACTS.filter((a) => projectIds.includes(a.projectId))
+}
+
 export function listTasksForProject(projectId: string): Task[] {
   return MOCK_TASKS.filter((t) => t.projectId === projectId)
 }

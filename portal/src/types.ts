@@ -37,3 +37,5 @@ export type Route =
   | { name: "project"; workspaceId: string; projectId: string }
   | { name: "task"; workspaceId: string; projectId: string; taskId: string }
   | { name: "artifact"; workspaceId: string; projectId: string; artifactId: string }
+  | { name: "activity"; workspaceId: string }
+  | { name: "explore"; workspaceId: string }

@@ -12,6 +12,12 @@ export function parseHash(hash: string): Route {
 
   const workspaceId = parts[0] ?? ""
 
+  if (parts[1] === "activity") {
+    return { name: "activity", workspaceId }
+  }
+  if (parts[1] === "explore") {
+    return { name: "explore", workspaceId }
+  }
   if (parts[1] === "project" && parts[2]) {
     return { name: "project", workspaceId, projectId: parts[2] }
   }
@@ -45,6 +51,10 @@ export function buildHash(route: Route): string {
       return `#${route.workspaceId}/task/${route.projectId}/${route.taskId}`
     case "artifact":
       return `#${route.workspaceId}/artifact/${route.projectId}/${route.artifactId}`
+    case "activity":
+      return `#${route.workspaceId}/activity`
+    case "explore":
+      return `#${route.workspaceId}/explore`
   }
 }
 

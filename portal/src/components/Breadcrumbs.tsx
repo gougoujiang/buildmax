@@ -8,11 +8,15 @@ interface BreadcrumbsProps {
 
 export function Breadcrumbs({ route }: BreadcrumbsProps) {
   const workspaceId = route.workspaceId
-  const crumbs: { label: string; route: Route }[] = [
+  let crumbs: { label: string; route: Route }[] = [
     { label: "Home", route: { name: "workspace", workspaceId } },
   ]
 
-  if (route.name !== "workspace") {
+  if (route.name === "activity") {
+    crumbs = [...crumbs, { label: "Activity", route: { name: "activity", workspaceId } }]
+  } else if (route.name === "explore") {
+    crumbs = [...crumbs, { label: "Explore", route: { name: "explore", workspaceId } }]
+  } else if (route.name !== "workspace") {
     const projectId =
       route.name === "project" ? route.projectId : route.projectId
     const project: Project | undefined = getProjectById(projectId)

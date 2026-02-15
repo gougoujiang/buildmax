@@ -15,6 +15,8 @@ import { WorkspaceHome } from "./pages/WorkspaceHome"
 import { ProjectDashboard } from "./pages/ProjectDashboard"
 import { TaskDetail } from "./pages/TaskDetail"
 import { ArtifactViewer } from "./pages/ArtifactViewer"
+import { ActivityPage } from "./pages/ActivityPage"
+import { ExplorePage } from "./pages/ExplorePage"
 
 function App() {
   const route = useHashRoute()
@@ -38,8 +40,6 @@ function App() {
 
   const currentWorkspace = currentWorkspaceFromRoute!
   const projects = listProjectsForWorkspace(route.workspaceId)
-  const selectedProjectId =
-    route.name !== "workspace" ? route.projectId : null
 
   function onWorkspaceChange(workspaceId: string) {
     navigate({ name: "workspace", workspaceId })
@@ -122,6 +122,12 @@ function App() {
         }
         return <ArtifactViewer artifact={artifact} />
       }
+
+      case "activity":
+        return <ActivityPage workspaceId={route.workspaceId} />
+
+      case "explore":
+        return <ExplorePage workspaceId={route.workspaceId} />
     }
   }
 
@@ -129,8 +135,6 @@ function App() {
     <AppShell
       currentWorkspace={currentWorkspace}
       workspaces={workspaces}
-      projects={projects}
-      selectedProjectId={selectedProjectId}
       route={route}
       onWorkspaceChange={onWorkspaceChange}
     >
