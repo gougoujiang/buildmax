@@ -1,10 +1,7 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import type { Project } from "./lib"
 import { useHashRoute, navigate } from "./lib"
 import {
-  listWorkspaces,
-  getWorkspaceById,
-  createWorkspace,
   listProjectsForWorkspace,
   getProjectById,
   listTasksForProject,
@@ -12,6 +9,7 @@ import {
   getTaskById,
   getArtifactById,
 } from "./data"
+import { getWorkspaces, type ApiWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { AppShell } from "./components/AppShell"
 import { LoginPage } from "./pages/LoginPage"
@@ -25,17 +23,25 @@ import { ExplorePage } from "./pages/ExplorePage"
 function AppContent() {
   const { token, user, logout } = useAuth()
   const route = useHashRoute()
+  const [workspaces, setWorkspaces] = useState<ApiWorkspace[]>([])
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
 
-  if (!token) {
-    return <LoginPage />
-  }
-  const workspaces = listWorkspaces()
+  useEffect(() => {
+    if (!token) {
+      setWorkspaces([])
+      setLoadingWorkspaces(false)
+      return
+    }
+    setLoadingWorkspaces(true)
+    getWorkspaces(token)
+      .then(setWorkspaces)
+      .catch(() => setWorkspaces([]))
+      .finally(() => setLoadingWorkspaces(false))
+  }, [token])
+
   const defaultWorkspaceId = workspaces[0]?.id ?? ""
-
-  // Validate workspace: redirect to first workspace home if missing or invalid
-  const currentWorkspaceFromRoute = getWorkspaceById(route.workspaceId)
-  const needsRedirect =
-    !route.workspaceId || !currentWorkspaceFromRoute
+  const currentWorkspaceFromRoute = workspaces.find((w) => w.id === route.workspaceId)
+  const needsRedirect = !route.workspaceId || !currentWorkspaceFromRoute
 
   useEffect(() => {
     if (needsRedirect && defaultWorkspaceId) {
@@ -43,20 +49,23 @@ function AppContent() {
     }
   }, [needsRedirect, defaultWorkspaceId])
 
+  if (!token) {
+    return <LoginPage />
+  }
+
+  if (loadingWorkspaces) {
+    return null
+  }
+
   if (needsRedirect) {
     return null
   }
 
-  const currentWorkspace = currentWorkspaceFromRoute!
+  const currentWorkspace = { id: currentWorkspaceFromRoute!.id, name: currentWorkspaceFromRoute!.name }
   const projects = listProjectsForWorkspace(route.workspaceId)
 
   function onWorkspaceChange(workspaceId: string) {
     navigate({ name: "workspace", workspaceId })
-  }
-
-  function onNewWorkspace() {
-    const workspace = createWorkspace("New Workspace")
-    navigate({ name: "workspace", workspaceId: workspace.id })
   }
 
   function renderPage() {
@@ -122,7 +131,6 @@ function AppContent() {
       workspaces={workspaces}
       route={route}
       onWorkspaceChange={onWorkspaceChange}
-      onNewWorkspace={onNewWorkspace}
       user={user!}
       onLogout={logout}
     >

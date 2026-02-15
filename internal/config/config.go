@@ -91,6 +91,15 @@ func SettingsPath() string {
 	return filepath.Join(DataDir(), "settings.json")
 }
 
+// WorkspacesDir returns the workspace root directory. Default is DataDir()/workspaces.
+// If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned). Callers create the dir when needed.
+func WorkspacesDir() string {
+	if dir := os.Getenv("BUILDMAX_WORKSPACES_DIR"); dir != "" {
+		return filepath.Clean(dir)
+	}
+	return filepath.Join(DataDir(), "workspaces")
+}
+
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.
 // On missing file (default path only): creates DataDir and the file with content "{}", then returns (Settings{}, nil).
 // Returns an error for invalid JSON, unreadable files, or non-default missing paths.

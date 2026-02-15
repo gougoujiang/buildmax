@@ -38,3 +38,29 @@ export async function login(email: string): Promise<LoginResponse> {
   }
   return res.json() as Promise<LoginResponse>
 }
+
+/** Workspace as returned by GET /api/workspaces (snake_case). */
+export interface ApiWorkspace {
+  id: string
+  name: string
+  owner_user_id?: string
+  created_at?: number
+}
+
+export async function getWorkspaces(token: string): Promise<ApiWorkspace[]> {
+  const res = await fetch(`${getApiBase()}/api/workspaces`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<ApiWorkspace[]>
+}

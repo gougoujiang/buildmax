@@ -17,10 +17,11 @@ const shutdownTimeout = 10 * time.Second
 
 // Config holds server configuration.
 type Config struct {
-	Addr       string           // Listen address (e.g. ":5678")
-	UserStore  store.UserStore  // Optional; required for login
-	JWTSecret  string           // Required for login when UserStore is set
-	CORSOrigin string           // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	Addr           string                  // Listen address (e.g. ":5678")
+	UserStore      store.UserStore        // Optional; required for login
+	WorkspaceStore store.WorkspaceStore   // Optional; required for GET /api/workspaces
+	JWTSecret      string                 // Required for login when UserStore is set
+	CORSOrigin     string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 }
 
 // Server wraps the HTTP server and runs it.
@@ -33,6 +34,15 @@ type Server struct {
 const openAPISpec = `{
   "openapi": "3.0.3",
   "info": { "title": "BuildMax API", "version": "0.0.5" },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
   "paths": {
     "/healthz": {
       "get": {
@@ -82,6 +92,35 @@ const openAPISpec = `{
           "400": { "description": "Invalid request body" }
         }
       }
+    },
+    "/api/workspaces": {
+      "get": {
+        "summary": "List workspaces",
+        "description": "Returns workspaces for the authenticated user. Creates a Default workspace if none exist. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "owner_user_id": { "type": "string" },
+                      "created_at": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
     }
   }
 }`
@@ -112,11 +151,13 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
 	mux.HandleFunc("POST /api/login", s.loginHandler)
+	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {
 		handler = corsMiddleware(handler, cfg.CORSOrigin)
 	}
+	handler = requestLoggingMiddleware(handler)
 	s.srv = &http.Server{
 		Addr:    cfg.Addr,
 		Handler: handler,
@@ -149,6 +190,25 @@ func (s *Server) Run() error {
 	}
 	slog.Info("server stopped")
 	return nil
+}
+
+// requestLoggingMiddleware logs each request (method, path, remote) for trace/debugging.
+func requestLoggingMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attrs := []any{
+			"method", r.Method,
+			"path", r.URL.Path,
+			"remote", r.RemoteAddr,
+		}
+		if r.URL.RawQuery != "" {
+			attrs = append(attrs, "query", r.URL.RawQuery)
+		}
+		if r.Header.Get("Authorization") != "" {
+			attrs = append(attrs, "auth", "present")
+		}
+		slog.Info("request", attrs...)
+		h.ServeHTTP(w, r)
+	})
 }
 
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {

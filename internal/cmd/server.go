@@ -46,10 +46,11 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		corsOrigin = "http://localhost:5173"
 	}
 	cfg := server.Config{
-		Addr:       ":" + strconv.Itoa(port),
-		UserStore:  st,
-		JWTSecret:  jwtSecret,
-		CORSOrigin: corsOrigin,
+		Addr:           ":" + strconv.Itoa(port),
+		UserStore:      st,
+		WorkspaceStore: st,
+		JWTSecret:      jwtSecret,
+		CORSOrigin:     corsOrigin,
 	}
 	s := server.New(cfg)
 	slog.Info("server starting", "addr", cfg.Addr)
