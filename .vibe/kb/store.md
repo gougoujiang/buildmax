@@ -2,13 +2,13 @@
 
 ## Purpose
 
-The `internal/store` package provides persistence for the BuildMax backend: users, workspaces, projects, and tasks. It uses GORM with MySQL. Entities use ULIDs for public IDs (`user_id`, `workspace_id`, `project_id`, `task_id`); internal auto-increment IDs are for the database only and not exposed in the API. Table names are singular per project convention.
+The `internal/store` package provides persistence for the BuildMax backend: users, workspaces, projects, and tasks. It uses GORM with MySQL. Entities use UUIDs for public IDs (`user_id`, `workspace_id`, `project_id`, `task_id`); internal auto-increment IDs are for the database only and not exposed in the API. Table names are singular per project convention.
 
 ## Key Types and Interfaces
 
 | Name | Kind | Role |
 |------|------|------|
-| **User** | struct | Email, name, user_id (ULID), created_at; table `user` |
+| **User** | struct | Email, name, user_id (UUID), created_at; table `user` |
 | **Workspace** | struct | workspace_id, owner_user_id, name, created_at; table `workspace` |
 | **Project** | struct | project_id, workspace_id, name, description, created_at; table `project` |
 | **Task** | struct | task_id, project_id, status, input, output, created_by, created_at, started_at, ended_at, error_message; table `task` |
@@ -30,7 +30,7 @@ st, err := store.New(ctx, dsn)  // DSN is MySQL connection string
 
 ### ID Generation
 
-Public IDs are ULIDs generated with `ulid.MustNew(ulid.Now(), rand.Reader).String()` (via internal `newULID()`). This keeps IDs URL-safe and sortable.
+Public IDs are UUIDs generated with `uuid.New().String()` (via internal `newUUID()`).
 
 ### Conventions
 
@@ -40,7 +40,7 @@ Public IDs are ULIDs generated with `ulid.MustNew(ulid.Now(), rand.Reader).Strin
 
 ## Dependencies
 
-- **Uses**: `gorm.io/gorm`, `gorm.io/driver/mysql`, `github.com/oklog/ulid/v2`.
+- **Uses**: `gorm.io/gorm`, `gorm.io/driver/mysql`, `github.com/google/uuid`.
 - **Used by**: `internal/server` (injected as store interfaces), `internal/cmd` (server command builds Store from env and passes it to server.Config).
 
 ## Notes

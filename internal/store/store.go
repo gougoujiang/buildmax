@@ -3,26 +3,25 @@ package store
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/oklog/ulid/v2"
+	"github.com/google/uuid"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-// newULID returns a new ULID string for use as a public entity id.
-func newULID() string {
-	return ulid.MustNew(ulid.Now(), rand.Reader).String()
+// newUUID returns a new UUID string for use as a public entity id.
+func newUUID() string {
+	return uuid.New().String()
 }
 
 // User is the user model. JSON uses snake_case per project convention.
-// Internal id is for DB only; API and JWT use user_id (ULID).
+// Internal id is for DB only; API and JWT use user_id (UUID).
 type User struct {
 	ID        uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	UserID    string `gorm:"type:varchar(26);uniqueIndex;not null" json:"user_id"`
+	UserID    string `gorm:"type:varchar(36);uniqueIndex;not null" json:"user_id"`
 	Email     string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
 	Name      string `gorm:"type:varchar(255)" json:"name"`
 	CreatedAt int64  `gorm:"autoCreateTime" json:"created_at"`
@@ -34,11 +33,11 @@ func (User) TableName() string {
 }
 
 // Workspace is the workspace model. JSON uses snake_case per project convention.
-// Internal id is for DB only; API uses workspace_id (ULID).
+// Internal id is for DB only; API uses workspace_id (UUID).
 type Workspace struct {
 	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	WorkspaceID  string `gorm:"type:varchar(26);uniqueIndex;not null" json:"workspace_id"`
-	OwnerUserID  string `gorm:"type:varchar(26);not null;index" json:"owner_user_id"`
+	WorkspaceID  string `gorm:"type:varchar(36);uniqueIndex;not null" json:"workspace_id"`
+	OwnerUserID  string `gorm:"type:varchar(36);not null;index" json:"owner_user_id"`
 	Name         string `gorm:"type:varchar(255);not null" json:"name"`
 	CreatedAt    int64  `gorm:"autoCreateTime" json:"created_at"`
 }
@@ -49,11 +48,11 @@ func (Workspace) TableName() string {
 }
 
 // Project is the project model. JSON uses snake_case per project convention.
-// Internal id is for DB only; API uses project_id (ULID).
+// Internal id is for DB only; API uses project_id (UUID).
 type Project struct {
 	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	ProjectID   string `gorm:"type:varchar(26);uniqueIndex;not null" json:"project_id"`
-	WorkspaceID string `gorm:"type:varchar(26);not null;index" json:"workspace_id"`
+	ProjectID   string `gorm:"type:varchar(36);uniqueIndex;not null" json:"project_id"`
+	WorkspaceID string `gorm:"type:varchar(36);not null;index" json:"workspace_id"`
 	Name        string `gorm:"type:varchar(255);not null" json:"name"`
 	Description string `gorm:"type:text" json:"description"`
 	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
@@ -68,12 +67,12 @@ func (Project) TableName() string {
 // API exposes task_id as "id"; internal ID is for DB only.
 type Task struct {
 	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
-	TaskID       string  `gorm:"type:varchar(26);uniqueIndex;not null" json:"task_id"`
-	ProjectID    string  `gorm:"type:varchar(26);not null;index" json:"project_id"`
+	TaskID       string  `gorm:"type:varchar(36);uniqueIndex;not null" json:"task_id"`
+	ProjectID    string  `gorm:"type:varchar(36);not null;index" json:"project_id"`
 	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input        string  `gorm:"type:text;not null" json:"input"`
 	Output       *string `gorm:"type:text" json:"output,omitempty"`
-	CreatedBy    string  `gorm:"type:varchar(26);not null" json:"created_by"`
+	CreatedBy    string  `gorm:"type:varchar(36);not null" json:"created_by"`
 	CreatedAt    int64   `gorm:"autoCreateTime" json:"created_at"`
 	StartedAt    *int64  `gorm:"" json:"started_at,omitempty"`
 	EndedAt      *int64  `gorm:"" json:"ended_at,omitempty"`
@@ -144,7 +143,7 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 }
 
 // EnsureDefaultWorkspaceForUser creates a "Default" workspace for the user if they have none.
-// userID is the user's user_id (ULID).
+// userID is the user's user_id (UUID).
 func (s *Store) EnsureDefaultWorkspaceForUser(ctx context.Context, userID string) error {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&Workspace{}).Where("owner_user_id = ?", userID).Count(&count).Error; err != nil {
@@ -154,7 +153,7 @@ func (s *Store) EnsureDefaultWorkspaceForUser(ctx context.Context, userID string
 		return nil
 	}
 	w := Workspace{
-		WorkspaceID: newULID(),
+		WorkspaceID: newUUID(),
 		OwnerUserID: userID,
 		Name:        "Default",
 		CreatedAt:   time.Now().Unix(),
@@ -199,7 +198,7 @@ func (s *Store) ListProjectsByWorkspace(ctx context.Context, workspaceID string)
 // CreateProject inserts a new project and returns it.
 func (s *Store) CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error) {
 	p := &Project{
-		ProjectID:   newULID(),
+		ProjectID:   newUUID(),
 		WorkspaceID: workspaceID,
 		Name:        name,
 		Description: description,
@@ -221,7 +220,7 @@ func (s *Store) ListTasksByProject(ctx context.Context, projectID string) ([]Tas
 // CreateTask inserts a new task with status PENDING and returns it.
 func (s *Store) CreateTask(ctx context.Context, projectID, input, createdBy string) (*Task, error) {
 	t := &Task{
-		TaskID:    newULID(),
+		TaskID:    newUUID(),
 		ProjectID: projectID,
 		Status:    "PENDING",
 		Input:     input,
