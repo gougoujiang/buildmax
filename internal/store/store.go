@@ -3,74 +3,86 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
+// newULID returns a new ULID string for use as a public entity id.
+func newULID() string {
+	return ulid.MustNew(ulid.Now(), rand.Reader).String()
+}
+
 // User is the user model. JSON uses snake_case per project convention.
+// Internal id is for DB only; API and JWT use user_id (ULID).
 type User struct {
-	ID        string `gorm:"type:varchar(36);primaryKey" json:"id"`
+	ID        uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	UserID    string `gorm:"type:varchar(26);uniqueIndex;not null" json:"user_id"`
 	Email     string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
 	Name      string `gorm:"type:varchar(255)" json:"name"`
 	CreatedAt int64  `gorm:"autoCreateTime" json:"created_at"`
 }
 
-// TableName returns the table name for GORM.
+// TableName returns the table name for GORM (singular per project convention).
 func (User) TableName() string {
-	return "users"
+	return "user"
 }
 
 // Workspace is the workspace model. JSON uses snake_case per project convention.
+// Internal id is for DB only; API uses workspace_id (ULID).
 type Workspace struct {
-	ID          string `gorm:"type:varchar(36);primaryKey" json:"id"`
-	OwnerUserID string `gorm:"type:varchar(36);not null;index" json:"owner_user_id"`
-	Name        string `gorm:"type:varchar(255);not null" json:"name"`
-	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
+	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	WorkspaceID  string `gorm:"type:varchar(26);uniqueIndex;not null" json:"workspace_id"`
+	OwnerUserID  string `gorm:"type:varchar(26);not null;index" json:"owner_user_id"`
+	Name         string `gorm:"type:varchar(255);not null" json:"name"`
+	CreatedAt    int64  `gorm:"autoCreateTime" json:"created_at"`
 }
 
-// TableName returns the table name for GORM.
+// TableName returns the table name for GORM (singular per project convention).
 func (Workspace) TableName() string {
-	return "workspaces"
+	return "workspace"
 }
 
 // Project is the project model. JSON uses snake_case per project convention.
+// Internal id is for DB only; API uses project_id (ULID).
 type Project struct {
-	ID          string `gorm:"type:varchar(36);primaryKey" json:"id"`
-	WorkspaceID string `gorm:"type:varchar(36);not null;index" json:"workspace_id"`
+	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	ProjectID   string `gorm:"type:varchar(26);uniqueIndex;not null" json:"project_id"`
+	WorkspaceID string `gorm:"type:varchar(26);not null;index" json:"workspace_id"`
 	Name        string `gorm:"type:varchar(255);not null" json:"name"`
 	Description string `gorm:"type:text" json:"description"`
 	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
 }
 
-// TableName returns the table name for GORM.
+// TableName returns the table name for GORM (singular per project convention).
 func (Project) TableName() string {
-	return "projects"
+	return "project"
 }
 
 // Task is the task model. JSON uses snake_case per project convention.
 // API exposes task_id as "id"; internal ID is for DB only.
 type Task struct {
 	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
-	TaskID       string  `gorm:"type:varchar(36);uniqueIndex;not null" json:"task_id"`
-	ProjectID    string  `gorm:"type:varchar(36);not null;index" json:"project_id"`
+	TaskID       string  `gorm:"type:varchar(26);uniqueIndex;not null" json:"task_id"`
+	ProjectID    string  `gorm:"type:varchar(26);not null;index" json:"project_id"`
 	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input        string  `gorm:"type:text;not null" json:"input"`
 	Output       *string `gorm:"type:text" json:"output,omitempty"`
-	CreatedBy    string  `gorm:"type:varchar(36);not null" json:"created_by"`
+	CreatedBy    string  `gorm:"type:varchar(26);not null" json:"created_by"`
 	CreatedAt    int64   `gorm:"autoCreateTime" json:"created_at"`
 	StartedAt    *int64  `gorm:"" json:"started_at,omitempty"`
 	EndedAt      *int64  `gorm:"" json:"ended_at,omitempty"`
 	ErrorMessage *string `gorm:"type:text" json:"error_message,omitempty"`
 }
 
-// TableName returns the table name for GORM.
+// TableName returns the table name for GORM (singular per project convention).
 func (Task) TableName() string {
-	return "tasks"
+	return "task"
 }
 
 // UserStore looks up users by email.
@@ -102,8 +114,9 @@ type Store struct {
 	db *gorm.DB
 }
 
-// New opens a MySQL connection with the given DSN and runs AutoMigrate for User and Workspace.
+// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Project, and Task.
 // The context can be used for connection timeout; the returned Store holds the DB for the process lifetime.
+// Table names are singular (user, workspace, project, task). Existing DBs with plural tables require a one-time migration.
 func New(ctx context.Context, dsn string) (*Store, error) {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -129,6 +142,7 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 }
 
 // EnsureDefaultWorkspaceForUser creates a "Default" workspace for the user if they have none.
+// userID is the user's user_id (ULID).
 func (s *Store) EnsureDefaultWorkspaceForUser(ctx context.Context, userID string) error {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&Workspace{}).Where("owner_user_id = ?", userID).Count(&count).Error; err != nil {
@@ -138,7 +152,7 @@ func (s *Store) EnsureDefaultWorkspaceForUser(ctx context.Context, userID string
 		return nil
 	}
 	w := Workspace{
-		ID:          uuid.New().String(),
+		WorkspaceID: newULID(),
 		OwnerUserID: userID,
 		Name:        "Default",
 		CreatedAt:   time.Now().Unix(),
@@ -146,17 +160,17 @@ func (s *Store) EnsureDefaultWorkspaceForUser(ctx context.Context, userID string
 	return s.db.WithContext(ctx).Create(&w).Error
 }
 
-// ListWorkspacesByOwner returns all workspaces for the given owner, ordered by created_at.
+// ListWorkspacesByOwner returns all workspaces for the given owner (user_id), ordered by created_at.
 func (s *Store) ListWorkspacesByOwner(ctx context.Context, userID string) ([]Workspace, error) {
 	var list []Workspace
 	err := s.db.WithContext(ctx).Where("owner_user_id = ?", userID).Order("created_at ASC").Find(&list).Error
 	return list, err
 }
 
-// GetProject returns the project by id, or (nil, nil) when not found.
+// GetProject returns the project by project_id, or (nil, nil) when not found.
 func (s *Store) GetProject(ctx context.Context, projectID string) (*Project, error) {
 	var p Project
-	err := s.db.WithContext(ctx).Where("id = ?", projectID).First(&p).Error
+	err := s.db.WithContext(ctx).Where("project_id = ?", projectID).First(&p).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -166,7 +180,7 @@ func (s *Store) GetProject(ctx context.Context, projectID string) (*Project, err
 	return &p, nil
 }
 
-// ListProjectsByWorkspace returns all projects for the given workspace, ordered by created_at.
+// ListProjectsByWorkspace returns all projects for the given workspace_id, ordered by created_at.
 func (s *Store) ListProjectsByWorkspace(ctx context.Context, workspaceID string) ([]Project, error) {
 	var list []Project
 	err := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Order("created_at ASC").Find(&list).Error
@@ -176,7 +190,7 @@ func (s *Store) ListProjectsByWorkspace(ctx context.Context, workspaceID string)
 // CreateProject inserts a new project and returns it.
 func (s *Store) CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error) {
 	p := &Project{
-		ID:          uuid.New().String(),
+		ProjectID:   newULID(),
 		WorkspaceID: workspaceID,
 		Name:        name,
 		Description: description,
@@ -188,7 +202,7 @@ func (s *Store) CreateProject(ctx context.Context, workspaceID, name, descriptio
 	return p, nil
 }
 
-// ListTasksByProject returns all tasks for the given project, ordered by created_at.
+// ListTasksByProject returns all tasks for the given project_id, ordered by created_at.
 func (s *Store) ListTasksByProject(ctx context.Context, projectID string) ([]Task, error) {
 	var list []Task
 	err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("created_at ASC").Find(&list).Error
@@ -198,7 +212,7 @@ func (s *Store) ListTasksByProject(ctx context.Context, projectID string) ([]Tas
 // CreateTask inserts a new task with status PENDING and returns it.
 func (s *Store) CreateTask(ctx context.Context, projectID, input, createdBy string) (*Task, error) {
 	t := &Task{
-		TaskID:    uuid.New().String(),
+		TaskID:    newULID(),
 		ProjectID: projectID,
 		Status:    "PENDING",
 		Input:     input,

@@ -23,7 +23,7 @@ type mockProjectStore struct {
 
 func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*store.Project, error) {
 	for i := range m.list {
-		if m.list[i].ID == projectID {
+		if m.list[i].ProjectID == projectID {
 			return &m.list[i], nil
 		}
 	}
@@ -53,7 +53,7 @@ func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, d
 	}
 	// default: return a stub
 	return &store.Project{
-		ID:          "proj1",
+		ProjectID:   "proj1",
 		WorkspaceID: workspaceID,
 		Name:        name,
 		Description: description,
@@ -64,10 +64,10 @@ func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, d
 func TestListProjectsHandler(t *testing.T) {
 	secret := "test-projects-secret"
 	userWorkspaces := []store.Workspace{
-		{ID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 	ws1Projects := []store.Project{
-		{ID: "p1", WorkspaceID: "ws1", Name: "Proj One", Description: "d1", CreatedAt: 100},
+		{ProjectID: "p1", WorkspaceID: "ws1", Name: "Proj One", Description: "d1", CreatedAt: 100},
 	}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 	mockPS := &mockProjectStore{list: ws1Projects}
@@ -174,7 +174,7 @@ func TestListProjectsHandler(t *testing.T) {
 func TestCreateProjectHandler(t *testing.T) {
 	secret := "test-create-secret"
 	userWorkspaces := []store.Workspace{
-		{ID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
@@ -239,7 +239,7 @@ func TestCreateProjectHandler(t *testing.T) {
 			workspaceStore: mockWS,
 			projectStore:   &mockProjectStore{
 				create: &store.Project{
-					ID:          "new-id",
+					ProjectID:   "new-id",
 					WorkspaceID: "ws1",
 					Name:        "My Project",
 					Description: "desc",

@@ -32,7 +32,7 @@ func (s *Server) userOwnsWorkspace(r *http.Request, userID, workspaceID string) 
 		return false
 	}
 	for _, w := range list {
-		if w.ID == workspaceID {
+		if w.WorkspaceID == workspaceID {
 			return true
 		}
 	}
@@ -136,7 +136,7 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 
 func projectToResponse(p store.Project) ProjectResponse {
 	return ProjectResponse{
-		ID:          p.ID,
+		ID:          p.ProjectID,
 		WorkspaceID: p.WorkspaceID,
 		Name:        p.Name,
 		Description: p.Description,

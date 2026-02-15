@@ -49,7 +49,7 @@ func signJWT(sub, secret string) string {
 func TestWorkspacesHandler(t *testing.T) {
 	secret := "test-workspaces-secret"
 	oneWorkspace := []store.Workspace{
-		{ID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 
 	tests := []struct {
@@ -123,7 +123,7 @@ func TestWorkspacesHandler(t *testing.T) {
 				}
 				if len(arr) > 0 {
 					if arr[0]["id"] != "ws1" || arr[0]["name"] != "Default" {
-						t.Errorf("first workspace = %v", arr[0])
+						t.Errorf("first workspace id=%v name=%v", arr[0]["id"], arr[0]["name"])
 					}
 				}
 			}

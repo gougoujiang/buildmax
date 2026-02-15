@@ -22,7 +22,7 @@ func (m *mockUserStore) UserByEmail(ctx context.Context, email string) (*store.U
 
 func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"
-	userExists := &store.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
+	userExists := &store.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 
 	tests := []struct {
 		name           string
@@ -103,7 +103,7 @@ func TestLoginHandler(t *testing.T) {
 				u, ok := m["user"].(map[string]interface{})
 				if !ok {
 					t.Error("response missing user object")
-				} else if u["email"] != "a@b.c" || u["name"] != "Alice" {
+				} else if u["id"] != "u1" || u["email"] != "a@b.c" || u["name"] != "Alice" {
 					t.Errorf("user = %v", u)
 				}
 			}

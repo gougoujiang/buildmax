@@ -125,7 +125,11 @@ buildmax/
 - **Convention: snake_case** for JSON object keys (e.g. `created_at`, `tool_call_id`, `tool_calls`).
 - Ensure structs that are serialized to disk have explicit `json:"snake_case"` tags so the on-disk format is consistent; do not rely on Go’s default (PascalCase) for persisted fields.
 
-### 6.2 Tool output for LLM
+### 6.2 Database table naming
+
+- **Use singular table names.** One table per entity type, named in the singular (e.g. `user`, `workspace`, `project`, `task`). Do not use plural names (e.g. `users`, `workspaces`). This applies to all database tables created or migrated by the project.
+
+### 6.3 Tool output for LLM
 
 - **Tools are built for the LLM.** The agent passes tool results back to the model as tool-role messages.
 - **Output meaningful results on both success and failure** so the LLM can understand what happened and decide on next steps (e.g. retry, inform the user, or continue).

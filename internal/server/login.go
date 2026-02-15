@@ -83,7 +83,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 			ExpiresAt: jwt.NewNumericDate(now.Add(jwtExpiry)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
-		Sub: user.ID,
+		Sub: user.UserID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(s.cfg.JWTSecret))
@@ -97,7 +97,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	resp := LoginResponse{
 		Token: tokenStr,
 		User: LoginUser{
-			ID:    user.ID,
+			ID:    user.UserID,
 			Email: user.Email,
 			Name:  user.Name,
 		},

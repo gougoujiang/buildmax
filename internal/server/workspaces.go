@@ -47,13 +47,13 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	root := config.WorkspacesDir()
 	for _, w := range list {
-		dir := filepath.Join(root, w.ID)
+		dir := filepath.Join(root, w.WorkspaceID)
 		_ = os.MkdirAll(dir, 0755)
 	}
 	out := make([]WorkspaceResponse, len(list))
 	for i := range list {
 		out[i] = WorkspaceResponse{
-			ID:          list[i].ID,
+			ID:          list[i].WorkspaceID,
 			Name:        list[i].Name,
 			OwnerUserID: list[i].OwnerUserID,
 			CreatedAt:   list[i].CreatedAt,

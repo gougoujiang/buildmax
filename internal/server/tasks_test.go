@@ -53,10 +53,10 @@ func (m *mockTaskStore) CreateTask(_ context.Context, projectID, input, createdB
 func TestListTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"
 	userWorkspaces := []store.Workspace{
-		{ID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	projInWs1 := store.Project{ID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
-	projOtherWs := store.Project{ID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
+	projInWs1 := store.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
+	projOtherWs := store.Project{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
 	task1 := store.Task{
@@ -189,9 +189,9 @@ func TestListTasksHandler(t *testing.T) {
 func TestCreateTaskHandler(t *testing.T) {
 	secret := "test-create-task-secret"
 	userWorkspaces := []store.Workspace{
-		{ID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	projInWs1 := store.Project{ID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
+	projInWs1 := store.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
 	tests := []struct {
@@ -235,7 +235,7 @@ func TestCreateTaskHandler(t *testing.T) {
 			name:           "project not owned returns 403",
 			workspaceStore: mockWS,
 			projectStore:   &mockProjectStore{list: []store.Project{
-				{ID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200},
+				{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200},
 			}},
 			taskStore:   &mockTaskStore{},
 			authHeader:  "Bearer " + signJWT("u1", secret),
