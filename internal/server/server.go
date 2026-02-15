@@ -17,12 +17,13 @@ const shutdownTimeout = 10 * time.Second
 
 // Config holds server configuration.
 type Config struct {
-	Addr           string                  // Listen address (e.g. ":5678")
-	UserStore      store.UserStore        // Optional; required for login
-	WorkspaceStore store.WorkspaceStore   // Optional; required for GET /api/workspaces
-	ProjectStore   store.ProjectStore     // Optional; required for project list/create
-	JWTSecret      string                 // Required for login when UserStore is set
-	CORSOrigin     string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	Addr           string                // Listen address (e.g. ":5678")
+	UserStore      store.UserStore       // Optional; required for login
+	WorkspaceStore store.WorkspaceStore  // Optional; required for GET /api/workspaces
+	ProjectStore   store.ProjectStore   // Optional; required for project list/create
+	TaskStore      store.TaskStore       // Optional; required for task list/create
+	JWTSecret      string                // Required for login when UserStore is set
+	CORSOrigin     string                // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 }
 
 // Server wraps the HTTP server and runs it.
@@ -200,6 +201,95 @@ const openAPISpec = `{
           "403": { "description": "Forbidden" }
         }
       }
+    },
+    "/api/projects/{project_id}/tasks": {
+      "get": {
+        "summary": "List tasks",
+        "description": "Returns tasks for the project. Caller must own the project's workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "project_id": { "type": "string" },
+                      "status": { "type": "string" },
+                      "input": { "type": "string" },
+                      "output": { "type": "string" },
+                      "created_by": { "type": "string" },
+                      "created_at": { "type": "integer" },
+                      "started_at": { "type": "integer" },
+                      "ended_at": { "type": "integer" },
+                      "error_message": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Project not found" },
+          "503": { "description": "Tasks not configured" }
+        }
+      },
+      "post": {
+        "summary": "Create task",
+        "description": "Creates a task under the project. Caller must own the project's workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["input"],
+                "properties": { "input": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "project_id": { "type": "string" },
+                    "status": { "type": "string" },
+                    "input": { "type": "string" },
+                    "output": { "type": "string" },
+                    "created_by": { "type": "string" },
+                    "created_at": { "type": "integer" },
+                    "started_at": { "type": "integer" },
+                    "ended_at": { "type": "integer" },
+                    "error_message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (input missing)" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Project not found" },
+          "503": { "description": "Tasks not configured" }
+        }
+      }
     }
   }
 }`
@@ -233,6 +323,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/projects", s.listProjectsHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/projects", s.createProjectHandler)
+	mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.listTasksHandler)
+	mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.createTaskHandler)
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

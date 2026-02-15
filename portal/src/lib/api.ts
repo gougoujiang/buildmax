@@ -1,4 +1,4 @@
-import type { Project } from "./types"
+import type { Project, Task } from "./types"
 
 /**
  * API base URL and login. VITE_API_BASE defaults to http://localhost:5678.
@@ -119,6 +119,109 @@ export async function createProject(
     throw new Error(msg)
   }
   return res.json() as Promise<ApiProject>
+}
+
+/** Task as returned by GET/POST /api/projects/{id}/tasks (snake_case). */
+export interface ApiTask {
+  id: string
+  project_id: string
+  status: string
+  input: string
+  output: string | null
+  created_by: string
+  created_at: number
+  started_at: number | null
+  ended_at: number | null
+  error_message: string | null
+}
+
+export async function getTasks(projectId: string, token: string): Promise<ApiTask[]> {
+  const res = await fetch(`${getApiBase()}/api/projects/${projectId}/tasks`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<ApiTask[]>
+}
+
+export async function createTask(
+  projectId: string,
+  body: { input: string },
+  token: string
+): Promise<ApiTask> {
+  const res = await fetch(`${getApiBase()}/api/projects/${projectId}/tasks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<ApiTask>
+}
+
+function taskStatusToUI(status: string): Task["status"] {
+  switch (status) {
+    case "SUCCEEDED":
+      return "success"
+    case "FAILED":
+      return "failed"
+    case "CANCELED":
+      return "canceled"
+    case "PENDING":
+    case "RUNNING":
+    default:
+      return "running"
+  }
+}
+
+function taskTimeLabel(api: ApiTask): string {
+  const ts = api.ended_at ?? api.created_at
+  const d = new Date(ts * 1000)
+  const today = new Date()
+  if (d.toDateString() === today.toDateString()) {
+    return `Today ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+  }
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) {
+    return `Yesterday ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+  }
+  return d.toLocaleString()
+}
+
+/** Map API task to UI Task. */
+export function apiTaskToTask(api: ApiTask): Task {
+  const title = api.input.length > 80 ? api.input.slice(0, 77) + "..." : api.input
+  const summary = api.output ?? (api.input.length > 120 ? api.input.slice(0, 117) + "..." : api.input)
+  return {
+    id: api.id,
+    projectId: api.project_id,
+    title,
+    status: taskStatusToUI(api.status),
+    timeLabel: taskTimeLabel(api),
+    summary,
+  }
 }
 
 /** Map API project to UI Project (status/updatedAtLabel derived from created_at). */

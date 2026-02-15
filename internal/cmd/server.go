@@ -50,6 +50,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		UserStore:      st,
 		WorkspaceStore: st,
 		ProjectStore:   st,
+		TaskStore:      st,
 		JWTSecret:      jwtSecret,
 		CORSOrigin:     corsOrigin,
 	}

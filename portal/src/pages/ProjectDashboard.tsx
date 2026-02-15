@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { Project, Task, Artifact } from "../lib/types"
 import { navigate } from "../lib/router"
+import { createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 
 interface ProjectDashboardProps {
@@ -8,6 +9,8 @@ interface ProjectDashboardProps {
   project: Project
   tasks: Task[]
   artifacts: Artifact[]
+  token?: string
+  onRefetchTasks?: () => void
 }
 
 function statusIcon(status: Task["status"]): string {
@@ -28,12 +31,28 @@ export function ProjectDashboard({
   project,
   tasks,
   artifacts,
+  token,
+  onRefetchTasks,
 }: ProjectDashboardProps) {
   const [prompt, setPrompt] = useState("")
+  const [creating, setCreating] = useState(false)
 
-  function handleRun() {
-    if (prompt.trim()) {
-      console.log("Run (no-op):", prompt.trim())
+  async function handleRun() {
+    const input = prompt.trim()
+    if (!input) return
+    if (token && onRefetchTasks) {
+      setCreating(true)
+      try {
+        await createTask(project.id, { input }, token)
+        setPrompt("")
+        onRefetchTasks()
+      } catch {
+        // Error could be shown in UI; for now just stop loading
+      } finally {
+        setCreating(false)
+      }
+    } else {
+      console.log("Run (no-op):", input)
     }
   }
 

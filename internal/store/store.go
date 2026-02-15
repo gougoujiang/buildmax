@@ -52,6 +52,27 @@ func (Project) TableName() string {
 	return "projects"
 }
 
+// Task is the task model. JSON uses snake_case per project convention.
+// API exposes task_id as "id"; internal ID is for DB only.
+type Task struct {
+	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
+	TaskID       string  `gorm:"type:varchar(36);uniqueIndex;not null" json:"task_id"`
+	ProjectID    string  `gorm:"type:varchar(36);not null;index" json:"project_id"`
+	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
+	Input        string  `gorm:"type:text;not null" json:"input"`
+	Output       *string `gorm:"type:text" json:"output,omitempty"`
+	CreatedBy    string  `gorm:"type:varchar(36);not null" json:"created_by"`
+	CreatedAt    int64   `gorm:"autoCreateTime" json:"created_at"`
+	StartedAt    *int64  `gorm:"" json:"started_at,omitempty"`
+	EndedAt      *int64  `gorm:"" json:"ended_at,omitempty"`
+	ErrorMessage *string `gorm:"type:text" json:"error_message,omitempty"`
+}
+
+// TableName returns the table name for GORM.
+func (Task) TableName() string {
+	return "tasks"
+}
+
 // UserStore looks up users by email.
 type UserStore interface {
 	UserByEmail(ctx context.Context, email string) (*User, error)
@@ -65,11 +86,18 @@ type WorkspaceStore interface {
 
 // ProjectStore provides project persistence.
 type ProjectStore interface {
+	GetProject(ctx context.Context, projectID string) (*Project, error)
 	ListProjectsByWorkspace(ctx context.Context, workspaceID string) ([]Project, error)
 	CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error)
 }
 
-// Store implements UserStore, WorkspaceStore, and ProjectStore with a MySQL backend.
+// TaskStore provides task persistence.
+type TaskStore interface {
+	ListTasksByProject(ctx context.Context, projectID string) ([]Task, error)
+	CreateTask(ctx context.Context, projectID, input, createdBy string) (*Task, error)
+}
+
+// Store implements UserStore, WorkspaceStore, ProjectStore, and TaskStore with a MySQL backend.
 type Store struct {
 	db *gorm.DB
 }
@@ -81,7 +109,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Project{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Project{}, &Task{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -125,6 +153,19 @@ func (s *Store) ListWorkspacesByOwner(ctx context.Context, userID string) ([]Wor
 	return list, err
 }
 
+// GetProject returns the project by id, or (nil, nil) when not found.
+func (s *Store) GetProject(ctx context.Context, projectID string) (*Project, error) {
+	var p Project
+	err := s.db.WithContext(ctx).Where("id = ?", projectID).First(&p).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &p, nil
+}
+
 // ListProjectsByWorkspace returns all projects for the given workspace, ordered by created_at.
 func (s *Store) ListProjectsByWorkspace(ctx context.Context, workspaceID string) ([]Project, error) {
 	var list []Project
@@ -145,6 +186,29 @@ func (s *Store) CreateProject(ctx context.Context, workspaceID, name, descriptio
 		return nil, err
 	}
 	return p, nil
+}
+
+// ListTasksByProject returns all tasks for the given project, ordered by created_at.
+func (s *Store) ListTasksByProject(ctx context.Context, projectID string) ([]Task, error) {
+	var list []Task
+	err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("created_at ASC").Find(&list).Error
+	return list, err
+}
+
+// CreateTask inserts a new task with status PENDING and returns it.
+func (s *Store) CreateTask(ctx context.Context, projectID, input, createdBy string) (*Task, error) {
+	t := &Task{
+		TaskID:    uuid.New().String(),
+		ProjectID: projectID,
+		Status:    "PENDING",
+		Input:     input,
+		CreatedBy: createdBy,
+		CreatedAt: time.Now().Unix(),
+	}
+	if err := s.db.WithContext(ctx).Create(t).Error; err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // Close closes the underlying DB connection. Optional for server lifecycle.

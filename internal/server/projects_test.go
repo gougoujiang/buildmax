@@ -21,6 +21,15 @@ type mockProjectStore struct {
 	createErr error
 }
 
+func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*store.Project, error) {
+	for i := range m.list {
+		if m.list[i].ID == projectID {
+			return &m.list[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (m *mockProjectStore) ListProjectsByWorkspace(_ context.Context, workspaceID string) ([]store.Project, error) {
 	if m.listErr != nil {
 		return nil, m.listErr

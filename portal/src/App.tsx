@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Project } from "./lib"
+import type { Project, Task } from "./lib"
 import { useHashRoute, navigate } from "./lib"
+import { listArtifactsForProject, getTaskById, getArtifactById } from "./data"
 import {
-  listTasksForProject,
-  listArtifactsForProject,
-  getTaskById,
-  getArtifactById,
-} from "./data"
-import { getWorkspaces, getProjects, apiProjectToProject, type ApiWorkspace } from "./lib/api"
+  getWorkspaces,
+  getProjects,
+  getTasks,
+  apiProjectToProject,
+  apiTaskToTask,
+  type ApiWorkspace,
+} from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { AppShell } from "./components/AppShell"
 import { LoginPage } from "./pages/LoginPage"
@@ -25,6 +27,8 @@ function AppContent() {
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
   const [projects, setProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loadingTasks, setLoadingTasks] = useState(false)
 
   useEffect(() => {
     if (!token) {
@@ -59,6 +63,27 @@ function AppContent() {
       .catch(() => setProjects([]))
       .finally(() => setLoadingProjects(false))
   }, [token, route.workspaceId])
+
+  const refetchTasks = useCallback(() => {
+    if (!token || !route.projectId) return
+    setLoadingTasks(true)
+    getTasks(route.projectId, token)
+      .then((list) => setTasks(list.map(apiTaskToTask)))
+      .catch(() => setTasks([]))
+      .finally(() => setLoadingTasks(false))
+  }, [token, route.projectId])
+
+  useEffect(() => {
+    if (!token || !route.projectId) {
+      setTasks([])
+      return
+    }
+    setLoadingTasks(true)
+    getTasks(route.projectId, token)
+      .then((list) => setTasks(list.map(apiTaskToTask)))
+      .catch(() => setTasks([]))
+      .finally(() => setLoadingTasks(false))
+  }, [token, route.projectId])
 
   const defaultWorkspaceId = workspaces[0]?.id ?? ""
   const currentWorkspaceFromRoute = workspaces.find((w) => w.id === route.workspaceId)
@@ -105,8 +130,10 @@ function AppContent() {
       <ProjectDashboard
         workspaceId={route.workspaceId}
         project={project}
-        tasks={listTasksForProject(project.id)}
+        tasks={route.projectId === project.id ? tasks : []}
         artifacts={listArtifactsForProject(project.id)}
+        token={token}
+        onRefetchTasks={refetchTasks}
       />
     )
 
@@ -123,7 +150,9 @@ function AppContent() {
       }
 
       case "task": {
-        const task = getTaskById(route.projectId, route.taskId)
+        const taskFromApi =
+          route.projectId && tasks.find((t) => t.id === route.taskId)
+        const task = taskFromApi ?? getTaskById(route.projectId, route.taskId)
         if (!task) {
           const project = getProjectById(route.projectId)
           if (!project || project.workspaceId !== route.workspaceId) {
