@@ -30,3 +30,109 @@ body {
   margin: 0;
   color: #555;
 }
+
+/* Landing layout (wireframe) */
+.landing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.landing-header__brand {
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+.landing-header__workspace {
+  color: #555;
+  font-size: 0.9rem;
+  flex: 1;
+  margin-left: 1rem;
+}
+
+.landing-header__profile {
+  font-size: 0.9rem;
+  color: #555;
+  cursor: default;
+}
+
+.prompt-area {
+  margin-bottom: 2rem;
+}
+
+.prompt-area__heading {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+}
+
+.prompt-area__input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font: inherit;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.prompt-area__input:focus {
+  outline: none;
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.15);
+}
+
+.prompt-area__button {
+  display: block;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #1a1a1a;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.prompt-area__button:hover {
+  background-color: #333;
+}
+
+.recent-activity__heading {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.recent-activity__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.recent-activity__item {
+  margin-bottom: 0.5rem;
+  color: #444;
+}
+
+.recent-activity__title {
+  font-weight: 500;
+}
+
+.recent-activity__time {
+  color: #666;
+  font-size: 0.9rem;
+}
