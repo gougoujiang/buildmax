@@ -14,3 +14,9 @@ Knowledge base for the BuildMax codebase. Each document covers one package or su
 | TUI | [tui.md](tui.md) | Bubble Tea terminal UI: viewport, input, keyboard handling |
 | Configuration | [config.md](config.md) | Environment-based configuration and data directory |
 | CLI | [cli.md](cli.md) | Cobra CLI entry point, flags, and command dispatch |
+| Server | [server.md](server.md) | HTTP API backend for the portal: login, workspaces, projects, tasks |
+| Store | [store.md](store.md) | User, workspace, project, and task persistence (MySQL/GORM) |
+| App | [app.md](app.md) | TUI bootstrap: wraps Bubble Tea model creation |
+| Log | [log.md](log.md) | slog initialization, file-only rotating log, BUILDMAX_LOG_LEVEL |
+| Util | [util.md](util.md) | Workspace path resolution, git helpers, argument parsing |
+| Portal | [portal.md](portal.md) | Web UI (React + Vite): landing, auth, workspaces, projects, tasks |
