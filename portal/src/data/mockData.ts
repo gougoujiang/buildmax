@@ -3,6 +3,7 @@ import type { Workspace, Project, Task, Artifact } from "../lib/types"
 // --- Mock workspaces (UUID ids); mutable so "New workspace" can add entries ---
 
 const INITIAL_WORKSPACES: Workspace[] = [
+  { id: "00000000-0000-4000-8000-000000000001", name: "Default" },
   { id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", name: "Sales Team" },
   { id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", name: "Engineering" },
   { id: "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f", name: "Marketing" },
@@ -16,21 +17,21 @@ export const MOCK_PROJECTS: Project[] = [
   // Sales Team
   {
     id: "p1",
-    workspaceId: INITIAL_WORKSPACES[0].id,
+    workspaceId: INITIAL_WORKSPACES[1].id,
     name: "Monthly Sales Report",
     status: "active",
     updatedAtLabel: "Updated 2h ago",
   },
   {
     id: "p2",
-    workspaceId: INITIAL_WORKSPACES[0].id,
+    workspaceId: INITIAL_WORKSPACES[1].id,
     name: "Pricing Strategy Draft",
     status: "active",
     updatedAtLabel: "Updated 1d ago",
   },
   {
     id: "p3",
-    workspaceId: INITIAL_WORKSPACES[0].id,
+    workspaceId: INITIAL_WORKSPACES[1].id,
     name: "Customer QBR Pack",
     status: "paused",
     updatedAtLabel: "Updated 1w ago",
@@ -38,14 +39,14 @@ export const MOCK_PROJECTS: Project[] = [
   // Engineering
   {
     id: "p4",
-    workspaceId: INITIAL_WORKSPACES[1].id,
+    workspaceId: INITIAL_WORKSPACES[2].id,
     name: "API Gateway Refactor",
     status: "active",
     updatedAtLabel: "Updated 3h ago",
   },
   {
     id: "p5",
-    workspaceId: INITIAL_WORKSPACES[1].id,
+    workspaceId: INITIAL_WORKSPACES[2].id,
     name: "Test Coverage Dashboard",
     status: "active",
     updatedAtLabel: "Updated yesterday",
@@ -53,14 +54,14 @@ export const MOCK_PROJECTS: Project[] = [
   // Marketing
   {
     id: "p6",
-    workspaceId: INITIAL_WORKSPACES[2].id,
+    workspaceId: INITIAL_WORKSPACES[3].id,
     name: "Q2 Campaign Plan",
     status: "active",
     updatedAtLabel: "Updated 5h ago",
   },
   {
     id: "p7",
-    workspaceId: INITIAL_WORKSPACES[2].id,
+    workspaceId: INITIAL_WORKSPACES[3].id,
     name: "Social Content Calendar",
     status: "paused",
     updatedAtLabel: "Updated 2d ago",

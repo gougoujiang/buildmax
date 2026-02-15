@@ -21,6 +21,8 @@ usage() {
   echo "  build         Build $BINARY (output: $SCRIPT_DIR/$BINARY)"
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
+  echo "  run server    Build (if needed) and start HTTP server for local testing (default port 5678)"
+  echo "  run portal    Start Portal dev server (Vite; installs deps if needed)"
   echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
   echo "  up            Start Docker Compose services (e.g. MySQL) for local dev"
   echo "  down          Stop Docker Compose services"
@@ -33,6 +35,27 @@ usage() {
   echo "  ./make down          # stop containers"
   echo "  ./make bump        # 0.0.2 -> 0.0.3"
   echo "  ./make bump minor  # 0.0.2 -> 0.1.0"
+  echo "  ./make run server  # start backend server (port 5678)"
+  echo "  ./make run portal # start Portal dev server (Vite)"
+}
+
+cmd_run_server() {
+  go build -o "$BINARY" ./cmd/buildmax
+  echo "Starting server (Ctrl+C to stop)..."
+  ./"$BINARY" server
+}
+
+cmd_run_portal() {
+  if [[ ! -d portal ]]; then
+    echo "Error: portal/ directory not found"
+    return 1
+  fi
+  if [[ ! -d portal/node_modules ]]; then
+    echo "Installing portal dependencies..."
+    (cd portal && npm install)
+  fi
+  echo "Starting Portal dev server (Ctrl+C to stop)..."
+  (cd portal && npm run dev)
 }
 
 cmd_build() {
@@ -126,6 +149,22 @@ case "$cmd" in
     ;;
   smoke)
     cmd_smoke
+    ;;
+  run)
+    case "${2:-}" in
+      server)
+        cmd_run_server
+        ;;
+      portal)
+        cmd_run_portal
+        ;;
+      *)
+        echo "Usage: ./make run <subcommand>"
+        echo "  server  Start HTTP server for local testing (default port 5678)"
+        echo "  portal  Start Portal dev server (Vite)"
+        exit 1
+        ;;
+    esac
     ;;
   bump)
     cmd_bump_version "${2:-patch}"
