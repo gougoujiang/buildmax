@@ -1,6 +1,7 @@
 import { useState } from "react"
-import type { Project, Task, Artifact } from "../types"
-import { navigate } from "../router"
+import type { Project, Task, Artifact } from "../lib/types"
+import { navigate } from "../lib/router"
+import { PromptArea } from "../components/PromptArea"
 
 interface ProjectDashboardProps {
   workspaceId: string
@@ -47,26 +48,15 @@ export function ProjectDashboard({
         </p>
       </section>
 
-      {/* Ask in this project */}
       <section className="page-project__prompt">
-        <h2 className="page-project__section-heading">Ask in this project</h2>
-        <div className="page-project__prompt-row">
-          <input
-            type="text"
-            className="prompt-area__input"
-            placeholder="Prepare February sales analysis"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            aria-label="Ask in this project"
-          />
-          <button
-            type="button"
-            className="prompt-area__button"
-            onClick={handleRun}
-          >
-            Run
-          </button>
-        </div>
+        <PromptArea
+          value={prompt}
+          onChange={setPrompt}
+          onRun={handleRun}
+          heading="Ask in this project"
+          placeholder="Prepare February sales analysis"
+          ariaLabel="Ask in this project"
+        />
       </section>
 
       {/* Artifacts */}

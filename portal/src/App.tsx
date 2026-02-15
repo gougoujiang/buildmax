@@ -1,5 +1,6 @@
 import { useEffect } from "react"
-import { useHashRoute, navigate } from "./router"
+import type { Project } from "./lib"
+import { useHashRoute, navigate } from "./lib"
 import {
   listWorkspaces,
   getWorkspaceById,
@@ -9,7 +10,7 @@ import {
   listArtifactsForProject,
   getTaskById,
   getArtifactById,
-} from "./mockData"
+} from "./data"
 import { AppShell } from "./components/AppShell"
 import { WorkspaceHome } from "./pages/WorkspaceHome"
 import { ProjectDashboard } from "./pages/ProjectDashboard"
@@ -46,33 +47,28 @@ function App() {
   }
 
   function renderPage() {
+    const fallbackHome = (
+      <WorkspaceHome workspaceId={route.workspaceId} projects={projects} />
+    )
+    const fallbackProject = (project: Project) => (
+      <ProjectDashboard
+        workspaceId={route.workspaceId}
+        project={project}
+        tasks={listTasksForProject(project.id)}
+        artifacts={listArtifactsForProject(project.id)}
+      />
+    )
+
     switch (route.name) {
       case "workspace":
-        return (
-          <WorkspaceHome
-            workspaceId={route.workspaceId}
-            projects={projects}
-          />
-        )
+        return fallbackHome
 
       case "project": {
         const project = getProjectById(route.projectId)
         if (!project || project.workspaceId !== route.workspaceId) {
-          return (
-            <WorkspaceHome
-              workspaceId={route.workspaceId}
-              projects={projects}
-            />
-          )
+          return fallbackHome
         }
-        return (
-          <ProjectDashboard
-            workspaceId={route.workspaceId}
-            project={project}
-            tasks={listTasksForProject(project.id)}
-            artifacts={listArtifactsForProject(project.id)}
-          />
-        )
+        return fallbackProject(project)
       }
 
       case "task": {
@@ -80,21 +76,9 @@ function App() {
         if (!task) {
           const project = getProjectById(route.projectId)
           if (!project || project.workspaceId !== route.workspaceId) {
-            return (
-              <WorkspaceHome
-                workspaceId={route.workspaceId}
-                projects={projects}
-              />
-            )
+            return fallbackHome
           }
-          return (
-            <ProjectDashboard
-              workspaceId={route.workspaceId}
-              project={project}
-              tasks={listTasksForProject(project.id)}
-              artifacts={listArtifactsForProject(project.id)}
-            />
-          )
+          return fallbackProject(project)
         }
         return <TaskDetail task={task} />
       }
@@ -104,21 +88,9 @@ function App() {
         if (!artifact) {
           const project = getProjectById(route.projectId)
           if (!project || project.workspaceId !== route.workspaceId) {
-            return (
-              <WorkspaceHome
-                workspaceId={route.workspaceId}
-                projects={projects}
-              />
-            )
+            return fallbackHome
           }
-          return (
-            <ProjectDashboard
-              workspaceId={route.workspaceId}
-              project={project}
-              tasks={listTasksForProject(project.id)}
-              artifacts={listArtifactsForProject(project.id)}
-            />
-          )
+          return fallbackProject(project)
         }
         return <ArtifactViewer artifact={artifact} />
       }

@@ -1,4 +1,4 @@
-import type { Workspace, Project, Task, Artifact } from "./types"
+import type { Workspace, Project, Task, Artifact } from "../lib/types"
 
 // --- Mock workspaces (UUID ids) ---
 

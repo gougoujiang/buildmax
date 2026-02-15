@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Workspace, Route } from "../types"
+import type { Workspace, Route } from "../lib/types"
 import { TopBar } from "./TopBar"
 import { LeftSidebar } from "./LeftSidebar"
 import { Breadcrumbs } from "./Breadcrumbs"

@@ -1,7 +1,4 @@
-export interface ActivityItem {
-  title: string
-  time: string
-}
+import type { ActivityItem } from "../lib/types"
 
 export const MOCK_ACTIVITY: ActivityItem[] = [
   { title: "Generated sales report", time: "Today 10:42 AM" },

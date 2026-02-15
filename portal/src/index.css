@@ -404,15 +404,44 @@ body {
 }
 
 .page-activity__item {
+  padding: 0;
+  border-bottom: 1px solid #eee;
+}
+
+.page-activity__item:first-child {
+  padding-top: 0;
+}
+
+.page-activity__link {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
+  width: 100%;
   padding: 0.6rem 0;
-  border-bottom: 1px solid #eee;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.page-activity__link:hover {
+  color: #0066cc;
+}
+
+.page-activity__empty {
+  margin: 0;
+  color: #666;
+  font-size: 0.95rem;
 }
 
 .page-activity__item:last-child {
   border-bottom: none;
+}
+
+.page-activity__link .page-activity__content {
+  min-width: 0;
 }
 
 .page-activity__icon {
@@ -444,9 +473,100 @@ body {
 }
 
 .page-explore__subtitle {
-  margin: 0 0 1.25rem;
+  margin: 0 0 1rem;
   font-size: 0.95rem;
   color: #666;
+}
+
+.page-explore__panels {
+  display: flex;
+  gap: 0;
+  min-height: 420px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.page-explore__tree-panel {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+.explore-tree__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0;
+}
+
+.explore-tree__item {
+  margin: 0;
+  list-style: none;
+}
+
+.explore-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: #333;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.explore-tree__row:hover {
+  background: #eee;
+}
+
+.explore-tree__row--selected {
+  background: #e0e8f0;
+  color: #1a365d;
+}
+
+.explore-tree__icon {
+  flex-shrink: 0;
+  width: 1rem;
+  font-size: 0.6rem;
+  color: #666;
+}
+
+.explore-tree__icon--empty {
+  visibility: hidden;
+}
+
+.explore-tree__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-explore__content-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page-explore__file-list-wrap {
+  flex: 0 0 auto;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #eee;
+}
+
+.page-explore__content-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #444;
 }
 
 .page-explore__list {
@@ -456,15 +576,15 @@ body {
 }
 
 .page-explore__item {
-  margin-bottom: 0.25rem;
+  margin: 0;
 }
 
 .page-explore__link {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.6rem 0;
+  padding: 0.5rem 0;
   border: none;
   background: none;
   text-align: left;
@@ -478,6 +598,24 @@ body {
   background: #f0f0f0;
 }
 
+.page-explore__link--selected {
+  background: #e0e8f0;
+  color: #1a365d;
+}
+
+.page-explore__icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.page-explore__icon--folder {
+  opacity: 0.9;
+}
+
+.page-explore__icon--file {
+  opacity: 0.85;
+}
+
 .page-explore__artifact-title {
   font-weight: 500;
 }
@@ -485,6 +623,45 @@ body {
 .page-explore__meta {
   font-size: 0.8rem;
   color: #888;
+}
+
+.page-explore__empty {
+  margin: 0;
+  padding: 0.5rem 0;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.page-explore__viewer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem;
+  background: #f8f9fa;
+  border-top: 1px solid #eee;
+}
+
+.page-explore__viewer-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.page-explore__viewer-content {
+  flex: 1;
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #333;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* === Page: Project Dashboard === */
@@ -658,6 +835,11 @@ body {
   margin: 0;
   color: #444;
   font-size: 0.95rem;
+}
+
+.page-task__muted {
+  color: #888;
+  font-style: italic;
 }
 
 .page-task__change-list,

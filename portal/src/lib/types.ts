@@ -39,3 +39,16 @@ export type Route =
   | { name: "artifact"; workspaceId: string; projectId: string; artifactId: string }
   | { name: "activity"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
+
+// --- Activity (workspace-scoped) ---
+
+export interface ActivityItem {
+  title: string
+  time: string
+}
+
+// --- Explore (workspace directory structure) ---
+
+export type ExploreNode =
+  | { id: string; name: string; type: "folder"; children: ExploreNode[] }
+  | { id: string; name: string; type: "file"; content: string }

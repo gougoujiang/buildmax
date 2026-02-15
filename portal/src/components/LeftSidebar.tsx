@@ -1,55 +1,59 @@
-import type { Route } from "../types"
-import { navigate } from "../router"
+import type { Route } from "../lib/types"
+import { navigate } from "../lib/router"
 
 interface LeftSidebarProps {
   workspaceId: string
   route: Route
 }
 
+type SidebarNavName = "workspace" | "activity" | "explore"
+
+const SIDEBAR_NAV: { label: string; name: SidebarNavName }[] = [
+  { label: "Projects", name: "workspace" },
+  { label: "Activity", name: "activity" },
+  { label: "Explore", name: "explore" },
+]
+
+function isNavActive(route: Route, targetName: SidebarNavName): boolean {
+  if (targetName === "workspace") {
+    return (
+      route.name === "workspace" ||
+      route.name === "project" ||
+      route.name === "task" ||
+      route.name === "artifact"
+    )
+  }
+  return route.name === targetName
+}
+
+function navToRoute(name: SidebarNavName, workspaceId: string): Route {
+  return { name, workspaceId }
+}
+
 export function LeftSidebar({
   workspaceId,
   route,
 }: LeftSidebarProps) {
-  const projectsActive =
-    route.name === "workspace" ||
-    route.name === "project" ||
-    route.name === "task" ||
-    route.name === "artifact"
-  const activityActive = route.name === "activity"
-  const exploreActive = route.name === "explore"
-
   return (
     <aside className="sidebar">
       <nav className="sidebar__nav" aria-label="Primary">
-        <button
-          type="button"
-          className={
-            "sidebar__nav-item" + (projectsActive ? " sidebar__nav-item--active" : "")
-          }
-          onClick={() => navigate({ name: "workspace", workspaceId })}
-        >
-          Projects
-        </button>
-        <button
-          type="button"
-          className={
-            "sidebar__nav-item" +
-            (activityActive ? " sidebar__nav-item--active" : "")
-          }
-          onClick={() => navigate({ name: "activity", workspaceId })}
-        >
-          Activity
-        </button>
-        <button
-          type="button"
-          className={
-            "sidebar__nav-item" +
-            (exploreActive ? " sidebar__nav-item--active" : "")
-          }
-          onClick={() => navigate({ name: "explore", workspaceId })}
-        >
-          Explore
-        </button>
+        {SIDEBAR_NAV.map(({ label, name }) => {
+          const isActive = isNavActive(route, name)
+          const targetRoute = navToRoute(name, workspaceId)
+          return (
+            <button
+              key={name}
+              type="button"
+              className={
+                "sidebar__nav-item" +
+                (isActive ? " sidebar__nav-item--active" : "")
+              }
+              onClick={() => navigate(targetRoute)}
+            >
+              {label}
+            </button>
+          )
+        })}
       </nav>
     </aside>
   )

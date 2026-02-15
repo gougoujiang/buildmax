@@ -1,6 +1,7 @@
 import { useState } from "react"
-import type { Project } from "../types"
-import { navigate } from "../router"
+import type { Project } from "../lib/types"
+import { navigate } from "../lib/router"
+import { PromptArea } from "../components/PromptArea"
 
 interface WorkspaceHomeProps {
   workspaceId: string
@@ -25,23 +26,11 @@ export function WorkspaceHome({ workspaceId, projects }: WorkspaceHomeProps) {
 
   return (
     <div className="page-workspace">
-      {/* Prompt area */}
-      <section className="prompt-area">
-        <h2 className="prompt-area__heading">
-          What would you like to accomplish?
-        </h2>
-        <input
-          type="text"
-          className="prompt-area__input"
-          placeholder="Help me prepare this month's sales analysis"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          aria-label="Intent or goal"
-        />
-        <button type="button" className="prompt-area__button" onClick={handleRun}>
-          Run
-        </button>
-      </section>
+      <PromptArea
+        value={prompt}
+        onChange={setPrompt}
+        onRun={handleRun}
+      />
 
       {/* Project list */}
       <section className="page-workspace__projects">
