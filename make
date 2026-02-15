@@ -6,6 +6,14 @@ cd "$SCRIPT_DIR"
 
 BINARY="buildmax"
 
+# Load .env into environment for all commands (Docker Compose, smoke, etc.)
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck source=./.env
+  source .env
+  set +a
+fi
+
 usage() {
   echo "Usage: ./make <command>"
   echo ""
@@ -14,10 +22,15 @@ usage() {
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
   echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
+  echo "  up            Start Docker Compose services (e.g. MySQL) for local dev"
+  echo "  down          Stop Docker Compose services"
+  echo "  docker-logs   Show Docker Compose service logs (follow)"
   echo ""
   echo "Examples:"
   echo "  ./make build"
   echo "  ./make test"
+  echo "  ./make up            # start MySQL etc."
+  echo "  ./make down          # stop containers"
   echo "  ./make bump        # 0.0.2 -> 0.0.3"
   echo "  ./make bump minor  # 0.0.2 -> 0.1.0"
 }
@@ -39,12 +52,6 @@ cmd_test() {
 }
 
 cmd_smoke() {
-  if [[ -f .env ]]; then
-    set -a
-    # shellcheck source=./.env
-    source .env
-    set +a
-  fi
   mkdir -p testing-sandbox
   export BUILDMAX_HOME="$SCRIPT_DIR/testing-sandbox"
   go build -o "$BINARY" ./cmd/buildmax
@@ -89,6 +96,20 @@ cmd_bump_version() {
   echo "Bumped version: $current -> $new_version ($bump)"
 }
 
+cmd_docker_up() {
+  echo "Starting Docker Compose services..."
+  docker compose up -d
+}
+
+cmd_docker_down() {
+  echo "Stopping Docker Compose services..."
+  docker compose down
+}
+
+cmd_docker_logs() {
+  docker compose logs -f
+}
+
 cmd="${1:-}"
 
 if [[ -z "$cmd" ]]; then
@@ -108,6 +129,15 @@ case "$cmd" in
     ;;
   bump)
     cmd_bump_version "${2:-patch}"
+    ;;
+  up)
+    cmd_docker_up
+    ;;
+  down)
+    cmd_docker_down
+    ;;
+  docker-logs)
+    cmd_docker_logs
     ;;
   -h|--help|help)
     usage

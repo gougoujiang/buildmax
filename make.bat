@@ -8,6 +8,9 @@ if "%~1"=="" goto usage
 if /i "%~1"=="build" goto build
 if /i "%~1"=="test" goto test
 if /i "%~1"=="smoke" goto smoke
+if /i "%~1"=="up" goto docker_up
+if /i "%~1"=="down" goto docker_down
+if /i "%~1"=="docker-logs" goto docker_logs
 goto usage
 
 :build
@@ -30,9 +33,24 @@ set "BUILDMAX_LOG_LEVEL=debug"
 buildmax.exe -p "/smoke 0"
 exit /b %errorlevel%
 
+:docker_up
+docker compose up -d
+exit /b %errorlevel%
+
+:docker_down
+docker compose down
+exit /b %errorlevel%
+
+:docker_logs
+docker compose logs -f
+exit /b %errorlevel%
+
 :usage
 echo Usage: make.bat ^<command^>
-echo   build   Build buildmax.exe
-echo   test    Run go test with testing-sandbox as data dir
-echo   smoke   Smoke test: build and run with /smoke 0, BUILDMAX_HOME=testing-sandbox
+echo   build        Build buildmax.exe
+echo   test         Run go test with testing-sandbox as data dir
+echo   smoke        Smoke test: build and run with /smoke 0, BUILDMAX_HOME=testing-sandbox
+echo   up           Start Docker Compose services (e.g. MySQL) for local dev
+echo   down         Stop Docker Compose services
+echo   docker-logs  Show Docker Compose service logs (follow)
 exit /b 0
