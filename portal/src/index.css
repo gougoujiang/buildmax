@@ -1,9 +1,17 @@
+/* === Base === */
+
 :root {
   font-family: system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color: #1a1a1a;
   background-color: #fafafa;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -15,50 +23,182 @@ body {
   min-height: 100vh;
 }
 
-.app {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 2rem;
+/* === App shell === */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.app h1 {
-  margin: 0 0 0.5rem;
-  font-size: 1.75rem;
-}
+/* -- Top bar -- */
 
-.app p {
-  margin: 0;
-  color: #555;
-}
-
-/* Landing layout (wireframe) */
-.landing-header {
+.topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 0.75rem 1.25rem;
+  background: #1a1a1a;
+  color: #fff;
 }
 
-.landing-header__brand {
-  font-weight: 600;
-  font-size: 1.25rem;
+.topbar__brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  white-space: nowrap;
 }
 
-.landing-header__workspace {
-  color: #555;
-  font-size: 0.9rem;
+.topbar__workspace {
   flex: 1;
-  margin-left: 1rem;
+  font-size: 0.85rem;
+  color: #bbb;
 }
 
-.landing-header__profile {
-  font-size: 0.9rem;
-  color: #555;
+.topbar__profile {
+  font-size: 0.85rem;
+  color: #bbb;
   cursor: default;
 }
+
+/* -- Shell body (sidebar + main) -- */
+
+.shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* -- Sidebar -- */
+
+.sidebar {
+  width: 14rem;
+  flex-shrink: 0;
+  background: #f0f0f0;
+  border-right: 1px solid #e0e0e0;
+  padding: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar__heading {
+  margin: 0 1rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #777;
+}
+
+.sidebar__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar__item {
+  margin: 0;
+}
+
+.sidebar__link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.sidebar__link:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__link--active {
+  background: #e0e8f0;
+  border-left-color: #1a1a1a;
+  font-weight: 600;
+}
+
+.sidebar__project-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__project-meta {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.sidebar__new-project {
+  margin: auto 1rem 0;
+  padding: 0.5rem;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #888;
+  cursor: pointer;
+  text-align: center;
+}
+
+.sidebar__new-project:hover {
+  border-color: #999;
+  color: #555;
+}
+
+/* -- Main content -- */
+
+.shell__main {
+  flex: 1;
+  padding: 1.25rem 2rem;
+  overflow-y: auto;
+  max-width: 56rem;
+}
+
+/* === Breadcrumbs === */
+
+.breadcrumbs {
+  margin-bottom: 1.25rem;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.breadcrumbs__segment {
+  display: inline;
+}
+
+.breadcrumbs__link {
+  border: none;
+  background: none;
+  font: inherit;
+  color: #1a73e8;
+  cursor: pointer;
+  padding: 0;
+}
+
+.breadcrumbs__link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumbs__separator {
+  margin: 0 0.35rem;
+  color: #bbb;
+}
+
+.breadcrumbs__current {
+  color: #555;
+}
+
+/* === Shared prompt-area (reused in workspace home & project dashboard) === */
 
 .prompt-area {
   margin-bottom: 2rem;
@@ -76,9 +216,8 @@ body {
   display: block;
   width: 100%;
   max-width: 100%;
-  box-sizing: border-box;
   padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   font: inherit;
   font-size: 1rem;
   border: 1px solid #ccc;
@@ -110,29 +249,324 @@ body {
   background-color: #333;
 }
 
-.recent-activity__heading {
+/* === Page: Workspace Home === */
+
+.page-workspace__heading {
   margin: 0 0 0.75rem;
   font-size: 1rem;
   font-weight: 600;
   color: #333;
 }
 
-.recent-activity__list {
-  margin: 0;
-  padding-left: 1.25rem;
-  list-style: disc;
+.page-workspace__list {
+  list-style: none;
+  margin: 0 0 2rem;
+  padding: 0;
 }
 
-.recent-activity__item {
+.page-workspace__project-card {
   margin-bottom: 0.5rem;
-  color: #444;
 }
 
-.recent-activity__title {
+.page-workspace__project-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  color: #333;
+  cursor: pointer;
+  text-align: left;
+}
+
+.page-workspace__project-link:hover {
+  border-color: #bbb;
+  background: #f9f9ff;
+}
+
+.page-workspace__project-name {
+  flex: 1;
   font-weight: 500;
 }
 
-.recent-activity__time {
+.page-workspace__project-status {
+  font-size: 0.8rem;
   color: #666;
+}
+
+.page-workspace__project-time {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.page-workspace__action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.page-workspace__action-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
   font-size: 0.9rem;
+  color: #444;
+  cursor: pointer;
+}
+
+.page-workspace__action-btn:hover {
+  border-color: #aaa;
+  background: #f5f5f5;
+}
+
+/* === Page: Project Dashboard === */
+
+.page-project__overview {
+  margin-bottom: 1.5rem;
+}
+
+.page-project__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.page-project__meta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.page-project__section-heading {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.page-project__prompt {
+  margin-bottom: 2rem;
+}
+
+.page-project__prompt-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.page-project__prompt-row .prompt-area__input {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.page-project__prompt-row .prompt-area__button {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.page-project__artifacts {
+  margin-bottom: 2rem;
+}
+
+.page-project__artifact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-project__artifact-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-bottom: 1px solid #eee;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #1a73e8;
+  cursor: pointer;
+  text-align: left;
+}
+
+.page-project__artifact-link:hover {
+  background: #f5f8ff;
+}
+
+.page-project__artifact-kind {
+  font-size: 0.75rem;
+  color: #999;
+  text-transform: uppercase;
+  margin-left: 0.5rem;
+}
+
+.page-project__activity {
+  margin-bottom: 2rem;
+}
+
+.page-project__task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-project__task-card {
+  margin-bottom: 0.5rem;
+}
+
+.page-project__task-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  text-align: left;
+}
+
+.page-project__task-link:hover {
+  border-color: #ccc;
+  background: #fafafa;
+}
+
+.page-project__task-icon {
+  flex-shrink: 0;
+}
+
+.page-project__task-title {
+  flex: 1;
+}
+
+.page-project__task-time {
+  font-size: 0.8rem;
+  color: #999;
+  white-space: nowrap;
+}
+
+/* === Page: Task Detail === */
+
+.page-task__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.page-task__title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.page-task__restore-btn {
+  padding: 0.4rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #f5f5f5;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.page-task__section {
+  margin-bottom: 1.5rem;
+}
+
+.page-task__section-heading {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.page-task__text {
+  margin: 0;
+  color: #444;
+  font-size: 0.95rem;
+}
+
+.page-task__change-list,
+.page-task__evidence-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #444;
+  font-size: 0.9rem;
+}
+
+.page-task__meta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+/* === Page: Artifact Viewer === */
+
+.page-artifact__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.page-artifact__title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.page-artifact__kind {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #999;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+}
+
+.page-artifact__content {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.page-artifact__preview {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* === Responsive: stack sidebar on narrow screens === */
+
+@media (max-width: 48rem) {
+  .shell__body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    max-height: 12rem;
+  }
+
+  .shell__main {
+    padding: 1rem;
+  }
 }
