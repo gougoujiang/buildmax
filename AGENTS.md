@@ -24,13 +24,12 @@ Rationale: A single language reduces maintenance cost, enables cross-compilation
 
 ### 2.2 User Interface
 
-- **Form: Command-line program (CLI)**
-- **Interaction: TUI (Text User Interface)**
-- **Implementation: Based on [Bubble Tea](https://github.com/charmbracelet/bubbletea)**
+- **CLI/TUI (primary)**: Command-line program with TUI (Text User Interface).
+  - **Implementation**: Based on [Bubble Tea](https://github.com/charmbracelet/bubbletea)
   - Pure Go TUI framework, aligned with the project’s “all-Go stack”
-  - Supports multiple components, message-driven flow, and keyboard/mouse interaction; suitable for Agent chat, status display, menus, etc.
-
-Users get a full Agent TUI experience in the terminal by running a single command.
+  - Supports multiple components, message-driven flow, and keyboard/mouse interaction.
+  - Users get a full Agent TUI experience in the terminal by running a single binary; no Node dependency for normal CLI use.
+- **Portal (web)**: A separate web-based entry point under `portal/` — a minimal React (Vite + TypeScript) app that builds and runs independently. It provides a "BuildMax Portal" landing as a frontend foundation; chat, sessions, and API integration are planned for later. See `portal/README.md` for install, build, and dev commands.
 
 ## 3. Goals and Principles
 
@@ -39,7 +38,7 @@ Users get a full Agent TUI experience in the terminal by running a single comman
 | Generality | Agent can be configured to use different LLMs and tools, not tied to a single service |
 | Ease of use | Runs with default configuration; advanced users can extend models and tools |
 | Portability | Single binary or few files, easy to deploy on servers, local machines, or containers |
-| All-Go implementation | Core and surrounding code in Go; call external APIs from Go when needed; no Python/Node runtime dependencies |
+| All-Go implementation | Core and surrounding code in Go; call external APIs from Go when needed; no Python/Node runtime dependencies for CLI/TUI. The portal is an optional, separate frontend (React/Node tooling for dev and build). |
 
 ## 4. Core Capabilities
 
@@ -55,10 +54,12 @@ Users get a full Agent TUI experience in the terminal by running a single comman
 - **Session persistence**: Save/load under `DataDir()/sessions/<id>.json`; prompt mode saves after each run; `--resume <id> -p PROMPT` to resume
 - **TUI**: Bubble Tea entry via `internal/app` + `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner "BUILDMAX" + version, then chat history), input at bottom, footer (model, workspace, ctrl+c: quit). Run `buildmax` to start a new session; run `buildmax --resume <id>` to start the TUI with that session loaded. Session is persisted after each assistant reply.
 - **CLI**: Cobra in `internal/cmd` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand; `cmd/buildmax/main.go` is the thin entry point
+- **Portal**: Web UI under `portal/` — React + Vite + TypeScript app; minimal "BuildMax Portal" landing; independent of the Go binary (`cd portal && npm install && npm run dev` / `npm run build`). No backend or agent features in the portal yet.
 
 ### 4.2 Planned / Not yet implemented
 
 - Session list/delete from CLI; TUI session picker
+- Portal: chat UI, session list, API integration with the Go backend
 - Config subcommand, Viper, or config-file binding
 - Additional tools (e.g. search, run commands)
 - Shell completion (e.g. `buildmax completion bash`)
@@ -82,6 +83,12 @@ buildmax/
 │   ├── log/               # slog init, BUILDMAX_LOG_LEVEL, rotated file
 │   ├── session/           # Session (id, title, history), SaveToDir, LoadFromDir
 │   └── tools/             # Tool implementations (e.g. readfile)
+├── portal/                # Web UI (React + Vite + TypeScript); independent of Go binary
+│   ├── package.json       # Scripts: dev, build, preview
+│   ├── vite.config.ts     # Vite config (build out: dist/)
+│   ├── index.html         # Vite entry HTML
+│   ├── README.md          # Install, build, dev instructions
+│   └── src/               # main.tsx, App.tsx, index.css
 ├── configs/               # Config file examples (e.g. config.example.yaml)
 ├── example/               # Example files for tools (e.g. shakespeare.txt)
 ├── .vibe/                 # Task documents and design docs (vibe lifecycle)
@@ -94,6 +101,7 @@ buildmax/
 - **cmd/buildmax**: Single CLI entry point; `main.go` only. Build with `go build -o buildmax.exe ./cmd/buildmax` or `make.bat build`.
 - **internal/cmd**: Cobra root command, CLI flags, version subcommand, prompt mode and TUI runners.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
+- **portal/**: Frontend app; run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
 
 ## 6. Documentation and Repository
 
