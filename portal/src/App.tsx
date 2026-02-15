@@ -12,7 +12,9 @@ import {
   getTaskById,
   getArtifactById,
 } from "./data"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { AppShell } from "./components/AppShell"
+import { LoginPage } from "./pages/LoginPage"
 import { WorkspaceHome } from "./pages/WorkspaceHome"
 import { ProjectDashboard } from "./pages/ProjectDashboard"
 import { TaskDetail } from "./pages/TaskDetail"
@@ -20,8 +22,13 @@ import { ArtifactViewer } from "./pages/ArtifactViewer"
 import { ActivityPage } from "./pages/ActivityPage"
 import { ExplorePage } from "./pages/ExplorePage"
 
-function App() {
+function AppContent() {
+  const { token, user, logout } = useAuth()
   const route = useHashRoute()
+
+  if (!token) {
+    return <LoginPage />
+  }
   const workspaces = listWorkspaces()
   const defaultWorkspaceId = workspaces[0]?.id ?? ""
 
@@ -116,9 +123,19 @@ function App() {
       route={route}
       onWorkspaceChange={onWorkspaceChange}
       onNewWorkspace={onNewWorkspace}
+      user={user!}
+      onLogout={logout}
     >
       {renderPage()}
     </AppShell>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

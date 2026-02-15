@@ -9,30 +9,78 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"buildmax/internal/store"
 )
 
 const shutdownTimeout = 10 * time.Second
 
 // Config holds server configuration.
 type Config struct {
-	Addr string // Listen address (e.g. ":5678")
+	Addr       string           // Listen address (e.g. ":5678")
+	UserStore  store.UserStore  // Optional; required for login
+	JWTSecret  string           // Required for login when UserStore is set
+	CORSOrigin string           // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 }
 
 // Server wraps the HTTP server and runs it.
 type Server struct {
 	srv *http.Server
+	cfg Config
 }
 
 // openAPISpec is the minimal OpenAPI 3.0 spec for the server endpoints.
 const openAPISpec = `{
   "openapi": "3.0.3",
-  "info": { "title": "BuildMax API", "version": "0.0.4" },
+  "info": { "title": "BuildMax API", "version": "0.0.5" },
   "paths": {
     "/healthz": {
       "get": {
         "summary": "Health check",
         "description": "Returns 200 when the server is alive.",
         "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Authenticate by email. Returns JWT and user info on success.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": { "email": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "email": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "User not found" },
+          "400": { "description": "Invalid request body" }
+        }
       }
     }
   }
@@ -54,20 +102,26 @@ const swaggerUIHTML = `<!DOCTYPE html>
 </html>
 `
 
-// New builds an HTTP server with routes for /healthz, /openapi.json, and /swagger/.
+// New builds an HTTP server with routes for /healthz, /openapi.json, /swagger/, and POST /api/login.
 func New(cfg Config) *Server {
+	s := &Server{cfg: cfg}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
 	mux.HandleFunc("GET /openapi.json", openAPIHandler)
 	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
+	mux.HandleFunc("POST /api/login", s.loginHandler)
 
-	srv := &http.Server{
-		Addr:    cfg.Addr,
-		Handler: mux,
+	handler := http.Handler(mux)
+	if cfg.CORSOrigin != "" {
+		handler = corsMiddleware(handler, cfg.CORSOrigin)
 	}
-	return &Server{srv: srv}
+	s.srv = &http.Server{
+		Addr:    cfg.Addr,
+		Handler: handler,
+	}
+	return s
 }
 
 // Handler returns the HTTP handler for use in tests.

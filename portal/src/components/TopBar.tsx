@@ -1,10 +1,13 @@
 import type { Workspace } from "../lib/types"
+import type { LoginUser } from "../lib/api"
 
 interface TopBarProps {
   currentWorkspace: Workspace
   workspaces: Workspace[]
   onWorkspaceChange: (workspaceId: string) => void
   onNewWorkspace?: () => void
+  user: LoginUser
+  onLogout: () => void
 }
 
 export function TopBar({
@@ -12,6 +15,8 @@ export function TopBar({
   workspaces,
   onWorkspaceChange,
   onNewWorkspace,
+  user,
+  onLogout,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -45,9 +50,17 @@ export function TopBar({
           </button>
         )}
       </div>
-      <span className="topbar__profile" aria-label="Profile">
-        Profile
-      </span>
+      <div className="topbar__profile" aria-label="Profile">
+        <span className="topbar__profile-name">{user.name || user.email}</span>
+        <button
+          type="button"
+          className="topbar__logout"
+          onClick={onLogout}
+          aria-label="Log out"
+        >
+          Logout
+        </button>
+      </div>
     </header>
   )
 }
