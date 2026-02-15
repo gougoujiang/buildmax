@@ -13,7 +13,7 @@ import (
 )
 
 // Version is the application version, shown by the version subcommand.
-var Version = "0.0.3"
+var Version = "0.0.4"
 
 const rootLong = `BuildMax – AI Agent CLI
 
