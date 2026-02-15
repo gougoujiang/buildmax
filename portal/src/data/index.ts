@@ -1,6 +1,7 @@
 export {
   listWorkspaces,
   getWorkspaceById,
+  createWorkspace,
   listProjectsForWorkspace,
   listTasksForWorkspace,
   listArtifactsForWorkspace,

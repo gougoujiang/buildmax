@@ -4,12 +4,14 @@ interface TopBarProps {
   currentWorkspace: Workspace
   workspaces: Workspace[]
   onWorkspaceChange: (workspaceId: string) => void
+  onNewWorkspace?: () => void
 }
 
 export function TopBar({
   currentWorkspace,
   workspaces,
   onWorkspaceChange,
+  onNewWorkspace,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -31,6 +33,17 @@ export function TopBar({
             </option>
           ))}
         </select>
+        {onNewWorkspace && (
+          <button
+            type="button"
+            className="topbar__workspace-new"
+            onClick={onNewWorkspace}
+            aria-label="New workspace"
+            title="New workspace"
+          >
+            + New
+          </button>
+        )}
       </div>
       <span className="topbar__profile" aria-label="Profile">
         Profile

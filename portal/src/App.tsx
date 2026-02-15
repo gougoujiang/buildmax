@@ -4,6 +4,7 @@ import { useHashRoute, navigate } from "./lib"
 import {
   listWorkspaces,
   getWorkspaceById,
+  createWorkspace,
   listProjectsForWorkspace,
   getProjectById,
   listTasksForProject,
@@ -44,6 +45,11 @@ function App() {
 
   function onWorkspaceChange(workspaceId: string) {
     navigate({ name: "workspace", workspaceId })
+  }
+
+  function onNewWorkspace() {
+    const workspace = createWorkspace("New Workspace")
+    navigate({ name: "workspace", workspaceId: workspace.id })
   }
 
   function renderPage() {
@@ -109,6 +115,7 @@ function App() {
       workspaces={workspaces}
       route={route}
       onWorkspaceChange={onWorkspaceChange}
+      onNewWorkspace={onNewWorkspace}
     >
       {renderPage()}
     </AppShell>

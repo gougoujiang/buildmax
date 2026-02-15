@@ -79,6 +79,28 @@ body {
   outline: none;
 }
 
+.topbar__workspace-new {
+  font: inherit;
+  font-size: 0.85rem;
+  color: #fff;
+  background: #444;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.topbar__workspace-new:hover {
+  background: #555;
+  border-color: #777;
+}
+
+.topbar__workspace-new:focus {
+  outline: none;
+  border-color: #777;
+}
+
 .topbar__profile {
   font-size: 0.85rem;
   color: #bbb;

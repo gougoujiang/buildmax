@@ -9,6 +9,7 @@ interface AppShellProps {
   workspaces: Workspace[]
   route: Route
   onWorkspaceChange: (workspaceId: string) => void
+  onNewWorkspace?: () => void
   children: ReactNode
 }
 
@@ -17,6 +18,7 @@ export function AppShell({
   workspaces,
   route,
   onWorkspaceChange,
+  onNewWorkspace,
   children,
 }: AppShellProps) {
   return (
@@ -25,6 +27,7 @@ export function AppShell({
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
         onWorkspaceChange={onWorkspaceChange}
+        onNewWorkspace={onNewWorkspace}
       />
       <div className="shell__body">
         <LeftSidebar

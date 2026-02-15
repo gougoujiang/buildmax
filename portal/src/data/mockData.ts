@@ -1,12 +1,14 @@
 import type { Workspace, Project, Task, Artifact } from "../lib/types"
 
-// --- Mock workspaces (UUID ids) ---
+// --- Mock workspaces (UUID ids); mutable so "New workspace" can add entries ---
 
-const MOCK_WORKSPACES: Workspace[] = [
+const INITIAL_WORKSPACES: Workspace[] = [
   { id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", name: "Sales Team" },
   { id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", name: "Engineering" },
   { id: "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f", name: "Marketing" },
 ]
+
+const WORKSPACES: Workspace[] = [...INITIAL_WORKSPACES]
 
 // --- Mock projects (at least 2 per workspace; ids unique globally) ---
 
@@ -14,21 +16,21 @@ export const MOCK_PROJECTS: Project[] = [
   // Sales Team
   {
     id: "p1",
-    workspaceId: MOCK_WORKSPACES[0].id,
+    workspaceId: INITIAL_WORKSPACES[0].id,
     name: "Monthly Sales Report",
     status: "active",
     updatedAtLabel: "Updated 2h ago",
   },
   {
     id: "p2",
-    workspaceId: MOCK_WORKSPACES[0].id,
+    workspaceId: INITIAL_WORKSPACES[0].id,
     name: "Pricing Strategy Draft",
     status: "active",
     updatedAtLabel: "Updated 1d ago",
   },
   {
     id: "p3",
-    workspaceId: MOCK_WORKSPACES[0].id,
+    workspaceId: INITIAL_WORKSPACES[0].id,
     name: "Customer QBR Pack",
     status: "paused",
     updatedAtLabel: "Updated 1w ago",
@@ -36,14 +38,14 @@ export const MOCK_PROJECTS: Project[] = [
   // Engineering
   {
     id: "p4",
-    workspaceId: MOCK_WORKSPACES[1].id,
+    workspaceId: INITIAL_WORKSPACES[1].id,
     name: "API Gateway Refactor",
     status: "active",
     updatedAtLabel: "Updated 3h ago",
   },
   {
     id: "p5",
-    workspaceId: MOCK_WORKSPACES[1].id,
+    workspaceId: INITIAL_WORKSPACES[1].id,
     name: "Test Coverage Dashboard",
     status: "active",
     updatedAtLabel: "Updated yesterday",
@@ -51,14 +53,14 @@ export const MOCK_PROJECTS: Project[] = [
   // Marketing
   {
     id: "p6",
-    workspaceId: MOCK_WORKSPACES[2].id,
+    workspaceId: INITIAL_WORKSPACES[2].id,
     name: "Q2 Campaign Plan",
     status: "active",
     updatedAtLabel: "Updated 5h ago",
   },
   {
     id: "p7",
-    workspaceId: MOCK_WORKSPACES[2].id,
+    workspaceId: INITIAL_WORKSPACES[2].id,
     name: "Social Content Calendar",
     status: "paused",
     updatedAtLabel: "Updated 2d ago",
@@ -94,11 +96,21 @@ export const MOCK_ARTIFACTS: Artifact[] = [
 // --- Workspace helpers ---
 
 export function listWorkspaces(): Workspace[] {
-  return [...MOCK_WORKSPACES]
+  return [...WORKSPACES]
 }
 
 export function getWorkspaceById(id: string): Workspace | undefined {
-  return MOCK_WORKSPACES.find((w) => w.id === id)
+  return WORKSPACES.find((w) => w.id === id)
+}
+
+function generateWorkspaceId(): string {
+  return crypto.randomUUID()
+}
+
+export function createWorkspace(name: string): Workspace {
+  const workspace: Workspace = { id: generateWorkspaceId(), name }
+  WORKSPACES.push(workspace)
+  return workspace
 }
 
 // --- Lookup helpers ---
