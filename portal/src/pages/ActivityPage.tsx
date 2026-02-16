@@ -16,6 +16,8 @@ function statusIcon(status: Task["status"]): string {
       return "\u274c"
     case "canceled":
       return "\u26d4"
+    case "pending":
+      return "\ud83d\udd50"
   }
 }
 

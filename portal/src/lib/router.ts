@@ -1,6 +1,15 @@
 import { useState, useEffect } from "react"
 import type { Route } from "./types"
 
+/** Path segment names used in the hash URL. Single source of truth for parseHash/buildHash. */
+export const SEGMENT = {
+  project: "project",
+  task: "task",
+  artifact: "artifact",
+  activity: "activity",
+  explore: "explore",
+} as const
+
 /**
  * Parse window.location.hash into a typed Route.
  * Hash format: #<workspaceId> | #<workspaceId>/project/<id> | #<workspaceId>/task/<p>/<t> | #<workspaceId>/artifact/<p>/<id>
@@ -12,16 +21,16 @@ export function parseHash(hash: string): Route {
 
   const workspaceId = parts[0] ?? ""
 
-  if (parts[1] === "activity") {
+  if (parts[1] === SEGMENT.activity) {
     return { name: "activity", workspaceId }
   }
-  if (parts[1] === "explore") {
+  if (parts[1] === SEGMENT.explore) {
     return { name: "explore", workspaceId }
   }
-  if (parts[1] === "project" && parts[2]) {
+  if (parts[1] === SEGMENT.project && parts[2]) {
     return { name: "project", workspaceId, projectId: parts[2] }
   }
-  if (parts[1] === "task" && parts[2] && parts[3]) {
+  if (parts[1] === SEGMENT.task && parts[2] && parts[3]) {
     return {
       name: "task",
       workspaceId,
@@ -29,7 +38,7 @@ export function parseHash(hash: string): Route {
       taskId: parts[3],
     }
   }
-  if (parts[1] === "artifact" && parts[2] && parts[3]) {
+  if (parts[1] === SEGMENT.artifact && parts[2] && parts[3]) {
     return {
       name: "artifact",
       workspaceId,
@@ -46,15 +55,15 @@ export function buildHash(route: Route): string {
     case "workspace":
       return `#${route.workspaceId}`
     case "project":
-      return `#${route.workspaceId}/project/${route.projectId}`
+      return `#${route.workspaceId}/${SEGMENT.project}/${route.projectId}`
     case "task":
-      return `#${route.workspaceId}/task/${route.projectId}/${route.taskId}`
+      return `#${route.workspaceId}/${SEGMENT.task}/${route.projectId}/${route.taskId}`
     case "artifact":
-      return `#${route.workspaceId}/artifact/${route.projectId}/${route.artifactId}`
+      return `#${route.workspaceId}/${SEGMENT.artifact}/${route.projectId}/${route.artifactId}`
     case "activity":
-      return `#${route.workspaceId}/activity`
+      return `#${route.workspaceId}/${SEGMENT.activity}`
     case "explore":
-      return `#${route.workspaceId}/explore`
+      return `#${route.workspaceId}/${SEGMENT.explore}`
   }
 }
 

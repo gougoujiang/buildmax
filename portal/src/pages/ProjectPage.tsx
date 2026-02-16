@@ -4,7 +4,7 @@ import { navigate } from "../lib/router"
 import { createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 
-interface ProjectDashboardProps {
+interface ProjectPageProps {
   workspaceId: string
   project: Project
   tasks: Task[]
@@ -28,16 +28,16 @@ function statusIcon(status: Task["status"]): string {
   }
 }
 
-export function ProjectDashboard({
+export function ProjectPage({
   workspaceId,
   project,
   tasks,
   artifacts,
   token,
   onRefetchTasks,
-}: ProjectDashboardProps) {
+}: ProjectPageProps) {
   const [prompt, setPrompt] = useState("")
-  const [creating, setCreating] = useState(false)
+  const [, setCreating] = useState(false)
 
   async function handleRun() {
     const input = prompt.trim()
