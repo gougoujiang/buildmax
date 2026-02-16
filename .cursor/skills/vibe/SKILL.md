@@ -17,7 +17,7 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe clarify [id]` | Clarify requirements and produce implementation-ready spec |
 | `/vibe design [id]` | Technical design document |
 | `/vibe code [id]` | Implement from design |
-| `/vibe done [id]` | Mark task finished |
+| `/vibe done [id]` | Mark task finished; auto-archive if needed |
 | `/vibe smell [path]` | Detect code smells and propose refactors |
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
 | `/vibe commit` | Stage and commit changes with a generated message |
@@ -176,7 +176,7 @@ Takes the design document and writes the code.
 
 ## `/vibe done` — Finish Task
 
-Moves one task from the **TODO** section to the **Finished** section in `.vibe/000-TOC.md`.
+Moves one task from the **TODO** section to the **Finished** section in `.vibe/000-TOC.md`. After moving, automatically checks whether archiving is needed and performs it if so.
 
 ### Workflow
 
@@ -187,13 +187,14 @@ Moves one task from the **TODO** section to the **Finished** section in `.vibe/0
    - **Finished**: Append one row with link format: `| NNN | [Title](NNN.md) |`.
    - **TODO**: Remove that row. If no rows remain, replace the table with the placeholder: `*(Planned tasks will be added here.)*`
 5. **Write** — Save the updated `.vibe/000-TOC.md`.
+6. **Auto-archive check** — After the task is moved to Finished, count task files in `.vibe/` (files matching exactly three digits + `.md`, excluding `000-TOC.md` and `*-design.md`). If there are **more than 5**, run the full `/vibe archive` workflow (see the archive section below) automatically. Report what was archived in the chat summary.
 
 ### TOC structure
 
 - **Finished** table: `| # | Title |` header, then rows `| NNN | [Title](NNN.md) |`.
 - **TODO** either has the same table format or the placeholder `*(Planned tasks will be added here.)*`.
 
-Only the specified task row is moved; all other rows stay unchanged.
+Only the specified task row is moved; all other rows stay unchanged (before auto-archive runs).
 
 ---
 
@@ -474,7 +475,7 @@ Vibe — Development Lifecycle
   /vibe clarify [id]    Clarify requirements and produce implementation-ready spec
   /vibe design [id]     Technical design document
   /vibe code [id]       Implement from design
-  /vibe done [id]       Mark task finished
+  /vibe done [id]       Mark task finished; auto-archive if needed
   /vibe smell [path]    Detect code smells and propose refactors
   /vibe kb [topic]      Organize and maintain codebase knowledge base
   /vibe commit          Stage and commit changes with a generated message
