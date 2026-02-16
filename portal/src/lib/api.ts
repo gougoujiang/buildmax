@@ -197,11 +197,17 @@ export interface UploadResponse {
 export async function uploadFiles(
   workspaceId: string,
   files: File[],
-  token: string
+  token: string,
+  paths?: string[],
 ): Promise<UploadResponse> {
   const formData = new FormData()
   for (const file of files) {
     formData.append("files", file)
+  }
+  if (paths) {
+    for (const p of paths) {
+      formData.append("paths", p)
+    }
   }
   const res = await fetch(
     `${getApiBase()}/api/workspaces/${workspaceId}/upload`,

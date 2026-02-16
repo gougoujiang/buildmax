@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 
 	"buildmax/internal/config"
+	"buildmax/internal/util"
 )
 
 const maxUploadFiles = 10
+const maxUploadDirFiles = 200
 
 // uploadResponse is the JSON body returned on successful upload.
 type uploadResponse struct {
@@ -38,7 +40,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	if err := r.ParseMultipartForm(64 << 20); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}
@@ -47,9 +49,24 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "no files provided")
 		return
 	}
-	if len(fileHeaders) > maxUploadFiles {
-		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadFiles))
-		return
+
+	paths := r.MultipartForm.Value["paths"]
+	dirMode := len(paths) > 0
+
+	if dirMode {
+		if len(paths) != len(fileHeaders) {
+			writeJSONError(w, http.StatusBadRequest, "paths count must match files count")
+			return
+		}
+		if len(fileHeaders) > maxUploadDirFiles {
+			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadDirFiles))
+			return
+		}
+	} else {
+		if len(fileHeaders) > maxUploadFiles {
+			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadFiles))
+			return
+		}
 	}
 
 	destDir := filepath.Join(config.WorkspacesDir(), workspaceID)
@@ -59,21 +76,48 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ws := &util.Workspace{Root: destDir}
 	uploaded := make([]string, 0, len(fileHeaders))
-	for _, fh := range fileHeaders {
-		name := filepath.Base(fh.Filename)
-		if name == "." || name == "" {
-			continue
+
+	for i, fh := range fileHeaders {
+		var relPath string
+		if dirMode {
+			relPath = paths[i]
+			if relPath == "" {
+				writeJSONError(w, http.StatusBadRequest, "empty path in paths field")
+				return
+			}
+			absPath, err := ws.ResolvePath(relPath)
+			if err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid path: "+relPath)
+				return
+			}
+			if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+				slog.Error("upload: mkdir subdir", "err", err, "path", absPath)
+				writeJSONError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+		} else {
+			relPath = filepath.Base(fh.Filename)
+			if relPath == "." || relPath == "" {
+				continue
+			}
 		}
 
 		src, err := fh.Open()
 		if err != nil {
-			slog.Error("upload: open multipart file", "err", err, "name", name)
+			slog.Error("upload: open multipart file", "err", err, "name", relPath)
 			writeJSONError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
 
-		dstPath := filepath.Join(destDir, name)
+		var dstPath string
+		if dirMode {
+			dstPath, _ = ws.ResolvePath(relPath)
+		} else {
+			dstPath = filepath.Join(destDir, relPath)
+		}
+
 		dst, err := os.Create(dstPath)
 		if err != nil {
 			src.Close()
@@ -92,7 +136,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		dst.Close()
 		src.Close()
 
-		uploaded = append(uploaded, name)
+		uploaded = append(uploaded, relPath)
 	}
 
 	writeJSON(w, http.StatusOK, uploadResponse{Uploaded: uploaded})

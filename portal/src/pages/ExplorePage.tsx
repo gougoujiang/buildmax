@@ -104,6 +104,7 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ text: string; isError: boolean } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
 
   const fetchTree = useCallback(async () => {
     if (!token) return
@@ -183,6 +184,33 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
     [workspaceId, token, fetchTree]
   )
 
+  const handleFolderUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files
+      if (!selected || selected.length === 0) return
+      if (!token) {
+        setUploadMsg({ text: "Not authenticated", isError: true })
+        return
+      }
+      setUploading(true)
+      setUploadMsg(null)
+      try {
+        const files = Array.from(selected)
+        const paths = files.map((f) => f.webkitRelativePath)
+        const res = await uploadFiles(workspaceId, files, token, paths)
+        setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
+        await fetchTree()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Upload failed"
+        setUploadMsg({ text: msg, isError: true })
+      } finally {
+        setUploading(false)
+        if (folderInputRef.current) folderInputRef.current.value = ""
+      }
+    },
+    [workspaceId, token, fetchTree]
+  )
+
   const children = tree ? getChildren(tree, selectedFolderId) : []
   const selectedFolderNode = tree ? findNodeById(tree, selectedFolderId) : undefined
   const folderName =
@@ -209,6 +237,13 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
           className="page-explore__file-input"
           onChange={handleUpload}
         />
+        <input
+          ref={folderInputRef}
+          type="file"
+          className="page-explore__file-input"
+          onChange={handleFolderUpload}
+          {...{ webkitdirectory: "", directory: "" }}
+        />
         <button
           type="button"
           className="page-explore__upload-btn"
@@ -216,6 +251,14 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
           onClick={() => fileInputRef.current?.click()}
         >
           {uploading ? "Uploading…" : "Upload Files"}
+        </button>
+        <button
+          type="button"
+          className="page-explore__upload-btn"
+          disabled={uploading}
+          onClick={() => folderInputRef.current?.click()}
+        >
+          {uploading ? "Uploading…" : "Upload Folder"}
         </button>
         {uploadMsg && (
           <span
