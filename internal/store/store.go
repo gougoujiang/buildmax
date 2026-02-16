@@ -65,10 +65,12 @@ func (Project) TableName() string {
 
 // Task is the task model. JSON uses snake_case per project convention.
 // API exposes task_id as "id"; internal ID is for DB only.
+// Tasks belong to a workspace; project is optional.
 type Task struct {
 	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
 	TaskID       string  `gorm:"type:varchar(36);uniqueIndex;not null" json:"task_id"`
-	ProjectID    string  `gorm:"type:varchar(36);not null;index" json:"project_id"`
+	WorkspaceID  string  `gorm:"type:varchar(36);not null;index" json:"workspace_id"`
+	ProjectID    *string `gorm:"type:varchar(36);index" json:"project_id,omitempty"`
 	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input        string  `gorm:"type:text;not null" json:"input"`
 	Output       *string `gorm:"type:text" json:"output,omitempty"`
@@ -104,10 +106,12 @@ type ProjectStore interface {
 	CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error)
 }
 
-// TaskStore provides task persistence.
+// TaskStore provides task persistence. Tasks belong to a workspace; project is optional.
 type TaskStore interface {
-	ListTasksByProject(ctx context.Context, projectID string) ([]Task, error)
-	CreateTask(ctx context.Context, projectID, input, createdBy string) (*Task, error)
+	// ListTasksByWorkspace returns tasks in the workspace. If projectID is non-nil, filter by that project.
+	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
+	// CreateTask inserts a new task with status PENDING. projectID is optional (nil = no project).
+	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
 }
 
 // Store implements UserStore, WorkspaceStore, ProjectStore, and TaskStore with a MySQL backend.
@@ -210,27 +214,45 @@ func (s *Store) CreateProject(ctx context.Context, workspaceID, name, descriptio
 	return p, nil
 }
 
-// ListTasksByProject returns all tasks for the given project_id, ordered by created_at.
-func (s *Store) ListTasksByProject(ctx context.Context, projectID string) ([]Task, error) {
+// ListTasksByWorkspace returns tasks in the workspace, ordered by created_at.
+// If projectID is non-nil, only tasks with that project_id are returned.
+func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error) {
 	var list []Task
-	err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("created_at ASC").Find(&list).Error
+	q := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	if projectID != nil {
+		q = q.Where("project_id = ?", *projectID)
+	}
+	err := q.Order("created_at ASC").Find(&list).Error
 	return list, err
 }
 
 // CreateTask inserts a new task with status PENDING and returns it.
-func (s *Store) CreateTask(ctx context.Context, projectID, input, createdBy string) (*Task, error) {
+// projectID is optional (nil = task with no project).
+func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error) {
 	t := &Task{
-		TaskID:    newUUID(),
-		ProjectID: projectID,
-		Status:    "PENDING",
-		Input:     input,
-		CreatedBy: createdBy,
-		CreatedAt: time.Now().Unix(),
+		TaskID:      newUUID(),
+		WorkspaceID: workspaceID,
+		ProjectID:   projectID,
+		Status:      "PENDING",
+		Input:       input,
+		CreatedBy:   createdBy,
+		CreatedAt:   time.Now().Unix(),
 	}
 	if err := s.db.WithContext(ctx).Create(t).Error; err != nil {
 		return nil, err
 	}
 	return t, nil
+}
+
+// BackfillTaskWorkspaceID fills workspace_id for existing tasks that have a project_id
+// but no workspace_id. Idempotent — safe to call on every startup.
+func (s *Store) BackfillTaskWorkspaceID(ctx context.Context) error {
+	return s.db.WithContext(ctx).Exec(`
+		UPDATE task t
+		JOIN project p ON t.project_id = p.project_id
+		SET t.workspace_id = p.workspace_id
+		WHERE t.workspace_id = '' OR t.workspace_id IS NULL
+	`).Error
 }
 
 // Close closes the underlying DB connection. Optional for server lifecycle.

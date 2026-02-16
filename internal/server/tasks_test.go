@@ -11,7 +11,9 @@ import (
 	"buildmax/internal/store"
 )
 
-func TestListTasksHandler(t *testing.T) {
+func ptrStr(s string) *string { return &s }
+
+func TestListWorkspaceTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"
 	userWorkspaces := []store.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
@@ -21,95 +23,118 @@ func TestListTasksHandler(t *testing.T) {
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
 	task1 := store.Task{
-		TaskID: "t1", ProjectID: "proj1", Status: "PENDING", Input: "Do something",
+		TaskID: "t1", WorkspaceID: "ws1", ProjectID: ptrStr("proj1"), Status: "PENDING", Input: "Do something",
 		CreatedBy: "u1", CreatedAt: 1000,
+	}
+	taskNoProject := store.Task{
+		TaskID: "t2", WorkspaceID: "ws1", ProjectID: nil, Status: "PENDING", Input: "Explore",
+		CreatedBy: "u1", CreatedAt: 1001,
 	}
 
 	tests := []struct {
-		name           string
-		workspaceStore store.WorkspaceStore
-		projectStore   store.ProjectStore
-		taskStore      store.TaskStore
-		authHeader     string
-		pathSuffix     string // /proj1 -> /api/projects/proj1/tasks
-		jwtSecret      string
-		wantStatus     int
-		wantBodyHas    string
-		wantArrayLen   int
+		name         string
+		projectStore store.ProjectStore
+		taskStore    store.TaskStore
+		authHeader   string
+		path         string
+		jwtSecret    string
+		wantStatus   int
+		wantBodyHas  string
+		wantArrayLen int
 	}{
 		{
-			name:           "no auth returns 401",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      &mockTaskStore{},
-			authHeader:     "",
-			pathSuffix:     "/proj1",
-			jwtSecret:      secret,
-			wantStatus:     http.StatusUnauthorized,
-			wantBodyHas:    "unauthorized",
+			name:         "no auth returns 401",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "",
+			path:         "/api/workspaces/ws1/tasks",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusUnauthorized,
+			wantBodyHas:  "unauthorized",
+			wantArrayLen: -1,
 		},
 		{
-			name:           "project not found returns 404",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{}}, // GetProject returns nil for any id
-			taskStore:      &mockTaskStore{},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/nonexistent",
-			jwtSecret:      secret,
-			wantStatus:     http.StatusNotFound,
-			wantBodyHas:    "not found",
+			name:         "workspace not owned returns 403",
+			projectStore: &mockProjectStore{list: []store.Project{}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws-other/tasks",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusForbidden,
+			wantBodyHas:  "forbidden",
+			wantArrayLen: -1,
 		},
 		{
-			name:           "project not owned returns 403",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projOtherWs}},
-			taskStore:      &mockTaskStore{},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/proj-other",
-			jwtSecret:      secret,
-			wantStatus:     http.StatusForbidden,
-			wantBodyHas:    "forbidden",
+			name:         "owned workspace empty list returns 200",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{list: []store.Task{}},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusOK,
+			wantBodyHas:  "[]",
+			wantArrayLen: 0,
 		},
 		{
-			name:           "owned project empty list returns 200",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      &mockTaskStore{list: []store.Task{}},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/proj1",
-			jwtSecret:      secret,
-			wantStatus:     http.StatusOK,
-			wantBodyHas:    "[]",
-			wantArrayLen:   0,
+			name:         "owned workspace with tasks returns 200",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{list: []store.Task{task1, taskNoProject}},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusOK,
+			wantBodyHas:  "t1",
+			wantArrayLen: 2,
 		},
 		{
-			name:           "owned project with tasks returns 200",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      &mockTaskStore{list: []store.Task{task1}},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/proj1",
-			jwtSecret:      secret,
-			wantStatus:     http.StatusOK,
-			wantBodyHas:    "t1",
-			wantArrayLen:   1,
+			name:         "project_id filter returns filtered list",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{list: []store.Task{task1, taskNoProject}},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks?project_id=proj1",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusOK,
+			wantBodyHas:  "t1",
+			wantArrayLen: 1,
 		},
 		{
-			name:           "task store nil returns 503",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      nil,
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/proj1",
-			jwtSecret:      secret,
-			wantStatus:     http.StatusServiceUnavailable,
-			wantBodyHas:    "tasks not configured",
+			name:         "project_id not found returns 404",
+			projectStore: &mockProjectStore{list: []store.Project{}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks?project_id=nonexistent",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusNotFound,
+			wantBodyHas:  "not found",
+			wantArrayLen: -1,
+		},
+		{
+			name:         "project_id in different workspace returns 400",
+			projectStore: &mockProjectStore{list: []store.Project{projOtherWs}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks?project_id=proj-other",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusBadRequest,
+			wantBodyHas:  "does not belong",
+			wantArrayLen: -1,
+		},
+		{
+			name:         "task store nil returns 503",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    nil,
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			jwtSecret:    secret,
+			wantStatus:   http.StatusServiceUnavailable,
+			wantBodyHas:  "tasks not configured",
+			wantArrayLen: -1,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				WorkspaceStore: tt.workspaceStore,
+				WorkspaceStore: mockWS,
 				ProjectStore:   tt.projectStore,
 				JWTSecret:      tt.jwtSecret,
 			}
@@ -117,15 +142,14 @@ func TestListTasksHandler(t *testing.T) {
 				cfg.TaskStore = tt.taskStore
 			}
 			s := New(cfg)
-			path := "/api/projects" + tt.pathSuffix + "/tasks"
-			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
 			s.Handler().ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
-				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
 			body := rec.Body.String()
 			if tt.wantBodyHas != "" && !strings.Contains(body, tt.wantBodyHas) {
@@ -147,119 +171,138 @@ func TestListTasksHandler(t *testing.T) {
 	}
 }
 
-func TestCreateTaskHandler(t *testing.T) {
+func TestCreateWorkspaceTaskHandler(t *testing.T) {
 	secret := "test-create-task-secret"
 	userWorkspaces := []store.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 	projInWs1 := store.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
+	projOtherWs := store.Project{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
 	tests := []struct {
-		name           string
-		workspaceStore store.WorkspaceStore
-		projectStore   store.ProjectStore
-		taskStore      store.TaskStore
-		authHeader     string
-		pathSuffix     string
-		body           string
-		jwtSecret      string
-		wantStatus     int
-		wantBodyHas    string
-		checkCreated   bool
+		name         string
+		projectStore store.ProjectStore
+		taskStore    store.TaskStore
+		authHeader   string
+		path         string
+		body         string
+		jwtSecret    string
+		wantStatus   int
+		wantBodyHas  string
+		checkCreated bool
 	}{
 		{
-			name:           "no auth returns 401",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      &mockTaskStore{},
-			authHeader:     "",
-			pathSuffix:     "/proj1",
-			body:           `{"input":"Do X"}`,
-			jwtSecret:      secret,
-			wantStatus:     http.StatusUnauthorized,
-			wantBodyHas:    "unauthorized",
+			name:         "no auth returns 401",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "",
+			path:         "/api/workspaces/ws1/tasks",
+			body:         `{"input":"Do X"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusUnauthorized,
+			wantBodyHas:  "unauthorized",
 		},
 		{
-			name:           "project not found returns 404",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{}},
-			taskStore:      &mockTaskStore{},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/nonexistent",
-			body:           `{"input":"Do X"}`,
-			jwtSecret:      secret,
-			wantStatus:     http.StatusNotFound,
-			wantBodyHas:    "not found",
+			name:         "workspace not owned returns 403",
+			projectStore: &mockProjectStore{list: []store.Project{}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws-other/tasks",
+			body:         `{"input":"Do X"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusForbidden,
+			wantBodyHas:  "forbidden",
 		},
 		{
-			name:           "project not owned returns 403",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{
-				{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200},
-			}},
-			taskStore:   &mockTaskStore{},
-			authHeader:  "Bearer " + signJWT("u1", secret),
-			pathSuffix:  "/proj-other",
-			body:        `{"input":"Do X"}`,
-			jwtSecret:   secret,
-			wantStatus:  http.StatusForbidden,
-			wantBodyHas: "forbidden",
+			name:         "missing input returns 400",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			body:         `{}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusBadRequest,
+			wantBodyHas:  "input",
 		},
 		{
-			name:           "missing input returns 400",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      &mockTaskStore{},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/proj1",
-			body:           `{}`,
-			jwtSecret:      secret,
-			wantStatus:     http.StatusBadRequest,
-			wantBodyHas:    "input",
+			name:         "empty input returns 400",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			body:         `{"input":""}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusBadRequest,
+			wantBodyHas:  "input",
 		},
 		{
-			name:           "empty input returns 400",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:      &mockTaskStore{},
-			authHeader:     "Bearer " + signJWT("u1", secret),
-			pathSuffix:     "/proj1",
-			body:           `{"input":""}`,
-			jwtSecret:      secret,
-			wantStatus:     http.StatusBadRequest,
-			wantBodyHas:    "input",
-		},
-		{
-			name:           "valid body returns 201",
-			workspaceStore: mockWS,
-			projectStore:   &mockProjectStore{list: []store.Project{projInWs1}},
+			name:         "valid body no project returns 201",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
 			taskStore: &mockTaskStore{
 				create: &store.Task{
-					TaskID: "new-task-id", ProjectID: "proj1", Status: "PENDING",
+					TaskID: "new-task-id", WorkspaceID: "ws1", ProjectID: nil, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
 			authHeader:   "Bearer " + signJWT("u1", secret),
-			pathSuffix:   "/proj1",
+			path:         "/api/workspaces/ws1/tasks",
 			body:         `{"input":"Do X"}`,
 			jwtSecret:    secret,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "new-task-id",
 			checkCreated: true,
 		},
+		{
+			name:         "valid body with project returns 201",
+			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			taskStore: &mockTaskStore{
+				create: &store.Task{
+					TaskID: "new-task-id-2", WorkspaceID: "ws1", ProjectID: ptrStr("proj1"), Status: "PENDING",
+					Input: "Do Y", CreatedBy: "u1", CreatedAt: 99999,
+				},
+			},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			body:         `{"input":"Do Y","project_id":"proj1"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusCreated,
+			wantBodyHas:  "new-task-id-2",
+			checkCreated: true,
+		},
+		{
+			name:         "project not found returns 404",
+			projectStore: &mockProjectStore{list: []store.Project{}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			body:         `{"input":"Do X","project_id":"nonexistent"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusNotFound,
+			wantBodyHas:  "not found",
+		},
+		{
+			name:         "project in different workspace returns 400",
+			projectStore: &mockProjectStore{list: []store.Project{projOtherWs}},
+			taskStore:    &mockTaskStore{},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/tasks",
+			body:         `{"input":"Do X","project_id":"proj-other"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusBadRequest,
+			wantBodyHas:  "does not belong",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				WorkspaceStore: tt.workspaceStore,
+				WorkspaceStore: mockWS,
 				ProjectStore:   tt.projectStore,
 				TaskStore:      tt.taskStore,
 				JWTSecret:      tt.jwtSecret,
 			}
 			s := New(cfg)
-			path := "/api/projects" + tt.pathSuffix + "/tasks"
-			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(tt.body))
+			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
@@ -267,7 +310,7 @@ func TestCreateTaskHandler(t *testing.T) {
 			rec := httptest.NewRecorder()
 			s.Handler().ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
-				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
 			body := rec.Body.String()
 			if tt.wantBodyHas != "" && !strings.Contains(body, tt.wantBodyHas) {
@@ -278,7 +321,7 @@ func TestCreateTaskHandler(t *testing.T) {
 				if err := json.Unmarshal([]byte(body), &out); err != nil {
 					t.Fatalf("decode body: %v", err)
 				}
-				for _, key := range []string{"id", "project_id", "status", "input", "created_by", "created_at"} {
+				for _, key := range []string{"id", "workspace_id", "status", "input", "created_by", "created_at"} {
 					if _, ok := out[key]; !ok {
 						t.Errorf("response missing key %q", key)
 					}

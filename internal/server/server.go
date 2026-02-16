@@ -49,8 +49,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/projects", s.listProjectsHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/projects", s.createProjectHandler)
-	mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.listTasksHandler)
-	mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.createTaskHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks", s.listWorkspaceTasksHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks", s.createWorkspaceTaskHandler)
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

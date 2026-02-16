@@ -43,7 +43,7 @@ export function ProjectDashboard({
     if (token && onRefetchTasks) {
       setCreating(true)
       try {
-        await createTask(project.id, { input }, token)
+        await createTask(workspaceId, { input, project_id: project.id }, token)
         setPrompt("")
         onRefetchTasks()
       } catch {

@@ -126,7 +126,7 @@ export function listProjectsForWorkspace(workspaceId: string): Project[] {
 
 export function listTasksForWorkspace(workspaceId: string): Task[] {
   const projectIds = listProjectsForWorkspace(workspaceId).map((p) => p.id)
-  return MOCK_TASKS.filter((t) => projectIds.includes(t.projectId))
+  return MOCK_TASKS.filter((t) => t.projectId != null && projectIds.includes(t.projectId))
 }
 
 export function listArtifactsForWorkspace(workspaceId: string): Artifact[] {

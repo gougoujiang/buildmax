@@ -108,26 +108,30 @@ func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, d
 
 // mockTaskStore is an in-memory TaskStore for tests.
 type mockTaskStore struct {
-	list     []store.Task
-	listErr  error
-	create   *store.Task
+	list      []store.Task
+	listErr   error
+	create    *store.Task
 	createErr error
 }
 
-func (m *mockTaskStore) ListTasksByProject(_ context.Context, projectID string) ([]store.Task, error) {
+func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string) ([]store.Task, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	var out []store.Task
 	for _, t := range m.list {
-		if t.ProjectID == projectID {
-			out = append(out, t)
+		if t.WorkspaceID != workspaceID {
+			continue
 		}
+		if projectID != nil && (t.ProjectID == nil || *t.ProjectID != *projectID) {
+			continue
+		}
+		out = append(out, t)
 	}
 	return out, nil
 }
 
-func (m *mockTaskStore) CreateTask(_ context.Context, projectID, input, createdBy string) (*store.Task, error) {
+func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, createdBy string) (*store.Task, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -135,11 +139,12 @@ func (m *mockTaskStore) CreateTask(_ context.Context, projectID, input, createdB
 		return m.create, nil
 	}
 	return &store.Task{
-		TaskID:    "task-uuid-1",
-		ProjectID: projectID,
-		Status:    "PENDING",
-		Input:     input,
-		CreatedBy: createdBy,
-		CreatedAt: 12345,
+		TaskID:      "task-uuid-1",
+		WorkspaceID: workspaceID,
+		ProjectID:   projectID,
+		Status:      "PENDING",
+		Input:       input,
+		CreatedBy:   createdBy,
+		CreatedAt:   12345,
 	}, nil
 }

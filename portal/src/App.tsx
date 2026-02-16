@@ -65,25 +65,25 @@ function AppContent() {
   }, [token, route.workspaceId])
 
   const refetchTasks = useCallback(() => {
-    if (!token || !route.projectId) return
+    if (!token || !route.workspaceId || !route.projectId) return
     setLoadingTasks(true)
-    getTasks(route.projectId, token)
+    getTasks(route.workspaceId, token, route.projectId)
       .then((list) => setTasks(list.map(apiTaskToTask)))
       .catch(() => setTasks([]))
       .finally(() => setLoadingTasks(false))
-  }, [token, route.projectId])
+  }, [token, route.workspaceId, route.projectId])
 
   useEffect(() => {
-    if (!token || !route.projectId) {
+    if (!token || !route.workspaceId || !route.projectId) {
       setTasks([])
       return
     }
     setLoadingTasks(true)
-    getTasks(route.projectId, token)
+    getTasks(route.workspaceId, token, route.projectId)
       .then((list) => setTasks(list.map(apiTaskToTask)))
       .catch(() => setTasks([]))
       .finally(() => setLoadingTasks(false))
-  }, [token, route.projectId])
+  }, [token, route.workspaceId, route.projectId])
 
   const defaultWorkspaceId = workspaces[0]?.id ?? ""
   const currentWorkspaceFromRoute = workspaces.find((w) => w.id === route.workspaceId)

@@ -41,6 +41,9 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("database: %w", err)
 	}
+	if err := st.BackfillTaskWorkspaceID(ctx); err != nil {
+		slog.Warn("backfill task workspace_id", "err", err)
+	}
 	corsOrigin := os.Getenv("BUILDMAX_CORS_ORIGIN")
 	if corsOrigin == "" {
 		corsOrigin = "http://localhost:5173"

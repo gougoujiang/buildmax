@@ -32,8 +32,8 @@ export function ActivityPage({ workspaceId }: ActivityPageProps) {
         <p className="page-activity__empty">No activity yet.</p>
       ) : (
         <ul className="page-activity__list">
-          {tasks.map((task) => {
-            const project = getProjectById(task.projectId)
+          {tasks.filter((task) => task.projectId != null).map((task) => {
+            const project = getProjectById(task.projectId!)
             return (
               <li key={`${task.projectId}-${task.id}`} className="page-activity__item">
                 <button
@@ -43,7 +43,7 @@ export function ActivityPage({ workspaceId }: ActivityPageProps) {
                     navigate({
                       name: "task",
                       workspaceId,
-                      projectId: task.projectId,
+                      projectId: task.projectId!,
                       taskId: task.id,
                     })
                   }

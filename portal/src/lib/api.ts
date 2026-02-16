@@ -121,10 +121,11 @@ export async function createProject(
   return res.json() as Promise<ApiProject>
 }
 
-/** Task as returned by GET/POST /api/projects/{id}/tasks (snake_case). */
+/** Task as returned by GET/POST /api/workspaces/{id}/tasks (snake_case). */
 export interface ApiTask {
   id: string
-  project_id: string
+  workspace_id: string
+  project_id: string | null
   status: string
   input: string
   output: string | null
@@ -135,8 +136,16 @@ export interface ApiTask {
   error_message: string | null
 }
 
-export async function getTasks(projectId: string, token: string): Promise<ApiTask[]> {
-  const res = await fetch(`${getApiBase()}/api/projects/${projectId}/tasks`, {
+export async function getTasks(
+  workspaceId: string,
+  token: string,
+  projectId?: string
+): Promise<ApiTask[]> {
+  let url = `${getApiBase()}/api/workspaces/${workspaceId}/tasks`
+  if (projectId) {
+    url += `?project_id=${encodeURIComponent(projectId)}`
+  }
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) {
@@ -154,11 +163,11 @@ export async function getTasks(projectId: string, token: string): Promise<ApiTas
 }
 
 export async function createTask(
-  projectId: string,
-  body: { input: string },
+  workspaceId: string,
+  body: { input: string; project_id?: string },
   token: string
 ): Promise<ApiTask> {
-  const res = await fetch(`${getApiBase()}/api/projects/${projectId}/tasks`, {
+  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/tasks`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -216,7 +225,7 @@ export function apiTaskToTask(api: ApiTask): Task {
   const summary = api.output ?? (api.input.length > 120 ? api.input.slice(0, 117) + "..." : api.input)
   return {
     id: api.id,
-    projectId: api.project_id,
+    projectId: api.project_id ?? undefined,
     title,
     status: taskStatusToUI(api.status),
     timeLabel: taskTimeLabel(api),
