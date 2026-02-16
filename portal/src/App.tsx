@@ -4,6 +4,7 @@ import { useHashRoute, navigate } from "./lib"
 import { listArtifactsForProject, getTaskById, getArtifactById } from "./data"
 import {
   getWorkspaces,
+  createWorkspace,
   getProjects,
   getTasks,
   apiProjectToProject,
@@ -12,6 +13,7 @@ import {
 } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { AppShell } from "./components/AppShell"
+import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { LoginPage } from "./pages/LoginPage"
 import { WorkspaceHome } from "./pages/WorkspaceHome"
 import { ProjectDashboard } from "./pages/ProjectDashboard"
@@ -29,6 +31,9 @@ function AppContent() {
   const [loadingProjects, setLoadingProjects] = useState(false)
   const [tasks, setTasks] = useState<Task[]>([])
   const [loadingTasks, setLoadingTasks] = useState(false)
+  const [showNewWorkspace, setShowNewWorkspace] = useState(false)
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
+  const [createWsError, setCreateWsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) {
@@ -117,6 +122,28 @@ function AppContent() {
     navigate({ name: "workspace", workspaceId })
   }
 
+  function handleNewWorkspace() {
+    setCreateWsError(null)
+    setShowNewWorkspace(true)
+  }
+
+  async function handleCreateWorkspace(name: string) {
+    if (!token) return
+    setCreatingWorkspace(true)
+    setCreateWsError(null)
+    try {
+      const ws = await createWorkspace({ name }, token)
+      const updated = await getWorkspaces(token)
+      setWorkspaces(updated)
+      setShowNewWorkspace(false)
+      navigate({ name: "workspace", workspaceId: ws.id })
+    } catch (err) {
+      setCreateWsError(err instanceof Error ? err.message : "Failed to create workspace")
+    } finally {
+      setCreatingWorkspace(false)
+    }
+  }
+
   function renderPage() {
     const fallbackHome = (
       <WorkspaceHome
@@ -184,16 +211,26 @@ function AppContent() {
   }
 
   return (
-    <AppShell
-      currentWorkspace={currentWorkspace}
-      workspaces={workspaces}
-      route={route}
-      onWorkspaceChange={onWorkspaceChange}
-      user={user!}
-      onLogout={logout}
-    >
-      {renderPage()}
-    </AppShell>
+    <>
+      <AppShell
+        currentWorkspace={currentWorkspace}
+        workspaces={workspaces}
+        route={route}
+        onWorkspaceChange={onWorkspaceChange}
+        onNewWorkspace={handleNewWorkspace}
+        user={user!}
+        onLogout={logout}
+      >
+        {renderPage()}
+      </AppShell>
+      <CreateWorkspaceModal
+        open={showNewWorkspace}
+        loading={creatingWorkspace}
+        error={createWsError}
+        onClose={() => setShowNewWorkspace(false)}
+        onCreate={handleCreateWorkspace}
+      />
+    </>
   )
 }
 

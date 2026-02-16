@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"buildmax/internal/store"
@@ -58,6 +59,17 @@ func (m *mockWorkspaceStore) WorkspaceBelongsToUser(_ context.Context, workspace
 		}
 	}
 	return false, nil
+}
+
+func (m *mockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name string) (*store.Workspace, error) {
+	w := store.Workspace{
+		WorkspaceID:  fmt.Sprintf("ws-%d", len(m.list)+1),
+		OwnerUserID:  userID,
+		Name:         name,
+		CreatedAt:     time.Now().Unix(),
+	}
+	m.list = append(m.list, w)
+	return &w, nil
 }
 
 // mockProjectStore is an in-memory ProjectStore for tests.

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +15,11 @@ type WorkspaceResponse struct {
 	Name        string `json:"name"`
 	OwnerUserID string `json:"owner_user_id"`
 	CreatedAt   int64  `json:"created_at"`
+}
+
+// createWorkspaceRequest is the JSON body for POST /api/workspaces.
+type createWorkspaceRequest struct {
+	Name string `json:"name"`
 }
 
 // ensureWorkspaceDirs creates directory root/id for each id. Ignores errors (best-effort).
@@ -57,4 +63,42 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.WorkspaceStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "workspaces not configured")
+		return
+	}
+	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	if !ok {
+		return
+	}
+	var req createWorkspaceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	ctx := r.Context()
+	ws, err := s.cfg.WorkspaceStore.CreateWorkspace(ctx, userID, req.Name)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	destDir := filepath.Join(config.WorkspacesDir(), ws.WorkspaceID)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	out := WorkspaceResponse{
+		ID:          ws.WorkspaceID,
+		Name:        ws.Name,
+		OwnerUserID: ws.OwnerUserID,
+		CreatedAt:   ws.CreatedAt,
+	}
+	writeJSON(w, http.StatusCreated, out)
 }

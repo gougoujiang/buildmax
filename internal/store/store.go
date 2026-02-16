@@ -97,6 +97,8 @@ type WorkspaceStore interface {
 	ListWorkspacesByOwner(ctx context.Context, userID string) ([]Workspace, error)
 	// WorkspaceBelongsToUser returns true if the workspace is owned by the user.
 	WorkspaceBelongsToUser(ctx context.Context, workspaceID, userID string) (bool, error)
+	// CreateWorkspace creates a new workspace for the user and returns it.
+	CreateWorkspace(ctx context.Context, userID, name string) (*Workspace, error)
 }
 
 // ProjectStore provides project persistence.
@@ -177,6 +179,20 @@ func (s *Store) WorkspaceBelongsToUser(ctx context.Context, workspaceID, userID 
 	var count int64
 	err := s.db.WithContext(ctx).Model(&Workspace{}).Where("workspace_id = ? AND owner_user_id = ?", workspaceID, userID).Count(&count).Error
 	return count > 0, err
+}
+
+// CreateWorkspace creates a new workspace for the user and returns it.
+func (s *Store) CreateWorkspace(ctx context.Context, userID, name string) (*Workspace, error) {
+	w := &Workspace{
+		WorkspaceID: newUUID(),
+		OwnerUserID: userID,
+		Name:        name,
+		CreatedAt:   time.Now().Unix(),
+	}
+	if err := s.db.WithContext(ctx).Create(w).Error; err != nil {
+		return nil, err
+	}
+	return w, nil
 }
 
 // GetProject returns the project by project_id, or (nil, nil) when not found.

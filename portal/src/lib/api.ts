@@ -67,6 +67,32 @@ export async function getWorkspaces(token: string): Promise<ApiWorkspace[]> {
   return res.json() as Promise<ApiWorkspace[]>
 }
 
+export async function createWorkspace(
+  body: { name: string },
+  token: string
+): Promise<ApiWorkspace> {
+  const res = await fetch(`${getApiBase()}/api/workspaces`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<ApiWorkspace>
+}
+
 /** Project as returned by GET/POST /api/workspaces/{id}/projects (snake_case). */
 export interface ApiProject {
   id: string

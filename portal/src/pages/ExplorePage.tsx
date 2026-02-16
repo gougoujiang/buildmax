@@ -14,7 +14,7 @@ function isFolder(node: ExploreNode): node is ExploreNode & { type: "folder" } {
 function findNodeById(node: ExploreNode, id: string): ExploreNode | undefined {
   if (node.id === id) return node
   if (node.type === "folder") {
-    for (const child of node.children) {
+    for (const child of node.children ?? []) {
       const found = findNodeById(child, id)
       if (found) return found
     }
@@ -24,10 +24,10 @@ function findNodeById(node: ExploreNode, id: string): ExploreNode | undefined {
 
 function getChildren(root: ExploreNode, folderId: string): ExploreNode[] {
   if (folderId === "" || folderId === ".") {
-    return root.type === "folder" ? root.children : []
+    return root.type === "folder" ? root.children ?? [] : []
   }
   const node = findNodeById(root, folderId)
-  return node?.type === "folder" ? node.children : []
+  return node?.type === "folder" ? node.children ?? [] : []
 }
 
 /** Single folder row in the tree; children rendered in a nested <ul> */
@@ -50,7 +50,7 @@ function TreePanel({
 
   const isExpanded = expandedIds.has(node.id)
   const isSelected = selectedFolderId === node.id
-  const folderChildren = node.children.filter(isFolder)
+  const folderChildren = (node.children ?? []).filter(isFolder)
 
   return (
     <li className="explore-tree__item" role="treeitem" style={{ paddingLeft: `${depth * 1.25}rem` }}>

@@ -3,6 +3,7 @@ import type { Project } from "../lib/types"
 import { navigate } from "../lib/router"
 import { createProject } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
+import { CreateProjectModal } from "../components/CreateProjectModal"
 
 interface WorkspaceHomeProps {
   workspaceId: string
@@ -25,7 +26,9 @@ export function WorkspaceHome({
   onRefetchProjects,
 }: WorkspaceHomeProps) {
   const [prompt, setPrompt] = useState("")
-  const [creating, setCreating] = useState(false)
+  const [showNewProject, setShowNewProject] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [createProjError, setCreateProjError] = useState<string | null>(null)
 
   function handleRun() {
     if (prompt.trim()) {
@@ -33,20 +36,19 @@ export function WorkspaceHome({
     }
   }
 
-  async function handleNewProject() {
+  async function handleCreateProject(name: string, description: string) {
     if (!token || !onRefetchProjects) return
-    const name = window.prompt("Project name")
-    if (!name?.trim()) return
-    const description = window.prompt("Description (optional)") || undefined
-    setCreating(true)
+    setCreatingProject(true)
+    setCreateProjError(null)
     try {
-      const p = await createProject(workspaceId, { name: name.trim(), description }, token)
+      const p = await createProject(workspaceId, { name, description: description || undefined }, token)
       onRefetchProjects()
+      setShowNewProject(false)
       navigate({ name: "project", workspaceId, projectId: p.id })
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create project")
+      setCreateProjError(err instanceof Error ? err.message : "Failed to create project")
     } finally {
-      setCreating(false)
+      setCreatingProject(false)
     }
   }
 
@@ -66,10 +68,9 @@ export function WorkspaceHome({
             <button
               type="button"
               className="page-workspace__new-project"
-              onClick={handleNewProject}
-              disabled={creating}
+              onClick={() => { setCreateProjError(null); setShowNewProject(true) }}
             >
-              {creating ? "Creating…" : "New project"}
+              New project
             </button>
           )}
         </div>
@@ -118,6 +119,13 @@ export function WorkspaceHome({
           ))}
         </div>
       </section>
+      <CreateProjectModal
+        open={showNewProject}
+        loading={creatingProject}
+        error={createProjError}
+        onClose={() => setShowNewProject(false)}
+        onCreate={handleCreateProject}
+      />
     </div>
   )
 }
