@@ -5,14 +5,13 @@ import type { Route } from "./types"
 export const SEGMENT = {
   project: "project",
   task: "task",
-  artifact: "artifact",
   activity: "activity",
   explore: "explore",
 } as const
 
 /**
  * Parse window.location.hash into a typed Route.
- * Hash format: #<workspaceId> | #<workspaceId>/project/<id> | #<workspaceId>/task/<p>/<t> | #<workspaceId>/artifact/<p>/<id>
+ * Hash format: #<workspaceId> | #<workspaceId>/project/<id> | #<workspaceId>/task/<p>/<t>
  * First segment = workspaceId (use as-is; if missing, "").
  */
 export function parseHash(hash: string): Route {
@@ -38,14 +37,6 @@ export function parseHash(hash: string): Route {
       taskId: parts[3],
     }
   }
-  if (parts[1] === SEGMENT.artifact && parts[2] && parts[3]) {
-    return {
-      name: "artifact",
-      workspaceId,
-      projectId: parts[2],
-      artifactId: parts[3],
-    }
-  }
   return { name: "workspace", workspaceId }
 }
 
@@ -58,8 +49,6 @@ export function buildHash(route: Route): string {
       return `#${route.workspaceId}/${SEGMENT.project}/${route.projectId}`
     case "task":
       return `#${route.workspaceId}/${SEGMENT.task}/${route.projectId}/${route.taskId}`
-    case "artifact":
-      return `#${route.workspaceId}/${SEGMENT.artifact}/${route.projectId}/${route.artifactId}`
     case "activity":
       return `#${route.workspaceId}/${SEGMENT.activity}`
     case "explore":

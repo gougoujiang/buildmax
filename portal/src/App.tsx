@@ -1,96 +1,38 @@
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import type { Project, Task } from "./lib"
 import { useHashRoute, navigate } from "./lib"
-import { listArtifactsForProject, getTaskById, getArtifactById } from "./data"
-import {
-  getWorkspaces,
-  createWorkspace,
-  getProjects,
-  getTasks,
-  apiProjectToProject,
-  apiTaskToTask,
-  type ApiWorkspace,
-} from "./lib/api"
+import { createWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { useWorkspaceData } from "./hooks/useWorkspaceData"
 import { AppShell } from "./components/AppShell"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { Login } from "./pages/Login"
 import { Projects } from "./pages/Projects"
 import { Project as ProjectView } from "./pages/Project"
 import { TaskDetail } from "./pages/TaskDetail"
-import { ArtifactViewer } from "./pages/ArtifactViewer"
 import { Activity } from "./pages/Activity"
 import { Explore } from "./pages/Explore"
 
 function AppContent() {
   const { token, user, logout } = useAuth()
   const route = useHashRoute()
-  const [workspaces, setWorkspaces] = useState<ApiWorkspace[]>([])
-  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [, setLoadingProjects] = useState(false)
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [, setLoadingTasks] = useState(false)
+  const {
+    workspaces,
+    projects,
+    tasks,
+    workspaceTasks,
+    loadingWorkspaces,
+    refetchWorkspaces,
+    refetchProjects,
+    refetchTasks,
+    refetchWorkspaceTasks,
+  } = useWorkspaceData(token, route)
+
   const [showNewWorkspace, setShowNewWorkspace] = useState(false)
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
   const [createWsError, setCreateWsError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!token) {
-      setWorkspaces([])
-      setLoadingWorkspaces(false)
-      return
-    }
-    setLoadingWorkspaces(true)
-    getWorkspaces(token)
-      .then(setWorkspaces)
-      .catch(() => setWorkspaces([]))
-      .finally(() => setLoadingWorkspaces(false))
-  }, [token])
-
-  const refetchProjects = useCallback(() => {
-    if (!token || !route.workspaceId) return
-    setLoadingProjects(true)
-    getProjects(route.workspaceId, token)
-      .then((list) => setProjects(list.map(apiProjectToProject)))
-      .catch(() => setProjects([]))
-      .finally(() => setLoadingProjects(false))
-  }, [token, route.workspaceId])
-
-  useEffect(() => {
-    if (!token || !route.workspaceId) {
-      setProjects([])
-      return
-    }
-    setLoadingProjects(true)
-    getProjects(route.workspaceId, token)
-      .then((list) => setProjects(list.map(apiProjectToProject)))
-      .catch(() => setProjects([]))
-      .finally(() => setLoadingProjects(false))
-  }, [token, route.workspaceId])
-
   const projectIdFromRoute = "projectId" in route ? route.projectId : undefined
-  const refetchTasks = useCallback(() => {
-    if (!token || !route.workspaceId || !projectIdFromRoute) return
-    setLoadingTasks(true)
-    getTasks(route.workspaceId, token, projectIdFromRoute)
-      .then((list) => setTasks(list.map(apiTaskToTask)))
-      .catch(() => setTasks([]))
-      .finally(() => setLoadingTasks(false))
-  }, [token, route.workspaceId, projectIdFromRoute])
-
-  useEffect(() => {
-    if (!token || !route.workspaceId || !projectIdFromRoute) {
-      setTasks([])
-      return
-    }
-    setLoadingTasks(true)
-    getTasks(route.workspaceId, token, projectIdFromRoute)
-      .then((list) => setTasks(list.map(apiTaskToTask)))
-      .catch(() => setTasks([]))
-      .finally(() => setLoadingTasks(false))
-  }, [token, route.workspaceId, projectIdFromRoute])
-
   const defaultWorkspaceId = workspaces[0]?.id ?? ""
   const currentWorkspaceFromRoute = workspaces.find((w) => w.id === route.workspaceId)
   const needsRedirect = !route.workspaceId || !currentWorkspaceFromRoute
@@ -119,6 +61,16 @@ function AppContent() {
     return projects.find((p) => p.id === projectId)
   }
 
+  function getProjectName(projectId: string): string {
+    return projects.find((p) => p.id === projectId)?.name ?? "Project"
+  }
+
+  function getTaskForDetail(projectId: string | undefined, taskId: string): Task | undefined {
+    const fromProject = projectId ? tasks.find((t) => t.id === taskId) : undefined
+    if (fromProject) return fromProject
+    return workspaceTasks.find((t) => t.id === taskId)
+  }
+
   function onWorkspaceChange(workspaceId: string) {
     navigate({ name: "workspace", workspaceId })
   }
@@ -134,8 +86,7 @@ function AppContent() {
     setCreateWsError(null)
     try {
       const ws = await createWorkspace({ name }, token)
-      const updated = await getWorkspaces(token)
-      setWorkspaces(updated)
+      refetchWorkspaces()
       setShowNewWorkspace(false)
       navigate({ name: "workspace", workspaceId: ws.id })
     } catch (err) {
@@ -152,6 +103,7 @@ function AppContent() {
         projects={projects}
         token={token ?? undefined}
         onRefetchProjects={refetchProjects}
+        onRefetchWorkspaceTasks={refetchWorkspaceTasks}
       />
     )
     const fallbackProject = (project: Project) => (
@@ -159,56 +111,39 @@ function AppContent() {
         workspaceId={route.workspaceId}
         project={project}
         tasks={projectIdFromRoute === project.id ? tasks : []}
-        artifacts={listArtifactsForProject(project.id)}
         token={token ?? undefined}
         onRefetchTasks={refetchTasks}
       />
     )
 
-    switch (route.name) {
-      case "workspace":
-        return fallbackHome
-
-      case "project": {
-        const project = getProjectById(route.projectId)
-        if (!project || project.workspaceId !== route.workspaceId) {
-          return fallbackHome
-        }
-        return fallbackProject(project)
-      }
-
-      case "task": {
-        const taskFromApi =
-          route.projectId && tasks.find((t) => t.id === route.taskId)
-        const task = taskFromApi ?? getTaskById(route.projectId, route.taskId)
-        if (!task) {
-          const project = getProjectById(route.projectId)
-          if (!project || project.workspaceId !== route.workspaceId) {
-            return fallbackHome
-          }
-          return fallbackProject(project)
-        }
-        return <TaskDetail task={task} />
-      }
-
-      case "artifact": {
-        const artifact = getArtifactById(route.projectId, route.artifactId)
-        if (!artifact) {
-          const project = getProjectById(route.projectId)
-          if (!project || project.workspaceId !== route.workspaceId) {
-            return fallbackHome
-          }
-          return fallbackProject(project)
-        }
-        return <ArtifactViewer artifact={artifact} />
-      }
-
-      case "activity":
-        return <Activity workspaceId={route.workspaceId} />
-
-      case "explore":
-        return <Explore workspaceId={route.workspaceId} />
+    if (route.name === "workspace") return fallbackHome
+    if (route.name === "activity") {
+      return (
+        <Activity
+          workspaceId={route.workspaceId}
+          tasks={workspaceTasks}
+          getProjectName={getProjectName}
+        />
+      )
     }
+    if (route.name === "explore") return <Explore workspaceId={route.workspaceId} />
+
+    // project and task: resolve entity or fallback to home/project
+    const project = "projectId" in route ? getProjectById(route.projectId) : undefined
+    const projectMismatch = !project || project.workspaceId !== route.workspaceId
+    if (route.name === "project") {
+      if (projectMismatch) return fallbackHome
+      return fallbackProject(project)
+    }
+    if (route.name === "task") {
+      const task = getTaskForDetail(route.projectId, route.taskId)
+      if (!task) {
+        if (projectMismatch) return fallbackHome
+        return fallbackProject(project!)
+      }
+      return <TaskDetail task={task} />
+    }
+    return fallbackHome
   }
 
   return (
@@ -216,6 +151,7 @@ function AppContent() {
       <AppShell
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
+        projects={projects}
         route={route}
         onWorkspaceChange={onWorkspaceChange}
         onNewWorkspace={handleNewWorkspace}

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { Project } from "../lib/types"
 import { navigate } from "../lib/router"
-import { createProject } from "../lib/api"
+import { createProject, createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 import { CreateProjectModal } from "../components/CreateProjectModal"
 
@@ -10,6 +10,7 @@ interface ProjectsProps {
   projects: Project[]
   token?: string
   onRefetchProjects?: () => void
+  onRefetchWorkspaceTasks?: () => void
 }
 
 const QUICK_ACTIONS = [
@@ -24,15 +25,29 @@ export function Projects({
   projects,
   token,
   onRefetchProjects,
+  onRefetchWorkspaceTasks,
 }: ProjectsProps) {
   const [prompt, setPrompt] = useState("")
   const [showNewProject, setShowNewProject] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
   const [createProjError, setCreateProjError] = useState<string | null>(null)
+  const [runningTask, setRunningTask] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
-  function handleRun() {
-    if (prompt.trim()) {
-      console.log("Run (no-op):", prompt.trim())
+  async function handleRun() {
+    const input = prompt.trim()
+    if (!input || !token || runningTask) return
+    setRunningTask(true)
+    setRunError(null)
+    try {
+      await createTask(workspaceId, { input }, token)
+      setPrompt("")
+      onRefetchWorkspaceTasks?.()
+      navigate({ name: "activity", workspaceId })
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : "Failed to run task")
+    } finally {
+      setRunningTask(false)
     }
   }
 
@@ -56,9 +71,14 @@ export function Projects({
     <div className="page-workspace">
       <PromptArea
         value={prompt}
-        onChange={setPrompt}
+        onChange={(v) => { setPrompt(v); setRunError(null) }}
         onRun={handleRun}
       />
+      {runError && (
+        <p className="page-workspace__error" role="alert">
+          {runError}
+        </p>
+      )}
 
       {/* Project list */}
       <section className="page-workspace__projects">
@@ -110,9 +130,8 @@ export function Projects({
               key={label}
               type="button"
               className="page-workspace__action-btn"
-              onClick={() => {
-                /* no-op */
-              }}
+              onClick={() => setPrompt(label)}
+              disabled={runningTask}
             >
               {label}
             </button>

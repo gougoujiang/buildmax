@@ -1,12 +1,12 @@
 import type { Route, Project } from "../lib/types"
 import { navigate } from "../lib/router"
-import { getProjectById } from "../data/mockData"
 
 interface BreadcrumbsProps {
   route: Route
+  projects: Project[]
 }
 
-export function Breadcrumbs({ route }: BreadcrumbsProps) {
+export function Breadcrumbs({ route, projects }: BreadcrumbsProps) {
   const workspaceId = route.workspaceId
   let crumbs: { label: string; route: Route }[] = []
 
@@ -15,20 +15,17 @@ export function Breadcrumbs({ route }: BreadcrumbsProps) {
   } else if (route.name === "explore") {
     crumbs = [{ label: "Explore", route: { name: "explore", workspaceId } }]
   } else {
-    // workspace, project, task, artifact — all under "Projects"
+    // workspace, project, task — all under "Projects"
     crumbs = [{ label: "Projects", route: { name: "workspace", workspaceId } }]
     if (route.name !== "workspace") {
       const projectId = route.projectId
-      const project: Project | undefined = getProjectById(projectId)
+      const project = projects.find((p) => p.id === projectId)
       crumbs.push({
         label: project?.name ?? "Project",
         route: { name: "project", workspaceId, projectId },
       })
       if (route.name === "task") {
         crumbs.push({ label: "Task", route })
-      }
-      if (route.name === "artifact") {
-        crumbs.push({ label: "Artifact", route })
       }
     }
   }

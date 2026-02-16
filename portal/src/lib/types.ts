@@ -22,21 +22,12 @@ export interface Task {
   summary: string
 }
 
-export interface Artifact {
-  id: string
-  projectId: string
-  title: string
-  kind: "report" | "chart" | "data" | "other"
-  preview: string
-}
-
 // --- Route types ---
 
 export type Route =
   | { name: "workspace"; workspaceId: string }
   | { name: "project"; workspaceId: string; projectId: string }
   | { name: "task"; workspaceId: string; projectId: string; taskId: string }
-  | { name: "artifact"; workspaceId: string; projectId: string; artifactId: string }
   | { name: "activity"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
 

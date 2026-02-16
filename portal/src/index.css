@@ -448,6 +448,12 @@ body {
   color: #333;
 }
 
+.page-workspace__error {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #c00;
+}
+
 .page-workspace__new-project {
   padding: 0.4rem 0.75rem;
   border: 1px solid #6b7fff;

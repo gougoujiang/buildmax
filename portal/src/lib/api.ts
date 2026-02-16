@@ -14,6 +14,20 @@ function checkUnauthorized(res: Response): void {
   }
 }
 
+/** If res is not ok, read body, parse error message, and throw. Call after checkUnauthorized. */
+async function throwIfNotOk(res: Response): Promise<void> {
+  if (res.ok) return
+  const text = await res.text()
+  let msg: string
+  try {
+    const j = JSON.parse(text) as { error?: string }
+    msg = j.error ?? text
+  } catch {
+    msg = text || res.statusText
+  }
+  throw new Error(msg)
+}
+
 export function getApiBase(): string {
   const base = import.meta.env.VITE_API_BASE
   return typeof base === "string" && base !== "" ? base : defaultApiBase
@@ -36,17 +50,7 @@ export async function login(email: string): Promise<LoginResponse> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   })
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<LoginResponse>
 }
 
@@ -63,17 +67,7 @@ export async function getWorkspaces(token: string): Promise<ApiWorkspace[]> {
     headers: { Authorization: `Bearer ${token}` },
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ApiWorkspace[]>
 }
 
@@ -90,17 +84,7 @@ export async function createWorkspace(
     body: JSON.stringify(body),
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ApiWorkspace>
 }
 
@@ -118,17 +102,7 @@ export async function getProjects(workspaceId: string, token: string): Promise<A
     headers: { Authorization: `Bearer ${token}` },
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ApiProject[]>
 }
 
@@ -146,17 +120,7 @@ export async function createProject(
     body: JSON.stringify(body),
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ApiProject>
 }
 
@@ -188,17 +152,7 @@ export async function getTasks(
     headers: { Authorization: `Bearer ${token}` },
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ApiTask[]>
 }
 
@@ -216,17 +170,7 @@ export async function createTask(
     body: JSON.stringify(body),
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ApiTask>
 }
 
@@ -259,17 +203,7 @@ export async function uploadFiles(
     }
   )
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<UploadResponse>
 }
 
@@ -282,17 +216,7 @@ export async function getFileTree(
     headers: { Authorization: `Bearer ${token}` },
   })
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.json() as Promise<ExploreNode>
 }
 
@@ -310,17 +234,7 @@ export async function getFileContent(
     }
   )
   checkUnauthorized(res)
-  if (!res.ok) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? text
-    } catch {
-      msg = text || res.statusText
-    }
-    throw new Error(msg)
-  }
+  await throwIfNotOk(res)
   return res.text()
 }
 

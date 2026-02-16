@@ -19,8 +19,7 @@ function isNavActive(route: Route, targetName: SidebarNavName): boolean {
     return (
       route.name === "workspace" ||
       route.name === "project" ||
-      route.name === "task" ||
-      route.name === "artifact"
+      route.name === "task"
     )
   }
   return route.name === targetName

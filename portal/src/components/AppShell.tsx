@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Workspace, Route } from "../lib/types"
+import type { Workspace, Route, Project } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { TopBar } from "./TopBar"
 import { LeftSidebar } from "./LeftSidebar"
@@ -8,6 +8,7 @@ import { Breadcrumbs } from "./Breadcrumbs"
 interface AppShellProps {
   currentWorkspace: Workspace
   workspaces: Workspace[]
+  projects: Project[]
   route: Route
   onWorkspaceChange: (workspaceId: string) => void
   onNewWorkspace?: () => void
@@ -19,6 +20,7 @@ interface AppShellProps {
 export function AppShell({
   currentWorkspace,
   workspaces,
+  projects,
   route,
   onWorkspaceChange,
   onNewWorkspace,
@@ -42,7 +44,7 @@ export function AppShell({
           route={route}
         />
         <main className="shell__main">
-          <Breadcrumbs route={route} />
+          <Breadcrumbs route={route} projects={projects} />
           {children}
         </main>
       </div>

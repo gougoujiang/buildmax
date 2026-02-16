@@ -1,28 +1,14 @@
 import type { Task } from "../lib/types"
+import { taskStatusIcon } from "../lib/taskStatus"
 import { navigate } from "../lib/router"
-import { listTasksForWorkspace, getProjectById } from "../data/mockData"
 
 interface ActivityProps {
   workspaceId: string
+  tasks: Task[]
+  getProjectName: (projectId: string) => string
 }
 
-function statusIcon(status: Task["status"]): string {
-  switch (status) {
-    case "success":
-      return "\u2705"
-    case "running":
-      return "\u23f3"
-    case "failed":
-      return "\u274c"
-    case "canceled":
-      return "\u26d4"
-    case "pending":
-      return "\ud83d\udd50"
-  }
-}
-
-export function Activity({ workspaceId }: ActivityProps) {
-  const tasks = listTasksForWorkspace(workspaceId)
+export function Activity({ workspaceId, tasks, getProjectName }: ActivityProps) {
 
   return (
     <div className="page-activity">
@@ -35,7 +21,7 @@ export function Activity({ workspaceId }: ActivityProps) {
       ) : (
         <ul className="page-activity__list">
           {tasks.filter((task) => task.projectId != null).map((task) => {
-            const project = getProjectById(task.projectId!)
+            const projectName = getProjectName(task.projectId!)
             return (
               <li key={`${task.projectId}-${task.id}`} className="page-activity__item">
                 <button
@@ -51,12 +37,12 @@ export function Activity({ workspaceId }: ActivityProps) {
                   }
                 >
                   <span className="page-activity__icon">
-                    {statusIcon(task.status)}
+                    {taskStatusIcon(task.status)}
                   </span>
                   <span className="page-activity__content">
                     <span className="page-activity__task-title">{task.title}</span>
                     <span className="page-activity__meta">
-                      {project?.name ?? "Project"} · {task.timeLabel}
+                      {projectName} · {task.timeLabel}
                     </span>
                   </span>
                 </button>

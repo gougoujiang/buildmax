@@ -5,7 +5,6 @@ import { useAuth } from "../contexts/AuthContext"
 export function Login() {
   const { login: setAuth } = useAuth()
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -40,18 +39,6 @@ export function Login() {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
-            disabled={loading}
-          />
-          <label className="login-page__label" htmlFor="login-password">
-            Password
-          </label>
-          <input
-            id="login-password"
-            type="password"
-            className="login-page__input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
             disabled={loading}
           />
           {error && (
