@@ -2,7 +2,7 @@ import type { Task } from "../lib/types"
 import { navigate } from "../lib/router"
 import { listTasksForWorkspace, getProjectById } from "../data/mockData"
 
-interface ActivityPageProps {
+interface ActivityProps {
   workspaceId: string
 }
 
@@ -21,7 +21,7 @@ function statusIcon(status: Task["status"]): string {
   }
 }
 
-export function ActivityPage({ workspaceId }: ActivityPageProps) {
+export function Activity({ workspaceId }: ActivityProps) {
   const tasks = listTasksForWorkspace(workspaceId)
 
   return (

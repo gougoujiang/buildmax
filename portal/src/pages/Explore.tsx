@@ -3,7 +3,7 @@ import type { ExploreNode } from "../lib/types"
 import { uploadFiles, getFileTree, getFileContent } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 
-interface ExplorePageProps {
+interface ExploreProps {
   workspaceId: string
 }
 
@@ -91,7 +91,7 @@ function TreePanel({
   )
 }
 
-export function ExplorePage({ workspaceId }: ExplorePageProps) {
+export function Explore({ workspaceId }: ExploreProps) {
   const { token } = useAuth()
   const [tree, setTree] = useState<ExploreNode | null>(null)
   const [treeLoading, setTreeLoading] = useState(true)

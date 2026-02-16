@@ -4,7 +4,7 @@ import { navigate } from "../lib/router"
 import { createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 
-interface ProjectPageProps {
+interface ProjectProps {
   workspaceId: string
   project: Project
   tasks: Task[]
@@ -28,14 +28,14 @@ function statusIcon(status: Task["status"]): string {
   }
 }
 
-export function ProjectPage({
+export function Project({
   workspaceId,
   project,
   tasks,
   artifacts,
   token,
   onRefetchTasks,
-}: ProjectPageProps) {
+}: ProjectProps) {
   const [prompt, setPrompt] = useState("")
   const [, setCreating] = useState(false)
 

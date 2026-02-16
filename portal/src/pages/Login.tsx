@@ -2,7 +2,7 @@ import { useState } from "react"
 import { login } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 
-export function LoginPage() {
+export function Login() {
   const { login: setAuth } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")

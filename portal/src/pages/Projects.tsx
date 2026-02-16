@@ -5,7 +5,7 @@ import { createProject } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 import { CreateProjectModal } from "../components/CreateProjectModal"
 
-interface ProjectsPageProps {
+interface ProjectsProps {
   workspaceId: string
   projects: Project[]
   token?: string
@@ -19,12 +19,12 @@ const QUICK_ACTIONS = [
   "Draft email",
 ]
 
-export function ProjectsPage({
+export function Projects({
   workspaceId,
   projects,
   token,
   onRefetchProjects,
-}: ProjectsPageProps) {
+}: ProjectsProps) {
   const [prompt, setPrompt] = useState("")
   const [showNewProject, setShowNewProject] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)

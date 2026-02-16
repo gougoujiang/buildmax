@@ -14,13 +14,13 @@ import {
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { AppShell } from "./components/AppShell"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
-import { LoginPage } from "./pages/LoginPage"
-import { ProjectsPage } from "./pages/ProjectsPage"
-import { ProjectPage } from "./pages/ProjectPage"
+import { Login } from "./pages/Login"
+import { Projects } from "./pages/Projects"
+import { Project as ProjectView } from "./pages/Project"
 import { TaskDetail } from "./pages/TaskDetail"
 import { ArtifactViewer } from "./pages/ArtifactViewer"
-import { ActivityPage } from "./pages/ActivityPage"
-import { ExplorePage } from "./pages/ExplorePage"
+import { Activity } from "./pages/Activity"
+import { Explore } from "./pages/Explore"
 
 function AppContent() {
   const { token, user, logout } = useAuth()
@@ -102,7 +102,7 @@ function AppContent() {
   }, [needsRedirect, defaultWorkspaceId])
 
   if (!token) {
-    return <LoginPage />
+    return <Login />
   }
 
   if (loadingWorkspaces) {
@@ -147,7 +147,7 @@ function AppContent() {
 
   function renderPage() {
     const fallbackHome = (
-      <ProjectsPage
+      <Projects
         workspaceId={route.workspaceId}
         projects={projects}
         token={token ?? undefined}
@@ -155,7 +155,7 @@ function AppContent() {
       />
     )
     const fallbackProject = (project: Project) => (
-      <ProjectPage
+      <ProjectView
         workspaceId={route.workspaceId}
         project={project}
         tasks={projectIdFromRoute === project.id ? tasks : []}
@@ -204,10 +204,10 @@ function AppContent() {
       }
 
       case "activity":
-        return <ActivityPage workspaceId={route.workspaceId} />
+        return <Activity workspaceId={route.workspaceId} />
 
       case "explore":
-        return <ExplorePage workspaceId={route.workspaceId} />
+        return <Explore workspaceId={route.workspaceId} />
     }
   }
 
