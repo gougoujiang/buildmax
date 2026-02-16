@@ -79,6 +79,7 @@ type Task struct {
 	StartedAt    *int64  `gorm:"" json:"started_at,omitempty"`
 	EndedAt      *int64  `gorm:"" json:"ended_at,omitempty"`
 	ErrorMessage *string `gorm:"type:text" json:"error_message,omitempty"`
+	SessionID    *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
@@ -116,9 +117,9 @@ type TaskStore interface {
 	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
 	// GetNextPendingTask returns the oldest task with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTask(ctx context.Context) (*Task, error)
-	// UpdateTaskStatus updates a task's status and optional fields (started_at, ended_at, output, error_message).
+	// UpdateTaskStatus updates a task's status and optional fields (started_at, ended_at, output, error_message, session_id).
 	// Only non-nil pointer fields are updated.
-	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error
+	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 }
 
 // Store implements UserStore, WorkspaceStore, ProjectStore, and TaskStore with a MySQL backend.
@@ -280,7 +281,7 @@ func (s *Store) GetNextPendingTask(ctx context.Context) (*Task, error) {
 
 // UpdateTaskStatus updates a task's status and optional fields.
 // Only non-nil pointer fields are written; status is always set.
-func (s *Store) UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error {
+func (s *Store) UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {
 		updates["started_at"] = *startedAt
@@ -293,6 +294,9 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID, status string, sta
 	}
 	if errorMessage != nil {
 		updates["error_message"] = *errorMessage
+	}
+	if sessionID != nil {
+		updates["session_id"] = *sessionID
 	}
 	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", taskID).Updates(updates).Error
 }

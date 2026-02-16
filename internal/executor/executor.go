@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"buildmax/internal/store"
+
+	"github.com/google/uuid"
 )
 
 const defaultPollInterval = 5 * time.Second
@@ -18,7 +20,7 @@ const defaultPollInterval = 5 * time.Second
 // TaskStore is the subset of store.TaskStore that the executor needs.
 type TaskStore interface {
 	GetNextPendingTask(ctx context.Context) (*store.Task, error)
-	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error
+	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 }
 
 // Runner polls for pending tasks and executes them one at a time.
@@ -81,11 +83,12 @@ func (r *Runner) loop() {
 
 // executeTask runs the buildmax CLI for a single task and updates the DB with the result.
 func (r *Runner) executeTask(ctx context.Context, task store.Task) {
-	slog.Info("executor: running task", "task_id", task.TaskID, "workspace_id", task.WorkspaceID)
+	sessionID := uuid.New().String()
+	slog.Info("executor: running task", "task_id", task.TaskID, "workspace_id", task.WorkspaceID, "session_id", sessionID)
 
-	// Mark task as RUNNING.
+	// Mark task as RUNNING and persist the generated session id.
 	now := time.Now().Unix()
-	if err := r.store.UpdateTaskStatus(ctx, task.TaskID, "RUNNING", &now, nil, nil, nil); err != nil {
+	if err := r.store.UpdateTaskStatus(ctx, task.TaskID, "RUNNING", &now, nil, nil, nil, &sessionID); err != nil {
 		slog.Error("executor: failed to mark task RUNNING", "task_id", task.TaskID, "err", err)
 		return
 	}
@@ -97,8 +100,8 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 		return
 	}
 
-	// Spawn buildmax -p "<input>".
-	cmd := exec.CommandContext(ctx, "buildmax", "-p", task.Input)
+	// Spawn buildmax -p "<input>" --session-id <uuid>.
+	cmd := exec.CommandContext(ctx, "buildmax", "-p", task.Input, "--session-id", sessionID)
 	cmd.Dir = wsDir
 
 	output, err := cmd.CombinedOutput()
@@ -114,14 +117,14 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
 		slog.Warn("executor: task failed", "task_id", task.TaskID, "err", err)
-		if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg); updateErr != nil {
+		if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil); updateErr != nil {
 			slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 		}
 		return
 	}
 
 	slog.Info("executor: task succeeded", "task_id", task.TaskID)
-	if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil); updateErr != nil {
+	if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil); updateErr != nil {
 		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 	}
 }
@@ -130,7 +133,7 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 func (r *Runner) failTask(ctx context.Context, taskID, errMsg string) {
 	slog.Warn("executor: task failed", "task_id", taskID, "err", errMsg)
 	endTime := time.Now().Unix()
-	if err := r.store.UpdateTaskStatus(ctx, taskID, "FAILED", nil, &endTime, nil, &errMsg); err != nil {
+	if err := r.store.UpdateTaskStatus(ctx, taskID, "FAILED", nil, &endTime, nil, &errMsg, nil); err != nil {
 		slog.Error("executor: failed to update task status", "task_id", taskID, "err", err)
 	}
 }

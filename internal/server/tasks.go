@@ -12,6 +12,7 @@ type TaskResponse struct {
 	ID           string  `json:"id"`
 	WorkspaceID  string  `json:"workspace_id"`
 	ProjectID    *string `json:"project_id,omitempty"`
+	SessionID    *string `json:"session_id,omitempty"`
 	Status       string  `json:"status"`
 	Input        string  `json:"input"`
 	Output       *string `json:"output,omitempty"`
@@ -33,6 +34,7 @@ func taskToResponse(t store.Task) TaskResponse {
 		ID:           t.TaskID,
 		WorkspaceID:  t.WorkspaceID,
 		ProjectID:    t.ProjectID,
+		SessionID:    t.SessionID,
 		Status:       t.Status,
 		Input:        t.Input,
 		Output:       t.Output,

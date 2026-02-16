@@ -170,7 +170,7 @@ func (m *mockTaskStore) GetNextPendingTask(_ context.Context) (*store.Task, erro
 	return nil, nil
 }
 
-func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error {
+func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
 	for i := range m.list {
 		if m.list[i].TaskID == taskID {
 			m.list[i].Status = status
@@ -185,6 +185,9 @@ func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status strin
 			}
 			if errorMessage != nil {
 				m.list[i].ErrorMessage = errorMessage
+			}
+			if sessionID != nil {
+				m.list[i].SessionID = sessionID
 			}
 			return nil
 		}
