@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -151,8 +152,9 @@ func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, 
 
 // setupAgentAndSession loads config, builds tools and agent types, creates the agent,
 // ensures the sessions directory exists, and loads or creates the session.
+// sessionID: when non-empty, load from disk or create with this ID if not found; when empty, create a new session with a random ID.
 // modelSelector selects a model from settings by id or name when non-empty; empty means default (first model or env fallback).
-func setupAgentAndSession(resumeID string, modelSelector string) (setupResult, error) {
+func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, error) {
 	cfg, modelName, err := config.EffectiveLLMWithSelector("", modelSelector)
 	if err != nil {
 		return setupResult{}, err
@@ -195,13 +197,19 @@ func setupAgentAndSession(resumeID string, modelSelector string) (setupResult, e
 	}
 
 	var sess *session.Session
-	if resumeID != "" {
-		sess, err = session.LoadFromDir(sessionsDir, resumeID)
+	if sessionID != "" {
+		sess, err = session.LoadFromDir(sessionsDir, sessionID)
 		if err != nil {
-			slog.Error("load session failed", "err", err)
-			return setupResult{}, fmt.Errorf("load session: %w", err)
+			if errors.Is(err, session.ErrSessionNotFound) {
+				sess = session.NewSessionFromData(sessionID, "", time.Now(), nil)
+				slog.Info("created session with id", "id", sess.ID())
+			} else {
+				slog.Error("load session failed", "err", err)
+				return setupResult{}, fmt.Errorf("load session: %w", err)
+			}
+		} else {
+			slog.Info("resumed session", "id", sess.ID())
 		}
-		slog.Info("resumed session", "id", sess.ID())
 	} else {
 		sess = session.NewSession("")
 	}

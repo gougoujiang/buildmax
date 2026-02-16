@@ -4,6 +4,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// ErrSessionNotFound is returned by LoadFromDir when the session file does not exist.
+// Callers can use errors.Is(err, ErrSessionNotFound) to detect "load or create" cases.
+var ErrSessionNotFound = errors.New("session not found")
 
 // ctxKey is the type for context keys in this package (private to avoid collisions).
 type ctxKey struct{}
@@ -141,7 +146,7 @@ func LoadFromDir(dir string, sessionID string) (*Session, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("session not found: %s", sessionID)
+			return nil, fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
 		}
 		return nil, err
 	}

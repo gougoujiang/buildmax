@@ -2,13 +2,15 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"buildmax/internal/llm"
+
+	"github.com/google/uuid"
 )
 
 func TestNewSession(t *testing.T) {
@@ -167,8 +169,8 @@ func TestLoadFromDir_MissingFileReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("LoadFromDir: want error for missing file")
 	}
-	if err.Error() != "session not found: nonexistent-id" {
-		t.Errorf("error = %q", err.Error())
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Errorf("error should wrap ErrSessionNotFound: %v", err)
 	}
 }
 

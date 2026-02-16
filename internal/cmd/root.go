@@ -9,6 +9,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/session"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,7 @@ Sessions:
   Each run with -p saves the session under the app data directory (see BUILDMAX_HOME or ~/.buildmax).
   Use -r/--resume <session-id> to continue a previous session (TUI or print mode).
   Use -c/--continue to resume the most recent session (by creation time); -r takes precedence if both are set.
+  Use --session-id <uuid> to use a specific session ID (load if exists, else create); value must be a valid UUID.
 
 Environment (for -p):
   OPENROUTER_API_KEY or BUILDMAX_API_KEY   API key (required for -p)
@@ -46,6 +48,7 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
 	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
 	root.Flags().BoolP("continue", "c", false, "resume the most recent session (by creation time)")
+	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().BoolP("version", "v", false, "print version and exit")
 	root.AddCommand(newVersionCommand())
@@ -62,18 +65,32 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	resumeID, _ := cmd.Flags().GetString("resume")
 	cont, _ := cmd.Flags().GetBool("continue")
 	model, _ := cmd.Flags().GetString("model")
+	sessionID, _ := cmd.Flags().GetString("session-id")
 
-	resumeID, err := resolveResumeID(resumeID, cont)
-	if err != nil {
-		return err
+	if sessionID != "" {
+		if _, err := uuid.Parse(sessionID); err != nil {
+			fmt.Fprintln(os.Stderr, "invalid session-id: not a valid UUID")
+			return fmt.Errorf("invalid session-id: %w", err)
+		}
+	}
+
+	var effectiveSessionID string
+	if sessionID != "" {
+		effectiveSessionID = sessionID
+	} else {
+		var err error
+		effectiveSessionID, err = resolveResumeID(resumeID, cont)
+		if err != nil {
+			return err
+		}
 	}
 
 	if prompt != "" {
 		slog.Info("running print mode")
-		return runPrintMode(prompt, resumeID, model)
+		return runPrintMode(prompt, effectiveSessionID, model)
 	}
 	slog.Info("starting TUI")
-	return runTUI(resumeID, model)
+	return runTUI(effectiveSessionID, model)
 }
 
 // resolveResumeID resolves the --continue flag: if cont is true and resumeID
