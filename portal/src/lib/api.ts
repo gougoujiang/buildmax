@@ -5,6 +5,15 @@ import type { ExploreNode, Project, Task } from "./types"
  */
 const defaultApiBase = "http://localhost:5678"
 
+/** Event dispatched when any API call returns 401. Listeners should clear auth and show login. */
+export const UNAUTHORIZED_EVENT = "buildmax:unauthorized"
+
+function checkUnauthorized(res: Response): void {
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
+  }
+}
+
 export function getApiBase(): string {
   const base = import.meta.env.VITE_API_BASE
   return typeof base === "string" && base !== "" ? base : defaultApiBase
@@ -53,6 +62,7 @@ export async function getWorkspaces(token: string): Promise<ApiWorkspace[]> {
   const res = await fetch(`${getApiBase()}/api/workspaces`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -79,6 +89,7 @@ export async function createWorkspace(
     },
     body: JSON.stringify(body),
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -106,6 +117,7 @@ export async function getProjects(workspaceId: string, token: string): Promise<A
   const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/projects`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -133,6 +145,7 @@ export async function createProject(
     },
     body: JSON.stringify(body),
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -174,6 +187,7 @@ export async function getTasks(
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -201,6 +215,7 @@ export async function createTask(
     },
     body: JSON.stringify(body),
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -243,6 +258,7 @@ export async function uploadFiles(
       body: formData,
     }
   )
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -265,6 +281,7 @@ export async function getFileTree(
   const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/files`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string
@@ -292,6 +309,7 @@ export async function getFileContent(
       headers: { Authorization: `Bearer ${token}` },
     }
   )
+  checkUnauthorized(res)
   if (!res.ok) {
     const text = await res.text()
     let msg: string

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react"
 import type { LoginUser } from "../lib/api"
+import { UNAUTHORIZED_EVENT } from "../lib/api"
 
 const TOKEN_KEY = "buildmax_token"
 const USER_KEY = "buildmax_user"
@@ -54,6 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = loadStored()
     setState(stored)
   }, [])
+
+  useEffect(() => {
+    function onUnauthorized() {
+      logout()
+    }
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+  }, [logout])
 
   const value: AuthContextValue = {
     ...state,
