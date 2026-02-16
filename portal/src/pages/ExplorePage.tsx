@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import type { ExploreNode } from "../lib/types"
 import {
   MOCK_EXPLORE_TREE,
   getExploreChildren,
   getExploreNodeById,
 } from "../data/mockExplore"
+import { uploadFiles } from "../lib/api"
+import { useAuth } from "../contexts/AuthContext"
 
 interface ExplorePageProps {
   workspaceId: string
@@ -75,10 +77,14 @@ function TreePanel({
   )
 }
 
-export function ExplorePage({ workspaceId: _workspaceId }: ExplorePageProps) {
+export function ExplorePage({ workspaceId }: ExplorePageProps) {
+  const { token } = useAuth()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(["root"]))
   const [selectedFolderId, setSelectedFolderId] = useState("root")
   const [selectedFile, setSelectedFile] = useState<ExploreNode | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState<{ text: string; isError: boolean } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleToggle = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -88,6 +94,36 @@ export function ExplorePage({ workspaceId: _workspaceId }: ExplorePageProps) {
       return next
     })
   }, [])
+
+  const handleUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files
+      if (!selected || selected.length === 0) return
+      if (selected.length > 10) {
+        setUploadMsg({ text: "Too many files (max 10)", isError: true })
+        if (fileInputRef.current) fileInputRef.current.value = ""
+        return
+      }
+      if (!token) {
+        setUploadMsg({ text: "Not authenticated", isError: true })
+        return
+      }
+      setUploading(true)
+      setUploadMsg(null)
+      try {
+        const files = Array.from(selected)
+        const res = await uploadFiles(workspaceId, files, token)
+        setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Upload failed"
+        setUploadMsg({ text: msg, isError: true })
+      } finally {
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ""
+      }
+    },
+    [workspaceId, token]
+  )
 
   const root = MOCK_EXPLORE_TREE
   const children = getExploreChildren(root, selectedFolderId)
@@ -103,6 +139,34 @@ export function ExplorePage({ workspaceId: _workspaceId }: ExplorePageProps) {
       <p className="page-explore__subtitle">
         Browse workspace structure. Select a folder in the tree, then open a file to view its content.
       </p>
+
+      <div className="page-explore__upload-bar">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="page-explore__file-input"
+          onChange={handleUpload}
+        />
+        <button
+          type="button"
+          className="page-explore__upload-btn"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {uploading ? "Uploading…" : "Upload Files"}
+        </button>
+        {uploadMsg && (
+          <span
+            className={
+              "page-explore__upload-msg" +
+              (uploadMsg.isError ? " page-explore__upload-msg--error" : "")
+            }
+          >
+            {uploadMsg.text}
+          </span>
+        )}
+      </div>
 
       <div className="page-explore__panels">
         <aside className="page-explore__tree-panel" aria-label="Directory tree">

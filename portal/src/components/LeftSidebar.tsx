@@ -9,9 +9,9 @@ interface LeftSidebarProps {
 type SidebarNavName = "workspace" | "activity" | "explore"
 
 const SIDEBAR_NAV: { label: string; name: SidebarNavName }[] = [
+  { label: "Explore", name: "explore" },
   { label: "Projects", name: "workspace" },
   { label: "Activity", name: "activity" },
-  { label: "Explore", name: "explore" },
 ]
 
 function isNavActive(route: Route, targetName: SidebarNavName): boolean {

@@ -189,6 +189,42 @@ export async function createTask(
   return res.json() as Promise<ApiTask>
 }
 
+/** Upload response from POST /api/workspaces/{id}/upload. */
+export interface UploadResponse {
+  uploaded: string[]
+}
+
+export async function uploadFiles(
+  workspaceId: string,
+  files: File[],
+  token: string
+): Promise<UploadResponse> {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append("files", file)
+  }
+  const res = await fetch(
+    `${getApiBase()}/api/workspaces/${workspaceId}/upload`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<UploadResponse>
+}
+
 function taskStatusToUI(status: string): Task["status"] {
   switch (status) {
     case "SUCCEEDED":
