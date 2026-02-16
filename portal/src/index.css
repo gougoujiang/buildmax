@@ -1049,6 +1049,88 @@ body {
   color: #666;
 }
 
+.page-task__markdown {
+  color: #333;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.page-task__markdown h1,
+.page-task__markdown h2,
+.page-task__markdown h3 {
+  margin: 1rem 0 0.5rem;
+  color: #222;
+}
+
+.page-task__markdown h1 { font-size: 1.25rem; }
+.page-task__markdown h2 { font-size: 1.1rem; }
+.page-task__markdown h3 { font-size: 1rem; }
+
+.page-task__markdown p {
+  margin: 0.5rem 0;
+}
+
+.page-task__markdown ul,
+.page-task__markdown ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.page-task__markdown code {
+  background: #f4f4f5;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.88rem;
+}
+
+.page-task__markdown pre {
+  background: #f4f4f5;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.page-task__markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.page-task__markdown blockquote {
+  margin: 0.75rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid #ddd;
+  color: #666;
+}
+
+.page-task__markdown table {
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.page-task__markdown th,
+.page-task__markdown td {
+  border: 1px solid #ddd;
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.page-task__markdown th {
+  background: #f8f8f8;
+  font-weight: 600;
+}
+
+.page-task__markdown a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.page-task__markdown a:hover {
+  text-decoration: underline;
+}
+
 /* === Page: Artifact Viewer === */
 
 .page-artifact__header {

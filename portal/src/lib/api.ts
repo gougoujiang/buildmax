@@ -315,6 +315,7 @@ function taskStatusToUI(status: string): Task["status"] {
     case "CANCELED":
       return "canceled"
     case "PENDING":
+      return "pending"
     case "RUNNING":
     default:
       return "running"

@@ -160,3 +160,34 @@ func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projec
 		CreatedAt:   12345,
 	}, nil
 }
+
+func (m *mockTaskStore) GetNextPendingTask(_ context.Context) (*store.Task, error) {
+	for i := range m.list {
+		if m.list[i].Status == "PENDING" {
+			return &m.list[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error {
+	for i := range m.list {
+		if m.list[i].TaskID == taskID {
+			m.list[i].Status = status
+			if startedAt != nil {
+				m.list[i].StartedAt = startedAt
+			}
+			if endedAt != nil {
+				m.list[i].EndedAt = endedAt
+			}
+			if output != nil {
+				m.list[i].Output = output
+			}
+			if errorMessage != nil {
+				m.list[i].ErrorMessage = errorMessage
+			}
+			return nil
+		}
+	}
+	return nil
+}

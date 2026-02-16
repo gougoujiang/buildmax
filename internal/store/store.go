@@ -114,6 +114,11 @@ type TaskStore interface {
 	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
 	// CreateTask inserts a new task with status PENDING. projectID is optional (nil = no project).
 	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
+	// GetNextPendingTask returns the oldest task with status PENDING (by created_at), or (nil, nil) if none.
+	GetNextPendingTask(ctx context.Context) (*Task, error)
+	// UpdateTaskStatus updates a task's status and optional fields (started_at, ended_at, output, error_message).
+	// Only non-nil pointer fields are updated.
+	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error
 }
 
 // Store implements UserStore, WorkspaceStore, ProjectStore, and TaskStore with a MySQL backend.
@@ -258,6 +263,38 @@ func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *s
 		return nil, err
 	}
 	return t, nil
+}
+
+// GetNextPendingTask returns the oldest task with status PENDING (by created_at), or (nil, nil) if none.
+func (s *Store) GetNextPendingTask(ctx context.Context) (*Task, error) {
+	var t Task
+	err := s.db.WithContext(ctx).Where("status = ?", "PENDING").Order("created_at ASC").First(&t).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+// UpdateTaskStatus updates a task's status and optional fields.
+// Only non-nil pointer fields are written; status is always set.
+func (s *Store) UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage *string) error {
+	updates := map[string]interface{}{"status": status}
+	if startedAt != nil {
+		updates["started_at"] = *startedAt
+	}
+	if endedAt != nil {
+		updates["ended_at"] = *endedAt
+	}
+	if output != nil {
+		updates["output"] = *output
+	}
+	if errorMessage != nil {
+		updates["error_message"] = *errorMessage
+	}
+	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", taskID).Updates(updates).Error
 }
 
 // BackfillTaskWorkspaceID fills workspace_id for existing tasks that have a project_id

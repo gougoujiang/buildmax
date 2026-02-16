@@ -23,6 +23,8 @@ function statusIcon(status: Task["status"]): string {
       return "\u274c"
     case "canceled":
       return "\u26d4"
+    case "pending":
+      return "\ud83d\udd50"
   }
 }
 
@@ -106,12 +108,12 @@ export function ProjectDashboard({
         </section>
       )}
 
-      {/* Activity (tasks) */}
+      {/* Activity (tasks) — newest first */}
       {tasks.length > 0 && (
         <section className="page-project__activity">
           <h2 className="page-project__section-heading">Activity</h2>
           <ul className="page-project__task-list">
-            {tasks.map((t) => (
+            {[...tasks].reverse().map((t) => (
               <li key={t.id} className="page-project__task-card">
                 <button
                   type="button"

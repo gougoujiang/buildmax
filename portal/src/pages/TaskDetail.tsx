@@ -1,3 +1,4 @@
+import Markdown from "react-markdown"
 import type { Task } from "../lib/types"
 
 interface TaskDetailProps {
@@ -19,10 +20,12 @@ export function TaskDetail({ task }: TaskDetailProps) {
         </button>
       </header>
 
-      {/* Result */}
+      {/* Result — rendered as markdown */}
       <section className="page-task__section">
         <h2 className="page-task__section-heading">Result</h2>
-        <p className="page-task__text">{task.summary}</p>
+        <div className="page-task__markdown">
+          <Markdown>{task.summary}</Markdown>
+        </div>
       </section>
 
       {/* What changed — not yet available from backend */}
