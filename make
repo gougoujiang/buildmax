@@ -6,13 +6,7 @@ cd "$SCRIPT_DIR"
 
 BINARY="buildmax"
 
-# Load .env into environment for all commands (Docker Compose, smoke, etc.)
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck source=./.env
-  source .env
-  set +a
-fi
+source ./loadenv
 
 usage() {
   echo "Usage: ./make <command>"
