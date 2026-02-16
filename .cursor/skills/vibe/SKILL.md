@@ -187,7 +187,7 @@ Moves one task from the **TODO** section to the **Finished** section in `.vibe/0
    - **Finished**: Append one row with link format: `| NNN | [Title](NNN.md) |`.
    - **TODO**: Remove that row. If no rows remain, replace the table with the placeholder: `*(Planned tasks will be added here.)*`
 5. **Write** — Save the updated `.vibe/000-TOC.md`.
-6. **Auto-archive check** — After the task is moved to Finished, count task files in `.vibe/` (files matching exactly three digits + `.md`, excluding `000-TOC.md` and `*-design.md`). If there are **more than 5**, run the full `/vibe archive` workflow (see the archive section below) automatically. Report what was archived in the chat summary.
+6. **Auto-archive check** — After the task is moved to Finished, count task files in `.vibe/` (files matching exactly three digits + `.md`, excluding `000-TOC.md` and `*-design.md`). If there are **more than 10**, run the full `/vibe archive` workflow (see the archive section below) automatically. Report what was archived in the chat summary.
 
 ### TOC structure
 
