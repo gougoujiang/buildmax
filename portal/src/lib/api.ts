@@ -1,4 +1,4 @@
-import type { Project, Task } from "./types"
+import type { ExploreNode, Project, Task } from "./types"
 
 /**
  * API base URL and login. VITE_API_BASE defaults to http://localhost:5678.
@@ -223,6 +223,55 @@ export async function uploadFiles(
     throw new Error(msg)
   }
   return res.json() as Promise<UploadResponse>
+}
+
+/** Fetch the full directory tree for a workspace. */
+export async function getFileTree(
+  workspaceId: string,
+  token: string,
+): Promise<ExploreNode> {
+  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/files`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<ExploreNode>
+}
+
+/** Fetch file content as plain text. */
+export async function getFileContent(
+  workspaceId: string,
+  filePath: string,
+  token: string,
+): Promise<string> {
+  const encodedPath = filePath.split("/").map(encodeURIComponent).join("/")
+  const res = await fetch(
+    `${getApiBase()}/api/workspaces/${workspaceId}/files/${encodedPath}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? text
+    } catch {
+      msg = text || res.statusText
+    }
+    throw new Error(msg)
+  }
+  return res.text()
 }
 
 function taskStatusToUI(status: string): Task["status"] {

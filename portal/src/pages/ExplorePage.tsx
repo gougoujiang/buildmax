@@ -1,11 +1,6 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import type { ExploreNode } from "../lib/types"
-import {
-  MOCK_EXPLORE_TREE,
-  getExploreChildren,
-  getExploreNodeById,
-} from "../data/mockExplore"
-import { uploadFiles } from "../lib/api"
+import { uploadFiles, getFileTree, getFileContent } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 
 interface ExplorePageProps {
@@ -14,6 +9,25 @@ interface ExplorePageProps {
 
 function isFolder(node: ExploreNode): node is ExploreNode & { type: "folder" } {
   return node.type === "folder"
+}
+
+function findNodeById(node: ExploreNode, id: string): ExploreNode | undefined {
+  if (node.id === id) return node
+  if (node.type === "folder") {
+    for (const child of node.children) {
+      const found = findNodeById(child, id)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+function getChildren(root: ExploreNode, folderId: string): ExploreNode[] {
+  if (folderId === "" || folderId === ".") {
+    return root.type === "folder" ? root.children : []
+  }
+  const node = findNodeById(root, folderId)
+  return node?.type === "folder" ? node.children : []
 }
 
 /** Single folder row in the tree; children rendered in a nested <ul> */
@@ -79,12 +93,36 @@ function TreePanel({
 
 export function ExplorePage({ workspaceId }: ExplorePageProps) {
   const { token } = useAuth()
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(["root"]))
-  const [selectedFolderId, setSelectedFolderId] = useState("root")
-  const [selectedFile, setSelectedFile] = useState<ExploreNode | null>(null)
+  const [tree, setTree] = useState<ExploreNode | null>(null)
+  const [treeLoading, setTreeLoading] = useState(true)
+  const [treeError, setTreeError] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(["."]))
+  const [selectedFolderId, setSelectedFolderId] = useState(".")
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
+  const [fileContent, setFileContent] = useState<string | null>(null)
+  const [fileLoading, setFileLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ text: string; isError: boolean } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const fetchTree = useCallback(async () => {
+    if (!token) return
+    setTreeLoading(true)
+    setTreeError(null)
+    try {
+      const data = await getFileTree(workspaceId, token)
+      setTree(data)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load files"
+      setTreeError(msg)
+    } finally {
+      setTreeLoading(false)
+    }
+  }, [workspaceId, token])
+
+  useEffect(() => {
+    fetchTree()
+  }, [fetchTree])
 
   const handleToggle = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -94,6 +132,25 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
       return next
     })
   }, [])
+
+  const handleFileSelect = useCallback(
+    async (node: ExploreNode) => {
+      if (node.type !== "file" || !token) return
+      setSelectedFileId(node.id)
+      setFileContent(null)
+      setFileLoading(true)
+      try {
+        const content = await getFileContent(workspaceId, node.id, token)
+        setFileContent(content)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load file"
+        setFileContent(`Error: ${msg}`)
+      } finally {
+        setFileLoading(false)
+      }
+    },
+    [workspaceId, token]
+  )
 
   const handleUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,6 +171,7 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
         const files = Array.from(selected)
         const res = await uploadFiles(workspaceId, files, token)
         setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
+        await fetchTree()
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload failed"
         setUploadMsg({ text: msg, isError: true })
@@ -122,16 +180,19 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
         if (fileInputRef.current) fileInputRef.current.value = ""
       }
     },
-    [workspaceId, token]
+    [workspaceId, token, fetchTree]
   )
 
-  const root = MOCK_EXPLORE_TREE
-  const children = getExploreChildren(root, selectedFolderId)
-  const selectedFolderNode = getExploreNodeById(root, selectedFolderId)
+  const children = tree ? getChildren(tree, selectedFolderId) : []
+  const selectedFolderNode = tree ? findNodeById(tree, selectedFolderId) : undefined
   const folderName =
-    selectedFolderId === "root"
+    selectedFolderId === "."
       ? "Workspace"
       : selectedFolderNode?.name ?? "—"
+
+  const selectedFileName = tree && selectedFileId
+    ? findNodeById(tree, selectedFileId)?.name ?? null
+    : null
 
   return (
     <div className="page-explore">
@@ -171,10 +232,12 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
       <div className="page-explore__panels">
         <aside className="page-explore__tree-panel" aria-label="Directory tree">
           <div className="explore-tree">
-            {root.type === "folder" && (
+            {treeLoading && <p className="explore-tree__loading">Loading…</p>}
+            {treeError && <p className="explore-tree__error">{treeError}</p>}
+            {tree && tree.type === "folder" && (
               <ul className="explore-tree__list" role="tree" aria-label="Folder tree">
                 <TreePanel
-                  node={root}
+                  node={tree}
                   depth={0}
                   expandedIds={expandedIds}
                   selectedFolderId={selectedFolderId}
@@ -204,7 +267,8 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
                         onClick={() => {
                           setSelectedFolderId(node.id)
                           setExpandedIds((prev) => new Set(prev).add(node.id))
-                          setSelectedFile(null)
+                          setSelectedFileId(null)
+                          setFileContent(null)
                         }}
                       >
                         <span className="page-explore__icon page-explore__icon--folder" aria-hidden>📁</span>
@@ -213,8 +277,8 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
                     ) : (
                       <button
                         type="button"
-                        className={`page-explore__link ${selectedFile?.id === node.id ? "page-explore__link--selected" : ""}`}
-                        onClick={() => setSelectedFile(node)}
+                        className={`page-explore__link ${selectedFileId === node.id ? "page-explore__link--selected" : ""}`}
+                        onClick={() => handleFileSelect(node)}
                       >
                         <span className="page-explore__icon page-explore__icon--file" aria-hidden>📄</span>
                         <span className="page-explore__artifact-title">{node.name}</span>
@@ -226,10 +290,14 @@ export function ExplorePage({ workspaceId }: ExplorePageProps) {
             </ul>
           </div>
 
-          {selectedFile && selectedFile.type === "file" && (
+          {selectedFileId && (
             <section className="page-explore__viewer" aria-label="File content">
-              <h3 className="page-explore__viewer-title">{selectedFile.name}</h3>
-              <pre className="page-explore__viewer-content">{selectedFile.content}</pre>
+              <h3 className="page-explore__viewer-title">{selectedFileName ?? selectedFileId}</h3>
+              {fileLoading ? (
+                <p className="page-explore__viewer-loading">Loading…</p>
+              ) : (
+                <pre className="page-explore__viewer-content">{fileContent ?? ""}</pre>
+              )}
             </section>
           )}
         </div>

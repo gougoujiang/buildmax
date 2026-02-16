@@ -51,4 +51,4 @@ export interface ActivityItem {
 
 export type ExploreNode =
   | { id: string; name: string; type: "folder"; children: ExploreNode[] }
-  | { id: string; name: string; type: "file"; content: string }
+  | { id: string; name: string; type: "file"; content?: string }
