@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"buildmax/internal/config"
-	"buildmax/internal/store"
+	"buildmax/internal/model"
 )
 
 // ArtifactResponse is one artifact in the list response (snake_case).
@@ -21,7 +20,7 @@ type ArtifactResponse struct {
 	TaskInputSnippet string  `json:"task_input_snippet"`
 }
 
-func artifactWithTaskToResponse(a store.ArtifactWithTask) ArtifactResponse {
+func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
 	return ArtifactResponse{
 		ArtifactID:       a.ArtifactID,
 		TaskID:           a.TaskID,
@@ -155,7 +154,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	artifactDir := config.ArtifactDir(workspaceID, task.TaskID, artifactID)
+	artifactDir := s.artifactDir(workspaceID, task.TaskID, artifactID)
 	pathParam := r.URL.Query().Get("path")
 	if pathParam == "" {
 		pathParam = artifactResultFilename

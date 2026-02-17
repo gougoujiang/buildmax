@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"buildmax/internal/store"
+	"buildmax/internal/model"
 )
 
 // ProjectResponse is one project in the list/create response (snake_case).
@@ -75,7 +75,7 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, projectToResponse(*project))
 }
 
-func projectToResponse(p store.Project) ProjectResponse {
+func projectToResponse(p model.Project) ProjectResponse {
 	return ProjectResponse{
 		ID:          p.ProjectID,
 		WorkspaceID: p.WorkspaceID,

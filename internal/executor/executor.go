@@ -3,6 +3,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,7 +12,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"buildmax/internal/config"
 	"buildmax/internal/util"
 	"buildmax/internal/store"
 
@@ -20,30 +20,35 @@ import (
 
 const defaultPollInterval = 5 * time.Second
 
-// TaskStore is the subset of store.TaskStore that the executor needs (including artifact creation).
-type TaskStore interface {
-	GetNextPendingTask(ctx context.Context) (*store.Task, error)
-	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
-	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
-	CreateArtifactWithItem(ctx context.Context, taskID, artifactID string, seq int, relativePath string) error
-}
-
 // Runner polls for pending tasks and executes them one at a time.
 type Runner struct {
-	store        TaskStore
+	tasks        store.TaskStore
+	artifacts    store.ArtifactStore
+	paths        WorkspacePaths
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 }
 
 // New creates a Runner. Call Start() to begin polling.
-func New(store TaskStore) *Runner {
+func New(taskStore store.TaskStore, artifactStore store.ArtifactStore, paths WorkspacePaths) (*Runner, error) {
+	if taskStore == nil {
+		return nil, errors.New("executor: taskStore must not be nil")
+	}
+	if artifactStore == nil {
+		return nil, errors.New("executor: artifactStore must not be nil")
+	}
+	if paths == nil {
+		return nil, errors.New("executor: paths must not be nil")
+	}
 	return &Runner{
-		store:        store,
+		tasks:        taskStore,
+		artifacts:    artifactStore,
+		paths:        paths,
 		pollInterval: defaultPollInterval,
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
-	}
+	}, nil
 }
 
 // Start launches the poll loop in a background goroutine.
@@ -71,7 +76,7 @@ func (r *Runner) loop() {
 			return
 		case <-ticker.C:
 			ctx := context.Background()
-			task, err := r.store.GetNextPendingTask(ctx)
+			task, err := r.tasks.GetNextPendingTask(ctx)
 			if err != nil {
 				slog.Warn("executor: poll failed", "err", err)
 				continue
@@ -91,13 +96,13 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 
 	// Mark task as RUNNING and persist the generated session id.
 	now := time.Now().Unix()
-	if err := r.store.UpdateTaskStatus(ctx, task.TaskID, "RUNNING", &now, nil, nil, nil, &sessionID); err != nil {
+	if err := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "RUNNING", &now, nil, nil, nil, &sessionID); err != nil {
 		slog.Error("executor: failed to mark task RUNNING", "task_id", task.TaskID, "err", err)
 		return
 	}
 
-	persistDir := config.PersistentWorkspaceDir(task.WorkspaceID)
-	runtimeDir := config.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
+	persistDir := r.paths.PersistentWorkspaceDir(task.WorkspaceID)
+	runtimeDir := r.paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
 
 	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
 		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create runtime dir: %v", err))
@@ -124,19 +129,19 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
 		slog.Warn("executor: task failed", "task_id", task.TaskID, "err", err)
-		if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil); updateErr != nil {
+		if updateErr := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil); updateErr != nil {
 			slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 		}
 		return
 	}
 
 	// Artifact creation (best-effort): increment seq, write result to artifact dir, insert artifact + item and set last_artifact_id.
-	newSeq, seqErr := r.store.IncrementTaskSeq(ctx, task.TaskID)
+	newSeq, seqErr := r.tasks.IncrementTaskSeq(ctx, task.TaskID)
 	if seqErr != nil {
 		slog.Warn("executor: IncrementTaskSeq failed, skipping artifact", "task_id", task.TaskID, "err", seqErr)
 	} else {
 		artifactID := util.NewID()
-		artifactDir := config.ArtifactDir(task.WorkspaceID, task.TaskID, artifactID)
+		artifactDir := r.paths.ArtifactDir(task.WorkspaceID, task.TaskID, artifactID)
 		if mkdirErr := os.MkdirAll(artifactDir, 0755); mkdirErr != nil {
 			slog.Warn("executor: failed to create artifact dir, skipping artifact", "task_id", task.TaskID, "err", mkdirErr)
 		} else {
@@ -144,14 +149,14 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 			resultDst := filepath.Join(artifactDir, "result.md")
 			if copyErr := copyFile(resultSrc, resultDst); copyErr != nil {
 				slog.Warn("executor: failed to copy result to artifact dir, skipping DB insert", "task_id", task.TaskID, "err", copyErr)
-			} else if createErr := r.store.CreateArtifactWithItem(ctx, task.TaskID, artifactID, newSeq, resultFilename); createErr != nil {
+			} else if createErr := r.artifacts.CreateArtifactWithItem(ctx, task.TaskID, artifactID, newSeq, resultFilename); createErr != nil {
 				slog.Warn("executor: CreateArtifactWithItem failed", "task_id", task.TaskID, "err", createErr)
 			}
 		}
 	}
 
 	slog.Info("executor: task succeeded", "task_id", task.TaskID)
-	if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil); updateErr != nil {
+	if updateErr := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil); updateErr != nil {
 		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 	}
 }
@@ -219,7 +224,7 @@ func copyFile(src, dst string) error {
 func (r *Runner) failTask(ctx context.Context, taskID, errMsg string) {
 	slog.Warn("executor: task failed", "task_id", taskID, "err", errMsg)
 	endTime := time.Now().Unix()
-	if err := r.store.UpdateTaskStatus(ctx, taskID, "FAILED", nil, &endTime, nil, &errMsg, nil); err != nil {
+	if err := r.tasks.UpdateTaskStatus(ctx, taskID, "FAILED", nil, &endTime, nil, &errMsg, nil); err != nil {
 		slog.Error("executor: failed to update task status", "task_id", taskID, "err", err)
 	}
 }

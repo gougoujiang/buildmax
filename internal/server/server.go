@@ -28,6 +28,7 @@ type Config struct {
 	TaskStore      store.TaskStore       // Optional; required for task list/create
 	ArtifactStore  store.ArtifactStore   // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
 	SessionsDir    string                // Optional; BUILDMAX_HOME/sessions for GET /api/sessions/{id}
+	WorkspacesDir  string                // Optional; overrides config.WorkspacesDir() for workspace file operations
 	JWTSecret      string                // Required for login when UserStore is set
 	CORSOrigin     string                // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 }

@@ -1,0 +1,16 @@
+package store
+
+import "buildmax/internal/model"
+
+// Type aliases to shared domain types.
+//
+// This keeps store interfaces stable while allowing other layers to depend on
+// internal/model for the concrete data shapes.
+type User = model.User
+type Workspace = model.Workspace
+type Project = model.Project
+type Task = model.Task
+type Artifact = model.Artifact
+type ArtifactItem = model.ArtifactItem
+type ArtifactWithTask = model.ArtifactWithTask
+

@@ -1,9 +1,13 @@
-package store
-
-import "errors"
+// Package model contains BuildMax domain types shared across layers.
+//
+// Notes:
+// - JSON uses snake_case per project convention.
+// - These types intentionally avoid importing persistence libraries; however, they may
+//   carry struct tags/methods used by the persistence layer (e.g. GORM) as metadata.
+package model
 
 // User is the user model. JSON uses snake_case per project convention.
-// Internal id is for DB only; API and JWT use user_id.
+// Internal DB numeric id is intentionally not exposed; API and JWT use user_id.
 type User struct {
 	ID        uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	UserID    string `gorm:"type:varchar(64);uniqueIndex;not null" json:"user_id"`
@@ -13,27 +17,23 @@ type User struct {
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (User) TableName() string {
-	return "user"
-}
+func (User) TableName() string { return "user" }
 
 // Workspace is the workspace model. JSON uses snake_case per project convention.
-// Internal id is for DB only; API uses workspace_id.
+// Internal DB numeric id is intentionally not exposed; API uses workspace_id.
 type Workspace struct {
-	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	WorkspaceID  string `gorm:"type:varchar(64);uniqueIndex;not null" json:"workspace_id"`
-	OwnerUserID  string `gorm:"type:varchar(64);not null;index" json:"owner_user_id"`
-	Name         string `gorm:"type:varchar(255);not null" json:"name"`
-	CreatedAt    int64  `gorm:"autoCreateTime" json:"created_at"`
+	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	WorkspaceID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"workspace_id"`
+	OwnerUserID string `gorm:"type:varchar(64);not null;index" json:"owner_user_id"`
+	Name        string `gorm:"type:varchar(255);not null" json:"name"`
+	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (Workspace) TableName() string {
-	return "workspace"
-}
+func (Workspace) TableName() string { return "workspace" }
 
 // Project is the project model. JSON uses snake_case per project convention.
-// Internal id is for DB only; API uses project_id.
+// Internal DB numeric id is intentionally not exposed; API uses project_id.
 type Project struct {
 	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	ProjectID   string `gorm:"type:varchar(64);uniqueIndex;not null" json:"project_id"`
@@ -44,35 +44,31 @@ type Project struct {
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (Project) TableName() string {
-	return "project"
-}
+func (Project) TableName() string { return "project" }
 
 // Task is the task model. JSON uses snake_case per project convention.
-// API exposes task_id as "id"; internal ID is for DB only.
+// API exposes task_id as "id"; internal DB numeric id is intentionally not exposed.
 // Tasks belong to a workspace; project is optional.
 type Task struct {
-	ID              uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
-	TaskID          string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"task_id"`
-	WorkspaceID     string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
-	ProjectID       *string `gorm:"type:varchar(64);index" json:"project_id,omitempty"`
-	Status          string  `gorm:"type:varchar(32);not null" json:"status"`
-	Input           string  `gorm:"type:text;not null" json:"input"`
-	Output          *string `gorm:"type:text" json:"output,omitempty"`
-	CreatedBy       string  `gorm:"type:varchar(64);not null" json:"created_by"`
-	CreatedAt       int64   `gorm:"autoCreateTime" json:"created_at"`
-	StartedAt       *int64  `gorm:"" json:"started_at,omitempty"`
-	EndedAt         *int64  `gorm:"" json:"ended_at,omitempty"`
-	ErrorMessage    *string `gorm:"type:text" json:"error_message,omitempty"`
-	SessionID       *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
-	ArtifactSeq     int     `gorm:"column:artifact_seq" json:"artifact_seq"`
-	LastArtifactID  *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
+	ID             uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
+	TaskID         string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"task_id"`
+	WorkspaceID    string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	ProjectID      *string `gorm:"type:varchar(64);index" json:"project_id,omitempty"`
+	Status         string  `gorm:"type:varchar(32);not null" json:"status"`
+	Input          string  `gorm:"type:text;not null" json:"input"`
+	Output         *string `gorm:"type:text" json:"output,omitempty"`
+	CreatedBy      string  `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt      int64   `gorm:"autoCreateTime" json:"created_at"`
+	StartedAt      *int64  `gorm:"" json:"started_at,omitempty"`
+	EndedAt        *int64  `gorm:"" json:"ended_at,omitempty"`
+	ErrorMessage   *string `gorm:"type:text" json:"error_message,omitempty"`
+	SessionID      *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
+	ArtifactSeq    int     `gorm:"column:artifact_seq" json:"artifact_seq"`
+	LastArtifactID *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (Task) TableName() string {
-	return "task"
-}
+func (Task) TableName() string { return "task" }
 
 // Artifact is the artifact model (one per task run output). JSON uses snake_case.
 type Artifact struct {
@@ -84,9 +80,7 @@ type Artifact struct {
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (Artifact) TableName() string {
-	return "artifact"
-}
+func (Artifact) TableName() string { return "artifact" }
 
 // ArtifactItem is one file in an artifact. JSON uses snake_case.
 type ArtifactItem struct {
@@ -96,9 +90,7 @@ type ArtifactItem struct {
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (ArtifactItem) TableName() string {
-	return "artifact_item"
-}
+func (ArtifactItem) TableName() string { return "artifact_item" }
 
 // ArtifactWithTask is a DTO for listing artifacts with task context (not a table). JSON uses snake_case.
 type ArtifactWithTask struct {
@@ -111,5 +103,3 @@ type ArtifactWithTask struct {
 	TaskInputSnippet string  `json:"task_input_snippet"`
 }
 
-// ErrEmailExists is returned by CreateUser when the email is already registered.
-var ErrEmailExists = errors.New("email already exists")

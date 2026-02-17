@@ -17,6 +17,18 @@ import (
 
 const defaultServerPort = 5678
 
+type defaultWorkspacePaths struct{}
+
+func (defaultWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
+	return config.PersistentWorkspaceDir(workspaceID)
+}
+func (defaultWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
+	return config.RuntimeWorkspaceDir(workspaceID, taskID)
+}
+func (defaultWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
+	return config.ArtifactDir(workspaceID, taskID, artifactID)
+}
+
 func newServerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
@@ -58,11 +70,15 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		TaskStore:      st,
 		ArtifactStore:  st,
 		SessionsDir:    config.SessionsDir(),
+		WorkspacesDir:  config.WorkspacesDir(),
 		JWTSecret:      jwtSecret,
 		CORSOrigin:     corsOrigin,
 	}
 	// Start the task executor (polls for PENDING tasks and runs buildmax -p).
-	runner := executor.New(st)
+	runner, err := executor.New(st, st, defaultWorkspacePaths{})
+	if err != nil {
+		return fmt.Errorf("executor: %w", err)
+	}
 	runner.Start()
 	defer runner.Stop()
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"buildmax/internal/store"
+	"buildmax/internal/model"
 )
 
 // TaskResponse is one task in the list/create response (snake_case).
@@ -29,7 +29,7 @@ type createTaskRequest struct {
 	ProjectID string `json:"project_id"`
 }
 
-func taskToResponse(t store.Task) TaskResponse {
+func taskToResponse(t model.Task) TaskResponse {
 	return TaskResponse{
 		ID:           t.TaskID,
 		WorkspaceID:  t.WorkspaceID,
@@ -49,7 +49,7 @@ func taskToResponse(t store.Task) TaskResponse {
 // resolveProjectForWorkspace resolves projectID (optional). If empty, returns (nil, true).
 // If non-empty, validates project exists and belongs to workspace; on success returns (project, true),
 // on failure writes the appropriate error and returns (nil, false).
-func (s *Server) resolveProjectForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, projectID string) (*store.Project, bool) {
+func (s *Server) resolveProjectForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, projectID string) (*model.Project, bool) {
 	if projectID == "" {
 		return nil, true
 	}

@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-
-	"buildmax/internal/config"
 )
 
 // WorkspaceResponse is one workspace in the GET /api/workspaces response (snake_case).
@@ -52,7 +50,7 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 	for i := range list {
 		ids[i] = list[i].WorkspaceID
 	}
-	ensureWorkspaceDirs(config.WorkspacesDir(), ids)
+	ensureWorkspaceDirs(s.workspacesDir(), ids)
 	out := make([]WorkspaceResponse, len(list))
 	for i := range list {
 		out[i] = WorkspaceResponse{
@@ -88,7 +86,7 @@ func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) 
 		writeInternalError(w, err, "handler", "create_workspace")
 		return
 	}
-	destDir := config.PersistentWorkspaceDir(ws.WorkspaceID)
+	destDir := s.persistentWorkspaceDir(ws.WorkspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		writeInternalError(w, err, "handler", "create_workspace", "mkdir", destDir)
 		return

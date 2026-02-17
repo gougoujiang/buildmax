@@ -182,7 +182,13 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 
 	agentTypes := buildAgentTypes(baseTools, toolsByName, cwd)
 
-	taskTool, err := tools.NewTask(client, agentTypes)
+	runner, err := agent.NewDefaultSubAgentRunner(client)
+	if err != nil {
+		slog.Error("create sub-agent runner", "err", err)
+		return setupResult{}, fmt.Errorf("create sub-agent runner: %w", err)
+	}
+
+	taskTool, err := tools.NewTask(runner, agentTypes)
 	if err != nil {
 		slog.Error("create task tool", "err", err)
 		return setupResult{}, fmt.Errorf("create task tool: %w", err)

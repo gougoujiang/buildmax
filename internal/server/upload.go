@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"buildmax/internal/config"
 	"buildmax/internal/util"
 )
 
@@ -53,7 +52,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	destDir := config.PersistentWorkspaceDir(workspaceID)
+	destDir := s.persistentWorkspaceDir(workspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		writeInternalError(w, err, "handler", "upload", "dir", destDir)
 		return

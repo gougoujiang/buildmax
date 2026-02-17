@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"buildmax/internal/config"
 	"buildmax/internal/util"
 )
 
@@ -26,7 +25,7 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	wsDir := config.PersistentWorkspaceDir(workspaceID)
+	wsDir := s.persistentWorkspaceDir(workspaceID)
 	if err := os.MkdirAll(wsDir, 0755); err != nil {
 		writeInternalError(w, err, "handler", "files_tree", "dir", wsDir)
 		return
@@ -54,7 +53,7 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "file path required")
 		return
 	}
-	ws := &util.Workspace{Root: config.PersistentWorkspaceDir(workspaceID)}
+	ws := &util.Workspace{Root: s.persistentWorkspaceDir(workspaceID)}
 	absPath, err := ws.ResolvePath(filePath)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")

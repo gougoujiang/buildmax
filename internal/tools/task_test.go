@@ -55,19 +55,27 @@ func testAgentTypes() map[string]AgentTypeConfig {
 func TestNewTask_NilCaller(t *testing.T) {
 	_, err := NewTask(nil, testAgentTypes())
 	if err == nil {
-		t.Fatal("expected error for nil caller")
+		t.Fatal("expected error for nil runner")
 	}
 }
 
 func TestNewTask_EmptyTypes(t *testing.T) {
-	_, err := NewTask(&mockCaller{content: "ok"}, map[string]AgentTypeConfig{})
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = NewTask(runner, map[string]AgentTypeConfig{})
 	if err == nil {
 		t.Fatal("expected error for empty agentTypes")
 	}
 }
 
 func TestTaskTool_Name(t *testing.T) {
-	tool, err := NewTask(&mockCaller{content: "ok"}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +85,11 @@ func TestTaskTool_Name(t *testing.T) {
 }
 
 func TestTaskTool_Description(t *testing.T) {
-	tool, err := NewTask(&mockCaller{content: "ok"}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +119,11 @@ func TestTaskTool_Description(t *testing.T) {
 }
 
 func TestTaskTool_Parameters(t *testing.T) {
-	tool, err := NewTask(&mockCaller{content: "ok"}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +156,11 @@ func TestTaskTool_Parameters(t *testing.T) {
 }
 
 func TestTaskTool_Execute_UnknownType(t *testing.T) {
-	tool, err := NewTask(&mockCaller{content: "ok"}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +178,11 @@ func TestTaskTool_Execute_UnknownType(t *testing.T) {
 }
 
 func TestTaskTool_Execute_MissingPrompt(t *testing.T) {
-	tool, err := NewTask(&mockCaller{content: "ok"}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +200,11 @@ func TestTaskTool_Execute_MissingPrompt(t *testing.T) {
 }
 
 func TestTaskTool_Execute_MissingDescription(t *testing.T) {
-	tool, err := NewTask(&mockCaller{content: "ok"}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +222,11 @@ func TestTaskTool_Execute_MissingDescription(t *testing.T) {
 
 func TestTaskTool_Execute_BuiltinType(t *testing.T) {
 	expectedReply := "Sub-agent result for general."
-	tool, err := NewTask(&mockCaller{content: expectedReply}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: expectedReply})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +245,11 @@ func TestTaskTool_Execute_BuiltinType(t *testing.T) {
 
 func TestTaskTool_Execute_UserDefinedType(t *testing.T) {
 	expectedReply := "Sub-agent result for custom."
-	tool, err := NewTask(&mockCaller{content: expectedReply}, testAgentTypes())
+	runner, err := agent.NewDefaultSubAgentRunner(&mockCaller{content: expectedReply})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTask(runner, testAgentTypes())
 	if err != nil {
 		t.Fatal(err)
 	}

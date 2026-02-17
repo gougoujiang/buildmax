@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"buildmax/internal/agent"
-	"buildmax/internal/session"
 )
 
 // Built-in sub-agent system prompts.
@@ -80,16 +79,16 @@ type AgentTypeConfig struct {
 // TaskTool is an agent tool that spawns sub-agents to handle complex subtasks.
 // It implements agent.Tool.
 type TaskTool struct {
-	caller     agent.LLMCaller
+	runner    agent.SubAgentRunner
 	agentTypes map[string]AgentTypeConfig
 	typeOrder  []string // deterministic ordering: built-in first, then user-defined alphabetically
 }
 
-// NewTask creates a TaskTool with the given LLM caller and agent type configurations.
-// caller must not be nil; agentTypes must have at least one entry.
-func NewTask(caller agent.LLMCaller, agentTypes map[string]AgentTypeConfig) (*TaskTool, error) {
-	if caller == nil {
-		return nil, errors.New("caller must not be nil")
+// NewTask creates a TaskTool with the given sub-agent runner and agent type configurations.
+// runner must not be nil; agentTypes must have at least one entry.
+func NewTask(runner agent.SubAgentRunner, agentTypes map[string]AgentTypeConfig) (*TaskTool, error) {
+	if runner == nil {
+		return nil, errors.New("runner must not be nil")
 	}
 	if len(agentTypes) == 0 {
 		return nil, errors.New("agentTypes must have at least one entry")
@@ -113,7 +112,7 @@ func NewTask(caller agent.LLMCaller, agentTypes map[string]AgentTypeConfig) (*Ta
 	typeOrder := append(builtins, userDefined...)
 
 	return &TaskTool{
-		caller:     caller,
+		runner:     runner,
 		agentTypes: agentTypes,
 		typeOrder:  typeOrder,
 	}, nil
@@ -192,13 +191,9 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 		}
 	}
 
-	// Create ephemeral session and sub-agent.
-	sess := session.NewSession(description)
-	subAgent := agent.NewAgent(t.caller, subTools, agent.SystemPrompt(config.SystemPrompt))
-
 	slog.Info("task: spawning sub-agent", "type", subagentType, "description", description)
 
-	reply, _, err := subAgent.Process(ctx, sess, prompt)
+	reply, err := t.runner.RunSubAgent(ctx, subTools, config.SystemPrompt, description, prompt)
 	if err != nil {
 		return "", fmt.Errorf("sub-agent failed: %w", err)
 	}
