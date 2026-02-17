@@ -13,13 +13,6 @@ interface ProjectsProps {
   onRefetchWorkspaceTasks?: () => void
 }
 
-const QUICK_ACTIONS = [
-  "Create monthly report",
-  "Summarize meeting",
-  "Analyze CSV",
-  "Draft email",
-]
-
 export function Projects({
   workspaceId,
   projects,
@@ -121,23 +114,6 @@ export function Projects({
         </ul>
       </section>
 
-      {/* Quick actions */}
-      <section className="page-workspace__actions">
-        <h2 className="page-workspace__heading">Quick Actions</h2>
-        <div className="page-workspace__action-grid">
-          {QUICK_ACTIONS.map((label) => (
-            <button
-              key={label}
-              type="button"
-              className="page-workspace__action-btn"
-              onClick={() => setPrompt(label)}
-              disabled={runningTask}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
       <CreateProjectModal
         open={showNewProject}
         loading={creatingProject}
