@@ -148,6 +148,7 @@ export interface ApiTask {
   id: string
   workspace_id: string
   project_id: string | null
+  session_id: string | null
   status: string
   input: string
   output: string | null
@@ -173,6 +174,30 @@ export async function getTasks(
   checkUnauthorized(res)
   await throwIfNotOk(res)
   return res.json() as Promise<ApiTask[]>
+}
+
+/** Session as returned by GET /api/sessions/{session_id} (agent conversation). */
+export interface ApiSession {
+  id: string
+  title: string
+  created_at: string
+  messages: ApiSessionMessage[]
+}
+
+export interface ApiSessionMessage {
+  role: string
+  content: string
+  tool_call_id?: string
+  tool_calls?: { id: string; name: string; arguments?: string }[]
+}
+
+export async function getSession(sessionId: string, token: string): Promise<ApiSession> {
+  const res = await fetch(`${getApiBase()}/api/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<ApiSession>
 }
 
 export async function createTask(
@@ -295,6 +320,7 @@ export function apiTaskToTask(api: ApiTask): Task {
   return {
     id: api.id,
     projectId: api.project_id ?? undefined,
+    sessionId: api.session_id ?? undefined,
     title,
     status: taskStatusToUI(api.status),
     timeLabel: taskTimeLabel(api),

@@ -16,6 +16,7 @@ export interface Project {
 export interface Task {
   id: string
   projectId?: string
+  sessionId?: string
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
   timeLabel: string

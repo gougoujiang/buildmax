@@ -49,7 +49,7 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	fmt.Println(reply)
 
 	// Print run statistics.
-	fmt.Fprintf(os.Stdout, "\n---\nSession:    %s\nTool calls: %d\nDuration:   %s\n", res.Session.ID(), stats.ToolCalls, formatDuration(elapsed))
+	fmt.Fprintf(os.Stdout, "\n---\nSession:    %s\nTool calls: %d\nDuration:   %s\nWorkspace:  %s\n", res.Session.ID(), stats.ToolCalls, formatDuration(elapsed), res.CWD)
 	return nil
 }
 

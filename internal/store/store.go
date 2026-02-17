@@ -113,6 +113,8 @@ type ProjectStore interface {
 type TaskStore interface {
 	// ListTasksByWorkspace returns tasks in the workspace. If projectID is non-nil, filter by that project.
 	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
+	// GetTaskBySessionID returns the task that has the given session_id, or (nil, nil) if none.
+	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask inserts a new task with status PENDING. projectID is optional (nil = no project).
 	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
 	// GetNextPendingTask returns the oldest task with status PENDING (by created_at), or (nil, nil) if none.
@@ -268,6 +270,19 @@ func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, pr
 	}
 	err := q.Order("created_at ASC").Find(&list).Error
 	return list, err
+}
+
+// GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
+func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error) {
+	var t Task
+	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).First(&t).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
 }
 
 // CreateTask inserts a new task with status PENDING and returns it.

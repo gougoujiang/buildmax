@@ -184,6 +184,15 @@ func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projec
 	}, nil
 }
 
+func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*store.Task, error) {
+	for i := range m.list {
+		if m.list[i].SessionID != nil && *m.list[i].SessionID == sessionID {
+			return &m.list[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (m *mockTaskStore) GetNextPendingTask(_ context.Context) (*store.Task, error) {
 	for i := range m.list {
 		if m.list[i].Status == "PENDING" {

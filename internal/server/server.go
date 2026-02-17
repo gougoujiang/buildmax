@@ -26,6 +26,7 @@ type Config struct {
 	WorkspaceStore store.WorkspaceStore  // Optional; required for GET /api/workspaces
 	ProjectStore   store.ProjectStore   // Optional; required for project list/create
 	TaskStore      store.TaskStore       // Optional; required for task list/create
+	SessionsDir    string                // Optional; BUILDMAX_HOME/sessions for GET /api/sessions/{id}
 	JWTSecret      string                // Required for login when UserStore is set
 	CORSOrigin     string                // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 }
@@ -56,6 +57,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/upload", s.uploadHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
+	mux.HandleFunc("GET /api/sessions/{session_id}", s.getSessionHandler)
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

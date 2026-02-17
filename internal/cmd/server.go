@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"buildmax/internal/config"
 	"buildmax/internal/executor"
 	"buildmax/internal/server"
 	"buildmax/internal/store"
@@ -55,6 +56,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		WorkspaceStore: st,
 		ProjectStore:   st,
 		TaskStore:      st,
+		SessionsDir:    config.SessionsDir(),
 		JWTSecret:      jwtSecret,
 		CORSOrigin:     corsOrigin,
 	}

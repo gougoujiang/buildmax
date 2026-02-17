@@ -1090,6 +1090,69 @@ body {
   line-height: 1.65;
 }
 
+/* Agent session thread */
+.page-task__session {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.page-task__session-msg {
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid #ccc;
+}
+
+.page-task__session-msg--user {
+  background: #f0f7ff;
+  border-left-color: #3b82f6;
+}
+
+.page-task__session-msg--assistant {
+  background: #f8faf8;
+  border-left-color: #22c55e;
+}
+
+.page-task__session-msg--tool {
+  background: #faf8f0;
+  border-left-color: #eab308;
+}
+
+.page-task__session-role {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.page-task__session-content {
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.page-task__session-content p {
+  margin: 0.35rem 0;
+}
+
+.page-task__session-toolcalls {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.page-task__session-args {
+  margin: 0.2rem 0 0;
+  padding: 0.4rem 0.5rem;
+  background: #f4f4f5;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .page-task__markdown h1,
 .page-task__markdown h2,
 .page-task__markdown h3 {
