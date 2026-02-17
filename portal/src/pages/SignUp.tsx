@@ -2,7 +2,7 @@ import { useState } from "react"
 import { requestOtp, login } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 
-export function Login() {
+export function SignUp() {
   const { login: setAuth } = useAuth()
   const [step, setStep] = useState<"email" | "otp">("email")
   const [email, setEmail] = useState("")
@@ -15,7 +15,7 @@ export function Login() {
     setError(null)
     setLoading(true)
     try {
-      await requestOtp(email, "login")
+      await requestOtp(email, "signup")
       setStep("otp")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed")
@@ -32,7 +32,7 @@ export function Login() {
       const res = await login(email, otp)
       setAuth(res.token, res.user)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed")
+      setError(err instanceof Error ? err.message : "Sign up failed")
     } finally {
       setLoading(false)
     }
@@ -45,11 +45,11 @@ export function Login() {
           <h1 className="login-page__title">BuildMax</h1>
           <p className="login-page__subtitle">Enter OTP sent to {email}</p>
           <form onSubmit={handleSubmitOtp} className="login-page__form">
-            <label className="login-page__label" htmlFor="login-otp">
+            <label className="login-page__label" htmlFor="signup-otp">
               OTP
             </label>
             <input
-              id="login-otp"
+              id="signup-otp"
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -69,7 +69,7 @@ export function Login() {
               className="login-page__submit"
               disabled={loading}
             >
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? "Signing up…" : "Sign up"}
             </button>
             <button
               type="button"
@@ -85,7 +85,7 @@ export function Login() {
           </form>
         </div>
         <p className="login-page__footer">
-          <a href="#/signup">Sign up</a> for a new account
+          Already have an account? <a href="#/login">Sign in</a>
         </p>
       </div>
     )
@@ -95,13 +95,13 @@ export function Login() {
     <div className="login-page">
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
-        <p className="login-page__subtitle">Sign in to continue</p>
+        <p className="login-page__subtitle">Create an account</p>
         <form onSubmit={handleGetOtp} className="login-page__form">
-          <label className="login-page__label" htmlFor="login-email">
+          <label className="login-page__label" htmlFor="signup-email">
             Email
           </label>
           <input
-            id="login-email"
+            id="signup-email"
             type="email"
             className="login-page__input"
             value={email}
@@ -125,7 +125,7 @@ export function Login() {
         </form>
       </div>
       <p className="login-page__footer">
-        Don&apos;t have an account? <a href="#/signup">Sign up</a>
+        Already have an account? <a href="#/login">Sign in</a>
       </p>
     </div>
   )

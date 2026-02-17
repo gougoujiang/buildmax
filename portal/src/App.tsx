@@ -7,6 +7,7 @@ import { useWorkspaceData } from "./hooks/useWorkspaceData"
 import { AppShell } from "./components/AppShell"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { Login } from "./pages/Login"
+import { SignUp } from "./pages/SignUp"
 import { Projects } from "./pages/Projects"
 import { Project as ProjectView } from "./pages/Project"
 import { TaskDetail } from "./pages/TaskDetail"
@@ -44,6 +45,8 @@ function AppContent() {
   }, [needsRedirect, defaultWorkspaceId])
 
   if (!token) {
+    const authHash = window.location.hash.replace(/^#\/?/, "").toLowerCase()
+    if (authHash === "signup") return <SignUp />
     return <Login />
   }
 

@@ -27,11 +27,34 @@ func signJWT(sub, secret string) string {
 
 // mockUserStore is an in-memory UserStore for tests.
 type mockUserStore struct {
-	userByEmail map[string]*store.User
+	userByEmail  map[string]*store.User
+	createErr    error // if set, CreateUser returns this error
+	nextUserID   int   // used to generate unique user_id in CreateUser
 }
 
 func (m *mockUserStore) UserByEmail(_ context.Context, email string) (*store.User, error) {
 	return m.userByEmail[email], nil
+}
+
+func (m *mockUserStore) CreateUser(ctx context.Context, email string) (*store.User, error) {
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	if m.userByEmail == nil {
+		m.userByEmail = make(map[string]*store.User)
+	}
+	if existing := m.userByEmail[email]; existing != nil {
+		return nil, store.ErrEmailExists
+	}
+	m.nextUserID++
+	u := &store.User{
+		UserID:    fmt.Sprintf("mock-u-%d", m.nextUserID),
+		Email:     email,
+		Name:      "",
+		CreatedAt: time.Now().Unix(),
+	}
+	m.userByEmail[email] = u
+	return u, nil
 }
 
 // mockWorkspaceStore is an in-memory WorkspaceStore for tests.

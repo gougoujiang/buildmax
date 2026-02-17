@@ -44,12 +44,31 @@ export interface LoginResponse {
   user: LoginUser
 }
 
-export async function login(email: string): Promise<LoginResponse> {
+export interface OtpRequestResponse {
+  message: string
+}
+
+export async function requestOtp(
+  email: string,
+  intent: "signup" | "login"
+): Promise<OtpRequestResponse> {
+  const res = await fetch(`${getApiBase()}/api/otp/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, intent }),
+  })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<OtpRequestResponse>
+}
+
+export async function login(email: string, otp: string): Promise<LoginResponse> {
   const res = await fetch(`${getApiBase()}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, otp }),
   })
+  checkUnauthorized(res)
   await throwIfNotOk(res)
   return res.json() as Promise<LoginResponse>
 }

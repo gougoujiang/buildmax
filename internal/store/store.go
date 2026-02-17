@@ -82,9 +82,14 @@ func (Task) TableName() string {
 	return "task"
 }
 
-// UserStore looks up users by email.
+// ErrEmailExists is returned by CreateUser when the email is already registered.
+var ErrEmailExists = errors.New("email already exists")
+
+// UserStore looks up users by email and creates new users.
 type UserStore interface {
 	UserByEmail(ctx context.Context, email string) (*User, error)
+	// CreateUser creates a user with the given email. Returns ErrEmailExists if the email is already registered.
+	CreateUser(ctx context.Context, email string) (*User, error)
 }
 
 // WorkspaceStore provides workspace persistence.
@@ -144,6 +149,28 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+// CreateUser creates a user with the given email. Name is set to empty.
+// Returns ErrEmailExists if the email is already registered.
+func (s *Store) CreateUser(ctx context.Context, email string) (*User, error) {
+	existing, err := s.UserByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, ErrEmailExists
+	}
+	u := User{
+		UserID:    id.New(),
+		Email:     email,
+		Name:      "",
+		CreatedAt: time.Now().Unix(),
+	}
+	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
 		return nil, err
 	}
 	return &u, nil

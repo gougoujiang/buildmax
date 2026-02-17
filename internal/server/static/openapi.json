@@ -18,17 +18,57 @@
         "responses": { "200": { "description": "OK" } }
       }
     },
-    "/api/login": {
+    "/api/otp/request": {
       "post": {
-        "summary": "Login",
-        "description": "Authenticate by email. Returns JWT and user info on success.",
+        "summary": "Request OTP",
+        "description": "Request OTP for signup or login. For signup: creates user if email is new, returns 409 if email already registered. For login: returns 404 if user not found. On success returns 200 with message otp_sent (no real email sent in MVP).",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "required": ["email"],
-                "properties": { "email": { "type": "string" } }
+                "properties": {
+                  "email": { "type": "string" },
+                  "intent": { "type": "string", "enum": ["signup", "login"], "description": "signup or login; default signup" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid request body or empty email" },
+          "404": { "description": "User not found (login intent)" },
+          "409": { "description": "Email already registered (signup intent)" },
+          "503": { "description": "OTP not configured" }
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Authenticate by email and OTP. Returns JWT and user info on success. MVP uses hardcoded OTP.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "otp": { "type": "string" }
+                }
               }
             }
           }
@@ -55,8 +95,8 @@
               }
             }
           },
-          "401": { "description": "User not found" },
-          "400": { "description": "Invalid request body" }
+          "400": { "description": "Invalid request body, email or otp required" },
+          "401": { "description": "User not found or invalid otp" }
         }
       }
     },

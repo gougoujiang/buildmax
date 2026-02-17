@@ -9,8 +9,8 @@ interface LeftSidebarProps {
 type SidebarNavName = "workspace" | "activity" | "explore"
 
 const SIDEBAR_NAV: { label: string; name: SidebarNavName }[] = [
-  { label: "Explore", name: "explore" },
   { label: "Projects", name: "workspace" },
+  { label: "Explore", name: "explore" },
   { label: "Activity", name: "activity" },
 ]
 

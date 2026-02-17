@@ -11,7 +11,11 @@ import (
 // LoginRequest is the JSON body for POST /api/login.
 type LoginRequest struct {
 	Email string `json:"email"`
+	Otp   string `json:"otp"`
 }
+
+// OtpCode is the hardcoded OTP for MVP (no real email sending).
+const OtpCode = "123456"
 
 // LoginResponse is the JSON body for a successful login.
 type LoginResponse struct {
@@ -47,6 +51,14 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Email == "" {
 		writeJSONError(w, http.StatusBadRequest, "email required")
+		return
+	}
+	if req.Otp == "" {
+		writeJSONError(w, http.StatusBadRequest, "otp required")
+		return
+	}
+	if req.Otp != OtpCode {
+		writeJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return
 	}
 

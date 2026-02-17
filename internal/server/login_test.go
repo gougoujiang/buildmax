@@ -24,18 +24,34 @@ func TestLoginHandler(t *testing.T) {
 		wantBodyNotHas string
 	}{
 		{
-			name:       "user found returns 200 and token",
+			name:       "user found with valid otp returns 200 and token",
+			userStore:  &mockUserStore{userByEmail: map[string]*store.User{"a@b.c": userExists}},
+			jwtSecret:  secret,
+			body:       `{"email":"a@b.c","otp":"123456"}`,
+			wantStatus: http.StatusOK,
+			wantBodyHas: "token",
+		},
+		{
+			name:       "user found but wrong otp returns 401",
+			userStore:  &mockUserStore{userByEmail: map[string]*store.User{"a@b.c": userExists}},
+			jwtSecret:  secret,
+			body:       `{"email":"a@b.c","otp":"000000"}`,
+			wantStatus: http.StatusUnauthorized,
+			wantBodyHas: "invalid otp",
+		},
+		{
+			name:       "user found but missing otp returns 400",
 			userStore:  &mockUserStore{userByEmail: map[string]*store.User{"a@b.c": userExists}},
 			jwtSecret:  secret,
 			body:       `{"email":"a@b.c"}`,
-			wantStatus: http.StatusOK,
-			wantBodyHas: "token",
+			wantStatus: http.StatusBadRequest,
+			wantBodyHas: "otp required",
 		},
 		{
 			name:       "user not found returns 401",
 			userStore:  &mockUserStore{userByEmail: map[string]*store.User{}},
 			jwtSecret:  secret,
-			body:       `{"email":"nobody@example.com"}`,
+			body:       `{"email":"nobody@example.com","otp":"123456"}`,
 			wantStatus: http.StatusUnauthorized,
 			wantBodyHas: "user not found",
 		},
@@ -58,7 +74,7 @@ func TestLoginHandler(t *testing.T) {
 			name:       "no UserStore returns 503",
 			userStore:  nil,
 			jwtSecret:  secret,
-			body:       `{"email":"a@b.c"}`,
+			body:       `{"email":"a@b.c","otp":"123456"}`,
 			wantStatus: http.StatusServiceUnavailable,
 		},
 	}
