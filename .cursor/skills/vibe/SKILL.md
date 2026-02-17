@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, push, archive, and autopilot. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, archive, go, help. All artifacts stored under .vibe/ directory."
+description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, find arch refactor opportunities, build knowledge base, commit, push, archive, and autopilot. Sub-commands: start, clarify, design, code, done, smell, arch, kb, commit, push, archive, go, help. All artifacts stored under .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -18,7 +18,8 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe design [id]` | Technical design document |
 | `/vibe code [id]` | Implement from design |
 | `/vibe done [id]` | Mark task finished; auto-archive if needed |
-| `/vibe smell [path]` | Detect code smells and propose refactors |
+| `/vibe smell [path]` | Detect code smells and propose refactors (tactical, local) |
+| `/vibe arch [path]` | Find architecture-level refactor opportunities (structural, high-level) |
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
 | `/vibe commit` | Stage and commit changes with a generated message |
 | `/vibe push` | Push local commits to the remote branch |
@@ -241,6 +242,54 @@ Analyzes code for smells and refactor opportunities. Produces a written proposal
 
 - **Primary**: One markdown file (e.g. `.vibe/smell-20260210.md`) with scope, summary, and numbered proposals.
 - **Optional**: Short summary in chat (number of proposals, high-priority items).
+
+---
+
+## `/vibe arch` — Architecture Refactor Opportunities
+
+Analyzes the codebase for **architecture-level** refactor opportunities: package boundaries, layering, module coupling, and dependency direction. Produces a written proposal document — does **not** implement the refactors. Distinct from `/vibe smell`: smell focuses on **tactical, local** refinements (functions, types, naming); arch focuses on **structural, high-level** concerns (packages, layers, boundaries).
+
+### When to use
+
+- The user asks for architecture review, structural refactor ideas, or high-level refactoring opportunities
+- They want to understand where the system’s structure could be improved (boundaries, dependencies, layering)
+- After growth or multiple features, to reassess module boundaries and coupling
+
+### Workflow
+
+1. **Scope** — Determine what to analyze:
+   - If the user specifies a path or set of packages, use that.
+   - If unspecified, focus on `internal/` and `cmd/` (packages, dependency graph, layering).
+2. **Inspect** — Read package structure, imports, and call patterns. Note: package boundaries, dependency direction, circular or cross-layer dependencies, mixed responsibilities at module level, and alignment with AGENTS.md and project layout.
+3. **Detect opportunities** — Look for:
+   - Unclear or missing boundaries between packages or layers
+   - Wrong dependency direction (e.g. high-level depending on low-level details)
+   - Packages that do too much or mix concerns at module level
+   - Opportunities to introduce interfaces or facades at boundaries
+   - Duplication or divergence of patterns across subsystems
+   - For each opportunity: note **scope** (packages/layers) and **why** it matters.
+4. **Proposals** — For each architecture opportunity, write one proposal with:
+   - **Title**: Short name (e.g. "Introduce store boundary", "Split agent from LLM transport").
+   - **Scope**: Package(s) or layer(s) involved.
+   - **Current state**: How the code is structured and why it’s an architectural concern.
+   - **Proposed change**: Target structure (new package, boundary, dependency direction, split/merge).
+   - **Benefit**: Clearer boundaries, testability, scalability, reduced coupling.
+   - **Impact** (optional): High / Medium / Low.
+5. **Write proposal file** — Produce a single markdown file using the [arch proposal template](templates/arch-template.md).
+   - Default path: `.vibe/arch-YYYYMMDD.md` or a path the user specifies.
+
+### Rules
+
+- **Propose, don’t implement.** Output is the proposal file only; no code changes.
+- **Stay at architecture level.** Focus on packages, layers, boundaries, and dependencies; avoid low-level code smells (those belong in `/vibe smell`).
+- **Be specific.** Each proposal must name concrete packages or subsystems and describe the target structure clearly enough to implement later.
+- **Respect project conventions.** Proposals should align with AGENTS.md and existing layout.
+- **One file per run.** Write exactly one proposal document per invocation.
+
+### Output
+
+- **Primary**: One markdown file (e.g. `.vibe/arch-20260210.md`) with scope, summary, and numbered opportunities.
+- **Optional**: Short summary in chat (number of opportunities, high-impact items).
 
 ---
 
@@ -476,7 +525,8 @@ Vibe — Development Lifecycle
   /vibe design [id]     Technical design document
   /vibe code [id]       Implement from design
   /vibe done [id]       Mark task finished; auto-archive if needed
-  /vibe smell [path]    Detect code smells and propose refactors
+  /vibe smell [path]    Detect code smells and propose refactors (tactical, local)
+  /vibe arch [path]     Find architecture-level refactor opportunities (structural)
   /vibe kb [topic]      Organize and maintain codebase knowledge base
   /vibe commit          Stage and commit changes with a generated message
   /vibe push            Push local commits to the remote branch
