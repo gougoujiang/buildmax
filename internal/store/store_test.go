@@ -127,11 +127,12 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	if err := s.EnsureDefaultWorkspaceForUser(ctx, "artifact-user"); err != nil {
 		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
 	}
-	list, _ := s.ListWorkspacesByOwner(ctx, "artifact-user")
-	if len(list) == 0 {
+	wsList, _ := s.ListWorkspacesByOwner(ctx, "artifact-user")
+	if len(wsList) == 0 {
 		t.Fatal("no workspace for user")
 	}
-	task, err := s.CreateTask(ctx, list[0].WorkspaceID, nil, "input", "artifact-user")
+	workspaceID := wsList[0].WorkspaceID
+	task, err := s.CreateTask(ctx, workspaceID, nil, "input", "artifact-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -166,4 +167,61 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	if t2.LastArtifactID == nil || *t2.LastArtifactID != artifactID {
 		t.Errorf("task last_artifact_id = %v, want %q", t2.LastArtifactID, artifactID)
 	}
+
+	// ListArtifactsByWorkspace
+	artList, err := s.ListArtifactsByWorkspace(ctx, workspaceID, nil, nil)
+	if err != nil {
+		t.Fatalf("ListArtifactsByWorkspace: %v", err)
+	}
+	if len(artList) != 1 {
+		t.Fatalf("ListArtifactsByWorkspace: got %d items, want 1", len(artList))
+	}
+	if artList[0].ArtifactID != artifactID || artList[0].TaskID != task.TaskID || artList[0].WorkspaceID != workspaceID {
+		t.Errorf("ListArtifactsByWorkspace: got artifact_id=%q task_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].TaskID, artList[0].WorkspaceID)
+	}
+	if artList[0].TaskInputSnippet != "input" {
+		t.Errorf("ListArtifactsByWorkspace: task_input_snippet = %q, want input", artList[0].TaskInputSnippet)
+	}
+	listEmpty, _ := s.ListArtifactsByWorkspace(ctx, workspaceID, nil, ptrString("other-project"))
+	if len(listEmpty) != 0 {
+		t.Errorf("ListArtifactsByWorkspace with other project_id: got %d, want 0", len(listEmpty))
+	}
+
+	// GetArtifactByID
+	got, err := s.GetArtifactByID(ctx, artifactID)
+	if err != nil || got == nil || got.ArtifactID != artifactID {
+		t.Fatalf("GetArtifactByID: got %v %v", got, err)
+	}
+	gotNil, _ := s.GetArtifactByID(ctx, "nonexistent")
+	if gotNil != nil {
+		t.Errorf("GetArtifactByID(nonexistent): got %v, want nil", gotNil)
+	}
+
+	// GetTask
+	taskGot, err := s.GetTask(ctx, task.TaskID)
+	if err != nil || taskGot == nil || taskGot.TaskID != task.TaskID {
+		t.Fatalf("GetTask: got %v %v", taskGot, err)
+	}
+	taskNil, _ := s.GetTask(ctx, "nonexistent-task")
+	if taskNil != nil {
+		t.Errorf("GetTask(nonexistent): got %v, want nil", taskNil)
+	}
+
+	// ListArtifactItems
+	items, err := s.ListArtifactItems(ctx, artifactID)
+	if err != nil {
+		t.Fatalf("ListArtifactItems: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("ListArtifactItems: got %d items, want 1", len(items))
+	}
+	if items[0].RelativePath != "result-task.md" {
+		t.Errorf("ListArtifactItems[0].RelativePath = %q, want result-task.md", items[0].RelativePath)
+	}
+	itemsEmpty, _ := s.ListArtifactItems(ctx, "nonexistent-artifact")
+	if len(itemsEmpty) != 0 {
+		t.Errorf("ListArtifactItems(nonexistent): got %d, want 0", len(itemsEmpty))
+	}
 }
+
+func ptrString(s string) *string { return &s }

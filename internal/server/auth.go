@@ -70,6 +70,15 @@ func (s *Server) requireTaskStore(w http.ResponseWriter) bool {
 	return true
 }
 
+// requireArtifactStore writes 503 "artifacts not configured" and returns false if ArtifactStore is nil.
+func (s *Server) requireArtifactStore(w http.ResponseWriter) bool {
+	if s.cfg.ArtifactStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "artifacts not configured")
+		return false
+	}
+	return true
+}
+
 // userIDFromRequest extracts the user id from the Authorization: Bearer <token> header.
 // Returns (userID, true) if the JWT is valid and contains a sub claim, or ("", false) otherwise.
 func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {

@@ -23,6 +23,15 @@ export interface Task {
   summary: string
 }
 
+export interface Artifact {
+  id: string
+  taskId: string
+  projectId?: string
+  workspaceId: string
+  timeLabel: string
+  title: string
+}
+
 // --- Route types ---
 
 export type Route =

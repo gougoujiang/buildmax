@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { useWorkspaceData } from "./hooks/useWorkspaceData"
 import { AppShell } from "./components/AppShell"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
+import { ArtifactContentModal } from "./components/ArtifactContentModal"
 import { Login } from "./pages/Login"
 import { SignUp } from "./pages/SignUp"
 import { Projects } from "./pages/Projects"
@@ -22,14 +23,17 @@ function AppContent() {
     projects,
     tasks,
     workspaceTasks,
+    artifacts,
     loadingWorkspaces,
     refetchWorkspaces,
     refetchProjects,
     refetchTasks,
     refetchWorkspaceTasks,
+    refetchArtifacts,
   } = useWorkspaceData(token, route)
 
   const [showNewWorkspace, setShowNewWorkspace] = useState(false)
+  const [viewArtifact, setViewArtifact] = useState<{ workspaceId: string; artifactId: string } | null>(null)
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
   const [createWsError, setCreateWsError] = useState<string | null>(null)
 
@@ -104,9 +108,12 @@ function AppContent() {
       <Projects
         workspaceId={route.workspaceId}
         projects={projects}
+        artifacts={artifacts}
         token={token ?? undefined}
         onRefetchProjects={refetchProjects}
         onRefetchWorkspaceTasks={refetchWorkspaceTasks}
+        onRefetchArtifacts={refetchArtifacts}
+        onViewArtifact={(artifactId: string) => setViewArtifact({ workspaceId: route.workspaceId, artifactId })}
       />
     )
     const fallbackProject = (project: Project) => (
@@ -114,8 +121,11 @@ function AppContent() {
         workspaceId={route.workspaceId}
         project={project}
         tasks={projectIdFromRoute === project.id ? tasks : []}
+        artifacts={projectIdFromRoute === project.id ? artifacts : []}
         token={token ?? undefined}
         onRefetchTasks={refetchTasks}
+        onRefetchArtifacts={refetchArtifacts}
+        onViewArtifact={(artifactId: string) => setViewArtifact({ workspaceId: route.workspaceId, artifactId })}
       />
     )
 
@@ -125,7 +135,9 @@ function AppContent() {
         <Activity
           workspaceId={route.workspaceId}
           tasks={workspaceTasks}
+          artifacts={artifacts}
           getProjectName={getProjectName}
+          onViewArtifact={(artifactId: string) => setViewArtifact({ workspaceId: route.workspaceId, artifactId })}
         />
       )
     }
@@ -170,6 +182,15 @@ function AppContent() {
         onClose={() => setShowNewWorkspace(false)}
         onCreate={handleCreateWorkspace}
       />
+      {viewArtifact && token && (
+        <ArtifactContentModal
+          open={true}
+          workspaceId={viewArtifact.workspaceId}
+          artifactId={viewArtifact.artifactId}
+          token={token}
+          onClose={() => setViewArtifact(null)}
+        />
+      )}
     </>
   )
 }

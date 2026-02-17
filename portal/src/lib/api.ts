@@ -1,4 +1,4 @@
-import type { ExploreNode, Project, Task } from "./types"
+import type { Artifact, ExploreNode, Project, Task } from "./types"
 
 /**
  * API base URL and login. VITE_API_BASE defaults to http://localhost:5678.
@@ -216,6 +216,99 @@ export async function createTask(
   checkUnauthorized(res)
   await throwIfNotOk(res)
   return res.json() as Promise<ApiTask>
+}
+
+/** Artifact as returned by GET /api/workspaces/{id}/artifacts (snake_case). */
+export interface ApiArtifact {
+  artifact_id: string
+  task_id: string
+  workspace_id: string
+  project_id: string | null
+  created_at: number
+  seq: number
+  task_input_snippet: string
+}
+
+export async function getArtifacts(
+  workspaceId: string,
+  token: string,
+  options?: { projectId?: string; taskId?: string }
+): Promise<ApiArtifact[]> {
+  let url = `${getApiBase()}/api/workspaces/${workspaceId}/artifacts`
+  const params = new URLSearchParams()
+  if (options?.projectId) params.set("project_id", options.projectId)
+  if (options?.taskId) params.set("task_id", options.taskId)
+  const q = params.toString()
+  if (q) url += `?${q}`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<ApiArtifact[]>
+}
+
+/** Artifact item (file) as returned by GET /api/workspaces/{id}/artifacts/{id}/items (snake_case). */
+export interface ApiArtifactItem {
+  relative_path: string
+}
+
+export async function getArtifactItems(
+  workspaceId: string,
+  artifactId: string,
+  token: string
+): Promise<ApiArtifactItem[]> {
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifactId)}/items`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<ApiArtifactItem[]>
+}
+
+export async function getArtifactContent(
+  workspaceId: string,
+  artifactId: string,
+  token: string,
+  path?: string
+): Promise<string> {
+  let url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifactId)}/content`
+  if (path) {
+    url += `?path=${encodeURIComponent(path)}`
+  }
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.text()
+}
+
+function artifactTimeLabel(createdAt: number): string {
+  const d = new Date(createdAt * 1000)
+  const today = new Date()
+  if (d.toDateString() === today.toDateString()) {
+    return `Today ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+  }
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) {
+    return `Yesterday ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+  }
+  return d.toLocaleString()
+}
+
+/** Map API artifact to UI Artifact. */
+export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
+  return {
+    id: api.artifact_id,
+    taskId: api.task_id,
+    projectId: api.project_id ?? undefined,
+    workspaceId: api.workspace_id,
+    timeLabel: artifactTimeLabel(api.created_at),
+    title: api.task_input_snippet || `Artifact ${api.artifact_id}`,
+  }
 }
 
 /** Upload response from POST /api/workspaces/{id}/upload. */

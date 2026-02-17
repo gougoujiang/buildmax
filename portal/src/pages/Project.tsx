@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { Project, Task } from "../lib/types"
+import type { Artifact, Project, Task } from "../lib/types"
 import { taskStatusIcon } from "../lib/taskStatus"
 import { navigate } from "../lib/router"
 import { createTask } from "../lib/api"
@@ -9,16 +9,22 @@ interface ProjectProps {
   workspaceId: string
   project: Project
   tasks: Task[]
+  artifacts: Artifact[]
   token?: string
   onRefetchTasks?: () => void
+  onRefetchArtifacts?: () => void
+  onViewArtifact?: (artifactId: string) => void
 }
 
 export function Project({
   workspaceId,
   project,
   tasks,
+  artifacts,
   token,
   onRefetchTasks,
+  onRefetchArtifacts,
+  onViewArtifact,
 }: ProjectProps) {
   const [prompt, setPrompt] = useState("")
   const [, setCreating] = useState(false)
@@ -94,6 +100,34 @@ export function Project({
           </ul>
         </section>
       )}
+
+      {/* Artifacts for this project */}
+      <section className="page-project__artifacts">
+        <h2 className="page-project__section-heading">Artifacts</h2>
+        {artifacts.length === 0 ? (
+          <p className="page-project__empty">No artifacts in this project yet.</p>
+        ) : (
+          <ul className="page-project__artifact-list">
+            {artifacts.map((a) => (
+              <li key={a.id} className="page-project__artifact-card">
+                <span className="page-project__artifact-title">{a.title}</span>
+                <span className="page-project__artifact-meta">
+                  {a.timeLabel} · task: {a.taskId} · artifact: {a.id}
+                </span>
+                {onViewArtifact && (
+                  <button
+                    type="button"
+                    className="page-project__artifact-view"
+                    onClick={() => onViewArtifact(a.id)}
+                  >
+                    View
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

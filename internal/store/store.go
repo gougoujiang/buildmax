@@ -111,6 +111,17 @@ func (ArtifactItem) TableName() string {
 	return "artifact_item"
 }
 
+// ArtifactWithTask is a DTO for listing artifacts with task context (not a table). JSON uses snake_case.
+type ArtifactWithTask struct {
+	ArtifactID       string  `json:"artifact_id"`
+	TaskID           string  `json:"task_id"`
+	WorkspaceID      string  `json:"workspace_id"`
+	ProjectID        *string `json:"project_id,omitempty"`
+	CreatedAt        int64   `json:"created_at"`
+	Seq              int     `json:"seq"`
+	TaskInputSnippet string  `json:"task_input_snippet"`
+}
+
 // ErrEmailExists is returned by CreateUser when the email is already registered.
 var ErrEmailExists = errors.New("email already exists")
 
@@ -142,6 +153,8 @@ type ProjectStore interface {
 type TaskStore interface {
 	// ListTasksByWorkspace returns tasks in the workspace. If projectID is non-nil, filter by that project.
 	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
+	// GetTask returns the task by task_id, or (nil, nil) if not found.
+	GetTask(ctx context.Context, taskID string) (*Task, error)
 	// GetTaskBySessionID returns the task that has the given session_id, or (nil, nil) if none.
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask inserts a new task with status PENDING. projectID is optional (nil = no project).
@@ -159,6 +172,12 @@ type TaskStore interface {
 type ArtifactStore interface {
 	// CreateArtifactWithItem creates one artifact row, one artifact_item row, and updates task.last_artifact_id. All in a transaction.
 	CreateArtifactWithItem(ctx context.Context, taskID, artifactID string, seq int, relativePath string) error
+	// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id and project_id. Order: created_at DESC. Task_input_snippet is truncated to 200 chars.
+	ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID, projectID *string) ([]ArtifactWithTask, error)
+	// GetArtifactByID returns the artifact by artifact_id, or (nil, nil) if not found.
+	GetArtifactByID(ctx context.Context, artifactID string) (*Artifact, error)
+	// ListArtifactItems returns all artifact_item rows for the given artifact_id, ordered by id.
+	ListArtifactItems(ctx context.Context, artifactID string) ([]ArtifactItem, error)
 }
 
 // Store implements UserStore, WorkspaceStore, ProjectStore, and TaskStore with a MySQL backend.
@@ -309,6 +328,19 @@ func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, pr
 	return list, err
 }
 
+// GetTask returns the task by task_id, or (nil, nil) if not found.
+func (s *Store) GetTask(ctx context.Context, taskID string) (*Task, error) {
+	var t Task
+	err := s.db.WithContext(ctx).Where("task_id = ?", taskID).First(&t).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
 // GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
 func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error) {
 	var t Task
@@ -409,6 +441,46 @@ func (s *Store) CreateArtifactWithItem(ctx context.Context, taskID, artifactID s
 		}
 		return tx.Model(&Task{}).Where("task_id = ?", taskID).Update("last_artifact_id", artifactID).Error
 	})
+}
+
+const taskInputSnippetMaxLen = 200
+
+// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id and project_id, ordered by created_at DESC. Task_input_snippet is truncated to 200 chars.
+func (s *Store) ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID, projectID *string) ([]ArtifactWithTask, error) {
+	q := `SELECT a.artifact_id, a.task_id, a.created_at, a.seq, t.workspace_id, t.project_id, LEFT(t.input, ?) AS task_input_snippet FROM artifact a JOIN task t ON a.task_id = t.task_id WHERE t.workspace_id = ?`
+	args := []interface{}{taskInputSnippetMaxLen, workspaceID}
+	if taskID != nil {
+		q += ` AND t.task_id = ?`
+		args = append(args, *taskID)
+	}
+	if projectID != nil {
+		q += ` AND t.project_id = ?`
+		args = append(args, *projectID)
+	}
+	q += ` ORDER BY a.created_at DESC`
+	var out []ArtifactWithTask
+	err := s.db.WithContext(ctx).Raw(q, args...).Scan(&out).Error
+	return out, err
+}
+
+// GetArtifactByID returns the artifact by artifact_id, or (nil, nil) if not found.
+func (s *Store) GetArtifactByID(ctx context.Context, artifactID string) (*Artifact, error) {
+	var a Artifact
+	err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).First(&a).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &a, nil
+}
+
+// ListArtifactItems returns all artifact_item rows for the given artifact_id, ordered by id.
+func (s *Store) ListArtifactItems(ctx context.Context, artifactID string) ([]ArtifactItem, error) {
+	var items []ArtifactItem
+	err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).Order("id ASC").Find(&items).Error
+	return items, err
 }
 
 // BackfillTaskWorkspaceID fills workspace_id for existing tasks that have a project_id

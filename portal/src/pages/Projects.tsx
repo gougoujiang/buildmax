@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { Project } from "../lib/types"
+import type { Artifact, Project } from "../lib/types"
 import { navigate } from "../lib/router"
 import { createProject, createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
@@ -8,17 +8,23 @@ import { CreateProjectModal } from "../components/CreateProjectModal"
 interface ProjectsProps {
   workspaceId: string
   projects: Project[]
+  artifacts: Artifact[]
   token?: string
   onRefetchProjects?: () => void
   onRefetchWorkspaceTasks?: () => void
+  onRefetchArtifacts?: () => void
+  onViewArtifact?: (artifactId: string) => void
 }
 
 export function Projects({
   workspaceId,
   projects,
+  artifacts,
   token,
   onRefetchProjects,
   onRefetchWorkspaceTasks,
+  onRefetchArtifacts: _onRefetchArtifacts,
+  onViewArtifact,
 }: ProjectsProps) {
   const [prompt, setPrompt] = useState("")
   const [showNewProject, setShowNewProject] = useState(false)
@@ -112,6 +118,40 @@ export function Projects({
             </li>
           ))}
         </ul>
+      </section>
+
+      {/* Artifacts */}
+      <section className="page-workspace__artifacts">
+        <h2 className="page-workspace__heading">Recent artifacts</h2>
+        {artifacts.length === 0 ? (
+          <p className="page-workspace__empty">No artifacts yet.</p>
+        ) : (
+          <ul className="page-workspace__artifact-list">
+            {artifacts.map((a) => (
+              <li key={a.id} className="page-workspace__artifact-card">
+                <div className="page-workspace__artifact-main">
+                  <span className="page-workspace__artifact-title">{a.title}</span>
+                  <span className="page-workspace__artifact-time">{a.timeLabel}</span>
+                </div>
+                <div className="page-workspace__artifact-ids">
+                  <span title="workspace_id">{a.workspaceId}</span>
+                  <span title="task_id">{a.taskId}</span>
+                  {a.projectId && <span title="project_id">{a.projectId}</span>}
+                  <span title="artifact_id">{a.id}</span>
+                </div>
+                {onViewArtifact && (
+                  <button
+                    type="button"
+                    className="page-workspace__artifact-view"
+                    onClick={() => onViewArtifact(a.id)}
+                  >
+                    View
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <CreateProjectModal

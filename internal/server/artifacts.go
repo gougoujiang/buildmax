@@ -1,0 +1,201 @@
+package server
+
+import (
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"buildmax/internal/config"
+	"buildmax/internal/store"
+)
+
+// ArtifactResponse is one artifact in the list response (snake_case).
+type ArtifactResponse struct {
+	ArtifactID       string  `json:"artifact_id"`
+	TaskID           string  `json:"task_id"`
+	WorkspaceID      string  `json:"workspace_id"`
+	ProjectID        *string `json:"project_id,omitempty"`
+	CreatedAt        int64   `json:"created_at"`
+	Seq              int     `json:"seq"`
+	TaskInputSnippet string  `json:"task_input_snippet"`
+}
+
+func artifactWithTaskToResponse(a store.ArtifactWithTask) ArtifactResponse {
+	return ArtifactResponse{
+		ArtifactID:       a.ArtifactID,
+		TaskID:           a.TaskID,
+		WorkspaceID:      a.WorkspaceID,
+		ProjectID:        a.ProjectID,
+		CreatedAt:        a.CreatedAt,
+		Seq:              a.Seq,
+		TaskInputSnippet: a.TaskInputSnippet,
+	}
+}
+
+// listWorkspaceArtifactsHandler handles GET /api/workspaces/{workspace_id}/artifacts.
+// Optional query params: task_id, project_id.
+func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+	if !ok {
+		return
+	}
+	if !s.requireArtifactStore(w) {
+		return
+	}
+	var taskIDPtr, projectIDPtr *string
+	if tid := r.URL.Query().Get("task_id"); tid != "" {
+		taskIDPtr = &tid
+	}
+	if pid := r.URL.Query().Get("project_id"); pid != "" {
+		project, ok := s.resolveProjectForWorkspace(w, r, workspaceID, pid)
+		if !ok {
+			return
+		}
+		if project != nil {
+			projectIDPtr = &project.ProjectID
+		}
+	}
+	list, err := s.cfg.ArtifactStore.ListArtifactsByWorkspace(r.Context(), workspaceID, taskIDPtr, projectIDPtr)
+	if err != nil {
+		writeInternalError(w, err, "handler", "list_artifacts", "workspace_id", workspaceID)
+		return
+	}
+	out := make([]ArtifactResponse, len(list))
+	for i := range list {
+		out[i] = artifactWithTaskToResponse(list[i])
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// ArtifactItemResponse is one item in GET .../artifacts/{id}/items (snake_case).
+type ArtifactItemResponse struct {
+	RelativePath string `json:"relative_path"`
+}
+
+// listArtifactItemsHandler handles GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/items.
+// Returns the list of files (artifact_item rows) for that artifact.
+func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+	if !ok {
+		return
+	}
+	if !s.requireArtifactStore(w) || !s.requireTaskStore(w) {
+		return
+	}
+	artifactID := r.PathValue("artifact_id")
+	if artifactID == "" {
+		writeJSONError(w, http.StatusBadRequest, "artifact_id required")
+		return
+	}
+	artifact, err := s.cfg.ArtifactStore.GetArtifactByID(r.Context(), artifactID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "artifact_items", "artifact_id", artifactID)
+		return
+	}
+	if artifact == nil {
+		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+	task, err := s.cfg.TaskStore.GetTask(r.Context(), artifact.TaskID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "artifact_items", "task_id", artifact.TaskID)
+		return
+	}
+	if task == nil || task.WorkspaceID != workspaceID {
+		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+	items, err := s.cfg.ArtifactStore.ListArtifactItems(r.Context(), artifactID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "artifact_items", "artifact_id", artifactID)
+		return
+	}
+	out := make([]ArtifactItemResponse, len(items))
+	for i := range items {
+		out[i] = ArtifactItemResponse{RelativePath: items[i].RelativePath}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+const artifactResultFilename = "result.md"
+
+// artifactContentHandler handles GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/content.
+// Optional query param path: file path relative to the artifact dir (default "result.md").
+// Only paths that exist in artifact_item for this artifact or "result.md" are allowed.
+// For the current single-file layout, the file on disk is result.md; item relative_path may differ.
+func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+	if !ok {
+		return
+	}
+	if !s.requireArtifactStore(w) || !s.requireTaskStore(w) {
+		return
+	}
+	artifactID := r.PathValue("artifact_id")
+	if artifactID == "" {
+		writeJSONError(w, http.StatusBadRequest, "artifact_id required")
+		return
+	}
+	artifact, err := s.cfg.ArtifactStore.GetArtifactByID(r.Context(), artifactID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "artifact_content", "artifact_id", artifactID)
+		return
+	}
+	if artifact == nil {
+		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+	task, err := s.cfg.TaskStore.GetTask(r.Context(), artifact.TaskID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "artifact_content", "task_id", artifact.TaskID)
+		return
+	}
+	if task == nil || task.WorkspaceID != workspaceID {
+		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+	artifactDir := config.ArtifactDir(workspaceID, task.TaskID, artifactID)
+	pathParam := r.URL.Query().Get("path")
+	if pathParam == "" {
+		pathParam = artifactResultFilename
+	}
+	// Reject path traversal
+	if strings.Contains(pathParam, "..") || filepath.Clean(pathParam) != pathParam || strings.HasPrefix(pathParam, "/") {
+		writeJSONError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	// Allow result.md or any path that appears in artifact_item for this artifact
+	allowed := pathParam == artifactResultFilename
+	if !allowed {
+		items, err := s.cfg.ArtifactStore.ListArtifactItems(r.Context(), artifactID)
+		if err != nil {
+			writeInternalError(w, err, "handler", "artifact_content", "artifact_id", artifactID)
+			return
+		}
+		for _, it := range items {
+			if it.RelativePath == pathParam {
+				allowed = true
+				break
+			}
+		}
+	}
+	if !allowed {
+		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
+		return
+	}
+	// Current layout: only result.md exists on disk; item relative_path may differ (e.g. result-<task_id>.md).
+	contentPath := filepath.Join(artifactDir, artifactResultFilename)
+	data, err := os.ReadFile(contentPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeJSONError(w, http.StatusNotFound, "artifact content not found")
+			return
+		}
+		writeInternalError(w, err, "handler", "artifact_content", "path", contentPath)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}

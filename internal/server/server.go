@@ -26,6 +26,7 @@ type Config struct {
 	WorkspaceStore store.WorkspaceStore  // Optional; required for GET /api/workspaces
 	ProjectStore   store.ProjectStore   // Optional; required for project list/create
 	TaskStore      store.TaskStore       // Optional; required for task list/create
+	ArtifactStore  store.ArtifactStore   // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
 	SessionsDir    string                // Optional; BUILDMAX_HOME/sessions for GET /api/sessions/{id}
 	JWTSecret      string                // Required for login when UserStore is set
 	CORSOrigin     string                // If set, enable CORS with this origin (e.g. "http://localhost:5173")
@@ -54,6 +55,9 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/projects", s.createProjectHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks", s.listWorkspaceTasksHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks", s.createWorkspaceTaskHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts", s.listWorkspaceArtifactsHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/items", s.listArtifactItemsHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/content", s.artifactContentHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/upload", s.uploadHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)

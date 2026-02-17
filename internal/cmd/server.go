@@ -56,6 +56,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		WorkspaceStore: st,
 		ProjectStore:   st,
 		TaskStore:      st,
+		ArtifactStore:  st,
 		SessionsDir:    config.SessionsDir(),
 		JWTSecret:      jwtSecret,
 		CORSOrigin:     corsOrigin,

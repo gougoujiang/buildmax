@@ -240,3 +240,49 @@ func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int,
 func (m *mockTaskStore) CreateArtifactWithItem(_ context.Context, taskID, artifactID string, seq int, relativePath string) error {
 	return nil
 }
+
+func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*store.Task, error) {
+	for i := range m.list {
+		if m.list[i].TaskID == taskID {
+			return &m.list[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// mockArtifactStore is an in-memory ArtifactStore for tests.
+type mockArtifactStore struct {
+	list      []store.ArtifactWithTask
+	listErr   error
+	get       map[string]*store.Artifact    // artifact_id -> artifact
+	getErr    error
+	listItems map[string][]store.ArtifactItem // artifact_id -> items
+}
+
+func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, taskID, artifactID string, seq int, relativePath string) error {
+	return nil
+}
+
+func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, taskID, projectID *string) ([]store.ArtifactWithTask, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	return m.list, nil
+}
+
+func (m *mockArtifactStore) GetArtifactByID(_ context.Context, artifactID string) (*store.Artifact, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	if m.get != nil {
+		return m.get[artifactID], nil
+	}
+	return nil, nil
+}
+
+func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID string) ([]store.ArtifactItem, error) {
+	if m.listItems != nil {
+		return m.listItems[artifactID], nil
+	}
+	return nil, nil
+}
