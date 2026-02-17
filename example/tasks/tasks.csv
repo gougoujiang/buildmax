@@ -1,0 +1,16 @@
+task_id,project,assignee,status,due_date,priority
+T001,BuildMax 门户,陈明,done,2024-09-30,high
+T002,BuildMax 门户,林芳,in_progress,2024-10-25,high
+T003,BuildMax 门户,王磊,todo,2024-11-05,medium
+T004,数据看板,张敏,in_progress,2024-10-20,high
+T005,数据看板,刘洋,todo,2024-10-28,medium
+T006,BuildMax 门户,赵静,done,2024-10-01,medium
+T007,API 网关,王磊,in_progress,2024-10-15,high
+T008,API 网关,郑浩,todo,2024-11-10,low
+T009,数据看板,钱斌,in_progress,2024-10-18,high
+T010,BuildMax 门户,周杰,todo,2024-11-01,medium
+T011,数据看板,张敏,todo,2024-10-30,medium
+T012,API 网关,陈明,done,2024-09-28,high
+T013,BuildMax 门户,林芳,todo,2024-11-15,low
+T014,数据看板,刘洋,overdue,2024-10-05,high
+T015,API 网关,郑浩,in_progress,2024-10-22,medium

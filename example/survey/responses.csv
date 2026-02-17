@@ -1,0 +1,21 @@
+response_id,question_id,question_text,option,respondent
+R001,Q1,您最常使用的开发语言？,Go,anonymous_1
+R002,Q1,您最常使用的开发语言？,Python,anonymous_2
+R003,Q1,您最常使用的开发语言？,Go,anonymous_3
+R004,Q1,您最常使用的开发语言？,JavaScript,anonymous_4
+R005,Q1,您最常使用的开发语言？,Python,anonymous_5
+R006,Q2,您是否使用过 AI 编程助手？,是,anonymous_1
+R007,Q2,您是否使用过 AI 编程助手？,是,anonymous_2
+R008,Q2,您是否使用过 AI 编程助手？,否,anonymous_3
+R009,Q2,您是否使用过 AI 编程助手？,是,anonymous_4
+R010,Q2,您是否使用过 AI 编程助手？,是,anonymous_5
+R011,Q3,对当前项目文档的满意度 (1-5),4,anonymous_1
+R012,Q3,对当前项目文档的满意度 (1-5),5,anonymous_2
+R013,Q3,对当前项目文档的满意度 (1-5),3,anonymous_3
+R014,Q3,对当前项目文档的满意度 (1-5),4,anonymous_4
+R015,Q3,对当前项目文档的满意度 (1-5),2,anonymous_5
+R016,Q4,希望增加的功能（多选）,任务看板,anonymous_1
+R017,Q4,希望增加的功能（多选）,API 文档,anonymous_2
+R018,Q4,希望增加的功能（多选）,任务看板;API 文档,anonymous_3
+R019,Q4,希望增加的功能（多选）,通知中心,anonymous_4
+R020,Q4,希望增加的功能（多选）,API 文档;通知中心,anonymous_5
