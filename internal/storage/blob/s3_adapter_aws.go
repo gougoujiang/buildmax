@@ -1,4 +1,4 @@
-package workspacestorage
+package blob
 
 import (
 	"context"

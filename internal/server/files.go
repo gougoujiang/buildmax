@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
 )
 
 // fileNode is the JSON shape for a directory tree node.
@@ -117,14 +117,14 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "file path required")
 		return
 	}
-	cleanPath, err := workspacestorage.CleanRelPath(filePath)
+	cleanPath, err := blob.CleanRelPath(filePath)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
 	data, err := s.cfg.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, workspacestorage.ErrNotFound) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "file not found")
 			return
 		}

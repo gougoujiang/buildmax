@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/store"
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -28,27 +28,27 @@ func signJWT(sub, secret string) string {
 
 // mockUserStore is an in-memory UserStore for tests.
 type mockUserStore struct {
-	userByEmail  map[string]*store.User
+	userByEmail  map[string]*entity.User
 	createErr    error // if set, CreateUser returns this error
 	nextUserID   int   // used to generate unique user_id in CreateUser
 }
 
-func (m *mockUserStore) UserByEmail(_ context.Context, email string) (*store.User, error) {
+func (m *mockUserStore) UserByEmail(_ context.Context, email string) (*entity.User, error) {
 	return m.userByEmail[email], nil
 }
 
-func (m *mockUserStore) CreateUser(ctx context.Context, email string) (*store.User, error) {
+func (m *mockUserStore) CreateUser(ctx context.Context, email string) (*entity.User, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	if m.userByEmail == nil {
-		m.userByEmail = make(map[string]*store.User)
+		m.userByEmail = make(map[string]*entity.User)
 	}
 	if existing := m.userByEmail[email]; existing != nil {
-		return nil, store.ErrEmailExists
+		return nil, entity.ErrEmailExists
 	}
 	m.nextUserID++
-	u := &store.User{
+	u := &entity.User{
 		UserID:    fmt.Sprintf("mock-u-%d", m.nextUserID),
 		Email:     email,
 		Name:      "",
@@ -61,7 +61,7 @@ func (m *mockUserStore) CreateUser(ctx context.Context, email string) (*store.Us
 // mockWorkspaceStore is an in-memory WorkspaceStore for tests.
 type mockWorkspaceStore struct {
 	ensureErr error
-	list      []store.Workspace
+	list      []entity.Workspace
 	listErr   error
 }
 
@@ -69,7 +69,7 @@ func (m *mockWorkspaceStore) EnsureDefaultWorkspaceForUser(_ context.Context, _ 
 	return m.ensureErr
 }
 
-func (m *mockWorkspaceStore) ListWorkspacesByOwner(_ context.Context, _ string) ([]store.Workspace, error) {
+func (m *mockWorkspaceStore) ListWorkspacesByOwner(_ context.Context, _ string) ([]entity.Workspace, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -85,8 +85,8 @@ func (m *mockWorkspaceStore) WorkspaceBelongsToUser(_ context.Context, workspace
 	return false, nil
 }
 
-func (m *mockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name string) (*store.Workspace, error) {
-	w := store.Workspace{
+func (m *mockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name string) (*entity.Workspace, error) {
+	w := entity.Workspace{
 		WorkspaceID:  fmt.Sprintf("ws-%d", len(m.list)+1),
 		OwnerUserID:  userID,
 		Name:         name,
@@ -98,13 +98,13 @@ func (m *mockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name str
 
 // mockProjectStore is an in-memory ProjectStore for tests.
 type mockProjectStore struct {
-	list     []store.Project
+	list     []entity.Project
 	listErr  error
-	create   *store.Project
+	create   *entity.Project
 	createErr error
 }
 
-func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*store.Project, error) {
+func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*entity.Project, error) {
 	for i := range m.list {
 		if m.list[i].ProjectID == projectID {
 			return &m.list[i], nil
@@ -113,11 +113,11 @@ func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*sto
 	return nil, nil
 }
 
-func (m *mockProjectStore) ListProjectsByWorkspace(_ context.Context, workspaceID string) ([]store.Project, error) {
+func (m *mockProjectStore) ListProjectsByWorkspace(_ context.Context, workspaceID string) ([]entity.Project, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
-	var out []store.Project
+	var out []entity.Project
 	for _, p := range m.list {
 		if p.WorkspaceID == workspaceID {
 			out = append(out, p)
@@ -126,14 +126,14 @@ func (m *mockProjectStore) ListProjectsByWorkspace(_ context.Context, workspaceI
 	return out, nil
 }
 
-func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, description string) (*store.Project, error) {
+func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, description string) (*entity.Project, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	if m.create != nil {
 		return m.create, nil
 	}
-	return &store.Project{
+	return &entity.Project{
 		ProjectID:   "proj1",
 		WorkspaceID: workspaceID,
 		Name:        name,
@@ -144,17 +144,17 @@ func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, d
 
 // mockTaskStore is an in-memory TaskStore for tests.
 type mockTaskStore struct {
-	list      []store.Task
+	list      []entity.Task
 	listErr   error
-	create    *store.Task
+	create    *entity.Task
 	createErr error
 }
 
-func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string) ([]store.Task, error) {
+func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string) ([]entity.Task, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
-	var out []store.Task
+	var out []entity.Task
 	for _, t := range m.list {
 		if t.WorkspaceID != workspaceID {
 			continue
@@ -167,14 +167,14 @@ func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID stri
 	return out, nil
 }
 
-func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, createdBy string) (*store.Task, error) {
+func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, createdBy string) (*entity.Task, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	if m.create != nil {
 		return m.create, nil
 	}
-	return &store.Task{
+	return &entity.Task{
 		TaskID:      "task-uuid-1",
 		WorkspaceID: workspaceID,
 		ProjectID:   projectID,
@@ -185,7 +185,7 @@ func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projec
 	}, nil
 }
 
-func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*store.Task, error) {
+func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*entity.Task, error) {
 	for i := range m.list {
 		if m.list[i].SessionID != nil && *m.list[i].SessionID == sessionID {
 			return &m.list[i], nil
@@ -194,7 +194,7 @@ func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *mockTaskStore) GetNextPendingTask(_ context.Context) (*store.Task, error) {
+func (m *mockTaskStore) GetNextPendingTask(_ context.Context) (*entity.Task, error) {
 	for i := range m.list {
 		if m.list[i].Status == "PENDING" {
 			return &m.list[i], nil
@@ -242,7 +242,7 @@ func (m *mockTaskStore) CreateArtifactWithItem(_ context.Context, taskID, artifa
 	return nil
 }
 
-func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*store.Task, error) {
+func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task, error) {
 	for i := range m.list {
 		if m.list[i].TaskID == taskID {
 			return &m.list[i], nil
@@ -253,25 +253,25 @@ func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*store.Task, 
 
 // mockArtifactStore is an in-memory ArtifactStore for tests.
 type mockArtifactStore struct {
-	list      []store.ArtifactWithTask
+	list      []entity.ArtifactWithTask
 	listErr   error
-	get       map[string]*store.Artifact    // artifact_id -> artifact
+	get       map[string]*entity.Artifact    // artifact_id -> artifact
 	getErr    error
-	listItems map[string][]store.ArtifactItem // artifact_id -> items
+	listItems map[string][]entity.ArtifactItem // artifact_id -> items
 }
 
 func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, taskID, artifactID string, seq int, relativePath string) error {
 	return nil
 }
 
-func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, taskID, projectID *string) ([]store.ArtifactWithTask, error) {
+func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, taskID, projectID *string) ([]entity.ArtifactWithTask, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	return m.list, nil
 }
 
-func (m *mockArtifactStore) GetArtifactByID(_ context.Context, artifactID string) (*store.Artifact, error) {
+func (m *mockArtifactStore) GetArtifactByID(_ context.Context, artifactID string) (*entity.Artifact, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -281,14 +281,14 @@ func (m *mockArtifactStore) GetArtifactByID(_ context.Context, artifactID string
 	return nil, nil
 }
 
-func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID string) ([]store.ArtifactItem, error) {
+func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID string) ([]entity.ArtifactItem, error) {
 	if m.listItems != nil {
 		return m.listItems[artifactID], nil
 	}
 	return nil, nil
 }
 
-// mockArtifactStorage is an in-memory workspacestorage.ArtifactStorage for tests.
+// mockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
 type mockArtifactStorage struct {
 	results map[string][]byte // "workspaceID/taskID/artifactID" -> content
 }
@@ -307,5 +307,5 @@ func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, taskID, 
 	if data, ok := m.results[key]; ok {
 		return data, nil
 	}
-	return nil, workspacestorage.ErrNotFound
+	return nil, blob.ErrNotFound
 }

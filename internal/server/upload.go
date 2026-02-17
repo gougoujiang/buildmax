@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
 )
 
 const maxUploadFiles = 10
@@ -70,7 +70,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		cleanPath, err := workspacestorage.CleanRelPath(relPath)
+		cleanPath, err := blob.CleanRelPath(relPath)
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid path: "+relPath)
 			return

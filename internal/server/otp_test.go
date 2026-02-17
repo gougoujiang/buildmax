@@ -6,64 +6,64 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/store"
+	"buildmax/internal/storage/entity"
 )
 
 func TestOtpRequestHandler(t *testing.T) {
-	userExists := &store.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	userExists := &entity.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 
 	tests := []struct {
 		name        string
-		userStore   store.UserStore
+		userStore   entity.UserStore
 		body        string
 		wantStatus  int
 		wantBodyHas string
 	}{
 		{
 			name:        "signup new user returns 200",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
 			body:       `{"email":"new@example.com","intent":"signup"}`,
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "signup existing email returns 409",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{"a@b.c": userExists}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			body:       `{"email":"a@b.c","intent":"signup"}`,
 			wantStatus:  http.StatusConflict,
 			wantBodyHas: "email already registered",
 		},
 		{
 			name:        "login unknown email returns 404",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
 			body:       `{"email":"nobody@example.com","intent":"login"}`,
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "user not found",
 		},
 		{
 			name:        "login existing user returns 200",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{"a@b.c": userExists}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			body:       `{"email":"a@b.c","intent":"login"}`,
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "default intent signup creates user",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
 			body:       `{"email":"default@example.com"}`,
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "empty email returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
 			body:       `{"email":"","intent":"signup"}`,
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "email required",
 		},
 		{
 			name:        "invalid body returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*store.User{}},
+			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
 			body:       `{`,
 			wantStatus:  http.StatusBadRequest,
 		},

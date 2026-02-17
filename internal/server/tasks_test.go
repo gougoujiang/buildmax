@@ -8,33 +8,33 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/store"
+	"buildmax/internal/storage/entity"
 )
 
 func ptrStr(s string) *string { return &s }
 
 func TestListWorkspaceTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"
-	userWorkspaces := []store.Workspace{
+	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	projInWs1 := store.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
-	projOtherWs := store.Project{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
+	projInWs1 := entity.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
+	projOtherWs := entity.Project{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
-	task1 := store.Task{
+	task1 := entity.Task{
 		TaskID: "t1", WorkspaceID: "ws1", ProjectID: ptrStr("proj1"), Status: "PENDING", Input: "Do something",
 		CreatedBy: "u1", CreatedAt: 1000,
 	}
-	taskNoProject := store.Task{
+	taskNoProject := entity.Task{
 		TaskID: "t2", WorkspaceID: "ws1", ProjectID: nil, Status: "PENDING", Input: "Explore",
 		CreatedBy: "u1", CreatedAt: 1001,
 	}
 
 	tests := []struct {
 		name         string
-		projectStore store.ProjectStore
-		taskStore    store.TaskStore
+		projectStore entity.ProjectStore
+		taskStore    entity.TaskStore
 		authHeader   string
 		path         string
 		jwtSecret    string
@@ -44,7 +44,7 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 	}{
 		{
 			name:         "no auth returns 401",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "",
 			path:         "/api/workspaces/ws1/tasks",
@@ -55,7 +55,7 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "workspace not owned returns 403",
-			projectStore: &mockProjectStore{list: []store.Project{}},
+			projectStore: &mockProjectStore{list: []entity.Project{}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws-other/tasks",
@@ -66,8 +66,8 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned workspace empty list returns 200",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:    &mockTaskStore{list: []store.Task{}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
+			taskStore:    &mockTaskStore{list: []entity.Task{}},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",
 			jwtSecret:    secret,
@@ -77,8 +77,8 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned workspace with tasks returns 200",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:    &mockTaskStore{list: []store.Task{task1, taskNoProject}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
+			taskStore:    &mockTaskStore{list: []entity.Task{task1, taskNoProject}},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",
 			jwtSecret:    secret,
@@ -88,8 +88,8 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "project_id filter returns filtered list",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
-			taskStore:    &mockTaskStore{list: []store.Task{task1, taskNoProject}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
+			taskStore:    &mockTaskStore{list: []entity.Task{task1, taskNoProject}},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks?project_id=proj1",
 			jwtSecret:    secret,
@@ -99,7 +99,7 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "project_id not found returns 404",
-			projectStore: &mockProjectStore{list: []store.Project{}},
+			projectStore: &mockProjectStore{list: []entity.Project{}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks?project_id=nonexistent",
@@ -110,7 +110,7 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "project_id in different workspace returns 400",
-			projectStore: &mockProjectStore{list: []store.Project{projOtherWs}},
+			projectStore: &mockProjectStore{list: []entity.Project{projOtherWs}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks?project_id=proj-other",
@@ -121,7 +121,7 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "task store nil returns 503",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore:    nil,
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",
@@ -173,17 +173,17 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 
 func TestCreateWorkspaceTaskHandler(t *testing.T) {
 	secret := "test-create-task-secret"
-	userWorkspaces := []store.Workspace{
+	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	projInWs1 := store.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
-	projOtherWs := store.Project{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
+	projInWs1 := entity.Project{ProjectID: "proj1", WorkspaceID: "ws1", Name: "Proj", Description: "", CreatedAt: 100}
+	projOtherWs := entity.Project{ProjectID: "proj-other", WorkspaceID: "ws-other", Name: "Other", Description: "", CreatedAt: 200}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
 	tests := []struct {
 		name         string
-		projectStore store.ProjectStore
-		taskStore    store.TaskStore
+		projectStore entity.ProjectStore
+		taskStore    entity.TaskStore
 		authHeader   string
 		path         string
 		body         string
@@ -194,7 +194,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 	}{
 		{
 			name:         "no auth returns 401",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "",
 			path:         "/api/workspaces/ws1/tasks",
@@ -205,7 +205,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "workspace not owned returns 403",
-			projectStore: &mockProjectStore{list: []store.Project{}},
+			projectStore: &mockProjectStore{list: []entity.Project{}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws-other/tasks",
@@ -216,7 +216,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "missing input returns 400",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",
@@ -227,7 +227,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "empty input returns 400",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",
@@ -238,9 +238,9 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "valid body no project returns 201",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore: &mockTaskStore{
-				create: &store.Task{
+				create: &entity.Task{
 					TaskID: "new-task-id", WorkspaceID: "ws1", ProjectID: nil, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
@@ -255,9 +255,9 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "valid body with project returns 201",
-			projectStore: &mockProjectStore{list: []store.Project{projInWs1}},
+			projectStore: &mockProjectStore{list: []entity.Project{projInWs1}},
 			taskStore: &mockTaskStore{
-				create: &store.Task{
+				create: &entity.Task{
 					TaskID: "new-task-id-2", WorkspaceID: "ws1", ProjectID: ptrStr("proj1"), Status: "PENDING",
 					Input: "Do Y", CreatedBy: "u1", CreatedAt: 99999,
 				},
@@ -272,7 +272,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "project not found returns 404",
-			projectStore: &mockProjectStore{list: []store.Project{}},
+			projectStore: &mockProjectStore{list: []entity.Project{}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",
@@ -283,7 +283,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:         "project in different workspace returns 400",
-			projectStore: &mockProjectStore{list: []store.Project{projOtherWs}},
+			projectStore: &mockProjectStore{list: []entity.Project{projOtherWs}},
 			taskStore:    &mockTaskStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/tasks",

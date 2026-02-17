@@ -9,8 +9,8 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/executor"
 	"buildmax/internal/server"
-	"buildmax/internal/store"
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 
 	"github.com/spf13/cobra"
 )
@@ -50,7 +50,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	ctx := context.Background()
-	st, err := store.New(ctx, dsn)
+	st, err := entity.New(ctx, dsn)
 	if err != nil {
 		return fmt.Errorf("database: %w", err)
 	}
@@ -59,7 +59,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	}
 
 	wsCfg := config.LoadWorkspaceStorageConfig()
-	var s3Client workspacestorage.S3Client
+	var s3Client blob.S3Client
 	if wsCfg.PersistProvider == config.ProviderMinIO || wsCfg.ArtifactProvider == config.ProviderMinIO {
 		var s3Err error
 		s3Client, s3Err = config.BuildS3Client(ctx, wsCfg)

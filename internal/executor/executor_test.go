@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"buildmax/internal/config"
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
 )
 
 // testWorkspacePaths implements WorkspacePaths using config.
@@ -100,7 +100,7 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID
 	key := workspaceID + "/" + taskID + "/" + artifactID
 	data, ok := f.results[key]
 	if !ok {
-		return nil, workspacestorage.ErrNotFound
+		return nil, blob.ErrNotFound
 	}
 	return data, nil
 }

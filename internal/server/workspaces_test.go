@@ -7,18 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/store"
+	"buildmax/internal/storage/entity"
 )
 
 func TestWorkspacesHandler(t *testing.T) {
 	secret := "test-workspaces-secret"
-	oneWorkspace := []store.Workspace{
+	oneWorkspace := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 
 	tests := []struct {
 		name          string
-		workspaceStore store.WorkspaceStore
+		workspaceStore entity.WorkspaceStore
 		authHeader    string
 		jwtSecret     string
 		wantStatus    int
@@ -100,7 +100,7 @@ func TestCreateWorkspaceHandler(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		workspaceStore store.WorkspaceStore
+		workspaceStore entity.WorkspaceStore
 		authHeader     string
 		body           string
 		wantStatus     int

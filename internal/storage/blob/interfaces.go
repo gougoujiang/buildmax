@@ -1,5 +1,5 @@
-// Package workspacestorage provides pluggable storage for workspace persist files and artifact files.
-package workspacestorage
+// Package blob provides pluggable storage for workspace persist files and artifact files.
+package blob
 
 import (
 	"context"

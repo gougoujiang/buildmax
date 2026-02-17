@@ -1,5 +1,5 @@
-// Package store provides user and workspace persistence (MySQL via GORM).
-package store
+// Package entity provides user and workspace persistence (MySQL via GORM).
+package entity
 
 import (
 	"context"

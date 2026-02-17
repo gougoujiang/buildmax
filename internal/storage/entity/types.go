@@ -1,4 +1,4 @@
-package store
+package entity
 
 import "buildmax/internal/model"
 
@@ -13,4 +13,3 @@ type Task = model.Task
 type Artifact = model.Artifact
 type ArtifactItem = model.ArtifactItem
 type ArtifactWithTask = model.ArtifactWithTask
-

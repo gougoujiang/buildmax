@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/store"
+	"buildmax/internal/storage/entity"
 )
 
 func TestListProjectsHandler(t *testing.T) {
 	secret := "test-projects-secret"
-	userWorkspaces := []store.Workspace{
+	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	ws1Projects := []store.Project{
+	ws1Projects := []entity.Project{
 		{ProjectID: "p1", WorkspaceID: "ws1", Name: "Proj One", Description: "d1", CreatedAt: 100},
 	}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
@@ -24,8 +24,8 @@ func TestListProjectsHandler(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		workspaceStore store.WorkspaceStore
-		projectStore   store.ProjectStore
+		workspaceStore entity.WorkspaceStore
+		projectStore   entity.ProjectStore
 		authHeader     string
 		pathSuffix     string // e.g. "/ws1" so path is /api/workspaces/ws1/projects
 		jwtSecret      string
@@ -123,15 +123,15 @@ func TestListProjectsHandler(t *testing.T) {
 
 func TestCreateProjectHandler(t *testing.T) {
 	secret := "test-create-secret"
-	userWorkspaces := []store.Workspace{
+	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
 	tests := []struct {
 		name           string
-		workspaceStore store.WorkspaceStore
-		projectStore   store.ProjectStore
+		workspaceStore entity.WorkspaceStore
+		projectStore   entity.ProjectStore
 		authHeader     string
 		pathSuffix     string
 		body           string
@@ -188,7 +188,7 @@ func TestCreateProjectHandler(t *testing.T) {
 			name:           "valid body returns 201",
 			workspaceStore: mockWS,
 			projectStore:   &mockProjectStore{
-				create: &store.Project{
+				create: &entity.Project{
 					ProjectID:   "new-id",
 					WorkspaceID: "ws1",
 					Name:        "My Project",

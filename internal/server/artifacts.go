@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"buildmax/internal/model"
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
 )
 
 // ArtifactResponse is one artifact in the list response (snake_case).
@@ -187,7 +187,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	// Current layout: only result.md is stored; serve via ArtifactStorage.
 	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, task.TaskID, artifactID)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, workspacestorage.ErrNotFound) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}

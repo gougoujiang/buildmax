@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"buildmax/internal/store"
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 )
 
 //go:embed static/openapi.json static/swagger.html
@@ -23,13 +23,13 @@ const shutdownTimeout = 10 * time.Second
 // Config holds server configuration.
 type Config struct {
 	Addr            string                      // Listen address (e.g. ":5678")
-	UserStore       store.UserStore             // Optional; required for login
-	WorkspaceStore  store.WorkspaceStore        // Optional; required for GET /api/workspaces
-	ProjectStore    store.ProjectStore          // Optional; required for project list/create
-	TaskStore       store.TaskStore             // Optional; required for task list/create
-	ArtifactStore   store.ArtifactStore         // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
-	PersistStorage  workspacestorage.PersistStorage  // Optional; required for upload and Explore (files tree/content)
-	ArtifactStorage workspacestorage.ArtifactStorage // Optional; required for artifact content file read
+	UserStore       entity.UserStore            // Optional; required for login
+	WorkspaceStore  entity.WorkspaceStore       // Optional; required for GET /api/workspaces
+	ProjectStore    entity.ProjectStore         // Optional; required for project list/create
+	TaskStore       entity.TaskStore            // Optional; required for task list/create
+	ArtifactStore   entity.ArtifactStore        // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
+	PersistStorage  blob.PersistStorage         // Optional; required for upload and Explore (files tree/content)
+	ArtifactStorage blob.ArtifactStorage        // Optional; required for artifact content file read
 	SessionsDir     string                      // Optional; BUILDMAX_HOME/sessions for GET /api/sessions/{id}
 	WorkspacesDir   string                      // Optional; overrides config.WorkspacesDir() for workspace file operations
 	JWTSecret       string                      // Required for login when UserStore is set

@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"buildmax/internal/store"
+	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 	"buildmax/internal/util"
-	"buildmax/internal/workspacestorage"
 
 	"github.com/google/uuid"
 )
@@ -22,18 +22,18 @@ const defaultPollInterval = 5 * time.Second
 
 // Runner polls for pending tasks and executes them one at a time.
 type Runner struct {
-	tasks           store.TaskStore
-	artifacts       store.ArtifactStore
+	tasks           entity.TaskStore
+	artifacts       entity.ArtifactStore
 	paths           WorkspacePaths
-	persist         workspacestorage.PersistStorage
-	artifactStorage workspacestorage.ArtifactStorage
+	persist         blob.PersistStorage
+	artifactStorage blob.ArtifactStorage
 	pollInterval    time.Duration
 	stopCh          chan struct{}
 	doneCh          chan struct{}
 }
 
 // New creates a Runner. Call Start() to begin polling.
-func New(taskStore store.TaskStore, artifactStore store.ArtifactStore, paths WorkspacePaths, persist workspacestorage.PersistStorage, artifactStorage workspacestorage.ArtifactStorage) (*Runner, error) {
+func New(taskStore entity.TaskStore, artifactStore entity.ArtifactStore, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage) (*Runner, error) {
 	if taskStore == nil {
 		return nil, errors.New("executor: taskStore must not be nil")
 	}
@@ -100,7 +100,7 @@ func (r *Runner) loop() {
 }
 
 // executeTask runs the buildmax CLI for a single task and updates the DB with the result.
-func (r *Runner) executeTask(ctx context.Context, task store.Task) {
+func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
 	sessionID := uuid.New().String()
 	slog.Info("executor: running task", "task_id", task.TaskID, "workspace_id", task.WorkspaceID, "session_id", sessionID)
 

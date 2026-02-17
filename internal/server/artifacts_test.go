@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/store"
+	"buildmax/internal/storage/entity"
 )
 
 func TestListWorkspaceArtifactsHandler(t *testing.T) {
@@ -16,12 +16,12 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 	token := signJWT(userID, secret)
 
 	mockWS := &mockWorkspaceStore{
-		list: []store.Workspace{
+		list: []entity.Workspace{
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
 	mockArt := &mockArtifactStore{
-		list: []store.ArtifactWithTask{
+		list: []entity.ArtifactWithTask{
 			{
 				ArtifactID:       "art-1",
 				TaskID:           "task-1",
@@ -35,7 +35,7 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		artifactStore  store.ArtifactStore
+		artifactStore  entity.ArtifactStore
 		auth           string
 		wantStatus     int
 		wantBodyArray  bool
@@ -100,20 +100,20 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	token := signJWT(userID, secret)
 
 	mockWS := &mockWorkspaceStore{
-		list: []store.Workspace{
+		list: []entity.Workspace{
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
 	mockTask := &mockTaskStore{
-		list: []store.Task{
+		list: []entity.Task{
 			{TaskID: "task-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockArt := &mockArtifactStore{
-		get: map[string]*store.Artifact{
+		get: map[string]*entity.Artifact{
 			artifactID: {ArtifactID: artifactID, TaskID: "task-1", CreatedAt: 1, Seq: 1},
 		},
-		listItems: map[string][]store.ArtifactItem{
+		listItems: map[string][]entity.ArtifactItem{
 			artifactID: {{ArtifactID: artifactID, RelativePath: "result-task1.md"}},
 		},
 	}
@@ -149,26 +149,26 @@ func TestArtifactContentHandler(t *testing.T) {
 	token := signJWT(userID, secret)
 
 	mockWS := &mockWorkspaceStore{
-		list: []store.Workspace{
+		list: []entity.Workspace{
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
 	mockTask := &mockTaskStore{
-		list: []store.Task{
+		list: []entity.Task{
 			{TaskID: taskID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
-	mockArtNotFound := &mockArtifactStore{get: map[string]*store.Artifact{}}
+	mockArtNotFound := &mockArtifactStore{get: map[string]*entity.Artifact{}}
 	mockArtFound := &mockArtifactStore{
-		get: map[string]*store.Artifact{
+		get: map[string]*entity.Artifact{
 			artifactID: {ArtifactID: artifactID, TaskID: taskID, CreatedAt: 1, Seq: 1},
 		},
 	}
 
 	tests := []struct {
 		name          string
-		artifactStore store.ArtifactStore
-		taskStore     store.TaskStore
+		artifactStore entity.ArtifactStore
+		taskStore     entity.TaskStore
 		auth          string
 		wantStatus    int
 	}{

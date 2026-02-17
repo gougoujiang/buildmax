@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"buildmax/internal/workspacestorage"
+	"buildmax/internal/storage/blob"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -90,7 +90,7 @@ func LoadWorkspaceStorageConfig() WorkspaceStorageConfig {
 }
 
 // BuildS3Client creates an S3-compatible client (MinIO or AWS S3). Use when either provider is minio.
-func BuildS3Client(ctx context.Context, cfg WorkspaceStorageConfig) (workspacestorage.S3Client, error) {
+func BuildS3Client(ctx context.Context, cfg WorkspaceStorageConfig) (blob.S3Client, error) {
 	// Custom endpoint (MinIO): use static credentials and endpoint resolver
 	resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		return aws.Endpoint{
@@ -116,31 +116,31 @@ func BuildS3Client(ctx context.Context, cfg WorkspaceStorageConfig) (workspacest
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.UsePathStyle = true
 	})
-	return workspacestorage.NewS3ClientAdapter(client), nil
+	return blob.NewS3ClientAdapter(client), nil
 }
 
 // BuildPersistStorage returns the configured persist storage implementation.
-func BuildPersistStorage(cfg WorkspaceStorageConfig, persistRoot func(workspaceID string) string, s3Client workspacestorage.S3Client) (workspacestorage.PersistStorage, error) {
+func BuildPersistStorage(cfg WorkspaceStorageConfig, persistRoot func(workspaceID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
 	switch cfg.PersistProvider {
 	case ProviderMinIO:
 		if s3Client == nil {
 			return nil, fmt.Errorf("persist storage is minio but S3 client is nil")
 		}
-		return workspacestorage.NewS3PersistStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
+		return blob.NewS3PersistStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
 	default:
-		return workspacestorage.NewLocalFSPersistStorage(persistRoot), nil
+		return blob.NewLocalFSPersistStorage(persistRoot), nil
 	}
 }
 
 // BuildArtifactStorage returns the configured artifact storage implementation.
-func BuildArtifactStorage(cfg WorkspaceStorageConfig, artifactDir func(workspaceID, taskID, artifactID string) string, s3Client workspacestorage.S3Client) (workspacestorage.ArtifactStorage, error) {
+func BuildArtifactStorage(cfg WorkspaceStorageConfig, artifactDir func(workspaceID, taskID, artifactID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
 	switch cfg.ArtifactProvider {
 	case ProviderMinIO:
 		if s3Client == nil {
 			return nil, fmt.Errorf("artifact storage is minio but S3 client is nil")
 		}
-		return workspacestorage.NewS3ArtifactStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
+		return blob.NewS3ArtifactStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
 	default:
-		return workspacestorage.NewLocalFSArtifactStorage(artifactDir), nil
+		return blob.NewLocalFSArtifactStorage(artifactDir), nil
 	}
 }
