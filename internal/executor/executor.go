@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"buildmax/internal/config"
+	"buildmax/internal/id"
 	"buildmax/internal/store"
 
 	"github.com/google/uuid"
@@ -19,10 +20,12 @@ import (
 
 const defaultPollInterval = 5 * time.Second
 
-// TaskStore is the subset of store.TaskStore that the executor needs.
+// TaskStore is the subset of store.TaskStore that the executor needs (including artifact creation).
 type TaskStore interface {
 	GetNextPendingTask(ctx context.Context) (*store.Task, error)
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
+	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
+	CreateArtifactWithItem(ctx context.Context, taskID, artifactID string, seq int, relativePath string) error
 }
 
 // Runner polls for pending tasks and executes them one at a time.
@@ -94,7 +97,7 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 	}
 
 	persistDir := config.PersistentWorkspaceDir(task.WorkspaceID)
-	runtimeDir := config.RuntimeWorkspaceDir(task.TaskID)
+	runtimeDir := config.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
 
 	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
 		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create runtime dir: %v", err))
@@ -130,6 +133,26 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 			slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 		}
 		return
+	}
+
+	// Artifact creation (best-effort): increment seq, write result to artifact dir, insert artifact + item and set last_artifact_id.
+	newSeq, seqErr := r.store.IncrementTaskSeq(ctx, task.TaskID)
+	if seqErr != nil {
+		slog.Warn("executor: IncrementTaskSeq failed, skipping artifact", "task_id", task.TaskID, "err", seqErr)
+	} else {
+		artifactID := id.New()
+		artifactDir := config.ArtifactDir(task.WorkspaceID, task.TaskID, artifactID)
+		if mkdirErr := os.MkdirAll(artifactDir, 0755); mkdirErr != nil {
+			slog.Warn("executor: failed to create artifact dir, skipping artifact", "task_id", task.TaskID, "err", mkdirErr)
+		} else {
+			resultSrc := filepath.Join(runtimeDir, resultFilename)
+			resultDst := filepath.Join(artifactDir, "result.md")
+			if copyErr := copyFile(resultSrc, resultDst); copyErr != nil {
+				slog.Warn("executor: failed to copy result to artifact dir, skipping DB insert", "task_id", task.TaskID, "err", copyErr)
+			} else if createErr := r.store.CreateArtifactWithItem(ctx, task.TaskID, artifactID, newSeq, resultFilename); createErr != nil {
+				slog.Warn("executor: CreateArtifactWithItem failed", "task_id", task.TaskID, "err", createErr)
+			}
+		}
 	}
 
 	slog.Info("executor: task succeeded", "task_id", task.TaskID)

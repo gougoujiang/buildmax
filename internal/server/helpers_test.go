@@ -226,3 +226,17 @@ func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status strin
 	}
 	return nil
 }
+
+func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int, error) {
+	for i := range m.list {
+		if m.list[i].TaskID == taskID {
+			m.list[i].ArtifactSeq++
+			return m.list[i].ArtifactSeq, nil
+		}
+	}
+	return 0, nil
+}
+
+func (m *mockTaskStore) CreateArtifactWithItem(_ context.Context, taskID, artifactID string, seq int, relativePath string) error {
+	return nil
+}

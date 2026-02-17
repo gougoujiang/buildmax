@@ -117,26 +117,32 @@ func MySQLDSN() string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True", user, password, host, port, database)
 }
 
-// WorkspacesDir returns the persistent workspace root directory.
-// Default is DataDir()/workspace/persist.
-// If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned). Callers create the dir when needed.
+// WorkspacesDir returns the parent directory of all workspace roots.
+// Default is DataDir()/workspaces. If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned).
+// Workspace root for a workspace is filepath.Join(WorkspacesDir(), workspaceID).
 func WorkspacesDir() string {
 	if dir := os.Getenv("BUILDMAX_WORKSPACES_DIR"); dir != "" {
 		return filepath.Clean(dir)
 	}
-	return filepath.Join(DataDir(), "workspace", "persist")
+	return filepath.Join(DataDir(), "workspaces")
 }
 
 // PersistentWorkspaceDir returns the directory for a workspace's persistent files (uploads, result files).
-// It is filepath.Join(WorkspacesDir(), workspaceID).
+// It is WorkspacesDir()/<workspaceID>/persist.
 func PersistentWorkspaceDir(workspaceID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID)
+	return filepath.Join(WorkspacesDir(), workspaceID, "persist")
 }
 
 // RuntimeWorkspaceDir returns the ephemeral directory for a task run.
-// It is DataDir()/workspace/task/<taskID>. No env override. Runtime dirs are left on disk; cleanup is a separate task.
-func RuntimeWorkspaceDir(taskID string) string {
-	return filepath.Join(DataDir(), "workspace", "task", taskID)
+// It is WorkspacesDir()/<workspaceID>/tasks/<taskID>. Runtime dirs are left on disk; cleanup is a separate task.
+func RuntimeWorkspaceDir(workspaceID, taskID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID)
+}
+
+// ArtifactDir returns the directory for one artifact's files (snapshot output of a task run).
+// It is WorkspacesDir()/<workspaceID>/artifacts/<taskID>/<artifactID>.
+func ArtifactDir(workspaceID, taskID, artifactID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", taskID, artifactID)
 }
 
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.

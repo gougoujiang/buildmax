@@ -10,6 +10,7 @@ import (
 	"buildmax/internal/id"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // User is the user model. JSON uses snake_case per project convention.
@@ -62,24 +63,52 @@ func (Project) TableName() string {
 // API exposes task_id as "id"; internal ID is for DB only.
 // Tasks belong to a workspace; project is optional.
 type Task struct {
-	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
-	TaskID       string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"task_id"`
-	WorkspaceID  string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
-	ProjectID    *string `gorm:"type:varchar(64);index" json:"project_id,omitempty"`
-	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
-	Input        string  `gorm:"type:text;not null" json:"input"`
-	Output       *string `gorm:"type:text" json:"output,omitempty"`
-	CreatedBy    string  `gorm:"type:varchar(64);not null" json:"created_by"`
-	CreatedAt    int64   `gorm:"autoCreateTime" json:"created_at"`
-	StartedAt    *int64  `gorm:"" json:"started_at,omitempty"`
-	EndedAt      *int64  `gorm:"" json:"ended_at,omitempty"`
-	ErrorMessage *string `gorm:"type:text" json:"error_message,omitempty"`
-	SessionID    *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
+	ID              uint    `gorm:"primaryKey;autoIncrement" json:"-"` // internal only, not in API
+	TaskID          string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"task_id"`
+	WorkspaceID     string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	ProjectID       *string `gorm:"type:varchar(64);index" json:"project_id,omitempty"`
+	Status          string  `gorm:"type:varchar(32);not null" json:"status"`
+	Input           string  `gorm:"type:text;not null" json:"input"`
+	Output          *string `gorm:"type:text" json:"output,omitempty"`
+	CreatedBy       string  `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt       int64   `gorm:"autoCreateTime" json:"created_at"`
+	StartedAt       *int64  `gorm:"" json:"started_at,omitempty"`
+	EndedAt         *int64  `gorm:"" json:"ended_at,omitempty"`
+	ErrorMessage    *string `gorm:"type:text" json:"error_message,omitempty"`
+	SessionID       *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
+	ArtifactSeq     int     `gorm:"column:artifact_seq" json:"artifact_seq"`
+	LastArtifactID  *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
 func (Task) TableName() string {
 	return "task"
+}
+
+// Artifact is the artifact model (one per task run output). JSON uses snake_case.
+type Artifact struct {
+	ID         uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	TaskID     string `gorm:"type:varchar(64);not null;index" json:"task_id"`
+	ArtifactID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"artifact_id"`
+	CreatedAt  int64  `gorm:"autoCreateTime" json:"created_at"`
+	Seq        int    `gorm:"not null" json:"seq"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (Artifact) TableName() string {
+	return "artifact"
+}
+
+// ArtifactItem is one file in an artifact. JSON uses snake_case.
+type ArtifactItem struct {
+	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	ArtifactID   string `gorm:"type:varchar(64);not null;index" json:"artifact_id"`
+	RelativePath string `gorm:"type:varchar(512);not null" json:"relative_path"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (ArtifactItem) TableName() string {
+	return "artifact_item"
 }
 
 // ErrEmailExists is returned by CreateUser when the email is already registered.
@@ -122,6 +151,14 @@ type TaskStore interface {
 	// UpdateTaskStatus updates a task's status and optional fields (started_at, ended_at, output, error_message, session_id).
 	// Only non-nil pointer fields are updated.
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
+	// IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
+	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
+}
+
+// ArtifactStore provides artifact persistence.
+type ArtifactStore interface {
+	// CreateArtifactWithItem creates one artifact row, one artifact_item row, and updates task.last_artifact_id. All in a transaction.
+	CreateArtifactWithItem(ctx context.Context, taskID, artifactID string, seq int, relativePath string) error
 }
 
 // Store implements UserStore, WorkspaceStore, ProjectStore, and TaskStore with a MySQL backend.
@@ -137,7 +174,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Project{}, &Task{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Project{}, &Task{}, &Artifact{}, &ArtifactItem{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -336,6 +373,42 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID, status string, sta
 		updates["session_id"] = *sessionID
 	}
 	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", taskID).Updates(updates).Error
+}
+
+// IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
+func (s *Store) IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error) {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var t Task
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("task_id = ?", taskID).First(&t).Error; err != nil {
+			return err
+		}
+		newSeq = t.ArtifactSeq + 1
+		return tx.Model(&Task{}).Where("task_id = ?", taskID).Update("artifact_seq", newSeq).Error
+	})
+	return newSeq, err
+}
+
+// CreateArtifactWithItem creates one artifact row, one artifact_item row, and updates task.last_artifact_id in a transaction.
+func (s *Store) CreateArtifactWithItem(ctx context.Context, taskID, artifactID string, seq int, relativePath string) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		art := Artifact{
+			TaskID:     taskID,
+			ArtifactID: artifactID,
+			CreatedAt:  time.Now().Unix(),
+			Seq:        seq,
+		}
+		if err := tx.Create(&art).Error; err != nil {
+			return err
+		}
+		item := ArtifactItem{
+			ArtifactID:   artifactID,
+			RelativePath: relativePath,
+		}
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Task{}).Where("task_id = ?", taskID).Update("last_artifact_id", artifactID).Error
+	})
 }
 
 // BackfillTaskWorkspaceID fills workspace_id for existing tasks that have a project_id
