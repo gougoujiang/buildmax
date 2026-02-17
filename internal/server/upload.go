@@ -2,12 +2,10 @@ package server
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 
-	"buildmax/internal/util"
+	"buildmax/internal/workspacestorage"
 )
 
 const maxUploadFiles = 10
@@ -21,6 +19,9 @@ type uploadResponse struct {
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
+		return
+	}
+	if !s.requirePersistStorage(w) {
 		return
 	}
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
@@ -52,13 +53,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	destDir := s.persistentWorkspaceDir(workspaceID)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		writeInternalError(w, err, "handler", "upload", "dir", destDir)
-		return
-	}
-
-	ws := &util.Workspace{Root: destDir}
+	ctx := r.Context()
 	uploaded := make([]string, 0, len(fileHeaders))
 
 	for i, fh := range fileHeaders {
@@ -69,20 +64,16 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				writeJSONError(w, http.StatusBadRequest, "empty path in paths field")
 				return
 			}
-			absPath, err := ws.ResolvePath(relPath)
-			if err != nil {
-				writeJSONError(w, http.StatusBadRequest, "invalid path: "+relPath)
-				return
-			}
-			if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
-				writeInternalError(w, err, "handler", "upload", "path", absPath)
-				return
-			}
 		} else {
 			relPath = filepath.Base(fh.Filename)
 			if relPath == "." || relPath == "" {
 				continue
 			}
+		}
+		cleanPath, err := workspacestorage.CleanRelPath(relPath)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid path: "+relPath)
+			return
 		}
 
 		src, err := fh.Open()
@@ -90,30 +81,13 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(w, err, "handler", "upload", "name", relPath)
 			return
 		}
-
-		var dstPath string
-		if dirMode {
-			dstPath, _ = ws.ResolvePath(relPath)
-		} else {
-			dstPath = filepath.Join(destDir, relPath)
-		}
-
-		dst, err := os.Create(dstPath)
-		if err != nil {
+		if err := s.cfg.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
 			src.Close()
-			writeInternalError(w, err, "handler", "upload", "path", dstPath)
+			writeInternalError(w, err, "handler", "upload", "path", cleanPath)
 			return
 		}
-		if _, err := io.Copy(dst, src); err != nil {
-			dst.Close()
-			src.Close()
-			writeInternalError(w, err, "handler", "upload", "path", dstPath)
-			return
-		}
-		dst.Close()
 		src.Close()
-
-		uploaded = append(uploaded, relPath)
+		uploaded = append(uploaded, cleanPath)
 	}
 
 	writeJSON(w, http.StatusOK, uploadResponse{Uploaded: uploaded})

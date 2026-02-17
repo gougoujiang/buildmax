@@ -194,13 +194,15 @@ func TestArtifactContentHandler(t *testing.T) {
 			wantStatus:    http.StatusUnauthorized,
 		},
 	}
+	artifactStorage := newMockArtifactStorage()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				WorkspaceStore: mockWS,
-				ArtifactStore:  tt.artifactStore,
-				TaskStore:      tt.taskStore,
-				JWTSecret:      secret,
+				WorkspaceStore:   mockWS,
+				ArtifactStore:    tt.artifactStore,
+				ArtifactStorage:  artifactStorage,
+				TaskStore:        tt.taskStore,
+				JWTSecret:        secret,
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts/"+artifactID+"/content", nil)

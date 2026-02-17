@@ -1,12 +1,14 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"buildmax/internal/model"
+	"buildmax/internal/workspacestorage"
 )
 
 // ArtifactResponse is one artifact in the list response (snake_case).
@@ -128,7 +130,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if !s.requireArtifactStore(w) || !s.requireTaskStore(w) {
+	if !s.requireArtifactStore(w) || !s.requireTaskStore(w) || !s.requireArtifactStorage(w) {
 		return
 	}
 	artifactID := r.PathValue("artifact_id")
@@ -154,7 +156,6 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	artifactDir := s.artifactDir(workspaceID, task.TaskID, artifactID)
 	pathParam := r.URL.Query().Get("path")
 	if pathParam == "" {
 		pathParam = artifactResultFilename
@@ -183,15 +184,14 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
 		return
 	}
-	// Current layout: only result.md exists on disk; item relative_path may differ (e.g. result-<task_id>.md).
-	contentPath := filepath.Join(artifactDir, artifactResultFilename)
-	data, err := os.ReadFile(contentPath)
+	// Current layout: only result.md is stored; serve via ArtifactStorage.
+	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, task.TaskID, artifactID)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, workspacestorage.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "artifact_content", "path", contentPath)
+		writeInternalError(w, err, "handler", "artifact_content", "artifact_id", artifactID)
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"buildmax/internal/store"
+	"buildmax/internal/workspacestorage"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -285,4 +286,26 @@ func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID stri
 		return m.listItems[artifactID], nil
 	}
 	return nil, nil
+}
+
+// mockArtifactStorage is an in-memory workspacestorage.ArtifactStorage for tests.
+type mockArtifactStorage struct {
+	results map[string][]byte // "workspaceID/taskID/artifactID" -> content
+}
+
+func newMockArtifactStorage() *mockArtifactStorage {
+	return &mockArtifactStorage{results: make(map[string][]byte)}
+}
+
+func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, taskID, artifactID string, data []byte) error {
+	m.results[workspaceID+"/"+taskID+"/"+artifactID] = append([]byte(nil), data...)
+	return nil
+}
+
+func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, taskID, artifactID string) ([]byte, error) {
+	key := workspaceID + "/" + taskID + "/" + artifactID
+	if data, ok := m.results[key]; ok {
+		return data, nil
+	}
+	return nil, workspacestorage.ErrNotFound
 }

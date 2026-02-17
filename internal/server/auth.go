@@ -79,6 +79,24 @@ func (s *Server) requireArtifactStore(w http.ResponseWriter) bool {
 	return true
 }
 
+// requirePersistStorage writes 503 "persist storage not configured" and returns false if PersistStorage is nil.
+func (s *Server) requirePersistStorage(w http.ResponseWriter) bool {
+	if s.cfg.PersistStorage == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "persist storage not configured")
+		return false
+	}
+	return true
+}
+
+// requireArtifactStorage writes 503 "artifact storage not configured" and returns false if ArtifactStorage is nil.
+func (s *Server) requireArtifactStorage(w http.ResponseWriter) bool {
+	if s.cfg.ArtifactStorage == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "artifact storage not configured")
+		return false
+	}
+	return true
+}
+
 // userIDFromRequest extracts the user id from the Authorization: Bearer <token> header.
 // Returns (userID, true) if the JWT is valid and contains a sub claim, or ("", false) otherwise.
 func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {

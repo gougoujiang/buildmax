@@ -11,6 +11,7 @@ import (
 	"buildmax/internal/executor"
 	"buildmax/internal/server"
 	"buildmax/internal/store"
+	"buildmax/internal/workspacestorage"
 
 	"github.com/spf13/cobra"
 )
@@ -62,20 +63,43 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	if corsOrigin == "" {
 		corsOrigin = "http://localhost:5173"
 	}
+
+	wsCfg := config.LoadWorkspaceStorageConfig()
+	var s3Client workspacestorage.S3Client
+	if wsCfg.PersistProvider == config.ProviderMinIO || wsCfg.ArtifactProvider == config.ProviderMinIO {
+		var s3Err error
+		s3Client, s3Err = config.BuildS3Client(ctx, wsCfg)
+		if s3Err != nil {
+			return fmt.Errorf("S3 client: %w", s3Err)
+		}
+	}
+	persistRoot := config.PersistentWorkspaceDir
+	artifactDir := config.ArtifactDir
+	persistStorage, err := config.BuildPersistStorage(wsCfg, persistRoot, s3Client)
+	if err != nil {
+		return fmt.Errorf("persist storage: %w", err)
+	}
+	artifactStorage, err := config.BuildArtifactStorage(wsCfg, artifactDir, s3Client)
+	if err != nil {
+		return fmt.Errorf("artifact storage: %w", err)
+	}
+
 	cfg := server.Config{
-		Addr:           ":" + strconv.Itoa(port),
-		UserStore:      st,
-		WorkspaceStore: st,
-		ProjectStore:   st,
-		TaskStore:      st,
-		ArtifactStore:  st,
-		SessionsDir:    config.SessionsDir(),
-		WorkspacesDir:  config.WorkspacesDir(),
-		JWTSecret:      jwtSecret,
-		CORSOrigin:     corsOrigin,
+		Addr:             ":" + strconv.Itoa(port),
+		UserStore:        st,
+		WorkspaceStore:   st,
+		ProjectStore:     st,
+		TaskStore:        st,
+		ArtifactStore:    st,
+		PersistStorage:   persistStorage,
+		ArtifactStorage:  artifactStorage,
+		SessionsDir:      config.SessionsDir(),
+		WorkspacesDir:    config.WorkspacesDir(),
+		JWTSecret:        jwtSecret,
+		CORSOrigin:       corsOrigin,
 	}
 	// Start the task executor (polls for PENDING tasks and runs buildmax -p).
-	runner, err := executor.New(st, st, defaultWorkspacePaths{})
+	runner, err := executor.New(st, st, defaultWorkspacePaths{}, persistStorage, artifactStorage)
 	if err != nil {
 		return fmt.Errorf("executor: %w", err)
 	}

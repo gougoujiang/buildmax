@@ -5,15 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
-	"buildmax/internal/util"
 	"buildmax/internal/store"
+	"buildmax/internal/util"
+	"buildmax/internal/workspacestorage"
 
 	"github.com/google/uuid"
 )
@@ -22,16 +22,18 @@ const defaultPollInterval = 5 * time.Second
 
 // Runner polls for pending tasks and executes them one at a time.
 type Runner struct {
-	tasks        store.TaskStore
-	artifacts    store.ArtifactStore
-	paths        WorkspacePaths
-	pollInterval time.Duration
-	stopCh       chan struct{}
-	doneCh       chan struct{}
+	tasks           store.TaskStore
+	artifacts       store.ArtifactStore
+	paths           WorkspacePaths
+	persist         workspacestorage.PersistStorage
+	artifactStorage workspacestorage.ArtifactStorage
+	pollInterval    time.Duration
+	stopCh          chan struct{}
+	doneCh          chan struct{}
 }
 
 // New creates a Runner. Call Start() to begin polling.
-func New(taskStore store.TaskStore, artifactStore store.ArtifactStore, paths WorkspacePaths) (*Runner, error) {
+func New(taskStore store.TaskStore, artifactStore store.ArtifactStore, paths WorkspacePaths, persist workspacestorage.PersistStorage, artifactStorage workspacestorage.ArtifactStorage) (*Runner, error) {
 	if taskStore == nil {
 		return nil, errors.New("executor: taskStore must not be nil")
 	}
@@ -41,13 +43,21 @@ func New(taskStore store.TaskStore, artifactStore store.ArtifactStore, paths Wor
 	if paths == nil {
 		return nil, errors.New("executor: paths must not be nil")
 	}
+	if persist == nil {
+		return nil, errors.New("executor: persist storage must not be nil")
+	}
+	if artifactStorage == nil {
+		return nil, errors.New("executor: artifact storage must not be nil")
+	}
 	return &Runner{
-		tasks:        taskStore,
-		artifacts:    artifactStore,
-		paths:        paths,
-		pollInterval: defaultPollInterval,
-		stopCh:       make(chan struct{}),
-		doneCh:       make(chan struct{}),
+		tasks:           taskStore,
+		artifacts:       artifactStore,
+		paths:           paths,
+		persist:         persist,
+		artifactStorage: artifactStorage,
+		pollInterval:    defaultPollInterval,
+		stopCh:          make(chan struct{}),
+		doneCh:          make(chan struct{}),
 	}, nil
 }
 
@@ -101,15 +111,14 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 		return
 	}
 
-	persistDir := r.paths.PersistentWorkspaceDir(task.WorkspaceID)
 	runtimeDir := r.paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
 
 	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
 		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create runtime dir: %v", err))
 		return
 	}
-	if err := copyWorkspaceContents(persistDir, runtimeDir); err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to copy workspace contents: %v", err))
+	if err := r.persist.MaterializeToDir(ctx, task.WorkspaceID, runtimeDir); err != nil {
+		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to materialize workspace: %v", err))
 		return
 	}
 
@@ -135,23 +144,16 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 		return
 	}
 
-	// Artifact creation (best-effort): increment seq, write result to artifact dir, insert artifact + item and set last_artifact_id.
+	// Artifact creation (best-effort): increment seq, write result to artifact storage, insert artifact + item and set last_artifact_id.
 	newSeq, seqErr := r.tasks.IncrementTaskSeq(ctx, task.TaskID)
 	if seqErr != nil {
 		slog.Warn("executor: IncrementTaskSeq failed, skipping artifact", "task_id", task.TaskID, "err", seqErr)
 	} else {
 		artifactID := util.NewID()
-		artifactDir := r.paths.ArtifactDir(task.WorkspaceID, task.TaskID, artifactID)
-		if mkdirErr := os.MkdirAll(artifactDir, 0755); mkdirErr != nil {
-			slog.Warn("executor: failed to create artifact dir, skipping artifact", "task_id", task.TaskID, "err", mkdirErr)
-		} else {
-			resultSrc := filepath.Join(runtimeDir, resultFilename)
-			resultDst := filepath.Join(artifactDir, "result.md")
-			if copyErr := copyFile(resultSrc, resultDst); copyErr != nil {
-				slog.Warn("executor: failed to copy result to artifact dir, skipping DB insert", "task_id", task.TaskID, "err", copyErr)
-			} else if createErr := r.artifacts.CreateArtifactWithItem(ctx, task.TaskID, artifactID, newSeq, resultFilename); createErr != nil {
-				slog.Warn("executor: CreateArtifactWithItem failed", "task_id", task.TaskID, "err", createErr)
-			}
+		if putErr := r.artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, artifactID, output); putErr != nil {
+			slog.Warn("executor: failed to write result to artifact storage, skipping DB insert", "task_id", task.TaskID, "err", putErr)
+		} else if createErr := r.artifacts.CreateArtifactWithItem(ctx, task.TaskID, artifactID, newSeq, resultFilename); createErr != nil {
+			slog.Warn("executor: CreateArtifactWithItem failed", "task_id", task.TaskID, "err", createErr)
 		}
 	}
 
@@ -159,65 +161,6 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 	if updateErr := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil); updateErr != nil {
 		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 	}
-}
-
-// copyWorkspaceContents copies files and directories from src to dst recursively.
-// If src is missing or not a directory, returns nil (no-op). Copies only regular files and dirs; skips symlinks.
-func copyWorkspaceContents(src, dst string) error {
-	info, err := os.Stat(src)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-	if err := os.MkdirAll(dst, 0755); err != nil {
-		return err
-	}
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		destPath := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode().Perm())
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return nil
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		return copyFile(path, destPath)
-	})
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }
 
 // failTask is a helper to mark a task as FAILED when execution cannot proceed.

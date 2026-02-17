@@ -1,13 +1,14 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 
-	"buildmax/internal/util"
+	"buildmax/internal/workspacestorage"
 )
 
 // fileNode is the JSON shape for a directory tree node.
@@ -25,20 +26,80 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	wsDir := s.persistentWorkspaceDir(workspaceID)
-	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		writeInternalError(w, err, "handler", "files_tree", "dir", wsDir)
+	if !s.requirePersistStorage(w) {
 		return
 	}
-	tree, err := buildTree(wsDir, wsDir, "")
+	ctx := r.Context()
+	relPaths, err := s.cfg.PersistStorage.ListFiles(ctx, workspaceID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "files_tree", "dir", wsDir)
+		writeInternalError(w, err, "handler", "files_tree", "workspace_id", workspaceID)
 		return
 	}
+	tree := buildTreeFromFileList(relPaths)
 	tree.ID = "."
 	tree.Name = "Workspace"
-
 	writeJSON(w, http.StatusOK, tree)
+}
+
+// buildTreeFromFileList builds a fileNode tree from a flat list of relative file paths.
+// Folders appear only when they contain at least one file.
+func buildTreeFromFileList(relPaths []string) *fileNode {
+	root := &fileNode{ID: ".", Name: "Workspace", Type: "folder", Children: []*fileNode{}}
+	seenDirs := make(map[string]*fileNode)
+	seenDirs[""] = root
+	sort.Strings(relPaths)
+	for _, rel := range relPaths {
+		if rel == "" {
+			continue
+		}
+		rel = filepath.ToSlash(rel)
+		dir := path.Dir(rel)
+		name := path.Base(rel)
+		var parent *fileNode
+		if dir == "." {
+			parent = root
+		} else {
+			var ok bool
+			parent, ok = seenDirs[dir]
+			if !ok {
+				parent = ensurePath(seenDirs, root, dir)
+			}
+		}
+		parent.Children = append(parent.Children, &fileNode{ID: rel, Name: name, Type: "file"})
+	}
+	sortFileNodes(root)
+	return root
+}
+
+func ensurePath(seenDirs map[string]*fileNode, root *fileNode, dir string) *fileNode {
+	if dir == "." || dir == "" {
+		return root
+	}
+	if n, ok := seenDirs[dir]; ok {
+		return n
+	}
+	parentDir := path.Dir(dir)
+	parent := ensurePath(seenDirs, root, parentDir)
+	name := path.Base(dir)
+	node := &fileNode{ID: dir, Name: name, Type: "folder", Children: []*fileNode{}}
+	parent.Children = append(parent.Children, node)
+	seenDirs[dir] = node
+	return node
+}
+
+func sortFileNodes(n *fileNode) {
+	sort.Slice(n.Children, func(i, j int) bool {
+		a, b := n.Children[i], n.Children[j]
+		if a.Type != b.Type {
+			return a.Type == "folder"
+		}
+		return a.Name < b.Name
+	})
+	for _, c := range n.Children {
+		if c.Type == "folder" {
+			sortFileNodes(c)
+		}
+	}
 }
 
 // fileContentHandler handles GET /api/workspaces/{workspace_id}/files/{path...}.
@@ -48,97 +109,29 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !s.requirePersistStorage(w) {
+		return
+	}
 	filePath := r.PathValue("path")
 	if filePath == "" {
 		writeJSONError(w, http.StatusBadRequest, "file path required")
 		return
 	}
-	ws := &util.Workspace{Root: s.persistentWorkspaceDir(workspaceID)}
-	absPath, err := ws.ResolvePath(filePath)
+	cleanPath, err := workspacestorage.CleanRelPath(filePath)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-	info, err := os.Stat(absPath)
+	data, err := s.cfg.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, workspacestorage.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "file not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "file_content", "path", absPath)
+		writeInternalError(w, err, "handler", "file_content", "path", cleanPath)
 		return
 	}
-	if info.IsDir() {
-		writeJSONError(w, http.StatusNotFound, "path is a directory")
-		return
-	}
-	data, err := os.ReadFile(absPath)
-	if err != nil {
-		writeInternalError(w, err, "handler", "file_content", "path", absPath)
-		return
-	}
-
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
-}
-
-// buildTree recursively walks a directory and returns a fileNode tree.
-// dir is the current absolute directory being walked.
-// relPrefix is the relative path of dir from the workspace root (empty for root itself).
-// Sorts: folders first, then files, both alphabetically.
-func buildTree(root, dir, relPrefix string) (*fileNode, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	var dirs, files []os.DirEntry
-	for _, e := range entries {
-		if e.IsDir() {
-			dirs = append(dirs, e)
-		} else {
-			files = append(files, e)
-		}
-	}
-	sort.Slice(dirs, func(i, j int) bool { return dirs[i].Name() < dirs[j].Name() })
-	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
-
-	children := make([]*fileNode, 0, len(dirs)+len(files))
-
-	for _, d := range dirs {
-		childRel := d.Name()
-		if relPrefix != "" {
-			childRel = path.Join(relPrefix, d.Name())
-		}
-		child, err := buildTree(root, filepath.Join(dir, d.Name()), childRel)
-		if err != nil {
-			return nil, err
-		}
-		children = append(children, child)
-	}
-
-	for _, f := range files {
-		childRel := f.Name()
-		if relPrefix != "" {
-			childRel = path.Join(relPrefix, f.Name())
-		}
-		children = append(children, &fileNode{
-			ID:   childRel,
-			Name: f.Name(),
-			Type: "file",
-		})
-	}
-
-	name := filepath.Base(dir)
-	if relPrefix == "" {
-		name = "Workspace"
-	}
-
-	return &fileNode{
-		ID:       relPrefix,
-		Name:     name,
-		Type:     "folder",
-		Children: children,
-	}, nil
 }

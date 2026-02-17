@@ -1,85 +1,151 @@
 package executor
 
 import (
+	"bytes"
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"buildmax/internal/config"
+	"buildmax/internal/workspacestorage"
 )
 
-func TestCopyWorkspaceContents_SrcMissing(t *testing.T) {
-	dst := t.TempDir()
-	err := copyWorkspaceContents(filepath.Join(dst, "nonexistent"), dst)
-	if err != nil {
-		t.Errorf("copyWorkspaceContents(missing src) = %v, want nil", err)
+// testWorkspacePaths implements WorkspacePaths using config.
+type testWorkspacePaths struct{}
+
+func (testWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
+	return config.PersistentWorkspaceDir(workspaceID)
+}
+func (testWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
+	return config.RuntimeWorkspaceDir(workspaceID, taskID)
+}
+func (testWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
+	return config.ArtifactDir(workspaceID, taskID, artifactID)
+}
+
+// fakePersistStorage is an in-memory PersistStorage for tests.
+type fakePersistStorage struct {
+	files map[string]map[string][]byte // workspaceID -> relPath -> content
+}
+
+func newFakePersistStorage() *fakePersistStorage {
+	return &fakePersistStorage{files: make(map[string]map[string][]byte)}
+}
+
+func (f *fakePersistStorage) Put(ctx context.Context, workspaceID, relPath string, r io.Reader) error {
+	if f.files[workspaceID] == nil {
+		f.files[workspaceID] = make(map[string][]byte)
+	}
+	data, _ := io.ReadAll(r)
+	f.files[workspaceID][relPath] = data
+	return nil
+}
+
+func (f *fakePersistStorage) Get(ctx context.Context, workspaceID, relPath string) ([]byte, error) {
+	if f.files[workspaceID] == nil {
+		return nil, os.ErrNotExist
+	}
+	data, ok := f.files[workspaceID][relPath]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return data, nil
+}
+
+func (f *fakePersistStorage) ListFiles(ctx context.Context, workspaceID string) ([]string, error) {
+	if f.files[workspaceID] == nil {
+		return nil, nil
+	}
+	var out []string
+	for k := range f.files[workspaceID] {
+		out = append(out, k)
+	}
+	return out, nil
+}
+
+func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, dstDir string) error {
+	if f.files[workspaceID] == nil {
+		return nil
+	}
+	for relPath, data := range f.files[workspaceID] {
+		full := filepath.Join(dstDir, filepath.FromSlash(relPath))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(full, data, 0644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// fakeArtifactStorage is an in-memory ArtifactStorage for tests.
+type fakeArtifactStorage struct {
+	results map[string][]byte // "workspaceID/taskID/artifactID" -> content
+}
+
+func newFakeArtifactStorage() *fakeArtifactStorage {
+	return &fakeArtifactStorage{results: make(map[string][]byte)}
+}
+
+func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, taskID, artifactID string, data []byte) error {
+	key := workspaceID + "/" + taskID + "/" + artifactID
+	f.results[key] = append([]byte(nil), data...)
+	return nil
+}
+
+func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID, artifactID string) ([]byte, error) {
+	key := workspaceID + "/" + taskID + "/" + artifactID
+	data, ok := f.results[key]
+	if !ok {
+		return nil, workspacestorage.ErrNotFound
+	}
+	return data, nil
+}
+
+func TestNew_RequiresPersistAndArtifactStorage(t *testing.T) {
+	persist := newFakePersistStorage()
+	artifact := newFakeArtifactStorage()
+	// New with nil taskStore should error.
+	_, err := New(nil, nil, testWorkspacePaths{}, persist, artifact)
+	if err == nil {
+		t.Fatal("New with nil taskStore should error")
+	}
+	// Just check that with all nils we get the first error (taskStore)
+	if err.Error() != "executor: taskStore must not be nil" {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
-func TestCopyWorkspaceContents_SrcNotDir(t *testing.T) {
-	f := filepath.Join(t.TempDir(), "file.txt")
-	if err := os.WriteFile(f, []byte("x"), 0644); err != nil {
+func TestFakePersistStorage_MaterializeToDir(t *testing.T) {
+	ctx := context.Background()
+	f := newFakePersistStorage()
+	ws := "ws1"
+	if err := f.Put(ctx, ws, "a.txt", bytes.NewReader([]byte("hello"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Put(ctx, ws, "sub/b.txt", bytes.NewReader([]byte("world"))); err != nil {
 		t.Fatal(err)
 	}
 	dst := t.TempDir()
-	err := copyWorkspaceContents(f, dst)
-	if err != nil {
-		t.Errorf("copyWorkspaceContents(file as src) = %v, want nil", err)
-	}
-}
-
-func TestCopyWorkspaceContents_EmptyDir(t *testing.T) {
-	src := t.TempDir()
-	dst := t.TempDir()
-	dstSub := filepath.Join(dst, "out")
-	if err := copyWorkspaceContents(src, dstSub); err != nil {
-		t.Fatalf("copyWorkspaceContents(empty dir): %v", err)
-	}
-	entries, err := os.ReadDir(dstSub)
-	if err != nil {
-		t.Fatalf("ReadDir: %v", err)
-	}
-	if len(entries) != 0 {
-		t.Errorf("expected empty dst, got %d entries", len(entries))
-	}
-}
-
-func TestCopyWorkspaceContents_OneFile(t *testing.T) {
-	src := t.TempDir()
-	if err := os.WriteFile(filepath.Join(src, "in.txt"), []byte("hello"), 0644); err != nil {
+	if err := f.MaterializeToDir(ctx, ws, dst); err != nil {
 		t.Fatal(err)
 	}
-	dst := t.TempDir()
-	dstSub := filepath.Join(dst, "out")
-	if err := copyWorkspaceContents(src, dstSub); err != nil {
-		t.Fatalf("copyWorkspaceContents: %v", err)
-	}
-	data, err := os.ReadFile(filepath.Join(dstSub, "in.txt"))
+	data, err := os.ReadFile(filepath.Join(dst, "a.txt"))
 	if err != nil {
-		t.Fatalf("ReadFile copied: %v", err)
+		t.Fatal(err)
 	}
 	if string(data) != "hello" {
-		t.Errorf("copied content = %q, want hello", data)
+		t.Errorf("got %q", data)
 	}
-}
-
-func TestCopyWorkspaceContents_NestedDirAndFile(t *testing.T) {
-	src := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(src, "a", "b"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "a", "b", "f.txt"), []byte("nested"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	dst := t.TempDir()
-	dstSub := filepath.Join(dst, "out")
-	if err := copyWorkspaceContents(src, dstSub); err != nil {
-		t.Fatalf("copyWorkspaceContents: %v", err)
-	}
-	data, err := os.ReadFile(filepath.Join(dstSub, "a", "b", "f.txt"))
+	data, err = os.ReadFile(filepath.Join(dst, "sub", "b.txt"))
 	if err != nil {
-		t.Fatalf("ReadFile nested: %v", err)
+		t.Fatal(err)
 	}
-	if string(data) != "nested" {
-		t.Errorf("nested content = %q, want nested", data)
+	if string(data) != "world" {
+		t.Errorf("got %q", data)
 	}
 }
 
