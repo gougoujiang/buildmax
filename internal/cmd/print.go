@@ -29,11 +29,11 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	}
 	// Generate an LLM title for new sessions (no title yet).
 	if res.Session.Title() == "" {
-		chatFn := func(ctx context.Context, msgs []llm.Message) (string, error) {
+		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
 			content, _, err := res.LLMClient.ChatWithTools(ctx, msgs, nil)
 			return content, err
-		}
-		title, err := session.GenerateTitle(ctx, chatFn, res.Session.Messages())
+		})
+		title, err := session.GenerateTitle(ctx, titleClient, res.Session.Messages())
 		if err != nil {
 			slog.Warn("LLM title generation failed, using fallback", "err", err)
 		} else if title != "" {

@@ -91,6 +91,32 @@ func SettingsPath() string {
 	return filepath.Join(DataDir(), "settings.json")
 }
 
+// MySQLDSN returns the MySQL DSN from environment.
+// Env vars: MYSQL_HOST (default localhost), MYSQL_PORT (3306), MYSQL_USER (buildmax), MYSQL_PASSWORD (buildmax), MYSQL_DATABASE (buildmax).
+func MySQLDSN() string {
+	host := os.Getenv("MYSQL_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	port := os.Getenv("MYSQL_PORT")
+	if port == "" {
+		port = "3306"
+	}
+	user := os.Getenv("MYSQL_USER")
+	if user == "" {
+		user = "buildmax"
+	}
+	password := os.Getenv("MYSQL_PASSWORD")
+	if password == "" {
+		password = "buildmax_dev"
+	}
+	database := os.Getenv("MYSQL_DATABASE")
+	if database == "" {
+		database = "buildmax"
+	}
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True", user, password, host, port, database)
+}
+
 // WorkspacesDir returns the persistent workspace root directory.
 // Default is DataDir()/workspace/persist.
 // If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned). Callers create the dir when needed.

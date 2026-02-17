@@ -54,7 +54,7 @@ func (s *Server) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	task, err := s.cfg.TaskStore.GetTaskBySessionID(r.Context(), sessionID)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "get_session", "session_id", sessionID)
 		return
 	}
 	if task == nil {
@@ -63,14 +63,13 @@ func (s *Server) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	owned, err := s.userOwnsWorkspace(r, userID, task.WorkspaceID)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "get_session", "workspace_id", task.WorkspaceID)
 		return
 	}
 	if !owned {
 		writeJSONError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-
 	path := filepath.Join(s.cfg.SessionsDir, sessionID+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -78,12 +77,12 @@ func (s *Server) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusNotFound, "session file not found")
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "get_session", "path", path)
 		return
 	}
 	var out SessionResponse
 	if err := json.Unmarshal(data, &out); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "invalid session data")
+		writeInternalError(w, err, "handler", "get_session", "session_id", sessionID)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)

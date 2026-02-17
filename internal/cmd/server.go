@@ -33,7 +33,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	dsn := mysqlDSN()
+	dsn := config.MySQLDSN()
 	jwtSecret := os.Getenv("BUILDMAX_JWT_SECRET")
 	if jwtSecret == "" {
 		return fmt.Errorf("BUILDMAX_JWT_SECRET is required for server mode")
@@ -73,31 +73,6 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	return nil
-}
-
-// mysqlDSN returns the MySQL DSN from env. Defaults: host localhost, port 3306, user buildmax, password buildmax, database buildmax.
-func mysqlDSN() string {
-	host := os.Getenv("MYSQL_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-	port := os.Getenv("MYSQL_PORT")
-	if port == "" {
-		port = "3306"
-	}
-	user := os.Getenv("MYSQL_USER")
-	if user == "" {
-		user = "buildmax"
-	}
-	password := os.Getenv("MYSQL_PASSWORD")
-	if password == "" {
-		password = "buildmax"
-	}
-	database := os.Getenv("MYSQL_DATABASE")
-	if database == "" {
-		database = "buildmax"
-	}
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True", user, password, host, port, database)
 }
 
 // resolveServerPort returns the port to use: flag --port, else BUILDMAX_SERVER_PORT, else defaultServerPort.

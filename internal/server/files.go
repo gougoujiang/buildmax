@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -23,36 +22,18 @@ type fileNode struct {
 // filesTreeHandler handles GET /api/workspaces/{workspace_id}/files.
 // Returns the full directory tree as nested JSON.
 func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
-		return
-	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-
 	wsDir := config.PersistentWorkspaceDir(workspaceID)
 	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		slog.Error("files: mkdir", "err", err, "dir", wsDir)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "files_tree", "dir", wsDir)
 		return
 	}
-
 	tree, err := buildTree(wsDir, wsDir, "")
 	if err != nil {
-		slog.Error("files: build tree", "err", err, "dir", wsDir)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "files_tree", "dir", wsDir)
 		return
 	}
 	tree.ID = "."
@@ -64,57 +45,37 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 // fileContentHandler handles GET /api/workspaces/{workspace_id}/files/{path...}.
 // Returns the raw file content as text/plain.
 func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
-		return
-	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-
 	filePath := r.PathValue("path")
 	if filePath == "" {
 		writeJSONError(w, http.StatusBadRequest, "file path required")
 		return
 	}
-
 	ws := &util.Workspace{Root: config.PersistentWorkspaceDir(workspaceID)}
 	absPath, err := ws.ResolvePath(filePath)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-
 	info, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			writeJSONError(w, http.StatusNotFound, "file not found")
 			return
 		}
-		slog.Error("files: stat", "err", err, "path", absPath)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "file_content", "path", absPath)
 		return
 	}
 	if info.IsDir() {
 		writeJSONError(w, http.StatusNotFound, "path is a directory")
 		return
 	}
-
 	data, err := os.ReadFile(absPath)
 	if err != nil {
-		slog.Error("files: read", "err", err, "path", absPath)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "file_content", "path", absPath)
 		return
 	}
 

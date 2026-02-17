@@ -30,8 +30,7 @@ func ensureWorkspaceDirs(root string, workspaceIDs []string) {
 }
 
 func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.WorkspaceStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "workspaces not configured")
+	if !s.requireWorkspaceStore(w) {
 		return
 	}
 	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
@@ -40,12 +39,12 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if err := s.cfg.WorkspaceStore.EnsureDefaultWorkspaceForUser(ctx, userID); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "workspaces", "op", "ensure_default")
 		return
 	}
 	list, err := s.cfg.WorkspaceStore.ListWorkspacesByOwner(ctx, userID)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "workspaces", "op", "list")
 		return
 	}
 	ids := make([]string, len(list))
@@ -66,8 +65,7 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.WorkspaceStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "workspaces not configured")
+	if !s.requireWorkspaceStore(w) {
 		return
 	}
 	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
@@ -86,12 +84,12 @@ func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	ws, err := s.cfg.WorkspaceStore.CreateWorkspace(ctx, userID, req.Name)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "create_workspace")
 		return
 	}
 	destDir := config.PersistentWorkspaceDir(ws.WorkspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "create_workspace", "mkdir", destDir)
 		return
 	}
 	out := WorkspaceResponse{

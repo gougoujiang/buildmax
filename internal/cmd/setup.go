@@ -188,6 +188,7 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 		return setupResult{}, fmt.Errorf("create task tool: %w", err)
 	}
 
+	// Main agent includes the task tool so it can delegate to sub-agents.
 	a := agent.NewAgent(client, append(baseTools, taskTool))
 
 	sessionsDir := config.SessionsDir()

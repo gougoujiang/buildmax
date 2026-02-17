@@ -64,14 +64,13 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.cfg.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "login", "email", req.Email)
 		return
 	}
 	if user == nil {
 		writeJSONError(w, http.StatusUnauthorized, "user not found")
 		return
 	}
-
 	now := time.Now()
 	claims := jwtClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -83,7 +82,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(s.cfg.JWTSecret))
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "login", "sign_token")
 		return
 	}
 

@@ -9,9 +9,19 @@ import (
 	"buildmax/internal/llm"
 )
 
-// ChatFunc makes a simple chat completion call (no tools).
-// Used for lightweight tasks like title generation.
-type ChatFunc func(ctx context.Context, messages []llm.Message) (string, error)
+// TitleChatClient is the interface for a simple chat completion (no tools), used for title generation.
+// Callers can pass *llm.Client via TitleChatFunc or a test double.
+type TitleChatClient interface {
+	Chat(ctx context.Context, messages []llm.Message) (string, error)
+}
+
+// TitleChatFunc adapts a function to TitleChatClient so closures and *llm.Client wrappers can be used.
+type TitleChatFunc func(ctx context.Context, messages []llm.Message) (string, error)
+
+// Chat implements TitleChatClient.
+func (f TitleChatFunc) Chat(ctx context.Context, messages []llm.Message) (string, error) {
+	return f(ctx, messages)
+}
 
 // titleSystemPrompt instructs the LLM to produce a concise session title.
 const titleSystemPrompt = `Generate a short, descriptive title (3-8 words) for this conversation. Return ONLY the title text, nothing else. Do not use quotes or punctuation at the start or end.`
@@ -19,7 +29,7 @@ const titleSystemPrompt = `Generate a short, descriptive title (3-8 words) for t
 // GenerateTitle uses an LLM to produce a concise title from the conversation messages.
 // It extracts the first user message and first assistant reply (if any) to keep the
 // prompt small and cheap. Returns the cleaned title string.
-func GenerateTitle(ctx context.Context, chatFn ChatFunc, messages []llm.Message) (string, error) {
+func GenerateTitle(ctx context.Context, client TitleChatClient, messages []llm.Message) (string, error) {
 	// Build a small context: first user message + first assistant reply.
 	var titleMsgs []llm.Message
 	titleMsgs = append(titleMsgs, llm.Message{Role: "system", Content: titleSystemPrompt})
@@ -47,7 +57,7 @@ func GenerateTitle(ctx context.Context, chatFn ChatFunc, messages []llm.Message)
 	}
 
 	slog.Debug("generating session title via LLM")
-	title, err := chatFn(ctx, titleMsgs)
+	title, err := client.Chat(ctx, titleMsgs)
 	if err != nil {
 		return "", err
 	}

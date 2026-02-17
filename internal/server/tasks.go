@@ -46,57 +46,55 @@ func taskToResponse(t store.Task) TaskResponse {
 	}
 }
 
+// resolveProjectForWorkspace resolves projectID (optional). If empty, returns (nil, true).
+// If non-empty, validates project exists and belongs to workspace; on success returns (project, true),
+// on failure writes the appropriate error and returns (nil, false).
+func (s *Server) resolveProjectForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, projectID string) (*store.Project, bool) {
+	if projectID == "" {
+		return nil, true
+	}
+	if !s.requireProjectStore(w) {
+		return nil, false
+	}
+	project, err := s.cfg.ProjectStore.GetProject(r.Context(), projectID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "resolve_project", "project_id", projectID)
+		return nil, false
+	}
+	if project == nil {
+		writeJSONError(w, http.StatusNotFound, "project not found")
+		return nil, false
+	}
+	if project.WorkspaceID != workspaceID {
+		writeJSONError(w, http.StatusBadRequest, "project does not belong to workspace")
+		return nil, false
+	}
+	return project, true
+}
+
 // listWorkspaceTasksHandler handles GET /api/workspaces/{workspace_id}/tasks.
 // Optional query param project_id filters by project (validates project belongs to workspace).
 func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
+	if !s.requireTaskStore(w) {
 		return
 	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if s.cfg.TaskStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-		return
-	}
-
 	var projectIDPtr *string
 	if pid := r.URL.Query().Get("project_id"); pid != "" {
-		if s.cfg.ProjectStore == nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
+		project, ok := s.resolveProjectForWorkspace(w, r, workspaceID, pid)
+		if !ok {
 			return
 		}
-		project, err := s.cfg.ProjectStore.GetProject(r.Context(), pid)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "internal error")
-			return
+		if project != nil {
+			projectIDPtr = &project.ProjectID
 		}
-		if project == nil {
-			writeJSONError(w, http.StatusNotFound, "project not found")
-			return
-		}
-		if project.WorkspaceID != workspaceID {
-			writeJSONError(w, http.StatusBadRequest, "project does not belong to workspace")
-			return
-		}
-		projectIDPtr = &pid
 	}
-
 	list, err := s.cfg.TaskStore.ListTasksByWorkspace(r.Context(), workspaceID, projectIDPtr)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "list_tasks", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]TaskResponse, len(list))
@@ -109,29 +107,13 @@ func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Reques
 // createWorkspaceTaskHandler handles POST /api/workspaces/{workspace_id}/tasks.
 // Body: { "input": "…", "project_id": "optional" }.
 func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	userID, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
+	if !s.requireTaskStore(w) {
 		return
 	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if s.cfg.TaskStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-		return
-	}
-
 	var req createTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
@@ -141,32 +123,19 @@ func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Reque
 		writeJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
-
 	var projectIDPtr *string
 	if req.ProjectID != "" {
-		if s.cfg.ProjectStore == nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
+		project, ok := s.resolveProjectForWorkspace(w, r, workspaceID, req.ProjectID)
+		if !ok {
 			return
 		}
-		project, err := s.cfg.ProjectStore.GetProject(r.Context(), req.ProjectID)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "internal error")
-			return
+		if project != nil {
+			projectIDPtr = &project.ProjectID
 		}
-		if project == nil {
-			writeJSONError(w, http.StatusNotFound, "project not found")
-			return
-		}
-		if project.WorkspaceID != workspaceID {
-			writeJSONError(w, http.StatusBadRequest, "project does not belong to workspace")
-			return
-		}
-		projectIDPtr = &req.ProjectID
 	}
-
 	task, err := s.cfg.TaskStore.CreateTask(r.Context(), workspaceID, projectIDPtr, req.Input, userID)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "create_task", "workspace_id", workspaceID)
 		return
 	}
 	writeJSON(w, http.StatusCreated, taskToResponse(*task))

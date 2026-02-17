@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,25 +20,10 @@ type uploadResponse struct {
 }
 
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
-		return
-	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid multipart form")
 		return
@@ -71,8 +55,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	destDir := config.PersistentWorkspaceDir(workspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
-		slog.Error("upload: mkdir", "err", err, "dir", destDir)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "upload", "dir", destDir)
 		return
 	}
 
@@ -93,8 +76,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
-				slog.Error("upload: mkdir subdir", "err", err, "path", absPath)
-				writeJSONError(w, http.StatusInternalServerError, "internal error")
+				writeInternalError(w, err, "handler", "upload", "path", absPath)
 				return
 			}
 		} else {
@@ -106,8 +88,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		src, err := fh.Open()
 		if err != nil {
-			slog.Error("upload: open multipart file", "err", err, "name", relPath)
-			writeJSONError(w, http.StatusInternalServerError, "internal error")
+			writeInternalError(w, err, "handler", "upload", "name", relPath)
 			return
 		}
 
@@ -121,16 +102,13 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		dst, err := os.Create(dstPath)
 		if err != nil {
 			src.Close()
-			slog.Error("upload: create file", "err", err, "path", dstPath)
-			writeJSONError(w, http.StatusInternalServerError, "internal error")
+			writeInternalError(w, err, "handler", "upload", "path", dstPath)
 			return
 		}
-
 		if _, err := io.Copy(dst, src); err != nil {
 			dst.Close()
 			src.Close()
-			slog.Error("upload: copy file", "err", err, "path", dstPath)
-			writeJSONError(w, http.StatusInternalServerError, "internal error")
+			writeInternalError(w, err, "handler", "upload", "path", dstPath)
 			return
 		}
 		dst.Close()

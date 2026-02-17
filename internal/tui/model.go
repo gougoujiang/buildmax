@@ -238,11 +238,11 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 // generateTitleCmd returns a tea.Cmd that calls the LLM to generate a session title in the background.
 func generateTitleCmd(opts TUIOpts) tea.Cmd {
 	return func() tea.Msg {
-		chatFn := func(ctx context.Context, msgs []llm.Message) (string, error) {
+		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
 			content, _, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
 			return content, err
-		}
-		title, err := session.GenerateTitle(context.Background(), chatFn, opts.Session.Messages())
+		})
+		title, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages())
 		return titleGeneratedMsg{Title: title, Err: err}
 	}
 }

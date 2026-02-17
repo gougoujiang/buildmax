@@ -9,11 +9,11 @@ import (
 	"buildmax/internal/llm"
 )
 
-// fakeChatFunc returns a ChatFunc that replies with the given fixed response.
-func fakeChatFunc(reply string, err error) ChatFunc {
-	return func(_ context.Context, _ []llm.Message) (string, error) {
+// fakeChatFunc returns a TitleChatClient that replies with the given fixed response.
+func fakeChatFunc(reply string, err error) TitleChatClient {
+	return TitleChatFunc(func(_ context.Context, _ []llm.Message) (string, error) {
 		return reply, err
-	}
+	})
 }
 
 func TestGenerateTitle_Success(t *testing.T) {
@@ -70,12 +70,11 @@ func TestGenerateTitle_TruncatesLongAssistantReply(t *testing.T) {
 
 	// The chat func captures messages to verify assistant content was truncated.
 	var captured []llm.Message
-	chatFn := func(_ context.Context, msgs []llm.Message) (string, error) {
+	titleClient := TitleChatFunc(func(_ context.Context, msgs []llm.Message) (string, error) {
 		captured = msgs
 		return "A Short Story", nil
-	}
-
-	title, err := GenerateTitle(context.Background(), chatFn, s.Messages())
+	})
+	title, err := GenerateTitle(context.Background(), titleClient, s.Messages())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

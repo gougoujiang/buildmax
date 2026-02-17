@@ -31,31 +31,16 @@ func (s *Server) userOwnsWorkspace(r *http.Request, userID, workspaceID string) 
 }
 
 func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
-		return
-	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if s.cfg.ProjectStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
+	if !s.requireProjectStore(w) {
 		return
 	}
 	list, err := s.cfg.ProjectStore.ListProjectsByWorkspace(r.Context(), workspaceID)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "list_projects", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]ProjectResponse, len(list))
@@ -66,26 +51,11 @@ func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, "workspace_id required")
-		return
-	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if s.cfg.ProjectStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
+	if !s.requireProjectStore(w) {
 		return
 	}
 	var req createProjectRequest
@@ -99,7 +69,7 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	project, err := s.cfg.ProjectStore.CreateProject(r.Context(), workspaceID, req.Name, req.Description)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, err, "handler", "create_project", "workspace_id", workspaceID)
 		return
 	}
 	writeJSON(w, http.StatusCreated, projectToResponse(*project))
