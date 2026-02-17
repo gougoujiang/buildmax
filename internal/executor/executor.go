@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"buildmax/internal/config"
-	"buildmax/internal/id"
+	"buildmax/internal/util"
 	"buildmax/internal/store"
 
 	"github.com/google/uuid"
@@ -135,7 +135,7 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 	if seqErr != nil {
 		slog.Warn("executor: IncrementTaskSeq failed, skipping artifact", "task_id", task.TaskID, "err", seqErr)
 	} else {
-		artifactID := id.New()
+		artifactID := util.NewID()
 		artifactDir := config.ArtifactDir(task.WorkspaceID, task.TaskID, artifactID)
 		if mkdirErr := os.MkdirAll(artifactDir, 0755); mkdirErr != nil {
 			slog.Warn("executor: failed to create artifact dir, skipping artifact", "task_id", task.TaskID, "err", mkdirErr)
