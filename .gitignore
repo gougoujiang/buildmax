@@ -39,6 +39,7 @@ testing-sandbox/
 # Portal (React / Node)
 portal/node_modules/
 portal/dist/
+portal/*.tsbuildinfo
 
 # Setup (kind/minio/mysql dev env)
 setup/.port-forward.pid
