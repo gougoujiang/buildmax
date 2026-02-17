@@ -35,6 +35,7 @@ go.work.sum
 /buildmax
 
 testing-sandbox/
+testing-workspaces/
 
 # Portal (React / Node)
 portal/node_modules/
