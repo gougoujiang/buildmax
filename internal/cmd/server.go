@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 
-	"buildmax/internal/config"
 	"buildmax/internal/executor"
 	"buildmax/internal/server"
 	"buildmax/internal/store"
@@ -60,7 +59,7 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		CORSOrigin:     corsOrigin,
 	}
 	// Start the task executor (polls for PENDING tasks and runs buildmax -p).
-	runner := executor.New(st, config.WorkspacesDir())
+	runner := executor.New(st)
 	runner.Start()
 	defer runner.Stop()
 

@@ -91,13 +91,26 @@ func SettingsPath() string {
 	return filepath.Join(DataDir(), "settings.json")
 }
 
-// WorkspacesDir returns the workspace root directory. Default is DataDir()/workspaces.
+// WorkspacesDir returns the persistent workspace root directory.
+// Default is DataDir()/workspace/persist.
 // If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned). Callers create the dir when needed.
 func WorkspacesDir() string {
 	if dir := os.Getenv("BUILDMAX_WORKSPACES_DIR"); dir != "" {
 		return filepath.Clean(dir)
 	}
-	return filepath.Join(DataDir(), "workspaces")
+	return filepath.Join(DataDir(), "workspace", "persist")
+}
+
+// PersistentWorkspaceDir returns the directory for a workspace's persistent files (uploads, result files).
+// It is filepath.Join(WorkspacesDir(), workspaceID).
+func PersistentWorkspaceDir(workspaceID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID)
+}
+
+// RuntimeWorkspaceDir returns the ephemeral directory for a task run.
+// It is DataDir()/workspace/task/<taskID>. No env override. Runtime dirs are left on disk; cleanup is a separate task.
+func RuntimeWorkspaceDir(taskID string) string {
+	return filepath.Join(DataDir(), "workspace", "task", taskID)
 }
 
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.

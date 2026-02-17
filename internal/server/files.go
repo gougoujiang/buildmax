@@ -42,7 +42,7 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wsDir := filepath.Join(config.WorkspacesDir(), workspaceID)
+	wsDir := config.PersistentWorkspaceDir(workspaceID)
 	if err := os.MkdirAll(wsDir, 0755); err != nil {
 		slog.Error("files: mkdir", "err", err, "dir", wsDir)
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
@@ -89,7 +89,7 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ws := &util.Workspace{Root: filepath.Join(config.WorkspacesDir(), workspaceID)}
+	ws := &util.Workspace{Root: config.PersistentWorkspaceDir(workspaceID)}
 	absPath, err := ws.ResolvePath(filePath)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")

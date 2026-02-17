@@ -4,12 +4,14 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"buildmax/internal/config"
 	"buildmax/internal/store"
 
 	"github.com/google/uuid"
@@ -25,21 +27,19 @@ type TaskStore interface {
 
 // Runner polls for pending tasks and executes them one at a time.
 type Runner struct {
-	store         TaskStore
-	workspacesDir string
-	pollInterval  time.Duration
-	stopCh        chan struct{}
-	doneCh        chan struct{}
+	store        TaskStore
+	pollInterval time.Duration
+	stopCh       chan struct{}
+	doneCh       chan struct{}
 }
 
 // New creates a Runner. Call Start() to begin polling.
-func New(store TaskStore, workspacesDir string) *Runner {
+func New(store TaskStore) *Runner {
 	return &Runner{
-		store:         store,
-		workspacesDir: workspacesDir,
-		pollInterval:  defaultPollInterval,
-		stopCh:        make(chan struct{}),
-		doneCh:        make(chan struct{}),
+		store:        store,
+		pollInterval: defaultPollInterval,
+		stopCh:       make(chan struct{}),
+		doneCh:       make(chan struct{}),
 	}
 }
 
@@ -93,25 +93,34 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 		return
 	}
 
-	// Resolve workspace directory.
-	wsDir := filepath.Join(r.workspacesDir, task.WorkspaceID)
-	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create workspace dir: %v", err))
+	persistDir := config.PersistentWorkspaceDir(task.WorkspaceID)
+	runtimeDir := config.RuntimeWorkspaceDir(task.TaskID)
+
+	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
+		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create runtime dir: %v", err))
+		return
+	}
+	if err := copyWorkspaceContents(persistDir, runtimeDir); err != nil {
+		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to copy workspace contents: %v", err))
 		return
 	}
 
-	// Spawn buildmax -p "<input>" --session-id <uuid>.
 	cmd := exec.CommandContext(ctx, "buildmax", "-p", task.Input, "--session-id", sessionID)
-	cmd.Dir = wsDir
+	cmd.Dir = runtimeDir
 
 	output, err := cmd.CombinedOutput()
 	endTime := time.Now().Unix()
 	outputStr := string(output)
 
-	// Write result file regardless of success/failure.
-	resultPath := filepath.Join(wsDir, fmt.Sprintf("result-%s.md", task.TaskID))
+	resultFilename := fmt.Sprintf("result-%s.md", task.TaskID)
+	resultPath := filepath.Join(runtimeDir, resultFilename)
 	if writeErr := os.WriteFile(resultPath, output, 0644); writeErr != nil {
 		slog.Warn("executor: failed to write result file", "task_id", task.TaskID, "err", writeErr)
+	}
+
+	// Copy result file to persistent workspace so user sees it in file tree.
+	if copyErr := copyResultToPersist(runtimeDir, persistDir, resultFilename); copyErr != nil {
+		slog.Warn("executor: failed to copy result to persistent workspace", "task_id", task.TaskID, "err", copyErr)
 	}
 
 	if err != nil {
@@ -127,6 +136,79 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 	if updateErr := r.store.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil); updateErr != nil {
 		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 	}
+}
+
+// copyWorkspaceContents copies files and directories from src to dst recursively.
+// If src is missing or not a directory, returns nil (no-op). Copies only regular files and dirs; skips symlinks.
+func copyWorkspaceContents(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		destPath := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(destPath, info.Mode().Perm())
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		return copyFile(path, destPath)
+	})
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
+// copyResultToPersist copies the result file from runtimeDir to persistDir.
+// Ensures persistDir exists. Best-effort; logs on failure.
+func copyResultToPersist(runtimeDir, persistDir, resultFilename string) error {
+	src := filepath.Join(runtimeDir, resultFilename)
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(persistDir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(persistDir, resultFilename), data, 0644)
 }
 
 // failTask is a helper to mark a task as FAILED when execution cannot proceed.

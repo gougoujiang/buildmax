@@ -69,7 +69,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	destDir := filepath.Join(config.WorkspacesDir(), workspaceID)
+	destDir := config.PersistentWorkspaceDir(workspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		slog.Error("upload: mkdir", "err", err, "dir", destDir)
 		writeJSONError(w, http.StatusInternalServerError, "internal error")

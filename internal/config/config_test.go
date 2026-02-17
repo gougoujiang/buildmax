@@ -434,3 +434,53 @@ func TestEffectiveLLMWithSelector_MissingFileAndSelectorSetReturnsError(t *testi
 		t.Error("EffectiveLLMWithSelector(missing file, \"any\") should return error")
 	}
 }
+
+func TestWorkspacesDir_Default(t *testing.T) {
+	t.Setenv("BUILDMAX_WORKSPACES_DIR", "")
+	t.Setenv("BUILDMAX_HOME", "")
+	dir := WorkspacesDir()
+	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join("workspace", "persist")) {
+		t.Errorf("WorkspacesDir() = %q, want path ending with workspace/persist", dir)
+	}
+}
+
+func TestWorkspacesDir_Override(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_WORKSPACES_DIR", tmp)
+	dir := WorkspacesDir()
+	want := filepath.Clean(tmp)
+	if dir != want {
+		t.Errorf("WorkspacesDir() = %q, want %q", dir, want)
+	}
+}
+
+func TestWorkspacesDir_WithBuildmaxHome(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv("BUILDMAX_WORKSPACES_DIR", "")
+	dir := WorkspacesDir()
+	want := filepath.Join(filepath.Clean(tmp), "workspace", "persist")
+	if dir != want {
+		t.Errorf("WorkspacesDir() = %q, want %q", dir, want)
+	}
+}
+
+func TestPersistentWorkspaceDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_WORKSPACES_DIR", tmp)
+	got := PersistentWorkspaceDir("ws-123")
+	want := filepath.Join(filepath.Clean(tmp), "ws-123")
+	if got != want {
+		t.Errorf("PersistentWorkspaceDir(\"ws-123\") = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeWorkspaceDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("BUILDMAX_HOME", tmp)
+	got := RuntimeWorkspaceDir("task-456")
+	want := filepath.Join(filepath.Clean(tmp), "workspace", "task", "task-456")
+	if got != want {
+		t.Errorf("RuntimeWorkspaceDir(\"task-456\") = %q, want %q", got, want)
+	}
+}

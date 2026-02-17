@@ -89,7 +89,7 @@ func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	destDir := filepath.Join(config.WorkspacesDir(), ws.WorkspaceID)
+	destDir := config.PersistentWorkspaceDir(ws.WorkspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
