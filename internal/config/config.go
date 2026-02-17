@@ -108,7 +108,7 @@ func MySQLDSN() string {
 	}
 	password := os.Getenv("MYSQL_PASSWORD")
 	if password == "" {
-		password = "buildmax_dev"
+		password = "buildmax"
 	}
 	database := os.Getenv("MYSQL_DATABASE")
 	if database == "" {
