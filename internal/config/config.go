@@ -47,14 +47,10 @@ const DefaultModel = ModelGLM45AirFree
 const DefaultServerPort = 5678
 
 // LoadLLM loads LLM config from environment.
-// OPENROUTER_API_KEY or BUILDMAX_API_KEY for API key;
-// BUILDMAX_BASE_URL for base URL (defaults to OpenRouter);
+// BUILDMAX_API_KEY for API key; BUILDMAX_BASE_URL for base URL (defaults to OpenRouter);
 // BUILDMAX_MODEL for model (defaults to openai/gpt-3.5-turbo).
 func LoadLLM() LLM {
-	apiKey := os.Getenv(EnvKeyOpenRouterAPIKey)
-	if apiKey == "" {
-		apiKey = os.Getenv(EnvKeyBuildmaxAPIKey)
-	}
+	apiKey := os.Getenv(EnvKeyBuildmaxAPIKey)
 	baseURL := os.Getenv(EnvKeyBuildmaxBaseURL)
 	if baseURL == "" {
 		baseURL = DefaultOpenRouterBaseURL
@@ -141,23 +137,23 @@ func LogLevel() string {
 
 // MySQLDSN returns the MySQL DSN from environment.
 func MySQLDSN() string {
-	host := os.Getenv(EnvKeyMysqlHost)
+	host := os.Getenv(EnvKeyBuildmaxDBHost)
 	if host == "" {
 		host = "localhost"
 	}
-	port := os.Getenv(EnvKeyMysqlPort)
+	port := os.Getenv(EnvKeyBuildmaxDBPort)
 	if port == "" {
 		port = "3306"
 	}
-	user := os.Getenv(EnvKeyMysqlUser)
+	user := os.Getenv(EnvKeyBuildmaxDBUser)
 	if user == "" {
 		user = "buildmax"
 	}
-	password := os.Getenv(EnvKeyMysqlPassword)
+	password := os.Getenv(EnvKeyBuildmaxDBPassword)
 	if password == "" {
 		password = "buildmax"
 	}
-	database := os.Getenv(EnvKeyMysqlDatabase)
+	database := os.Getenv(EnvKeyBuildmaxDBDatabase)
 	if database == "" {
 		database = "buildmax"
 	}

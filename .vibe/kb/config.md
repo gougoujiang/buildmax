@@ -18,11 +18,9 @@ Reads three settings from environment variables:
 
 | Setting | Env Var(s) | Default |
 |---------|-----------|---------|
-| API Key | `OPENROUTER_API_KEY` or `BUILDMAX_API_KEY` | (none — required for operation) |
+| API Key | `BUILDMAX_API_KEY` | (none — required for operation) |
 | Base URL | `BUILDMAX_BASE_URL` | `https://openrouter.ai/api/v1` |
 | Model | `BUILDMAX_MODEL` | `z-ai/glm-4.5-air:free` |
-
-Priority: `OPENROUTER_API_KEY` takes precedence over `BUILDMAX_API_KEY`.
 
 ### Data Directory (`DataDir()`)
 

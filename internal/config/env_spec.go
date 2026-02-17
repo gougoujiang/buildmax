@@ -6,37 +6,34 @@ package config
 // Environment variable key names (use these instead of string literals).
 const (
 	// LLM / API
-	EnvKeyOpenRouterAPIKey = "OPENROUTER_API_KEY"
-	EnvKeyBuildmaxAPIKey   = "BUILDMAX_API_KEY"
-	EnvKeyBuildmaxBaseURL  = "BUILDMAX_BASE_URL"
-	EnvKeyBuildmaxModel    = "BUILDMAX_MODEL"
+	EnvKeyBuildmaxAPIKey  = "BUILDMAX_API_KEY"
+	EnvKeyBuildmaxBaseURL = "BUILDMAX_BASE_URL"
+	EnvKeyBuildmaxModel   = "BUILDMAX_MODEL"
 	// App data
-	EnvKeyBuildmaxHome           = "BUILDMAX_HOME"
-	EnvKeyBuildmaxWorkspacesDir  = "BUILDMAX_WORKSPACES_DIR"
+	EnvKeyBuildmaxHome          = "BUILDMAX_HOME"
+	EnvKeyBuildmaxWorkspacesDir = "BUILDMAX_WORKSPACES_DIR"
 	// Logging
 	EnvKeyBuildmaxLogLevel = "BUILDMAX_LOG_LEVEL"
 	// HTTP server
 	EnvKeyBuildmaxServerPort = "BUILDMAX_SERVER_PORT"
 	EnvKeyBuildmaxJWTSecret  = "BUILDMAX_JWT_SECRET"
 	EnvKeyBuildmaxCorsOrigin = "BUILDMAX_CORS_ORIGIN"
-	// MySQL
-	EnvKeyMysqlHost     = "MYSQL_HOST"
-	EnvKeyMysqlPort     = "MYSQL_PORT"
-	EnvKeyMysqlUser     = "MYSQL_USER"
-	EnvKeyMysqlPassword = "MYSQL_PASSWORD"
-	EnvKeyMysqlDatabase = "MYSQL_DATABASE"
+	// Database (MySQL)
+	EnvKeyBuildmaxDBHost     = "BUILDMAX_DB_HOST"
+	EnvKeyBuildmaxDBPort     = "BUILDMAX_DB_PORT"
+	EnvKeyBuildmaxDBUser     = "BUILDMAX_DB_USER"
+	EnvKeyBuildmaxDBPassword = "BUILDMAX_DB_PASSWORD"
+	EnvKeyBuildmaxDBDatabase = "BUILDMAX_DB_DATABASE"
 	// Workspace storage
 	EnvKeyBuildmaxPersistStorage  = "BUILDMAX_PERSIST_STORAGE"
 	EnvKeyBuildmaxArtifactStorage = "BUILDMAX_ARTIFACT_STORAGE"
 	EnvKeyBuildmaxMinioEndpoint   = "BUILDMAX_MINIO_ENDPOINT"
-	EnvKeyBuildmaxMinioRegion    = "BUILDMAX_MINIO_REGION"
-	EnvKeyBuildmaxMinioAccessKey = "BUILDMAX_MINIO_ACCESS_KEY"
-	EnvKeyBuildmaxMinioSecretKey = "BUILDMAX_MINIO_SECRET_KEY"
-	EnvKeyBuildmaxMinioBucket    = "BUILDMAX_MINIO_BUCKET"
-	EnvKeyBuildmaxMinioPrefix    = "BUILDMAX_MINIO_PREFIX"
+	EnvKeyBuildmaxMinioRegion     = "BUILDMAX_MINIO_REGION"
+	EnvKeyBuildmaxMinioAccessKey  = "BUILDMAX_MINIO_ACCESS_KEY"
+	EnvKeyBuildmaxMinioSecretKey  = "BUILDMAX_MINIO_SECRET_KEY"
+	EnvKeyBuildmaxMinioBucket     = "BUILDMAX_MINIO_BUCKET"
+	EnvKeyBuildmaxMinioPrefix     = "BUILDMAX_MINIO_PREFIX"
 	// Optional / scripts
-	EnvKeyGitHubToken         = "GITHUB_TOKEN"
-	EnvKeyMysqlRootPassword   = "MYSQL_ROOT_PASSWORD"
 	EnvKeyBuildmaxKindCluster = "BUILDMAX_KIND_CLUSTER"
 	// Test only
 	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
@@ -52,8 +49,7 @@ type EnvVar struct {
 // EnvVars lists all environment variables in use. Grouped by domain for documentation.
 var EnvVars = []EnvVar{
 	// LLM / API
-	{EnvKeyOpenRouterAPIKey, "", "API key for OpenRouter (or use BUILDMAX_API_KEY)"},
-	{EnvKeyBuildmaxAPIKey, "", "Alternative API key for OpenAI-compatible API"},
+	{EnvKeyBuildmaxAPIKey, "", "API key for OpenAI-compatible / OpenRouter API"},
 	{EnvKeyBuildmaxBaseURL, "https://openrouter.ai/api/v1", "LLM API base URL"},
 	{EnvKeyBuildmaxModel, DefaultModel, "LLM model name"},
 	// App data
@@ -65,12 +61,12 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxServerPort, "5678", "Port for buildmax server"},
 	{EnvKeyBuildmaxJWTSecret, "", "JWT signing secret (required for server)"},
 	{EnvKeyBuildmaxCorsOrigin, "http://localhost:5173", "CORS allowed origin for portal"},
-	// MySQL
-	{EnvKeyMysqlHost, "localhost", "MySQL host"},
-	{EnvKeyMysqlPort, "3306", "MySQL port"},
-	{EnvKeyMysqlUser, "buildmax", "MySQL user"},
-	{EnvKeyMysqlPassword, "buildmax", "MySQL password"},
-	{EnvKeyMysqlDatabase, "buildmax", "MySQL database name"},
+	// Database (MySQL)
+	{EnvKeyBuildmaxDBHost, "localhost", "MySQL host"},
+	{EnvKeyBuildmaxDBPort, "3306", "MySQL port"},
+	{EnvKeyBuildmaxDBUser, "buildmax", "MySQL user"},
+	{EnvKeyBuildmaxDBPassword, "buildmax", "MySQL password"},
+	{EnvKeyBuildmaxDBDatabase, "buildmax", "MySQL database name"},
 	// Workspace storage
 	{EnvKeyBuildmaxPersistStorage, "local_fs", "Persist backend: local_fs or minio"},
 	{EnvKeyBuildmaxArtifactStorage, "local_fs", "Artifact backend: local_fs or minio"},
@@ -81,8 +77,6 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxMinioBucket, "bmstore", "MinIO/S3 bucket"},
 	{EnvKeyBuildmaxMinioPrefix, "workspaces", "MinIO/S3 key prefix"},
 	// Optional / scripts
-	{EnvKeyGitHubToken, "", "GitHub token for integrations"},
-	{EnvKeyMysqlRootPassword, "", "MySQL root password (Docker/setup only)"},
 	{EnvKeyBuildmaxKindCluster, "buildmaxdev", "Kind cluster name in setup scripts"},
 	// Test only
 	{EnvKeyBuildmaxTestDSN, "", "MySQL DSN for store integration tests; unset skips"},

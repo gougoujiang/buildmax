@@ -312,7 +312,6 @@ func TestEffectiveLLM_FromFile_DisplayNameFallbackToModel(t *testing.T) {
 func TestEffectiveLLM_FallbackWhenNoSettings(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxHome, tmp)
-	t.Setenv(EnvKeyOpenRouterAPIKey, "")
 	t.Setenv(EnvKeyBuildmaxAPIKey, "env-key")
 	t.Setenv(EnvKeyBuildmaxBaseURL, "https://env.url")
 	t.Setenv(EnvKeyBuildmaxModel, "env-model")
@@ -332,7 +331,6 @@ func TestEffectiveLLM_FallbackWhenEmptyModels(t *testing.T) {
 	if err := os.WriteFile(path, []byte(settingsEmptyModels), 0644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(EnvKeyOpenRouterAPIKey, "")
 	t.Setenv(EnvKeyBuildmaxAPIKey, "fallback-key")
 	t.Setenv(EnvKeyBuildmaxBaseURL, "https://fallback.url")
 	t.Setenv(EnvKeyBuildmaxModel, "fallback-model")

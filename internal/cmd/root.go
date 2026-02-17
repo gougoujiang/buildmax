@@ -31,7 +31,7 @@ Sessions:
   Use --session-id <uuid> to use a specific session ID (load if exists, else create); value must be a valid UUID.
 
 Environment (for -p):
-  OPENROUTER_API_KEY or BUILDMAX_API_KEY   API key (required for -p)
+  BUILDMAX_API_KEY   API key (required for -p)
   BUILDMAX_BASE_URL                        Base URL (default: OpenRouter)
   BUILDMAX_MODEL                          Model (default: openai/gpt-3.5-turbo)
 `

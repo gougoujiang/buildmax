@@ -36,7 +36,7 @@ Many environment variables are used across `internal/config`, `internal/cmd`, `i
 
 ### 4. Trim .env.example by audience (future)
 
-- **Minimal “quick start”**: only vars that are required or commonly changed (e.g. `OPENROUTER_API_KEY`, `BUILDMAX_JWT_SECRET` for server, optional `BUILDMAX_HOME`).
+- **Minimal “quick start”**: only vars that are required or commonly changed (e.g. `BUILDMAX_API_KEY`, `BUILDMAX_JWT_SECRET` for server, optional `BUILDMAX_HOME`).
 - **Full reference**: either the same file with clear sections (as now) or a second file (e.g. `.env.example.full`) / a doc section that lists every variable with default and description, derived from the source of truth in 1.
 
 ### 5. Document “who needs what” (future)

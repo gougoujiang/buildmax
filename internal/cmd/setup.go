@@ -160,7 +160,7 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 		return setupResult{}, err
 	}
 	if cfg.APIKey == "" {
-		return setupResult{}, fmt.Errorf("API key required. Set OPENROUTER_API_KEY or BUILDMAX_API_KEY")
+		return setupResult{}, fmt.Errorf("API key required. Set %s", config.EnvKeyBuildmaxAPIKey)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
