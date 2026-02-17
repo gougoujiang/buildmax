@@ -1,0 +1,19 @@
+# BuildMax binary — multi-stage build for Linux (kind/K8s).
+# Build: go.mod, go.sum, cmd/, internal/ only.
+
+# Stage 1: build
+FROM golang:1.26-alpine3.23 AS build
+WORKDIR /app
+
+COPY go.mod go.sum ./
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+
+RUN CGO_ENABLED=0 go build -o /buildmax ./cmd/buildmax
+
+# Stage 2: runtime
+FROM alpine:3.23
+RUN apk add --no-cache ca-certificates
+
+COPY --from=build /buildmax /usr/local/bin/buildmax
+ENTRYPOINT ["/usr/local/bin/buildmax"]

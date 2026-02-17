@@ -1,0 +1,16 @@
+# One-off Job to verify buildmax:local runs in the kind cluster.
+# Apply after ./make pub_images; then: kubectl logs job/buildmax-version -f
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: buildmax-version
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: buildmax
+          image: buildmax:local
+          args:
+            - version

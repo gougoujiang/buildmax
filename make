@@ -20,6 +20,7 @@ usage() {
   echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
   echo "  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent)"
   echo "  unsetup       Tear down kind cluster and MinIO port-forward (brew tools kept)"
+  echo "  pub_images    Build BuildMax image and load into kind cluster"
   echo ""
   echo "Examples:"
   echo "  ./make build"
@@ -126,6 +127,25 @@ cmd_unsetup() {
   "$SCRIPT_DIR/setup/unsetup.sh"
 }
 
+cmd_pub_images() {
+  local cluster_name="${BUILDMAX_KIND_CLUSTER:-buildmaxdev}"
+  local platform_args=()
+  if [[ -n "${BUILDMAX_IMAGE_PLATFORM:-}" ]]; then
+    platform_args=(--platform "$BUILDMAX_IMAGE_PLATFORM")
+  fi
+  echo "Building BuildMax image (buildmax:local)..."
+  if ! docker build -f "$SCRIPT_DIR/Dockerfile.buildmax" "${platform_args[@]}" -t buildmax:local "$SCRIPT_DIR"; then
+    echo "Error: docker build failed"
+    return 1
+  fi
+  echo "Loading image into kind cluster '$cluster_name'..."
+  if ! kind load docker-image buildmax:local --name "$cluster_name"; then
+    echo "Error: kind load failed"
+    return 1
+  fi
+  echo "Done. Image buildmax:local is available in kind."
+}
+
 cmd="${1:-}"
 
 if [[ -z "$cmd" ]]; then
@@ -167,6 +187,9 @@ case "$cmd" in
     ;;
   unsetup)
     cmd_unsetup
+    ;;
+  pub_images)
+    cmd_pub_images
     ;;
   -h|--help|help)
     usage

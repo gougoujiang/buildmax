@@ -126,7 +126,7 @@ ensure_test_job() {
     log "Job s3-test already exists; showing logs..."
   else
     log "Applying test job..."
-    kubectl apply -f "$SCRIPT_DIR/test-job.yaml"
+    kubectl apply -f "$SCRIPT_DIR/test-minio-job.yaml"
     log "Waiting for job s3-test to complete..."
     kubectl wait --for=condition=complete job/s3-test --timeout=120s
   fi
