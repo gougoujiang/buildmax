@@ -161,13 +161,14 @@ func MySQLDSN() string {
 }
 
 // WorkspacesDir returns the parent directory of all workspace roots.
-// Default is DataDir()/workspaces. If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned).
+// It is only used in server mode. If BUILDMAX_WORKSPACES_DIR is set, returns that path (cleaned).
+// If unset, returns empty string (no default). Server startup must check and fail if empty.
 // Workspace root for a workspace is filepath.Join(WorkspacesDir(), workspaceID).
 func WorkspacesDir() string {
 	if dir := os.Getenv(EnvKeyBuildmaxWorkspacesDir); dir != "" {
 		return filepath.Clean(dir)
 	}
-	return filepath.Join(DataDir(), "workspaces")
+	return ""
 }
 
 // PersistentWorkspaceDir returns the directory for a workspace's persistent files (uploads, result files).

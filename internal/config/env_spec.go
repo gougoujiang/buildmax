@@ -54,7 +54,7 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxModel, DefaultModel, "LLM model name"},
 	// App data
 	{EnvKeyBuildmaxHome, "~/.buildmax", "Application data directory"},
-	{EnvKeyBuildmaxWorkspacesDir, "", "Parent of workspace roots (default: DataDir()/workspaces)"},
+	{EnvKeyBuildmaxWorkspacesDir, "", "Parent of workspace roots (required for server mode; no default)"},
 	// Logging
 	{EnvKeyBuildmaxLogLevel, "info", "Log level: debug, info, warn, error, off"},
 	// HTTP server

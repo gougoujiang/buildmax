@@ -49,6 +49,9 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if config.WorkspacesDir() == "" {
+		return fmt.Errorf("%s is required for server mode", config.EnvKeyBuildmaxWorkspacesDir)
+	}
 	ctx := context.Background()
 	st, err := entity.New(ctx, dsn)
 	if err != nil {

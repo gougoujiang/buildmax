@@ -435,10 +435,9 @@ func TestEffectiveLLMWithSelector_MissingFileAndSelectorSetReturnsError(t *testi
 
 func TestWorkspacesDir_Default(t *testing.T) {
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, "")
-	t.Setenv(EnvKeyBuildmaxHome, "")
 	dir := WorkspacesDir()
-	if !strings.HasSuffix(filepath.Clean(dir), "workspaces") {
-		t.Errorf("WorkspacesDir() = %q, want path ending with workspaces", dir)
+	if dir != "" {
+		t.Errorf("WorkspacesDir() = %q, want %q", dir, "")
 	}
 }
 
@@ -447,17 +446,6 @@ func TestWorkspacesDir_Override(t *testing.T) {
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	dir := WorkspacesDir()
 	want := filepath.Clean(tmp)
-	if dir != want {
-		t.Errorf("WorkspacesDir() = %q, want %q", dir, want)
-	}
-}
-
-func TestWorkspacesDir_WithBuildmaxHome(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv(EnvKeyBuildmaxHome, tmp)
-	t.Setenv(EnvKeyBuildmaxWorkspacesDir, "")
-	dir := WorkspacesDir()
-	want := filepath.Join(filepath.Clean(tmp), "workspaces")
 	if dir != want {
 		t.Errorf("WorkspacesDir() = %q, want %q", dir, want)
 	}
