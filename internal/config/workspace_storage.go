@@ -34,7 +34,7 @@ type WorkspaceStorageConfig struct {
 
 // LoadWorkspaceStorageConfig reads env vars and returns the workspace storage config with defaults.
 func LoadWorkspaceStorageConfig() WorkspaceStorageConfig {
-	persist := os.Getenv("BUILDMAX_PERSIST_STORAGE")
+	persist := os.Getenv(EnvKeyBuildmaxPersistStorage)
 	if persist == "" {
 		persist = ProviderLocalFS
 	}
@@ -43,7 +43,7 @@ func LoadWorkspaceStorageConfig() WorkspaceStorageConfig {
 		persist = ProviderLocalFS
 	}
 
-	artifact := os.Getenv("BUILDMAX_ARTIFACT_STORAGE")
+	artifact := os.Getenv(EnvKeyBuildmaxArtifactStorage)
 	if artifact == "" {
 		artifact = ProviderLocalFS
 	}
@@ -52,27 +52,27 @@ func LoadWorkspaceStorageConfig() WorkspaceStorageConfig {
 		artifact = ProviderLocalFS
 	}
 
-	endpoint := os.Getenv("BUILDMAX_MINIO_ENDPOINT")
+	endpoint := os.Getenv(EnvKeyBuildmaxMinioEndpoint)
 	if endpoint == "" {
 		endpoint = "http://localhost:9000"
 	}
-	region := os.Getenv("BUILDMAX_MINIO_REGION")
+	region := os.Getenv(EnvKeyBuildmaxMinioRegion)
 	if region == "" {
 		region = "us-east-1"
 	}
-	accessKey := os.Getenv("BUILDMAX_MINIO_ACCESS_KEY")
+	accessKey := os.Getenv(EnvKeyBuildmaxMinioAccessKey)
 	if accessKey == "" {
 		accessKey = "minio"
 	}
-	secretKey := os.Getenv("BUILDMAX_MINIO_SECRET_KEY")
+	secretKey := os.Getenv(EnvKeyBuildmaxMinioSecretKey)
 	if secretKey == "" {
 		secretKey = "minio123"
 	}
-	bucket := os.Getenv("BUILDMAX_MINIO_BUCKET")
+	bucket := os.Getenv(EnvKeyBuildmaxMinioBucket)
 	if bucket == "" {
 		bucket = "bmstore"
 	}
-	prefix := os.Getenv("BUILDMAX_MINIO_PREFIX")
+	prefix := os.Getenv(EnvKeyBuildmaxMinioPrefix)
 	if prefix == "" {
 		prefix = "workspaces"
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // LLM holds LLM provider settings (OpenRouter/OpenAI-compatible).
@@ -42,20 +43,23 @@ const (
 // DefaultModel is the model used when BUILDMAX_MODEL is not set.
 const DefaultModel = ModelGLM45AirFree
 
+// DefaultServerPort is the port used when BUILDMAX_SERVER_PORT is not set and --port is 0.
+const DefaultServerPort = 5678
+
 // LoadLLM loads LLM config from environment.
 // OPENROUTER_API_KEY or BUILDMAX_API_KEY for API key;
 // BUILDMAX_BASE_URL for base URL (defaults to OpenRouter);
 // BUILDMAX_MODEL for model (defaults to openai/gpt-3.5-turbo).
 func LoadLLM() LLM {
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	apiKey := os.Getenv(EnvKeyOpenRouterAPIKey)
 	if apiKey == "" {
-		apiKey = os.Getenv("BUILDMAX_API_KEY")
+		apiKey = os.Getenv(EnvKeyBuildmaxAPIKey)
 	}
-	baseURL := os.Getenv("BUILDMAX_BASE_URL")
+	baseURL := os.Getenv(EnvKeyBuildmaxBaseURL)
 	if baseURL == "" {
 		baseURL = DefaultOpenRouterBaseURL
 	}
-	model := os.Getenv("BUILDMAX_MODEL")
+	model := os.Getenv(EnvKeyBuildmaxModel)
 	if model == "" {
 		model = DefaultModel
 	}
@@ -63,11 +67,11 @@ func LoadLLM() LLM {
 }
 
 // DataDir returns the application data folder path.
-// If BUILDMAX_HOME is set (non-empty), returns filepath.Clean(os.Getenv("BUILDMAX_HOME")).
+// If BUILDMAX_HOME is set (non-empty), returns filepath.Clean(os.Getenv(EnvKeyBuildmaxHome)).
 // Otherwise returns filepath.Join(os.UserHomeDir(), ".buildmax").
 // Does not create the directory; callers must create it if needed.
 func DataDir() string {
-	if dir := os.Getenv("BUILDMAX_HOME"); dir != "" {
+	if dir := os.Getenv(EnvKeyBuildmaxHome); dir != "" {
 		return filepath.Clean(dir)
 	}
 	home, _ := os.UserHomeDir()
@@ -91,26 +95,69 @@ func SettingsPath() string {
 	return filepath.Join(DataDir(), "settings.json")
 }
 
+// ServerEnv holds server-only env (JWT, CORS). Port is resolved by cmd from flag or BUILDMAX_SERVER_PORT.
+type ServerEnv struct {
+	JWTSecret  string
+	CORSOrigin string
+}
+
+// LoadServerEnv loads JWT and CORS from env. Returns an error if JWT_SECRET is empty.
+func LoadServerEnv() (ServerEnv, error) {
+	jwt := os.Getenv(EnvKeyBuildmaxJWTSecret)
+	if jwt == "" {
+		return ServerEnv{}, fmt.Errorf("%s is required for server mode", EnvKeyBuildmaxJWTSecret)
+	}
+	cors := os.Getenv(EnvKeyBuildmaxCorsOrigin)
+	if cors == "" {
+		cors = "http://localhost:5173"
+	}
+	return ServerEnv{JWTSecret: jwt, CORSOrigin: cors}, nil
+}
+
+// ResolveServerPort returns the port to use: portFromFlag if > 0, else BUILDMAX_SERVER_PORT, else DefaultServerPort.
+// Returns an error if BUILDMAX_SERVER_PORT is set but not a valid positive number.
+func ResolveServerPort(portFromFlag int) (int, error) {
+	if portFromFlag > 0 {
+		return portFromFlag, nil
+	}
+	env := os.Getenv(EnvKeyBuildmaxServerPort)
+	if env == "" {
+		return DefaultServerPort, nil
+	}
+	port, err := strconv.Atoi(env)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", EnvKeyBuildmaxServerPort, env, err)
+	}
+	if port <= 0 {
+		return 0, fmt.Errorf("%s must be positive, got %d", EnvKeyBuildmaxServerPort, port)
+	}
+	return port, nil
+}
+
+// LogLevel returns the value of BUILDMAX_LOG_LEVEL (may be empty; callers treat empty as default level).
+func LogLevel() string {
+	return os.Getenv(EnvKeyBuildmaxLogLevel)
+}
+
 // MySQLDSN returns the MySQL DSN from environment.
-// Env vars: MYSQL_HOST (default localhost), MYSQL_PORT (3306), MYSQL_USER (buildmax), MYSQL_PASSWORD (buildmax), MYSQL_DATABASE (buildmax).
 func MySQLDSN() string {
-	host := os.Getenv("MYSQL_HOST")
+	host := os.Getenv(EnvKeyMysqlHost)
 	if host == "" {
 		host = "localhost"
 	}
-	port := os.Getenv("MYSQL_PORT")
+	port := os.Getenv(EnvKeyMysqlPort)
 	if port == "" {
 		port = "3306"
 	}
-	user := os.Getenv("MYSQL_USER")
+	user := os.Getenv(EnvKeyMysqlUser)
 	if user == "" {
 		user = "buildmax"
 	}
-	password := os.Getenv("MYSQL_PASSWORD")
+	password := os.Getenv(EnvKeyMysqlPassword)
 	if password == "" {
 		password = "buildmax"
 	}
-	database := os.Getenv("MYSQL_DATABASE")
+	database := os.Getenv(EnvKeyMysqlDatabase)
 	if database == "" {
 		database = "buildmax"
 	}
@@ -121,7 +168,7 @@ func MySQLDSN() string {
 // Default is DataDir()/workspaces. If BUILDMAX_WORKSPACES_DIR is set, that path is returned (cleaned).
 // Workspace root for a workspace is filepath.Join(WorkspacesDir(), workspaceID).
 func WorkspacesDir() string {
-	if dir := os.Getenv("BUILDMAX_WORKSPACES_DIR"); dir != "" {
+	if dir := os.Getenv(EnvKeyBuildmaxWorkspacesDir); dir != "" {
 		return filepath.Clean(dir)
 	}
 	return filepath.Join(DataDir(), "workspaces")

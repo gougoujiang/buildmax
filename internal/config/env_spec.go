@@ -1,0 +1,89 @@
+package config
+
+// This file is the single source of truth for env var names, defaults, and descriptions.
+// Use the EnvKey* constants everywhere instead of string literals. Keep .env.example in sync.
+
+// Environment variable key names (use these instead of string literals).
+const (
+	// LLM / API
+	EnvKeyOpenRouterAPIKey = "OPENROUTER_API_KEY"
+	EnvKeyBuildmaxAPIKey   = "BUILDMAX_API_KEY"
+	EnvKeyBuildmaxBaseURL  = "BUILDMAX_BASE_URL"
+	EnvKeyBuildmaxModel    = "BUILDMAX_MODEL"
+	// App data
+	EnvKeyBuildmaxHome           = "BUILDMAX_HOME"
+	EnvKeyBuildmaxWorkspacesDir  = "BUILDMAX_WORKSPACES_DIR"
+	// Logging
+	EnvKeyBuildmaxLogLevel = "BUILDMAX_LOG_LEVEL"
+	// HTTP server
+	EnvKeyBuildmaxServerPort = "BUILDMAX_SERVER_PORT"
+	EnvKeyBuildmaxJWTSecret  = "BUILDMAX_JWT_SECRET"
+	EnvKeyBuildmaxCorsOrigin = "BUILDMAX_CORS_ORIGIN"
+	// MySQL
+	EnvKeyMysqlHost     = "MYSQL_HOST"
+	EnvKeyMysqlPort     = "MYSQL_PORT"
+	EnvKeyMysqlUser     = "MYSQL_USER"
+	EnvKeyMysqlPassword = "MYSQL_PASSWORD"
+	EnvKeyMysqlDatabase = "MYSQL_DATABASE"
+	// Workspace storage
+	EnvKeyBuildmaxPersistStorage  = "BUILDMAX_PERSIST_STORAGE"
+	EnvKeyBuildmaxArtifactStorage = "BUILDMAX_ARTIFACT_STORAGE"
+	EnvKeyBuildmaxMinioEndpoint   = "BUILDMAX_MINIO_ENDPOINT"
+	EnvKeyBuildmaxMinioRegion    = "BUILDMAX_MINIO_REGION"
+	EnvKeyBuildmaxMinioAccessKey = "BUILDMAX_MINIO_ACCESS_KEY"
+	EnvKeyBuildmaxMinioSecretKey = "BUILDMAX_MINIO_SECRET_KEY"
+	EnvKeyBuildmaxMinioBucket    = "BUILDMAX_MINIO_BUCKET"
+	EnvKeyBuildmaxMinioPrefix    = "BUILDMAX_MINIO_PREFIX"
+	// Optional / scripts
+	EnvKeyGitHubToken         = "GITHUB_TOKEN"
+	EnvKeyMysqlRootPassword   = "MYSQL_ROOT_PASSWORD"
+	EnvKeyBuildmaxKindCluster = "BUILDMAX_KIND_CLUSTER"
+	// Test only
+	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
+)
+
+// EnvVar describes one environment variable used by BuildMax.
+type EnvVar struct {
+	Name        string // use EnvKey* const
+	Default     string // empty = no default or required
+	Description string
+}
+
+// EnvVars lists all environment variables in use. Grouped by domain for documentation.
+var EnvVars = []EnvVar{
+	// LLM / API
+	{EnvKeyOpenRouterAPIKey, "", "API key for OpenRouter (or use BUILDMAX_API_KEY)"},
+	{EnvKeyBuildmaxAPIKey, "", "Alternative API key for OpenAI-compatible API"},
+	{EnvKeyBuildmaxBaseURL, "https://openrouter.ai/api/v1", "LLM API base URL"},
+	{EnvKeyBuildmaxModel, DefaultModel, "LLM model name"},
+	// App data
+	{EnvKeyBuildmaxHome, "~/.buildmax", "Application data directory"},
+	{EnvKeyBuildmaxWorkspacesDir, "", "Parent of workspace roots (default: DataDir()/workspaces)"},
+	// Logging
+	{EnvKeyBuildmaxLogLevel, "info", "Log level: debug, info, warn, error, off"},
+	// HTTP server
+	{EnvKeyBuildmaxServerPort, "5678", "Port for buildmax server"},
+	{EnvKeyBuildmaxJWTSecret, "", "JWT signing secret (required for server)"},
+	{EnvKeyBuildmaxCorsOrigin, "http://localhost:5173", "CORS allowed origin for portal"},
+	// MySQL
+	{EnvKeyMysqlHost, "localhost", "MySQL host"},
+	{EnvKeyMysqlPort, "3306", "MySQL port"},
+	{EnvKeyMysqlUser, "buildmax", "MySQL user"},
+	{EnvKeyMysqlPassword, "buildmax", "MySQL password"},
+	{EnvKeyMysqlDatabase, "buildmax", "MySQL database name"},
+	// Workspace storage
+	{EnvKeyBuildmaxPersistStorage, "local_fs", "Persist backend: local_fs or minio"},
+	{EnvKeyBuildmaxArtifactStorage, "local_fs", "Artifact backend: local_fs or minio"},
+	{EnvKeyBuildmaxMinioEndpoint, "http://localhost:9000", "MinIO/S3 endpoint"},
+	{EnvKeyBuildmaxMinioRegion, "us-east-1", "MinIO/S3 region"},
+	{EnvKeyBuildmaxMinioAccessKey, "minio", "MinIO/S3 access key"},
+	{EnvKeyBuildmaxMinioSecretKey, "minio123", "MinIO/S3 secret key"},
+	{EnvKeyBuildmaxMinioBucket, "bmstore", "MinIO/S3 bucket"},
+	{EnvKeyBuildmaxMinioPrefix, "workspaces", "MinIO/S3 key prefix"},
+	// Optional / scripts
+	{EnvKeyGitHubToken, "", "GitHub token for integrations"},
+	{EnvKeyMysqlRootPassword, "", "MySQL root password (Docker/setup only)"},
+	{EnvKeyBuildmaxKindCluster, "buildmaxdev", "Kind cluster name in setup scripts"},
+	// Test only
+	{EnvKeyBuildmaxTestDSN, "", "MySQL DSN for store integration tests; unset skips"},
+}

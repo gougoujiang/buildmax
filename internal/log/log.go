@@ -32,11 +32,11 @@ var currentLevel = slog.LevelInfo
 // fileWriter is the rotating log file writer, if Init() created one. Used by DisableConsole.
 var fileWriter io.Writer
 
-// Init configures slog.Default() with level from BUILDMAX_LOG_LEVEL, creates
+// Init configures slog.Default() with level from config.LogLevel() (BUILDMAX_LOG_LEVEL), creates
 // config.DataDir()/logs, and sets output to a rotating file (buildmax.log) only.
 // Nothing is written to stdout/stderr so TUI and prompt mode output stay clean.
 func Init() {
-	level := parseLevel(os.Getenv("BUILDMAX_LOG_LEVEL"))
+	level := parseLevel(config.LogLevel())
 	currentLevel = level
 
 	logsDir := config.LogsDir()

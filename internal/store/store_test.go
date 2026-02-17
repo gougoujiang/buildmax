@@ -5,12 +5,14 @@ import (
 	"errors"
 	"os"
 	"testing"
+
+	"buildmax/internal/config"
 )
 
 func TestCreateUser(t *testing.T) {
-	dsn := os.Getenv("BUILDMAX_TEST_DSN")
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
-		t.Skip("BUILDMAX_TEST_DSN not set, skipping store integration test")
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
 	s, err := New(ctx, dsn)
@@ -44,9 +46,9 @@ func TestCreateUser(t *testing.T) {
 }
 
 func TestCreateUser_DuplicateEmail(t *testing.T) {
-	dsn := os.Getenv("BUILDMAX_TEST_DSN")
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
-		t.Skip("BUILDMAX_TEST_DSN not set, skipping store integration test")
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
 	s, err := New(ctx, dsn)
@@ -73,9 +75,9 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 }
 
 func TestIncrementTaskSeq(t *testing.T) {
-	dsn := os.Getenv("BUILDMAX_TEST_DSN")
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
-		t.Skip("BUILDMAX_TEST_DSN not set, skipping store integration test")
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
 	s, err := New(ctx, dsn)
@@ -115,9 +117,9 @@ func TestIncrementTaskSeq(t *testing.T) {
 }
 
 func TestCreateArtifactWithItem(t *testing.T) {
-	dsn := os.Getenv("BUILDMAX_TEST_DSN")
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
-		t.Skip("BUILDMAX_TEST_DSN not set, skipping store integration test")
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
 	}
 	ctx := context.Background()
 	s, err := New(ctx, dsn)

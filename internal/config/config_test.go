@@ -14,7 +14,7 @@ const settingsInvalidJSON = `{invalid`
 
 func TestDataDir_Default(t *testing.T) {
 	// Ensure BUILDMAX_HOME does not affect this test (unset or restore after).
-	t.Setenv("BUILDMAX_HOME", "")
+	t.Setenv(EnvKeyBuildmaxHome, "")
 	dir := DataDir()
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -30,7 +30,7 @@ func TestDataDir_Default(t *testing.T) {
 
 func TestDataDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	dir := DataDir()
 	want := filepath.Clean(tmp)
 	if dir != want {
@@ -39,7 +39,7 @@ func TestDataDir_Override(t *testing.T) {
 }
 
 func TestSessionsDir_Default(t *testing.T) {
-	t.Setenv("BUILDMAX_HOME", "")
+	t.Setenv(EnvKeyBuildmaxHome, "")
 	dir := SessionsDir()
 	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "sessions")) {
 		t.Errorf("SessionsDir() = %q, want path ending with .buildmax/sessions", dir)
@@ -48,7 +48,7 @@ func TestSessionsDir_Default(t *testing.T) {
 
 func TestSessionsDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	dir := SessionsDir()
 	want := filepath.Join(filepath.Clean(tmp), "sessions")
 	if dir != want {
@@ -57,7 +57,7 @@ func TestSessionsDir_Override(t *testing.T) {
 }
 
 func TestLogsDir_Default(t *testing.T) {
-	t.Setenv("BUILDMAX_HOME", "")
+	t.Setenv(EnvKeyBuildmaxHome, "")
 	dir := LogsDir()
 	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "logs")) {
 		t.Errorf("LogsDir() = %q, want path ending with .buildmax/logs", dir)
@@ -66,7 +66,7 @@ func TestLogsDir_Default(t *testing.T) {
 
 func TestLogsDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	dir := LogsDir()
 	want := filepath.Join(filepath.Clean(tmp), "logs")
 	if dir != want {
@@ -75,7 +75,7 @@ func TestLogsDir_Override(t *testing.T) {
 }
 
 func TestSkillSearchPaths_Order(t *testing.T) {
-	t.Setenv("BUILDMAX_HOME", "")
+	t.Setenv(EnvKeyBuildmaxHome, "")
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := SkillSearchPaths(workspace)
 
@@ -98,7 +98,7 @@ func TestSkillSearchPaths_Order(t *testing.T) {
 
 func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	workspace := filepath.Join("D:", "work", "project")
 	paths := SkillSearchPaths(workspace)
 
@@ -114,7 +114,7 @@ func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
 }
 
 func TestAgentDefsSearchPaths_Order(t *testing.T) {
-	t.Setenv("BUILDMAX_HOME", "")
+	t.Setenv(EnvKeyBuildmaxHome, "")
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := AgentDefsSearchPaths(workspace)
 
@@ -137,7 +137,7 @@ func TestAgentDefsSearchPaths_Order(t *testing.T) {
 
 func TestAgentDefsSearchPaths_HomeDirOverride(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	workspace := filepath.Join("D:", "work", "project")
 	paths := AgentDefsSearchPaths(workspace)
 
@@ -154,7 +154,7 @@ func TestAgentDefsSearchPaths_HomeDirOverride(t *testing.T) {
 
 func TestSettingsPath(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	got := SettingsPath()
 	want := filepath.Join(filepath.Clean(tmp), "settings.json")
 	if got != want {
@@ -214,7 +214,7 @@ func TestLoadSettings_MissingFile(t *testing.T) {
 
 func TestLoadSettings_CreatesDefaultFileWhenMissing(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	path := SettingsPath()
 	if _, err := os.Stat(path); err == nil {
 		t.Fatal("settings.json should not exist yet")
@@ -265,7 +265,7 @@ func TestLoadSettings_InvalidJSON(t *testing.T) {
 
 func TestLoadSettings_EmptyPathUsesSettingsPath(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
 	path := filepath.Join(tmp, "settings.json")
 	if err := os.WriteFile(path, []byte(settingsValidOne), 0644); err != nil {
 		t.Fatal(err)
@@ -311,11 +311,11 @@ func TestEffectiveLLM_FromFile_DisplayNameFallbackToModel(t *testing.T) {
 
 func TestEffectiveLLM_FallbackWhenNoSettings(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
-	t.Setenv("OPENROUTER_API_KEY", "")
-	t.Setenv("BUILDMAX_API_KEY", "env-key")
-	t.Setenv("BUILDMAX_BASE_URL", "https://env.url")
-	t.Setenv("BUILDMAX_MODEL", "env-model")
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
+	t.Setenv(EnvKeyOpenRouterAPIKey, "")
+	t.Setenv(EnvKeyBuildmaxAPIKey, "env-key")
+	t.Setenv(EnvKeyBuildmaxBaseURL, "https://env.url")
+	t.Setenv(EnvKeyBuildmaxModel, "env-model")
 	// Use default path (empty string): auto-creates empty settings.json, then falls back to env.
 	cfg, displayName := EffectiveLLM("")
 	if cfg.APIKey != "env-key" || cfg.BaseURL != "https://env.url" || cfg.Model != "env-model" {
@@ -332,10 +332,10 @@ func TestEffectiveLLM_FallbackWhenEmptyModels(t *testing.T) {
 	if err := os.WriteFile(path, []byte(settingsEmptyModels), 0644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("OPENROUTER_API_KEY", "")
-	t.Setenv("BUILDMAX_API_KEY", "fallback-key")
-	t.Setenv("BUILDMAX_BASE_URL", "https://fallback.url")
-	t.Setenv("BUILDMAX_MODEL", "fallback-model")
+	t.Setenv(EnvKeyOpenRouterAPIKey, "")
+	t.Setenv(EnvKeyBuildmaxAPIKey, "fallback-key")
+	t.Setenv(EnvKeyBuildmaxBaseURL, "https://fallback.url")
+	t.Setenv(EnvKeyBuildmaxModel, "fallback-model")
 	cfg, displayName := EffectiveLLM(path)
 	if cfg.APIKey != "fallback-key" || cfg.Model != "fallback-model" {
 		t.Errorf("EffectiveLLM(empty models) should fall back to LoadLLM(), got %+v", cfg)
@@ -436,8 +436,8 @@ func TestEffectiveLLMWithSelector_MissingFileAndSelectorSetReturnsError(t *testi
 }
 
 func TestWorkspacesDir_Default(t *testing.T) {
-	t.Setenv("BUILDMAX_WORKSPACES_DIR", "")
-	t.Setenv("BUILDMAX_HOME", "")
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, "")
+	t.Setenv(EnvKeyBuildmaxHome, "")
 	dir := WorkspacesDir()
 	if !strings.HasSuffix(filepath.Clean(dir), "workspaces") {
 		t.Errorf("WorkspacesDir() = %q, want path ending with workspaces", dir)
@@ -446,7 +446,7 @@ func TestWorkspacesDir_Default(t *testing.T) {
 
 func TestWorkspacesDir_Override(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_WORKSPACES_DIR", tmp)
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	dir := WorkspacesDir()
 	want := filepath.Clean(tmp)
 	if dir != want {
@@ -456,8 +456,8 @@ func TestWorkspacesDir_Override(t *testing.T) {
 
 func TestWorkspacesDir_WithBuildmaxHome(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_HOME", tmp)
-	t.Setenv("BUILDMAX_WORKSPACES_DIR", "")
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, "")
 	dir := WorkspacesDir()
 	want := filepath.Join(filepath.Clean(tmp), "workspaces")
 	if dir != want {
@@ -467,7 +467,7 @@ func TestWorkspacesDir_WithBuildmaxHome(t *testing.T) {
 
 func TestPersistentWorkspaceDir(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_WORKSPACES_DIR", tmp)
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := PersistentWorkspaceDir("ws-123")
 	want := filepath.Join(filepath.Clean(tmp), "ws-123", "persist")
 	if got != want {
@@ -477,7 +477,7 @@ func TestPersistentWorkspaceDir(t *testing.T) {
 
 func TestRuntimeWorkspaceDir(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_WORKSPACES_DIR", tmp)
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := RuntimeWorkspaceDir("ws-1", "task-456")
 	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456")
 	if got != want {
@@ -487,10 +487,54 @@ func TestRuntimeWorkspaceDir(t *testing.T) {
 
 func TestArtifactDir(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("BUILDMAX_WORKSPACES_DIR", tmp)
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := ArtifactDir("ws-1", "task-456", "art-789")
 	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "task-456", "art-789")
 	if got != want {
 		t.Errorf("ArtifactDir(\"ws-1\", \"task-456\", \"art-789\") = %q, want %q", got, want)
+	}
+}
+
+func TestResolveServerPort(t *testing.T) {
+	tests := []struct {
+		name        string
+		portFromFlag int
+		env         string // BUILDMAX_SERVER_PORT, empty means unset
+		wantPort    int
+		wantErr     bool
+	}{
+		{"flag overrides env", 9999, "8888", 9999, false},
+		{"env when flag zero", 0, "8888", 8888, false},
+		{"default when no flag and no env", 0, "", DefaultServerPort, false},
+		{"invalid env", 0, "bad", 0, true},
+		{"env zero is invalid", 0, "0", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv(EnvKeyBuildmaxServerPort, tt.env)
+			} else {
+				t.Setenv(EnvKeyBuildmaxServerPort, "")
+			}
+			port, err := ResolveServerPort(tt.portFromFlag)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ResolveServerPort() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && port != tt.wantPort {
+				t.Errorf("ResolveServerPort() = %d, want %d", port, tt.wantPort)
+			}
+		})
+	}
+}
+
+func TestLogLevel(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxLogLevel, "debug")
+	if got := LogLevel(); got != "debug" {
+		t.Errorf("LogLevel() = %q, want debug", got)
+	}
+	t.Setenv(EnvKeyBuildmaxLogLevel, "")
+	if got := LogLevel(); got != "" {
+		t.Errorf("LogLevel() empty = %q", got)
 	}
 }

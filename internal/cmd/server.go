@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"strconv"
 
 	"buildmax/internal/config"
@@ -15,8 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
-const defaultServerPort = 5678
 
 type defaultWorkspacePaths struct{}
 
@@ -42,14 +39,15 @@ func newServerCommand() *cobra.Command {
 }
 
 func runServer(cmd *cobra.Command, _ []string) error {
-	port, err := resolveServerPort(cmd)
+	portFlag, _ := cmd.Flags().GetInt("port")
+	port, err := config.ResolveServerPort(portFlag)
 	if err != nil {
 		return err
 	}
 	dsn := config.MySQLDSN()
-	jwtSecret := os.Getenv("BUILDMAX_JWT_SECRET")
-	if jwtSecret == "" {
-		return fmt.Errorf("BUILDMAX_JWT_SECRET is required for server mode")
+	serverEnv, err := config.LoadServerEnv()
+	if err != nil {
+		return err
 	}
 	ctx := context.Background()
 	st, err := store.New(ctx, dsn)
@@ -58,10 +56,6 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	}
 	if err := st.BackfillTaskWorkspaceID(ctx); err != nil {
 		slog.Warn("backfill task workspace_id", "err", err)
-	}
-	corsOrigin := os.Getenv("BUILDMAX_CORS_ORIGIN")
-	if corsOrigin == "" {
-		corsOrigin = "http://localhost:5173"
 	}
 
 	wsCfg := config.LoadWorkspaceStorageConfig()
@@ -95,8 +89,8 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		ArtifactStorage:  artifactStorage,
 		SessionsDir:      config.SessionsDir(),
 		WorkspacesDir:    config.WorkspacesDir(),
-		JWTSecret:        jwtSecret,
-		CORSOrigin:       corsOrigin,
+		JWTSecret:        serverEnv.JWTSecret,
+		CORSOrigin:       serverEnv.CORSOrigin,
 	}
 	// Start the task executor (polls for PENDING tasks and runs buildmax -p).
 	runner, err := executor.New(st, st, defaultWorkspacePaths{}, persistStorage, artifactStorage)
@@ -114,25 +108,4 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	return nil
-}
-
-// resolveServerPort returns the port to use: flag --port, else BUILDMAX_SERVER_PORT, else defaultServerPort.
-// Returns an error if BUILDMAX_SERVER_PORT is set but not a valid number.
-func resolveServerPort(cmd *cobra.Command) (int, error) {
-	port, _ := cmd.Flags().GetInt("port")
-	if port > 0 {
-		return port, nil
-	}
-	env := os.Getenv("BUILDMAX_SERVER_PORT")
-	if env == "" {
-		return defaultServerPort, nil
-	}
-	port, err := strconv.Atoi(env)
-	if err != nil {
-		return 0, fmt.Errorf("invalid BUILDMAX_SERVER_PORT %q: %w", env, err)
-	}
-	if port <= 0 {
-		return 0, fmt.Errorf("BUILDMAX_SERVER_PORT must be positive, got %d", port)
-	}
-	return port, nil
 }
