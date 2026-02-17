@@ -1,5 +1,8 @@
 # Docker Compose for local development
-# Usage: docker compose up -d
+# MySQL is now deployed in the kind cluster via ./make setup (see setup/mysql.yaml).
+# This file is kept for reference or non-kind environments; ./make setup runs
+# "docker compose down" to free port 3306 before starting kind MySQL.
+# Usage (legacy): docker compose up -d
 
 services:
   mysql:

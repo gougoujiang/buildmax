@@ -39,3 +39,7 @@ testing-sandbox/
 # Portal (React / Node)
 portal/node_modules/
 portal/dist/
+
+# Setup (kind/minio/mysql dev env)
+setup/.port-forward.pid
+setup/.port-forward-mysql.pid
