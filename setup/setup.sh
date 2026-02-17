@@ -110,11 +110,11 @@ ensure_bucket_via_portforward() {
   export AWS_SECRET_ACCESS_KEY=minio123
   export AWS_DEFAULT_REGION=us-east-1
 
-  if aws --endpoint-url http://localhost:9000 s3 ls s3://workspace &>/dev/null; then
-    log "Bucket s3://workspace already exists"
+  if aws --endpoint-url http://localhost:9000 s3 ls s3://bmstore &>/dev/null; then
+    log "Bucket s3://bmstore already exists"
   else
-    log "Creating bucket s3://workspace..."
-    aws --endpoint-url http://localhost:9000 s3 mb s3://workspace
+    log "Creating bucket s3://bmstore..."
+    aws --endpoint-url http://localhost:9000 s3 mb s3://bmstore
   fi
   log "S3 bucket list:"
   aws --endpoint-url http://localhost:9000 s3 ls

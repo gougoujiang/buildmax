@@ -18,7 +18,7 @@ One-click setup (idempotent, safe to run multiple times):
 ./make setup
 ```
 
-This installs (via Homebrew if missing) kind, helm, kubectl, awscli; creates a kind cluster `dev`; deploys **MinIO** in namespace `storage` and **MySQL** in namespace `db`; starts port-forwards (MinIO 9000/9001, MySQL 3306); creates bucket `s3://workspace`; and runs the in-cluster S3 test job. It also runs `docker compose down` so any existing Compose MySQL is stopped and port 3306 is free. Tear down:
+This installs (via Homebrew if missing) kind, helm, kubectl, awscli; creates a kind cluster `dev`; deploys **MinIO** in namespace `storage` and **MySQL** in namespace `db`; starts port-forwards (MinIO 9000/9001, MySQL 3306); creates bucket `s3://bmstore`; and runs the in-cluster S3 test job. It also runs `docker compose down` so any existing Compose MySQL is stopped and port 3306 is free. Tear down:
 
 ```bash
 ./make unsetup
@@ -42,6 +42,6 @@ Manual steps (for reference; normally use `./make setup`):
 - MySQL: `kubectl apply -f setup/mysql.yaml` (creates namespace `db`)
 - Port-forwards: `kubectl port-forward svc/minio 9000:9000 9001:9001 -n storage`; `kubectl port-forward svc/mysql 3306:3306 -n db`
 - Env: `AWS_ACCESS_KEY_ID=minio`, `AWS_SECRET_ACCESS_KEY=minio123`, `AWS_DEFAULT_REGION=us-east-1`
-- Bucket: `aws --endpoint-url http://localhost:9000 s3 mb s3://workspace` then `s3 ls`
+- Bucket: `aws --endpoint-url http://localhost:9000 s3 mb s3://bmstore` then `s3 ls`
 - In-cluster MinIO: `http://minio.storage.svc.cluster.local:9000`
 - Test job: `kubectl apply -f setup/test-job.yaml` then `kubectl logs job/s3-test`
