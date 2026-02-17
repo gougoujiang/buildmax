@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import type { Task } from "../lib/types"
 import type { ApiSession } from "../lib/api"
 import { getSession } from "../lib/api"
@@ -63,7 +64,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
       <section className="page-task__section">
         <h2 className="page-task__section-heading">Result</h2>
         <div className="page-task__markdown">
-          <Markdown>{task.summary}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]}>{task.summary}</Markdown>
         </div>
       </section>
 
@@ -87,7 +88,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
                   <span className="page-task__session-role">{msg.role}</span>
                   {msg.content ? (
                     <div className="page-task__session-content">
-                      <Markdown>{msg.content}</Markdown>
+                      <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                     </div>
                   ) : null}
                   {msg.tool_calls && msg.tool_calls.length > 0 && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { BaseModal } from "./BaseModal"
 import { getArtifactItems, getArtifactContent } from "../lib/api"
 
@@ -123,7 +124,7 @@ export function ArtifactContentModal({
               )}
               {content !== null && !contentLoading && (
                 <div className="artifact-modal__content page-task__markdown">
-                  <Markdown>{content}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
                 </div>
               )}
             </div>

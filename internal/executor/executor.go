@@ -121,11 +121,6 @@ func (r *Runner) executeTask(ctx context.Context, task store.Task) {
 		slog.Warn("executor: failed to write result file", "task_id", task.TaskID, "err", writeErr)
 	}
 
-	// Copy result file to persistent workspace so user sees it in file tree.
-	if copyErr := copyResultToPersist(runtimeDir, persistDir, resultFilename); copyErr != nil {
-		slog.Warn("executor: failed to copy result to persistent workspace", "task_id", task.TaskID, "err", copyErr)
-	}
-
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
 		slog.Warn("executor: task failed", "task_id", task.TaskID, "err", err)
@@ -218,20 +213,6 @@ func copyFile(src, dst string) error {
 	defer out.Close()
 	_, err = io.Copy(out, in)
 	return err
-}
-
-// copyResultToPersist copies the result file from runtimeDir to persistDir.
-// Ensures persistDir exists. Best-effort; logs on failure.
-func copyResultToPersist(runtimeDir, persistDir, resultFilename string) error {
-	src := filepath.Join(runtimeDir, resultFilename)
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(persistDir, 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(persistDir, resultFilename), data, 0644)
 }
 
 // failTask is a helper to mark a task as FAILED when execution cannot proceed.

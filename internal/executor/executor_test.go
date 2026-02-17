@@ -83,39 +83,3 @@ func TestCopyWorkspaceContents_NestedDirAndFile(t *testing.T) {
 	}
 }
 
-func TestCopyResultToPersist(t *testing.T) {
-	runtimeDir := t.TempDir()
-	persistDir := t.TempDir()
-	persistSub := filepath.Join(persistDir, "ws1")
-	resultFilename := "result-task1.md"
-	content := []byte("# Result\nDone.")
-	if err := os.WriteFile(filepath.Join(runtimeDir, resultFilename), content, 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := copyResultToPersist(runtimeDir, persistSub, resultFilename); err != nil {
-		t.Fatalf("copyResultToPersist: %v", err)
-	}
-	data, err := os.ReadFile(filepath.Join(persistSub, resultFilename))
-	if err != nil {
-		t.Fatalf("ReadFile in persist: %v", err)
-	}
-	if string(data) != string(content) {
-		t.Errorf("persist content = %q, want %q", data, content)
-	}
-}
-
-func TestCopyResultToPersist_CreatesPersistDir(t *testing.T) {
-	runtimeDir := t.TempDir()
-	persistDir := t.TempDir()
-	persistSub := filepath.Join(persistDir, "new", "workspace", "dir")
-	resultFilename := "result-x.md"
-	if err := os.WriteFile(filepath.Join(runtimeDir, resultFilename), []byte("x"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := copyResultToPersist(runtimeDir, persistSub, resultFilename); err != nil {
-		t.Fatalf("copyResultToPersist: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(persistSub, resultFilename)); err != nil {
-		t.Errorf("result file not in persist: %v", err)
-	}
-}
