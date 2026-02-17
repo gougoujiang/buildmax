@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-CLUSTER_NAME="${BUILDMAX_KIND_CLUSTER:-dev}"
+CLUSTER_NAME="${BUILDMAX_KIND_CLUSTER:-buildmaxdev}"
 PID_FILE="$SCRIPT_DIR/.port-forward.pid"
 PID_FILE_MYSQL="$SCRIPT_DIR/.port-forward-mysql.pid"
 

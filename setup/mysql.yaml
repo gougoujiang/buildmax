@@ -26,13 +26,13 @@ spec:
           image: mysql:8.0
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: "buildmax_dev"
+              value: "buildmax"
             - name: MYSQL_DATABASE
               value: "buildmax"
             - name: MYSQL_USER
               value: "buildmax"
             - name: MYSQL_PASSWORD
-              value: "buildmax_dev"
+              value: "buildmax"
           ports:
             - containerPort: 3306
           volumeMounts:
@@ -47,13 +47,13 @@ spec:
               cpu: 500m
           livenessProbe:
             exec:
-              command: ["mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbuildmax_dev"]
+              command: ["mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbuildmax"]
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
           readinessProbe:
             exec:
-              command: ["mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbuildmax_dev"]
+              command: ["mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbuildmax"]
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
