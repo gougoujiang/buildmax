@@ -10,11 +10,11 @@ import (
 )
 
 func TestLevelFiltering(t *testing.T) {
-	// Use temp dir so Init() does not touch real ~/.buildmax
+	// Use temp dir so Init("", false) does not touch real ~/.buildmax
 	tmp := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
 	t.Setenv(config.EnvKeyBuildmaxLogLevel, "info")
-	Init()
+	Init("", false)
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
@@ -39,7 +39,7 @@ func TestEnvDefault_Debug(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
 	t.Setenv(config.EnvKeyBuildmaxLogLevel, "debug")
-	Init()
+	Init("", false)
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
@@ -58,7 +58,7 @@ func TestOutputContent(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
 	t.Setenv(config.EnvKeyBuildmaxLogLevel, "info")
-	Init()
+	Init("", false)
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
@@ -78,7 +78,7 @@ func TestParseLevel_InvalidDefaultsToInfo(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
 	t.Setenv(config.EnvKeyBuildmaxLogLevel, "invalid")
-	Init()
+	Init("", false)
 
 	var buf bytes.Buffer
 	SetOutput(&buf)

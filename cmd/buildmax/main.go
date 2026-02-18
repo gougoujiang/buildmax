@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	log.Init()
+	log.Init("", false)
 	root := cmd.NewRootCommand()
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

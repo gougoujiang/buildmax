@@ -1,7 +1,8 @@
 // Package log configures the application's default slog logger: level from
-// BUILDMAX_LOG_LEVEL, file-only output (rotating file under config.DataDir()/logs).
-// Logs are never written to stdout/stderr so TUI rendering and prompt-mode output
-// stay clean. SetOutput is provided for tests.
+// BUILDMAX_LOG_LEVEL, rotating file under config.DataDir()/logs. Init accepts a
+// filename (empty = "buildmax.log") and alsoStdout; when alsoStdout is true logs
+// go to both file and stdout (for server/worker); when false, file only (for CLI
+// so TUI and prompt-mode stdout stay clean). SetOutput is provided for tests.
 package log
 
 import (
@@ -33,11 +34,16 @@ var currentLevel = slog.LevelInfo
 var fileWriter io.Writer
 
 // Init configures slog.Default() with level from config.LogLevel() (BUILDMAX_LOG_LEVEL), creates
-// config.DataDir()/logs, and sets output to a rotating file (buildmax.log) only.
-// Nothing is written to stdout/stderr so TUI and prompt mode output stay clean.
-func Init() {
+// config.DataDir()/logs, and sets output to a rotating file. If filename is empty, "buildmax.log" is used.
+// When alsoStdout is true, logs go to both the file and os.Stdout; when false, file only.
+func Init(filename string, alsoStdout bool) {
 	level := parseLevel(config.LogLevel())
 	currentLevel = level
+
+	chosenName := filename
+	if chosenName == "" {
+		chosenName = logFilename
+	}
 
 	logsDir := config.LogsDir()
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
@@ -47,14 +53,18 @@ func Init() {
 	}
 
 	lj := &lumberjack.Logger{
-		Filename:   filepath.Join(logsDir, logFilename),
+		Filename:   filepath.Join(logsDir, chosenName),
 		MaxSize:    logMaxSizeMB,
 		MaxBackups: logMaxBackups,
 		MaxAge:     logMaxAgeDays,
 		Compress:   logCompress,
 	}
 	fileWriter = lj
-	slog.SetDefault(slog.New(slog.NewTextHandler(lj, &slog.HandlerOptions{Level: level})))
+	out := io.Writer(lj)
+	if alsoStdout {
+		out = io.MultiWriter(lj, os.Stdout)
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: level})))
 }
 
 // DisableConsole reconfigures slog.Default() to write only to the file (or

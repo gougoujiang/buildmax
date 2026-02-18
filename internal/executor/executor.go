@@ -49,14 +49,17 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 	wsDir := paths.RuntimeTaskWSDir(task.WorkspaceID, task.TaskID)
 
 	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
+		slog.Error("executor: failed to create buildmax dir", "task_id", task.TaskID, "path", buildmaxDir, "err", err)
 		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create buildmax dir: %v", err)), nil, nil)
 		return err
 	}
 	if err := os.MkdirAll(wsDir, 0755); err != nil {
+		slog.Error("executor: failed to create ws dir", "task_id", task.TaskID, "path", wsDir, "err", err)
 		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create ws dir: %v", err)), nil, nil)
 		return err
 	}
 	if err := persist.MaterializeToDir(ctx, task.WorkspaceID, wsDir); err != nil {
+		slog.Error("executor: failed to materialize workspace", "task_id", task.TaskID, "workspace_id", task.WorkspaceID, "err", err)
 		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to materialize workspace: %v", err)), nil, nil)
 		return err
 	}
@@ -80,26 +83,26 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 	resultFilename := fmt.Sprintf("result-%s.md", task.TaskID)
 	resultPath := filepath.Join(taskDir, resultFilename)
 	if writeErr := os.WriteFile(resultPath, output, 0644); writeErr != nil {
-		slog.Warn("executor: failed to write result file", "task_id", task.TaskID, "err", writeErr)
+		slog.Error("executor: failed to write result file", "task_id", task.TaskID, "path", resultPath, "err", writeErr)
 	}
 
 	uploadTaskBuildmax(ctx, buildmaxDir, task.WorkspaceID, task.TaskID, persist)
 
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
-		slog.Warn("executor: task failed", "task_id", task.TaskID, "err", err)
+		slog.Error("executor: task failed", "task_id", task.TaskID, "err", err, "output_len", len(outputStr))
 		if updateErr := updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil, nil); updateErr != nil {
-			slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
+			slog.Error("executor: failed to update task status to FAILED", "task_id", task.TaskID, "err", updateErr)
 		}
 		return err
 	}
 
 	artifactID := util.NewULID()
 	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, artifactID, output); putErr != nil {
-		slog.Warn("executor: failed to write result to artifact storage", "task_id", task.TaskID, "err", putErr)
+		slog.Error("executor: failed to write result to artifact storage", "task_id", task.TaskID, "err", putErr)
 	}
 	if updateErr := updater.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename}); updateErr != nil {
-		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
+		slog.Error("executor: failed to update task status to SUCCEEDED", "task_id", task.TaskID, "err", updateErr)
 		return updateErr
 	}
 
@@ -110,7 +113,7 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 // uploadTaskBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage.
 // Best-effort: missing files or PutTaskBuildmax errors are logged and skipped.
 func uploadTaskBuildmax(ctx context.Context, buildmaxDir, workspaceID, taskID string, persist blob.PersistStorage) {
-	relPaths := []string{"logs/buildmax.log", "settings.json"}
+	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.json"}
 	sessionsDir := filepath.Join(buildmaxDir, "sessions")
 	entries, err := os.ReadDir(sessionsDir)
 	if err == nil {
@@ -141,4 +144,4 @@ func uploadTaskBuildmax(ctx context.Context, buildmaxDir, workspaceID, taskID st
 }
 
 func ptrString(s string) *string { return &s }
-func ptrInt64(n int64) *int64   { return &n }
+func ptrInt64(n int64) *int64    { return &n }
