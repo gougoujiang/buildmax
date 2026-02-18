@@ -21,6 +21,7 @@ usage() {
   echo "  run server    Build $SERVER_BINARY and start HTTP server (default port 5678)"
   echo "  run portal    Start Portal dev server (Vite; installs deps if needed)"
   echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
+  echo "  install       Install buildmax, buildmax-server, buildmax-worker to ~/.local/bin"
   echo "  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent)"
   echo "  unsetup       Tear down kind cluster and MinIO port-forward (brew tools kept)"
   echo "  pub_images    Build BuildMax image and load into kind cluster"
@@ -32,6 +33,7 @@ usage() {
   echo "  ./make bump minor  # 0.0.2 -> 0.1.0"
   echo "  ./make run server  # build and run $SERVER_BINARY (port 5678)"
   echo "  ./make run portal  # start Portal dev server (Vite)"
+  echo "  ./make install    # install binaries to ~/.local/bin"
 }
 
 cmd_run_server() {
@@ -151,6 +153,61 @@ cmd_unsetup() {
   "$SCRIPT_DIR/setup/unsetup.sh"
 }
 
+cmd_install() {
+  local LOCAL_BIN="${HOME}/.local/bin"
+  if [[ ! -f "$SCRIPT_DIR/$CLI_BINARY" ]]; then
+    echo "Error: $CLI_BINARY not found in $SCRIPT_DIR" >&2
+    echo "Run './make build' or 'go build -o $CLI_BINARY ./cmd/buildmax' first." >&2
+    return 1
+  fi
+  mkdir -p "$LOCAL_BIN"
+  echo "Installing BuildMax binaries to ${LOCAL_BIN}..."
+  echo "Copying $CLI_BINARY to ${LOCAL_BIN}/$CLI_BINARY"
+  cp -f "$SCRIPT_DIR/$CLI_BINARY" "${LOCAL_BIN}/$CLI_BINARY"
+  chmod +x "${LOCAL_BIN}/$CLI_BINARY"
+  if [[ -f "$SCRIPT_DIR/$SERVER_BINARY" ]]; then
+    echo "Copying $SERVER_BINARY to ${LOCAL_BIN}/$SERVER_BINARY"
+    cp -f "$SCRIPT_DIR/$SERVER_BINARY" "${LOCAL_BIN}/$SERVER_BINARY"
+    chmod +x "${LOCAL_BIN}/$SERVER_BINARY"
+  else
+    echo "Note: $SERVER_BINARY not found, skip. Run './make build' to build it."
+  fi
+  if [[ -f "$SCRIPT_DIR/$WORKER_BINARY" ]]; then
+    echo "Copying $WORKER_BINARY to ${LOCAL_BIN}/$WORKER_BINARY"
+    cp -f "$SCRIPT_DIR/$WORKER_BINARY" "${LOCAL_BIN}/$WORKER_BINARY"
+    chmod +x "${LOCAL_BIN}/$WORKER_BINARY"
+  else
+    echo "Note: $WORKER_BINARY not found, skip. Run './make build' to build it."
+  fi
+  local LOCAL_BIN_IN_PATH=0
+  case ":$PATH:" in
+    *":${LOCAL_BIN}:"*) LOCAL_BIN_IN_PATH=1 ;;
+  esac
+  if [[ "$LOCAL_BIN_IN_PATH" -eq 0 ]]; then
+    echo ""
+    echo "$LOCAL_BIN is not in your PATH."
+    echo "To use buildmax from any directory, add it to your PATH:"
+    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo ""
+    echo "To make it permanent, add the line above to your shell config:"
+    if [[ -n "$ZSH_VERSION" ]] || [[ -f "$HOME/.zshrc" ]]; then
+      echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+    fi
+    if [[ -n "$BASH_VERSION" ]] || [[ -f "$HOME/.bashrc" ]]; then
+      echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+    fi
+    echo ""
+    echo "After adding to PATH, start a new terminal session or run: source ~/.zshrc (or ~/.bashrc)"
+  else
+    echo ""
+    echo "$LOCAL_BIN is already in your PATH."
+    echo "$CLI_BINARY, $SERVER_BINARY, and $WORKER_BINARY are now available from any directory."
+  fi
+  echo ""
+  echo "Installation complete!"
+  echo "You can run '$CLI_BINARY' (CLI), '$SERVER_BINARY', and '$WORKER_BINARY' from any directory (after updating PATH if needed)."
+}
+
 cmd_pub_images() {
   local cluster_name="${BUILDMAX_KIND_CLUSTER:-buildmaxdev}"
   local platform_args=()
@@ -208,6 +265,9 @@ case "$cmd" in
     ;;
   bump)
     cmd_bump_version "${2:-patch}"
+    ;;
+  install)
+    cmd_install
     ;;
   setup)
     cmd_setup
