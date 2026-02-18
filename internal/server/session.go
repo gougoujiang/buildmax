@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"buildmax/internal/config"
 )
 
 // SessionMessage is one message in a session (snake_case for API).
@@ -70,14 +72,18 @@ func (s *Server) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	path := filepath.Join(s.cfg.SessionsDir, sessionID+".json")
-	data, err := os.ReadFile(path)
+	taskSessionPath := filepath.Join(config.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID), "sessions", sessionID+".json")
+	data, err := os.ReadFile(taskSessionPath)
+	if err != nil && os.IsNotExist(err) && s.cfg.SessionsDir != "" {
+		path := filepath.Join(s.cfg.SessionsDir, sessionID+".json")
+		data, err = os.ReadFile(path)
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			writeJSONError(w, http.StatusNotFound, "session file not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "get_session", "path", path)
+		writeInternalError(w, err, "handler", "get_session", "session_id", sessionID)
 		return
 	}
 	var out SessionResponse

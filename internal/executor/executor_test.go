@@ -21,6 +21,12 @@ func (testWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
 func (testWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
 	return config.RuntimeWorkspaceDir(workspaceID, taskID)
 }
+func (testWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
+	return config.RuntimeTaskBuildmaxDir(workspaceID, taskID)
+}
+func (testWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
+	return config.RuntimeTaskWSDir(workspaceID, taskID)
+}
 func (testWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
 	return config.ArtifactDir(workspaceID, taskID, artifactID)
 }

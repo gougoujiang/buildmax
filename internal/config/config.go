@@ -38,10 +38,11 @@ const (
 	ModelGPT35Turbo      = "openai/gpt-3.5-turbo" // NOT FREE
 	ModelGemma327bItFree = "google/gemma-3-27b-it:free"
 	ModelGLM45AirFree    = "z-ai/glm-4.5-air:free"
+	ModelGPT4oMini       = "openai/gpt-4o-mini"
 )
 
 // DefaultModel is the model used when BUILDMAX_MODEL is not set.
-const DefaultModel = ModelGLM45AirFree
+const DefaultModel = ModelGPT4oMini
 
 // DefaultServerPort is the port used when BUILDMAX_SERVER_PORT is not set and --port is 0.
 const DefaultServerPort = 5678
@@ -181,6 +182,18 @@ func PersistentWorkspaceDir(workspaceID string) string {
 // It is WorkspacesDir()/<workspaceID>/tasks/<taskID>. Runtime dirs are left on disk; cleanup is a separate task.
 func RuntimeWorkspaceDir(workspaceID, taskID string) string {
 	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID)
+}
+
+// RuntimeTaskBuildmaxDir returns the buildmax subdir for a task run (agent data: sessions, logs, settings).
+// It is RuntimeWorkspaceDir(workspaceID, taskID)/buildmax.
+func RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
+	return filepath.Join(RuntimeWorkspaceDir(workspaceID, taskID), "buildmax")
+}
+
+// RuntimeTaskWSDir returns the workspace subdir for a task run (materialized persist files).
+// It is RuntimeWorkspaceDir(workspaceID, taskID)/ws.
+func RuntimeTaskWSDir(workspaceID, taskID string) string {
+	return filepath.Join(RuntimeWorkspaceDir(workspaceID, taskID), "ws")
 }
 
 // ArtifactDir returns the directory for one artifact's files (snapshot output of a task run).

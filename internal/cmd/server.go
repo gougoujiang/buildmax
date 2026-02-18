@@ -23,6 +23,12 @@ func (defaultWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
 func (defaultWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
 	return config.RuntimeWorkspaceDir(workspaceID, taskID)
 }
+func (defaultWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
+	return config.RuntimeTaskBuildmaxDir(workspaceID, taskID)
+}
+func (defaultWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
+	return config.RuntimeTaskWSDir(workspaceID, taskID)
+}
 func (defaultWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
 	return config.ArtifactDir(workspaceID, taskID, artifactID)
 }

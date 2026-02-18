@@ -471,6 +471,26 @@ func TestRuntimeWorkspaceDir(t *testing.T) {
 	}
 }
 
+func TestRuntimeTaskBuildmaxDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
+	got := RuntimeTaskBuildmaxDir("ws-1", "task-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456", "buildmax")
+	if got != want {
+		t.Errorf("RuntimeTaskBuildmaxDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeTaskWSDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
+	got := RuntimeTaskWSDir("ws-1", "task-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456", "ws")
+	if got != want {
+		t.Errorf("RuntimeTaskWSDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
+	}
+}
+
 func TestArtifactDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)

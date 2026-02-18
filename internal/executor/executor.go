@@ -9,8 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"buildmax/internal/config"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/util"
@@ -111,26 +113,51 @@ func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
 		return
 	}
 
-	runtimeDir := r.paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
+	taskDir := r.paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
+	buildmaxDir := r.paths.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID)
+	wsDir := r.paths.RuntimeTaskWSDir(task.WorkspaceID, task.TaskID)
 
-	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create runtime dir: %v", err))
+	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
+		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create buildmax dir: %v", err))
 		return
 	}
-	if err := r.persist.MaterializeToDir(ctx, task.WorkspaceID, runtimeDir); err != nil {
+	if err := os.MkdirAll(wsDir, 0755); err != nil {
+		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create ws dir: %v", err))
+		return
+	}
+	if err := r.persist.MaterializeToDir(ctx, task.WorkspaceID, wsDir); err != nil {
 		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to materialize workspace: %v", err))
 		return
 	}
 
+	// Use absolute path for BUILDMAX_HOME so the child process writes sessions/logs under
+	// the task's buildmax dir regardless of its CWD (wsDir). If buildmaxDir is relative
+	// (e.g. when BUILDMAX_WORKSPACES_DIR is relative), a relative BUILDMAX_HOME would
+	// be resolved against CWD and would point under ws/, producing wrong paths.
+	buildmaxDirAbs, err := filepath.Abs(buildmaxDir)
+	if err != nil {
+		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to resolve buildmax dir: %v", err))
+		return
+	}
+
+	env := os.Environ()
+	prefix := config.EnvKeyBuildmaxHome + "="
+	filtered := make([]string, 0, len(env)+1)
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			filtered = append(filtered, e)
+		}
+	}
 	cmd := exec.CommandContext(ctx, "buildmax", "-p", task.Input, "--session-id", sessionID)
-	cmd.Dir = runtimeDir
+	cmd.Dir = wsDir
+	cmd.Env = append(filtered, prefix+buildmaxDirAbs)
 
 	output, err := cmd.CombinedOutput()
 	endTime := time.Now().Unix()
 	outputStr := string(output)
 
 	resultFilename := fmt.Sprintf("result-%s.md", task.TaskID)
-	resultPath := filepath.Join(runtimeDir, resultFilename)
+	resultPath := filepath.Join(taskDir, resultFilename)
 	if writeErr := os.WriteFile(resultPath, output, 0644); writeErr != nil {
 		slog.Warn("executor: failed to write result file", "task_id", task.TaskID, "err", writeErr)
 	}
