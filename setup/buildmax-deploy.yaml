@@ -22,6 +22,7 @@ type: Opaque
 stringData:
   BUILDMAX_JWT_SECRET: "OJ9OT+R3WEGoLLYtlbHJqZ9YGgNAoGnpNSx0kmZ1+jo="
   BUILDMAX_WORKER_TOKEN: "local-dev-8f4a2b1c9e7d3f6a0b5c8e1d4f7a2b9c6e3d"
+  BUILDMAX_API_KEY: "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"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -93,6 +94,11 @@ spec:
                 secretKeyRef:
                   name: buildmax-secret
                   key: BUILDMAX_WORKER_TOKEN
+            - name: BUILDMAX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_API_KEY
           volumeMounts:
             - name: worker-workspaces
               mountPath: /buildmax/worker/workspaces
