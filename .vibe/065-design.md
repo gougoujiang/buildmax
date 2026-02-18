@@ -18,12 +18,12 @@ No new Go packages; config and server binaries unchanged.
 
 ### 1. Manifest layout
 
-Place all buildmax-app manifests under **`setup/`** (alongside existing `minio.yaml`, `mysql.yaml`, `whoami-ingress-test.yaml`). Two options:
+Place all buildmax-app manifests under **`setup/`** (alongside existing `minio.yaml`, `mysql.yaml`, `test-ingress-whoami.yaml`). Two options:
 
-- **Option A (recommended)**: Single file `setup/buildmax-deploy.yaml` containing Namespace, Secret, Deployment, Service, and Ingress separated by `---`. Easier for `make deploy` (one `kubectl apply -f`).
+- **Option A (recommended)**: Single file `deployment/buildmax-deploy.yaml` containing Namespace, Secret, Deployment, Service, and Ingress separated by `---`. Easier for `make deploy` (one `kubectl apply -f`).
 - **Option B**: Split files, e.g. `setup/buildmax-namespace.yaml`, `setup/buildmax-secret.yaml`, `setup/buildmax-deployment.yaml`, `setup/buildmax-service.yaml`, `setup/buildmax-ingress.yaml`; `make deploy` applies a directory (`kubectl apply -f setup/` or a list of files). Order matters for namespace first, then Secret, then workload.
 
-**Choice**: Option A — one file `setup/buildmax-deploy.yaml` for simplicity. If the file grows too large, split later.
+**Choice**: Option A — one file `deployment/buildmax-deploy.yaml` for simplicity. If the file grows too large, split later.
 
 ### 2. Namespace
 
@@ -96,7 +96,7 @@ Place all buildmax-app manifests under **`setup/`** (alongside existing `minio.y
 - **Steps** (in order):
   1. Build Go binaries: call existing `cmd_build` or run `./make build` (subshell).
   2. Build and load server image into kind: call `cmd_pub_images` or run `./make pub_images`.
-  3. Apply buildmax manifests: `kubectl apply -f "$SCRIPT_DIR/setup/buildmax-deploy.yaml"`. Use default kubeconfig (kind cluster already selected) or set `KUBECONFIG` / context via `BUILDMAX_KIND_CLUSTER` if needed; kind typically sets context by cluster name, so no extra switch if user has run `./make setup` and context is current.
+  3. Apply buildmax manifests: `kubectl apply -f "$SCRIPT_DIR/deployment/buildmax-deploy.yaml"`. Use default kubeconfig (kind cluster already selected) or set `KUBECONFIG` / context via `BUILDMAX_KIND_CLUSTER` if needed; kind typically sets context by cluster name, so no extra switch if user has run `./make setup` and context is current.
 - **Prerequisites**: Document that cluster and dependencies must exist (`./make setup`); Secret must exist or be created (document in README).
 - **Usage**: Add to `make` usage string: `deploy — Build, load image, and deploy buildmax server to kind cluster (run ./make setup first)`.
 - **Implementation**: New function `cmd_deploy()` that runs the three steps; add `deploy)` case in the `case "$cmd" in` block.
@@ -108,7 +108,7 @@ Place all buildmax-app manifests under **`setup/`** (alongside existing `minio.y
 - **cmd_deploy()**: 
   - `cmd_build` (or invoke `./make build`); on failure exit 1.
   - `cmd_pub_images` (or invoke `./make pub_images`); on failure exit 1.
-  - `kubectl apply -f "$SCRIPT_DIR/setup/buildmax-deploy.yaml"`; on failure exit 1.
+  - `kubectl apply -f "$SCRIPT_DIR/deployment/buildmax-deploy.yaml"`; on failure exit 1.
   - Echo success message (e.g. “Deployed. Ensure 127.0.0.1 buildmax-api.kind.local is in /etc/hosts, then open http://buildmax-api.kind.local”).
 - **usage()**: Add line for `deploy`.
 - **case**: Add `deploy) cmd_deploy ;;`.
@@ -123,7 +123,7 @@ Place all buildmax-app manifests under **`setup/`** (alongside existing `minio.y
 
 1. User runs `./make setup` (once): kind cluster, MinIO, MySQL, ingress-nginx, bucket exist.
 2. User creates Secret (documented): `kubectl create secret generic buildmax-secret -n buildmax ...` or apply a manifest that contains the Secret (with placeholder or generated values).
-3. User runs `./make deploy`: build → pub_images → `kubectl apply -f setup/buildmax-deploy.yaml`. Namespace `buildmax` is created; Secret must already exist or be in the same YAML; Deployment, Service, Ingress are applied.
+3. User runs `./make deploy`: build → pub_images → `kubectl apply -f deployment/buildmax-deploy.yaml`. Namespace `buildmax` is created; Secret must already exist or be in the same YAML; Deployment, Service, Ingress are applied.
 4. In-cluster: Pod runs `buildmax-server`; env points to `mysql.db.svc.cluster.local` and `minio.storage.svc.cluster.local`; worker subprocess uses `BUILDMAX_WORKSPACES_DIR=/buildmax/worker/workspaces` (emptyDir). Scheduler spawns worker; worker calls `http://buildmax.buildmax.svc.cluster.local:5678` and uses same MinIO/DB env.
 5. From host: User has `127.0.0.1 buildmax-api.kind.local` in `/etc/hosts`. Requests to `http://buildmax-api.kind.local` hit ingress-nginx (port 80) → Ingress → Service `buildmax` → Pod 5678.
 6. Portal: `docker build -f Dockerfile.portal -t buildmax-portal:local .` produces an image that serves the built portal; future task can deploy it at `buildmax.kind.local`.
@@ -134,8 +134,8 @@ Place all buildmax-app manifests under **`setup/`** (alongside existing `minio.y
 
 ## Changes for review
 
-- **setup/buildmax-deploy.yaml** (new): Single YAML with Namespace `buildmax`, Secret `buildmax-secret` (or documented separate creation), Deployment (buildmax-server container, image buildmax:local, command buildmax-server, env as above, emptyDir at /buildmax/worker/workspaces), Service `buildmax` (ClusterIP 5678), Ingress host buildmax-api.kind.local → Service buildmax.
-- **make**: Add `cmd_deploy` (build, pub_images, kubectl apply -f setup/buildmax-deploy.yaml); add `deploy` to usage and case.
+- **deployment/buildmax-deploy.yaml** (new): Single YAML with Namespace `buildmax`, Secret `buildmax-secret` (or documented separate creation), Deployment (buildmax-server container, image buildmax:local, command buildmax-server, env as above, emptyDir at /buildmax/worker/workspaces), Service `buildmax` (ClusterIP 5678), Ingress host buildmax-api.kind.local → Service buildmax.
+- **make**: Add `cmd_deploy` (build, pub_images, kubectl apply -f deployment/buildmax-deploy.yaml); add `deploy` to usage and case.
 - **Dockerfile.portal** (new, repo root): Multi-stage; stage 1 Node build portal (npm ci, npm run build), stage 2 nginx serving dist; include nginx config for SPA fallback (e.g. portal/nginx-default.conf).
 - **portal/nginx-default.conf** (or similar, new): Minimal nginx server block, root /usr/share/nginx/html, try_files for SPA.
 - **setup/README.md**: Update “Access buildmax-server” to “Deploy buildmax server in cluster”: prereq `./make setup`; create Secret (command or YAML); run `./make deploy`; add `127.0.0.1 buildmax-api.kind.local` to /etc/hosts; API at http://buildmax-api.kind.local. Note `buildmax.kind.local` reserved for portal. Remove or adjust old “run server on host + buildmax-ingress” if that file does not exist; align with in-cluster deploy.

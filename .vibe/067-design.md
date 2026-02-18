@@ -14,7 +14,7 @@ Make worker execution strategy configurable: **local_process** (current: spawn b
 | **internal/storage/entity** | TaskStore: add UpdateTaskWorkerInfo; Store implements it; GORM migration for new columns. |
 | **internal/servercmd** | RunServer: read WorkerRunMode(), construct LocalRunner or K8sJobRunner, pass to NewScheduler. |
 | **internal/server** | (Optional) TaskResponse and taskToResponse: add worker_type, k8s_job_name, k8s_job_created_at. |
-| **setup/buildmax-deploy.yaml** | ServiceAccount, Role, RoleBinding for Jobs/Pods; server Deployment serviceAccountName. |
+| **deployment/buildmax-deploy.yaml** | ServiceAccount, Role, RoleBinding for Jobs/Pods; server Deployment serviceAccountName. |
 
 ## Structure
 
@@ -65,7 +65,7 @@ Make worker execution strategy configurable: **local_process** (current: spawn b
 - **TaskResponse**: Add `WorkerType string`, `K8sJobName *string`, `K8sJobCreatedAt *int64` with json tags `worker_type`, `k8s_job_name`, `k8s_job_created_at`.
 - **taskToResponse**: Set the new fields from model.Task.
 
-### setup/buildmax-deploy.yaml
+### deployment/buildmax-deploy.yaml
 
 - **ServiceAccount**: `apiVersion: v1`, `kind: ServiceAccount`, `metadata: { name: buildmax-server, namespace: buildmax }`.
 - **Role**: `apiVersion: rbac.authorization.k8s.io/v1`, `kind: Role`, `metadata: { name: buildmax-server, namespace: buildmax }`, rules: `apiGroups: [""] resources: [pods] verbs: [create, get, list, delete]`, `apiGroups: [batch] resources: [jobs] verbs: [create, get, list, delete]`.
@@ -129,7 +129,7 @@ Make worker execution strategy configurable: **local_process** (current: spawn b
 | **internal/executor/k8s.go** (new, or in runner.go) | K8s client build: InClusterConfig / kubeconfig; NewJobClient; Job spec builder (name, container, env). |
 | **internal/servercmd/run.go** | Branch on WorkerRunMode(); create LocalRunner or K8sJobRunner; NewScheduler(st, runner). |
 | **internal/server/tasks.go** | (Optional) TaskResponse add WorkerType, K8sJobName, K8sJobCreatedAt; taskToResponse set from model. |
-| **setup/buildmax-deploy.yaml** | Add ServiceAccount buildmax-server; Role (jobs, pods); RoleBinding; Deployment serviceAccountName: buildmax-server. |
+| **deployment/buildmax-deploy.yaml** | Add ServiceAccount buildmax-server; Role (jobs, pods); RoleBinding; Deployment serviceAccountName: buildmax-server. |
 | **go.mod / go.sum** | Add k8s.io/client-go, k8s.io/api (batch/v1, core/v1). |
 | **internal/executor/executor_test.go** | NewScheduler(st, runner): use NewLocalRunner("buildmax-worker") in existing tests. Add test for LocalRunner Run success/failure; add test for K8sJobRunner with fake JobCreator or skip when no cluster. |
 

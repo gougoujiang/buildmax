@@ -10,7 +10,7 @@ This script is idempotent and will:
 
 - Install kind, helm, kubectl, awscli via Homebrew if missing
 - Create a kind cluster from `kind-config.yaml` (with Ingress port mapping 80/443)
-- Deploy ingress-nginx from local manifest `ingress-nginx-kind.yaml` (no network to GitHub required)
+- Deploy ingress-nginx from local manifest `kind-ingress-nginx.yaml` (no network to GitHub required)
 - Deploy whoami in namespace `test` for ingress testing
 - Create namespace `storage`, deploy MinIO, create bucket `bmstore`
 - Deploy MySQL in namespace `db` and start port-forward to localhost:3306
@@ -43,7 +43,7 @@ Then apply the Ingress manifests for the hosts you use (see below).
 To run the buildmax API server inside the kind cluster (using in-cluster MySQL and MinIO):
 
 1. **Prereq**: Run `./make setup` once (cluster, MinIO, MySQL, ingress-nginx, bucket must exist).
-2. **Deploy**: From repo root run `./make deploy`. This builds the binaries, builds and loads the `buildmax:local` image into kind, and applies `setup/buildmax-deploy.yaml` (namespace `buildmax`, Secret, Deployment, Service, Ingress).
+2. **Deploy**: From repo root run `./make deploy`. This builds the binaries, builds and loads the `buildmax:local` image into kind, and applies `deployment/buildmax-deploy.yaml` (namespace `buildmax`, Secret, Deployment, Service, Ingress).
 3. **Secrets**: The manifest includes a dev Secret with placeholder values. For production, create your own before applying:
    ```bash
    kubectl create secret generic buildmax-secret -n buildmax \
@@ -53,7 +53,7 @@ To run the buildmax API server inside the kind cluster (using in-cluster MySQL a
    Or delete the Secret from the YAML and apply it separately.
 4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **http://buildmax-api.kind.local** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `Dockerfile.portal` image).
 
-To remove the buildmax app: `kubectl delete -f setup/buildmax-deploy.yaml`
+To remove the buildmax app: `kubectl delete -f deployment/buildmax-deploy.yaml`
 
 ### Test Ingress with whoami
 
@@ -72,14 +72,14 @@ curl http://whoami.kind.local
 You should see whoami’s response (hostname, headers, etc.). Remove the test resources with:
 
 ```bash
-kubectl delete -f setup/whoami-ingress-test.yaml
+kubectl delete -f setup/test-ingress-whoami.yaml
 ```
 
 **If you get ERR_CONNECTION_RESET:** The ingress controller must run on the control-plane node (so host port 80 reaches it). Our manifest pins it with `nodeSelector: ingress-ready: "true"`. If your cluster was created before that fix, re-apply and restart the controller:
 
 ```bash
 kubectl delete deployment ingress-nginx-controller -n ingress-nginx
-kubectl apply -f setup/ingress-nginx-kind.yaml
+kubectl apply -f setup/kind-ingress-nginx.yaml
 kubectl wait --for=condition=Available deployment/ingress-nginx-controller -n ingress-nginx --timeout=120s
 ```
 

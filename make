@@ -242,7 +242,7 @@ cmd_deploy() {
   cmd_build || return 1
   cmd_pub_images || return 1
   echo "Applying buildmax-deploy.yaml..."
-  if ! kubectl apply -f "$SCRIPT_DIR/setup/buildmax-deploy.yaml"; then
+  if ! kubectl apply -f "$SCRIPT_DIR/deployment/buildmax-deploy.yaml"; then
     echo "Error: kubectl apply failed"
     return 1
   fi

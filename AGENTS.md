@@ -126,6 +126,7 @@ buildmax/
 ├── configs/                   # Config file examples
 ├── example/                   # Example files for tools (e.g. shakespeare.txt)
 ├── setup/                     # Setup scripts (e.g. setup.sh, port-forward)
+├── deployment/                # Application manifests (e.g. buildmax-deploy.yaml for kind)
 ├── .vibe/                     # Task documents and design docs (vibe lifecycle)
 ├── make.bat                   # Windows: build, test, run (build uses cmd/buildmax)
 ├── go.mod

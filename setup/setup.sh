@@ -46,7 +46,7 @@ ensure_ingress() {
     return 0
   fi
   log "Applying ingress-nginx (kind)..."
-  kubectl apply -f "$SCRIPT_DIR/ingress-nginx-kind.yaml"
+  kubectl apply -f "$SCRIPT_DIR/kind-ingress-nginx.yaml"
   log "Waiting for ingress-nginx controller to be ready..."
   kubectl wait --for=condition=Available deployment/ingress-nginx-controller -n ingress-nginx --timeout=120s
   log "Ingress controller ready"
@@ -59,7 +59,7 @@ ensure_whoami_ingress_test() {
     return 0
   fi
   log "Deploying whoami for ingress test (namespace test)..."
-  kubectl apply -f "$SCRIPT_DIR/whoami-ingress-test.yaml"
+  kubectl apply -f "$SCRIPT_DIR/test-ingress-whoami.yaml"
   log "Waiting for whoami to be ready..."
   kubectl wait --for=condition=Available deployment/whoami -n test --timeout=60s
   log "Whoami ready. Add '127.0.0.1 whoami.kind.local' to /etc/hosts, then: curl http://whoami.kind.local"
