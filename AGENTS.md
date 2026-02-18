@@ -114,6 +114,7 @@ buildmax/
 │   │   └── blob/              # Blob/file storage: PersistStorage, ArtifactStorage; local FS and S3 adapters; keys, relpath
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, projects, tasks, artifacts, upload, files, sessions; static (openapi, swagger)
 │   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewRunner, server.Run); used by cmd/buildmax-server
+│   ├── workercmd/             # Worker startup: RunWorker (env, get task, blob storage, executor.RunTask); used by cmd/buildmax-worker
 │   └── executor/              # Scheduler: Runner polls and spawns buildmax-worker; RunTask (worker): materialize, buildmax -p, TaskUpdater (API); WorkerHTTPUpdater, GetWorkerTask
 ├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
 │   ├── package.json           # Scripts: dev, build, preview
@@ -135,7 +136,7 @@ buildmax/
 
 - **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`.
 - **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and task scheduler (spawns `buildmax-worker` per task); use `./make run server` to build and run it.
-- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-id`; gets task via `GET /api/worker/tasks/{task_id}`, updates status via `PATCH`, uses direct storage, runs `buildmax -p`. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env.
+- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-id`; calls `workercmd.RunWorker` (get task via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env.
 - **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, internal setup for agent/session. No server subcommand.
 - **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
 - **internal/server**: HTTP API for the Portal; depends on `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
