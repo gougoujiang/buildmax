@@ -176,7 +176,7 @@ export async function getTasks(
   return res.json() as Promise<ApiTask[]>
 }
 
-/** Session as returned by GET /api/sessions/{session_id} (agent conversation). */
+/** Conversation as returned by GET /api/workspaces/{id}/tasks/{id}/conversation (agent conversation for a task). */
 export interface ApiSession {
   id: string
   title: string
@@ -191,11 +191,18 @@ export interface ApiSessionMessage {
   tool_calls?: { id: string; name: string; arguments?: string }[]
 }
 
-export async function getSession(sessionId: string, token: string): Promise<ApiSession> {
-  const res = await fetch(`${getApiBase()}/api/sessions/${encodeURIComponent(sessionId)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+/** Returns conversation or null if not found (e.g. task not run yet). Throws on other errors. */
+export async function getTaskConversation(
+  workspaceId: string,
+  taskId: string,
+  token: string
+): Promise<ApiSession | null> {
+  const res = await fetch(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/conversation`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
   checkUnauthorized(res)
+  if (res.status === 404) return null
   await throwIfNotOk(res)
   return res.json() as Promise<ApiSession>
 }

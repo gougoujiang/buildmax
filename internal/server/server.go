@@ -65,7 +65,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/upload", s.uploadHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
-	mux.HandleFunc("GET /api/sessions/{session_id}", s.getSessionHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation", s.getTaskConversationHandler)
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

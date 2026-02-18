@@ -156,7 +156,7 @@ function AppContent() {
         if (projectMismatch) return fallbackHome
         return fallbackProject(project!)
       }
-      return <TaskDetail task={task} />
+      return <TaskDetail task={task} workspaceId={route.workspaceId} />
     }
     return fallbackHome
   }

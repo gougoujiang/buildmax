@@ -8,6 +8,20 @@
         "scheme": "bearer",
         "bearerFormat": "JWT"
       }
+    },
+    "schemas": {
+      "FileNode": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["folder", "file"] },
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FileNode" }
+          }
+        }
+      }
     }
   },
   "paths": {
@@ -125,6 +139,44 @@
               }
             }
           },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "summary": "Create workspace",
+        "description": "Creates a workspace for the authenticated user. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "owner_user_id": { "type": "string" },
+                    "created_at": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (name missing)" },
           "401": { "description": "Unauthorized" }
         }
       }
@@ -300,6 +352,242 @@
           "403": { "description": "Forbidden" },
           "404": { "description": "Project not found (when project_id is given)" },
           "503": { "description": "Tasks not configured" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/artifacts": {
+      "get": {
+        "summary": "List artifacts",
+        "description": "Returns artifacts in the workspace. Optional query params task_id and project_id filter results. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "task_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter by task" },
+          { "name": "project_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter by project" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "artifact_id": { "type": "string" },
+                      "task_id": { "type": "string" },
+                      "workspace_id": { "type": "string" },
+                      "project_id": { "type": "string", "nullable": true },
+                      "created_at": { "type": "integer" },
+                      "seq": { "type": "integer" },
+                      "task_input_snippet": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/artifacts/{artifact_id}/items": {
+      "get": {
+        "summary": "List artifact items",
+        "description": "Returns the list of files (items) for an artifact. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "artifact_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "relative_path": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "artifact_id required" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Artifact not found" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/artifacts/{artifact_id}/content": {
+      "get": {
+        "summary": "Get artifact content",
+        "description": "Returns raw file content for an artifact. Optional query param path (default result.md). Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "artifact_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "File path relative to artifact (default result.md)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": { "schema": { "type": "string" } }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Artifact or file not found" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/upload": {
+      "post": {
+        "summary": "Upload files",
+        "description": "Upload one or more files to the workspace persist storage. Multipart form: files (required), optional paths[] for directory upload. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["files"],
+                "properties": {
+                  "files": { "type": "array", "items": { "type": "string", "format": "binary" } },
+                  "paths": { "type": "array", "items": { "type": "string" }, "description": "Relative paths; count must match files" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploaded": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "No files or invalid form" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/files": {
+      "get": {
+        "summary": "List workspace files (tree)",
+        "description": "Returns the full directory tree of persisted files in the workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "type": { "type": "string", "enum": ["folder", "file"] },
+                    "children": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/FileNode" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/files/{path}": {
+      "get": {
+        "summary": "Get file content",
+        "description": "Returns raw file content for a path in the workspace persist storage. Path is relative to workspace root. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "path", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Relative file path (may contain slashes)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": { "schema": { "type": "string" } }
+            }
+          },
+          "400": { "description": "File path required or invalid" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "File not found" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/tasks/{task_id}/conversation": {
+      "get": {
+        "summary": "Get task conversation",
+        "description": "Returns the agent conversation for the task. Session is an implementation detail; the task stores session_id when run. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "created_at": { "type": "string" },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": { "type": "string" },
+                          "content": { "type": "string" },
+                          "tool_call_id": { "type": "string" },
+                          "tool_calls": { "type": "array" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "task_id required" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Task or conversation not found" }
         }
       }
     }

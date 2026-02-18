@@ -3,21 +3,22 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Task } from "../lib/types"
 import type { ApiSession } from "../lib/api"
-import { getSession } from "../lib/api"
+import { getTaskConversation } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 
 interface TaskDetailProps {
   task: Task
+  workspaceId: string
 }
 
-export function TaskDetail({ task }: TaskDetailProps) {
+export function TaskDetail({ task, workspaceId }: TaskDetailProps) {
   const { token } = useAuth()
   const [session, setSession] = useState<ApiSession | null>(null)
   const [sessionLoading, setSessionLoading] = useState(false)
   const [sessionError, setSessionError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!task.sessionId || !token) {
+    if (!token || !workspaceId || !task.id) {
       setSession(null)
       setSessionError(null)
       return
@@ -25,7 +26,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
     let cancelled = false
     setSessionLoading(true)
     setSessionError(null)
-    getSession(task.sessionId, token)
+    getTaskConversation(workspaceId, task.id, token)
       .then((data) => {
         if (!cancelled) {
           setSession(data)
@@ -44,7 +45,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
     return () => {
       cancelled = true
     }
-  }, [task.sessionId, token])
+  }, [workspaceId, task.id, token])
 
   return (
     <div className="page-task">
@@ -68,8 +69,8 @@ export function TaskDetail({ task }: TaskDetailProps) {
         </div>
       </section>
 
-      {/* Agent session — how the agent worked (from BUILDMAX_HOME/sessions/<session_id>.json) */}
-      {(task.sessionId || sessionLoading || sessionError) && (
+      {/* Agent conversation — how the agent worked for this task */}
+      {(session !== null || sessionLoading || sessionError) && (
         <section className="page-task__section">
           <h2 className="page-task__section-heading">Agent session</h2>
           {sessionLoading && (
