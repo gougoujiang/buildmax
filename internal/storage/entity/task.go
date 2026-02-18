@@ -127,6 +127,18 @@ func (s *Store) UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, 
 	return result.RowsAffected == 1, nil
 }
 
+// UpdateTaskWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the task.
+func (s *Store) UpdateTaskWorkerInfo(ctx context.Context, taskID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+	updates := map[string]interface{}{"worker_type": workerType}
+	if k8sJobName != nil {
+		updates["k8s_job_name"] = *k8sJobName
+	}
+	if k8sJobCreatedAt != nil {
+		updates["k8s_job_created_at"] = *k8sJobCreatedAt
+	}
+	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", taskID).Updates(updates).Error
+}
+
 // IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
 func (s *Store) IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error) {
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

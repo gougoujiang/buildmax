@@ -19,9 +19,12 @@ const (
 	EnvKeyBuildmaxJWTSecret  = "BUILDMAX_JWT_SECRET"
 	EnvKeyBuildmaxCorsOrigin = "BUILDMAX_CORS_ORIGIN"
 	// Worker (buildmax-worker binary and worker-to-server auth)
-	EnvKeyBuildmaxWorkerBinary = "BUILDMAX_WORKER_BINARY"
-	EnvKeyBuildmaxServerURL    = "BUILDMAX_SERVER_URL"
-	EnvKeyBuildmaxWorkerToken  = "BUILDMAX_WORKER_TOKEN"
+	EnvKeyBuildmaxWorkerBinary    = "BUILDMAX_WORKER_BINARY"
+	EnvKeyBuildmaxServerURL       = "BUILDMAX_SERVER_URL"
+	EnvKeyBuildmaxWorkerToken     = "BUILDMAX_WORKER_TOKEN"
+	EnvKeyBuildmaxWorkerRunMode   = "BUILDMAX_WORKER_RUN_MODE"
+	EnvKeyBuildmaxWorkerJobNs     = "BUILDMAX_WORKER_JOB_NAMESPACE"
+	EnvKeyBuildmaxWorkerImage     = "BUILDMAX_WORKER_IMAGE"
 	// Database (MySQL)
 	EnvKeyBuildmaxDBHost     = "BUILDMAX_DB_HOST"
 	EnvKeyBuildmaxDBPort     = "BUILDMAX_DB_PORT"
@@ -69,6 +72,9 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxWorkerBinary, "buildmax-worker", "Worker binary name for scheduler to spawn (default: buildmax-worker)"},
 	{EnvKeyBuildmaxServerURL, "", "Server base URL for worker (required when running buildmax-worker; e.g. http://localhost:5678)"},
 	{EnvKeyBuildmaxWorkerToken, "", "Token for worker-to-server auth (required for /api/worker/*)"},
+	{EnvKeyBuildmaxWorkerRunMode, "local_process", "How to run worker: local_process (spawn binary) or k8s_job (create Kubernetes Job per task)"},
+	{EnvKeyBuildmaxWorkerJobNs, "buildmax", "Kubernetes namespace for worker Jobs when BUILDMAX_WORKER_RUN_MODE=k8s_job"},
+	{EnvKeyBuildmaxWorkerImage, "buildmax:local", "Container image for worker Job pod when BUILDMAX_WORKER_RUN_MODE=k8s_job"},
 	// Database (MySQL)
 	{EnvKeyBuildmaxDBHost, "localhost", "MySQL host"},
 	{EnvKeyBuildmaxDBPort, "3306", "MySQL port"},

@@ -44,6 +44,8 @@ type TaskStore interface {
 	// UpdateTaskStatusIf updates a task's status and optional fields only when current status equals expectedStatus.
 	// Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
 	UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
+	// UpdateTaskWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the task. Used after scheduler runs a worker.
+	UpdateTaskWorkerInfo(ctx context.Context, taskID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
 	// IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
 	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
 }

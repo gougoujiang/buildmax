@@ -70,8 +70,27 @@ func RunServer(ctx context.Context, port int) error {
 		CORSOrigin:       serverEnv.CORSOrigin,
 		WorkerToken:      config.WorkerToken(),
 	}
-	workerPath := config.WorkerBinaryPath()
-	scheduler, err := executor.NewScheduler(st, workerPath)
+	var runner executor.WorkerRunner
+	switch config.WorkerRunMode() {
+	case "k8s_job":
+		jobClient, err := executor.BuildK8sJobCreator()
+		if err != nil {
+			return fmt.Errorf("k8s job creator: %w", err)
+		}
+		runner = executor.NewK8sJobRunner(
+			config.WorkerJobNamespace(),
+			config.WorkerImage(),
+			executor.WorkerEnvFromEnviron(),
+			jobClient,
+		)
+	default:
+		workerPath := config.WorkerBinaryPath()
+		if workerPath == "" {
+			return fmt.Errorf("%s is required for local_process mode", config.EnvKeyBuildmaxWorkerBinary)
+		}
+		runner = executor.NewLocalRunner(workerPath)
+	}
+	scheduler, err := executor.NewScheduler(st, runner)
 	if err != nil {
 		return fmt.Errorf("executor: %w", err)
 	}

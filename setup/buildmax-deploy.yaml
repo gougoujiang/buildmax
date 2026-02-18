@@ -24,6 +24,40 @@ stringData:
   BUILDMAX_WORKER_TOKEN: "local-dev-8f4a2b1c9e7d3f6a0b5c8e1d4f7a2b9c6e3d"
   BUILDMAX_API_KEY: "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"
 ---
+# ServiceAccount for server; used when BUILDMAX_WORKER_RUN_MODE=k8s_job to create worker Jobs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: buildmax-server
+subjects:
+  - kind: ServiceAccount
+    name: buildmax-server
+    namespace: buildmax
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,6 +75,7 @@ spec:
       labels:
         app: buildmax-server
     spec:
+      serviceAccountName: buildmax-server
       containers:
         - name: server
           image: buildmax:local
@@ -89,6 +124,8 @@ spec:
                 secretKeyRef:
                   name: buildmax-secret
                   key: BUILDMAX_JWT_SECRET
+            - name: BUILDMAX_WORKER_RUN_MODE
+              value: "k8s_job"
             - name: BUILDMAX_WORKER_TOKEN
               valueFrom:
                 secretKeyRef:

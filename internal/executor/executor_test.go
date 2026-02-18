@@ -6,7 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
+
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"buildmax/internal/config"
 	"buildmax/internal/storage/blob"
@@ -171,32 +175,74 @@ func (mockTaskStore) UpdateTaskStatus(_ context.Context, _, _ string, _, _ *int6
 func (mockTaskStore) UpdateTaskStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
 	return false, nil
 }
+func (mockTaskStore) UpdateTaskWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+	return nil
+}
 func (mockTaskStore) IncrementTaskSeq(_ context.Context, _ string) (int, error) { return 0, nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {
+	runner := NewLocalRunner("buildmax-worker")
 	// Nil taskStore should error.
-	_, err := NewScheduler(nil, "buildmax-worker")
+	_, err := NewScheduler(nil, runner)
 	if err == nil {
 		t.Fatal("NewScheduler with nil taskStore should error")
 	}
 	if err.Error() != "executor: taskStore must not be nil" {
 		t.Errorf("unexpected error: %v", err)
 	}
-	// Empty workerPath should error.
-	_, err = NewScheduler(mockTaskStore{}, "")
+	// Nil runner should error.
+	_, err = NewScheduler(mockTaskStore{}, nil)
 	if err == nil {
-		t.Fatal("NewScheduler with empty workerPath should error")
+		t.Fatal("NewScheduler with nil runner should error")
 	}
-	if err.Error() != "executor: workerPath must not be empty" {
+	if err.Error() != "executor: runner must not be nil" {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Valid args should succeed.
-	s, err := NewScheduler(mockTaskStore{}, "buildmax-worker")
+	s, err := NewScheduler(mockTaskStore{}, runner)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.workerPath != "buildmax-worker" {
-		t.Errorf("workerPath = %q", s.workerPath)
+	if s.runner == nil {
+		t.Error("runner should be set")
+	}
+}
+
+// fakeJobCreator records the last created Job for tests.
+type fakeJobCreator struct {
+	lastJob *batchv1.Job
+}
+
+func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *batchv1.Job) error {
+	f.lastJob = job.DeepCopy()
+	return nil
+}
+
+func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
+	fake := &fakeJobCreator{}
+	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, fake)
+	task := entity.Task{TaskID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", WorkspaceID: "ws1", Status: "SCHEDULED"}
+
+	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), task)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if workerType != "k8s_job" {
+		t.Errorf("workerType = %q, want k8s_job", workerType)
+	}
+	if k8sName == nil || *k8sName == "" {
+		t.Error("k8sJobName should be set")
+	}
+	if k8sAt == nil || *k8sAt <= 0 {
+		t.Error("k8sJobCreatedAt should be set")
+	}
+	// Job name pattern: buildmax-worker-<sanitized>-<timestamp>
+	pattern := regexp.MustCompile(`^buildmax-worker-[a-z0-9-]+-\d+$`)
+	if !pattern.MatchString(*k8sName) {
+		t.Errorf("job name %q does not match pattern buildmax-worker-<id>-<timestamp>", *k8sName)
+	}
+	if fake.lastJob == nil || fake.lastJob.Name != *k8sName {
+		t.Errorf("fake Job name = %v, want %q", fake.lastJob.Name, *k8sName)
 	}
 }
 

@@ -129,6 +129,32 @@ func WorkerToken() string {
 	return os.Getenv(EnvKeyBuildmaxWorkerToken)
 }
 
+// WorkerRunMode returns how the scheduler runs workers: "local_process" or "k8s_job" (BUILDMAX_WORKER_RUN_MODE, default local_process).
+func WorkerRunMode() string {
+	switch os.Getenv(EnvKeyBuildmaxWorkerRunMode) {
+	case "k8s_job":
+		return "k8s_job"
+	default:
+		return "local_process"
+	}
+}
+
+// WorkerJobNamespace returns the Kubernetes namespace for worker Jobs (BUILDMAX_WORKER_JOB_NAMESPACE, default buildmax).
+func WorkerJobNamespace() string {
+	if s := os.Getenv(EnvKeyBuildmaxWorkerJobNs); s != "" {
+		return s
+	}
+	return "buildmax"
+}
+
+// WorkerImage returns the container image for worker Job pods (BUILDMAX_WORKER_IMAGE, default buildmax:local).
+func WorkerImage() string {
+	if s := os.Getenv(EnvKeyBuildmaxWorkerImage); s != "" {
+		return s
+	}
+	return "buildmax:local"
+}
+
 // ResolveServerPort returns the port to use: portFromFlag if > 0, else BUILDMAX_SERVER_PORT, else DefaultServerPort.
 // Returns an error if BUILDMAX_SERVER_PORT is set but not a valid positive number.
 func ResolveServerPort(portFromFlag int) (int, error) {

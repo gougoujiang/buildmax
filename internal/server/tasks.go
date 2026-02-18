@@ -14,18 +14,21 @@ import (
 
 // TaskResponse is one task in the list/create response (snake_case).
 type TaskResponse struct {
-	ID           string  `json:"id"`
-	WorkspaceID  string  `json:"workspace_id"`
-	ProjectID    *string `json:"project_id,omitempty"`
-	SessionID    *string `json:"session_id,omitempty"`
-	Status       string  `json:"status"`
-	Input        string  `json:"input"`
-	Output       *string `json:"output,omitempty"`
-	CreatedBy    string  `json:"created_by"`
-	CreatedAt    int64   `json:"created_at"`
-	StartedAt    *int64  `json:"started_at,omitempty"`
-	EndedAt      *int64  `json:"ended_at,omitempty"`
-	ErrorMessage *string `json:"error_message,omitempty"`
+	ID               string  `json:"id"`
+	WorkspaceID      string  `json:"workspace_id"`
+	ProjectID        *string `json:"project_id,omitempty"`
+	SessionID        *string `json:"session_id,omitempty"`
+	Status           string  `json:"status"`
+	Input            string  `json:"input"`
+	Output           *string `json:"output,omitempty"`
+	CreatedBy        string  `json:"created_by"`
+	CreatedAt        int64   `json:"created_at"`
+	StartedAt        *int64  `json:"started_at,omitempty"`
+	EndedAt          *int64  `json:"ended_at,omitempty"`
+	ErrorMessage     *string `json:"error_message,omitempty"`
+	WorkerType       string  `json:"worker_type,omitempty"`
+	K8sJobName       *string `json:"k8s_job_name,omitempty"`
+	K8sJobCreatedAt  *int64  `json:"k8s_job_created_at,omitempty"`
 }
 
 // createTaskRequest is the JSON body for POST /api/workspaces/{workspace_id}/tasks.
@@ -36,18 +39,21 @@ type createTaskRequest struct {
 
 func taskToResponse(t model.Task) TaskResponse {
 	return TaskResponse{
-		ID:           t.TaskID,
-		WorkspaceID:  t.WorkspaceID,
-		ProjectID:    t.ProjectID,
-		SessionID:    t.SessionID,
-		Status:       t.Status,
-		Input:        t.Input,
-		Output:       t.Output,
-		CreatedBy:    t.CreatedBy,
-		CreatedAt:    t.CreatedAt,
-		StartedAt:    t.StartedAt,
-		EndedAt:      t.EndedAt,
-		ErrorMessage: t.ErrorMessage,
+		ID:              t.TaskID,
+		WorkspaceID:     t.WorkspaceID,
+		ProjectID:       t.ProjectID,
+		SessionID:       t.SessionID,
+		Status:          t.Status,
+		Input:           t.Input,
+		Output:          t.Output,
+		CreatedBy:       t.CreatedBy,
+		CreatedAt:       t.CreatedAt,
+		StartedAt:       t.StartedAt,
+		EndedAt:         t.EndedAt,
+		ErrorMessage:    t.ErrorMessage,
+		WorkerType:      t.WorkerType,
+		K8sJobName:      t.K8sJobName,
+		K8sJobCreatedAt: t.K8sJobCreatedAt,
 	}
 }
 

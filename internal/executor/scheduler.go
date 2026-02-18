@@ -1,4 +1,4 @@
-// Scheduler polls for pending tasks and spawns the buildmax-worker binary for each.
+// Scheduler polls for pending tasks and runs the worker via a WorkerRunner (local process or k8s Job).
 // It does not perform task execution; the worker process calls executor.RunTask.
 package executor
 
@@ -6,8 +6,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"os"
-	"os/exec"
 	"time"
 
 	"buildmax/internal/storage/entity"
@@ -15,27 +13,26 @@ import (
 
 const defaultPollInterval = 5 * time.Second
 
-// Scheduler polls the task store for PENDING tasks and spawns the worker binary (--task-id).
-// It holds no blob storage or workspace paths; the worker fetches the task and runs it via RunTask.
+// Scheduler polls the task store for PENDING tasks and runs the worker via the configured runner.
 type Scheduler struct {
 	tasks        entity.TaskStore
-	workerPath   string
+	runner       WorkerRunner
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 }
 
-// NewScheduler creates a Scheduler that polls and spawns the worker binary. Call Start() to begin polling.
-func NewScheduler(taskStore entity.TaskStore, workerPath string) (*Scheduler, error) {
+// NewScheduler creates a Scheduler that polls and runs the worker via the given runner. Call Start() to begin polling.
+func NewScheduler(taskStore entity.TaskStore, runner WorkerRunner) (*Scheduler, error) {
 	if taskStore == nil {
 		return nil, errors.New("executor: taskStore must not be nil")
 	}
-	if workerPath == "" {
-		return nil, errors.New("executor: workerPath must not be empty")
+	if runner == nil {
+		return nil, errors.New("executor: runner must not be nil")
 	}
 	return &Scheduler{
 		tasks:        taskStore,
-		workerPath:   workerPath,
+		runner:       runner,
 		pollInterval: defaultPollInterval,
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
@@ -45,7 +42,7 @@ func NewScheduler(taskStore entity.TaskStore, workerPath string) (*Scheduler, er
 // Start launches the poll loop in a background goroutine.
 func (s *Scheduler) Start() {
 	go s.loop()
-	slog.Info("scheduler started", "poll_interval", s.pollInterval, "worker", s.workerPath)
+	slog.Info("scheduler started", "poll_interval", s.pollInterval)
 }
 
 // Stop signals the loop to exit and blocks until it has finished.
@@ -55,8 +52,8 @@ func (s *Scheduler) Stop() {
 	slog.Info("scheduler stopped")
 }
 
-// loop is the main poll loop: on each tick it fetches the next PENDING task, claims it (PENDING→SCHEDULED), and spawns the worker.
-// If spawn fails, the task is reverted to PENDING so the next poll retries.
+// loop is the main poll loop: on each tick it fetches the next PENDING task, claims it (PENDING→SCHEDULED), runs the worker, and persists worker info on success.
+// If run fails, the task is reverted to PENDING so the next poll retries.
 func (s *Scheduler) loop() {
 	defer close(s.doneCh)
 	ticker := time.NewTicker(s.pollInterval)
@@ -84,20 +81,17 @@ func (s *Scheduler) loop() {
 			if !updated {
 				continue // another scheduler claimed it
 			}
-			s.spawnWorker(ctx, *task)
-		}
-	}
-}
-
-// spawnWorker runs the worker binary with --task-id. If spawn fails, the task is reverted to PENDING.
-func (s *Scheduler) spawnWorker(ctx context.Context, task entity.Task) {
-	slog.Info("scheduler: spawning worker", "task_id", task.TaskID, "workspace_id", task.WorkspaceID)
-	cmd := exec.CommandContext(ctx, s.workerPath, "--task-id", task.TaskID)
-	cmd.Env = os.Environ()
-	if err := cmd.Run(); err != nil {
-		slog.Warn("scheduler: worker exited with error, reverting task to PENDING", "task_id", task.TaskID, "err", err)
-		if revertErr := s.tasks.UpdateTaskStatus(ctx, task.TaskID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
-			slog.Error("scheduler: failed to revert task to PENDING", "task_id", task.TaskID, "err", revertErr)
+			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *task)
+			if err != nil {
+				slog.Warn("scheduler: worker run failed, reverting task to PENDING", "task_id", task.TaskID, "err", err)
+				if revertErr := s.tasks.UpdateTaskStatus(ctx, task.TaskID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
+					slog.Error("scheduler: failed to revert task to PENDING", "task_id", task.TaskID, "err", revertErr)
+				}
+				continue
+			}
+			if err := s.tasks.UpdateTaskWorkerInfo(ctx, task.TaskID, workerType, k8sName, k8sAt); err != nil {
+				slog.Warn("scheduler: failed to persist worker info", "task_id", task.TaskID, "err", err)
+			}
 		}
 	}
 }

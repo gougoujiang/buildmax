@@ -62,9 +62,12 @@ type Task struct {
 	StartedAt      *int64  `gorm:"" json:"started_at,omitempty"`
 	EndedAt        *int64  `gorm:"" json:"ended_at,omitempty"`
 	ErrorMessage   *string `gorm:"type:text" json:"error_message,omitempty"`
-	SessionID      *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
-	ArtifactSeq    int     `gorm:"column:artifact_seq" json:"artifact_seq"`
-	LastArtifactID *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
+	SessionID        *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
+	ArtifactSeq      int     `gorm:"column:artifact_seq" json:"artifact_seq"`
+	LastArtifactID   *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
+	WorkerType       string  `gorm:"type:varchar(32)" json:"worker_type,omitempty"`
+	K8sJobName       *string `gorm:"type:varchar(128)" json:"k8s_job_name,omitempty"`
+	K8sJobCreatedAt  *int64  `gorm:"column:k8s_job_created_at" json:"k8s_job_created_at,omitempty"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
