@@ -38,6 +38,33 @@ ensure_kind_cluster() {
   kubectl wait --for=condition=Ready nodes --all --timeout=120s 2>/dev/null || true
 }
 
+# --- Ingress controller (ingress-nginx for kind) ---
+# Use local manifest so setup works when raw.githubusercontent.com is unreachable.
+ensure_ingress() {
+  if kubectl get deployment ingress-nginx-controller -n ingress-nginx &>/dev/null; then
+    log "Ingress controller already present"
+    return 0
+  fi
+  log "Applying ingress-nginx (kind)..."
+  kubectl apply -f "$SCRIPT_DIR/ingress-nginx-kind.yaml"
+  log "Waiting for ingress-nginx controller to be ready..."
+  kubectl wait --for=condition=Available deployment/ingress-nginx-controller -n ingress-nginx --timeout=120s
+  log "Ingress controller ready"
+}
+
+# --- Whoami (ingress test app in namespace test) ---
+ensure_whoami_ingress_test() {
+  if kubectl get deployment whoami -n test &>/dev/null; then
+    log "Whoami (ingress test) already deployed in namespace test"
+    return 0
+  fi
+  log "Deploying whoami for ingress test (namespace test)..."
+  kubectl apply -f "$SCRIPT_DIR/whoami-ingress-test.yaml"
+  log "Waiting for whoami to be ready..."
+  kubectl wait --for=condition=Available deployment/whoami -n test --timeout=60s
+  log "Whoami ready. Add '127.0.0.1 whoami.kind.local' to /etc/hosts, then: curl http://whoami.kind.local"
+}
+
 # --- Namespace and MinIO ---
 ensure_storage() {
   if kubectl get namespace storage &>/dev/null; then
@@ -144,12 +171,15 @@ main() {
   ensure_brew
   ensure_kind_cluster
   kubectl get nodes
+  ensure_ingress
+  ensure_whoami_ingress_test
   ensure_storage
   ensure_mysql
   ensure_bucket_via_portforward
   ensure_test_job
   log "Setup done. MinIO: http://localhost:9000 (API), http://localhost:9001 (console). MySQL: localhost:3306 (user buildmax, DB buildmax)."
   log "Port-forwards: $PID_FILE (MinIO), $PID_FILE_MYSQL (MySQL). Use './make unsetup' to tear down cluster and stop port-forwards."
+  log "For Ingress: add '127.0.0.1 whoami.kind.local' and/or '127.0.0.1 buildmax.kind.local' to /etc/hosts."
 }
 
 main "$@"
