@@ -66,8 +66,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation", s.getTaskConversationHandler)
-	mux.HandleFunc("GET /api/worker/tasks/{task_id}", s.workerAuthMiddleware(s.getWorkerTaskHandler))
-	mux.HandleFunc("PATCH /api/worker/tasks/{task_id}", s.workerAuthMiddleware(s.patchWorkerTaskHandler))
+	mux.Handle("GET /api/worker/tasks/{task_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskHandler)))
+	mux.Handle("PATCH /api/worker/tasks/{task_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskHandler)))
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {
@@ -106,25 +106,6 @@ func (s *Server) Run() error {
 	}
 	slog.Info("server stopped")
 	return nil
-}
-
-// requestLoggingMiddleware logs each request (method, path, remote) for trace/debugging.
-func requestLoggingMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attrs := []any{
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote", r.RemoteAddr,
-		}
-		if r.URL.RawQuery != "" {
-			attrs = append(attrs, "query", r.URL.RawQuery)
-		}
-		if r.Header.Get("Authorization") != "" {
-			attrs = append(attrs, "auth", "present")
-		}
-		slog.Info("request", attrs...)
-		h.ServeHTTP(w, r)
-	})
 }
 
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {

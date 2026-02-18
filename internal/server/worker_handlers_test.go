@@ -22,13 +22,13 @@ func TestGetWorkerTaskHandler_RequiresWorkerAuth(t *testing.T) {
 		WorkerToken: "worker-token-123",
 	}
 	s := New(cfg)
-	handler := s.workerAuthMiddleware(s.getWorkerTaskHandler)
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskHandler))
 
 	// Without token: 401
 	req := httptest.NewRequest(http.MethodGet, "/api/worker/tasks/"+taskID, nil)
 	req.SetPathValue("task_id", taskID)
 	w := httptest.NewRecorder()
-	handler(w, req)
+	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("without token: got status %d, want 401", w.Code)
 	}
@@ -38,7 +38,7 @@ func TestGetWorkerTaskHandler_RequiresWorkerAuth(t *testing.T) {
 	req.SetPathValue("task_id", taskID)
 	req.Header.Set("Authorization", "Bearer wrong-token")
 	w = httptest.NewRecorder()
-	handler(w, req)
+	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("wrong token: got status %d, want 401", w.Code)
 	}
@@ -48,7 +48,7 @@ func TestGetWorkerTaskHandler_RequiresWorkerAuth(t *testing.T) {
 	req.SetPathValue("task_id", taskID)
 	req.Header.Set("Authorization", "Bearer worker-token-123")
 	w = httptest.NewRecorder()
-	handler(w, req)
+	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("with token: got status %d, want 200", w.Code)
 	}
@@ -64,12 +64,12 @@ func TestGetWorkerTaskHandler_NotFound(t *testing.T) {
 		WorkerToken: "token",
 	}
 	s := New(cfg)
-	handler := s.workerAuthMiddleware(s.getWorkerTaskHandler)
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskHandler))
 	req := httptest.NewRequest(http.MethodGet, "/api/worker/tasks/nonexistent", nil)
 	req.SetPathValue("task_id", "nonexistent")
 	req.Header.Set("Authorization", "Bearer token")
 	w := httptest.NewRecorder()
-	handler(w, req)
+	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("got status %d, want 404", w.Code)
 	}
