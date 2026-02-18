@@ -129,6 +129,9 @@ func (mockTaskStore) GetNextPendingTask(_ context.Context) (*entity.Task, error)
 func (mockTaskStore) UpdateTaskStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
 	return nil
 }
+func (mockTaskStore) UpdateTaskStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
+	return false, nil
+}
 func (mockTaskStore) IncrementTaskSeq(_ context.Context, _ string) (int, error) { return 0, nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {

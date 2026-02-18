@@ -55,7 +55,8 @@ func (s *Scheduler) Stop() {
 	slog.Info("scheduler stopped")
 }
 
-// loop is the main poll loop: on each tick it fetches the next PENDING task and spawns the worker.
+// loop is the main poll loop: on each tick it fetches the next PENDING task, claims it (PENDING→SCHEDULED), and spawns the worker.
+// If spawn fails, the task is reverted to PENDING so the next poll retries.
 func (s *Scheduler) loop() {
 	defer close(s.doneCh)
 	ticker := time.NewTicker(s.pollInterval)
@@ -75,17 +76,28 @@ func (s *Scheduler) loop() {
 			if task == nil {
 				continue
 			}
+			updated, err := s.tasks.UpdateTaskStatusIf(ctx, task.TaskID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+			if err != nil {
+				slog.Warn("scheduler: claim failed", "task_id", task.TaskID, "err", err)
+				continue
+			}
+			if !updated {
+				continue // another scheduler claimed it
+			}
 			s.spawnWorker(ctx, *task)
 		}
 	}
 }
 
-// spawnWorker runs the worker binary with --task-id. The worker claims the task and executes it via RunTask.
+// spawnWorker runs the worker binary with --task-id. If spawn fails, the task is reverted to PENDING.
 func (s *Scheduler) spawnWorker(ctx context.Context, task entity.Task) {
 	slog.Info("scheduler: spawning worker", "task_id", task.TaskID, "workspace_id", task.WorkspaceID)
 	cmd := exec.CommandContext(ctx, s.workerPath, "--task-id", task.TaskID)
 	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
-		slog.Warn("scheduler: worker exited with error", "task_id", task.TaskID, "err", err)
+		slog.Warn("scheduler: worker exited with error, reverting task to PENDING", "task_id", task.TaskID, "err", err)
+		if revertErr := s.tasks.UpdateTaskStatus(ctx, task.TaskID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
+			slog.Error("scheduler: failed to revert task to PENDING", "task_id", task.TaskID, "err", revertErr)
+		}
 	}
 }

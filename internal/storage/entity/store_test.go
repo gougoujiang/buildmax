@@ -227,3 +227,78 @@ func TestCreateArtifactWithItem(t *testing.T) {
 }
 
 func ptrString(s string) *string { return &s }
+
+func TestUpdateTaskStatusIf(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := s.EnsureDefaultWorkspaceForUser(ctx, "update-if-user"); err != nil {
+		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
+	}
+	list, _ := s.ListWorkspacesByOwner(ctx, "update-if-user")
+	if len(list) == 0 {
+		t.Fatal("no workspace for user")
+	}
+	wsID := list[0].WorkspaceID
+	task, err := s.CreateTask(ctx, wsID, nil, "input", "update-if-user")
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
+	}()
+
+	// PENDING -> SCHEDULED: should update
+	updated, err := s.UpdateTaskStatusIf(ctx, task.TaskID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateTaskStatusIf PENDING->SCHEDULED: %v", err)
+	}
+	if !updated {
+		t.Error("UpdateTaskStatusIf PENDING->SCHEDULED: want updated true, got false")
+	}
+	got, _ := s.GetTask(ctx, task.TaskID)
+	if got == nil || got.Status != "SCHEDULED" {
+		t.Errorf("after PENDING->SCHEDULED: task status = %q, want SCHEDULED", got.Status)
+	}
+
+	// PENDING -> SCHEDULED again: no match, updated false
+	updated, err = s.UpdateTaskStatusIf(ctx, task.TaskID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateTaskStatusIf PENDING->SCHEDULED (second): %v", err)
+	}
+	if updated {
+		t.Error("UpdateTaskStatusIf PENDING->SCHEDULED when already SCHEDULED: want updated false, got true")
+	}
+	got, _ = s.GetTask(ctx, task.TaskID)
+	if got == nil || got.Status != "SCHEDULED" {
+		t.Errorf("task status = %q, want SCHEDULED (unchanged)", got.Status)
+	}
+
+	// SCHEDULED -> RUNNING: should update
+	updated, err = s.UpdateTaskStatusIf(ctx, task.TaskID, "SCHEDULED", "RUNNING", nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateTaskStatusIf SCHEDULED->RUNNING: %v", err)
+	}
+	if !updated {
+		t.Error("UpdateTaskStatusIf SCHEDULED->RUNNING: want updated true, got false")
+	}
+	got, _ = s.GetTask(ctx, task.TaskID)
+	if got == nil || got.Status != "RUNNING" {
+		t.Errorf("after SCHEDULED->RUNNING: task status = %q, want RUNNING", got.Status)
+	}
+
+	// SCHEDULED -> RUNNING again: no match, updated false
+	updated, err = s.UpdateTaskStatusIf(ctx, task.TaskID, "SCHEDULED", "RUNNING", nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateTaskStatusIf SCHEDULED->RUNNING (second): %v", err)
+	}
+	if updated {
+		t.Error("UpdateTaskStatusIf SCHEDULED->RUNNING when already RUNNING: want updated false, got true")
+	}
+}

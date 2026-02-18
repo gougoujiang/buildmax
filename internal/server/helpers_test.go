@@ -228,6 +228,31 @@ func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status strin
 	return nil
 }
 
+func (m *mockTaskStore) UpdateTaskStatusIf(_ context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+	for i := range m.list {
+		if m.list[i].TaskID == taskID && m.list[i].Status == expectedStatus {
+			m.list[i].Status = newStatus
+			if startedAt != nil {
+				m.list[i].StartedAt = startedAt
+			}
+			if endedAt != nil {
+				m.list[i].EndedAt = endedAt
+			}
+			if output != nil {
+				m.list[i].Output = output
+			}
+			if errorMessage != nil {
+				m.list[i].ErrorMessage = errorMessage
+			}
+			if sessionID != nil {
+				m.list[i].SessionID = sessionID
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int, error) {
 	for i := range m.list {
 		if m.list[i].TaskID == taskID {

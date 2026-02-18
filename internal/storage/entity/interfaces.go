@@ -41,6 +41,9 @@ type TaskStore interface {
 	// UpdateTaskStatus updates a task's status and optional fields (started_at, ended_at, output, error_message, session_id).
 	// Only non-nil pointer fields are updated.
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
+	// UpdateTaskStatusIf updates a task's status and optional fields only when current status equals expectedStatus.
+	// Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
+	UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
 	// IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
 	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
 }

@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"buildmax/internal/storage/entity"
 )
+
+// ErrTaskAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (task not SCHEDULED or already RUNNING).
+var ErrTaskAlreadyClaimed = errors.New("task already claimed or not scheduled")
 
 // getTaskResponse is the JSON response from GET /api/worker/tasks/{task_id} (snake_case).
 type getTaskResponse struct {
@@ -113,6 +117,9 @@ func (u *WorkerHTTPUpdater) UpdateTaskStatus(ctx context.Context, taskID, status
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusConflict {
+		return ErrTaskAlreadyClaimed
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("worker API PATCH %s: %s", url, resp.Status)
 	}

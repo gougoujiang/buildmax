@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -72,5 +74,101 @@ func TestGetWorkerTaskHandler_NotFound(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("got status %d, want 404", w.Code)
+	}
+}
+
+func TestPatchWorkerTask_RUNNING_WhenScheduled_Returns200(t *testing.T) {
+	taskID := "task-scheduled"
+	task := entity.Task{
+		TaskID: taskID, WorkspaceID: "ws1", Status: "SCHEDULED", Input: "input",
+		CreatedBy: "u1", CreatedAt: 1,
+	}
+	mockTask := &mockTaskStore{list: []entity.Task{task}}
+	cfg := Config{
+		JWTSecret:   "secret",
+		TaskStore:   mockTask,
+		WorkerToken: "token",
+	}
+	s := New(cfg)
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskHandler))
+
+	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1", "started_at": int64(123)}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/tasks/"+taskID, bytes.NewReader(raw))
+	req.SetPathValue("task_id", taskID)
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("PATCH RUNNING when SCHEDULED: got status %d, want 200", w.Code)
+	}
+	if len(mockTask.list) != 1 || mockTask.list[0].Status != "RUNNING" {
+		t.Errorf("PATCH RUNNING when SCHEDULED: task status = %q, want RUNNING", mockTask.list[0].Status)
+	}
+}
+
+func TestPatchWorkerTask_RUNNING_WhenPending_Returns409(t *testing.T) {
+	taskID := "task-pending"
+	task := entity.Task{
+		TaskID: taskID, WorkspaceID: "ws1", Status: "PENDING", Input: "input",
+		CreatedBy: "u1", CreatedAt: 1,
+	}
+	mockTask := &mockTaskStore{list: []entity.Task{task}}
+	cfg := Config{
+		JWTSecret:   "secret",
+		TaskStore:   mockTask,
+		WorkerToken: "token",
+	}
+	s := New(cfg)
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskHandler))
+
+	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/tasks/"+taskID, bytes.NewReader(raw))
+	req.SetPathValue("task_id", taskID)
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("PATCH RUNNING when PENDING: got status %d, want 409", w.Code)
+	}
+	if len(mockTask.list) != 1 || mockTask.list[0].Status != "PENDING" {
+		t.Errorf("PATCH RUNNING when PENDING: task status = %q, want PENDING (unchanged)", mockTask.list[0].Status)
+	}
+}
+
+func TestPatchWorkerTask_RUNNING_WhenRunning_Returns409(t *testing.T) {
+	taskID := "task-running"
+	task := entity.Task{
+		TaskID: taskID, WorkspaceID: "ws1", Status: "RUNNING", Input: "input",
+		CreatedBy: "u1", CreatedAt: 1,
+	}
+	mockTask := &mockTaskStore{list: []entity.Task{task}}
+	cfg := Config{
+		JWTSecret:   "secret",
+		TaskStore:   mockTask,
+		WorkerToken: "token",
+	}
+	s := New(cfg)
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskHandler))
+
+	body := map[string]interface{}{"status": "RUNNING"}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/tasks/"+taskID, bytes.NewReader(raw))
+	req.SetPathValue("task_id", taskID)
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("PATCH RUNNING when RUNNING: got status %d, want 409", w.Code)
+	}
+	if len(mockTask.list) != 1 || mockTask.list[0].Status != "RUNNING" {
+		t.Errorf("PATCH RUNNING when RUNNING: task status = %q, want RUNNING (unchanged)", mockTask.list[0].Status)
 	}
 }

@@ -80,9 +80,21 @@ func (s *Server) patchWorkerTaskHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := s.cfg.TaskStore.UpdateTaskStatus(r.Context(), taskID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID); err != nil {
-		writeInternalError(w, err, "handler", "patch_worker_task", "task_id", taskID)
-		return
+	if req.Status == "RUNNING" {
+		updated, err := s.cfg.TaskStore.UpdateTaskStatusIf(r.Context(), taskID, "SCHEDULED", "RUNNING", req.StartedAt, nil, nil, nil, req.SessionID)
+		if err != nil {
+			writeInternalError(w, err, "handler", "patch_worker_task", "task_id", taskID)
+			return
+		}
+		if !updated {
+			writeJSONError(w, http.StatusConflict, "task not scheduled or already running")
+			return
+		}
+	} else {
+		if err := s.cfg.TaskStore.UpdateTaskStatus(r.Context(), taskID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID); err != nil {
+			writeInternalError(w, err, "handler", "patch_worker_task", "task_id", taskID)
+			return
+		}
 	}
 
 	if req.Artifact != nil && req.Artifact.ArtifactID != "" && req.Artifact.RelativePath != "" {

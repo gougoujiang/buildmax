@@ -101,6 +101,32 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID, status string, sta
 	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", taskID).Updates(updates).Error
 }
 
+// UpdateTaskStatusIf updates a task's status and optional fields only when current status equals expectedStatus.
+// Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
+func (s *Store) UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+	updates := map[string]interface{}{"status": newStatus}
+	if startedAt != nil {
+		updates["started_at"] = *startedAt
+	}
+	if endedAt != nil {
+		updates["ended_at"] = *endedAt
+	}
+	if output != nil {
+		updates["output"] = *output
+	}
+	if errorMessage != nil {
+		updates["error_message"] = *errorMessage
+	}
+	if sessionID != nil {
+		updates["session_id"] = *sessionID
+	}
+	result := s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ? AND status = ?", taskID, expectedStatus).Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 // IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
 func (s *Store) IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error) {
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

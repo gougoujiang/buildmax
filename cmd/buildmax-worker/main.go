@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -21,6 +22,9 @@ func main() {
 	}
 	ctx := context.Background()
 	if err := workercmd.RunWorker(ctx, *taskID); err != nil {
+		if errors.Is(err, workercmd.ErrAlreadyClaimed) {
+			os.Exit(2) // task not run (already claimed by another worker)
+		}
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

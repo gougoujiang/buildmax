@@ -2,7 +2,9 @@ package workercmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -12,6 +14,10 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// ErrAlreadyClaimed is returned by RunWorker when the task was already claimed by another worker (server returned 409).
+// The main program should exit with code 2 when this is returned.
+var ErrAlreadyClaimed = errors.New("task already claimed by another worker")
 
 // RunWorker validates worker env, fetches the task from the server, marks it RUNNING,
 // builds blob storage, then runs the task (materialize, buildmax -p, update status).
@@ -43,14 +49,18 @@ func RunWorker(ctx context.Context, taskID string) error {
 	if task == nil {
 		return fmt.Errorf("task not found")
 	}
-	if task.Status != "PENDING" {
-		return fmt.Errorf("task not pending (status=%s)", task.Status)
+	if task.Status != "SCHEDULED" {
+		return fmt.Errorf("task not scheduled (status=%s)", task.Status)
 	}
 
 	sessionID := uuid.New().String()
 	updater := &executor.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
 	if err := updater.UpdateTaskStatus(ctx, taskID, "RUNNING", &now, nil, nil, nil, &sessionID, nil); err != nil {
+		if errors.Is(err, executor.ErrTaskAlreadyClaimed) {
+			slog.Info("task already claimed by another worker", "task_id", taskID)
+			return ErrAlreadyClaimed
+		}
 		return fmt.Errorf("mark RUNNING: %w", err)
 	}
 
