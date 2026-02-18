@@ -203,10 +203,6 @@ func (s *Server) getTaskConversationHandler(w http.ResponseWriter, r *http.Reque
 
 	taskSessionPath := filepath.Join(config.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID), "sessions", sessionID+".json")
 	data, err := os.ReadFile(taskSessionPath)
-	if err != nil && os.IsNotExist(err) && s.cfg.SessionsDir != "" {
-		path := filepath.Join(s.cfg.SessionsDir, sessionID+".json")
-		data, err = os.ReadFile(path)
-	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			writeJSONError(w, http.StatusNotFound, "conversation file not found")

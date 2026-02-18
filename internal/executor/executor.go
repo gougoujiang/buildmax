@@ -130,16 +130,7 @@ func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
 		return
 	}
 
-	// Use absolute path for BUILDMAX_HOME so the child process writes sessions/logs under
-	// the task's buildmax dir regardless of its CWD (wsDir). If buildmaxDir is relative
-	// (e.g. when BUILDMAX_WORKSPACES_DIR is relative), a relative BUILDMAX_HOME would
-	// be resolved against CWD and would point under ws/, producing wrong paths.
-	buildmaxDirAbs, err := filepath.Abs(buildmaxDir)
-	if err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to resolve buildmax dir: %v", err))
-		return
-	}
-
+	// buildmaxDir is absolute when server started with workspace dir normalized (see runServer).
 	env := os.Environ()
 	prefix := config.EnvKeyBuildmaxHome + "="
 	filtered := make([]string, 0, len(env)+1)
@@ -150,7 +141,7 @@ func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
 	}
 	cmd := exec.CommandContext(ctx, "buildmax", "-p", task.Input, "--session-id", sessionID)
 	cmd.Dir = wsDir
-	cmd.Env = append(filtered, prefix+buildmaxDirAbs)
+	cmd.Env = append(filtered, prefix+buildmaxDir)
 
 	output, err := cmd.CombinedOutput()
 	endTime := time.Now().Unix()

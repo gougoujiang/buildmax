@@ -30,7 +30,6 @@ type Config struct {
 	ArtifactStore   entity.ArtifactStore        // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
 	PersistStorage  blob.PersistStorage         // Optional; required for upload and Explore (files tree/content)
 	ArtifactStorage blob.ArtifactStorage        // Optional; required for artifact content file read
-	SessionsDir     string                      // Optional; BUILDMAX_HOME/sessions for GET /api/sessions/{id}
 	WorkspacesDir   string                      // Optional; overrides config.WorkspacesDir() for workspace file operations
 	JWTSecret       string                      // Required for login when UserStore is set
 	CORSOrigin      string                      // If set, enable CORS with this origin (e.g. "http://localhost:5173")

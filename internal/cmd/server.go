@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strconv"
 
 	"buildmax/internal/config"
@@ -15,22 +16,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type defaultWorkspacePaths struct{}
+// serverWorkspacePaths implements executor.WorkspacePaths using a resolved absolute root (set at server startup).
+type serverWorkspacePaths struct {
+	root string
+}
 
-func (defaultWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
-	return config.PersistentWorkspaceDir(workspaceID)
+func (p *serverWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
+	return filepath.Join(p.root, workspaceID, "persist")
 }
-func (defaultWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
-	return config.RuntimeWorkspaceDir(workspaceID, taskID)
+func (p *serverWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
+	return filepath.Join(p.root, workspaceID, "tasks", taskID)
 }
-func (defaultWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
-	return config.RuntimeTaskBuildmaxDir(workspaceID, taskID)
+func (p *serverWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
+	return filepath.Join(p.root, workspaceID, "tasks", taskID, "buildmax")
 }
-func (defaultWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
-	return config.RuntimeTaskWSDir(workspaceID, taskID)
+func (p *serverWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
+	return filepath.Join(p.root, workspaceID, "tasks", taskID, "ws")
 }
-func (defaultWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
-	return config.ArtifactDir(workspaceID, taskID, artifactID)
+func (p *serverWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
+	return filepath.Join(p.root, workspaceID, "artifacts", taskID, artifactID)
 }
 
 func newServerCommand() *cobra.Command {
@@ -55,9 +59,16 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	if config.WorkspacesDir() == "" {
+	workspacesDir := config.WorkspacesDir()
+	if workspacesDir == "" {
 		return fmt.Errorf("%s is required for server mode", config.EnvKeyBuildmaxWorkspacesDir)
 	}
+	// Normalize to absolute at startup so executor and handlers use absolute paths (avoids
+	// relative BUILDMAX_HOME being resolved under child CWD ws/).
+	if abs, err := filepath.Abs(workspacesDir); err == nil {
+		workspacesDir = abs
+	}
+	workspacePaths := &serverWorkspacePaths{root: workspacesDir}
 	ctx := context.Background()
 	st, err := entity.New(ctx, dsn)
 	if err != nil {
@@ -96,13 +107,12 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		ArtifactStore:    st,
 		PersistStorage:   persistStorage,
 		ArtifactStorage:  artifactStorage,
-		SessionsDir:      config.SessionsDir(),
-		WorkspacesDir:    config.WorkspacesDir(),
+		WorkspacesDir:    workspacesDir,
 		JWTSecret:        serverEnv.JWTSecret,
 		CORSOrigin:       serverEnv.CORSOrigin,
 	}
 	// Start the task executor (polls for PENDING tasks and runs buildmax -p).
-	runner, err := executor.New(st, st, defaultWorkspacePaths{}, persistStorage, artifactStorage)
+	runner, err := executor.New(st, st, workspacePaths, persistStorage, artifactStorage)
 	if err != nil {
 		return fmt.Errorf("executor: %w", err)
 	}
