@@ -1,20 +1,24 @@
 package util
 
 import (
+	"crypto/rand"
 	"math/big"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 )
 
 const (
-	idAlphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
+	idAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	idBase     = 36
 	idLen      = 25 // ceil(128 * log2 / log36) = 25
 )
 
 var idBig36 = big.NewInt(idBase)
 
-// NewID generates a globally unique 25-character base36 ID (lowercase + digits).
+// NewID generates a globally unique 25-character base36 ID (uppercase + digits).
+// Use for non–time-ordered entities (user, workspace, project).
 // Internally creates a UUID v4, interprets its 128 bits as a big.Int,
 // and encodes in base36.
 func NewID() string {
@@ -47,4 +51,10 @@ func encodeBase36(n *big.Int) string {
 		pos--
 	}
 	return string(buf)
+}
+
+// NewULID generates a 26-character ULID (time-ordered, lexicographically sortable).
+// Use for time-ordered entities (task_id, artifact_id).
+func NewULID() string {
+	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 }

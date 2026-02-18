@@ -92,7 +92,7 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 		return err
 	}
 
-	artifactID := util.NewID()
+	artifactID := util.NewULID()
 	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, artifactID, output); putErr != nil {
 		slog.Warn("executor: failed to write result to artifact storage", "task_id", task.TaskID, "err", putErr)
 	}

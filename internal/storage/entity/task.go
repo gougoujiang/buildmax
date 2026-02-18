@@ -52,7 +52,7 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task
 // projectID is optional (nil = task with no project).
 func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error) {
 	t := &Task{
-		TaskID:      util.NewID(),
+		TaskID:      util.NewULID(),
 		WorkspaceID: workspaceID,
 		ProjectID:   projectID,
 		Status:      "PENDING",
