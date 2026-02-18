@@ -1,4 +1,5 @@
-// Package executor runs pending tasks by spawning the buildmax CLI agent.
+// Package executor runs pending tasks by spawning the buildmax-worker binary (scheduler)
+// and provides RunTask for the worker to execute a single task (materialize, buildmax -p, update via TaskUpdater).
 package executor
 
 import (
@@ -16,57 +17,52 @@ import (
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/util"
-
-	"github.com/google/uuid"
 )
 
 const defaultPollInterval = 5 * time.Second
 
-// Runner polls for pending tasks and executes them one at a time.
-type Runner struct {
-	tasks           entity.TaskStore
-	artifacts       entity.ArtifactStore
-	paths           WorkspacePaths
-	persist         blob.PersistStorage
-	artifactStorage blob.ArtifactStorage
-	pollInterval    time.Duration
-	stopCh          chan struct{}
-	doneCh          chan struct{}
+// ArtifactPayload is passed to TaskUpdater when registering an artifact on success.
+type ArtifactPayload struct {
+	ArtifactID    string
+	RelativePath  string
 }
 
-// New creates a Runner. Call Start() to begin polling.
-func New(taskStore entity.TaskStore, artifactStore entity.ArtifactStore, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage) (*Runner, error) {
+// TaskUpdater is used by the worker to update task status and register artifacts via HTTP (or other backend).
+type TaskUpdater interface {
+	// UpdateTaskStatus updates task status and optional fields. For SUCCEEDED with artifact, pass non-nil artifact.
+	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error
+}
+
+// Runner polls for pending tasks and spawns the worker binary for each (scheduler only; no storage).
+type Runner struct {
+	tasks        entity.TaskStore
+	workerPath   string
+	pollInterval time.Duration
+	stopCh       chan struct{}
+	doneCh       chan struct{}
+}
+
+// NewRunner creates a Runner that polls and spawns the worker binary. Call Start() to begin polling.
+func NewRunner(taskStore entity.TaskStore, workerPath string) (*Runner, error) {
 	if taskStore == nil {
 		return nil, errors.New("executor: taskStore must not be nil")
 	}
-	if artifactStore == nil {
-		return nil, errors.New("executor: artifactStore must not be nil")
-	}
-	if paths == nil {
-		return nil, errors.New("executor: paths must not be nil")
-	}
-	if persist == nil {
-		return nil, errors.New("executor: persist storage must not be nil")
-	}
-	if artifactStorage == nil {
-		return nil, errors.New("executor: artifact storage must not be nil")
+	if workerPath == "" {
+		return nil, errors.New("executor: workerPath must not be empty")
 	}
 	return &Runner{
-		tasks:           taskStore,
-		artifacts:       artifactStore,
-		paths:           paths,
-		persist:         persist,
-		artifactStorage: artifactStorage,
-		pollInterval:    defaultPollInterval,
-		stopCh:          make(chan struct{}),
-		doneCh:          make(chan struct{}),
+		tasks:        taskStore,
+		workerPath:   workerPath,
+		pollInterval: defaultPollInterval,
+		stopCh:       make(chan struct{}),
+		doneCh:       make(chan struct{}),
 	}, nil
 }
 
 // Start launches the poll loop in a background goroutine.
 func (r *Runner) Start() {
 	go r.loop()
-	slog.Info("executor started", "poll_interval", r.pollInterval)
+	slog.Info("executor started", "poll_interval", r.pollInterval, "worker", r.workerPath)
 }
 
 // Stop signals the loop to exit and blocks until any in-flight task finishes.
@@ -76,7 +72,7 @@ func (r *Runner) Stop() {
 	slog.Info("executor stopped")
 }
 
-// loop is the main poll loop. It checks for pending tasks on each tick.
+// loop is the main poll loop. It checks for pending tasks on each tick and spawns the worker.
 func (r *Runner) loop() {
 	defer close(r.doneCh)
 	ticker := time.NewTicker(r.pollInterval)
@@ -101,36 +97,43 @@ func (r *Runner) loop() {
 	}
 }
 
-// executeTask runs the buildmax CLI for a single task and updates the DB with the result.
+// executeTask spawns the worker binary with --task-id and waits. The worker claims the task and performs execution.
 func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
-	sessionID := uuid.New().String()
-	slog.Info("executor: running task", "task_id", task.TaskID, "workspace_id", task.WorkspaceID, "session_id", sessionID)
+	slog.Info("executor: spawning worker", "task_id", task.TaskID, "workspace_id", task.WorkspaceID)
+	cmd := exec.CommandContext(ctx, r.workerPath, "--task-id", task.TaskID)
+	cmd.Env = os.Environ()
+	if err := cmd.Run(); err != nil {
+		slog.Warn("executor: worker exited with error", "task_id", task.TaskID, "err", err)
+	}
+}
 
-	// Mark task as RUNNING and persist the generated session id.
-	now := time.Now().Unix()
-	if err := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "RUNNING", &now, nil, nil, nil, &sessionID); err != nil {
-		slog.Error("executor: failed to mark task RUNNING", "task_id", task.TaskID, "err", err)
-		return
+// RunTask runs a single task: materialize workspace, run buildmax -p, then update status and optional artifact via updater.
+// Used by the buildmax-worker binary. task must not be nil; sessionID is the worker-generated session id.
+func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage, updater TaskUpdater) error {
+	if task == nil {
+		return errors.New("executor: task must not be nil")
+	}
+	if paths == nil || persist == nil || artifactStorage == nil || updater == nil {
+		return errors.New("executor: paths, persist, artifactStorage and updater must not be nil")
 	}
 
-	taskDir := r.paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
-	buildmaxDir := r.paths.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID)
-	wsDir := r.paths.RuntimeTaskWSDir(task.WorkspaceID, task.TaskID)
+	taskDir := paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
+	buildmaxDir := paths.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID)
+	wsDir := paths.RuntimeTaskWSDir(task.WorkspaceID, task.TaskID)
 
 	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create buildmax dir: %v", err))
-		return
+		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create buildmax dir: %v", err)), nil, nil)
+		return err
 	}
 	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to create ws dir: %v", err))
-		return
+		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create ws dir: %v", err)), nil, nil)
+		return err
 	}
-	if err := r.persist.MaterializeToDir(ctx, task.WorkspaceID, wsDir); err != nil {
-		r.failTask(ctx, task.TaskID, fmt.Sprintf("failed to materialize workspace: %v", err))
-		return
+	if err := persist.MaterializeToDir(ctx, task.WorkspaceID, wsDir); err != nil {
+		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to materialize workspace: %v", err)), nil, nil)
+		return err
 	}
 
-	// buildmaxDir is absolute when server started with workspace dir normalized (see runServer).
 	env := os.Environ()
 	prefix := config.EnvKeyBuildmaxHome + "="
 	filtered := make([]string, 0, len(env)+1)
@@ -156,36 +159,24 @@ func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
 		slog.Warn("executor: task failed", "task_id", task.TaskID, "err", err)
-		if updateErr := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil); updateErr != nil {
+		if updateErr := updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil, nil); updateErr != nil {
 			slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
 		}
-		return
+		return err
 	}
 
-	// Artifact creation (best-effort): increment seq, write result to artifact storage, insert artifact + item and set last_artifact_id.
-	newSeq, seqErr := r.tasks.IncrementTaskSeq(ctx, task.TaskID)
-	if seqErr != nil {
-		slog.Warn("executor: IncrementTaskSeq failed, skipping artifact", "task_id", task.TaskID, "err", seqErr)
-	} else {
-		artifactID := util.NewID()
-		if putErr := r.artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, artifactID, output); putErr != nil {
-			slog.Warn("executor: failed to write result to artifact storage, skipping DB insert", "task_id", task.TaskID, "err", putErr)
-		} else if createErr := r.artifacts.CreateArtifactWithItem(ctx, task.TaskID, artifactID, newSeq, resultFilename); createErr != nil {
-			slog.Warn("executor: CreateArtifactWithItem failed", "task_id", task.TaskID, "err", createErr)
-		}
+	artifactID := util.NewID()
+	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, artifactID, output); putErr != nil {
+		slog.Warn("executor: failed to write result to artifact storage", "task_id", task.TaskID, "err", putErr)
+	}
+	if updateErr := updater.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename}); updateErr != nil {
+		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
+		return updateErr
 	}
 
 	slog.Info("executor: task succeeded", "task_id", task.TaskID)
-	if updateErr := r.tasks.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil); updateErr != nil {
-		slog.Error("executor: failed to update task status", "task_id", task.TaskID, "err", updateErr)
-	}
+	return nil
 }
 
-// failTask is a helper to mark a task as FAILED when execution cannot proceed.
-func (r *Runner) failTask(ctx context.Context, taskID, errMsg string) {
-	slog.Warn("executor: task failed", "task_id", taskID, "err", errMsg)
-	endTime := time.Now().Unix()
-	if err := r.tasks.UpdateTaskStatus(ctx, taskID, "FAILED", nil, &endTime, nil, &errMsg, nil); err != nil {
-		slog.Error("executor: failed to update task status", "task_id", taskID, "err", err)
-	}
-}
+func ptrString(s string) *string { return &s }
+func ptrInt64(n int64) *int64   { return &n }

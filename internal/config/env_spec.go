@@ -18,6 +18,10 @@ const (
 	EnvKeyBuildmaxServerPort = "BUILDMAX_SERVER_PORT"
 	EnvKeyBuildmaxJWTSecret  = "BUILDMAX_JWT_SECRET"
 	EnvKeyBuildmaxCorsOrigin = "BUILDMAX_CORS_ORIGIN"
+	// Worker (buildmax-worker binary and worker-to-server auth)
+	EnvKeyBuildmaxWorkerBinary = "BUILDMAX_WORKER_BINARY"
+	EnvKeyBuildmaxServerURL    = "BUILDMAX_SERVER_URL"
+	EnvKeyBuildmaxWorkerToken  = "BUILDMAX_WORKER_TOKEN"
 	// Database (MySQL)
 	EnvKeyBuildmaxDBHost     = "BUILDMAX_DB_HOST"
 	EnvKeyBuildmaxDBPort     = "BUILDMAX_DB_PORT"
@@ -61,6 +65,10 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxServerPort, "5678", "Port for buildmax server"},
 	{EnvKeyBuildmaxJWTSecret, "", "JWT signing secret (required for server)"},
 	{EnvKeyBuildmaxCorsOrigin, "http://localhost:5173", "CORS allowed origin for portal"},
+	// Worker
+	{EnvKeyBuildmaxWorkerBinary, "buildmax-worker", "Worker binary name for scheduler to spawn (default: buildmax-worker)"},
+	{EnvKeyBuildmaxServerURL, "", "Server base URL for worker (required when running buildmax-worker; e.g. http://localhost:5678)"},
+	{EnvKeyBuildmaxWorkerToken, "", "Token for worker-to-server auth (required for /api/worker/*)"},
 	// Database (MySQL)
 	{EnvKeyBuildmaxDBHost, "localhost", "MySQL host"},
 	{EnvKeyBuildmaxDBPort, "3306", "MySQL port"},

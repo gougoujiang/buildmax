@@ -34,6 +34,7 @@ go.work.sum
 /buildmax.exe
 /buildmax
 /buildmax-server
+/buildmax-worker
 
 testing-sandbox/
 testing-workspaces/

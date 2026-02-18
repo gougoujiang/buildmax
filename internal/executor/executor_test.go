@@ -10,6 +10,7 @@ import (
 
 	"buildmax/internal/config"
 	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 )
 
 // testWorkspacePaths implements WorkspacePaths using config.
@@ -111,17 +112,49 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID
 	return data, nil
 }
 
-func TestNew_RequiresPersistAndArtifactStorage(t *testing.T) {
-	persist := newFakePersistStorage()
-	artifact := newFakeArtifactStorage()
-	// New with nil taskStore should error.
-	_, err := New(nil, nil, testWorkspacePaths{}, persist, artifact)
+// mockTaskStore is a minimal TaskStore for Runner constructor tests.
+type mockTaskStore struct{}
+
+func (mockTaskStore) ListTasksByWorkspace(_ context.Context, _ string, _ *string) ([]entity.Task, error) {
+	return nil, nil
+}
+func (mockTaskStore) GetTask(_ context.Context, _ string) (*entity.Task, error) { return nil, nil }
+func (mockTaskStore) GetTaskBySessionID(_ context.Context, _ string) (*entity.Task, error) {
+	return nil, nil
+}
+func (mockTaskStore) CreateTask(_ context.Context, _ string, _ *string, _, _ string) (*entity.Task, error) {
+	return nil, nil
+}
+func (mockTaskStore) GetNextPendingTask(_ context.Context) (*entity.Task, error) { return nil, nil }
+func (mockTaskStore) UpdateTaskStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
+	return nil
+}
+func (mockTaskStore) IncrementTaskSeq(_ context.Context, _ string) (int, error) { return 0, nil }
+
+func TestNewRunner_ValidatesInputs(t *testing.T) {
+	// Nil taskStore should error.
+	_, err := NewRunner(nil, "buildmax-worker")
 	if err == nil {
-		t.Fatal("New with nil taskStore should error")
+		t.Fatal("NewRunner with nil taskStore should error")
 	}
-	// Just check that with all nils we get the first error (taskStore)
 	if err.Error() != "executor: taskStore must not be nil" {
 		t.Errorf("unexpected error: %v", err)
+	}
+	// Empty workerPath should error.
+	_, err = NewRunner(mockTaskStore{}, "")
+	if err == nil {
+		t.Fatal("NewRunner with empty workerPath should error")
+	}
+	if err.Error() != "executor: workerPath must not be empty" {
+		t.Errorf("unexpected error: %v", err)
+	}
+	// Valid args should succeed.
+	r, err := NewRunner(mockTaskStore{}, "buildmax-worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.workerPath != "buildmax-worker" {
+		t.Errorf("workerPath = %q", r.workerPath)
 	}
 }
 

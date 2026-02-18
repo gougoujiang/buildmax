@@ -29,8 +29,6 @@ func RunServer(ctx context.Context, port int) error {
 	if abs, err := filepath.Abs(workspacesDir); err == nil {
 		workspacesDir = abs
 	}
-	workspacePaths := &serverWorkspacePaths{root: workspacesDir}
-
 	dsn := config.MySQLDSN()
 	st, err := entity.New(ctx, dsn)
 	if err != nil {
@@ -49,13 +47,11 @@ func RunServer(ctx context.Context, port int) error {
 			return fmt.Errorf("S3 client: %w", s3Err)
 		}
 	}
-	persistRoot := config.PersistentWorkspaceDir
-	artifactDir := config.ArtifactDir
-	persistStorage, err := config.BuildPersistStorage(wsCfg, persistRoot, s3Client)
+	persistStorage, err := config.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
 	if err != nil {
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := config.BuildArtifactStorage(wsCfg, artifactDir, s3Client)
+	artifactStorage, err := config.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
 	if err != nil {
 		return fmt.Errorf("artifact storage: %w", err)
 	}
@@ -72,8 +68,10 @@ func RunServer(ctx context.Context, port int) error {
 		WorkspacesDir:    workspacesDir,
 		JWTSecret:        serverEnv.JWTSecret,
 		CORSOrigin:       serverEnv.CORSOrigin,
+		WorkerToken:      config.WorkerToken(),
 	}
-	runner, err := executor.New(st, st, workspacePaths, persistStorage, artifactStorage)
+	workerPath := config.WorkerBinaryPath()
+	runner, err := executor.NewRunner(st, workerPath)
 	if err != nil {
 		return fmt.Errorf("executor: %w", err)
 	}

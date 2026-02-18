@@ -6,6 +6,7 @@ cd "$SCRIPT_DIR"
 
 CLI_BINARY="buildmax"
 SERVER_BINARY="buildmax-server"
+WORKER_BINARY="buildmax-worker"
 
 source ./loadenv
 
@@ -13,8 +14,8 @@ usage() {
   echo "Usage: ./make <command>"
   echo ""
   echo "Commands:"
-  echo "  build         Build $CLI_BINARY and $SERVER_BINARY (output: $SCRIPT_DIR/)"
-  echo "  clean         Remove $CLI_BINARY, $SERVER_BINARY, portal/node_modules, portal/dist"
+  echo "  build         Build $CLI_BINARY, $SERVER_BINARY, and $WORKER_BINARY (output: $SCRIPT_DIR/)"
+  echo "  clean         Remove $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, portal/node_modules, portal/dist"
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
   echo "  run server    Build $SERVER_BINARY and start HTTP server (default port 5678)"
@@ -68,12 +69,18 @@ cmd_build() {
   else
     return 1
   fi
+  echo "Building worker binary $WORKER_BINARY..."
+  if go build -o "$WORKER_BINARY" ./cmd/buildmax-worker; then
+    echo "Built $WORKER_BINARY at $SCRIPT_DIR/$WORKER_BINARY"
+  else
+    return 1
+  fi
 }
 
 cmd_clean() {
-  rm -f "$CLI_BINARY" "$SERVER_BINARY"
+  rm -f "$CLI_BINARY" "$SERVER_BINARY" "$WORKER_BINARY"
   rm -rf portal/node_modules portal/dist
-  echo "Cleaned: $CLI_BINARY, $SERVER_BINARY, portal/node_modules, portal/dist"
+  echo "Cleaned: $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, portal/node_modules, portal/dist"
 }
 
 cmd_test() {

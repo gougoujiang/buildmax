@@ -111,6 +111,24 @@ func LoadServerEnv() (ServerEnv, error) {
 	return ServerEnv{JWTSecret: jwt, CORSOrigin: cors}, nil
 }
 
+// WorkerBinaryPath returns the worker binary name for the scheduler to spawn (BUILDMAX_WORKER_BINARY, default "buildmax-worker").
+func WorkerBinaryPath() string {
+	if s := os.Getenv(EnvKeyBuildmaxWorkerBinary); s != "" {
+		return s
+	}
+	return "buildmax-worker"
+}
+
+// WorkerServerURL returns the server base URL for the worker (BUILDMAX_SERVER_URL). No default; required when running buildmax-worker.
+func WorkerServerURL() string {
+	return os.Getenv(EnvKeyBuildmaxServerURL)
+}
+
+// WorkerToken returns the token for worker-to-server auth (BUILDMAX_WORKER_TOKEN). Required for /api/worker/*.
+func WorkerToken() string {
+	return os.Getenv(EnvKeyBuildmaxWorkerToken)
+}
+
 // ResolveServerPort returns the port to use: portFromFlag if > 0, else BUILDMAX_SERVER_PORT, else DefaultServerPort.
 // Returns an error if BUILDMAX_SERVER_PORT is set but not a valid positive number.
 func ResolveServerPort(portFromFlag int) (int, error) {

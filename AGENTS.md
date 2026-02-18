@@ -66,14 +66,14 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 **Config & infra**
 - **Application data**: `config.DataDir()` — default `~/.buildmax`, override via `BUILDMAX_HOME`; `make test` uses `testing-sandbox`.
-- **Config**: Env-only; `internal/config` provides `LoadLLM()`, `DataDir()`, `SessionsDir()`, `LogsDir()`, `SettingsPath()`, `LoadSettings()`, `MySQLDSN()`, `LoadServerEnv()`, `ResolveServerPort()`, `WorkspacesDir()`, `PersistentWorkspaceDir()`, `RuntimeWorkspaceDir()`, `ArtifactDir()`, `LoadWorkspaceStorageConfig()`, `BuildS3Client()`, `BuildPersistStorage()`, `BuildArtifactStorage()`. Single source of truth for env keys in `env_spec.go`; see `.env.example` and `design/002-env-config-maintainability.md`.
+- **Config**: Env-only; `internal/config` provides `LoadLLM()`, `DataDir()`, `SessionsDir()`, `LogsDir()`, `SettingsPath()`, `LoadSettings()`, `MySQLDSN()`, `LoadServerEnv()`, `ResolveServerPort()`, `WorkspacesDir()`, `PersistentWorkspaceDir()`, `RuntimeWorkspaceDir()`, `ArtifactDir()`, `WorkerBinaryPath()`, `WorkerServerURL()`, `WorkerToken()`, `LoadWorkspaceStorageConfig()`, `BuildS3Client()`, `BuildPersistStorage()`, `BuildArtifactStorage()`. Single source of truth for env keys in `env_spec.go`; see `.env.example` and `design/002-env-config-maintainability.md`.
 - **Logging**: `log/slog` via `internal/log`; level from `BUILDMAX_LOG_LEVEL`; file-only (rotated under `DataDir()/logs`, Lumberjack); TUI/prompt output stays clean.
 
 **HTTP server & Portal backend**
-- **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`).
-- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/workspaces`, `GET/POST /api/workspaces/{id}/projects`, `GET/POST /api/workspaces/{id}/tasks`, `GET /api/workspaces/{id}/artifacts`, `GET .../artifacts/{id}/items`, `GET .../artifacts/{id}/content`; `POST /api/workspaces/{id}/upload`, `GET /api/workspaces/{id}/files`, `GET /api/workspaces/{id}/files/{path...}`; `GET /api/sessions/{session_id}`. JWT auth for API; workspace-scoped access.
-- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — User, Workspace, Project, Task, Artifact, ArtifactItem. Blob storage in `internal/storage/blob` — PersistStorage (uploads, Explore files) and ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`.
-- **Executor** (`internal/executor`): Polls for PENDING tasks, runs `buildmax -p` in a workspace runtime dir (materializes persist files, writes result, updates task status, creates artifact and blob); used when server is running.
+- **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
+- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/workspaces`, `GET/POST /api/workspaces/{id}/projects`, `GET/POST /api/workspaces/{id}/tasks`, `GET /api/workspaces/{id}/artifacts`, `GET .../artifacts/{id}/items`, `GET .../artifacts/{id}/content`; `POST /api/workspaces/{id}/upload`, `GET /api/workspaces/{id}/files`, `GET /api/workspaces/{id}/files/{path...}`; `GET /api/sessions/{session_id}`; **worker API** (task-id-only, worker token): `GET /api/worker/tasks/{task_id}`, `PATCH /api/worker/tasks/{task_id}`. JWT auth for user API; workspace-scoped access.
+- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — User, Workspace, Project, Task, Artifact, ArtifactItem. Blob storage in `internal/storage/blob` — PersistStorage (uploads, Explore files) and ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. The **worker** accesses MinIO (or local storage) directly for materialize and artifact blobs; no proxy through server.
+- **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING tasks, spawns the **buildmax-worker** binary with `--task-id` only. **Worker** (`buildmax-worker` binary): gets task via `GET /api/worker/tasks/{task_id}`, updates status/results via `PATCH`, uses direct storage for materialize and artifacts, runs `buildmax -p` to execute the task. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Portal (web)**
 - **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), Projects, Project, Activity, TaskDetail; API client in `lib/api.ts`; AuthContext; AppShell, LeftSidebar, TopBar, modals (CreateWorkspace, CreateProject, ArtifactContent). Connects to Go backend for auth and workspace/project/task/artifact/file APIs.
@@ -92,9 +92,11 @@ Following common Golang project conventions, the current structure is:
 buildmax/
 ├── cmd/
 │   ├── buildmax/              # CLI binary (TUI, -p, version)
-│   │   └── main.go            # main(), log init, cmd.NewRootCommand().Execute()
-│   └── buildmax-server/       # Server binary (HTTP API + executor)
-│       └── main.go            # main(), log init, servercmd.RunServer()
+│   │   └── main.go
+│   ├── buildmax-server/       # Server binary (HTTP API + task scheduler)
+│   │   └── main.go
+│   └── buildmax-worker/       # Worker binary (runs one task via API + direct storage)
+│       └── main.go
 ├── internal/                  # Private packages (this project only)
 │   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
 │   ├── app/                   # App bootstrap and TUI program entry
@@ -111,8 +113,8 @@ buildmax/
 │   │   ├── entity/            # MySQL (GORM): User, Workspace, Project, Task, Artifact; interfaces and Store
 │   │   └── blob/              # Blob/file storage: PersistStorage, ArtifactStorage; local FS and S3 adapters; keys, relpath
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, projects, tasks, artifacts, upload, files, sessions; static (openapi, swagger)
-│   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor, server.Run); used by cmd/buildmax-server
-│   └── executor/              # Task runner: poll PENDING tasks, materialize workspace, run buildmax -p, update status, create artifacts
+│   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewRunner, server.Run); used by cmd/buildmax-server
+│   └── executor/              # Scheduler: Runner polls and spawns buildmax-worker; RunTask (worker): materialize, buildmax -p, TaskUpdater (API); WorkerHTTPUpdater, GetWorkerTask
 ├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
 │   ├── package.json           # Scripts: dev, build, preview
 │   ├── vite.config.ts         # Vite config (build out: dist/)
@@ -132,7 +134,8 @@ buildmax/
 ```
 
 - **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`.
-- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and task executor; use `./make run server` to build and run it (replaces the former `buildmax server` subcommand).
+- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and task scheduler (spawns `buildmax-worker` per task); use `./make run server` to build and run it.
+- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-id`; gets task via `GET /api/worker/tasks/{task_id}`, updates status via `PATCH`, uses direct storage, runs `buildmax -p`. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env.
 - **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, internal setup for agent/session. No server subcommand.
 - **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
 - **internal/server**: HTTP API for the Portal; depends on `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
@@ -168,10 +171,10 @@ buildmax/
 
 **Primary (macOS/Unix):** Use the `./make` script (bash) at the repo root. It sources `./loadenv` if present.
 
-- **Build**: `./make build` — builds the CLI from `cmd/buildmax` and outputs `./buildmax` in the repo root. Equivalent: `go build -o buildmax ./cmd/buildmax`. To build the server: `go build -o buildmax-server ./cmd/buildmax-server`.
+- **Build**: `./make build` — builds the CLI (`./buildmax`), server (`./buildmax-server`), and worker (`./buildmax-worker`) from `cmd/buildmax`, `cmd/buildmax-server`, and `cmd/buildmax-worker`. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
 - **Test**: `./make test` — sets `BUILDMAX_HOME=./testing-sandbox` and runs `go test ./...`. Use this after code changes.
 - **Smoke**: `./make smoke` — builds the CLI, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
-- **Run server**: `./make run server` — builds the server binary `buildmax-server` from `cmd/buildmax-server` and runs it (default port 5678).
+- **Run server**: `./make run server` — builds and runs `buildmax-server` (default port 5678). The server spawns `buildmax-worker` for each task; ensure `buildmax-worker` is on PATH or in the same directory, and set `BUILDMAX_SERVER_URL` and `BUILDMAX_WORKER_TOKEN` (and storage env) when running the worker.
 - **Run portal**: `./make run portal` — starts the Portal dev server (Vite; installs npm deps if needed).
 - **Bump version**: `./make bump [patch|minor|major]` — updates `Version` in `internal/cmd/root.go` (default: patch).
 - **Setup / Unsetup**: `./make setup` runs `setup/setup.sh` (one-click local dev: kind cluster, MinIO, MySQL, port-forwards, test job; idempotent). `./make unsetup` runs `setup/unsetup.sh` to tear down. Requires Homebrew (kind, helm, kubectl, awscli). Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.

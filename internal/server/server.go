@@ -33,6 +33,7 @@ type Config struct {
 	WorkspacesDir   string                      // Optional; overrides config.WorkspacesDir() for workspace file operations
 	JWTSecret       string                      // Required for login when UserStore is set
 	CORSOrigin      string                      // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	WorkerToken     string                      // If set, required for /api/worker/* (worker-to-server auth)
 }
 
 // Server wraps the HTTP server and runs it.
@@ -65,6 +66,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation", s.getTaskConversationHandler)
+	mux.HandleFunc("GET /api/worker/tasks/{task_id}", s.workerAuthMiddleware(s.getWorkerTaskHandler))
+	mux.HandleFunc("PATCH /api/worker/tasks/{task_id}", s.workerAuthMiddleware(s.patchWorkerTaskHandler))
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

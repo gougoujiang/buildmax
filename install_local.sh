@@ -1,26 +1,45 @@
 #!/usr/bin/env bash
-# Install buildmax locally to ~/.local/bin
+# Install buildmax (CLI), buildmax-server, and buildmax-worker locally to ~/.local/bin
 # This allows testing with other projects
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-SOURCE_BIN="${SCRIPT_DIR}/buildmax"
 LOCAL_BIN="${HOME}/.local/bin"
-DEST_BIN="${LOCAL_BIN}/buildmax"
 
-echo "Installing buildmax to ${LOCAL_BIN}..."
+SOURCE_CLI="${SCRIPT_DIR}/buildmax"
+SOURCE_SERVER="${SCRIPT_DIR}/buildmax-server"
+SOURCE_WORKER="${SCRIPT_DIR}/buildmax-worker"
 
-if [ ! -f "$SOURCE_BIN" ]; then
+echo "Installing BuildMax binaries to ${LOCAL_BIN}..."
+
+if [ ! -f "$SOURCE_CLI" ]; then
   echo "Error: buildmax not found in the current directory: $SCRIPT_DIR" >&2
-  echo "Run './make.sh build' or 'go build -o buildmax ./cmd/buildmax' first." >&2
+  echo "Run './make build' or 'go build -o buildmax ./cmd/buildmax' first." >&2
   exit 1
 fi
 
 mkdir -p "$LOCAL_BIN"
-echo "Copying buildmax to $DEST_BIN"
-cp -f "$SOURCE_BIN" "$DEST_BIN"
-chmod +x "$DEST_BIN"
+
+echo "Copying buildmax to ${LOCAL_BIN}/buildmax"
+cp -f "$SOURCE_CLI" "${LOCAL_BIN}/buildmax"
+chmod +x "${LOCAL_BIN}/buildmax"
+
+if [ -f "$SOURCE_SERVER" ]; then
+  echo "Copying buildmax-server to ${LOCAL_BIN}/buildmax-server"
+  cp -f "$SOURCE_SERVER" "${LOCAL_BIN}/buildmax-server"
+  chmod +x "${LOCAL_BIN}/buildmax-server"
+else
+  echo "Note: buildmax-server not found, skip. Run './make build' to build it."
+fi
+
+if [ -f "$SOURCE_WORKER" ]; then
+  echo "Copying buildmax-worker to ${LOCAL_BIN}/buildmax-worker"
+  cp -f "$SOURCE_WORKER" "${LOCAL_BIN}/buildmax-worker"
+  chmod +x "${LOCAL_BIN}/buildmax-worker"
+else
+  echo "Note: buildmax-worker not found, skip. Run './make build' to build it."
+fi
 
 # Check if .local/bin is already in PATH
 case ":$PATH:" in
@@ -46,9 +65,9 @@ if [ "$LOCAL_BIN_IN_PATH" -eq 0 ]; then
 else
   echo ""
   echo "$LOCAL_BIN is already in your PATH."
-  echo "buildmax is now available from any directory."
+  echo "buildmax, buildmax-server, and buildmax-worker are now available from any directory."
 fi
 
 echo ""
 echo "Installation complete!"
-echo "You can now run 'buildmax' from any directory (after updating PATH if needed)."
+echo "You can run 'buildmax' (CLI), 'buildmax-server', and 'buildmax-worker' from any directory (after updating PATH if needed)."
