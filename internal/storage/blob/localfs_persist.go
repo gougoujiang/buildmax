@@ -73,6 +73,16 @@ func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, workspaceID strin
 	return out, err
 }
 
+// PutTaskBuildmax is a no-op for local FS (task buildmax files already live on worker disk).
+func (s *LocalFSPersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string, r io.Reader) error {
+	return nil
+}
+
+// GetTaskBuildmax returns ErrNotFound; task buildmax files are not in the persist root for local_fs (caller uses local path).
+func (s *LocalFSPersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string) ([]byte, error) {
+	return nil, ErrNotFound
+}
+
 // MaterializeToDir copies all persistent files from the workspace into dstDir.
 // If the persist root does not exist or is empty, no error (empty dst).
 func (s *LocalFSPersistStorage) MaterializeToDir(ctx context.Context, workspaceID string, dstDir string) error {

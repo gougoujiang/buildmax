@@ -34,11 +34,15 @@ func (testWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) st
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
-	files map[string]map[string][]byte // workspaceID -> relPath -> content
+	files        map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
+	taskBuildmax map[string]map[string][]byte   // "workspaceID/taskID" -> relPath -> content
 }
 
 func newFakePersistStorage() *fakePersistStorage {
-	return &fakePersistStorage{files: make(map[string]map[string][]byte)}
+	return &fakePersistStorage{
+		files:        make(map[string]map[string][]byte),
+		taskBuildmax: make(map[string]map[string][]byte),
+	}
 }
 
 func (f *fakePersistStorage) Put(ctx context.Context, workspaceID, relPath string, r io.Reader) error {
@@ -86,6 +90,41 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 		}
 	}
 	return nil
+}
+
+func (f *fakePersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string, r io.Reader) error {
+	key := workspaceID + "/" + taskID
+	if f.taskBuildmax[key] == nil {
+		f.taskBuildmax[key] = make(map[string][]byte)
+	}
+	data, _ := io.ReadAll(r)
+	f.taskBuildmax[key][relPath] = data
+	return nil
+}
+
+// taskBuildmaxRelPaths returns the set of relPaths uploaded for the given workspaceID/taskID.
+func (f *fakePersistStorage) taskBuildmaxRelPaths(workspaceID, taskID string) []string {
+	key := workspaceID + "/" + taskID
+	if f.taskBuildmax[key] == nil {
+		return nil
+	}
+	var out []string
+	for p := range f.taskBuildmax[key] {
+		out = append(out, p)
+	}
+	return out
+}
+
+func (f *fakePersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string) ([]byte, error) {
+	key := workspaceID + "/" + taskID
+	if f.taskBuildmax[key] == nil {
+		return nil, blob.ErrNotFound
+	}
+	data, ok := f.taskBuildmax[key][relPath]
+	if !ok {
+		return nil, blob.ErrNotFound
+	}
+	return data, nil
 }
 
 // fakeArtifactStorage is an in-memory ArtifactStorage for tests.
@@ -188,6 +227,55 @@ func TestFakePersistStorage_MaterializeToDir(t *testing.T) {
 	}
 	if string(data) != "world" {
 		t.Errorf("got %q", data)
+	}
+}
+
+func TestUploadTaskBuildmax_UploadsPresentFiles(t *testing.T) {
+	ctx := context.Background()
+	buildmaxDir := t.TempDir()
+	// Create a subset of buildmax files (no log; sessions dir with two files)
+	if err := os.WriteFile(filepath.Join(buildmaxDir, "settings.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(buildmaxDir, "sessions"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(buildmaxDir, "sessions", "sessions.json"), []byte("[]"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(buildmaxDir, "sessions", "sid-1.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := newFakePersistStorage()
+	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", fake)
+
+	got := fake.taskBuildmaxRelPaths("ws1", "task1")
+	if len(got) != 3 {
+		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
+	}
+	wantSet := map[string]bool{"settings.json": true, "sessions/sessions.json": true, "sessions/sid-1.json": true}
+	for _, p := range got {
+		if !wantSet[p] {
+			t.Errorf("unexpected relPath %q", p)
+		}
+	}
+	// Content sanity
+	key := "ws1/task1"
+	if string(fake.taskBuildmax[key]["settings.json"]) != "{}" {
+		t.Errorf("settings.json content mismatch")
+	}
+}
+
+func TestUploadTaskBuildmax_SkipsMissingFiles(t *testing.T) {
+	ctx := context.Background()
+	buildmaxDir := t.TempDir()
+	// Empty buildmax dir: no files created
+	fake := newFakePersistStorage()
+	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", fake)
+	got := fake.taskBuildmaxRelPaths("ws1", "task1")
+	if len(got) != 0 {
+		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}
 }
 

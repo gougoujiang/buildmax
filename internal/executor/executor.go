@@ -83,6 +83,8 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 		slog.Warn("executor: failed to write result file", "task_id", task.TaskID, "err", writeErr)
 	}
 
+	uploadTaskBuildmax(ctx, buildmaxDir, task.WorkspaceID, task.TaskID, persist)
+
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
 		slog.Warn("executor: task failed", "task_id", task.TaskID, "err", err)
@@ -103,6 +105,39 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 
 	slog.Info("executor: task succeeded", "task_id", task.TaskID)
 	return nil
+}
+
+// uploadTaskBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage.
+// Best-effort: missing files or PutTaskBuildmax errors are logged and skipped.
+func uploadTaskBuildmax(ctx context.Context, buildmaxDir, workspaceID, taskID string, persist blob.PersistStorage) {
+	relPaths := []string{"logs/buildmax.log", "settings.json"}
+	sessionsDir := filepath.Join(buildmaxDir, "sessions")
+	entries, err := os.ReadDir(sessionsDir)
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			relPaths = append(relPaths, "sessions/"+e.Name())
+		}
+	}
+	for _, relPath := range relPaths {
+		fullPath := filepath.Join(buildmaxDir, filepath.FromSlash(relPath))
+		info, err := os.Stat(fullPath)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		f, err := os.Open(fullPath)
+		if err != nil {
+			slog.Warn("executor: upload task buildmax open failed", "task_id", taskID, "rel_path", relPath, "err", err)
+			continue
+		}
+		putErr := persist.PutTaskBuildmax(ctx, workspaceID, taskID, filepath.ToSlash(relPath), f)
+		f.Close()
+		if putErr != nil {
+			slog.Warn("executor: upload task buildmax put failed", "task_id", taskID, "rel_path", relPath, "err", putErr)
+		}
+	}
 }
 
 func ptrString(s string) *string { return &s }

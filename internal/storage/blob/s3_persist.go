@@ -61,6 +61,24 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, workspaceID string) ([
 	return out, nil
 }
 
+// PutTaskBuildmax writes one file under the task buildmax key space (prefix/workspaceID/tasks/taskID/buildmax/relPath).
+func (s *S3PersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string, r io.Reader) error {
+	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, relPath)
+	if err != nil {
+		return err
+	}
+	return s.client.PutObject(ctx, s.bucket, key, r)
+}
+
+// GetTaskBuildmax reads one file from the task buildmax key space. Returns ErrNotFound if the object does not exist.
+func (s *S3PersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string) ([]byte, error) {
+	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, relPath)
+	if err != nil {
+		return nil, err
+	}
+	return s.client.GetObject(ctx, s.bucket, key)
+}
+
 // MaterializeToDir downloads all persistent files into dstDir.
 func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, workspaceID string, dstDir string) error {
 	keys, err := s.ListFiles(ctx, workspaceID)

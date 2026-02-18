@@ -2,12 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"buildmax/internal/config"
 	"buildmax/internal/model"
+	"buildmax/internal/storage/blob"
 )
 
 // TaskResponse is one task in the list/create response (snake_case).
@@ -200,16 +202,27 @@ func (s *Server) getTaskConversationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	sessionID := *task.SessionID
+	relPath := "sessions/" + sessionID + ".json"
 
-	taskSessionPath := filepath.Join(config.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID), "sessions", sessionID+".json")
-	data, err := os.ReadFile(taskSessionPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			writeJSONError(w, http.StatusNotFound, "conversation file not found")
+	var data []byte
+	if s.cfg.PersistStorage != nil {
+		data, err = s.cfg.PersistStorage.GetTaskBuildmax(r.Context(), task.WorkspaceID, task.TaskID, relPath)
+		if err != nil && !errors.Is(err, blob.ErrNotFound) {
+			writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
 			return
 		}
-		writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
-		return
+	}
+	if data == nil {
+		taskSessionPath := filepath.Join(config.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID), "sessions", sessionID+".json")
+		data, err = os.ReadFile(taskSessionPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				writeJSONError(w, http.StatusNotFound, "conversation file not found")
+				return
+			}
+			writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
+			return
+		}
 	}
 	var out ConversationResponse
 	if err := json.Unmarshal(data, &out); err != nil {
