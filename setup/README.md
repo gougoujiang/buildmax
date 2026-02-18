@@ -26,25 +26,34 @@ The setup installs [ingress-nginx](https://kubernetes.github.io/ingress-nginx/) 
 For Ingress hostnames under `*.kind.local`, add one line per host to `/etc/hosts` (there is no wildcard support). Example:
 
 ```
+127.0.0.1 buildmax-api.kind.local
 127.0.0.1 buildmax.kind.local
 127.0.0.1 whoami.kind.local
 ```
+
+- **buildmax-api.kind.local** — API server (when deployed in cluster via `./make deploy`).
+- **buildmax.kind.local** — Reserved for the portal (React) app.
 
 Then apply the Ingress manifests for the hosts you use (see below).
 
 **Existing clusters:** If the kind cluster was created before Ingress was added to this setup, it will not have port 80/443 mapped. Run `./make unsetup` then `./make setup` to recreate the cluster with Ingress support.
 
-### Access buildmax-server at buildmax.kind.local
+### Deploy buildmax server in cluster
 
-To reach the buildmax HTTP server (running on the host on port 5678) via `http://buildmax.kind.local`:
+To run the buildmax API server inside the kind cluster (using in-cluster MySQL and MinIO):
 
-1. Add to `/etc/hosts`: `127.0.0.1 buildmax.kind.local`
-2. Start the server on the host: `./make run server`
-3. Apply the Ingress and proxy: `kubectl apply -f setup/buildmax-ingress.yaml`
+1. **Prereq**: Run `./make setup` once (cluster, MinIO, MySQL, ingress-nginx, bucket must exist).
+2. **Deploy**: From repo root run `./make deploy`. This builds the binaries, builds and loads the `buildmax:local` image into kind, and applies `setup/buildmax-deploy.yaml` (namespace `buildmax`, Secret, Deployment, Service, Ingress).
+3. **Secrets**: The manifest includes a dev Secret with placeholder values. For production, create your own before applying:
+   ```bash
+   kubectl create secret generic buildmax-secret -n buildmax \
+     --from-literal=BUILDMAX_JWT_SECRET=your-secret \
+     --from-literal=BUILDMAX_WORKER_TOKEN=your-worker-token
+   ```
+   Or delete the Secret from the YAML and apply it separately.
+4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **http://buildmax-api.kind.local** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `Dockerfile.portal` image).
 
-Traffic flows: browser → localhost:80 → ingress-nginx → buildmax-proxy pod → `host.docker.internal:5678` → your server. On Docker Desktop (Mac/Windows) `host.docker.internal` is available; on Linux you may need to configure the proxy or run the server inside the cluster.
-
-To remove: `kubectl delete -f setup/buildmax-ingress.yaml`
+To remove the buildmax app: `kubectl delete -f setup/buildmax-deploy.yaml`
 
 ### Test Ingress with whoami
 

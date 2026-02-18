@@ -38,6 +38,7 @@ export function Project({
         await createTask(workspaceId, { input, project_id: project.id }, token)
         setPrompt("")
         onRefetchTasks()
+        onRefetchArtifacts?.()
       } catch {
         // Error could be shown in UI; for now just stop loading
       } finally {

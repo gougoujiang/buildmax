@@ -24,7 +24,8 @@ usage() {
   echo "  install       Install buildmax, buildmax-server, buildmax-worker to ~/.local/bin"
   echo "  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent)"
   echo "  unsetup       Tear down kind cluster and MinIO port-forward (brew tools kept)"
-  echo "  pub_images    Build BuildMax image and load into kind cluster"
+  echo "  pub_images    Build BuildMax and Portal images and load into kind cluster"
+  echo "  deploy        Build, load image, and deploy buildmax server to kind (run ./make setup first)"
   echo ""
   echo "Examples:"
   echo "  ./make build"
@@ -219,12 +220,33 @@ cmd_pub_images() {
     echo "Error: docker build failed"
     return 1
   fi
-  echo "Loading image into kind cluster '$cluster_name'..."
-  if ! kind load docker-image buildmax:local --name "$cluster_name"; then
-    echo "Error: kind load failed"
+  echo "Building Portal image (buildmax-portal:local)..."
+  if ! docker build -f "$SCRIPT_DIR/Dockerfile.portal" "${platform_args[@]}" -t buildmax-portal:local "$SCRIPT_DIR"; then
+    echo "Error: portal docker build failed"
     return 1
   fi
-  echo "Done. Image buildmax:local is available in kind."
+  echo "Loading images into kind cluster '$cluster_name'..."
+  if ! kind load docker-image buildmax:local --name "$cluster_name"; then
+    echo "Error: kind load buildmax:local failed"
+    return 1
+  fi
+  if ! kind load docker-image buildmax-portal:local --name "$cluster_name"; then
+    echo "Error: kind load buildmax-portal:local failed"
+    return 1
+  fi
+  echo "Done. Images buildmax:local and buildmax-portal:local are available in kind."
+}
+
+cmd_deploy() {
+  echo "Deploying buildmax server to kind cluster..."
+  cmd_build || return 1
+  cmd_pub_images || return 1
+  echo "Applying buildmax-deploy.yaml..."
+  if ! kubectl apply -f "$SCRIPT_DIR/setup/buildmax-deploy.yaml"; then
+    echo "Error: kubectl apply failed"
+    return 1
+  fi
+  echo "Deployed. Add 127.0.0.1 buildmax-api.kind.local to /etc/hosts, then open http://buildmax-api.kind.local"
 }
 
 cmd="${1:-}"
@@ -277,6 +299,9 @@ case "$cmd" in
     ;;
   pub_images)
     cmd_pub_images
+    ;;
+  deploy)
+    cmd_deploy
     ;;
   -h|--help|help)
     usage

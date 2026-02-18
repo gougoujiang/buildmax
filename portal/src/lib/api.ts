@@ -1,9 +1,12 @@
 import type { Artifact, ExploreNode, Project, Task } from "./types"
 
 /**
- * API base URL and login. VITE_API_BASE defaults to http://localhost:5678.
+ * API base URL and login.
+ * - When the portal is served from buildmax.kind.local (deployed in kind), use http://buildmax-api.kind.local.
+ * - Otherwise use VITE_API_BASE if set, or http://localhost:5678 for local dev.
  */
 const defaultApiBase = "http://localhost:5678"
+const kindApiBase = "http://buildmax-api.kind.local"
 
 /** Event dispatched when any API call returns 401. Listeners should clear auth and show login. */
 export const UNAUTHORIZED_EVENT = "buildmax:unauthorized"
@@ -29,6 +32,9 @@ async function throwIfNotOk(res: Response): Promise<void> {
 }
 
 export function getApiBase(): string {
+  if (typeof window !== "undefined" && window.location?.host === "buildmax.kind.local") {
+    return kindApiBase
+  }
   const base = import.meta.env.VITE_API_BASE
   return typeof base === "string" && base !== "" ? base : defaultApiBase
 }
