@@ -55,7 +55,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 ### 4.1 Implemented
 
 **CLI & TUI**
-- **CLI**: Cobra in `internal/cmd` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version`, `buildmax server` subcommands; `cmd/buildmax/main.go` is the thin entry point.
+- **CLI**: Cobra in `internal/cmd` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand; `cmd/buildmax/main.go` is the thin entry point. The server runs as a separate binary (`buildmax-server`).
 - **TUI**: Bubble Tea via `internal/app` + `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner + version, chat history), input at bottom, footer (model, workspace, ctrl+c: quit). `--resume <id>`, `--continue`, `--session-id <uuid>` for session handling. Session persisted after each assistant reply.
 - **Session**: In-memory session in `internal/session` (id, title, created_at, message history); multi-turn; save/load under `DataDir()/sessions/<id>.json`; list index in `sessions.json` via `session.LoadList`.
 
@@ -70,7 +70,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 - **Logging**: `log/slog` via `internal/log`; level from `BUILDMAX_LOG_LEVEL`; file-only (rotated under `DataDir()/logs`, Lumberjack); TUI/prompt output stays clean.
 
 **HTTP server & Portal backend**
-- **Server** (`buildmax server`): HTTP API in `internal/server`; listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`).
+- **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`).
 - **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/workspaces`, `GET/POST /api/workspaces/{id}/projects`, `GET/POST /api/workspaces/{id}/tasks`, `GET /api/workspaces/{id}/artifacts`, `GET .../artifacts/{id}/items`, `GET .../artifacts/{id}/content`; `POST /api/workspaces/{id}/upload`, `GET /api/workspaces/{id}/files`, `GET /api/workspaces/{id}/files/{path...}`; `GET /api/sessions/{session_id}`. JWT auth for API; workspace-scoped access.
 - **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — User, Workspace, Project, Task, Artifact, ArtifactItem. Blob storage in `internal/storage/blob` — PersistStorage (uploads, Explore files) and ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`.
 - **Executor** (`internal/executor`): Polls for PENDING tasks, runs `buildmax -p` in a workspace runtime dir (materializes persist files, writes result, updates task status, creates artifact and blob); used when server is running.
@@ -91,10 +91,12 @@ Following common Golang project conventions, the current structure is:
 ```
 buildmax/
 ├── cmd/
-│   └── buildmax/              # Executable entry point
-│       └── main.go            # main(), log init, cmd.NewRootCommand().Execute()
+│   ├── buildmax/              # CLI binary (TUI, -p, version)
+│   │   └── main.go            # main(), log init, cmd.NewRootCommand().Execute()
+│   └── buildmax-server/       # Server binary (HTTP API + executor)
+│       └── main.go            # main(), log init, servercmd.RunServer()
 ├── internal/                  # Private packages (this project only)
-│   ├── cmd/                   # Cobra root, flags, version, server subcommands; prompt/TUI runners, setup
+│   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
 │   ├── app/                   # App bootstrap and TUI program entry
 │   ├── tui/                   # Bubble Tea models and views (banner, input, viewport, format)
 │   ├── agent/                 # Core Agent logic (Process, tools, system prompt, subagent runner)
@@ -109,7 +111,8 @@ buildmax/
 │   │   ├── entity/            # MySQL (GORM): User, Workspace, Project, Task, Artifact; interfaces and Store
 │   │   └── blob/              # Blob/file storage: PersistStorage, ArtifactStorage; local FS and S3 adapters; keys, relpath
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, projects, tasks, artifacts, upload, files, sessions; static (openapi, swagger)
-│   └── executor/             # Task runner: poll PENDING tasks, materialize workspace, run buildmax -p, update status, create artifacts
+│   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor, server.Run); used by cmd/buildmax-server
+│   └── executor/              # Task runner: poll PENDING tasks, materialize workspace, run buildmax -p, update status, create artifacts
 ├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
 │   ├── package.json           # Scripts: dev, build, preview
 │   ├── vite.config.ts         # Vite config (build out: dist/)
@@ -128,10 +131,11 @@ buildmax/
 └── README.md
 ```
 
-- **cmd/buildmax**: Single CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`.
-- **internal/cmd**: Cobra root command, version and server subcommands, CLI flags, prompt mode and TUI runners, internal setup for agent/session.
+- **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`.
+- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and task executor; use `./make run server` to build and run it (replaces the former `buildmax server` subcommand).
+- **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, internal setup for agent/session. No server subcommand.
 - **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
-- **internal/server**: HTTP API for the Portal; depends on `storage/entity`, `storage/blob`, `config`; starts the executor when running.
+- **internal/server**: HTTP API for the Portal; depends on `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
 - **portal/**: Frontend app; run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
 - **design/**: Product and technical design docs; see section 6.
@@ -164,10 +168,10 @@ buildmax/
 
 **Primary (macOS/Unix):** Use the `./make` script (bash) at the repo root. It sources `./loadenv` if present.
 
-- **Build**: `./make build` — builds from `cmd/buildmax` and outputs `./buildmax` in the repo root. Equivalent: `go build -o buildmax ./cmd/buildmax`.
+- **Build**: `./make build` — builds the CLI from `cmd/buildmax` and outputs `./buildmax` in the repo root. Equivalent: `go build -o buildmax ./cmd/buildmax`. To build the server: `go build -o buildmax-server ./cmd/buildmax-server`.
 - **Test**: `./make test` — sets `BUILDMAX_HOME=./testing-sandbox` and runs `go test ./...`. Use this after code changes.
-- **Smoke**: `./make smoke` — builds, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
-- **Run server**: `./make run server` — builds (if needed) and starts the HTTP server (default port 5678).
+- **Smoke**: `./make smoke` — builds the CLI, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
+- **Run server**: `./make run server` — builds the server binary `buildmax-server` from `cmd/buildmax-server` and runs it (default port 5678).
 - **Run portal**: `./make run portal` — starts the Portal dev server (Vite; installs npm deps if needed).
 - **Bump version**: `./make bump [patch|minor|major]` — updates `Version` in `internal/cmd/root.go` (default: patch).
 - **Setup / Unsetup**: `./make setup` runs `setup/setup.sh` (one-click local dev: kind cluster, MinIO, MySQL, port-forwards, test job; idempotent). `./make unsetup` runs `setup/unsetup.sh` to tear down. Requires Homebrew (kind, helm, kubectl, awscli). Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.

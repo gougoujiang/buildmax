@@ -1,4 +1,4 @@
-package cmd
+package servercmd
 
 import (
 	"context"
@@ -12,49 +12,12 @@ import (
 	"buildmax/internal/server"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
-
-	"github.com/spf13/cobra"
 )
 
-// serverWorkspacePaths implements executor.WorkspacePaths using a resolved absolute root (set at server startup).
-type serverWorkspacePaths struct {
-	root string
-}
-
-func (p *serverWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
-	return filepath.Join(p.root, workspaceID, "persist")
-}
-func (p *serverWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
-	return filepath.Join(p.root, workspaceID, "tasks", taskID)
-}
-func (p *serverWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
-	return filepath.Join(p.root, workspaceID, "tasks", taskID, "buildmax")
-}
-func (p *serverWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
-	return filepath.Join(p.root, workspaceID, "tasks", taskID, "ws")
-}
-func (p *serverWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
-	return filepath.Join(p.root, workspaceID, "artifacts", taskID, artifactID)
-}
-
-func newServerCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "server",
-		Short: "Start the HTTP server (backend for portal)",
-		Long:  "Start the HTTP server. Listens on port 5678 by default. Override with --port or BUILDMAX_SERVER_PORT.",
-		RunE:  runServer,
-	}
-	cmd.Flags().Int("port", 0, "port to listen on (default: 5678 or BUILDMAX_SERVER_PORT)")
-	return cmd
-}
-
-func runServer(cmd *cobra.Command, _ []string) error {
-	portFlag, _ := cmd.Flags().GetInt("port")
-	port, err := config.ResolveServerPort(portFlag)
-	if err != nil {
-		return err
-	}
-	dsn := config.MySQLDSN()
+// RunServer loads server env and workspaces dir, opens the DB, builds blob storage,
+// creates and starts the task executor, then runs the HTTP server until shutdown.
+// The port argument should already be resolved (e.g. via config.ResolveServerPort).
+func RunServer(ctx context.Context, port int) error {
 	serverEnv, err := config.LoadServerEnv()
 	if err != nil {
 		return err
@@ -63,13 +26,12 @@ func runServer(cmd *cobra.Command, _ []string) error {
 	if workspacesDir == "" {
 		return fmt.Errorf("%s is required for server mode", config.EnvKeyBuildmaxWorkspacesDir)
 	}
-	// Normalize to absolute at startup so executor and handlers use absolute paths (avoids
-	// relative BUILDMAX_HOME being resolved under child CWD ws/).
 	if abs, err := filepath.Abs(workspacesDir); err == nil {
 		workspacesDir = abs
 	}
 	workspacePaths := &serverWorkspacePaths{root: workspacesDir}
-	ctx := context.Background()
+
+	dsn := config.MySQLDSN()
 	st, err := entity.New(ctx, dsn)
 	if err != nil {
 		return fmt.Errorf("database: %w", err)
@@ -111,7 +73,6 @@ func runServer(cmd *cobra.Command, _ []string) error {
 		JWTSecret:        serverEnv.JWTSecret,
 		CORSOrigin:       serverEnv.CORSOrigin,
 	}
-	// Start the task executor (polls for PENDING tasks and runs buildmax -p).
 	runner, err := executor.New(st, st, workspacePaths, persistStorage, artifactStorage)
 	if err != nil {
 		return fmt.Errorf("executor: %w", err)

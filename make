@@ -4,7 +4,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-BINARY="buildmax"
+CLI_BINARY="buildmax"
+SERVER_BINARY="buildmax-server"
 
 source ./loadenv
 
@@ -12,10 +13,11 @@ usage() {
   echo "Usage: ./make <command>"
   echo ""
   echo "Commands:"
-  echo "  build         Build $BINARY (output: $SCRIPT_DIR/$BINARY)"
+  echo "  build         Build $CLI_BINARY and $SERVER_BINARY (output: $SCRIPT_DIR/)"
+  echo "  clean         Remove $CLI_BINARY, $SERVER_BINARY, portal/node_modules, portal/dist"
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
-  echo "  run server    Build (if needed) and start HTTP server for local testing (default port 5678)"
+  echo "  run server    Build $SERVER_BINARY and start HTTP server (default port 5678)"
   echo "  run portal    Start Portal dev server (Vite; installs deps if needed)"
   echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
   echo "  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent)"
@@ -27,14 +29,17 @@ usage() {
   echo "  ./make test"
   echo "  ./make bump        # 0.0.2 -> 0.0.3"
   echo "  ./make bump minor  # 0.0.2 -> 0.1.0"
-  echo "  ./make run server  # start backend server (port 5678)"
-  echo "  ./make run portal # start Portal dev server (Vite)"
+  echo "  ./make run server  # build and run $SERVER_BINARY (port 5678)"
+  echo "  ./make run portal  # start Portal dev server (Vite)"
 }
 
 cmd_run_server() {
-  go build -o "$BINARY" ./cmd/buildmax
+  if [[ ! -f "$SERVER_BINARY" ]]; then
+    echo "Error: $SERVER_BINARY not found. Run ./make build first."
+    return 1
+  fi
   echo "Starting server (Ctrl+C to stop)..."
-  ./"$BINARY" server
+  ./"$SERVER_BINARY"
 }
 
 cmd_run_portal() {
@@ -51,12 +56,24 @@ cmd_run_portal() {
 }
 
 cmd_build() {
-  echo "Building $BINARY..."
-  if go build -o "$BINARY" ./cmd/buildmax; then
-    echo "Built $BINARY at $SCRIPT_DIR/$BINARY"
+  echo "Building CLI binary $CLI_BINARY..."
+  if go build -o "$CLI_BINARY" ./cmd/buildmax; then
+    echo "Built $CLI_BINARY at $SCRIPT_DIR/$CLI_BINARY"
   else
     return 1
   fi
+  echo "Building server binary $SERVER_BINARY..."
+  if go build -o "$SERVER_BINARY" ./cmd/buildmax-server; then
+    echo "Built $SERVER_BINARY at $SCRIPT_DIR/$SERVER_BINARY"
+  else
+    return 1
+  fi
+}
+
+cmd_clean() {
+  rm -f "$CLI_BINARY" "$SERVER_BINARY"
+  rm -rf portal/node_modules portal/dist
+  echo "Cleaned: $CLI_BINARY, $SERVER_BINARY, portal/node_modules, portal/dist"
 }
 
 cmd_test() {
@@ -69,10 +86,10 @@ cmd_test() {
 cmd_smoke() {
   mkdir -p testing-sandbox
   export BUILDMAX_HOME="$SCRIPT_DIR/testing-sandbox"
-  go build -o "$BINARY" ./cmd/buildmax
+  go build -o "$CLI_BINARY" ./cmd/buildmax
   export BUILDMAX_LOG_LEVEL=debug
   echo "Running smoke test..."
-  ./"$BINARY" -p "/smoke 0"
+  ./"$CLI_BINARY" -p "/smoke 0"
 }
 
 cmd_bump_version() {
@@ -156,6 +173,9 @@ fi
 case "$cmd" in
   build)
     cmd_build
+    ;;
+  clean)
+    cmd_clean
     ;;
   test)
     cmd_test

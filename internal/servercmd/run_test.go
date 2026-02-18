@@ -1,4 +1,4 @@
-package cmd
+package servercmd
 
 import (
 	"os"
@@ -7,8 +7,8 @@ import (
 	"buildmax/internal/config"
 )
 
-func TestResolveServerPort_Integration(t *testing.T) {
-	// Smoke test that server command uses config.ResolveServerPort correctly.
+func TestResolveServerPort_UsedByRunServer(t *testing.T) {
+	// Smoke test that server startup uses config.ResolveServerPort correctly.
 	// Full cases are in config.TestResolveServerPort.
 	os.Unsetenv(config.EnvKeyBuildmaxServerPort)
 	port, err := config.ResolveServerPort(0)
