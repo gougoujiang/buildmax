@@ -112,7 +112,7 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID
 	return data, nil
 }
 
-// mockTaskStore is a minimal TaskStore for Runner constructor tests.
+// mockTaskStore is a minimal TaskStore for Scheduler constructor tests.
 type mockTaskStore struct{}
 
 func (mockTaskStore) ListTasksByWorkspace(_ context.Context, _ string, _ *string) ([]entity.Task, error) {
@@ -131,30 +131,30 @@ func (mockTaskStore) UpdateTaskStatus(_ context.Context, _, _ string, _, _ *int6
 }
 func (mockTaskStore) IncrementTaskSeq(_ context.Context, _ string) (int, error) { return 0, nil }
 
-func TestNewRunner_ValidatesInputs(t *testing.T) {
+func TestNewScheduler_ValidatesInputs(t *testing.T) {
 	// Nil taskStore should error.
-	_, err := NewRunner(nil, "buildmax-worker")
+	_, err := NewScheduler(nil, "buildmax-worker")
 	if err == nil {
-		t.Fatal("NewRunner with nil taskStore should error")
+		t.Fatal("NewScheduler with nil taskStore should error")
 	}
 	if err.Error() != "executor: taskStore must not be nil" {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Empty workerPath should error.
-	_, err = NewRunner(mockTaskStore{}, "")
+	_, err = NewScheduler(mockTaskStore{}, "")
 	if err == nil {
-		t.Fatal("NewRunner with empty workerPath should error")
+		t.Fatal("NewScheduler with empty workerPath should error")
 	}
 	if err.Error() != "executor: workerPath must not be empty" {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Valid args should succeed.
-	r, err := NewRunner(mockTaskStore{}, "buildmax-worker")
+	s, err := NewScheduler(mockTaskStore{}, "buildmax-worker")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.workerPath != "buildmax-worker" {
-		t.Errorf("workerPath = %q", r.workerPath)
+	if s.workerPath != "buildmax-worker" {
+		t.Errorf("workerPath = %q", s.workerPath)
 	}
 }
 

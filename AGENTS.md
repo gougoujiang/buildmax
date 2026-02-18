@@ -113,9 +113,9 @@ buildmax/
 │   │   ├── entity/            # MySQL (GORM): User, Workspace, Project, Task, Artifact; interfaces and Store
 │   │   └── blob/              # Blob/file storage: PersistStorage, ArtifactStorage; local FS and S3 adapters; keys, relpath
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, projects, tasks, artifacts, upload, files, sessions; static (openapi, swagger)
-│   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewRunner, server.Run); used by cmd/buildmax-server
+│   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewScheduler, server.Run); used by cmd/buildmax-server
 │   ├── workercmd/             # Worker startup: RunWorker (env, get task, blob storage, executor.RunTask); used by cmd/buildmax-worker
-│   └── executor/              # Scheduler: Runner polls and spawns buildmax-worker; RunTask (worker): materialize, buildmax -p, TaskUpdater (API); WorkerHTTPUpdater, GetWorkerTask
+│   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask (executor, used by worker): materialize, buildmax -p, TaskUpdater (API)
 ├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
 │   ├── package.json           # Scripts: dev, build, preview
 │   ├── vite.config.ts         # Vite config (build out: dist/)

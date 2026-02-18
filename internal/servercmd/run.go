@@ -71,12 +71,12 @@ func RunServer(ctx context.Context, port int) error {
 		WorkerToken:      config.WorkerToken(),
 	}
 	workerPath := config.WorkerBinaryPath()
-	runner, err := executor.NewRunner(st, workerPath)
+	scheduler, err := executor.NewScheduler(st, workerPath)
 	if err != nil {
 		return fmt.Errorf("executor: %w", err)
 	}
-	runner.Start()
-	defer runner.Stop()
+	scheduler.Start()
+	defer scheduler.Stop()
 
 	s := server.New(cfg)
 	slog.Info("server starting", "addr", cfg.Addr)

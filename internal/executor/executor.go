@@ -1,5 +1,8 @@
-// Package executor runs pending tasks by spawning the buildmax-worker binary (scheduler)
-// and provides RunTask for the worker to execute a single task (materialize, buildmax -p, update via TaskUpdater).
+// Package executor provides task scheduling and task execution.
+//
+//   - Scheduler (scheduler.go): polls for PENDING tasks and spawns the buildmax-worker binary.
+//   - Executor: RunTask runs a single task (materialize workspace, run buildmax -p, update status via TaskUpdater).
+//     Used by the worker binary; the scheduler does not call RunTask.
 package executor
 
 import (
@@ -19,92 +22,16 @@ import (
 	"buildmax/internal/util"
 )
 
-const defaultPollInterval = 5 * time.Second
-
 // ArtifactPayload is passed to TaskUpdater when registering an artifact on success.
 type ArtifactPayload struct {
-	ArtifactID    string
-	RelativePath  string
+	ArtifactID   string
+	RelativePath string
 }
 
 // TaskUpdater is used by the worker to update task status and register artifacts via HTTP (or other backend).
 type TaskUpdater interface {
 	// UpdateTaskStatus updates task status and optional fields. For SUCCEEDED with artifact, pass non-nil artifact.
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error
-}
-
-// Runner polls for pending tasks and spawns the worker binary for each (scheduler only; no storage).
-type Runner struct {
-	tasks        entity.TaskStore
-	workerPath   string
-	pollInterval time.Duration
-	stopCh       chan struct{}
-	doneCh       chan struct{}
-}
-
-// NewRunner creates a Runner that polls and spawns the worker binary. Call Start() to begin polling.
-func NewRunner(taskStore entity.TaskStore, workerPath string) (*Runner, error) {
-	if taskStore == nil {
-		return nil, errors.New("executor: taskStore must not be nil")
-	}
-	if workerPath == "" {
-		return nil, errors.New("executor: workerPath must not be empty")
-	}
-	return &Runner{
-		tasks:        taskStore,
-		workerPath:   workerPath,
-		pollInterval: defaultPollInterval,
-		stopCh:       make(chan struct{}),
-		doneCh:       make(chan struct{}),
-	}, nil
-}
-
-// Start launches the poll loop in a background goroutine.
-func (r *Runner) Start() {
-	go r.loop()
-	slog.Info("executor started", "poll_interval", r.pollInterval, "worker", r.workerPath)
-}
-
-// Stop signals the loop to exit and blocks until any in-flight task finishes.
-func (r *Runner) Stop() {
-	close(r.stopCh)
-	<-r.doneCh
-	slog.Info("executor stopped")
-}
-
-// loop is the main poll loop. It checks for pending tasks on each tick and spawns the worker.
-func (r *Runner) loop() {
-	defer close(r.doneCh)
-	ticker := time.NewTicker(r.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-r.stopCh:
-			return
-		case <-ticker.C:
-			ctx := context.Background()
-			task, err := r.tasks.GetNextPendingTask(ctx)
-			if err != nil {
-				slog.Warn("executor: poll failed", "err", err)
-				continue
-			}
-			if task == nil {
-				continue
-			}
-			r.executeTask(ctx, *task)
-		}
-	}
-}
-
-// executeTask spawns the worker binary with --task-id and waits. The worker claims the task and performs execution.
-func (r *Runner) executeTask(ctx context.Context, task entity.Task) {
-	slog.Info("executor: spawning worker", "task_id", task.TaskID, "workspace_id", task.WorkspaceID)
-	cmd := exec.CommandContext(ctx, r.workerPath, "--task-id", task.TaskID)
-	cmd.Env = os.Environ()
-	if err := cmd.Run(); err != nil {
-		slog.Warn("executor: worker exited with error", "task_id", task.TaskID, "err", err)
-	}
 }
 
 // RunTask runs a single task: materialize workspace, run buildmax -p, then update status and optional artifact via updater.
