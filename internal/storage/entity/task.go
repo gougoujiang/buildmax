@@ -48,35 +48,38 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task
 	return &t, nil
 }
 
-// CreateTask inserts a new task with status PENDING and returns it.
-// projectID is optional (nil = task with no project).
+// CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id set.
 func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error) {
+	now := time.Now().Unix()
+	taskID := util.NewULID()
+	runID := util.NewULID()
 	t := &Task{
-		TaskID:      util.NewULID(),
+		TaskID:      taskID,
 		WorkspaceID: workspaceID,
 		ProjectID:   projectID,
 		Status:      "PENDING",
 		Input:       input,
 		CreatedBy:   createdBy,
-		CreatedAt:   time.Now().Unix(),
+		CreatedAt:   now,
+		LastRunID:   &runID,
 	}
-	if err := s.db.WithContext(ctx).Create(t).Error; err != nil {
+	run := &TaskRun{
+		RunID:     runID,
+		TaskID:    taskID,
+		Input:     input,
+		Status:    "PENDING",
+		CreatedAt: now,
+	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(t).Error; err != nil {
+			return err
+		}
+		return tx.Create(run).Error
+	})
+	if err != nil {
 		return nil, err
 	}
 	return t, nil
-}
-
-// GetNextPendingTask returns the oldest task with status PENDING (by created_at), or (nil, nil) if none.
-func (s *Store) GetNextPendingTask(ctx context.Context) (*Task, error) {
-	var t Task
-	err := s.db.WithContext(ctx).Where("status = ?", "PENDING").Order("created_at ASC").First(&t).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &t, nil
 }
 
 // UpdateTaskStatus updates a task's status and optional fields.

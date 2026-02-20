@@ -229,9 +229,19 @@ func RuntimeWorkspaceDir(workspaceID, taskID string) string {
 }
 
 // RuntimeTaskBuildmaxDir returns the buildmax subdir for a task run (agent data: sessions, logs, settings).
-// It is RuntimeWorkspaceDir(workspaceID, taskID)/buildmax.
+// It is RuntimeWorkspaceDir(workspaceID, taskID)/buildmax. For run-scoped dir use RuntimeTaskRunBuildmaxDir.
 func RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
 	return filepath.Join(RuntimeWorkspaceDir(workspaceID, taskID), "buildmax")
+}
+
+// RuntimeTaskRunBuildmaxDir returns the buildmax subdir for a specific run: .../tasks/<taskID>/<runID>/buildmax.
+func RuntimeTaskRunBuildmaxDir(workspaceID, taskID, runID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID, runID, "buildmax")
+}
+
+// RuntimeTaskRunDir returns the run directory: .../tasks/<taskID>/<runID>.
+func RuntimeTaskRunDir(workspaceID, taskID, runID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID, runID)
 }
 
 // RuntimeTaskWSDir returns the workspace subdir for a task run (materialized persist files).
@@ -241,9 +251,9 @@ func RuntimeTaskWSDir(workspaceID, taskID string) string {
 }
 
 // ArtifactDir returns the directory for one artifact's files (snapshot output of a task run).
-// It is WorkspacesDir()/<workspaceID>/artifacts/<taskID>/<artifactID>.
-func ArtifactDir(workspaceID, taskID, artifactID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", taskID, artifactID)
+// It is WorkspacesDir()/<workspaceID>/artifacts/<taskID>/<runID>/<artifactID>.
+func ArtifactDir(workspaceID, taskID, runID, artifactID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", taskID, runID, artifactID)
 }
 
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.

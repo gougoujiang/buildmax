@@ -11,26 +11,33 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// ErrTaskAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (task not SCHEDULED or already RUNNING).
-var ErrTaskAlreadyClaimed = errors.New("task already claimed or not scheduled")
+// ErrTaskAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (run not SCHEDULED or already RUNNING).
+var ErrTaskAlreadyClaimed = errors.New("task run already claimed or not scheduled")
 
-// getTaskResponse is the JSON response from GET /api/worker/tasks/{task_id} (snake_case).
-type getTaskResponse struct {
-	TaskID      string  `json:"task_id"`
-	WorkspaceID string  `json:"workspace_id"`
-	ProjectID   *string `json:"project_id,omitempty"`
-	Status      string  `json:"status"`
-	Input       string  `json:"input"`
-	CreatedBy   string  `json:"created_by"`
-	CreatedAt   int64   `json:"created_at"`
+// getTaskRunResponse is the JSON response from GET /api/worker/task-runs/{run_id} (snake_case).
+type getTaskRunResponse struct {
+	Run struct {
+		RunID    string  `json:"run_id"`
+		TaskID   string  `json:"task_id"`
+		Input    string  `json:"input"`
+		Status   string  `json:"status"`
+		CreatedAt int64  `json:"created_at"`
+	} `json:"run"`
+	Task struct {
+		TaskID      string  `json:"task_id"`
+		WorkspaceID string  `json:"workspace_id"`
+		ProjectID   *string `json:"project_id,omitempty"`
+		SessionID   *string `json:"session_id,omitempty"`
+		LastRunID   *string `json:"last_run_id,omitempty"`
+	} `json:"task"`
 }
 
-// GetWorkerTask fetches task details from the server (GET /api/worker/tasks/{task_id}). Returns nil, nil if task not found.
-func GetWorkerTask(ctx context.Context, baseURL, token, taskID string, client *http.Client) (*entity.Task, error) {
-	url := baseURL + "/api/worker/tasks/" + taskID
+// GetWorkerTaskRun fetches run and task from the server (GET /api/worker/task-runs/{run_id}). Returns nil, nil, nil if not found.
+func GetWorkerTaskRun(ctx context.Context, baseURL, token, runID string, client *http.Client) (*entity.TaskRun, *entity.Task, error) {
+	url := baseURL + "/api/worker/task-runs/" + runID
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -40,40 +47,45 @@ func GetWorkerTask(ctx context.Context, baseURL, token, taskID string, client *h
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("worker API GET %s: %s", url, resp.Status)
+		return nil, nil, fmt.Errorf("worker API GET %s: %s", url, resp.Status)
 	}
-	var got getTaskResponse
+	var got getTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	run := &entity.TaskRun{
+		RunID:     got.Run.RunID,
+		TaskID:    got.Run.TaskID,
+		Input:     got.Run.Input,
+		Status:    got.Run.Status,
+		CreatedAt: got.Run.CreatedAt,
 	}
 	task := &entity.Task{
-		TaskID:      got.TaskID,
-		WorkspaceID: got.WorkspaceID,
-		ProjectID:   got.ProjectID,
-		Status:      got.Status,
-		Input:       got.Input,
-		CreatedBy:   got.CreatedBy,
-		CreatedAt:   got.CreatedAt,
+		TaskID:      got.Task.TaskID,
+		WorkspaceID: got.Task.WorkspaceID,
+		ProjectID:   got.Task.ProjectID,
+		SessionID:   got.Task.SessionID,
+		LastRunID:   got.Task.LastRunID,
 	}
-	return task, nil
+	return run, task, nil
 }
 
-// WorkerHTTPUpdater implements TaskUpdater by calling the server's worker API (PATCH /api/worker/tasks/{task_id}).
+// WorkerHTTPUpdater implements TaskRunUpdater by calling the server's worker API (PATCH /api/worker/task-runs/{run_id}).
 type WorkerHTTPUpdater struct {
 	BaseURL string
 	Token   string
 	Client  *http.Client
 }
 
-// patchBody is the JSON body for PATCH /api/worker/tasks/{task_id} (snake_case).
-type patchBody struct {
+// patchRunBody is the JSON body for PATCH /api/worker/task-runs/{run_id} (snake_case).
+type patchRunBody struct {
 	Status       string  `json:"status"`
 	SessionID    *string `json:"session_id,omitempty"`
 	StartedAt    *int64  `json:"started_at,omitempty"`
@@ -86,9 +98,9 @@ type patchBody struct {
 	} `json:"artifact,omitempty"`
 }
 
-// UpdateTaskStatus sends PATCH to the server to update task status and optional fields.
-func (u *WorkerHTTPUpdater) UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error {
-	body := patchBody{Status: status, SessionID: sessionID, StartedAt: startedAt, EndedAt: endedAt, Output: output, ErrorMessage: errMsg}
+// UpdateRunStatus sends PATCH to the server to update run status and optional fields.
+func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, runID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error {
+	body := patchRunBody{Status: status, SessionID: sessionID, StartedAt: startedAt, EndedAt: endedAt, Output: output, ErrorMessage: errMsg}
 	if artifact != nil {
 		body.Artifact = &struct {
 			ArtifactID   string `json:"artifact_id"`
@@ -99,7 +111,7 @@ func (u *WorkerHTTPUpdater) UpdateTaskStatus(ctx context.Context, taskID, status
 	if err != nil {
 		return err
 	}
-	url := u.BaseURL + "/api/worker/tasks/" + taskID
+	url := u.BaseURL + "/api/worker/task-runs/" + runID
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(raw))
 	if err != nil {
 		return err

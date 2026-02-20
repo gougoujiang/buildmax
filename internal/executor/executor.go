@@ -1,8 +1,7 @@
-// Package executor provides task scheduling and task execution.
+// Package executor provides task run scheduling and execution.
 //
-//   - Scheduler (scheduler.go): polls for PENDING tasks and spawns the buildmax-worker binary.
-//   - Executor: RunTask runs a single task (materialize workspace, run buildmax -p, update status via TaskUpdater).
-//     Used by the worker binary; the scheduler does not call RunTask.
+//   - Scheduler: polls for PENDING task runs, spawns worker with --task-run-id.
+//   - RunTask: runs a single run (materialize workspace, optionally restore session, run buildmax -p, update run via TaskRunUpdater).
 package executor
 
 import (
@@ -22,48 +21,62 @@ import (
 	"buildmax/internal/util"
 )
 
-// ArtifactPayload is passed to TaskUpdater when registering an artifact on success.
+// ArtifactPayload is passed to TaskRunUpdater when registering an artifact on success.
 type ArtifactPayload struct {
 	ArtifactID   string
 	RelativePath string
 }
 
-// TaskUpdater is used by the worker to update task status and register artifacts via HTTP (or other backend).
-type TaskUpdater interface {
-	// UpdateTaskStatus updates task status and optional fields. For SUCCEEDED with artifact, pass non-nil artifact.
-	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error
+// TaskRunUpdater is used by the worker to update run status and register artifacts via HTTP.
+// When status is SUCCEEDED with artifact, server creates artifact and syncs task denormalized fields.
+// When status is FAILED, server syncs task denormalized from run.
+type TaskRunUpdater interface {
+	UpdateRunStatus(ctx context.Context, runID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error
 }
 
-// RunTask runs a single task: materialize workspace, run buildmax -p, then update status and optional artifact via updater.
-// Used by the buildmax-worker binary. task must not be nil; sessionID is the worker-generated session id.
-func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage, updater TaskUpdater) error {
-	if task == nil {
-		return errors.New("executor: task must not be nil")
+// RunTask runs a single task run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload buildmax, update run and task via updater.
+func RunTask(ctx context.Context, task *entity.Task, run *entity.TaskRun, sessionID string, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
+	if task == nil || run == nil {
+		return errors.New("executor: task and run must not be nil")
 	}
 	if paths == nil || persist == nil || artifactStorage == nil || updater == nil {
 		return errors.New("executor: paths, persist, artifactStorage and updater must not be nil")
 	}
 
-	taskDir := paths.RuntimeWorkspaceDir(task.WorkspaceID, task.TaskID)
-	buildmaxDir := paths.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID)
+	buildmaxDir := paths.RuntimeTaskRunBuildmaxDir(task.WorkspaceID, task.TaskID, run.RunID)
 	wsDir := paths.RuntimeTaskWSDir(task.WorkspaceID, task.TaskID)
 
 	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
-		slog.Error("executor: failed to create buildmax dir", "task_id", task.TaskID, "path", buildmaxDir, "err", err)
-		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create buildmax dir: %v", err)), nil, nil)
+		slog.Error("executor: failed to create buildmax dir", "run_id", run.RunID, "path", buildmaxDir, "err", err)
+		_ = updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create buildmax dir: %v", err)), nil, nil)
 		return err
 	}
 	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		slog.Error("executor: failed to create ws dir", "task_id", task.TaskID, "path", wsDir, "err", err)
-		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create ws dir: %v", err)), nil, nil)
+		slog.Error("executor: failed to create ws dir", "run_id", run.RunID, "path", wsDir, "err", err)
+		_ = updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create ws dir: %v", err)), nil, nil)
 		return err
 	}
+	// Restore session from previous run's buildmax if this is a follow-up run.
+	if task.SessionID != nil && task.LastRunID != nil && *task.LastRunID != run.RunID {
+		relPath := "sessions/" + *task.SessionID + ".json"
+		data, err := persist.GetTaskBuildmax(ctx, task.WorkspaceID, task.TaskID, *task.LastRunID, relPath)
+		if err == nil {
+			sessionsDir := filepath.Join(buildmaxDir, "sessions")
+			if err := os.MkdirAll(sessionsDir, 0755); err == nil {
+				_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
+			}
+		}
+	}
 	if err := persist.MaterializeToDir(ctx, task.WorkspaceID, wsDir); err != nil {
-		slog.Error("executor: failed to materialize workspace", "task_id", task.TaskID, "workspace_id", task.WorkspaceID, "err", err)
-		_ = updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to materialize workspace: %v", err)), nil, nil)
+		slog.Error("executor: failed to materialize workspace", "run_id", run.RunID, "workspace_id", task.WorkspaceID, "err", err)
+		_ = updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to materialize workspace: %v", err)), nil, nil)
 		return err
 	}
 
+	effectiveSessionID := sessionID
+	if task.SessionID != nil {
+		effectiveSessionID = *task.SessionID
+	}
 	env := os.Environ()
 	prefix := config.EnvKeyBuildmaxHome + "="
 	filtered := make([]string, 0, len(env)+1)
@@ -72,7 +85,7 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 			filtered = append(filtered, e)
 		}
 	}
-	cmd := exec.CommandContext(ctx, "buildmax", "-p", task.Input, "--session-id", sessionID)
+	cmd := exec.CommandContext(ctx, "buildmax", "-p", run.Input, "--session-id", effectiveSessionID)
 	cmd.Dir = wsDir
 	cmd.Env = append(filtered, prefix+buildmaxDir)
 
@@ -80,39 +93,39 @@ func RunTask(ctx context.Context, task *entity.Task, sessionID string, paths Wor
 	endTime := time.Now().Unix()
 	outputStr := string(output)
 
-	resultFilename := fmt.Sprintf("result-%s.md", task.TaskID)
-	resultPath := filepath.Join(taskDir, resultFilename)
+	resultFilename := fmt.Sprintf("result-%s.md", run.RunID)
+	runDir := filepath.Dir(buildmaxDir)
+	resultPath := filepath.Join(runDir, resultFilename)
 	if writeErr := os.WriteFile(resultPath, output, 0644); writeErr != nil {
-		slog.Error("executor: failed to write result file", "task_id", task.TaskID, "path", resultPath, "err", writeErr)
+		slog.Error("executor: failed to write result file", "run_id", run.RunID, "path", resultPath, "err", writeErr)
 	}
 
-	uploadTaskBuildmax(ctx, buildmaxDir, task.WorkspaceID, task.TaskID, persist)
+	uploadTaskBuildmax(ctx, buildmaxDir, task.WorkspaceID, task.TaskID, run.RunID, persist)
 
 	if err != nil {
 		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
-		slog.Error("executor: task failed", "task_id", task.TaskID, "err", err, "output_len", len(outputStr))
-		if updateErr := updater.UpdateTaskStatus(ctx, task.TaskID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil, nil); updateErr != nil {
-			slog.Error("executor: failed to update task status to FAILED", "task_id", task.TaskID, "err", updateErr)
+		slog.Error("executor: run failed", "run_id", run.RunID, "err", err, "output_len", len(outputStr))
+		if updateErr := updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil, nil); updateErr != nil {
+			slog.Error("executor: failed to update run status to FAILED", "run_id", run.RunID, "err", updateErr)
 		}
 		return err
 	}
 
 	artifactID := util.NewULID()
-	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, artifactID, output); putErr != nil {
-		slog.Error("executor: failed to write result to artifact storage", "task_id", task.TaskID, "err", putErr)
+	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, run.RunID, artifactID, output); putErr != nil {
+		slog.Error("executor: failed to write result to artifact storage", "run_id", run.RunID, "err", putErr)
 	}
-	if updateErr := updater.UpdateTaskStatus(ctx, task.TaskID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename}); updateErr != nil {
-		slog.Error("executor: failed to update task status to SUCCEEDED", "task_id", task.TaskID, "err", updateErr)
+	if updateErr := updater.UpdateRunStatus(ctx, run.RunID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename}); updateErr != nil {
+		slog.Error("executor: failed to update run status to SUCCEEDED", "run_id", run.RunID, "err", updateErr)
 		return updateErr
 	}
 
-	slog.Info("executor: task succeeded", "task_id", task.TaskID)
+	slog.Info("executor: run succeeded", "run_id", run.RunID)
 	return nil
 }
 
-// uploadTaskBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage.
-// Best-effort: missing files or PutTaskBuildmax errors are logged and skipped.
-func uploadTaskBuildmax(ctx context.Context, buildmaxDir, workspaceID, taskID string, persist blob.PersistStorage) {
+// uploadTaskBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage for the run.
+func uploadTaskBuildmax(ctx context.Context, buildmaxDir, workspaceID, taskID, runID string, persist blob.PersistStorage) {
 	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.json"}
 	sessionsDir := filepath.Join(buildmaxDir, "sessions")
 	entries, err := os.ReadDir(sessionsDir)
@@ -132,13 +145,13 @@ func uploadTaskBuildmax(ctx context.Context, buildmaxDir, workspaceID, taskID st
 		}
 		f, err := os.Open(fullPath)
 		if err != nil {
-			slog.Warn("executor: upload task buildmax open failed", "task_id", taskID, "rel_path", relPath, "err", err)
+			slog.Warn("executor: upload task buildmax open failed", "run_id", runID, "rel_path", relPath, "err", err)
 			continue
 		}
-		putErr := persist.PutTaskBuildmax(ctx, workspaceID, taskID, filepath.ToSlash(relPath), f)
+		putErr := persist.PutTaskBuildmax(ctx, workspaceID, taskID, runID, filepath.ToSlash(relPath), f)
 		f.Close()
 		if putErr != nil {
-			slog.Warn("executor: upload task buildmax put failed", "task_id", taskID, "rel_path", relPath, "err", putErr)
+			slog.Warn("executor: upload task buildmax put failed", "run_id", runID, "rel_path", relPath, "err", putErr)
 		}
 	}
 }

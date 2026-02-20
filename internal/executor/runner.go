@@ -16,9 +16,9 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// WorkerRunner starts a worker for a task. On success returns worker info to persist; on failure returns an error (caller should revert task to PENDING).
+// WorkerRunner starts a worker for a task run. On success returns worker info to persist; on failure returns an error (caller should revert run to PENDING).
 type WorkerRunner interface {
-	Run(ctx context.Context, task entity.Task) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error)
+	Run(ctx context.Context, run entity.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error)
 }
 
 // LocalRunner runs the worker binary as a local process (blocks until exit).
@@ -26,15 +26,15 @@ type LocalRunner struct {
 	workerPath string
 }
 
-// NewLocalRunner returns a runner that exec's the worker binary with --task-id.
+// NewLocalRunner returns a runner that exec's the worker binary with --task-run-id.
 func NewLocalRunner(workerPath string) *LocalRunner {
 	return &LocalRunner{workerPath: workerPath}
 }
 
 // Run executes the worker process; on success returns ("local_process", nil, nil, nil). On failure returns error.
-func (r *LocalRunner) Run(ctx context.Context, task entity.Task) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
-	slog.Info("scheduler: spawning worker", "task_id", task.TaskID, "workspace_id", task.WorkspaceID)
-	cmd := exec.CommandContext(ctx, r.workerPath, "--task-id", task.TaskID)
+func (r *LocalRunner) Run(ctx context.Context, run entity.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+	slog.Info("scheduler: spawning worker", "run_id", run.RunID, "task_id", run.TaskID)
+	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.RunID)
 	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
 		return "", nil, nil, err

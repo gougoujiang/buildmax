@@ -133,7 +133,8 @@ func BuildPersistStorage(cfg WorkspaceStorageConfig, persistRoot func(workspaceI
 }
 
 // BuildArtifactStorage returns the configured artifact storage implementation.
-func BuildArtifactStorage(cfg WorkspaceStorageConfig, artifactDir func(workspaceID, taskID, artifactID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
+// artifactDir is (workspaceID, taskID, runID, artifactID) -> path.
+func BuildArtifactStorage(cfg WorkspaceStorageConfig, artifactDir func(workspaceID, taskID, runID, artifactID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
 	switch cfg.ArtifactProvider {
 	case ProviderMinIO:
 		if s3Client == nil {

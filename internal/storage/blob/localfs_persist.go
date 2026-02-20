@@ -74,12 +74,12 @@ func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, workspaceID strin
 }
 
 // PutTaskBuildmax is a no-op for local FS (task buildmax files already live on worker disk).
-func (s *LocalFSPersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string, r io.Reader) error {
+func (s *LocalFSPersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string, r io.Reader) error {
 	return nil
 }
 
 // GetTaskBuildmax returns ErrNotFound; task buildmax files are not in the persist root for local_fs (caller uses local path).
-func (s *LocalFSPersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string) ([]byte, error) {
+func (s *LocalFSPersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string) ([]byte, error) {
 	return nil, ErrNotFound
 }
 

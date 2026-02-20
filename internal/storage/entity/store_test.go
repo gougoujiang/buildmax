@@ -97,6 +97,7 @@ func TestIncrementTaskSeq(t *testing.T) {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
 		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
 	}()
 
@@ -142,9 +143,13 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&ArtifactItem{}, "artifact_id = ?", artifactID)
 		_ = s.db.WithContext(ctx).Delete(&Artifact{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
 		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
 	}()
-	err = s.CreateArtifactWithItem(ctx, task.TaskID, artifactID, 1, "result-task.md")
+	if task.LastRunID == nil {
+		t.Fatal("CreateTask should set LastRunID")
+	}
+	err = s.CreateArtifactWithItem(ctx, task.TaskID, *task.LastRunID, artifactID, 1, "result-task.md")
 	if err != nil {
 		t.Fatalf("CreateArtifactWithItem: %v", err)
 	}
@@ -152,8 +157,8 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	if err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).First(&art).Error; err != nil {
 		t.Fatalf("find artifact: %v", err)
 	}
-	if art.TaskID != task.TaskID || art.Seq != 1 {
-		t.Errorf("artifact: task_id=%q seq=%d, want task_id=%q seq=1", art.TaskID, art.Seq, task.TaskID)
+	if art.TaskID != task.TaskID || art.TaskRunID != *task.LastRunID || art.Seq != 1 {
+		t.Errorf("artifact: task_id=%q task_run_id=%q seq=%d, want task_id=%q task_run_id=%q seq=1", art.TaskID, art.TaskRunID, art.Seq, task.TaskID, *task.LastRunID)
 	}
 	var item ArtifactItem
 	if err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).First(&item).Error; err != nil {
@@ -178,8 +183,8 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	if len(artList) != 1 {
 		t.Fatalf("ListArtifactsByWorkspace: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != artifactID || artList[0].TaskID != task.TaskID || artList[0].WorkspaceID != workspaceID {
-		t.Errorf("ListArtifactsByWorkspace: got artifact_id=%q task_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].TaskID, artList[0].WorkspaceID)
+	if artList[0].ArtifactID != artifactID || artList[0].TaskID != task.TaskID || artList[0].TaskRunID != *task.LastRunID || artList[0].WorkspaceID != workspaceID {
+		t.Errorf("ListArtifactsByWorkspace: got artifact_id=%q task_id=%q task_run_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].TaskID, artList[0].TaskRunID, artList[0].WorkspaceID)
 	}
 	if artList[0].TaskInputSnippet != "input" {
 		t.Errorf("ListArtifactsByWorkspace: task_input_snippet = %q, want input", artList[0].TaskInputSnippet)
@@ -251,6 +256,7 @@ func TestUpdateTaskStatusIf(t *testing.T) {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
 		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
 	}()
 

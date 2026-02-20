@@ -494,10 +494,10 @@ func TestRuntimeTaskWSDir(t *testing.T) {
 func TestArtifactDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := ArtifactDir("ws-1", "task-456", "art-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "task-456", "art-789")
+	got := ArtifactDir("ws-1", "task-456", "run-1", "art-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "task-456", "run-1", "art-789")
 	if got != want {
-		t.Errorf("ArtifactDir(\"ws-1\", \"task-456\", \"art-789\") = %q, want %q", got, want)
+		t.Errorf("ArtifactDir(\"ws-1\", \"task-456\", \"run-1\", \"art-789\") = %q, want %q", got, want)
 	}
 }
 

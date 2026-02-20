@@ -194,15 +194,6 @@ func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *mockTaskStore) GetNextPendingTask(_ context.Context) (*entity.Task, error) {
-	for i := range m.list {
-		if m.list[i].Status == "PENDING" {
-			return &m.list[i], nil
-		}
-	}
-	return nil, nil
-}
-
 func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
 	for i := range m.list {
 		if m.list[i].TaskID == taskID {
@@ -275,10 +266,6 @@ func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int,
 	return 0, nil
 }
 
-func (m *mockTaskStore) CreateArtifactWithItem(_ context.Context, taskID, artifactID string, seq int, relativePath string) error {
-	return nil
-}
-
 func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task, error) {
 	for i := range m.list {
 		if m.list[i].TaskID == taskID {
@@ -286,6 +273,93 @@ func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task,
 		}
 	}
 	return nil, nil
+}
+
+// mockTaskRunStore is an in-memory TaskRunStore for tests. Uses runs list and taskList to resolve GetTaskRunWithTask.
+type mockTaskRunStore struct {
+	runs     []entity.TaskRun
+	taskList []entity.Task // tasks by task_id for GetTaskRunWithTask
+}
+
+func (m *mockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy string) (*entity.TaskRun, error) {
+	return nil, nil
+}
+func (m *mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) { return nil, nil }
+func (m *mockTaskRunStore) GetTaskRun(_ context.Context, runID string) (*entity.TaskRun, error) {
+	for i := range m.runs {
+		if m.runs[i].RunID == runID {
+			return &m.runs[i], nil
+		}
+	}
+	return nil, nil
+}
+func (m *mockTaskRunStore) GetTaskRunWithTask(_ context.Context, runID string) (*entity.TaskRun, *entity.Task, error) {
+	var run *entity.TaskRun
+	for i := range m.runs {
+		if m.runs[i].RunID == runID {
+			run = &m.runs[i]
+			break
+		}
+	}
+	if run == nil {
+		return nil, nil, nil
+	}
+	var task *entity.Task
+	for i := range m.taskList {
+		if m.taskList[i].TaskID == run.TaskID {
+			task = &m.taskList[i]
+			break
+		}
+	}
+	return run, task, nil
+}
+func (m *mockTaskRunStore) UpdateTaskRunStatusIf(_ context.Context, runID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+	for i := range m.runs {
+		if m.runs[i].RunID == runID && m.runs[i].Status == expectedStatus {
+			m.runs[i].Status = newStatus
+			if startedAt != nil {
+				m.runs[i].StartedAt = startedAt
+			}
+			if sessionID != nil {
+				m.runs[i].SessionID = sessionID
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (m *mockTaskRunStore) UpdateTaskRunStatus(_ context.Context, runID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+	for i := range m.runs {
+		if m.runs[i].RunID == runID {
+			m.runs[i].Status = status
+			if startedAt != nil {
+				m.runs[i].StartedAt = startedAt
+			}
+			if endedAt != nil {
+				m.runs[i].EndedAt = endedAt
+			}
+			if output != nil {
+				m.runs[i].Output = output
+			}
+			if errorMessage != nil {
+				m.runs[i].ErrorMessage = errorMessage
+			}
+			if sessionID != nil {
+				m.runs[i].SessionID = sessionID
+			}
+			return nil
+		}
+	}
+	return nil
+}
+func (m *mockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, runID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+	return nil
+}
+func (m *mockTaskRunStore) OnRunComplete(_ context.Context, runID, artifactID, relativePath string) error {
+	return nil
+}
+func (m *mockTaskRunStore) SyncTaskFromRun(_ context.Context, runID string) error {
+	return nil
 }
 
 // mockArtifactStore is an in-memory ArtifactStore for tests.
@@ -297,7 +371,7 @@ type mockArtifactStore struct {
 	listItems map[string][]entity.ArtifactItem // artifact_id -> items
 }
 
-func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, taskID, artifactID string, seq int, relativePath string) error {
+func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, taskID, taskRunID, artifactID string, seq int, relativePath string) error {
 	return nil
 }
 
@@ -327,20 +401,20 @@ func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID stri
 
 // mockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
 type mockArtifactStorage struct {
-	results map[string][]byte // "workspaceID/taskID/artifactID" -> content
+	results map[string][]byte // "workspaceID/taskID/runID/artifactID" -> content
 }
 
 func newMockArtifactStorage() *mockArtifactStorage {
 	return &mockArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, taskID, artifactID string, data []byte) error {
-	m.results[workspaceID+"/"+taskID+"/"+artifactID] = append([]byte(nil), data...)
+func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, taskID, runID, artifactID string, data []byte) error {
+	m.results[workspaceID+"/"+taskID+"/"+runID+"/"+artifactID] = append([]byte(nil), data...)
 	return nil
 }
 
-func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, taskID, artifactID string) ([]byte, error) {
-	key := workspaceID + "/" + taskID + "/" + artifactID
+func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, taskID, runID, artifactID string) ([]byte, error) {
+	key := workspaceID + "/" + taskID + "/" + runID + "/" + artifactID
 	if data, ok := m.results[key]; ok {
 		return data, nil
 	}

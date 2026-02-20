@@ -26,10 +26,14 @@ func (p *serverWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string
 	return filepath.Join(p.root, workspaceID, "tasks", taskID, "buildmax")
 }
 
+func (p *serverWorkspacePaths) RuntimeTaskRunBuildmaxDir(workspaceID, taskID, runID string) string {
+	return filepath.Join(p.root, workspaceID, "tasks", taskID, runID, "buildmax")
+}
+
 func (p *serverWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
 	return filepath.Join(p.root, workspaceID, "tasks", taskID, "ws")
 }
 
-func (p *serverWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
-	return filepath.Join(p.root, workspaceID, "artifacts", taskID, artifactID)
+func (p *serverWorkspacePaths) ArtifactDir(workspaceID, taskID, runID, artifactID string) string {
+	return filepath.Join(p.root, workspaceID, "artifacts", taskID, runID, artifactID)
 }

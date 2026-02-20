@@ -1,6 +1,9 @@
 package entity
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // UserStore looks up users by email and creates new users.
 type UserStore interface {
@@ -27,33 +30,45 @@ type ProjectStore interface {
 }
 
 // TaskStore provides task persistence. Tasks belong to a workspace; project is optional.
+// CreateTask creates task + first TaskRun (both in one transaction).
 type TaskStore interface {
-	// ListTasksByWorkspace returns tasks in the workspace. If projectID is non-nil, filter by that project.
 	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
-	// GetTask returns the task by task_id, or (nil, nil) if not found.
 	GetTask(ctx context.Context, taskID string) (*Task, error)
-	// GetTaskBySessionID returns the task that has the given session_id, or (nil, nil) if none.
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
-	// CreateTask inserts a new task with status PENDING. projectID is optional (nil = no project).
+	// CreateTask creates a new task and its first TaskRun (input, PENDING). Returns the task with last_run_id set.
 	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
-	// GetNextPendingTask returns the oldest task with status PENDING (by created_at), or (nil, nil) if none.
-	GetNextPendingTask(ctx context.Context) (*Task, error)
-	// UpdateTaskStatus updates a task's status and optional fields (started_at, ended_at, output, error_message, session_id).
-	// Only non-nil pointer fields are updated.
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
-	// UpdateTaskStatusIf updates a task's status and optional fields only when current status equals expectedStatus.
-	// Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
 	UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
-	// UpdateTaskWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the task. Used after scheduler runs a worker.
 	UpdateTaskWorkerInfo(ctx context.Context, taskID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
-	// IncrementTaskSeq atomically increments the task's artifact_seq and returns the new value.
 	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
+}
+
+// ErrRunInProgress is returned by CreateTaskRun when the task already has a run in PENDING, SCHEDULED, or RUNNING.
+var ErrRunInProgress = errors.New("task has a run already in progress")
+
+// TaskRunStore provides task run persistence.
+type TaskRunStore interface {
+	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if task has any run in PENDING/SCHEDULED/RUNNING.
+	CreateTaskRun(ctx context.Context, taskID, input, createdBy string) (*TaskRun, error)
+	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
+	GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error)
+	GetTaskRun(ctx context.Context, runID string) (*TaskRun, error)
+	// GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
+	GetTaskRunWithTask(ctx context.Context, runID string) (*TaskRun, *Task, error)
+	// UpdateTaskRunStatusIf atomically updates run status when current status equals expectedStatus. Returns updated.
+	UpdateTaskRunStatusIf(ctx context.Context, runID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error)
+	UpdateTaskRunStatus(ctx context.Context, runID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
+	UpdateTaskRunWorkerInfo(ctx context.Context, runID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
+	// OnRunComplete creates artifact, updates task denormalized fields and last_run_id, and task.session_id if run set it. Use for SUCCEEDED runs.
+	OnRunComplete(ctx context.Context, runID, artifactID, relativePath string) error
+	// SyncTaskFromRun updates task denormalized fields and last_run_id from the run (no artifact). Use for FAILED runs.
+	SyncTaskFromRun(ctx context.Context, runID string) error
 }
 
 // ArtifactStore provides artifact persistence.
 type ArtifactStore interface {
-	// CreateArtifactWithItem creates one artifact row, one artifact_item row, and updates task.last_artifact_id. All in a transaction.
-	CreateArtifactWithItem(ctx context.Context, taskID, artifactID string, seq int, relativePath string) error
+	// CreateArtifactWithItem creates one artifact row (with task_run_id), one artifact_item row, and updates task.last_artifact_id.
+	CreateArtifactWithItem(ctx context.Context, taskID, taskRunID, artifactID string, seq int, relativePath string) error
 	// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id and project_id. Order: created_at DESC. Task_input_snippet is truncated to 200 chars.
 	ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID, projectID *string) ([]ArtifactWithTask, error)
 	// GetArtifactByID returns the artifact by artifact_id, or (nil, nil) if not found.

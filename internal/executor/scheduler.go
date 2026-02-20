@@ -13,25 +13,25 @@ import (
 
 const defaultPollInterval = 5 * time.Second
 
-// Scheduler polls the task store for PENDING tasks and runs the worker via the configured runner.
+// Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	tasks        entity.TaskStore
+	taskRuns     entity.TaskRunStore
 	runner       WorkerRunner
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 }
 
-// NewScheduler creates a Scheduler that polls and runs the worker via the given runner. Call Start() to begin polling.
-func NewScheduler(taskStore entity.TaskStore, runner WorkerRunner) (*Scheduler, error) {
-	if taskStore == nil {
-		return nil, errors.New("executor: taskStore must not be nil")
+// NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
+func NewScheduler(taskRunStore entity.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
+	if taskRunStore == nil {
+		return nil, errors.New("executor: taskRunStore must not be nil")
 	}
 	if runner == nil {
 		return nil, errors.New("executor: runner must not be nil")
 	}
 	return &Scheduler{
-		tasks:        taskStore,
+		taskRuns:     taskRunStore,
 		runner:       runner,
 		pollInterval: defaultPollInterval,
 		stopCh:       make(chan struct{}),
@@ -52,8 +52,8 @@ func (s *Scheduler) Stop() {
 	slog.Info("scheduler stopped")
 }
 
-// loop is the main poll loop: on each tick it fetches the next PENDING task, claims it (PENDING→SCHEDULED), runs the worker, and persists worker info on success.
-// If run fails, the task is reverted to PENDING so the next poll retries.
+// loop is the main poll loop: on each tick it fetches the next PENDING run, claims it (PENDING→SCHEDULED), runs the worker, and persists worker info on success.
+// If run fails, the run is reverted to PENDING so the next poll retries.
 func (s *Scheduler) loop() {
 	defer close(s.doneCh)
 	ticker := time.NewTicker(s.pollInterval)
@@ -65,32 +65,32 @@ func (s *Scheduler) loop() {
 			return
 		case <-ticker.C:
 			ctx := context.Background()
-			task, err := s.tasks.GetNextPendingTask(ctx)
+			run, err := s.taskRuns.GetNextPendingTaskRun(ctx)
 			if err != nil {
 				slog.Warn("scheduler: poll failed", "err", err)
 				continue
 			}
-			if task == nil {
+			if run == nil {
 				continue
 			}
-			updated, err := s.tasks.UpdateTaskStatusIf(ctx, task.TaskID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+			updated, err := s.taskRuns.UpdateTaskRunStatusIf(ctx, run.RunID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
 			if err != nil {
-				slog.Warn("scheduler: claim failed", "task_id", task.TaskID, "err", err)
+				slog.Warn("scheduler: claim failed", "run_id", run.RunID, "err", err)
 				continue
 			}
 			if !updated {
 				continue // another scheduler claimed it
 			}
-			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *task)
+			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run)
 			if err != nil {
-				slog.Warn("scheduler: worker run failed, reverting task to PENDING", "task_id", task.TaskID, "err", err)
-				if revertErr := s.tasks.UpdateTaskStatus(ctx, task.TaskID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
-					slog.Error("scheduler: failed to revert task to PENDING", "task_id", task.TaskID, "err", revertErr)
+				slog.Warn("scheduler: worker run failed, reverting run to PENDING", "run_id", run.RunID, "err", err)
+				if revertErr := s.taskRuns.UpdateTaskRunStatus(ctx, run.RunID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
+					slog.Error("scheduler: failed to revert run to PENDING", "run_id", run.RunID, "err", revertErr)
 				}
 				continue
 			}
-			if err := s.tasks.UpdateTaskWorkerInfo(ctx, task.TaskID, workerType, k8sName, k8sAt); err != nil {
-				slog.Warn("scheduler: failed to persist worker info", "task_id", task.TaskID, "err", err)
+			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.RunID, workerType, k8sName, k8sAt); err != nil {
+				slog.Warn("scheduler: failed to persist worker info", "run_id", run.RunID, "err", err)
 			}
 		}
 	}

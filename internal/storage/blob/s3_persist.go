@@ -61,18 +61,18 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, workspaceID string) ([
 	return out, nil
 }
 
-// PutTaskBuildmax writes one file under the task buildmax key space (prefix/workspaceID/tasks/taskID/buildmax/relPath).
-func (s *S3PersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string, r io.Reader) error {
-	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, relPath)
+// PutTaskBuildmax writes one file under the task run buildmax key space (prefix/workspaceID/tasks/taskID/runID/buildmax/relPath).
+func (s *S3PersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string, r io.Reader) error {
+	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, runID, relPath)
 	if err != nil {
 		return err
 	}
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetTaskBuildmax reads one file from the task buildmax key space. Returns ErrNotFound if the object does not exist.
-func (s *S3PersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string) ([]byte, error) {
-	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, relPath)
+// GetTaskBuildmax reads one file from the task run buildmax key space. Returns ErrNotFound if the object does not exist.
+func (s *S3PersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string) ([]byte, error) {
+	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, runID, relPath)
 	if err != nil {
 		return nil, err
 	}

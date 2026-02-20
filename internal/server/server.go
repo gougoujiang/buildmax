@@ -27,6 +27,7 @@ type Config struct {
 	WorkspaceStore  entity.WorkspaceStore       // Optional; required for GET /api/workspaces
 	ProjectStore    entity.ProjectStore         // Optional; required for project list/create
 	TaskStore       entity.TaskStore            // Optional; required for task list/create
+	TaskRunStore    entity.TaskRunStore         // Optional; required for POST runs and worker task-runs API
 	ArtifactStore   entity.ArtifactStore        // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
 	PersistStorage  blob.PersistStorage         // Optional; required for upload and Explore (files tree/content)
 	ArtifactStorage blob.ArtifactStorage        // Optional; required for artifact content file read
@@ -59,6 +60,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/projects", s.createProjectHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks", s.listWorkspaceTasksHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks", s.createWorkspaceTaskHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks/{task_id}/runs", s.createTaskRunHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts", s.listWorkspaceArtifactsHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/items", s.listArtifactItemsHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/content", s.artifactContentHandler)
@@ -66,8 +68,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation", s.getTaskConversationHandler)
-	mux.Handle("GET /api/worker/tasks/{task_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskHandler)))
-	mux.Handle("PATCH /api/worker/tasks/{task_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskHandler)))
+	mux.Handle("GET /api/worker/task-runs/{run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskRunHandler)))
+	mux.Handle("PATCH /api/worker/task-runs/{run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskRunHandler)))
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

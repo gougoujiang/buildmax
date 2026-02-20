@@ -29,23 +29,26 @@ func (testWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string
 func (testWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
 	return config.RuntimeTaskBuildmaxDir(workspaceID, taskID)
 }
+func (testWorkspacePaths) RuntimeTaskRunBuildmaxDir(workspaceID, taskID, runID string) string {
+	return config.RuntimeTaskRunBuildmaxDir(workspaceID, taskID, runID)
+}
 func (testWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
 	return config.RuntimeTaskWSDir(workspaceID, taskID)
 }
-func (testWorkspacePaths) ArtifactDir(workspaceID, taskID, artifactID string) string {
-	return config.ArtifactDir(workspaceID, taskID, artifactID)
+func (testWorkspacePaths) ArtifactDir(workspaceID, taskID, runID, artifactID string) string {
+	return config.ArtifactDir(workspaceID, taskID, runID, artifactID)
 }
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
 	files        map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
-	taskBuildmax map[string]map[string][]byte   // "workspaceID/taskID" -> relPath -> content
+	taskBuildmax map[string][]byte            // "workspaceID/taskID/runID/relPath" -> content
 }
 
 func newFakePersistStorage() *fakePersistStorage {
 	return &fakePersistStorage{
 		files:        make(map[string]map[string][]byte),
-		taskBuildmax: make(map[string]map[string][]byte),
+		taskBuildmax: make(map[string][]byte),
 	}
 }
 
@@ -96,35 +99,28 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 	return nil
 }
 
-func (f *fakePersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string, r io.Reader) error {
-	key := workspaceID + "/" + taskID
-	if f.taskBuildmax[key] == nil {
-		f.taskBuildmax[key] = make(map[string][]byte)
-	}
+func (f *fakePersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string, r io.Reader) error {
+	key := workspaceID + "/" + taskID + "/" + runID + "/" + relPath
 	data, _ := io.ReadAll(r)
-	f.taskBuildmax[key][relPath] = data
+	f.taskBuildmax[key] = data
 	return nil
 }
 
-// taskBuildmaxRelPaths returns the set of relPaths uploaded for the given workspaceID/taskID.
-func (f *fakePersistStorage) taskBuildmaxRelPaths(workspaceID, taskID string) []string {
-	key := workspaceID + "/" + taskID
-	if f.taskBuildmax[key] == nil {
-		return nil
-	}
+// taskBuildmaxRelPaths returns the set of relPaths uploaded for the given workspaceID/taskID/runID.
+func (f *fakePersistStorage) taskBuildmaxRelPaths(workspaceID, taskID, runID string) []string {
+	prefix := workspaceID + "/" + taskID + "/" + runID + "/"
 	var out []string
-	for p := range f.taskBuildmax[key] {
-		out = append(out, p)
+	for k := range f.taskBuildmax {
+		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
+			out = append(out, k[len(prefix):])
+		}
 	}
 	return out
 }
 
-func (f *fakePersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, relPath string) ([]byte, error) {
-	key := workspaceID + "/" + taskID
-	if f.taskBuildmax[key] == nil {
-		return nil, blob.ErrNotFound
-	}
-	data, ok := f.taskBuildmax[key][relPath]
+func (f *fakePersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string) ([]byte, error) {
+	key := workspaceID + "/" + taskID + "/" + runID + "/" + relPath
+	data, ok := f.taskBuildmax[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
@@ -140,14 +136,14 @@ func newFakeArtifactStorage() *fakeArtifactStorage {
 	return &fakeArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, taskID, artifactID string, data []byte) error {
-	key := workspaceID + "/" + taskID + "/" + artifactID
+func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, taskID, runID, artifactID string, data []byte) error {
+	key := workspaceID + "/" + taskID + "/" + runID + "/" + artifactID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID, artifactID string) ([]byte, error) {
-	key := workspaceID + "/" + taskID + "/" + artifactID
+func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID, runID, artifactID string) ([]byte, error) {
+	key := workspaceID + "/" + taskID + "/" + runID + "/" + artifactID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -155,43 +151,41 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID
 	return data, nil
 }
 
-// mockTaskStore is a minimal TaskStore for Scheduler constructor tests.
-type mockTaskStore struct{}
+// mockTaskRunStore is a minimal TaskRunStore for Scheduler constructor tests.
+type mockTaskRunStore struct{}
 
-func (mockTaskStore) ListTasksByWorkspace(_ context.Context, _ string, _ *string) ([]entity.Task, error) {
+func (mockTaskRunStore) CreateTaskRun(_ context.Context, _, _, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
-func (mockTaskStore) GetTask(_ context.Context, _ string) (*entity.Task, error) { return nil, nil }
-func (mockTaskStore) GetTaskBySessionID(_ context.Context, _ string) (*entity.Task, error) {
-	return nil, nil
+func (mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) { return nil, nil }
+func (mockTaskRunStore) GetTaskRun(_ context.Context, _ string) (*entity.TaskRun, error) { return nil, nil }
+func (mockTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*entity.TaskRun, *entity.Task, error) {
+	return nil, nil, nil
 }
-func (mockTaskStore) CreateTask(_ context.Context, _ string, _ *string, _, _ string) (*entity.Task, error) {
-	return nil, nil
-}
-func (mockTaskStore) GetNextPendingTask(_ context.Context) (*entity.Task, error) { return nil, nil }
-func (mockTaskStore) UpdateTaskStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
-	return nil
-}
-func (mockTaskStore) UpdateTaskStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
+func (mockTaskRunStore) UpdateTaskRunStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
 	return false, nil
 }
-func (mockTaskStore) UpdateTaskWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+func (mockTaskRunStore) UpdateTaskRunStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
 	return nil
 }
-func (mockTaskStore) IncrementTaskSeq(_ context.Context, _ string) (int, error) { return 0, nil }
+func (mockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+	return nil
+}
+func (mockTaskRunStore) OnRunComplete(_ context.Context, _, _, _ string) error { return nil }
+func (mockTaskRunStore) SyncTaskFromRun(_ context.Context, _ string) error      { return nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {
 	runner := NewLocalRunner("buildmax-worker")
-	// Nil taskStore should error.
+	// Nil taskRunStore should error.
 	_, err := NewScheduler(nil, runner)
 	if err == nil {
-		t.Fatal("NewScheduler with nil taskStore should error")
+		t.Fatal("NewScheduler with nil taskRunStore should error")
 	}
-	if err.Error() != "executor: taskStore must not be nil" {
+	if err.Error() != "executor: taskRunStore must not be nil" {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Nil runner should error.
-	_, err = NewScheduler(mockTaskStore{}, nil)
+	_, err = NewScheduler(mockTaskRunStore{}, nil)
 	if err == nil {
 		t.Fatal("NewScheduler with nil runner should error")
 	}
@@ -199,7 +193,7 @@ func TestNewScheduler_ValidatesInputs(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Valid args should succeed.
-	s, err := NewScheduler(mockTaskStore{}, runner)
+	s, err := NewScheduler(mockTaskRunStore{}, runner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,9 +215,9 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, fake)
-	task := entity.Task{TaskID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", WorkspaceID: "ws1", Status: "SCHEDULED"}
+	run := entity.TaskRun{RunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "task1", Status: "SCHEDULED"}
 
-	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), task)
+	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -294,9 +288,9 @@ func TestUploadTaskBuildmax_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", fake)
+	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", "run1", fake)
 
-	got := fake.taskBuildmaxRelPaths("ws1", "task1")
+	got := fake.taskBuildmaxRelPaths("ws1", "task1", "run1")
 	if len(got) != 3 {
 		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
 	}
@@ -307,8 +301,8 @@ func TestUploadTaskBuildmax_UploadsPresentFiles(t *testing.T) {
 		}
 	}
 	// Content sanity
-	key := "ws1/task1"
-	if string(fake.taskBuildmax[key]["settings.json"]) != "{}" {
+	key := "ws1/task1/run1/settings.json"
+	if string(fake.taskBuildmax[key]) != "{}" {
 		t.Errorf("settings.json content mismatch")
 	}
 }
@@ -318,8 +312,8 @@ func TestUploadTaskBuildmax_SkipsMissingFiles(t *testing.T) {
 	buildmaxDir := t.TempDir()
 	// Empty buildmax dir: no files created
 	fake := newFakePersistStorage()
-	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", fake)
-	got := fake.taskBuildmaxRelPaths("ws1", "task1")
+	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", "run1", fake)
+	got := fake.taskBuildmaxRelPaths("ws1", "task1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}

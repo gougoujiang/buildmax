@@ -184,8 +184,8 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
 		return
 	}
-	// Current layout: only result.md is stored; serve via ArtifactStorage.
-	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, task.TaskID, artifactID)
+	// Current layout: only result.md is stored; serve via ArtifactStorage (path includes task_run_id).
+	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, task.TaskID, artifact.TaskRunID, artifactID)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "artifact content not found")

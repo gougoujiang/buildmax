@@ -70,6 +70,15 @@ func (s *Server) requireTaskStore(w http.ResponseWriter) bool {
 	return true
 }
 
+// requireTaskRunStore writes 503 "task runs not configured" and returns false if TaskRunStore is nil.
+func (s *Server) requireTaskRunStore(w http.ResponseWriter) bool {
+	if s.cfg.TaskRunStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
+		return false
+	}
+	return true
+}
+
 // requireArtifactStore writes 503 "artifacts not configured" and returns false if ArtifactStore is nil.
 func (s *Server) requireArtifactStore(w http.ResponseWriter) bool {
 	if s.cfg.ArtifactStore == nil {

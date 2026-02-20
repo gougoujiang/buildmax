@@ -10,6 +10,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 )
 
 // TaskResponse is one task in the list/create response (snake_case).
@@ -152,6 +153,59 @@ func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusCreated, taskToResponse(*task))
 }
 
+// createTaskRunRequest is the JSON body for POST /api/workspaces/{workspace_id}/tasks/{task_id}/runs.
+type createTaskRunRequest struct {
+	Input string `json:"input"`
+}
+
+// createTaskRunHandler handles POST /api/workspaces/{workspace_id}/tasks/{task_id}/runs. Creates a new run (follow-up). Returns 409 if a run is already in progress.
+func (s *Server) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+	if !ok {
+		return
+	}
+	if !s.requireTaskRunStore(w) {
+		return
+	}
+	taskID := r.PathValue("task_id")
+	if taskID == "" {
+		writeJSONError(w, http.StatusBadRequest, "task_id required")
+		return
+	}
+	task, err := s.cfg.TaskStore.GetTask(r.Context(), taskID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "create_run_get_task", "task_id", taskID)
+		return
+	}
+	if task == nil {
+		writeJSONError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	if task.WorkspaceID != workspaceID {
+		writeJSONError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	var req createTaskRunRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Input == "" {
+		writeJSONError(w, http.StatusBadRequest, "input required")
+		return
+	}
+	run, err := s.cfg.TaskRunStore.CreateTaskRun(r.Context(), taskID, req.Input, userID)
+	if err != nil {
+		if errors.Is(err, entity.ErrRunInProgress) {
+			writeJSONError(w, http.StatusConflict, "a run is already in progress for this task")
+			return
+		}
+		writeInternalError(w, err, "handler", "create_run", "task_id", taskID)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"run_id": run.RunID, "task_id": taskID})
+}
+
 // Conversation types for GET .../tasks/{task_id}/conversation (snake_case for API).
 type SessionMessage struct {
 	Role       string           `json:"role"`
@@ -207,19 +261,24 @@ func (s *Server) getTaskConversationHandler(w http.ResponseWriter, r *http.Reque
 		writeJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
+	if task.LastRunID == nil || *task.LastRunID == "" {
+		writeJSONError(w, http.StatusNotFound, "conversation not found")
+		return
+	}
 	sessionID := *task.SessionID
+	lastRunID := *task.LastRunID
 	relPath := "sessions/" + sessionID + ".json"
 
 	var data []byte
 	if s.cfg.PersistStorage != nil {
-		data, err = s.cfg.PersistStorage.GetTaskBuildmax(r.Context(), task.WorkspaceID, task.TaskID, relPath)
+		data, err = s.cfg.PersistStorage.GetTaskBuildmax(r.Context(), task.WorkspaceID, task.TaskID, lastRunID, relPath)
 		if err != nil && !errors.Is(err, blob.ErrNotFound) {
 			writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
 			return
 		}
 	}
 	if data == nil {
-		taskSessionPath := filepath.Join(config.RuntimeTaskBuildmaxDir(task.WorkspaceID, task.TaskID), "sessions", sessionID+".json")
+		taskSessionPath := filepath.Join(config.RuntimeTaskRunBuildmaxDir(task.WorkspaceID, task.TaskID, lastRunID), "sessions", sessionID+".json")
 		data, err = os.ReadFile(taskSessionPath)
 		if err != nil {
 			if os.IsNotExist(err) {

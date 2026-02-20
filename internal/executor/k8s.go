@@ -34,9 +34,9 @@ func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, client JobCre
 	return &K8sJobRunner{namespace: namespace, image: image, env: env, client: client}
 }
 
-// Run creates a Job for the task; on success returns ("k8s_job", &jobName, &createdAtUnix, nil). On failure returns error.
-func (r *K8sJobRunner) Run(ctx context.Context, task entity.Task) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
-	jobName := jobNameForTask(task.TaskID)
+// Run creates a Job for the task run; on success returns ("k8s_job", &jobName, &createdAtUnix, nil). On failure returns error.
+func (r *K8sJobRunner) Run(ctx context.Context, run entity.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+	jobName := jobNameForTask(run.RunID)
 	now := metav1.Now()
 	createdAtUnix := now.Unix()
 
@@ -52,7 +52,7 @@ func (r *K8sJobRunner) Run(ctx context.Context, task entity.Task) (workerType st
 							Name:    "worker",
 							Image:   r.image,
 							Command: []string{"buildmax-worker"},
-							Args:    []string{"--task-id", task.TaskID},
+							Args:    []string{"--task-run-id", run.RunID},
 							Env:     r.env,
 						},
 					},
@@ -62,10 +62,10 @@ func (r *K8sJobRunner) Run(ctx context.Context, task entity.Task) (workerType st
 	}
 
 	if err := r.client.CreateJob(ctx, r.namespace, job); err != nil {
-		slog.Warn("scheduler: failed to create k8s Job", "task_id", task.TaskID, "job_name", jobName, "err", err)
+		slog.Warn("scheduler: failed to create k8s Job", "run_id", run.RunID, "job_name", jobName, "err", err)
 		return "", nil, nil, err
 	}
-	slog.Info("scheduler: created k8s Job", "task_id", task.TaskID, "job_name", jobName, "namespace", r.namespace)
+	slog.Info("scheduler: created k8s Job", "run_id", run.RunID, "job_name", jobName, "namespace", r.namespace)
 	return "k8s_job", &jobName, &createdAtUnix, nil
 }
 

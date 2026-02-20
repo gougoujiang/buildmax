@@ -18,13 +18,13 @@ func NewS3ArtifactStorage(client S3Client, bucket, prefix string) *S3ArtifactSto
 }
 
 // PutResult writes the artifact result as result.md in the artifact key path.
-func (s *S3ArtifactStorage) PutResult(ctx context.Context, workspaceID, taskID, artifactID string, data []byte) error {
-	key := ArtifactResultKey(s.prefix, workspaceID, taskID, artifactID)
+func (s *S3ArtifactStorage) PutResult(ctx context.Context, workspaceID, taskID, runID, artifactID string, data []byte) error {
+	key := ArtifactResultKey(s.prefix, workspaceID, taskID, runID, artifactID)
 	return s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data))
 }
 
 // GetResult reads result.md for the artifact.
-func (s *S3ArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID, artifactID string) ([]byte, error) {
-	key := ArtifactResultKey(s.prefix, workspaceID, taskID, artifactID)
+func (s *S3ArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID, runID, artifactID string) ([]byte, error) {
+	key := ArtifactResultKey(s.prefix, workspaceID, taskID, runID, artifactID)
 	return s.client.GetObject(ctx, s.bucket, key)
 }
