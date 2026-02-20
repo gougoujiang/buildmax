@@ -48,7 +48,7 @@ func (s *Server) getWorkerTaskRunHandler(w http.ResponseWriter, r *http.Request)
 		writeJSONError(w, http.StatusBadRequest, "run_id required")
 		return
 	}
-	if !s.requireTaskRunStore(w) {
+	if !s.requireStore(w, s.cfg.TaskRunStore, "task runs not configured") {
 		return
 	}
 	run, task, err := s.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), runID)
@@ -85,7 +85,7 @@ func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Reques
 		writeJSONError(w, http.StatusBadRequest, "run_id required")
 		return
 	}
-	if !s.requireTaskRunStore(w) {
+	if !s.requireStore(w, s.cfg.TaskRunStore, "task runs not configured") {
 		return
 	}
 	var req patchWorkerTaskRunRequest

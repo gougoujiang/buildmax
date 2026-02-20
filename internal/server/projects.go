@@ -35,7 +35,7 @@ func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireProjectStore(w) {
+	if !s.requireStore(w, s.cfg.ProjectStore, "projects not configured") {
 		return
 	}
 	list, err := s.cfg.ProjectStore.ListProjectsByWorkspace(r.Context(), workspaceID)
@@ -55,7 +55,7 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireProjectStore(w) {
+	if !s.requireStore(w, s.cfg.ProjectStore, "projects not configured") {
 		return
 	}
 	var req createProjectRequest

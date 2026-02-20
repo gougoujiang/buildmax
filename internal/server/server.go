@@ -114,36 +114,23 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// serveStaticJSON reads path from staticFS and serves it as application/json. On read error, logs and writes 500.
-func serveStaticJSON(w http.ResponseWriter, path string) {
+// serveStatic reads path from staticFS and serves it with the given Content-Type. On read error, logs and writes 500.
+func serveStatic(w http.ResponseWriter, path, contentType string) {
 	data, err := staticFS.ReadFile(path)
 	if err != nil {
 		slog.Error("static file read failed", "err", err, "path", path)
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
-}
-
-// serveStaticHTML reads path from staticFS and serves it as text/html. On read error, logs and writes 500.
-func serveStaticHTML(w http.ResponseWriter, path string) {
-	data, err := staticFS.ReadFile(path)
-	if err != nil {
-		slog.Error("static file read failed", "err", err, "path", path)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
 
 func openAPIHandler(w http.ResponseWriter, _ *http.Request) {
-	serveStaticJSON(w, "static/openapi.json")
+	serveStatic(w, "static/openapi.json", "application/json")
 }
 
 func swaggerUIHandler(w http.ResponseWriter, _ *http.Request) {
-	serveStaticHTML(w, "static/swagger.html")
+	serveStatic(w, "static/swagger.html", "text/html; charset=utf-8")
 }

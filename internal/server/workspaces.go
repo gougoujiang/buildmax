@@ -29,7 +29,7 @@ func ensureWorkspaceDirs(root string, workspaceIDs []string) {
 }
 
 func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
-	if !s.requireWorkspaceStore(w) {
+	if !s.requireStore(w, s.cfg.WorkspaceStore, "workspaces not configured") {
 		return
 	}
 	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
@@ -64,7 +64,7 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) {
-	if !s.requireWorkspaceStore(w) {
+	if !s.requireStore(w, s.cfg.WorkspaceStore, "workspaces not configured") {
 		return
 	}
 	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)

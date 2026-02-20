@@ -21,7 +21,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requirePersistStorage(w) {
+	if !s.requireStore(w, s.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	if err := r.ParseMultipartForm(64 << 20); err != nil {

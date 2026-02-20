@@ -33,9 +33,6 @@ func requestLoggingMiddleware(h http.Handler) http.Handler {
 		if r.URL.RawQuery != "" {
 			attrs = append(attrs, "query", r.URL.RawQuery)
 		}
-		if r.Header.Get("Authorization") != "" {
-			attrs = append(attrs, "auth", "present")
-		}
 		slog.Info("request", attrs...)
 		h.ServeHTTP(w, r)
 	})

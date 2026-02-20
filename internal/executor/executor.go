@@ -46,30 +46,14 @@ func RunTask(ctx context.Context, task *entity.Task, run *entity.TaskRun, sessio
 	buildmaxDir := paths.RuntimeTaskRunBuildmaxDir(task.WorkspaceID, task.TaskID, run.RunID)
 	wsDir := paths.RuntimeTaskWSDir(task.WorkspaceID, task.TaskID)
 
-	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
-		slog.Error("executor: failed to create buildmax dir", "run_id", run.RunID, "path", buildmaxDir, "err", err)
-		_ = updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create buildmax dir: %v", err)), nil, nil)
+	if err := ensureRunDirs(buildmaxDir, wsDir); err != nil {
+		reportRunFailure(ctx, run.RunID, err, updater)
 		return err
 	}
-	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		slog.Error("executor: failed to create ws dir", "run_id", run.RunID, "path", wsDir, "err", err)
-		_ = updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to create ws dir: %v", err)), nil, nil)
-		return err
-	}
-	// Restore session from previous run's buildmax if this is a follow-up run.
-	if task.SessionID != nil && task.LastRunID != nil && *task.LastRunID != run.RunID {
-		relPath := "sessions/" + *task.SessionID + ".json"
-		data, err := persist.GetTaskBuildmax(ctx, task.WorkspaceID, task.TaskID, *task.LastRunID, relPath)
-		if err == nil {
-			sessionsDir := filepath.Join(buildmaxDir, "sessions")
-			if err := os.MkdirAll(sessionsDir, 0755); err == nil {
-				_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
-			}
-		}
-	}
+	restoreSessionFromPreviousRun(ctx, task, run, buildmaxDir, persist)
 	if err := persist.MaterializeToDir(ctx, task.WorkspaceID, wsDir); err != nil {
 		slog.Error("executor: failed to materialize workspace", "run_id", run.RunID, "workspace_id", task.WorkspaceID, "err", err)
-		_ = updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, ptrInt64(time.Now().Unix()), nil, ptrString(fmt.Sprintf("failed to materialize workspace: %v", err)), nil, nil)
+		reportRunFailure(ctx, run.RunID, err, updater)
 		return err
 	}
 
@@ -77,6 +61,54 @@ func RunTask(ctx context.Context, task *entity.Task, run *entity.TaskRun, sessio
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
+	output, cmdErr := runBuildmaxCmd(ctx, run, wsDir, buildmaxDir, effectiveSessionID)
+	endTime := time.Now().Unix()
+	outputStr := string(output)
+
+	persistRunResult(buildmaxDir, run.RunID, output)
+	uploadTaskBuildmax(ctx, buildmaxDir, task.WorkspaceID, task.TaskID, run.RunID, persist)
+
+	if cmdErr != nil {
+		slog.Error("executor: run failed", "run_id", run.RunID, "err", cmdErr, "output_len", len(outputStr))
+		reportRunFailure(ctx, run.RunID, cmdErr, updater)
+		return cmdErr
+	}
+
+	resultFilename := fmt.Sprintf("result-%s.md", run.RunID)
+	if err := reportRunSuccess(ctx, task, run, endTime, outputStr, resultFilename, output, artifactStorage, updater); err != nil {
+		return err
+	}
+	slog.Info("executor: run succeeded", "run_id", run.RunID)
+	return nil
+}
+
+func ensureRunDirs(buildmaxDir, wsDir string) error {
+	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
+		return fmt.Errorf("create buildmax dir: %w", err)
+	}
+	if err := os.MkdirAll(wsDir, 0755); err != nil {
+		return fmt.Errorf("create ws dir: %w", err)
+	}
+	return nil
+}
+
+func restoreSessionFromPreviousRun(ctx context.Context, task *entity.Task, run *entity.TaskRun, buildmaxDir string, persist blob.PersistStorage) {
+	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.RunID {
+		return
+	}
+	relPath := "sessions/" + *task.SessionID + ".json"
+	data, err := persist.GetTaskBuildmax(ctx, task.WorkspaceID, task.TaskID, *task.LastRunID, relPath)
+	if err != nil {
+		return
+	}
+	sessionsDir := filepath.Join(buildmaxDir, "sessions")
+	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
+}
+
+func runBuildmaxCmd(ctx context.Context, run *entity.TaskRun, wsDir, buildmaxDir, sessionID string) ([]byte, error) {
 	env := os.Environ()
 	prefix := config.EnvKeyBuildmaxHome + "="
 	filtered := make([]string, 0, len(env)+1)
@@ -85,43 +117,33 @@ func RunTask(ctx context.Context, task *entity.Task, run *entity.TaskRun, sessio
 			filtered = append(filtered, e)
 		}
 	}
-	cmd := exec.CommandContext(ctx, "buildmax", "-p", run.Input, "--session-id", effectiveSessionID)
+	cmd := exec.CommandContext(ctx, "buildmax", "-p", run.Input, "--session-id", sessionID)
 	cmd.Dir = wsDir
 	cmd.Env = append(filtered, prefix+buildmaxDir)
+	return cmd.CombinedOutput()
+}
 
-	output, err := cmd.CombinedOutput()
-	endTime := time.Now().Unix()
-	outputStr := string(output)
-
-	resultFilename := fmt.Sprintf("result-%s.md", run.RunID)
+func persistRunResult(buildmaxDir, runID string, output []byte) {
+	resultFilename := fmt.Sprintf("result-%s.md", runID)
 	runDir := filepath.Dir(buildmaxDir)
 	resultPath := filepath.Join(runDir, resultFilename)
-	if writeErr := os.WriteFile(resultPath, output, 0644); writeErr != nil {
-		slog.Error("executor: failed to write result file", "run_id", run.RunID, "path", resultPath, "err", writeErr)
+	if err := os.WriteFile(resultPath, output, 0644); err != nil {
+		slog.Error("executor: failed to write result file", "run_id", runID, "path", resultPath, "err", err)
 	}
+}
 
-	uploadTaskBuildmax(ctx, buildmaxDir, task.WorkspaceID, task.TaskID, run.RunID, persist)
+func reportRunFailure(ctx context.Context, runID string, err error, updater TaskRunUpdater) {
+	endTime := time.Now().Unix()
+	errMsg := fmt.Sprintf("%v", err)
+	_ = updater.UpdateRunStatus(ctx, runID, "FAILED", nil, ptrInt64(endTime), nil, &errMsg, nil, nil)
+}
 
-	if err != nil {
-		errMsg := fmt.Sprintf("buildmax exited with error: %v", err)
-		slog.Error("executor: run failed", "run_id", run.RunID, "err", err, "output_len", len(outputStr))
-		if updateErr := updater.UpdateRunStatus(ctx, run.RunID, "FAILED", nil, &endTime, &outputStr, &errMsg, nil, nil); updateErr != nil {
-			slog.Error("executor: failed to update run status to FAILED", "run_id", run.RunID, "err", updateErr)
-		}
-		return err
-	}
-
+func reportRunSuccess(ctx context.Context, task *entity.Task, run *entity.TaskRun, endTime int64, outputStr, resultFilename string, output []byte, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
 	artifactID := util.NewULID()
 	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, run.RunID, artifactID, output); putErr != nil {
 		slog.Error("executor: failed to write result to artifact storage", "run_id", run.RunID, "err", putErr)
 	}
-	if updateErr := updater.UpdateRunStatus(ctx, run.RunID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename}); updateErr != nil {
-		slog.Error("executor: failed to update run status to SUCCEEDED", "run_id", run.RunID, "err", updateErr)
-		return updateErr
-	}
-
-	slog.Info("executor: run succeeded", "run_id", run.RunID)
-	return nil
+	return updater.UpdateRunStatus(ctx, run.RunID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename})
 }
 
 // uploadTaskBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage for the run.

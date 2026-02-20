@@ -58,17 +58,9 @@ func (r *ReadFile) Parameters() any {
 // Execute reads the file at args["file_path"] if it is under the tool's root.
 // File contents are returned as UTF-8 text; invalid UTF-8 in the file is passed through as-is.
 func (r *ReadFile) Execute(ctx context.Context, args map[string]any) (string, error) {
-	v, ok := args["file_path"]
-	if !ok {
-		return "", errors.New("missing file_path")
-	}
-	filePath, ok := v.(string)
-	if !ok {
-		return "", errors.New("file_path must be a string")
-	}
-	filePath = strings.TrimSpace(filePath)
-	if filePath == "" {
-		return "", errors.New("file_path is empty")
+	filePath, err := RequiredString(args, "file_path")
+	if err != nil {
+		return "", err
 	}
 
 	// Resolve path under root (join, clean, boundary check including Windows-safe prefix).
@@ -104,19 +96,15 @@ func (r *ReadFile) Execute(ctx context.Context, args map[string]any) (string, er
 }
 
 // parseOffsetLimit reads offset and limit from args. Defaults: offset=1, limit=DefaultLimit.
-// JSON numbers come as float64; invalid or negative values are clamped to defaults.
+// Values < 1 are clamped to the default.
 func parseOffsetLimit(args map[string]any) (offset, limit int) {
-	offset = 1
-	limit = DefaultLimit
-	if v, ok := args["offset"]; ok && v != nil {
-		if f, ok := util.ToFloat64(v); ok && f >= 1 {
-			offset = int(f)
-		}
+	offset = OptionalInt(args, "offset", 1)
+	if offset < 1 {
+		offset = 1
 	}
-	if v, ok := args["limit"]; ok && v != nil {
-		if f, ok := util.ToFloat64(v); ok && f >= 1 {
-			limit = int(f)
-		}
+	limit = OptionalInt(args, "limit", DefaultLimit)
+	if limit < 1 {
+		limit = DefaultLimit
 	}
 	return offset, limit
 }

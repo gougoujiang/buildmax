@@ -41,7 +41,7 @@ func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if !s.requireArtifactStore(w) {
+	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") {
 		return
 	}
 	var taskIDPtr, projectIDPtr *string
@@ -81,7 +81,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if !s.requireArtifactStore(w) || !s.requireTaskStore(w) {
+	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") || !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") {
 		return
 	}
 	artifactID := r.PathValue("artifact_id")
@@ -98,13 +98,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	task, err := s.cfg.TaskStore.GetTask(r.Context(), artifact.TaskID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "artifact_items", "task_id", artifact.TaskID)
-		return
-	}
-	if task == nil || task.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
+	if _, ok := s.getTaskForWorkspace(w, r, workspaceID, artifact.TaskID); !ok {
 		return
 	}
 	items, err := s.cfg.ArtifactStore.ListArtifactItems(r.Context(), artifactID)
@@ -130,7 +124,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if !s.requireArtifactStore(w) || !s.requireTaskStore(w) || !s.requireArtifactStorage(w) {
+	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") || !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") || !s.requireStore(w, s.cfg.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
 	artifactID := r.PathValue("artifact_id")
@@ -147,13 +141,8 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	task, err := s.cfg.TaskStore.GetTask(r.Context(), artifact.TaskID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "artifact_content", "task_id", artifact.TaskID)
-		return
-	}
-	if task == nil || task.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
+	task, ok := s.getTaskForWorkspace(w, r, workspaceID, artifact.TaskID)
+	if !ok {
 		return
 	}
 	pathParam := r.URL.Query().Get("path")

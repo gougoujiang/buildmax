@@ -1,13 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 
-	"buildmax/internal/config"
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
@@ -52,6 +52,24 @@ func taskToResponse(t model.Task) TaskResponse {
 	}
 }
 
+// getTaskForWorkspace loads the task by taskID and verifies it belongs to workspaceID.
+// Writes 404 "task not found" if the task is missing or in another workspace. Returns (task, true) on success.
+func (s *Server) getTaskForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, taskID string) (*model.Task, bool) {
+	if !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") {
+		return nil, false
+	}
+	task, err := s.cfg.TaskStore.GetTask(r.Context(), taskID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "get_task", "task_id", taskID)
+		return nil, false
+	}
+	if task == nil || task.WorkspaceID != workspaceID {
+		writeJSONError(w, http.StatusNotFound, "task not found")
+		return nil, false
+	}
+	return task, true
+}
+
 // resolveProjectForWorkspace resolves projectID (optional). If empty, returns (nil, true).
 // If non-empty, validates project exists and belongs to workspace; on success returns (project, true),
 // on failure writes the appropriate error and returns (nil, false).
@@ -59,7 +77,7 @@ func (s *Server) resolveProjectForWorkspace(w http.ResponseWriter, r *http.Reque
 	if projectID == "" {
 		return nil, true
 	}
-	if !s.requireProjectStore(w) {
+	if !s.requireStore(w, s.cfg.ProjectStore, "projects not configured") {
 		return nil, false
 	}
 	project, err := s.cfg.ProjectStore.GetProject(r.Context(), projectID)
@@ -85,7 +103,7 @@ func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if !s.requireTaskStore(w) {
+	if !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") {
 		return
 	}
 	var projectIDPtr *string
@@ -117,7 +135,7 @@ func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if !s.requireTaskStore(w) {
+	if !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") {
 		return
 	}
 	var req createTaskRequest
@@ -158,7 +176,7 @@ func (s *Server) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireTaskRunStore(w) {
+	if !s.requireStore(w, s.cfg.TaskRunStore, "task runs not configured") {
 		return
 	}
 	taskID := r.PathValue("task_id")
@@ -166,17 +184,8 @@ func (s *Server) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-	task, err := s.cfg.TaskStore.GetTask(r.Context(), taskID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "create_run_get_task", "task_id", taskID)
-		return
-	}
-	if task == nil {
-		writeJSONError(w, http.StatusNotFound, "task not found")
-		return
-	}
-	if task.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "task not found")
+	_, ok = s.getTaskForWorkspace(w, r, workspaceID, taskID)
+	if !ok {
 		return
 	}
 	var req createTaskRunRequest
@@ -223,13 +232,10 @@ type ConversationResponse struct {
 
 // getTaskConversationHandler handles GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation.
 // Returns the agent conversation for that task. Session is an implementation detail; the task stores session_id when run.
-// Caller must own the workspace. Conversation is read from task's buildmax dir or global sessions dir.
+// Caller must own the workspace. Conversation is read from persist storage or server workspace dir.
 func (s *Server) getTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
-		return
-	}
-	if !s.requireTaskStore(w) {
 		return
 	}
 	taskID := r.PathValue("task_id")
@@ -237,18 +243,8 @@ func (s *Server) getTaskConversationHandler(w http.ResponseWriter, r *http.Reque
 		writeJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-
-	task, err := s.cfg.TaskStore.GetTask(r.Context(), taskID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
-		return
-	}
-	if task == nil {
-		writeJSONError(w, http.StatusNotFound, "task not found")
-		return
-	}
-	if task.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "task not found")
+	task, ok := s.getTaskForWorkspace(w, r, workspaceID, taskID)
+	if !ok {
 		return
 	}
 	if task.SessionID == nil || *task.SessionID == "" {
@@ -261,32 +257,35 @@ func (s *Server) getTaskConversationHandler(w http.ResponseWriter, r *http.Reque
 	}
 	sessionID := *task.SessionID
 	lastRunID := *task.LastRunID
-	relPath := "sessions/" + sessionID + ".json"
-
-	var data []byte
-	if s.cfg.PersistStorage != nil {
-		data, err = s.cfg.PersistStorage.GetTaskBuildmax(r.Context(), task.WorkspaceID, task.TaskID, lastRunID, relPath)
-		if err != nil && !errors.Is(err, blob.ErrNotFound) {
-			writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
+	data, err := s.loadTaskConversationData(r.Context(), task, lastRunID, sessionID)
+	if err != nil {
+		if os.IsNotExist(err) || errors.Is(err, blob.ErrNotFound) {
+			writeJSONError(w, http.StatusNotFound, "conversation file not found")
 			return
 		}
-	}
-	if data == nil {
-		taskSessionPath := filepath.Join(config.RuntimeTaskRunBuildmaxDir(task.WorkspaceID, task.TaskID, lastRunID), "sessions", sessionID+".json")
-		data, err = os.ReadFile(taskSessionPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				writeJSONError(w, http.StatusNotFound, "conversation file not found")
-				return
-			}
-			writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
-			return
-		}
+		writeInternalError(w, err, "handler", "get_conversation", "task_id", task.TaskID)
+		return
 	}
 	var out ConversationResponse
 	if err := json.Unmarshal(data, &out); err != nil {
-		writeInternalError(w, err, "handler", "get_conversation", "task_id", taskID)
+		writeInternalError(w, err, "handler", "get_conversation", "task_id", task.TaskID)
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// loadTaskConversationData returns the raw session JSON for the task run. Tries PersistStorage first, then local path under server's workspaces dir.
+func (s *Server) loadTaskConversationData(ctx context.Context, task *model.Task, lastRunID, sessionID string) ([]byte, error) {
+	relPath := "sessions/" + sessionID + ".json"
+	if s.cfg.PersistStorage != nil {
+		data, err := s.cfg.PersistStorage.GetTaskBuildmax(ctx, task.WorkspaceID, task.TaskID, lastRunID, relPath)
+		if err == nil {
+			return data, nil
+		}
+		if !errors.Is(err, blob.ErrNotFound) {
+			return nil, err
+		}
+	}
+	localPath := filepath.Join(s.workspacesDir(), task.WorkspaceID, "tasks", task.TaskID, lastRunID, "buildmax", "sessions", sessionID+".json")
+	return os.ReadFile(localPath)
 }

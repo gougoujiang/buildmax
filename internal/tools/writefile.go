@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"buildmax/internal/util"
 )
@@ -51,27 +50,19 @@ func (w *WriteFile) Parameters() any {
 // Execute writes args["content"] to the file at args["file_path"] if the path is under the tool's root.
 // Creates parent directories if needed; overwrites if the file exists. Returns a short success message or error.
 func (w *WriteFile) Execute(ctx context.Context, args map[string]any) (string, error) {
-	vPath, ok := args["file_path"]
-	if !ok {
-		return "", errors.New("missing file_path")
+	filePath, err := RequiredString(args, "file_path")
+	if err != nil {
+		return "", err
 	}
-	filePath, ok := vPath.(string)
-	if !ok {
-		return "", errors.New("file_path must be a string")
-	}
-	filePath = strings.TrimSpace(filePath)
-	if filePath == "" {
-		return "", errors.New("file_path is empty")
-	}
-
-	vContent, ok := args["content"]
+	contentVal, ok := args["content"]
 	if !ok {
 		return "", errors.New("missing content")
 	}
-	content, ok := vContent.(string)
+	content, ok := contentVal.(string)
 	if !ok {
 		return "", errors.New("content must be a string")
 	}
+	// content may be empty (allowed for clearing a file)
 
 	// Resolve path under root (join, clean, boundary check including Windows-safe prefix).
 	resolved, err := w.ws.ResolvePath(filePath)

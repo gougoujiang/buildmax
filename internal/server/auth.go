@@ -43,64 +43,10 @@ func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathK
 	return userID, workspaceID, true
 }
 
-// requireWorkspaceStore writes 503 "workspaces not configured" and returns false if WorkspaceStore is nil.
-func (s *Server) requireWorkspaceStore(w http.ResponseWriter) bool {
-	if s.cfg.WorkspaceStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "workspaces not configured")
-		return false
-	}
-	return true
-}
-
-// requireProjectStore writes 503 "projects not configured" and returns false if ProjectStore is nil.
-func (s *Server) requireProjectStore(w http.ResponseWriter) bool {
-	if s.cfg.ProjectStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "projects not configured")
-		return false
-	}
-	return true
-}
-
-// requireTaskStore writes 503 "tasks not configured" and returns false if TaskStore is nil.
-func (s *Server) requireTaskStore(w http.ResponseWriter) bool {
-	if s.cfg.TaskStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-		return false
-	}
-	return true
-}
-
-// requireTaskRunStore writes 503 "task runs not configured" and returns false if TaskRunStore is nil.
-func (s *Server) requireTaskRunStore(w http.ResponseWriter) bool {
-	if s.cfg.TaskRunStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
-		return false
-	}
-	return true
-}
-
-// requireArtifactStore writes 503 "artifacts not configured" and returns false if ArtifactStore is nil.
-func (s *Server) requireArtifactStore(w http.ResponseWriter) bool {
-	if s.cfg.ArtifactStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "artifacts not configured")
-		return false
-	}
-	return true
-}
-
-// requirePersistStorage writes 503 "persist storage not configured" and returns false if PersistStorage is nil.
-func (s *Server) requirePersistStorage(w http.ResponseWriter) bool {
-	if s.cfg.PersistStorage == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "persist storage not configured")
-		return false
-	}
-	return true
-}
-
-// requireArtifactStorage writes 503 "artifact storage not configured" and returns false if ArtifactStorage is nil.
-func (s *Server) requireArtifactStorage(w http.ResponseWriter) bool {
-	if s.cfg.ArtifactStorage == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "artifact storage not configured")
+// requireStore writes 503 with the given message and returns false if store is nil; otherwise returns true.
+func (s *Server) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
+	if store == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
 		return false
 	}
 	return true

@@ -26,7 +26,7 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requirePersistStorage(w) {
+	if !s.requireStore(w, s.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	ctx := r.Context()
@@ -109,7 +109,7 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requirePersistStorage(w) {
+	if !s.requireStore(w, s.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	filePath := r.PathValue("path")
