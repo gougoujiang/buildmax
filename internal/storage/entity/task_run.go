@@ -72,6 +72,7 @@ func (s *Store) GetTaskRunWithTask(ctx context.Context, runID string) (*TaskRun,
 }
 
 // UpdateTaskRunStatusIf atomically updates run status when current status equals expectedStatus. Returns updated.
+// When newStatus is SCHEDULED or RUNNING, the task's denormalized status is synced to match.
 func (s *Store) UpdateTaskRunStatusIf(ctx context.Context, runID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
 	updates := map[string]interface{}{"status": newStatus}
 	if startedAt != nil {
@@ -93,10 +94,14 @@ func (s *Store) UpdateTaskRunStatusIf(ctx context.Context, runID, expectedStatus
 	if result.Error != nil {
 		return false, result.Error
 	}
+	if result.RowsAffected == 1 && (newStatus == "PENDING" || newStatus == "SCHEDULED" || newStatus == "RUNNING") {
+		_ = s.syncTaskStatusFromRun(ctx, runID, newStatus, startedAt, nil)
+	}
 	return result.RowsAffected == 1, nil
 }
 
 // UpdateTaskRunStatus updates a run's status and optional fields.
+// When status is SCHEDULED or RUNNING, the task's denormalized status is synced to match.
 func (s *Store) UpdateTaskRunStatus(ctx context.Context, runID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {
@@ -114,7 +119,34 @@ func (s *Store) UpdateTaskRunStatus(ctx context.Context, runID, status string, s
 	if sessionID != nil {
 		updates["session_id"] = *sessionID
 	}
-	return s.db.WithContext(ctx).Model(&TaskRun{}).Where("run_id = ?", runID).Updates(updates).Error
+	if err := s.db.WithContext(ctx).Model(&TaskRun{}).Where("run_id = ?", runID).Updates(updates).Error; err != nil {
+		return err
+	}
+	if status == "PENDING" || status == "SCHEDULED" || status == "RUNNING" {
+		_ = s.syncTaskStatusFromRun(ctx, runID, status, startedAt, endedAt)
+	}
+	return nil
+}
+
+// syncTaskStatusFromRun updates the task row (denormalized status) for the run's task_id to match the run's status.
+func (s *Store) syncTaskStatusFromRun(ctx context.Context, runID, status string, startedAt, endedAt *int64) error {
+	var run TaskRun
+	if err := s.db.WithContext(ctx).Where("run_id = ?", runID).Select("task_id").First(&run).Error; err != nil {
+		return err
+	}
+	taskUpdates := map[string]interface{}{"status": status}
+	if status == "PENDING" {
+		taskUpdates["started_at"] = nil
+		taskUpdates["ended_at"] = nil
+	} else {
+		if startedAt != nil {
+			taskUpdates["started_at"] = *startedAt
+		}
+		if endedAt != nil {
+			taskUpdates["ended_at"] = *endedAt
+		}
+	}
+	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(taskUpdates).Error
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.
