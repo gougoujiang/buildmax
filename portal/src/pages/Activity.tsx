@@ -1,4 +1,4 @@
-import type { Artifact, Task } from "../lib/types"
+import type { Artifact, Task, ViewArtifactParams } from "../lib/types"
 import { taskStatusIcon } from "../lib/taskStatus"
 import { navigate } from "../lib/router"
 
@@ -7,7 +7,7 @@ interface ActivityProps {
   tasks: Task[]
   artifacts: Artifact[]
   getProjectName: (projectId: string) => string
-  onViewArtifact?: (artifactId: string) => void
+  onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 export function Activity({
@@ -78,7 +78,7 @@ export function Activity({
                       <button
                         type="button"
                         className="page-activity__artifact-view"
-                        onClick={() => onViewArtifact(a.id)}
+                        onClick={() => onViewArtifact({ workspaceId, artifactId: a.id })}
                       >
                         View
                       </button>

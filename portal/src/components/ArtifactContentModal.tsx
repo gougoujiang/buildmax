@@ -3,6 +3,7 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { BaseModal } from "./BaseModal"
 import { getArtifactItems, getArtifactContent } from "../lib/api"
+import { useFetch } from "../hooks/useFetch"
 
 interface ArtifactContentModalProps {
   open: boolean
@@ -19,69 +20,48 @@ export function ArtifactContentModal({
   token,
   onClose,
 }: ArtifactContentModalProps) {
-  const [items, setItems] = useState<{ relative_path: string }[]>([])
-  const [itemsLoading, setItemsLoading] = useState(false)
-  const [itemsError, setItemsError] = useState<string | null>(null)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const [content, setContent] = useState<string | null>(null)
-  const [contentLoading, setContentLoading] = useState(false)
-  const [contentError, setContentError] = useState<string | null>(null)
+
+  const itemsEnabled = !!(open && workspaceId && artifactId && token)
+  const {
+    data: itemsData,
+    loading: itemsLoading,
+    error: itemsError,
+  } = useFetch(
+    () => getArtifactItems(workspaceId, artifactId, token),
+    [open, workspaceId, artifactId, token],
+    {
+      enabled: itemsEnabled,
+      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load artifact files"),
+    }
+  )
+  const items = itemsData ?? []
 
   useEffect(() => {
-    if (!open || !workspaceId || !artifactId || !token) {
-      setItems([])
-      setItemsError(null)
+    if (!itemsEnabled) {
       setSelectedPath(null)
-      setContent(null)
-      setContentError(null)
       return
     }
-    let cancelled = false
-    setItemsLoading(true)
-    setItemsError(null)
-    getArtifactItems(workspaceId, artifactId, token)
-      .then((list) => {
-        if (!cancelled) {
-          setItems(list)
-          if (list.length > 0) {
-            setSelectedPath(list[0].relative_path)
-          }
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setItemsError(err instanceof Error ? err.message : "Failed to load artifact files")
-      })
-      .finally(() => {
-        if (!cancelled) setItemsLoading(false)
-      })
-    return () => {
-      cancelled = true
+    if (items.length > 0) {
+      setSelectedPath((prev) =>
+        prev && items.some((i) => i.relative_path === prev) ? prev : items[0].relative_path
+      )
     }
-  }, [open, workspaceId, artifactId, token])
+  }, [itemsEnabled, items])
 
-  useEffect(() => {
-    if (!open || !selectedPath || !token) {
-      setContent(null)
-      setContentError(null)
-      return
+  const contentEnabled = !!(open && selectedPath && token)
+  const {
+    data: content,
+    loading: contentLoading,
+    error: contentError,
+  } = useFetch(
+    () => getArtifactContent(workspaceId, artifactId, token, selectedPath!),
+    [open, workspaceId, artifactId, token, selectedPath],
+    {
+      enabled: contentEnabled,
+      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load file content"),
     }
-    let cancelled = false
-    setContentLoading(true)
-    setContentError(null)
-    getArtifactContent(workspaceId, artifactId, token, selectedPath)
-      .then((text) => {
-        if (!cancelled) setContent(text)
-      })
-      .catch((err) => {
-        if (!cancelled) setContentError(err instanceof Error ? err.message : "Failed to load file content")
-      })
-      .finally(() => {
-        if (!cancelled) setContentLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, workspaceId, artifactId, token, selectedPath])
+  )
 
   return (
     <BaseModal
@@ -122,7 +102,7 @@ export function ArtifactContentModal({
                   {contentError}
                 </p>
               )}
-              {content !== null && !contentLoading && (
+              {content != null && !contentLoading && (
                 <div className="artifact-modal__content page-task__markdown">
                   <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
                 </div>
@@ -130,7 +110,7 @@ export function ArtifactContentModal({
             </div>
           </>
         )}
-        {!itemsLoading && !itemsError && items.length === 0 && (
+        {itemsEnabled && !itemsLoading && !itemsError && items.length === 0 && (
           <p className="artifact-modal__empty">No files in this artifact.</p>
         )}
       </div>

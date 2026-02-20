@@ -17,17 +17,21 @@ function checkUnauthorized(res: Response): void {
   }
 }
 
+/** Parse response body to an error message. Uses JSON .error if present, else body text or default. */
+export async function parseErrorResponse(res: Response, defaultMessage: string): Promise<string> {
+  const text = await res.text()
+  try {
+    const j = JSON.parse(text) as { error?: string }
+    return j.error ?? (text || defaultMessage)
+  } catch {
+    return text || defaultMessage
+  }
+}
+
 /** If res is not ok, read body, parse error message, and throw. Call after checkUnauthorized. */
 async function throwIfNotOk(res: Response): Promise<void> {
   if (res.ok) return
-  const text = await res.text()
-  let msg: string
-  try {
-    const j = JSON.parse(text) as { error?: string }
-    msg = j.error ?? text
-  } catch {
-    msg = text || res.statusText
-  }
+  const msg = await parseErrorResponse(res, res.statusText)
   throw new Error(msg)
 }
 
@@ -260,14 +264,7 @@ export async function createTaskRun(
   )
   checkUnauthorized(res)
   if (res.status === 409) {
-    const text = await res.text()
-    let msg: string
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      msg = j.error ?? "A run is already in progress for this task"
-    } catch {
-      msg = "A run is already in progress for this task"
-    }
+    const msg = await parseErrorResponse(res, "A run is already in progress for this task")
     throw new Error(msg)
   }
   await throwIfNotOk(res)
@@ -341,8 +338,9 @@ export async function getArtifactContent(
   return res.text()
 }
 
-function artifactTimeLabel(createdAt: number): string {
-  const d = new Date(createdAt * 1000)
+/** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
+export function formatRelativeTime(secondsSinceEpoch: number): string {
+  const d = new Date(secondsSinceEpoch * 1000)
   const today = new Date()
   if (d.toDateString() === today.toDateString()) {
     return `Today ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
@@ -362,7 +360,7 @@ export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
     taskId: api.task_id,
     projectId: api.project_id ?? undefined,
     workspaceId: api.workspace_id,
-    timeLabel: artifactTimeLabel(api.created_at),
+    timeLabel: formatRelativeTime(api.created_at),
     title: api.task_input_snippet || `Artifact ${api.artifact_id}`,
   }
 }
@@ -447,32 +445,18 @@ function taskStatusToUI(status: string): Task["status"] {
   }
 }
 
-function taskTimeLabel(api: ApiTask): string {
-  const ts = api.ended_at ?? api.created_at
-  const d = new Date(ts * 1000)
-  const today = new Date()
-  if (d.toDateString() === today.toDateString()) {
-    return `Today ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-  }
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === yesterday.toDateString()) {
-    return `Yesterday ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-  }
-  return d.toLocaleString()
-}
-
 /** Map API task to UI Task. */
 export function apiTaskToTask(api: ApiTask): Task {
   const title = api.input.length > 80 ? api.input.slice(0, 77) + "..." : api.input
   const summary = api.output ?? (api.input.length > 120 ? api.input.slice(0, 117) + "..." : api.input)
+  const ts = api.ended_at ?? api.created_at
   return {
     id: api.id,
     projectId: api.project_id ?? undefined,
     sessionId: api.session_id ?? undefined,
     title,
     status: taskStatusToUI(api.status),
-    timeLabel: taskTimeLabel(api),
+    timeLabel: formatRelativeTime(ts),
     summary,
   }
 }

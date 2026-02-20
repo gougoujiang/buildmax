@@ -48,6 +48,13 @@ export interface ActivityItem {
   time: string
 }
 
+// --- View artifact (modal) ---
+
+export interface ViewArtifactParams {
+  workspaceId: string
+  artifactId: string
+}
+
 // --- Explore (workspace directory structure) ---
 
 export type ExploreNode =

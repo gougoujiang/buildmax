@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { Artifact, Project } from "../lib/types"
+import type { Artifact, Project, ViewArtifactParams } from "../lib/types"
 import { navigate } from "../lib/router"
 import { createProject, createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
@@ -13,7 +13,7 @@ interface ProjectsProps {
   onRefetchProjects?: () => void
   onRefetchWorkspaceTasks?: () => void
   onRefetchArtifacts?: () => void
-  onViewArtifact?: (artifactId: string) => void
+  onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 export function Projects({
@@ -143,7 +143,7 @@ export function Projects({
                   <button
                     type="button"
                     className="page-workspace__artifact-view"
-                    onClick={() => onViewArtifact(a.id)}
+                    onClick={() => onViewArtifact({ workspaceId, artifactId: a.id })}
                   >
                     View
                   </button>

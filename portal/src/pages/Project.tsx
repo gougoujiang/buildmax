@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { Artifact, Project, Task } from "../lib/types"
+import type { Artifact, Project, Task, ViewArtifactParams } from "../lib/types"
 import { taskStatusIcon } from "../lib/taskStatus"
 import { navigate } from "../lib/router"
 import { createTask } from "../lib/api"
@@ -13,7 +13,7 @@ interface ProjectProps {
   token?: string
   onRefetchTasks?: () => void
   onRefetchArtifacts?: () => void
-  onViewArtifact?: (artifactId: string) => void
+  onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 export function Project({
@@ -119,7 +119,7 @@ export function Project({
                   <button
                     type="button"
                     className="page-project__artifact-view"
-                    onClick={() => onViewArtifact(a.id)}
+                    onClick={() => onViewArtifact({ workspaceId, artifactId: a.id })}
                   >
                     View
                   </button>

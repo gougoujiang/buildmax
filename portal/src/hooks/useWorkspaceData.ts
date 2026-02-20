@@ -11,6 +11,7 @@ import {
   apiArtifactToArtifact,
   type ApiWorkspace,
 } from "../lib/api"
+import { useAsyncList } from "./useAsyncList"
 
 export interface UseWorkspaceDataResult {
   workspaces: ApiWorkspace[]
@@ -30,93 +31,44 @@ export function useWorkspaceData(
   token: string | null,
   route: Route
 ): UseWorkspaceDataResult {
-  const [workspaces, setWorkspaces] = useState<ApiWorkspace[]>([])
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [workspaceTasks, setWorkspaceTasks] = useState<Task[]>([])
-  const [artifacts, setArtifacts] = useState<Artifact[]>([])
-
   const projectIdFromRoute = "projectId" in route ? route.projectId : undefined
 
-  const refetchWorkspaces = useCallback(() => {
-    if (!token) return
-    getWorkspaces(token)
-      .then(setWorkspaces)
-      .catch(() => setWorkspaces([]))
-  }, [token])
+  const { data: workspaces, refetch: refetchWorkspaces } = useAsyncList(
+    () => getWorkspaces(token!),
+    (x) => x,
+    [token],
+    !!token,
+    { setLoading: setLoadingWorkspaces }
+  )
 
-  useEffect(() => {
-    if (!token) {
-      setWorkspaces([])
-      setLoadingWorkspaces(false)
-      return
-    }
-    setLoadingWorkspaces(true)
-    getWorkspaces(token)
-      .then(setWorkspaces)
-      .catch(() => setWorkspaces([]))
-      .finally(() => setLoadingWorkspaces(false))
-  }, [token])
+  const { data: projects, refetch: refetchProjects } = useAsyncList(
+    () => getProjects(route.workspaceId, token!),
+    (list) => list.map(apiProjectToProject),
+    [token, route.workspaceId],
+    !!(token && route.workspaceId)
+  )
 
-  const refetchProjects = useCallback(() => {
-    if (!token || !route.workspaceId) return
-    getProjects(route.workspaceId, token)
-      .then((list) => setProjects(list.map(apiProjectToProject)))
-      .catch(() => setProjects([]))
-  }, [token, route.workspaceId])
+  const { data: tasks, refetch: refetchTasks } = useAsyncList(
+    () => getTasks(route.workspaceId, token!, projectIdFromRoute),
+    (list) => list.map(apiTaskToTask),
+    [token, route.workspaceId, projectIdFromRoute],
+    !!(token && route.workspaceId && projectIdFromRoute)
+  )
 
-  useEffect(() => {
-    if (!token || !route.workspaceId) {
-      setProjects([])
-      return
-    }
-    getProjects(route.workspaceId, token)
-      .then((list) => setProjects(list.map(apiProjectToProject)))
-      .catch(() => setProjects([]))
-  }, [token, route.workspaceId])
+  const { data: workspaceTasks, refetch: refetchWorkspaceTasks } = useAsyncList(
+    () => getTasks(route.workspaceId, token!),
+    (list) => list.map(apiTaskToTask),
+    [token, route.workspaceId],
+    !!(token && route.workspaceId)
+  )
 
-  const refetchTasks = useCallback(() => {
-    if (!token || !route.workspaceId || !projectIdFromRoute) return
-    getTasks(route.workspaceId, token, projectIdFromRoute)
-      .then((list) => setTasks(list.map(apiTaskToTask)))
-      .catch(() => setTasks([]))
-  }, [token, route.workspaceId, projectIdFromRoute])
-
-  useEffect(() => {
-    if (!token || !route.workspaceId || !projectIdFromRoute) {
-      setTasks([])
-      return
-    }
-    getTasks(route.workspaceId, token, projectIdFromRoute)
-      .then((list) => setTasks(list.map(apiTaskToTask)))
-      .catch(() => setTasks([]))
-  }, [token, route.workspaceId, projectIdFromRoute])
-
-  const refetchWorkspaceTasks = useCallback(() => {
-    if (!token || !route.workspaceId) return
-    getTasks(route.workspaceId, token)
-      .then((list) => setWorkspaceTasks(list.map(apiTaskToTask)))
-      .catch(() => setWorkspaceTasks([]))
-  }, [token, route.workspaceId])
-
-  useEffect(() => {
-    if (!token || !route.workspaceId) {
-      setWorkspaceTasks([])
-      return
-    }
-    getTasks(route.workspaceId, token)
-      .then((list) => setWorkspaceTasks(list.map(apiTaskToTask)))
-      .catch(() => setWorkspaceTasks([]))
-  }, [token, route.workspaceId])
-
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const refetchArtifacts = useCallback(
     (projectId?: string, taskId?: string) => {
       if (!token || !route.workspaceId) return
       const options =
-        projectId !== undefined || taskId !== undefined
-          ? { projectId, taskId }
-          : undefined
+        projectId !== undefined || taskId !== undefined ? { projectId, taskId } : undefined
       getArtifacts(route.workspaceId, token, options)
         .then((list) => setArtifacts(list.map(apiArtifactToArtifact)))
         .catch(() => setArtifacts([]))
@@ -129,9 +81,7 @@ export function useWorkspaceData(
       setArtifacts([])
       return
     }
-    getArtifacts(route.workspaceId, token, {
-      projectId: projectIdFromRoute,
-    })
+    getArtifacts(route.workspaceId, token, { projectId: projectIdFromRoute })
       .then((list) => setArtifacts(list.map(apiArtifactToArtifact)))
       .catch(() => setArtifacts([]))
   }, [token, route.workspaceId, projectIdFromRoute])

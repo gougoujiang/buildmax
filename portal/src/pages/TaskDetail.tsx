@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Task } from "../lib/types"
-import type { ApiSession } from "../lib/api"
 import { getTaskConversation, createTaskRun, getTasks } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
+import { useFetch } from "../hooks/useFetch"
 
 const POLL_INTERVAL_MS = 2000
 const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
@@ -18,44 +18,25 @@ interface TaskDetailProps {
 
 export function TaskDetail({ task, workspaceId, projectId, onRefetch }: TaskDetailProps) {
   const { token } = useAuth()
-  const [session, setSession] = useState<ApiSession | null>(null)
-  const [sessionLoading, setSessionLoading] = useState(false)
-  const [sessionError, setSessionError] = useState<string | null>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const {
+    data: session,
+    loading: sessionLoading,
+    error: sessionError,
+    refetch: refetchSession,
+  } = useFetch(
+    () => getTaskConversation(workspaceId, task.id, token!),
+    [workspaceId, task.id, token],
+    {
+      enabled: !!(token && workspaceId && task.id),
+      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load session"),
+    }
+  )
+
   const [followUpInput, setFollowUpInput] = useState("")
   const [followUpLoading, setFollowUpLoading] = useState(false)
   const [followUpError, setFollowUpError] = useState<string | null>(null)
-  const [sessionKey, setSessionKey] = useState(0)
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => {
-    if (!token || !workspaceId || !task.id) {
-      setSession(null)
-      setSessionError(null)
-      return
-    }
-    let cancelled = false
-    setSessionLoading(true)
-    setSessionError(null)
-    getTaskConversation(workspaceId, task.id, token)
-      .then((data) => {
-        if (!cancelled) {
-          setSession(data)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setSessionError(err instanceof Error ? err.message : "Failed to load session")
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setSessionLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [workspaceId, task.id, token, sessionKey])
 
   // Clear poll on unmount
   useEffect(() => {
@@ -88,7 +69,7 @@ export function TaskDetail({ task, workspaceId, projectId, onRefetch }: TaskDeta
             }
             setFollowUpLoading(false)
             onRefetch?.()
-            setSessionKey((k) => k + 1)
+            refetchSession()
           }
         } catch {
           // ignore poll errors; keep polling
