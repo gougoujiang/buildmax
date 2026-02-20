@@ -1,21 +1,31 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Task } from "../lib/types"
 import type { ApiSession } from "../lib/api"
-import { getTaskConversation } from "../lib/api"
+import { getTaskConversation, createTaskRun, getTasks } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
+
+const POLL_INTERVAL_MS = 2000
+const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
 
 interface TaskDetailProps {
   task: Task
   workspaceId: string
+  projectId?: string
+  onRefetch?: () => void
 }
 
-export function TaskDetail({ task, workspaceId }: TaskDetailProps) {
+export function TaskDetail({ task, workspaceId, projectId, onRefetch }: TaskDetailProps) {
   const { token } = useAuth()
   const [session, setSession] = useState<ApiSession | null>(null)
   const [sessionLoading, setSessionLoading] = useState(false)
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [followUpInput, setFollowUpInput] = useState("")
+  const [followUpLoading, setFollowUpLoading] = useState(false)
+  const [followUpError, setFollowUpError] = useState<string | null>(null)
+  const [sessionKey, setSessionKey] = useState(0)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!token || !workspaceId || !task.id) {
@@ -45,7 +55,50 @@ export function TaskDetail({ task, workspaceId }: TaskDetailProps) {
     return () => {
       cancelled = true
     }
-  }, [workspaceId, task.id, token])
+  }, [workspaceId, task.id, token, sessionKey])
+
+  // Clear poll on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [])
+
+  async function handleFollowUpSubmit() {
+    const input = followUpInput.trim()
+    if (!input || !token || followUpLoading) return
+    setFollowUpError(null)
+    setFollowUpLoading(true)
+    try {
+      await createTaskRun(workspaceId, task.id, { input }, token)
+      setFollowUpInput("")
+      // Poll until task status is SUCCEEDED or FAILED
+      pollIntervalRef.current = setInterval(async () => {
+        if (!token) return
+        try {
+          const list = await getTasks(workspaceId, token, projectId)
+          const updated = list.find((t) => t.id === task.id)
+          if (updated && TERMINAL_STATUSES.includes(updated.status)) {
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            setFollowUpLoading(false)
+            onRefetch?.()
+            setSessionKey((k) => k + 1)
+          }
+        } catch {
+          // ignore poll errors; keep polling
+        }
+      }, POLL_INTERVAL_MS)
+    } catch (err) {
+      setFollowUpError(err instanceof Error ? err.message : "Failed to start run")
+      setFollowUpLoading(false)
+    }
+  }
 
   return (
     <div className="page-task">
@@ -60,6 +113,38 @@ export function TaskDetail({ task, workspaceId }: TaskDetailProps) {
           Restore
         </button>
       </header>
+
+      {/* Follow-up: rerun with new input */}
+      <section className="page-task__section page-task__follow-up">
+        <h2 className="page-task__section-heading">Follow-up</h2>
+        <p className="page-task__text page-task__muted">
+          Add more context or a new question to run the task again. The agent will use the previous conversation.
+        </p>
+        <div className="page-task__follow-up-row">
+          <textarea
+            className="page-task__follow-up-input"
+            value={followUpInput}
+            onChange={(e) => setFollowUpInput(e.target.value)}
+            placeholder="e.g. Now focus on Q3 only"
+            rows={2}
+            disabled={followUpLoading}
+            aria-label="Follow-up input"
+          />
+          <button
+            type="button"
+            className="page-task__follow-up-btn"
+            onClick={handleFollowUpSubmit}
+            disabled={followUpLoading || !followUpInput.trim()}
+          >
+            {followUpLoading ? "Running…" : "Run follow-up"}
+          </button>
+        </div>
+        {followUpError && (
+          <p className="page-task__text page-task__error" role="alert">
+            {followUpError}
+          </p>
+        )}
+      </section>
 
       {/* Result — rendered as markdown */}
       <section className="page-task__section">

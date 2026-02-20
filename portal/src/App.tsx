@@ -156,7 +156,17 @@ function AppContent() {
         if (projectMismatch) return fallbackHome
         return fallbackProject(project!)
       }
-      return <TaskDetail task={task} workspaceId={route.workspaceId} />
+      return (
+        <TaskDetail
+          task={task}
+          workspaceId={route.workspaceId}
+          projectId={route.projectId}
+          onRefetch={() => {
+            refetchTasks()
+            refetchWorkspaceTasks()
+          }}
+        />
+      )
     }
     return fallbackHome
   }

@@ -231,6 +231,49 @@ export async function createTask(
   return res.json() as Promise<ApiTask>
 }
 
+/** Response from POST /api/workspaces/{id}/tasks/{task_id}/runs (snake_case). */
+export interface CreateTaskRunResponse {
+  run_id: string
+  task_id: string
+}
+
+/**
+ * Create a follow-up run for a task. Body: { input }. Returns run_id and task_id.
+ * Throws with message "a run is already in progress for this task" on 409.
+ */
+export async function createTaskRun(
+  workspaceId: string,
+  taskId: string,
+  body: { input: string },
+  token: string
+): Promise<CreateTaskRunResponse> {
+  const res = await fetch(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/runs`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    }
+  )
+  checkUnauthorized(res)
+  if (res.status === 409) {
+    const text = await res.text()
+    let msg: string
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      msg = j.error ?? "A run is already in progress for this task"
+    } catch {
+      msg = "A run is already in progress for this task"
+    }
+    throw new Error(msg)
+  }
+  await throwIfNotOk(res)
+  return res.json() as Promise<CreateTaskRunResponse>
+}
+
 /** Artifact as returned by GET /api/workspaces/{id}/artifacts (snake_case). */
 export interface ApiArtifact {
   artifact_id: string
