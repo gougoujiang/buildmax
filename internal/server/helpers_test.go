@@ -244,18 +244,6 @@ func (m *mockTaskStore) UpdateTaskStatusIf(_ context.Context, taskID, expectedSt
 	return false, nil
 }
 
-func (m *mockTaskStore) UpdateTaskWorkerInfo(_ context.Context, taskID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
-	for i := range m.list {
-		if m.list[i].TaskID == taskID {
-			m.list[i].WorkerType = workerType
-			m.list[i].K8sJobName = k8sJobName
-			m.list[i].K8sJobCreatedAt = k8sJobCreatedAt
-			return nil
-		}
-	}
-	return nil
-}
-
 func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int, error) {
 	for i := range m.list {
 		if m.list[i].TaskID == taskID {

@@ -246,6 +246,17 @@ cmd_deploy() {
     echo "Error: kubectl apply failed"
     return 1
   fi
+  echo "Restarting deployments..."
+  # Restart server
+  if ! kubectl rollout restart deployment buildmax-server -n buildmax; then
+    echo "Error: kubectl rollout restart failed"
+    return 1
+  fi
+  # Restart portal
+  if ! kubectl rollout restart deployment buildmax-portal -n buildmax; then
+    echo "Error: kubectl rollout restart failed"
+    return 1
+  fi
   echo "Deployed. Add 127.0.0.1 buildmax-api.kind.local to /etc/hosts, then open http://buildmax-api.kind.local"
 }
 

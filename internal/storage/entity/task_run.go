@@ -155,18 +155,15 @@ func (s *Store) OnRunComplete(ctx context.Context, runID, artifactID, relativePa
 		if err := tx.Create(&ArtifactItem{ArtifactID: artifactID, RelativePath: relativePath}).Error; err != nil {
 			return err
 		}
-		// Update task denormalized from run
+		// Update task denormalized from run (worker_type, k8s_* live only on task_run)
 		updates := map[string]interface{}{
-			"last_run_id":   runID,
-			"status":       run.Status,
-			"output":       run.Output,
-			"started_at":   run.StartedAt,
-			"ended_at":     run.EndedAt,
-			"error_message": run.ErrorMessage,
-			"worker_type":  run.WorkerType,
-			"k8s_job_name": run.K8sJobName,
-			"k8s_job_created_at": run.K8sJobCreatedAt,
-			"last_artifact_id":  artifactID,
+			"last_run_id":     runID,
+			"status":         run.Status,
+			"output":         run.Output,
+			"started_at":     run.StartedAt,
+			"ended_at":       run.EndedAt,
+			"error_message":  run.ErrorMessage,
+			"last_artifact_id": artifactID,
 		}
 		if run.SessionID != nil {
 			updates["session_id"] = *run.SessionID
@@ -182,15 +179,12 @@ func (s *Store) SyncTaskFromRun(ctx context.Context, runID string) error {
 		return err
 	}
 	updates := map[string]interface{}{
-		"last_run_id": runID,
-		"status":      run.Status,
-		"output":      run.Output,
-		"started_at":  run.StartedAt,
-		"ended_at":    run.EndedAt,
+		"last_run_id":    runID,
+		"status":        run.Status,
+		"output":        run.Output,
+		"started_at":    run.StartedAt,
+		"ended_at":      run.EndedAt,
 		"error_message": run.ErrorMessage,
-		"worker_type": run.WorkerType,
-		"k8s_job_name": run.K8sJobName,
-		"k8s_job_created_at": run.K8sJobCreatedAt,
 	}
 	if run.SessionID != nil {
 		updates["session_id"] = *run.SessionID

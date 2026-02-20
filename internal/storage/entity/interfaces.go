@@ -39,7 +39,6 @@ type TaskStore interface {
 	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 	UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
-	UpdateTaskWorkerInfo(ctx context.Context, taskID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
 	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
 }
 

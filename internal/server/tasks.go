@@ -27,9 +27,6 @@ type TaskResponse struct {
 	StartedAt        *int64  `json:"started_at,omitempty"`
 	EndedAt          *int64  `json:"ended_at,omitempty"`
 	ErrorMessage     *string `json:"error_message,omitempty"`
-	WorkerType       string  `json:"worker_type,omitempty"`
-	K8sJobName       *string `json:"k8s_job_name,omitempty"`
-	K8sJobCreatedAt  *int64  `json:"k8s_job_created_at,omitempty"`
 }
 
 // createTaskRequest is the JSON body for POST /api/workspaces/{workspace_id}/tasks.
@@ -49,12 +46,9 @@ func taskToResponse(t model.Task) TaskResponse {
 		Output:          t.Output,
 		CreatedBy:       t.CreatedBy,
 		CreatedAt:       t.CreatedAt,
-		StartedAt:       t.StartedAt,
-		EndedAt:         t.EndedAt,
-		ErrorMessage:    t.ErrorMessage,
-		WorkerType:      t.WorkerType,
-		K8sJobName:      t.K8sJobName,
-		K8sJobCreatedAt: t.K8sJobCreatedAt,
+		StartedAt:    t.StartedAt,
+		EndedAt:      t.EndedAt,
+		ErrorMessage: t.ErrorMessage,
 	}
 }
 
