@@ -32,6 +32,16 @@ export interface Artifact {
   title: string
 }
 
+// --- Workspace scope (derived from route) ---
+// Scope = what is in context for the current view (workspaceId; projectId/taskId when on project/task).
+// Route = URL state; scope = derived context for data and display.
+
+export interface WorkspaceScope {
+  workspaceId: string
+  projectId?: string
+  taskId?: string
+}
+
 // --- Route types ---
 
 export type Route =

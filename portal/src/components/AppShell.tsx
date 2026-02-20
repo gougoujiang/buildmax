@@ -1,16 +1,15 @@
 import type { ReactNode } from "react"
-import type { Workspace, Route, Project } from "../lib/types"
+import type { Workspace } from "../lib/types"
 import type { LoginUser } from "../lib/api"
+import { navigate } from "../lib/router"
+import { useWorkspace } from "../contexts/WorkspaceContext"
 import { TopBar } from "./TopBar"
 import { LeftSidebar } from "./LeftSidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
 
 interface AppShellProps {
   currentWorkspace: Workspace
-  workspaces: Workspace[]
-  projects: Project[]
-  route: Route
-  onWorkspaceChange: (workspaceId: string) => void
+  workspaces: { id: string; name: string }[]
   onNewWorkspace?: () => void
   user: LoginUser
   onLogout: () => void
@@ -20,20 +19,19 @@ interface AppShellProps {
 export function AppShell({
   currentWorkspace,
   workspaces,
-  projects,
-  route,
-  onWorkspaceChange,
   onNewWorkspace,
   user,
   onLogout,
   children,
 }: AppShellProps) {
+  const { route, projects } = useWorkspace()
+
   return (
     <div className="shell">
       <TopBar
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
-        onWorkspaceChange={onWorkspaceChange}
+        onWorkspaceChange={(workspaceId) => navigate({ name: "workspace", workspaceId })}
         onNewWorkspace={onNewWorkspace}
         user={user}
         onLogout={onLogout}

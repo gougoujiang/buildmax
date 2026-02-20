@@ -1,5 +1,6 @@
-import type { Artifact, Project, Route, Task, ViewArtifactParams } from "../lib/types"
+import type { Project, ViewArtifactParams } from "../lib/types"
 import { getProjectById, getProjectName, getTaskForDetail } from "../lib/workspace"
+import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Activity } from "../pages/Activity"
 import { Project as ProjectView } from "../pages/Project"
 import { Projects } from "../pages/Projects"
@@ -9,32 +10,23 @@ import { Explore } from "../pages/Explore"
 export type { ViewArtifactParams }
 
 export interface WorkspaceRouterProps {
-  route: Route
-  projects: Project[]
-  tasks: Task[]
-  workspaceTasks: Task[]
-  artifacts: Artifact[]
-  token: string | undefined
   onViewArtifact: (params: ViewArtifactParams) => void
-  onRefetchProjects: () => void
-  onRefetchTasks: () => void
-  onRefetchWorkspaceTasks: () => void
-  onRefetchArtifacts: (projectId?: string, taskId?: string) => void
 }
 
-export function WorkspaceRouter({
-  route,
-  projects,
-  tasks,
-  workspaceTasks,
-  artifacts,
-  token,
-  onViewArtifact,
-  onRefetchProjects,
-  onRefetchTasks,
-  onRefetchWorkspaceTasks,
-  onRefetchArtifacts,
-}: WorkspaceRouterProps) {
+export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
+  const {
+    route,
+    projects,
+    tasks,
+    workspaceTasks,
+    artifacts,
+    token,
+    refetchProjects,
+    refetchTasks,
+    refetchWorkspaceTasks,
+    refetchArtifacts,
+  } = useWorkspace()
+
   const projectIdFromRoute = "projectId" in route ? route.projectId : undefined
 
   const fallbackHome = (
@@ -42,10 +34,10 @@ export function WorkspaceRouter({
       workspaceId={route.workspaceId}
       projects={projects}
       artifacts={artifacts}
-      token={token}
-      onRefetchProjects={onRefetchProjects}
-      onRefetchWorkspaceTasks={onRefetchWorkspaceTasks}
-      onRefetchArtifacts={onRefetchArtifacts}
+      token={token ?? undefined}
+      onRefetchProjects={refetchProjects}
+      onRefetchWorkspaceTasks={refetchWorkspaceTasks}
+      onRefetchArtifacts={refetchArtifacts}
       onViewArtifact={onViewArtifact}
     />
   )
@@ -56,9 +48,9 @@ export function WorkspaceRouter({
       project={project}
       tasks={projectIdFromRoute === project.id ? tasks : []}
       artifacts={projectIdFromRoute === project.id ? artifacts : []}
-      token={token}
-      onRefetchTasks={onRefetchTasks}
-      onRefetchArtifacts={onRefetchArtifacts}
+      token={token ?? undefined}
+      onRefetchTasks={refetchTasks}
+      onRefetchArtifacts={refetchArtifacts}
       onViewArtifact={onViewArtifact}
     />
   )
@@ -96,8 +88,8 @@ export function WorkspaceRouter({
         workspaceId={route.workspaceId}
         projectId={route.projectId}
         onRefetch={() => {
-          onRefetchTasks()
-          onRefetchWorkspaceTasks()
+          refetchTasks()
+          refetchWorkspaceTasks()
         }}
       />
     )

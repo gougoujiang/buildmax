@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
-import { useHashRoute, navigate } from "./lib"
+import { navigate } from "./lib"
 import { createWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
-import { useWorkspaceData } from "./hooks/useWorkspaceData"
+import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext"
 import { AppShell } from "./components/AppShell"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { ArtifactContentModal } from "./components/ArtifactContentModal"
@@ -12,20 +12,12 @@ import { SignUp } from "./pages/SignUp"
 
 function AppContent() {
   const { token, user, logout } = useAuth()
-  const route = useHashRoute()
   const {
+    route,
     workspaces,
-    projects,
-    tasks,
-    workspaceTasks,
-    artifacts,
     loadingWorkspaces,
     refetchWorkspaces,
-    refetchProjects,
-    refetchTasks,
-    refetchWorkspaceTasks,
-    refetchArtifacts,
-  } = useWorkspaceData(token, route)
+  } = useWorkspace()
 
   const [showNewWorkspace, setShowNewWorkspace] = useState(false)
   const [viewArtifact, setViewArtifact] = useState<{ workspaceId: string; artifactId: string } | null>(null)
@@ -84,26 +76,11 @@ function AppContent() {
       <AppShell
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
-        projects={projects}
-        route={route}
-        onWorkspaceChange={(workspaceId) => navigate({ name: "workspace", workspaceId })}
         onNewWorkspace={handleNewWorkspace}
         user={user!}
         onLogout={logout}
       >
-        <WorkspaceRouter
-          route={route}
-          projects={projects}
-          tasks={tasks}
-          workspaceTasks={workspaceTasks}
-          artifacts={artifacts}
-          token={token ?? undefined}
-          onViewArtifact={setViewArtifact}
-          onRefetchProjects={refetchProjects}
-          onRefetchTasks={refetchTasks}
-          onRefetchWorkspaceTasks={refetchWorkspaceTasks}
-          onRefetchArtifacts={refetchArtifacts}
-        />
+        <WorkspaceRouter onViewArtifact={setViewArtifact} />
       </AppShell>
       <CreateWorkspaceModal
         open={showNewWorkspace}
@@ -128,7 +105,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <WorkspaceProvider>
+        <AppContent />
+      </WorkspaceProvider>
     </AuthProvider>
   )
 }

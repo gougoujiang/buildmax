@@ -1,5 +1,14 @@
 import { useState, useEffect } from "react"
-import type { Route } from "./types"
+import type { Route, WorkspaceScope } from "./types"
+
+/** Derive workspace scope from route (for data fetching and display). */
+export function getWorkspaceScope(route: Route): WorkspaceScope {
+  return {
+    workspaceId: route.workspaceId,
+    projectId: "projectId" in route ? route.projectId : undefined,
+    taskId: "taskId" in route ? route.taskId : undefined,
+  }
+}
 
 /** Path segment names used in the hash URL. Single source of truth for parseHash/buildHash. */
 export const SEGMENT = {

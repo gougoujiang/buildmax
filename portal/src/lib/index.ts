@@ -1,2 +1,2 @@
-export type { Workspace, Project, Task, Route, ActivityItem, ViewArtifactParams } from "./types"
-export { parseHash, buildHash, navigate, useHashRoute } from "./router"
+export type { Workspace, Project, Task, Route, WorkspaceScope, ActivityItem, ViewArtifactParams } from "./types"
+export { parseHash, buildHash, navigate, useHashRoute, getWorkspaceScope } from "./router"
