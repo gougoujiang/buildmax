@@ -16,10 +16,11 @@ import (
 
 func main() {
 	// Default worker to debug log level when not set, so ephemeral worker logs are detailed enough to triage.
-	if os.Getenv(config.EnvKeyBuildmaxLogLevel) == "" {
-		os.Setenv(config.EnvKeyBuildmaxLogLevel, "debug")
+	level := config.LogLevel()
+	if level == "" {
+		level = "debug"
 	}
-	log.Init("buildmax-worker.log", true)
+	log.Init(config.LogsDir(), level, "buildmax-worker.log", true)
 	runID := flag.String("task-run-id", "", "task run ID to run (required)")
 	flag.Parse()
 	if *runID == "" {

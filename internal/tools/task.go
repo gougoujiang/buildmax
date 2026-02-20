@@ -11,6 +11,13 @@ import (
 	"buildmax/internal/agent"
 )
 
+// SubAgentRunner runs a sub-agent with the given tools and prompt.
+// It is implemented by agent and injected when building the Task tool so that
+// tools do not depend on a concrete runner; tests can inject a mock.
+type SubAgentRunner interface {
+	RunSubAgent(ctx context.Context, tools []agent.Tool, systemPrompt string, description string, prompt string) (reply string, err error)
+}
+
 // Built-in sub-agent system prompts.
 const (
 	GeneralSubAgentPrompt = `You are a general-purpose AI assistant sub-agent. You have access to tools for reading, writing, editing files, running commands, and more. Complete the task described in the user message thoroughly and return a clear, concise result.`
@@ -79,14 +86,14 @@ type AgentTypeConfig struct {
 // TaskTool is an agent tool that spawns sub-agents to handle complex subtasks.
 // It implements agent.Tool.
 type TaskTool struct {
-	runner    agent.SubAgentRunner
+	runner     SubAgentRunner
 	agentTypes map[string]AgentTypeConfig
 	typeOrder  []string // deterministic ordering: built-in first, then user-defined alphabetically
 }
 
 // NewTask creates a TaskTool with the given sub-agent runner and agent type configurations.
 // runner must not be nil; agentTypes must have at least one entry.
-func NewTask(runner agent.SubAgentRunner, agentTypes map[string]AgentTypeConfig) (*TaskTool, error) {
+func NewTask(runner SubAgentRunner, agentTypes map[string]AgentTypeConfig) (*TaskTool, error) {
 	if runner == nil {
 		return nil, errors.New("runner must not be nil")
 	}

@@ -19,19 +19,14 @@ import (
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/util"
+	"buildmax/internal/workerapi"
 )
-
-// ArtifactPayload is passed to TaskRunUpdater when registering an artifact on success.
-type ArtifactPayload struct {
-	ArtifactID   string
-	RelativePath string
-}
 
 // TaskRunUpdater is used by the worker to update run status and register artifacts via HTTP.
 // When status is SUCCEEDED with artifact, server creates artifact and syncs task denormalized fields.
 // When status is FAILED, server syncs task denormalized from run.
 type TaskRunUpdater interface {
-	UpdateRunStatus(ctx context.Context, runID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *ArtifactPayload) error
+	UpdateRunStatus(ctx context.Context, runID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *workerapi.ArtifactPayload) error
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload buildmax, update run and task via updater.
@@ -135,7 +130,7 @@ func persistRunResult(buildmaxDir, runID string, output []byte) {
 func reportRunFailure(ctx context.Context, runID string, err error, updater TaskRunUpdater) {
 	endTime := time.Now().Unix()
 	errMsg := fmt.Sprintf("%v", err)
-	_ = updater.UpdateRunStatus(ctx, runID, "FAILED", nil, ptrInt64(endTime), nil, &errMsg, nil, nil)
+	_ = updater.UpdateRunStatus(ctx, runID, workerapi.StatusFailed, nil, ptrInt64(endTime), nil, &errMsg, nil, nil)
 }
 
 func reportRunSuccess(ctx context.Context, task *entity.Task, run *entity.TaskRun, endTime int64, outputStr, resultFilename string, output []byte, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
@@ -143,7 +138,7 @@ func reportRunSuccess(ctx context.Context, task *entity.Task, run *entity.TaskRu
 	if putErr := artifactStorage.PutResult(ctx, task.WorkspaceID, task.TaskID, run.RunID, artifactID, output); putErr != nil {
 		slog.Error("executor: failed to write result to artifact storage", "run_id", run.RunID, "err", putErr)
 	}
-	return updater.UpdateRunStatus(ctx, run.RunID, "SUCCEEDED", nil, &endTime, &outputStr, nil, nil, &ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename})
+	return updater.UpdateRunStatus(ctx, run.RunID, workerapi.StatusSucceeded, nil, &endTime, &outputStr, nil, nil, &workerapi.ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename})
 }
 
 // uploadTaskBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage for the run.

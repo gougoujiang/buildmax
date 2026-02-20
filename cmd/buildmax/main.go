@@ -6,11 +6,12 @@ import (
 	"os"
 
 	"buildmax/internal/cmd"
+	"buildmax/internal/config"
 	log "buildmax/internal/log"
 )
 
 func main() {
-	log.Init("", false)
+	log.Init(config.LogsDir(), config.LogLevel(), "", false)
 	root := cmd.NewRootCommand()
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

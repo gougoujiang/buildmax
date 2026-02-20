@@ -1,8 +1,8 @@
-// Package log configures the application's default slog logger: level from
-// BUILDMAX_LOG_LEVEL, rotating file under config.DataDir()/logs. Init accepts a
-// filename (empty = "buildmax.log") and alsoStdout; when alsoStdout is true logs
-// go to both file and stdout (for server/worker); when false, file only (for CLI
-// so TUI and prompt-mode stdout stay clean). SetOutput is provided for tests.
+// Package log configures the application's default slog logger. Init accepts
+// explicit logsDir and level so the package has no dependency on config.
+// When alsoStdout is true logs go to both file and stdout (for server/worker);
+// when false, file only (for CLI so TUI and prompt-mode stdout stay clean).
+// SetOutput is provided for tests.
 package log
 
 import (
@@ -11,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"buildmax/internal/config"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -33,22 +31,22 @@ var currentLevel = slog.LevelInfo
 // fileWriter is the rotating log file writer, if Init() created one. Used by DisableConsole.
 var fileWriter io.Writer
 
-// Init configures slog.Default() with level from config.LogLevel() (BUILDMAX_LOG_LEVEL), creates
-// config.DataDir()/logs, and sets output to a rotating file. If filename is empty, "buildmax.log" is used.
-// When alsoStdout is true, logs go to both the file and os.Stdout; when false, file only.
-func Init(filename string, alsoStdout bool) {
-	level := parseLevel(config.LogLevel())
-	currentLevel = level
+// Init configures slog.Default() with the given level string (e.g. "debug", "info").
+// It creates logsDir if needed and sets output to a rotating file there.
+// If filename is empty, "buildmax.log" is used. When alsoStdout is true,
+// logs go to both the file and os.Stdout; when false, file only.
+func Init(logsDir, level string, filename string, alsoStdout bool) {
+	parsedLevel := parseLevel(level)
+	currentLevel = parsedLevel
 
 	chosenName := filename
 	if chosenName == "" {
 		chosenName = logFilename
 	}
 
-	logsDir := config.LogsDir()
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		fileWriter = nil
-		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: level})))
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: parsedLevel})))
 		return
 	}
 
@@ -64,7 +62,7 @@ func Init(filename string, alsoStdout bool) {
 	if alsoStdout {
 		out = io.MultiWriter(lj, os.Stdout)
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: level})))
+	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: parsedLevel})))
 }
 
 // DisableConsole reconfigures slog.Default() to write only to the file (or

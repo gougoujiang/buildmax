@@ -12,6 +12,7 @@ import (
 	"buildmax/internal/server"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/storage/setup"
 )
 
 // RunServer loads server env and workspaces dir, opens the DB, builds blob storage,
@@ -42,16 +43,16 @@ func RunServer(ctx context.Context, port int) error {
 	var s3Client blob.S3Client
 	if wsCfg.PersistProvider == config.ProviderMinIO || wsCfg.ArtifactProvider == config.ProviderMinIO {
 		var s3Err error
-		s3Client, s3Err = config.BuildS3Client(ctx, wsCfg)
+		s3Client, s3Err = setup.BuildS3Client(ctx, wsCfg)
 		if s3Err != nil {
 			return fmt.Errorf("S3 client: %w", s3Err)
 		}
 	}
-	persistStorage, err := config.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
+	persistStorage, err := setup.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
 	if err != nil {
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := config.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
 	if err != nil {
 		return fmt.Errorf("artifact storage: %w", err)
 	}

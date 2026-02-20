@@ -3,43 +3,9 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+
+	"buildmax/internal/workerapi"
 )
-
-// getWorkerTaskRunResponse is the JSON response for GET /api/worker/task-runs/{run_id} (snake_case).
-type getWorkerTaskRunResponse struct {
-	Run  getWorkerTaskRunRun  `json:"run"`
-	Task getWorkerTaskRunTask `json:"task"`
-}
-
-type getWorkerTaskRunRun struct {
-	RunID     string `json:"run_id"`
-	TaskID    string `json:"task_id"`
-	Input     string `json:"input"`
-	Status    string `json:"status"`
-	CreatedAt int64  `json:"created_at"`
-}
-
-type getWorkerTaskRunTask struct {
-	TaskID      string  `json:"task_id"`
-	WorkspaceID string  `json:"workspace_id"`
-	ProjectID   *string `json:"project_id,omitempty"`
-	SessionID   *string `json:"session_id,omitempty"`
-	LastRunID   *string `json:"last_run_id,omitempty"`
-}
-
-// patchWorkerTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{run_id} (snake_case).
-type patchWorkerTaskRunRequest struct {
-	Status       string  `json:"status"`
-	SessionID    *string `json:"session_id,omitempty"`
-	StartedAt    *int64  `json:"started_at,omitempty"`
-	EndedAt      *int64  `json:"ended_at,omitempty"`
-	Output       *string `json:"output,omitempty"`
-	ErrorMessage *string `json:"error_message,omitempty"`
-	Artifact     *struct {
-		ArtifactID   string `json:"artifact_id"`
-		RelativePath string `json:"relative_path"`
-	} `json:"artifact,omitempty"`
-}
 
 // getWorkerTaskRunHandler handles GET /api/worker/task-runs/{run_id}. Returns run and task for the worker.
 func (s *Server) getWorkerTaskRunHandler(w http.ResponseWriter, r *http.Request) {
@@ -60,15 +26,15 @@ func (s *Server) getWorkerTaskRunHandler(w http.ResponseWriter, r *http.Request)
 		writeJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, getWorkerTaskRunResponse{
-		Run: getWorkerTaskRunRun{
+	writeJSON(w, http.StatusOK, workerapi.GetTaskRunResponse{
+		Run: workerapi.TaskRunRun{
 			RunID:     run.RunID,
 			TaskID:    run.TaskID,
 			Input:     run.Input,
 			Status:    run.Status,
 			CreatedAt: run.CreatedAt,
 		},
-		Task: getWorkerTaskRunTask{
+		Task: workerapi.TaskRunTask{
 			TaskID:      task.TaskID,
 			WorkspaceID: task.WorkspaceID,
 			ProjectID:   task.ProjectID,
@@ -88,7 +54,7 @@ func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Reques
 	if !s.requireStore(w, s.cfg.TaskRunStore, "task runs not configured") {
 		return
 	}
-	var req patchWorkerTaskRunRequest
+	var req workerapi.PatchTaskRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
@@ -98,8 +64,8 @@ func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if req.Status == "RUNNING" {
-		updated, err := s.cfg.TaskRunStore.UpdateTaskRunStatusIf(r.Context(), runID, "SCHEDULED", "RUNNING", req.StartedAt, nil, nil, nil, req.SessionID)
+	if req.Status == workerapi.StatusRunning {
+		updated, err := s.cfg.TaskRunStore.UpdateTaskRunStatusIf(r.Context(), runID, workerapi.StatusScheduled, workerapi.StatusRunning, req.StartedAt, nil, nil, nil, req.SessionID)
 		if err != nil {
 			writeInternalError(w, err, "handler", "patch_worker_task_run", "run_id", runID)
 			return
@@ -113,12 +79,12 @@ func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Reques
 			writeInternalError(w, err, "handler", "patch_worker_task_run", "run_id", runID)
 			return
 		}
-		if req.Status == "SUCCEEDED" && req.Artifact != nil && req.Artifact.ArtifactID != "" && req.Artifact.RelativePath != "" {
+		if req.Status == workerapi.StatusSucceeded && req.Artifact != nil && req.Artifact.ArtifactID != "" && req.Artifact.RelativePath != "" {
 			if err := s.cfg.TaskRunStore.OnRunComplete(r.Context(), runID, req.Artifact.ArtifactID, req.Artifact.RelativePath); err != nil {
 				writeInternalError(w, err, "handler", "patch_worker_task_run_on_complete", "run_id", runID)
 				return
 			}
-		} else if req.Status == "FAILED" {
+		} else if req.Status == workerapi.StatusFailed {
 			if err := s.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), runID); err != nil {
 				writeInternalError(w, err, "handler", "patch_worker_task_run_sync", "run_id", runID)
 				return

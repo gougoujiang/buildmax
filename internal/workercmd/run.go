@@ -11,6 +11,8 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/executor"
 	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/setup"
+	"buildmax/internal/workerapi"
 
 	"github.com/google/uuid"
 )
@@ -54,7 +56,7 @@ func RunWorker(ctx context.Context, runID string) error {
 		slog.Error("worker: run not found", "run_id", runID)
 		return fmt.Errorf("run not found")
 	}
-	if run.Status != "SCHEDULED" {
+	if run.Status != workerapi.StatusScheduled {
 		slog.Error("worker: run not in SCHEDULED status", "run_id", runID, "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
@@ -65,7 +67,7 @@ func RunWorker(ctx context.Context, runID string) error {
 	}
 	updater := &executor.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
-	if err := updater.UpdateRunStatus(ctx, run.RunID, "RUNNING", &now, nil, nil, nil, &sessionID, nil); err != nil {
+	if err := updater.UpdateRunStatus(ctx, run.RunID, workerapi.StatusRunning, &now, nil, nil, nil, &sessionID, nil); err != nil {
 		if errors.Is(err, executor.ErrTaskAlreadyClaimed) {
 			slog.Info("run already claimed by another worker", "run_id", runID)
 			return ErrAlreadyClaimed
@@ -78,18 +80,18 @@ func RunWorker(ctx context.Context, runID string) error {
 	var s3Client blob.S3Client
 	if wsCfg.PersistProvider == config.ProviderMinIO || wsCfg.ArtifactProvider == config.ProviderMinIO {
 		var s3Err error
-		s3Client, s3Err = config.BuildS3Client(ctx, wsCfg)
+		s3Client, s3Err = setup.BuildS3Client(ctx, wsCfg)
 		if s3Err != nil {
 			slog.Error("worker: failed to build S3 client", "run_id", runID, "err", s3Err)
 			return fmt.Errorf("S3 client: %w", s3Err)
 		}
 	}
-	persistStorage, err := config.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
+	persistStorage, err := setup.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
 	if err != nil {
 		slog.Error("worker: failed to build persist storage", "run_id", runID, "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := config.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
 	if err != nil {
 		slog.Error("worker: failed to build artifact storage", "run_id", runID, "err", err)
 		return fmt.Errorf("artifact storage: %w", err)

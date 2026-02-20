@@ -17,7 +17,3 @@ func (s *Server) persistentWorkspaceDir(workspaceID string) string {
 	return filepath.Join(s.workspacesDir(), workspaceID, "persist")
 }
 
-func (s *Server) artifactDir(workspaceID, taskID, artifactID string) string {
-	return filepath.Join(s.workspacesDir(), workspaceID, "artifacts", taskID, artifactID)
-}
-
