@@ -4,7 +4,6 @@ import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
 import { createChat } from "../lib/api"
 import { chatStatusIcon } from "../lib/chatStatus"
-import { PromptArea } from "../components/PromptArea"
 import { FilesPanel } from "../components/FilesPanel"
 import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
 
@@ -51,22 +50,38 @@ export function NewChat({
 
   return (
     <div className="page-new-chat">
-      <h1 className="page-new-chat__title">New Chat</h1>
       <p className="page-new-chat__subtitle">
         Start a new conversation. Describe what you want to accomplish and the agent will work on it.
       </p>
-      <PromptArea
-        value={prompt}
-        onChange={(v) => { setPrompt(v); setRunError(null) }}
-        onRun={handleRun}
-        heading="What would you like to do?"
-        placeholder="e.g. Help me analyze last month's sales data"
-      />
-      {runError && (
-        <p className="page-new-chat__error" role="alert">
-          {runError}
-        </p>
-      )}
+      <section className="page-chat__input">
+        <div className="page-chat__input-box">
+          <textarea
+            className="page-chat__follow-up-input"
+            value={prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value)
+              setRunError(null)
+            }}
+            placeholder="e.g. Help me analyze last month's sales data"
+            rows={2}
+            disabled={running}
+            aria-label="What would you like to do?"
+          />
+          <button
+            type="button"
+            className="page-chat__follow-up-btn"
+            onClick={handleRun}
+            disabled={running || !prompt.trim()}
+          >
+            {running ? "Running…" : "Run"}
+          </button>
+        </div>
+        {runError && (
+          <p className="page-chat__text page-chat__error" role="alert">
+            {runError}
+          </p>
+        )}
+      </section>
 
       <div className="page-new-chat__tabs">
         <div className="page-new-chat__tab-list" role="tablist" aria-label="Chats, artifacts, and files">

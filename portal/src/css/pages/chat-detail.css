@@ -194,8 +194,8 @@
 }
 
 .page-chat__input-box:focus-within {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 1px #1a1a1a;
 }
 
 .page-chat__follow-up-input {
@@ -230,18 +230,18 @@
   font-size: 0.9rem;
   font-weight: 500;
   color: #fff;
-  background: #3b82f6;
+  background: #1a1a1a;
   border: none;
   border-radius: 6px;
   cursor: pointer;
 }
 
 .page-chat__follow-up-btn:hover:not(:disabled) {
-  background: #2563eb;
+  background: #333;
 }
 
 .page-chat__follow-up-btn:disabled {
-  background: #94a3b8;
+  background: #999;
   cursor: not-allowed;
 }
 
