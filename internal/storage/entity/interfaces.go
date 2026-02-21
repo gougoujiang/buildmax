@@ -29,10 +29,19 @@ type ProjectStore interface {
 	CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error)
 }
 
+// AgentStore provides agent persistence. Agents are workspace-scoped.
+type AgentStore interface {
+	ListAgentsByWorkspace(ctx context.Context, workspaceID string) ([]Agent, error)
+	GetAgent(ctx context.Context, agentID string) (*Agent, error)
+	CreateAgent(ctx context.Context, workspaceID, name, description, instructions string) (*Agent, error)
+}
+
 // TaskStore provides task persistence. Tasks belong to a workspace; project is optional.
 // CreateTask creates task + first TaskRun (both in one transaction).
 type TaskStore interface {
 	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
+	// ListTasksByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
+	ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.

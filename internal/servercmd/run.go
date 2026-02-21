@@ -77,6 +77,7 @@ func RunServer(ctx context.Context, port int) error {
 		UserStore:        st,
 		WorkspaceStore:   st,
 		ProjectStore:     st,
+		AgentStore:       st,
 		TaskStore:        st,
 		TaskRunStore:     st,
 		ArtifactStore:    st,

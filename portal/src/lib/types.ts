@@ -50,6 +50,8 @@ export type Route =
   | { name: "task"; workspaceId: string; projectId: string; taskId: string }
   | { name: "activity"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
+  | { name: "agents"; workspaceId: string }
+  | { name: "agentList"; workspaceId: string }
 
 // --- Activity (workspace-scoped) ---
 
@@ -63,6 +65,17 @@ export interface ActivityItem {
 export interface ViewArtifactParams {
   workspaceId: string
   artifactId: string
+}
+
+// --- Agent (workspace-scoped persona) ---
+
+export interface Agent {
+  id: string
+  workspaceId: string
+  name: string
+  description: string
+  instructions: string
+  createdAt: number
 }
 
 // --- Explore (workspace directory structure) ---

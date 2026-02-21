@@ -14,10 +14,17 @@ export function Breadcrumbs({ route, projects }: BreadcrumbsProps) {
     crumbs = [{ label: "Activity", route: { name: "activity", workspaceId } }]
   } else if (route.name === "explore") {
     crumbs = [{ label: "Explore", route: { name: "explore", workspaceId } }]
+  } else if (route.name === "agents") {
+    crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
+  } else if (route.name === "agentList") {
+    crumbs = [
+      { label: "Agents", route: { name: "agents", workspaceId } },
+      { label: "Manage agents", route: { name: "agentList", workspaceId } },
+    ]
   } else {
     // workspace, project, task — all under "Projects"
     crumbs = [{ label: "Projects", route: { name: "workspace", workspaceId } }]
-    if (route.name !== "workspace") {
+    if (route.name === "project" || route.name === "task") {
       const projectId = route.projectId
       const project = projects.find((p) => p.id === projectId)
       crumbs.push({

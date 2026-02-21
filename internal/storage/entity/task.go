@@ -22,6 +22,33 @@ func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, pr
 	return list, err
 }
 
+// ListTasksByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
+// executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
+// total is the total number of matching tasks (ignoring limit/offset).
+func (s *Store) ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]Task, int, error) {
+	q := s.db.WithContext(ctx).Model(&Task{}).Where("workspace_id = ?", workspaceID)
+	if projectID != nil {
+		q = q.Where("project_id = ?", *projectID)
+	}
+	if executedOnly {
+		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []Task
+	q = s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	if projectID != nil {
+		q = q.Where("project_id = ?", *projectID)
+	}
+	if executedOnly {
+		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
+	}
+	err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
+	return list, int(total), err
+}
+
 // GetTask returns the task by task_id, or (nil, nil) if not found.
 func (s *Store) GetTask(ctx context.Context, taskID string) (*Task, error) {
 	var t Task

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
@@ -98,8 +99,15 @@ func (s *Server) resolveProjectForWorkspace(w http.ResponseWriter, r *http.Reque
 	return project, true
 }
 
+// tasksListResponse is the paginated response for GET .../tasks when limit/offset/executed_only are used (snake_case).
+type tasksListResponse struct {
+	Tasks []TaskResponse `json:"tasks"`
+	Total int            `json:"total"`
+}
+
 // listWorkspaceTasksHandler handles GET /api/workspaces/{workspace_id}/tasks.
-// Optional query param project_id filters by project (validates project belongs to workspace).
+// Optional: project_id, limit, offset, executed_only (when true, only tasks that have been run).
+// When limit, offset, or executed_only are set, response is { "tasks": [...], "total": N } ordered by created_at DESC.
 func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -117,6 +125,34 @@ func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Reques
 		if project != nil {
 			projectIDPtr = &project.ProjectID
 		}
+	}
+	q := r.URL.Query()
+	usePaginated := q.Has("limit") || q.Has("offset") || q.Get("executed_only") == "true"
+	if usePaginated {
+		limit := 50
+		if l := q.Get("limit"); l != "" {
+			if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 200 {
+				limit = n
+			}
+		}
+		offset := 0
+		if o := q.Get("offset"); o != "" {
+			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+		executedOnly := q.Get("executed_only") == "true"
+		list, total, err := s.cfg.TaskStore.ListTasksByWorkspacePaginated(r.Context(), workspaceID, projectIDPtr, executedOnly, limit, offset)
+		if err != nil {
+			writeInternalError(w, err, "handler", "list_tasks", "workspace_id", workspaceID)
+			return
+		}
+		out := make([]TaskResponse, len(list))
+		for i := range list {
+			out[i] = taskToResponse(list[i])
+		}
+		writeJSON(w, http.StatusOK, tasksListResponse{Tasks: out, Total: total})
+		return
 	}
 	list, err := s.cfg.TaskStore.ListTasksByWorkspace(r.Context(), workspaceID, projectIDPtr)
 	if err != nil {

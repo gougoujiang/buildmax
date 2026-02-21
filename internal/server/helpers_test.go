@@ -151,10 +151,18 @@ type mockTaskStore struct {
 }
 
 func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string) ([]entity.Task, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
+	list, _, err := m.ListTasksByWorkspacePaginated(context.Background(), workspaceID, projectID, false, 0, 0)
+	if err != nil {
+		return nil, err
 	}
-	var out []entity.Task
+	return list, nil
+}
+
+func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]entity.Task, int, error) {
+	if m.listErr != nil {
+		return nil, 0, m.listErr
+	}
+	var filtered []entity.Task
 	for _, t := range m.list {
 		if t.WorkspaceID != workspaceID {
 			continue
@@ -162,9 +170,27 @@ func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID stri
 		if projectID != nil && (t.ProjectID == nil || *t.ProjectID != *projectID) {
 			continue
 		}
-		out = append(out, t)
+		if executedOnly && (t.LastRunID == nil || *t.LastRunID == "") {
+			continue
+		}
+		filtered = append(filtered, t)
 	}
-	return out, nil
+	// Sort by created_at DESC (simple reverse by index if already ascending in list)
+	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+		filtered[i], filtered[j] = filtered[j], filtered[i]
+	}
+	total := len(filtered)
+	if offset > len(filtered) {
+		return []entity.Task{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 {
+		end = len(filtered)
+	}
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[offset:end], total, nil
 }
 
 func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*entity.Task, error) {

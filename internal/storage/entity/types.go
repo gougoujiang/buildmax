@@ -13,4 +13,5 @@ type Task = model.Task
 type TaskRun = model.TaskRun
 type Artifact = model.Artifact
 type ArtifactItem = model.ArtifactItem
+type Agent = model.Agent
 type ArtifactWithTask = model.ArtifactWithTask

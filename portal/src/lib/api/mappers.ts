@@ -3,8 +3,8 @@
  * Imports API types from ./types and UI types from ../types.
  */
 
-import type { ApiArtifact, ApiProject, ApiTask } from "./types"
-import type { Artifact, Project, Task } from "../types"
+import type { ApiAgent, ApiArtifact, ApiProject, ApiTask } from "./types"
+import type { Agent, Artifact, Project, Task } from "../types"
 
 /** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
 export function formatRelativeTime(secondsSinceEpoch: number): string {
@@ -34,6 +34,17 @@ function taskStatusToUI(status: string): Task["status"] {
     case "RUNNING":
     default:
       return "running"
+  }
+}
+
+export function apiAgentToAgent(api: ApiAgent): Agent {
+  return {
+    id: api.id,
+    workspaceId: api.workspace_id,
+    name: api.name,
+    description: api.description,
+    instructions: api.instructions,
+    createdAt: api.created_at,
   }
 }
 

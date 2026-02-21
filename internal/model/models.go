@@ -116,6 +116,21 @@ type ArtifactItem struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (ArtifactItem) TableName() string { return "artifact_item" }
 
+// Agent is the agent model (workspace-scoped persona/task template). JSON uses snake_case.
+// Internal DB numeric id is not exposed; API uses agent_id.
+type Agent struct {
+	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	AgentID      string `gorm:"type:varchar(64);uniqueIndex;not null" json:"agent_id"`
+	WorkspaceID  string `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	Name         string `gorm:"type:varchar(255);not null" json:"name"`
+	Description  string `gorm:"type:text" json:"description"`
+	Instructions string `gorm:"type:text" json:"instructions"`
+	CreatedAt    int64  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (Agent) TableName() string { return "agent" }
+
 // ArtifactWithTask is a DTO for listing artifacts with task/run context (not a table). JSON uses snake_case.
 type ArtifactWithTask struct {
 	ArtifactID       string  `json:"artifact_id"`

@@ -35,6 +35,22 @@ export interface ApiProject {
   created_at: number
 }
 
+/** Agent as returned by GET/POST /api/workspaces/{id}/agents */
+export interface ApiAgent {
+  id: string
+  workspace_id: string
+  name: string
+  description: string
+  instructions: string
+  created_at: number
+}
+
+/** Paginated tasks response when using limit/offset/executed_only */
+export interface ApiTasksListResponse {
+  tasks: ApiTask[]
+  total: number
+}
+
 /** Task as returned by GET/POST /api/workspaces/{id}/tasks */
 export interface ApiTask {
   id: string

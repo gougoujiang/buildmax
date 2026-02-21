@@ -6,11 +6,13 @@
 import type { ExploreNode } from "../types"
 import { getApiBase, checkUnauthorized, throwIfNotOk, parseErrorResponse, UNAUTHORIZED_EVENT } from "./client"
 import type {
+  ApiAgent,
   ApiArtifact,
   ApiArtifactItem,
   ApiProject,
   ApiSession,
   ApiTask,
+  ApiTasksListResponse,
   ApiWorkspace,
   CreateTaskRunResponse,
   LoginResponse,
@@ -23,7 +25,9 @@ export type { LoginUser, LoginResponse }
 export type {
   ApiWorkspace,
   ApiProject,
+  ApiAgent,
   ApiTask,
+  ApiTasksListResponse,
   ApiSession,
   ApiSessionMessage,
   CreateTaskRunResponse,
@@ -33,6 +37,7 @@ export type {
 } from "./types"
 export {
   formatRelativeTime,
+  apiAgentToAgent,
   apiArtifactToArtifact,
   apiTaskToTask,
   apiProjectToProject,
@@ -131,6 +136,63 @@ export async function getTasks(
   checkUnauthorized(res)
   await throwIfNotOk(res)
   return res.json() as Promise<ApiTask[]>
+}
+
+export interface GetTasksPaginatedOptions {
+  limit?: number
+  offset?: number
+  executedOnly?: boolean
+}
+
+export async function getTasksPaginated(
+  workspaceId: string,
+  token: string,
+  options?: GetTasksPaginatedOptions
+): Promise<ApiTasksListResponse> {
+  const params = new URLSearchParams()
+  if (options?.limit != null) params.set("limit", String(options.limit))
+  if (options?.offset != null) params.set("offset", String(options.offset))
+  if (options?.executedOnly) params.set("executed_only", "true")
+  const q = params.toString()
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks${q ? `?${q}` : ""}`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<ApiTasksListResponse>
+}
+
+export async function getAgents(
+  workspaceId: string,
+  token: string
+): Promise<ApiAgent[]> {
+  const res = await fetch(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<ApiAgent[]>
+}
+
+export async function createAgent(
+  workspaceId: string,
+  body: { name: string; description?: string; instructions?: string },
+  token: string
+): Promise<ApiAgent> {
+  const res = await fetch(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    }
+  )
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<ApiAgent>
 }
 
 export async function getTaskConversation(

@@ -2,6 +2,8 @@ import type { Project, ViewArtifactParams } from "../lib/types"
 import { getProjectById, getProjectName, getTaskForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Activity } from "../pages/Activity"
+import { Agents } from "../pages/Agents"
+import { AgentList } from "../pages/AgentList"
 import { Project as ProjectView } from "../pages/Project"
 import { Projects } from "../pages/Projects"
 import { TaskDetail } from "../pages/TaskDetail"
@@ -68,6 +70,25 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     )
   }
   if (route.name === "explore") return <Explore workspaceId={route.workspaceId} />
+
+  if (route.name === "agents") {
+    return (
+      <Agents
+        workspaceId={route.workspaceId}
+        token={token ?? null}
+        getProjectName={(id) => getProjectName(projects, id)}
+        onViewArtifact={onViewArtifact}
+      />
+    )
+  }
+  if (route.name === "agentList") {
+    return (
+      <AgentList
+        workspaceId={route.workspaceId}
+        token={token ?? null}
+      />
+    )
+  }
 
   const project = "projectId" in route ? getProjectById(projects, route.projectId) : undefined
   const projectMismatch = !project || project.workspaceId !== route.workspaceId

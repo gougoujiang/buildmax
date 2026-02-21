@@ -6,12 +6,13 @@ interface LeftSidebarProps {
   route: Route
 }
 
-type SidebarNavName = "workspace" | "activity" | "explore"
+type SidebarNavName = "workspace" | "activity" | "explore" | "agents"
 
 const SIDEBAR_NAV: { label: string; name: SidebarNavName }[] = [
   { label: "Projects", name: "workspace" },
   { label: "Explore", name: "explore" },
   { label: "Activity", name: "activity" },
+  { label: "Agents", name: "agents" },
 ]
 
 function isNavActive(route: Route, targetName: SidebarNavName): boolean {
@@ -22,10 +23,14 @@ function isNavActive(route: Route, targetName: SidebarNavName): boolean {
       route.name === "task"
     )
   }
+  if (targetName === "agents") {
+    return route.name === "agents" || route.name === "agentList"
+  }
   return route.name === targetName
 }
 
 function navToRoute(name: SidebarNavName, workspaceId: string): Route {
+  if (name === "agents") return { name: "agents", workspaceId }
   return { name, workspaceId }
 }
 
