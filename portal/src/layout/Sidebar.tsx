@@ -26,7 +26,7 @@ import UserIcon from "../icons/user.svg?react"
 
 const CHATS_LIMIT = 5
 
-interface LeftSidebarProps {
+interface SidebarProps {
   workspaceId: string
   route: Route
   currentWorkspace: { id: string; name: string }
@@ -46,7 +46,7 @@ function isChatActive(route: Route, chatId: string): boolean {
   return route.name === "chat" && route.chatId === chatId
 }
 
-export function LeftSidebar({
+export function Sidebar({
   workspaceId,
   route,
   currentWorkspace,
@@ -56,7 +56,7 @@ export function LeftSidebar({
   workspaceChats,
   user,
   onLogout,
-}: LeftSidebarProps) {
+}: SidebarProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [chatsCollapsed, setChatsCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)

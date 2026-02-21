@@ -76,7 +76,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 - **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING tasks, spawns the **buildmax-worker** binary with `--task-id` only. **Worker** (`buildmax-worker` binary): gets task via `GET /api/worker/tasks/{task_id}`, updates status/results via `PATCH`, uses direct storage for materialize and artifacts, runs `buildmax -p` to execute the task. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Portal (web)**
-- **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), Projects, Project, Activity, TaskDetail; API client in `lib/api.ts`; AuthContext; AppShell, LeftSidebar, TopBar, modals (CreateWorkspace, CreateProject, ArtifactContent). Connects to Go backend for auth and workspace/project/task/artifact/file APIs.
+- **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), Projects, Project, Activity, TaskDetail; API client in `lib/api.ts`; AuthContext; AppShell, Sidebar, TopBar, modals (CreateWorkspace, CreateProject, ArtifactContent). Connects to Go backend for auth and workspace/project/task/artifact/file APIs.
 
 ### 4.2 Planned / Not yet implemented
 
