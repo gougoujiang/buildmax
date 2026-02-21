@@ -92,7 +92,7 @@ func TestIncrementTaskSeq(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	wsID := list[0].WorkspaceID
-	task, err := s.CreateTask(ctx, wsID, nil, "input", "", "inc-seq-user")
+	task, err := s.CreateTask(ctx, wsID, "input", "", "inc-seq-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestCreateArtifactWithItem(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	workspaceID := wsList[0].WorkspaceID
-	task, err := s.CreateTask(ctx, workspaceID, nil, "input", "", "artifact-user")
+	task, err := s.CreateTask(ctx, workspaceID, "input", "", "artifact-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	}
 
 	// ListArtifactsByWorkspace
-	artList, err := s.ListArtifactsByWorkspace(ctx, workspaceID, nil, nil)
+	artList, err := s.ListArtifactsByWorkspace(ctx, workspaceID, nil)
 	if err != nil {
 		t.Fatalf("ListArtifactsByWorkspace: %v", err)
 	}
@@ -188,10 +188,6 @@ func TestCreateArtifactWithItem(t *testing.T) {
 	}
 	if artList[0].TaskInputSnippet != "input" {
 		t.Errorf("ListArtifactsByWorkspace: task_input_snippet = %q, want input", artList[0].TaskInputSnippet)
-	}
-	listEmpty, _ := s.ListArtifactsByWorkspace(ctx, workspaceID, nil, ptrString("other-project"))
-	if len(listEmpty) != 0 {
-		t.Errorf("ListArtifactsByWorkspace with other project_id: got %d, want 0", len(listEmpty))
 	}
 
 	// GetArtifactByID
@@ -251,7 +247,7 @@ func TestUpdateTaskStatusIf(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	wsID := list[0].WorkspaceID
-	task, err := s.CreateTask(ctx, wsID, nil, "input", "", "update-if-user")
+	task, err := s.CreateTask(ctx, wsID, "input", "", "update-if-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}

@@ -34,9 +34,9 @@ func (s *Store) CreateArtifactWithItem(ctx context.Context, taskID, taskRunID, a
 	})
 }
 
-// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id and project_id, ordered by created_at DESC. Includes task_run_id and task_input_snippet from run input.
-func (s *Store) ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID, projectID *string) ([]ArtifactWithTask, error) {
-	q := `SELECT a.artifact_id, a.task_id, a.task_run_id, a.created_at, a.seq, t.workspace_id, t.project_id, LEFT(r.input, ?) AS task_input_snippet
+// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id, ordered by created_at DESC. Includes task_run_id and task_input_snippet from run input.
+func (s *Store) ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID *string) ([]ArtifactWithTask, error) {
+	q := `SELECT a.artifact_id, a.task_id, a.task_run_id, a.created_at, a.seq, t.workspace_id, LEFT(r.input, ?) AS task_input_snippet
 		FROM artifact a
 		JOIN task t ON a.task_id = t.task_id
 		JOIN task_run r ON a.task_run_id = r.run_id
@@ -45,10 +45,6 @@ func (s *Store) ListArtifactsByWorkspace(ctx context.Context, workspaceID string
 	if taskID != nil {
 		q += ` AND t.task_id = ?`
 		args = append(args, *taskID)
-	}
-	if projectID != nil {
-		q += ` AND t.project_id = ?`
-		args = append(args, *projectID)
 	}
 	q += ` ORDER BY a.created_at DESC`
 	var out []ArtifactWithTask

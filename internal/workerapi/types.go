@@ -21,7 +21,6 @@ type TaskRunRun struct {
 type TaskRunTask struct {
 	TaskID      string  `json:"task_id"`
 	WorkspaceID string  `json:"workspace_id"`
-	ProjectID   *string `json:"project_id,omitempty"`
 	SessionID   *string `json:"session_id,omitempty"`
 	LastRunID   *string `json:"last_run_id,omitempty"`
 }

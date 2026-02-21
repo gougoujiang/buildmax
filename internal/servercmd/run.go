@@ -50,10 +50,6 @@ func RunServer(ctx context.Context, port int) error {
 	if err != nil {
 		return fmt.Errorf("database: %w", err)
 	}
-	if err := st.BackfillTaskWorkspaceID(ctx); err != nil {
-		slog.Warn("backfill task workspace_id", "err", err)
-	}
-
 	wsCfg := config.LoadWorkspaceStorageConfig()
 	var s3Client blob.S3Client
 	if wsCfg.PersistProvider == config.ProviderMinIO || wsCfg.ArtifactProvider == config.ProviderMinIO {
@@ -73,12 +69,11 @@ func RunServer(ctx context.Context, port int) error {
 	}
 
 	cfg := server.Config{
-		Addr:             ":" + strconv.Itoa(port),
-		UserStore:        st,
-		WorkspaceStore:   st,
-		ProjectStore:     st,
-		AgentStore:       st,
-		TaskStore:        st,
+		Addr:            ":" + strconv.Itoa(port),
+		UserStore:       st,
+		WorkspaceStore:  st,
+		AgentStore:      st,
+		TaskStore:       st,
 		TaskRunStore:     st,
 		ArtifactStore:    st,
 		PersistStorage:   persistStorage,

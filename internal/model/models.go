@@ -32,20 +32,6 @@ type Workspace struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (Workspace) TableName() string { return "workspace" }
 
-// Project is the project model. JSON uses snake_case per project convention.
-// Internal DB numeric id is intentionally not exposed; API uses project_id.
-type Project struct {
-	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	ProjectID   string `gorm:"type:varchar(64);uniqueIndex;not null" json:"project_id"`
-	WorkspaceID string `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
-	Name        string `gorm:"type:varchar(255);not null" json:"name"`
-	Description string `gorm:"type:text" json:"description"`
-	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
-}
-
-// TableName returns the table name for GORM (singular per project convention).
-func (Project) TableName() string { return "project" }
-
 // Task is the task model. JSON uses snake_case per project convention.
 // API exposes task_id as "id". Task holds denormalized "last run" state (status, output, etc.)
 // and LastRunID for conversation/artifact lookup. Input is the initial (first run) prompt.
@@ -53,7 +39,6 @@ type Task struct {
 	ID              uint    `gorm:"primaryKey;autoIncrement" json:"-"`
 	TaskID          string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"task_id"`
 	WorkspaceID     string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
-	ProjectID       *string `gorm:"type:varchar(64);index" json:"project_id,omitempty"`
 	Status          string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input           string  `gorm:"type:text;not null" json:"input"`
 	Title           string  `gorm:"type:varchar(256)" json:"title,omitempty"`
@@ -133,13 +118,12 @@ func (Agent) TableName() string { return "agent" }
 
 // ArtifactWithTask is a DTO for listing artifacts with task/run context (not a table). JSON uses snake_case.
 type ArtifactWithTask struct {
-	ArtifactID       string  `json:"artifact_id"`
-	TaskID           string  `json:"task_id"`
-	TaskRunID        string  `json:"task_run_id"`
-	WorkspaceID      string  `json:"workspace_id"`
-	ProjectID        *string `json:"project_id,omitempty"`
-	CreatedAt        int64   `json:"created_at"`
-	Seq              int     `json:"seq"`
-	TaskInputSnippet string  `json:"task_input_snippet"`
+	ArtifactID       string `json:"artifact_id"`
+	TaskID           string `json:"task_id"`
+	TaskRunID        string `json:"task_run_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	CreatedAt        int64  `json:"created_at"`
+	Seq              int    `json:"seq"`
+	TaskInputSnippet string `json:"task_input_snippet"`
 }
 

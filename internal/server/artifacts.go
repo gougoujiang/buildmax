@@ -13,13 +13,12 @@ import (
 
 // ArtifactResponse is one artifact in the list response (snake_case).
 type ArtifactResponse struct {
-	ArtifactID       string  `json:"artifact_id"`
-	TaskID           string  `json:"task_id"`
-	WorkspaceID      string  `json:"workspace_id"`
-	ProjectID        *string `json:"project_id,omitempty"`
-	CreatedAt        int64   `json:"created_at"`
-	Seq              int     `json:"seq"`
-	TaskInputSnippet string  `json:"task_input_snippet"`
+	ArtifactID       string `json:"artifact_id"`
+	TaskID           string `json:"task_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	CreatedAt        int64  `json:"created_at"`
+	Seq              int    `json:"seq"`
+	TaskInputSnippet string `json:"task_input_snippet"`
 }
 
 func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
@@ -27,7 +26,6 @@ func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
 		ArtifactID:       a.ArtifactID,
 		TaskID:           a.TaskID,
 		WorkspaceID:      a.WorkspaceID,
-		ProjectID:        a.ProjectID,
 		CreatedAt:        a.CreatedAt,
 		Seq:              a.Seq,
 		TaskInputSnippet: a.TaskInputSnippet,
@@ -35,7 +33,7 @@ func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
 }
 
 // listWorkspaceArtifactsHandler handles GET /api/workspaces/{workspace_id}/artifacts.
-// Optional query params: task_id, project_id.
+// Optional query param: task_id.
 func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -44,20 +42,11 @@ func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Re
 	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") {
 		return
 	}
-	var taskIDPtr, projectIDPtr *string
+	var taskIDPtr *string
 	if tid := r.URL.Query().Get("task_id"); tid != "" {
 		taskIDPtr = &tid
 	}
-	if pid := r.URL.Query().Get("project_id"); pid != "" {
-		project, ok := s.resolveProjectForWorkspace(w, r, workspaceID, pid)
-		if !ok {
-			return
-		}
-		if project != nil {
-			projectIDPtr = &project.ProjectID
-		}
-	}
-	list, err := s.cfg.ArtifactStore.ListArtifactsByWorkspace(r.Context(), workspaceID, taskIDPtr, projectIDPtr)
+	list, err := s.cfg.ArtifactStore.ListArtifactsByWorkspace(r.Context(), workspaceID, taskIDPtr)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_artifacts", "workspace_id", workspaceID)
 		return

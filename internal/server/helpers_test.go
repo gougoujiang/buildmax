@@ -96,52 +96,6 @@ func (m *mockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name str
 	return &w, nil
 }
 
-// mockProjectStore is an in-memory ProjectStore for tests.
-type mockProjectStore struct {
-	list     []entity.Project
-	listErr  error
-	create   *entity.Project
-	createErr error
-}
-
-func (m *mockProjectStore) GetProject(_ context.Context, projectID string) (*entity.Project, error) {
-	for i := range m.list {
-		if m.list[i].ProjectID == projectID {
-			return &m.list[i], nil
-		}
-	}
-	return nil, nil
-}
-
-func (m *mockProjectStore) ListProjectsByWorkspace(_ context.Context, workspaceID string) ([]entity.Project, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
-	}
-	var out []entity.Project
-	for _, p := range m.list {
-		if p.WorkspaceID == workspaceID {
-			out = append(out, p)
-		}
-	}
-	return out, nil
-}
-
-func (m *mockProjectStore) CreateProject(_ context.Context, workspaceID, name, description string) (*entity.Project, error) {
-	if m.createErr != nil {
-		return nil, m.createErr
-	}
-	if m.create != nil {
-		return m.create, nil
-	}
-	return &entity.Project{
-		ProjectID:   "proj1",
-		WorkspaceID: workspaceID,
-		Name:        name,
-		Description: description,
-		CreatedAt:   time.Now().Unix(),
-	}, nil
-}
-
 // mockTaskStore is an in-memory TaskStore for tests.
 type mockTaskStore struct {
 	list      []entity.Task
@@ -150,8 +104,8 @@ type mockTaskStore struct {
 	createErr error
 }
 
-func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string, order string) ([]entity.Task, error) {
-	list, _, err := m.ListTasksByWorkspacePaginated(context.Background(), workspaceID, projectID, false, 0, 0)
+func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, order string) ([]entity.Task, error) {
+	list, _, err := m.ListTasksByWorkspacePaginated(context.Background(), workspaceID, false, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -163,16 +117,13 @@ func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID stri
 	return list, nil
 }
 
-func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]entity.Task, int, error) {
+func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]entity.Task, int, error) {
 	if m.listErr != nil {
 		return nil, 0, m.listErr
 	}
 	var filtered []entity.Task
 	for _, t := range m.list {
 		if t.WorkspaceID != workspaceID {
-			continue
-		}
-		if projectID != nil && (t.ProjectID == nil || *t.ProjectID != *projectID) {
 			continue
 		}
 		if executedOnly && (t.LastRunID == nil || *t.LastRunID == "") {
@@ -198,7 +149,7 @@ func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspa
 	return filtered[offset:end], total, nil
 }
 
-func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*entity.Task, error) {
+func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID, input, title, createdBy string) (*entity.Task, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -208,7 +159,6 @@ func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projec
 	return &entity.Task{
 		TaskID:      "task-uuid-1",
 		WorkspaceID: workspaceID,
-		ProjectID:   projectID,
 		Status:      "PENDING",
 		Input:       input,
 		Title:       title,
@@ -395,7 +345,7 @@ func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, taskID, ta
 	return nil
 }
 
-func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, taskID, projectID *string) ([]entity.ArtifactWithTask, error) {
+func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, taskID *string) ([]entity.ArtifactWithTask, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}

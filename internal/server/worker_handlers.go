@@ -37,7 +37,6 @@ func (s *Server) getWorkerTaskRunHandler(w http.ResponseWriter, r *http.Request)
 		Task: workerapi.TaskRunTask{
 			TaskID:      task.TaskID,
 			WorkspaceID: task.WorkspaceID,
-			ProjectID:   task.ProjectID,
 			SessionID:   task.SessionID,
 			LastRunID:   task.LastRunID,
 		},

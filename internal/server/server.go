@@ -30,7 +30,6 @@ type Config struct {
 	Addr               string                 // Listen address (e.g. ":5678")
 	UserStore          entity.UserStore       // Optional; required for login
 	WorkspaceStore     entity.WorkspaceStore  // Optional; required for GET /api/workspaces
-	ProjectStore       entity.ProjectStore    // Optional; required for project list/create
 	AgentStore         entity.AgentStore      // Optional; required for GET/POST /api/workspaces/{id}/agents
 	TaskStore          entity.TaskStore       // Optional; required for task list/create
 	TaskRunStore       entity.TaskRunStore     // Optional; required for POST runs and worker task-runs API
@@ -63,8 +62,6 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/login", s.loginHandler)
 	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
 	mux.HandleFunc("POST /api/workspaces", s.createWorkspaceHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/projects", s.listProjectsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/projects", s.createProjectHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents", s.listAgentsHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/agents", s.createAgentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents/{agent_id}", s.getAgentHandler)

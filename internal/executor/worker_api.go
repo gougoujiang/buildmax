@@ -53,7 +53,6 @@ func GetWorkerTaskRun(ctx context.Context, baseURL, token, runID string, client 
 	task := &entity.Task{
 		TaskID:      got.Task.TaskID,
 		WorkspaceID: got.Task.WorkspaceID,
-		ProjectID:   got.Task.ProjectID,
 		SessionID:   got.Task.SessionID,
 		LastRunID:   got.Task.LastRunID,
 	}

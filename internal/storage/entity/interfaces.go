@@ -22,13 +22,6 @@ type WorkspaceStore interface {
 	CreateWorkspace(ctx context.Context, userID, name string) (*Workspace, error)
 }
 
-// ProjectStore provides project persistence.
-type ProjectStore interface {
-	GetProject(ctx context.Context, projectID string) (*Project, error)
-	ListProjectsByWorkspace(ctx context.Context, workspaceID string) ([]Project, error)
-	CreateProject(ctx context.Context, workspaceID, name, description string) (*Project, error)
-}
-
 // AgentStore provides agent persistence. Agents are workspace-scoped.
 type AgentStore interface {
 	ListAgentsByWorkspace(ctx context.Context, workspaceID string) ([]Agent, error)
@@ -36,17 +29,17 @@ type AgentStore interface {
 	CreateAgent(ctx context.Context, workspaceID, name, description, instructions string) (*Agent, error)
 }
 
-// TaskStore provides task persistence. Tasks belong to a workspace; project is optional.
+// TaskStore provides task persistence. Tasks belong to a workspace.
 // CreateTask creates task + first TaskRun (both in one transaction).
 type TaskStore interface {
 	// ListTasksByWorkspace returns tasks in the workspace. order is "asc" (oldest first) or "desc" (latest first); default "desc".
-	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string, order string) ([]Task, error)
+	ListTasksByWorkspace(ctx context.Context, workspaceID string, order string) ([]Task, error)
 	// ListTasksByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
-	ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]Task, int, error)
+	ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.
-	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*Task, error)
+	CreateTask(ctx context.Context, workspaceID, input, title, createdBy string) (*Task, error)
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 	UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
 	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)
@@ -78,8 +71,8 @@ type TaskRunStore interface {
 type ArtifactStore interface {
 	// CreateArtifactWithItem creates one artifact row (with task_run_id), one artifact_item row, and updates task.last_artifact_id.
 	CreateArtifactWithItem(ctx context.Context, taskID, taskRunID, artifactID string, seq int, relativePath string) error
-	// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id and project_id. Order: created_at DESC. Task_input_snippet is truncated to 200 chars.
-	ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID, projectID *string) ([]ArtifactWithTask, error)
+	// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id. Order: created_at DESC. Task_input_snippet is truncated to 200 chars.
+	ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID *string) ([]ArtifactWithTask, error)
 	// GetArtifactByID returns the artifact by artifact_id, or (nil, nil) if not found.
 	GetArtifactByID(ctx context.Context, artifactID string) (*Artifact, error)
 	// ListArtifactItems returns all artifact_item rows for the given artifact_id, ordered by id.

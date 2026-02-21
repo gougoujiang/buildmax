@@ -12,13 +12,9 @@ import (
 
 // ListTasksByWorkspace returns tasks in the workspace, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
-// If projectID is non-nil, only tasks with that project_id are returned.
-func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string, order string) ([]Task, error) {
+func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, order string) ([]Task, error) {
 	var list []Task
 	q := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
-	if projectID != nil {
-		q = q.Where("project_id = ?", *projectID)
-	}
 	if order == "asc" {
 		q = q.Order("created_at ASC")
 	} else {
@@ -31,11 +27,8 @@ func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, pr
 // ListTasksByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
 // executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
 // total is the total number of matching tasks (ignoring limit/offset).
-func (s *Store) ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]Task, int, error) {
+func (s *Store) ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]Task, int, error) {
 	q := s.db.WithContext(ctx).Model(&Task{}).Where("workspace_id = ?", workspaceID)
-	if projectID != nil {
-		q = q.Where("project_id = ?", *projectID)
-	}
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
@@ -45,9 +38,6 @@ func (s *Store) ListTasksByWorkspacePaginated(ctx context.Context, workspaceID s
 	}
 	var list []Task
 	q = s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
-	if projectID != nil {
-		q = q.Where("project_id = ?", *projectID)
-	}
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
@@ -82,14 +72,13 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task
 }
 
 // CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id set.
-func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*Task, error) {
+func (s *Store) CreateTask(ctx context.Context, workspaceID, input, title, createdBy string) (*Task, error) {
 	now := time.Now().Unix()
 	taskID := util.NewULID()
 	runID := util.NewULID()
 	t := &Task{
 		TaskID:      taskID,
 		WorkspaceID: workspaceID,
-		ProjectID:   projectID,
 		Status:      "PENDING",
 		Input:       input,
 		Title:       title,

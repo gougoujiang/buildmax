@@ -43,6 +43,14 @@ func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathK
 	return userID, workspaceID, true
 }
 
+// userOwnsWorkspace returns whether the user owns the workspace. Returns (false, nil) if WorkspaceStore is nil.
+func (s *Server) userOwnsWorkspace(r *http.Request, userID, workspaceID string) (bool, error) {
+	if s.cfg.WorkspaceStore == nil {
+		return false, nil
+	}
+	return s.cfg.WorkspaceStore.WorkspaceBelongsToUser(r.Context(), workspaceID, userID)
+}
+
 // requireStore writes 503 with the given message and returns false if store is nil; otherwise returns true.
 func (s *Server) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
 	if store == nil {
