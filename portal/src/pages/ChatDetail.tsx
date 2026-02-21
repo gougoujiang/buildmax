@@ -8,7 +8,6 @@ import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
 import UserIcon from "../icons/user.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
-import ToolboxIcon from "../icons/toolbox.svg?react"
 
 const POLL_INTERVAL_MS = 2000
 const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
@@ -40,6 +39,16 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const [followUpInput, setFollowUpInput] = useState("")
   const [followUpLoading, setFollowUpLoading] = useState(false)
   const [followUpError, setFollowUpError] = useState<string | null>(null)
+  const [expandedToolIndices, setExpandedToolIndices] = useState<Set<number>>(new Set())
+
+  function toggleToolExpand(index: number) {
+    setExpandedToolIndices((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
 
   useEffect(() => {
     return () => {
@@ -100,11 +109,10 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
             )}
             {session.messages.map((msg, i) => {
               const Icon =
-                msg.role === "user"
-                  ? UserIcon
-                  : msg.role === "tool"
-                    ? ToolboxIcon
-                    : AgentsIcon
+                msg.role === "user" ? UserIcon : AgentsIcon
+              const isTool = msg.role === "tool"
+              const isToolExpanded = expandedToolIndices.has(i)
+
               return (
                 <div
                   key={i}
@@ -112,32 +120,76 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
                   role="article"
                   aria-label={msg.role === "user" ? "You" : msg.role}
                 >
-                  <span className="page-chat__msg-icon" aria-hidden>
-                    <Icon />
-                  </span>
+                  {!isTool && (
+                    <span className="page-chat__msg-icon" aria-hidden>
+                      <Icon />
+                    </span>
+                  )}
                   <div
-                    className={`page-chat__msg page-chat__msg--${msg.role}`}
+                    className={`page-chat__msg page-chat__msg--${msg.role}${
+                      isTool && !isToolExpanded ? " page-chat__msg--tool-collapsed" : ""
+                    }`}
                   >
-                    {msg.content ? (
-                      <div className="page-chat__msg-content page-chat__markdown">
-                        <Markdown remarkPlugins={[remarkGfm]}>
-                          {msg.content}
-                        </Markdown>
-                      </div>
-                    ) : null}
-                    {msg.tool_calls && msg.tool_calls.length > 0 && (
-                      <ul className="page-chat__msg-toolcalls">
-                        {msg.tool_calls.map((tc) => (
-                          <li key={tc.id}>
-                            <strong>{tc.name}</strong>
-                            {tc.arguments ? (
-                              <pre className="page-chat__msg-args">
-                                {tc.arguments}
-                              </pre>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
+                    {isTool ? (
+                      <>
+                        <button
+                          type="button"
+                          className="page-chat__tool-toggle"
+                          onClick={() => toggleToolExpand(i)}
+                          aria-expanded={isToolExpanded}
+                          aria-controls={`tool-content-${i}`}
+                          id={`tool-toggle-${i}`}
+                        >
+                          <span className="page-chat__tool-toggle-label">
+                            Tool result
+                          </span>
+                          <span
+                            className="page-chat__tool-chevron"
+                            aria-hidden
+                          >
+                            {isToolExpanded ? "▲" : "▼"}
+                          </span>
+                        </button>
+                        <div
+                          id={`tool-content-${i}`}
+                          className="page-chat__tool-content"
+                          hidden={!isToolExpanded}
+                          role="region"
+                          aria-labelledby={`tool-toggle-${i}`}
+                        >
+                          {msg.content ? (
+                            <div className="page-chat__msg-content page-chat__markdown">
+                              <Markdown remarkPlugins={[remarkGfm]}>
+                                {msg.content}
+                              </Markdown>
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {msg.content ? (
+                          <div className="page-chat__msg-content page-chat__markdown">
+                            <Markdown remarkPlugins={[remarkGfm]}>
+                              {msg.content}
+                            </Markdown>
+                          </div>
+                        ) : null}
+                        {msg.tool_calls && msg.tool_calls.length > 0 && (
+                          <ul className="page-chat__msg-toolcalls">
+                            {msg.tool_calls.map((tc) => (
+                              <li key={tc.id}>
+                                <strong>{tc.name}</strong>
+                                {tc.arguments ? (
+                                  <pre className="page-chat__msg-args">
+                                    {tc.arguments}
+                                  </pre>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
