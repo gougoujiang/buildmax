@@ -3,7 +3,7 @@ import { getChatForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Chats } from "../pages/Chats"
 import { AgentList } from "../pages/AgentList"
-import { TaskDetail } from "../pages/TaskDetail"
+import { ChatDetail } from "../pages/ChatDetail"
 import { WorkspaceHome } from "../pages/WorkspaceHome"
 import { NewChat } from "../pages/NewChat"
 import { Explore } from "../pages/Explore"
@@ -72,7 +72,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     const chat = getChatForDetail(workspaceChats, route.chatId)
     if (!chat) return fallbackHome
     return (
-      <TaskDetail
+      <ChatDetail
         chat={chat}
         workspaceId={route.workspaceId}
         onRefetch={() => refetchWorkspaceChats()}

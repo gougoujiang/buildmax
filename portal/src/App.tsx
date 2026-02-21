@@ -63,7 +63,7 @@ function AppContent() {
     setCreateWsError(null)
     try {
       const ws = await createWorkspace({ name }, token)
-      refetchWorkspaces()
+      await refetchWorkspaces()
       setShowNewWorkspace(false)
       navigate({ name: "workspace", workspaceId: ws.id })
     } catch (err) {

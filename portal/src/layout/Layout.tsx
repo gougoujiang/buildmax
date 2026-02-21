@@ -42,7 +42,7 @@ export function Layout({
           onLogout={onLogout}
         />
         <main className="shell__main">
-          <Breadcrumbs route={route} />
+          <Breadcrumbs route={route} workspaceChats={workspaceChats} />
           {children}
         </main>
       </div>

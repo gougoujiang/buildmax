@@ -17,8 +17,8 @@ export interface WorkspaceContextValue {
   workspaceChats: Chat[]
   artifacts: Artifact[]
   loadingWorkspaces: boolean
-  refetchWorkspaces: () => void
-  refetchWorkspaceChats: () => void
+  refetchWorkspaces: () => Promise<void>
+  refetchWorkspaceChats: () => Promise<void>
   refetchArtifacts: (chatId?: string) => void
 }
 

@@ -10,13 +10,13 @@ import { useFetch } from "../hooks/useFetch"
 const POLL_INTERVAL_MS = 2000
 const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
 
-interface TaskDetailProps {
+interface ChatDetailProps {
   chat: Chat
   workspaceId: string
   onRefetch?: () => void
 }
 
-export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
+export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const { token } = useAuth()
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -82,12 +82,12 @@ export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
   }
 
   return (
-    <div className="page-task">
-      <header className="page-task__header">
-        <h1 className="page-task__title">{chat.title?.trim() || "Chat"}</h1>
+    <div className="page-chat">
+      <header className="page-chat__header">
+        <h1 className="page-chat__title">{chat.title?.trim() || "Chat"}</h1>
         <button
           type="button"
-          className="page-task__restore-btn"
+          className="page-chat__restore-btn"
           disabled
           title="Restore is not yet available"
         >
@@ -96,14 +96,14 @@ export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
       </header>
 
       {/* Follow-up: rerun with new input */}
-      <section className="page-task__section page-task__follow-up">
-        <h2 className="page-task__section-heading">Follow-up</h2>
-        <p className="page-task__text page-task__muted">
-          Add more context or a new question to run the task again. The agent will use the previous conversation.
+      <section className="page-chat__section page-chat__follow-up">
+        <h2 className="page-chat__section-heading">Follow-up</h2>
+        <p className="page-chat__text page-chat__muted">
+          Add more context or a new question to run the chat again. The agent will use the previous conversation.
         </p>
-        <div className="page-task__follow-up-row">
+        <div className="page-chat__follow-up-row">
           <textarea
-            className="page-task__follow-up-input"
+            className="page-chat__follow-up-input"
             value={followUpInput}
             onChange={(e) => setFollowUpInput(e.target.value)}
             placeholder="e.g. Now focus on Q3 only"
@@ -113,7 +113,7 @@ export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
           />
           <button
             type="button"
-            className="page-task__follow-up-btn"
+            className="page-chat__follow-up-btn"
             onClick={handleFollowUpSubmit}
             disabled={followUpLoading || !followUpInput.trim()}
           >
@@ -121,50 +121,50 @@ export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
           </button>
         </div>
         {followUpError && (
-          <p className="page-task__text page-task__error" role="alert">
+          <p className="page-chat__text page-chat__error" role="alert">
             {followUpError}
           </p>
         )}
       </section>
 
       {/* Result — rendered as markdown */}
-      <section className="page-task__section">
-        <h2 className="page-task__section-heading">Result</h2>
-        <div className="page-task__markdown">
+      <section className="page-chat__section">
+        <h2 className="page-chat__section-heading">Result</h2>
+        <div className="page-chat__markdown">
           <Markdown remarkPlugins={[remarkGfm]}>{chat.summary}</Markdown>
         </div>
       </section>
 
-      {/* Agent conversation — how the agent worked for this task */}
+      {/* Agent conversation — how the agent worked for this chat */}
       {(session !== null || sessionLoading || sessionError) && (
-        <section className="page-task__section">
-          <h2 className="page-task__section-heading">Agent session</h2>
+        <section className="page-chat__section">
+          <h2 className="page-chat__section-heading">Agent session</h2>
           {sessionLoading && (
-            <p className="page-task__text page-task__muted">Loading conversation…</p>
+            <p className="page-chat__text page-chat__muted">Loading conversation…</p>
           )}
           {sessionError && (
-            <p className="page-task__text page-task__muted">Error: {sessionError}</p>
+            <p className="page-chat__text page-chat__muted">Error: {sessionError}</p>
           )}
           {session && !sessionLoading && (
-            <div className="page-task__session">
+            <div className="page-chat__session">
               {session.messages.length === 0 && (
-                <p className="page-task__text page-task__muted">No messages in this session.</p>
+                <p className="page-chat__text page-chat__muted">No messages in this session.</p>
               )}
               {session.messages.map((msg, i) => (
-                <div key={i} className={`page-task__session-msg page-task__session-msg--${msg.role}`}>
-                  <span className="page-task__session-role">{msg.role}</span>
+                <div key={i} className={`page-chat__session-msg page-chat__session-msg--${msg.role}`}>
+                  <span className="page-chat__session-role">{msg.role}</span>
                   {msg.content ? (
-                    <div className="page-task__session-content">
+                    <div className="page-chat__session-content">
                       <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                     </div>
                   ) : null}
                   {msg.tool_calls && msg.tool_calls.length > 0 && (
-                    <ul className="page-task__session-toolcalls">
+                    <ul className="page-chat__session-toolcalls">
                       {msg.tool_calls.map((tc) => (
                         <li key={tc.id}>
                           <strong>{tc.name}</strong>
                           {tc.arguments ? (
-                            <pre className="page-task__session-args">{tc.arguments}</pre>
+                            <pre className="page-chat__session-args">{tc.arguments}</pre>
                           ) : null}
                         </li>
                       ))}
@@ -178,21 +178,21 @@ export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
       )}
 
       {/* What changed — not yet available from backend */}
-      <section className="page-task__section">
-        <h2 className="page-task__section-heading">What changed</h2>
-        <p className="page-task__text page-task__muted">Not yet available.</p>
+      <section className="page-chat__section">
+        <h2 className="page-chat__section-heading">What changed</h2>
+        <p className="page-chat__text page-chat__muted">Not yet available.</p>
       </section>
 
       {/* Evidence / Data used — not yet available from backend */}
-      <section className="page-task__section">
-        <h2 className="page-task__section-heading">Evidence / Data used</h2>
-        <p className="page-task__text page-task__muted">Not yet available.</p>
+      <section className="page-chat__section">
+        <h2 className="page-chat__section-heading">Evidence / Data used</h2>
+        <p className="page-chat__text page-chat__muted">Not yet available.</p>
       </section>
 
       {/* Meta */}
-      <section className="page-task__section">
-        <h2 className="page-task__section-heading">Details</h2>
-        <p className="page-task__meta">
+      <section className="page-chat__section">
+        <h2 className="page-chat__section-heading">Details</h2>
+        <p className="page-chat__meta">
           Status: <strong>{chat.status}</strong> &middot; {chat.timeLabel}
         </p>
       </section>

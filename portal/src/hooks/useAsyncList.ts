@@ -18,7 +18,7 @@ export function useAsyncList<T, U>(
   deps: unknown[],
   enabled: boolean,
   options?: UseAsyncListOptions
-): { data: U[]; loading: boolean; error: string | null; refetch: () => void } {
+): { data: U[]; loading: boolean; error: string | null; refetch: () => Promise<void> } {
   const [data, setData] = useState<U[]>([])
   const [loading, setLoadingState] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,11 +29,11 @@ export function useAsyncList<T, U>(
   mapRef.current = map
   errorMessageRef.current = options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed"))
 
-  const runFetch = useCallback(() => {
+  const runFetch = useCallback((): Promise<void> => {
     setLoadingState(true)
     setError(null)
     options?.setLoading?.(true)
-    fetchFnRef
+    return fetchFnRef
       .current()
       .then((raw) => {
         setData(mapRef.current(raw))
@@ -61,9 +61,9 @@ export function useAsyncList<T, U>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are intentional
   }, [enabled, runFetch, ...deps])
 
-  const refetch = useCallback(() => {
-    if (!enabled) return
-    runFetch()
+  const refetch = useCallback((): Promise<void> => {
+    if (!enabled) return Promise.resolve()
+    return runFetch()
   }, [enabled, runFetch])
 
   return { data, loading, error, refetch }

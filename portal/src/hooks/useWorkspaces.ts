@@ -6,7 +6,7 @@ export function useWorkspaces(token: string | null): {
   data: ApiWorkspace[]
   loading: boolean
   error: string | null
-  refetch: () => void
+  refetch: () => Promise<void>
 } {
   const { data, loading, error, refetch } = useAsyncList(
     () => getWorkspaces(token!),

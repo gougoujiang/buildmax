@@ -104,7 +104,7 @@ export function ArtifactContentModal({
                 </p>
               )}
               {content != null && !contentLoading && (
-                <div className="artifact-modal__content page-task__markdown">
+                <div className="artifact-modal__content page-chat__markdown">
                   <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
                 </div>
               )}

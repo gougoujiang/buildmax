@@ -6,7 +6,7 @@ import { useAsyncList } from "./useAsyncList"
 export function useWorkspaceChats(
   workspaceId: string,
   token: string | null
-): { data: Chat[]; loading: boolean; error: string | null; refetch: () => void } {
+): { data: Chat[]; loading: boolean; error: string | null; refetch: () => Promise<void> } {
   return useAsyncList(
     () => getChats(workspaceId, token!),
     (list) => list.map(apiChatToChat),

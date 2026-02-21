@@ -1,11 +1,12 @@
-import type { Route } from "../lib/types"
+import type { Route, Chat } from "../lib/types"
 import { navigate } from "../router"
 
 interface BreadcrumbsProps {
   route: Route
+  workspaceChats?: Chat[]
 }
 
-export function Breadcrumbs({ route }: BreadcrumbsProps) {
+export function Breadcrumbs({ route, workspaceChats = [] }: BreadcrumbsProps) {
   const workspaceId = route.workspaceId
   let crumbs: { label: string; route: Route }[] = []
 
@@ -18,9 +19,11 @@ export function Breadcrumbs({ route }: BreadcrumbsProps) {
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
   } else if (route.name === "chat") {
+    const chat = workspaceChats.find((c) => c.id === route.chatId)
+    const chatTitle = chat?.title?.trim() || "Chat"
     crumbs = [
       { label: "Chats", route: { name: "chats", workspaceId } },
-      { label: "Chat", route },
+      { label: chatTitle, route },
     ]
   } else {
     crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]
