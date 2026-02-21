@@ -7,15 +7,15 @@ import (
 )
 
 // PersistStorage reads/writes persistent workspace files (uploads, Explore) and can materialize them to a local dir.
-// PutChatBuildmax/GetChatBuildmax use run-scoped path: chats/<chatID>/<chatRunID>/global/.
+// PutChatGlobal/GetChatGlobal use run-scoped path: chats/<chatID>/<chatRunID>/global/.
 // PutChatRunArtifacts/GetChatRunArtifacts use run-scoped path: chats/<chatID>/<chatRunID>/artifacts/.
 type PersistStorage interface {
 	Put(ctx context.Context, workspaceID string, relPath string, r io.Reader) error
 	Get(ctx context.Context, workspaceID string, relPath string) ([]byte, error)
 	ListFiles(ctx context.Context, workspaceID string) ([]string, error)
 	MaterializeToDir(ctx context.Context, workspaceID string, dstDir string) error
-	PutChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error
-	GetChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error)
+	PutChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error
+	GetChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error)
 	PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error
 	GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error)
 }

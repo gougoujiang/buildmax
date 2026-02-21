@@ -41,14 +41,14 @@ func (testWorkspacePaths) RunOutputDir(workspaceID, chatID, chatRunID string) st
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
-	files         map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
-	chatBuildmax  map[string][]byte            // "workspaceID/chatID/chatRunID/relPath" -> content
+	files        map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
+	chatGlobal   map[string][]byte            // "workspaceID/chatID/chatRunID/relPath" -> content
 }
 
 func newFakePersistStorage() *fakePersistStorage {
 	return &fakePersistStorage{
-		files:        make(map[string]map[string][]byte),
-		chatBuildmax: make(map[string][]byte),
+		files:      make(map[string]map[string][]byte),
+		chatGlobal: make(map[string][]byte),
 	}
 }
 
@@ -99,18 +99,18 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 	return nil
 }
 
-func (f *fakePersistStorage) PutChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+func (f *fakePersistStorage) PutChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
 	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
 	data, _ := io.ReadAll(r)
-	f.chatBuildmax[key] = data
+	f.chatGlobal[key] = data
 	return nil
 }
 
-// chatBuildmaxRelPaths returns the set of relPaths uploaded for the given workspaceID/chatID/chatRunID.
-func (f *fakePersistStorage) chatBuildmaxRelPaths(workspaceID, chatID, chatRunID string) []string {
+// chatGlobalRelPaths returns the set of relPaths uploaded for the given workspaceID/chatID/chatRunID.
+func (f *fakePersistStorage) chatGlobalRelPaths(workspaceID, chatID, chatRunID string) []string {
 	prefix := workspaceID + "/" + chatID + "/" + chatRunID + "/"
 	var out []string
-	for k := range f.chatBuildmax {
+	for k := range f.chatGlobal {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
 			out = append(out, k[len(prefix):])
 		}
@@ -118,9 +118,9 @@ func (f *fakePersistStorage) chatBuildmaxRelPaths(workspaceID, chatID, chatRunID
 	return out
 }
 
-func (f *fakePersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
 	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
-	data, ok := f.chatBuildmax[key]
+	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
@@ -130,16 +130,16 @@ func (f *fakePersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, c
 func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
 	key := workspaceID + "/" + chatID + "/" + chatRunID + "/artifacts/" + relPath
 	data, _ := io.ReadAll(r)
-	if f.chatBuildmax == nil {
-		f.chatBuildmax = make(map[string][]byte)
+	if f.chatGlobal == nil {
+		f.chatGlobal = make(map[string][]byte)
 	}
-	f.chatBuildmax[key] = data
+	f.chatGlobal[key] = data
 	return nil
 }
 
 func (f *fakePersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
 	key := workspaceID + "/" + chatID + "/" + chatRunID + "/artifacts/" + relPath
-	data, ok := f.chatBuildmax[key]
+	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
@@ -312,7 +312,7 @@ func TestFakePersistStorage_MaterializeToDir(t *testing.T) {
 	}
 }
 
-func TestUploadChatBuildmax_UploadsPresentFiles(t *testing.T) {
+func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 	ctx := context.Background()
 	globalDir := t.TempDir()
 	// Create a subset of global dir files (no log; sessions dir with two files)
@@ -330,9 +330,9 @@ func TestUploadChatBuildmax_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadChatBuildmax(ctx, globalDir, "ws1", "chat1", "run1", fake)
+	uploadChatGlobal(ctx, globalDir, "ws1", "chat1", "run1", fake)
 
-	got := fake.chatBuildmaxRelPaths("ws1", "chat1", "run1")
+	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
 	if len(got) != 3 {
 		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
 	}
@@ -344,18 +344,18 @@ func TestUploadChatBuildmax_UploadsPresentFiles(t *testing.T) {
 	}
 	// Content sanity
 	key := "ws1/chat1/run1/settings.json"
-	if string(fake.chatBuildmax[key]) != "{}" {
+	if string(fake.chatGlobal[key]) != "{}" {
 		t.Errorf("settings.json content mismatch")
 	}
 }
 
-func TestUploadChatBuildmax_SkipsMissingFiles(t *testing.T) {
+func TestUploadChatGlobal_SkipsMissingFiles(t *testing.T) {
 	ctx := context.Background()
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadChatBuildmax(ctx, globalDir, "ws1", "chat1", "run1", fake)
-	got := fake.chatBuildmaxRelPaths("ws1", "chat1", "run1")
+	uploadChatGlobal(ctx, globalDir, "ws1", "chat1", "run1", fake)
+	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}

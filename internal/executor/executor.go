@@ -62,7 +62,7 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 	outputStr := string(output)
 
 	persistRunResult(runArtifacts, output)
-	uploadChatBuildmax(ctx, runGlobal, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
+	uploadChatGlobal(ctx, runGlobal, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
 	uploadChatRunArtifacts(ctx, runArtifacts, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
 
 	if cmdErr != nil {
@@ -96,7 +96,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *
 		return
 	}
 	relPath := "sessions/" + *chat.SessionID + ".json"
-	data, err := persist.GetChatBuildmax(ctx, chat.WorkspaceID, chat.ChatID, *chat.LastRunID, relPath)
+	data, err := persist.GetChatGlobal(ctx, chat.WorkspaceID, chat.ChatID, *chat.LastRunID, relPath)
 	if err != nil {
 		return
 	}
@@ -211,8 +211,8 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir, workspace
 	return relativePaths
 }
 
-// uploadChatBuildmax uploads the run's global dir (logs, sessions, settings) to blob storage for the run.
-func uploadChatBuildmax(ctx context.Context, globalDir, workspaceID, chatID, chatRunID string, persist blob.PersistStorage) {
+// uploadChatGlobal uploads the run's global dir (logs, sessions, settings) to blob storage for the run.
+func uploadChatGlobal(ctx context.Context, globalDir, workspaceID, chatID, chatRunID string, persist blob.PersistStorage) {
 	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.json"}
 	sessionsDir := filepath.Join(globalDir, "sessions")
 	entries, err := os.ReadDir(sessionsDir)
@@ -235,7 +235,7 @@ func uploadChatBuildmax(ctx context.Context, globalDir, workspaceID, chatID, cha
 			slog.Warn("executor: upload run global open failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", err)
 			continue
 		}
-		putErr := persist.PutChatBuildmax(ctx, workspaceID, chatID, chatRunID, filepath.ToSlash(relPath), f)
+		putErr := persist.PutChatGlobal(ctx, workspaceID, chatID, chatRunID, filepath.ToSlash(relPath), f)
 		f.Close()
 		if putErr != nil {
 			slog.Warn("executor: upload run global put failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", putErr)

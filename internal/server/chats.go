@@ -286,7 +286,7 @@ func (s *Server) getChatConversationHandler(w http.ResponseWriter, r *http.Reque
 func (s *Server) loadChatConversationData(ctx context.Context, chat *model.Chat, lastRunID, sessionID string) ([]byte, error) {
 	relPath := "sessions/" + sessionID + ".json"
 	if s.cfg.PersistStorage != nil {
-		data, err := s.cfg.PersistStorage.GetChatBuildmax(ctx, chat.WorkspaceID, chat.ChatID, lastRunID, relPath)
+		data, err := s.cfg.PersistStorage.GetChatGlobal(ctx, chat.WorkspaceID, chat.ChatID, lastRunID, relPath)
 		if err == nil {
 			return data, nil
 		}
