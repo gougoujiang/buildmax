@@ -53,7 +53,6 @@ export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
     id: api.chat_run_id,
     chatId: api.chat_id,
     chatRunId: api.chat_run_id,
-    projectId: api.project_id ?? undefined,
     workspaceId: api.workspace_id,
     timeLabel: formatRelativeTime(api.created_at),
     title: api.chat_input_snippet || `Run output ${api.chat_run_id}`,
@@ -72,7 +71,6 @@ export function apiChatToChat(api: ApiChat): Chat {
   const ts = api.ended_at ?? api.created_at
   return {
     id: api.id,
-    projectId: api.project_id ?? undefined,
     sessionId: api.session_id ?? undefined,
     title,
     status: chatStatusToUI(api.status),

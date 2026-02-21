@@ -26,15 +26,6 @@ export interface ApiWorkspace {
   created_at?: number
 }
 
-/** Project as returned by GET/POST /api/workspaces/{id}/projects */
-export interface ApiProject {
-  id: string
-  workspace_id: string
-  name: string
-  description: string
-  created_at: number
-}
-
 /** Agent as returned by GET/POST /api/workspaces/{id}/agents */
 export interface ApiAgent {
   id: string
@@ -55,7 +46,6 @@ export interface ApiChatsListResponse {
 export interface ApiChat {
   id: string
   workspace_id: string
-  project_id: string | null
   session_id: string | null
   status: string
   input: string
@@ -94,7 +84,6 @@ export interface ApiArtifact {
   chat_run_id: string
   chat_id: string
   workspace_id: string
-  project_id?: string | null
   created_at: number
   chat_input_snippet: string
 }

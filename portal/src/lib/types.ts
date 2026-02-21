@@ -5,17 +5,8 @@ export interface Workspace {
   name: string
 }
 
-export interface Project {
-  id: string
-  workspaceId: string
-  name: string
-  status: "active" | "paused" | "archived"
-  updatedAtLabel: string
-}
-
 export interface Chat {
   id: string
-  projectId?: string
   sessionId?: string
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
@@ -27,7 +18,6 @@ export interface Artifact {
   id: string
   chatId: string
   chatRunId?: string
-  projectId?: string
   workspaceId: string
   timeLabel: string
   title: string

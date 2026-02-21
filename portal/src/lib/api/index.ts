@@ -83,14 +83,12 @@ export async function createWorkspace(
 
 export async function getChats(
   workspaceId: string,
-  token: string,
-  projectId?: string
+  token: string
 ): Promise<ApiChat[]> {
-  let url = `${getApiBase()}/api/workspaces/${workspaceId}/chats`
-  if (projectId) {
-    url += `?project_id=${encodeURIComponent(projectId)}`
-  }
-  return requestJson<ApiChat[]>(url, { headers: authHeaders(token) })
+  return requestJson<ApiChat[]>(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats`,
+    { headers: authHeaders(token) }
+  )
 }
 
 export interface GetChatsPaginatedOptions {
@@ -155,7 +153,7 @@ export async function getChatConversation(
 
 export async function createChat(
   workspaceId: string,
-  body: { input: string; project_id?: string },
+  body: { input: string },
   token: string
 ): Promise<ApiChat> {
   return requestJson<ApiChat>(`${getApiBase()}/api/workspaces/${workspaceId}/chats`, {
@@ -191,14 +189,12 @@ export async function createChatRun(
 export async function getArtifacts(
   workspaceId: string,
   token: string,
-  options?: { projectId?: string; chatId?: string }
+  options?: { chatId?: string }
 ): Promise<ApiArtifact[]> {
   let url = `${getApiBase()}/api/workspaces/${workspaceId}/artifacts`
-  const params = new URLSearchParams()
-  if (options?.projectId) params.set("project_id", options.projectId)
-  if (options?.chatId) params.set("chat_id", options.chatId)
-  const q = params.toString()
-  if (q) url += `?${q}`
+  if (options?.chatId) {
+    url += `?chat_id=${encodeURIComponent(options.chatId)}`
+  }
   return requestJson<ApiArtifact[]>(url, { headers: authHeaders(token) })
 }
 
