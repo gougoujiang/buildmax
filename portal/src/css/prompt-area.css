@@ -1,0 +1,50 @@
+/* Shared prompt-area (workspace home & project dashboard) */
+
+.prompt-area {
+  margin-bottom: 2rem;
+}
+
+.prompt-area__heading {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+}
+
+.prompt-area__input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  font: inherit;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.prompt-area__input:focus {
+  outline: none;
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.15);
+}
+
+.prompt-area__button {
+  display: block;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #1a1a1a;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.prompt-area__button:hover {
+  background-color: #333;
+}

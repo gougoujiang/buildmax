@@ -1,0 +1,38 @@
+/* Page: Artifact Viewer */
+
+.page-artifact__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.page-artifact__title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.page-artifact__kind {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #999;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+}
+
+.page-artifact__content {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.page-artifact__preview {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: #333;
+}

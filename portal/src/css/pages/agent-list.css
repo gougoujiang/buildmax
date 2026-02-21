@@ -1,0 +1,57 @@
+/* Agent list (card grid) */
+
+.agent-list {
+  margin-top: 1.5rem;
+}
+
+.agent-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.agent-list__empty {
+  margin-top: 0.5rem;
+}
+
+.agent-list__create-btn {
+  flex-shrink: 0;
+}
+
+.agent-card {
+  padding: 1rem 1.25rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.agent-card:hover {
+  border-color: #ccc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.agent-card__name {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.agent-card__description {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.4;
+}
+
+.agent-card__instructions {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #888;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

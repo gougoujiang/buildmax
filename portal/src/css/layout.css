@@ -1,0 +1,21 @@
+/* App shell and main layout */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.shell__main {
+  flex: 1;
+  padding: 1.25rem 2rem;
+  overflow-y: auto;
+  max-width: 56rem;
+}

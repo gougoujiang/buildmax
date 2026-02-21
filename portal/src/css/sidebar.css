@@ -1,0 +1,456 @@
+/* Sidebar */
+
+.sidebar {
+  width: 18rem;
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 0;
+  overflow: hidden;
+  background: #f0f0f0;
+  border-right: 1px solid #e0e0e0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease;
+}
+
+.sidebar__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.75rem 0.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.sidebar__logo-ascii {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.32rem;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: #333;
+  white-space: pre;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar__logo-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.25rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #333;
+  cursor: pointer;
+}
+
+.sidebar__logo-expand:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__logo-expand:focus {
+  outline: none;
+}
+
+.sidebar__logo-ascii-collapsed {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.32rem;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: #333;
+  white-space: pre;
+  text-align: left;
+}
+
+.sidebar__logo-expand-icon {
+  display: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #333;
+}
+
+.sidebar__logo-expand:hover .sidebar__logo-ascii-collapsed {
+  display: none;
+}
+
+.sidebar__logo-expand:hover .sidebar__logo-expand-icon {
+  display: block;
+}
+
+.sidebar__collapse-btn {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar__collapse-btn-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sidebar__collapse-btn:hover {
+  color: #333;
+  background: #e4e4e4;
+}
+
+.sidebar__collapse-btn:focus {
+  outline: none;
+}
+
+.sidebar--collapsed {
+  width: 4rem;
+}
+
+.sidebar--collapsed .sidebar__header {
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.sidebar--collapsed .sidebar__workspace {
+  display: none;
+}
+
+.sidebar--collapsed .sidebar__nav-item .sidebar__nav-item-text,
+.sidebar--collapsed .sidebar__heading,
+.sidebar--collapsed .sidebar__chats-chevron,
+.sidebar--collapsed .sidebar__chats-list,
+.sidebar--collapsed .sidebar__user-name,
+.sidebar--collapsed .sidebar__logout {
+  display: none !important;
+}
+
+.sidebar--collapsed .sidebar__footer {
+  display: none;
+}
+
+.sidebar--collapsed .sidebar__nav-item,
+.sidebar--collapsed .sidebar__chats-toggle {
+  justify-content: center;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.5rem 0;
+}
+
+.sidebar__footer {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e0e0e0;
+  background: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sidebar__user-name {
+  font-size: 0.85rem;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__logout {
+  font: inherit;
+  font-size: 0.85rem;
+  color: #555;
+  background: transparent;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.sidebar__logout:hover {
+  color: #333;
+  border-color: #999;
+  background: #e8e8e8;
+}
+
+.sidebar__nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+}
+
+.sidebar__nav-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.sidebar__nav-item:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__nav-item--active {
+  background: #e0e8f0;
+  border-left-color: #1a1a1a;
+  font-weight: 600;
+}
+
+.sidebar__new-chat {
+  display: block;
+  width: 100%;
+  margin: 0 0.5rem 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.sidebar__new-chat:hover {
+  background: #333;
+  border-color: #333;
+}
+
+.sidebar__workspace {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0.5rem 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.sidebar__workspace-label {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+}
+
+.sidebar__workspace-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+}
+
+.sidebar__workspace-new {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #555;
+}
+
+.sidebar__workspace-new:hover {
+  background: #e4e4e4;
+  border-color: #999;
+}
+
+.sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0 0.5rem;
+}
+
+.sidebar__chats {
+  margin: 0.5rem 0;
+}
+
+.sidebar__chats-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__chats-toggle:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__chats-toggle:focus {
+  outline: none;
+}
+
+.sidebar__chats-chevron {
+  font-size: 0.6rem;
+  line-height: 1;
+  color: #888;
+}
+
+.sidebar__chats-list {
+  padding-left: 1rem;
+  margin-left: 0.5rem;
+  border-left: 1px solid #e0e0e0;
+}
+
+.sidebar__chats .sidebar__list {
+  margin-top: 0.25rem;
+}
+
+.sidebar__chat-title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__chat-meta {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.sidebar__chats-see-all {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #666;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__chats-see-all:hover {
+  color: #1a1a1a;
+  text-decoration: underline;
+}
+
+.sidebar__heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+.sidebar__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar__item {
+  margin: 0;
+}
+
+.sidebar__link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.sidebar__link:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__link--active {
+  background: #e0e8f0;
+  border-left-color: #1a1a1a;
+  font-weight: 600;
+}
+
+.sidebar__project-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__project-meta {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.sidebar__new-project {
+  margin: auto 1rem 0;
+  padding: 0.5rem;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #888;
+  cursor: pointer;
+  text-align: center;
+}
+
+.sidebar__new-project:hover {
+  border-color: #999;
+  color: #555;
+}

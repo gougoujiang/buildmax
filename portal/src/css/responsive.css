@@ -1,0 +1,18 @@
+/* Responsive: stack sidebar on narrow screens */
+
+@media (max-width: 48rem) {
+  .shell__body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    max-height: 12rem;
+  }
+
+  .shell__main {
+    padding: 1rem;
+  }
+}

@@ -1,0 +1,35 @@
+/* Breadcrumbs */
+
+.breadcrumbs {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.breadcrumbs__segment {
+  display: inline;
+}
+
+.breadcrumbs__link {
+  border: none;
+  background: none;
+  font: inherit;
+  color: #1a73e8;
+  cursor: pointer;
+  padding: 0;
+}
+
+.breadcrumbs__link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumbs__separator {
+  margin: 0 0.35rem;
+  color: #bbb;
+}
+
+.breadcrumbs__current {
+  color: #555;
+}
