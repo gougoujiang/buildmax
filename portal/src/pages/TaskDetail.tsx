@@ -12,11 +12,10 @@ const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
 interface TaskDetailProps {
   task: Task
   workspaceId: string
-  projectId?: string
   onRefetch?: () => void
 }
 
-export function TaskDetail({ task, workspaceId, projectId, onRefetch }: TaskDetailProps) {
+export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
   const { token } = useAuth()
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -60,7 +59,7 @@ export function TaskDetail({ task, workspaceId, projectId, onRefetch }: TaskDeta
       pollIntervalRef.current = setInterval(async () => {
         if (!token) return
         try {
-          const list = await getTasks(workspaceId, token, projectId)
+          const list = await getTasks(workspaceId, token)
           const updated = list.find((t) => t.id === task.id)
           if (updated && TERMINAL_STATUSES.includes(updated.status)) {
             if (pollIntervalRef.current) {

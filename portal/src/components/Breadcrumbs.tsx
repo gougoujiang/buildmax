@@ -1,16 +1,17 @@
-import type { Route, Project } from "../lib/types"
+import type { Route } from "../lib/types"
 import { navigate } from "../lib/router"
 
 interface BreadcrumbsProps {
   route: Route
-  projects: Project[]
 }
 
-export function Breadcrumbs({ route, projects }: BreadcrumbsProps) {
+export function Breadcrumbs({ route }: BreadcrumbsProps) {
   const workspaceId = route.workspaceId
   let crumbs: { label: string; route: Route }[] = []
 
-  if (route.name === "activity") {
+  if (route.name === "newChat") {
+    crumbs = [{ label: "New Chat", route: { name: "newChat", workspaceId } }]
+  } else if (route.name === "activity") {
     crumbs = [{ label: "Activity", route: { name: "activity", workspaceId } }]
   } else if (route.name === "explore") {
     crumbs = [{ label: "Explore", route: { name: "explore", workspaceId } }]
@@ -21,20 +22,13 @@ export function Breadcrumbs({ route, projects }: BreadcrumbsProps) {
       { label: "Agents", route: { name: "agents", workspaceId } },
       { label: "Manage agents", route: { name: "agentList", workspaceId } },
     ]
+  } else if (route.name === "task") {
+    crumbs = [
+      { label: "Chats", route: { name: "activity", workspaceId } },
+      { label: "Task", route },
+    ]
   } else {
-    // workspace, project, task — all under "Projects"
-    crumbs = [{ label: "Projects", route: { name: "workspace", workspaceId } }]
-    if (route.name === "project" || route.name === "task") {
-      const projectId = route.projectId
-      const project = projects.find((p) => p.id === projectId)
-      crumbs.push({
-        label: project?.name ?? "Project",
-        route: { name: "project", workspaceId, projectId },
-      })
-      if (route.name === "task") {
-        crumbs.push({ label: "Task", route })
-      }
-    }
+    crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]
   }
 
   return (

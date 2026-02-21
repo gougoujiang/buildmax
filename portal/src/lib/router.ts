@@ -5,14 +5,13 @@ import type { Route, WorkspaceScope } from "./types"
 export function getWorkspaceScope(route: Route): WorkspaceScope {
   return {
     workspaceId: route.workspaceId,
-    projectId: "projectId" in route ? route.projectId : undefined,
     taskId: "taskId" in route ? route.taskId : undefined,
   }
 }
 
 /** Path segment names used in the hash URL. Single source of truth for parseHash/buildHash. */
 export const SEGMENT = {
-  project: "project",
+  new: "new",
   task: "task",
   activity: "activity",
   explore: "explore",
@@ -21,7 +20,7 @@ export const SEGMENT = {
 
 /**
  * Parse window.location.hash into a typed Route.
- * Hash format: #<workspaceId> | #<workspaceId>/project/<id> | #<workspaceId>/task/<p>/<t>
+ * Hash format: #<workspaceId> | #<workspaceId>/task/<taskId> | ...
  * First segment = workspaceId (use as-is; if missing, "").
  */
 export function parseHash(hash: string): Route {
@@ -30,6 +29,9 @@ export function parseHash(hash: string): Route {
 
   const workspaceId = parts[0] ?? ""
 
+  if (parts[1] === SEGMENT.new) {
+    return { name: "newChat", workspaceId }
+  }
   if (parts[1] === SEGMENT.activity) {
     return { name: "activity", workspaceId }
   }
@@ -42,16 +44,8 @@ export function parseHash(hash: string): Route {
   if (parts[1] === SEGMENT.agents) {
     return { name: "agents", workspaceId }
   }
-  if (parts[1] === SEGMENT.project && parts[2]) {
-    return { name: "project", workspaceId, projectId: parts[2] }
-  }
-  if (parts[1] === SEGMENT.task && parts[2] && parts[3]) {
-    return {
-      name: "task",
-      workspaceId,
-      projectId: parts[2],
-      taskId: parts[3],
-    }
+  if (parts[1] === SEGMENT.task && parts[2]) {
+    return { name: "task", workspaceId, taskId: parts[2] }
   }
   return { name: "workspace", workspaceId }
 }
@@ -61,10 +55,10 @@ export function buildHash(route: Route): string {
   switch (route.name) {
     case "workspace":
       return `#${route.workspaceId}`
-    case "project":
-      return `#${route.workspaceId}/${SEGMENT.project}/${route.projectId}`
+    case "newChat":
+      return `#${route.workspaceId}/${SEGMENT.new}`
     case "task":
-      return `#${route.workspaceId}/${SEGMENT.task}/${route.projectId}/${route.taskId}`
+      return `#${route.workspaceId}/${SEGMENT.task}/${route.taskId}`
     case "activity":
       return `#${route.workspaceId}/${SEGMENT.activity}`
     case "explore":

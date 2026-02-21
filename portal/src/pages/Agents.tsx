@@ -9,14 +9,12 @@ const PAGE_SIZE = 20
 interface AgentsProps {
   workspaceId: string
   token: string | null
-  getProjectName: (projectId: string) => string
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 export function Agents({
   workspaceId,
   token,
-  getProjectName,
 }: AgentsProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [total, setTotal] = useState(0)
@@ -53,8 +51,6 @@ export function Agents({
   const hasMore = total > 0 && tasks.length < total
   const loadMore = () => setOffset((o) => o + PAGE_SIZE)
 
-  const tasksWithProject = tasks.filter((t) => t.projectId != null)
-
   return (
     <div className="page-activity">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
@@ -74,40 +70,34 @@ export function Agents({
       </div>
       {loading && offset === 0 ? (
         <p className="page-activity__empty">Loading…</p>
-      ) : tasksWithProject.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <p className="page-activity__empty">No executed tasks yet.</p>
       ) : (
         <>
           <ul className="page-activity__list">
-            {tasksWithProject.map((task) => {
-              const projectName = getProjectName(task.projectId!)
-              return (
-                <li key={`task-${task.projectId}-${task.id}`} className="page-activity__item">
-                  <button
-                    type="button"
-                    className="page-activity__link"
-                    onClick={() =>
-                      navigate({
-                        name: "task",
-                        workspaceId,
-                        projectId: task.projectId!,
-                        taskId: task.id,
-                      })
-                    }
-                  >
-                    <span className="page-activity__icon">
-                      {taskStatusIcon(task.status)}
-                    </span>
-                    <span className="page-activity__content">
-                      <span className="page-activity__task-title">{task.title}</span>
-                      <span className="page-activity__meta">
-                        {projectName} · {task.timeLabel}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
+            {tasks.map((task) => (
+              <li key={task.id} className="page-activity__item">
+                <button
+                  type="button"
+                  className="page-activity__link"
+                  onClick={() =>
+                    navigate({
+                      name: "task",
+                      workspaceId,
+                      taskId: task.id,
+                    })
+                  }
+                >
+                  <span className="page-activity__icon">
+                    {taskStatusIcon(task.status)}
+                  </span>
+                  <span className="page-activity__content">
+                    <span className="page-activity__task-title">{task.title}</span>
+                    <span className="page-activity__meta">{task.timeLabel}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
           {hasMore && (
             <div style={{ marginTop: "1rem" }}>

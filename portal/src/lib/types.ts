@@ -33,21 +33,21 @@ export interface Artifact {
 }
 
 // --- Workspace scope (derived from route) ---
-// Scope = what is in context for the current view (workspaceId; projectId/taskId when on project/task).
+// Scope = what is in context for the current view (workspaceId; taskId when on task).
 // Route = URL state; scope = derived context for data and display.
 
 export interface WorkspaceScope {
   workspaceId: string
-  projectId?: string
   taskId?: string
 }
 
 // --- Route types ---
+// Tasks are workspace-scoped only; no project in route.
 
 export type Route =
   | { name: "workspace"; workspaceId: string }
-  | { name: "project"; workspaceId: string; projectId: string }
-  | { name: "task"; workspaceId: string; projectId: string; taskId: string }
+  | { name: "newChat"; workspaceId: string }
+  | { name: "task"; workspaceId: string; taskId: string }
   | { name: "activity"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
   | { name: "agents"; workspaceId: string }

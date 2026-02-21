@@ -55,10 +55,10 @@ export function Projects({
     setCreatingProject(true)
     setCreateProjError(null)
     try {
-      const p = await createProject(workspaceId, { name, description: description || undefined }, token)
+      await createProject(workspaceId, { name, description: description || undefined }, token)
       onRefetchProjects()
       setShowNewProject(false)
-      navigate({ name: "project", workspaceId, projectId: p.id })
+      navigate({ name: "workspace", workspaceId })
     } catch (err) {
       setCreateProjError(err instanceof Error ? err.message : "Failed to create project")
     } finally {
@@ -101,9 +101,8 @@ export function Projects({
                 className="page-workspace__project-link"
                 onClick={() =>
                   navigate({
-                    name: "project",
+                    name: "workspace",
                     workspaceId,
-                    projectId: p.id,
                   })
                 }
               >

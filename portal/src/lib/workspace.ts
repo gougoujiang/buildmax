@@ -8,13 +8,10 @@ export function getProjectName(projects: Project[], projectId: string): string {
   return projects.find((p) => p.id === projectId)?.name ?? "Project"
 }
 
+/** Resolve task by id from workspace task list (tasks are workspace-scoped only). */
 export function getTaskForDetail(
-  tasks: Task[],
   workspaceTasks: Task[],
-  projectId: string | undefined,
   taskId: string
 ): Task | undefined {
-  const fromProject = projectId ? tasks.find((t) => t.id === taskId) : undefined
-  if (fromProject) return fromProject
   return workspaceTasks.find((t) => t.id === taskId)
 }

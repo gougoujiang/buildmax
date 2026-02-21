@@ -81,14 +81,13 @@ export function Project({
                 <button
                   type="button"
                   className="page-project__task-link"
-                  onClick={() =>
-                    navigate({
-                      name: "task",
-                      workspaceId,
-                      projectId: project.id,
-                      taskId: t.id,
-                    })
-                  }
+                    onClick={() =>
+                      navigate({
+                        name: "task",
+                        workspaceId,
+                        taskId: t.id,
+                      })
+                    }
                 >
                   <span className="page-project__task-icon">
                     {taskStatusIcon(t.status)}

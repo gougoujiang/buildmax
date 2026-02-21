@@ -25,14 +25,12 @@ export function useWorkspaceData(
   token: string | null,
   route: Route
 ): UseWorkspaceDataResult {
-  const projectIdFromRoute = "projectId" in route ? route.projectId : undefined
-
   const { data: workspaces, loading: loadingWorkspaces, refetch: refetchWorkspaces } = useWorkspaces(token)
   const { data: projects, refetch: refetchProjects } = useProjects(route.workspaceId, token)
   const { data: tasks, refetch: refetchTasks } = useTasks(
     route.workspaceId,
     token,
-    projectIdFromRoute
+    undefined
   )
   const { data: workspaceTasks, refetch: refetchWorkspaceTasks } = useWorkspaceTasks(
     route.workspaceId,
@@ -41,7 +39,7 @@ export function useWorkspaceData(
   const { data: artifacts, refetch: artifactsRefetch } = useArtifacts(
     route.workspaceId,
     token,
-    { projectId: projectIdFromRoute }
+    {}
   )
 
   const refetchArtifacts = (projectId?: string, taskId?: string) => {

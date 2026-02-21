@@ -64,7 +64,7 @@ export function useWorkspace(): WorkspaceContextValue {
   return ctx
 }
 
-/** Returns workspace scope (workspaceId, projectId?, taskId?) for the current route. Use from within WorkspaceProvider. */
+/** Returns workspace scope (workspaceId, taskId?) for the current route. Use from within WorkspaceProvider. */
 export function useWorkspaceScope(): ReturnType<typeof getWorkspaceScope> {
   return useWorkspace().scope
 }

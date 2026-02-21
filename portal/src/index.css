@@ -102,6 +102,9 @@ body {
 }
 
 .topbar__profile {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
   font-size: 0.85rem;
   color: #bbb;
   cursor: default;
@@ -292,6 +295,127 @@ body {
   font-weight: 600;
 }
 
+.sidebar__new-chat {
+  display: block;
+  width: 100%;
+  margin: 0 0.5rem 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.sidebar__new-chat:hover {
+  background: #333;
+  border-color: #333;
+}
+
+.sidebar__workspace {
+  margin: 0 0.5rem 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.sidebar__workspace-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__workspace-controls {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.sidebar__workspace-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+}
+
+.sidebar__workspace-new {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #555;
+}
+
+.sidebar__workspace-new:hover {
+  background: #e4e4e4;
+  border-color: #999;
+}
+
+.sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0 0.5rem;
+}
+
+.sidebar__chats {
+  margin: 0.5rem 0;
+}
+
+.sidebar__chats .sidebar__list {
+  margin-top: 0.25rem;
+}
+
+.sidebar__chat-title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__chat-meta {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.sidebar__chats-see-all {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #666;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__chats-see-all:hover {
+  color: #1a1a1a;
+  text-decoration: underline;
+}
+
 .sidebar__heading {
   margin: 0 1rem 0.75rem;
   font-size: 0.8rem;
@@ -479,6 +603,25 @@ body {
 
 .page-workspace__error {
   margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #c00;
+}
+
+/* -- New Chat page -- */
+
+.page-new-chat__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.page-new-chat__subtitle {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.page-new-chat__error {
+  margin: 0.75rem 0 0;
   font-size: 0.85rem;
   color: #c00;
 }
