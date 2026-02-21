@@ -18,7 +18,6 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
-	"buildmax/internal/util"
 	"buildmax/internal/workerapi"
 )
 
@@ -137,15 +136,14 @@ func reportRunFailure(ctx context.Context, chatRunID string, err error, updater 
 }
 
 func reportRunSuccess(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, endTime int64, outputStr, runArtifactsDir string, output []byte, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
-	artifactID := util.NewPrefixedID(util.PrefixArtifact)
-	if putErr := artifactStorage.PutResult(ctx, chat.WorkspaceID, chat.ChatID, run.ChatRunID, artifactID, output); putErr != nil {
+	if putErr := artifactStorage.PutResult(ctx, chat.WorkspaceID, chat.ChatID, run.ChatRunID, output); putErr != nil {
 		slog.Error("executor: failed to write result to artifact storage", "chat_run_id", run.ChatRunID, "err", putErr)
 	}
-	relativePaths := uploadRunArtifactsToStorage(ctx, runArtifactsDir, chat.WorkspaceID, chat.ChatID, run.ChatRunID, artifactID, artifactStorage)
+	relativePaths := uploadRunArtifactsToStorage(ctx, runArtifactsDir, chat.WorkspaceID, chat.ChatID, run.ChatRunID, artifactStorage)
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
-	return updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusSucceeded, nil, &endTime, &outputStr, nil, nil, &workerapi.ArtifactPayload{ArtifactID: artifactID, RelativePaths: relativePaths})
+	return updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusSucceeded, nil, &endTime, &outputStr, nil, nil, &workerapi.ArtifactPayload{RelativePaths: relativePaths})
 }
 
 // uploadChatRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).
@@ -179,7 +177,7 @@ func uploadChatRunArtifacts(ctx context.Context, artifactsDir, workspaceID, chat
 }
 
 // uploadRunArtifactsToStorage scans runArtifactsDir and uploads each file to artifact blob storage. Returns relative paths (slash form) for each file.
-func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir, workspaceID, chatID, chatRunID, artifactID string, artifactStorage blob.ArtifactStorage) []string {
+func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir, workspaceID, chatID, chatRunID string, artifactStorage blob.ArtifactStorage) []string {
 	var relativePaths []string
 	if err := filepath.Walk(runArtifactsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -198,7 +196,7 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir, workspace
 			slog.Warn("executor: artifact file open failed", "rel_path", relPath, "err", err)
 			return nil
 		}
-		putErr := artifactStorage.PutArtifactFile(ctx, workspaceID, chatID, chatRunID, artifactID, relPath, f)
+		putErr := artifactStorage.PutArtifactFile(ctx, workspaceID, chatID, chatRunID, relPath, f)
 		f.Close()
 		if putErr != nil {
 			slog.Warn("executor: PutArtifactFile failed", "rel_path", relPath, "err", putErr)

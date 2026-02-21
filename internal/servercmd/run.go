@@ -63,7 +63,7 @@ func RunServer(ctx context.Context, port int) error {
 	if err != nil {
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.RunOutputDir, s3Client)
 	if err != nil {
 		return fmt.Errorf("artifact storage: %w", err)
 	}
@@ -75,7 +75,7 @@ func RunServer(ctx context.Context, port int) error {
 		AgentStore:      st,
 		ChatStore:       st,
 		ChatRunStore:    st,
-		ArtifactStore:   st,
+		RunOutputLister: st,
 		PersistStorage:  persistStorage,
 		ArtifactStorage: artifactStorage,
 		WorkspacesDir:   workspacesDir,

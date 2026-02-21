@@ -74,7 +74,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 	}
 }
 
-func TestIncrementChatSeq(t *testing.T) {
+func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -84,146 +84,73 @@ func TestIncrementChatSeq(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := s.EnsureDefaultWorkspaceForUser(ctx, "inc-seq-user"); err != nil {
+	if err := s.EnsureDefaultWorkspaceForUser(ctx, "run-output-user"); err != nil {
 		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
 	}
-	list, _ := s.ListWorkspacesByOwner(ctx, "inc-seq-user")
-	if len(list) == 0 {
-		t.Fatal("no workspace for user")
-	}
-	wsID := list[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, wsID, "input", "", "inc-seq-user")
-	if err != nil {
-		t.Fatalf("CreateChat: %v", err)
-	}
-	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&ChatRun{}, "chat_id = ?", chat.ChatID)
-		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
-	}()
-
-	seq1, err := s.IncrementChatSeq(ctx, chat.ChatID)
-	if err != nil {
-		t.Fatalf("IncrementChatSeq first: %v", err)
-	}
-	if seq1 != 1 {
-		t.Errorf("IncrementChatSeq first = %d, want 1", seq1)
-	}
-	seq2, err := s.IncrementChatSeq(ctx, chat.ChatID)
-	if err != nil {
-		t.Fatalf("IncrementChatSeq second: %v", err)
-	}
-	if seq2 != 2 {
-		t.Errorf("IncrementChatSeq second = %d, want 2", seq2)
-	}
-}
-
-func TestCreateArtifactWithItem(t *testing.T) {
-	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
-	if dsn == "" {
-		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
-	}
-	ctx := context.Background()
-	s, err := New(ctx, dsn)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if err := s.EnsureDefaultWorkspaceForUser(ctx, "artifact-user"); err != nil {
-		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
-	}
-	wsList, _ := s.ListWorkspacesByOwner(ctx, "artifact-user")
+	wsList, _ := s.ListWorkspacesByOwner(ctx, "run-output-user")
 	if len(wsList) == 0 {
 		t.Fatal("no workspace for user")
 	}
 	workspaceID := wsList[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, workspaceID, "input", "", "artifact-user")
+	chat, err := s.CreateChat(ctx, workspaceID, "input", "", "run-output-user")
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}
-	artifactID := "art-test-123"
-	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&ArtifactItem{}, "artifact_id = ?", artifactID)
-		_ = s.db.WithContext(ctx).Delete(&Artifact{}, "chat_id = ?", chat.ChatID)
-		_ = s.db.WithContext(ctx).Delete(&ChatRun{}, "chat_id = ?", chat.ChatID)
-		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
-	}()
 	if chat.LastRunID == nil {
 		t.Fatal("CreateChat should set LastRunID")
 	}
-	err = s.CreateArtifactWithItem(ctx, chat.ChatID, *chat.LastRunID, artifactID, 1, "result-chat.md")
+	chatRunID := *chat.LastRunID
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&ChatRunOutputFile{}, "chat_run_id = ?", chatRunID)
+		_ = s.db.WithContext(ctx).Delete(&ChatRun{}, "chat_id = ?", chat.ChatID)
+		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
+	}()
+	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
+	if err := s.UpdateChatRunStatus(ctx, chatRunID, "SUCCEEDED", nil, nil, ptrString("out"), nil, nil); err != nil {
+		t.Fatalf("UpdateChatRunStatus: %v", err)
+	}
+	err = s.OnRunComplete(ctx, chatRunID, []string{"result.md", "extra.txt"})
 	if err != nil {
-		t.Fatalf("CreateArtifactWithItem: %v", err)
+		t.Fatalf("OnRunComplete: %v", err)
 	}
-	var art Artifact
-	if err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).First(&art).Error; err != nil {
-		t.Fatalf("find artifact: %v", err)
+	var files []ChatRunOutputFile
+	if err := s.db.WithContext(ctx).Where("chat_run_id = ?", chatRunID).Find(&files).Error; err != nil {
+		t.Fatalf("find output files: %v", err)
 	}
-	if art.ChatID != chat.ChatID || art.ChatRunID != *chat.LastRunID || art.Seq != 1 {
-		t.Errorf("artifact: chat_id=%q chat_run_id=%q seq=%d, want chat_id=%q chat_run_id=%q seq=1", art.ChatID, art.ChatRunID, art.Seq, chat.ChatID, *chat.LastRunID)
-	}
-	var item ArtifactItem
-	if err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).First(&item).Error; err != nil {
-		t.Fatalf("find artifact_item: %v", err)
-	}
-	if item.RelativePath != "result-chat.md" {
-		t.Errorf("artifact_item relative_path = %q, want result-chat.md", item.RelativePath)
-	}
-	var c2 Chat
-	if err := s.db.WithContext(ctx).Where("chat_id = ?", chat.ChatID).First(&c2).Error; err != nil {
-		t.Fatalf("find chat: %v", err)
-	}
-	if c2.LastArtifactID == nil || *c2.LastArtifactID != artifactID {
-		t.Errorf("chat last_artifact_id = %v, want %q", c2.LastArtifactID, artifactID)
+	if len(files) != 2 {
+		t.Fatalf("got %d output files, want 2", len(files))
 	}
 
-	// ListArtifactsByWorkspace
-	artList, err := s.ListArtifactsByWorkspace(ctx, workspaceID, nil)
+	// ListRunOutputsByWorkspace
+	artList, err := s.ListRunOutputsByWorkspace(ctx, workspaceID, nil)
 	if err != nil {
-		t.Fatalf("ListArtifactsByWorkspace: %v", err)
+		t.Fatalf("ListRunOutputsByWorkspace: %v", err)
 	}
 	if len(artList) != 1 {
-		t.Fatalf("ListArtifactsByWorkspace: got %d items, want 1", len(artList))
+		t.Fatalf("ListRunOutputsByWorkspace: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != artifactID || artList[0].ChatID != chat.ChatID || artList[0].ChatRunID != *chat.LastRunID || artList[0].WorkspaceID != workspaceID {
-		t.Errorf("ListArtifactsByWorkspace: got artifact_id=%q chat_id=%q chat_run_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].ChatRunID, artList[0].WorkspaceID)
+	if artList[0].ArtifactID != chatRunID || artList[0].ChatID != chat.ChatID || artList[0].ChatRunID != chatRunID || artList[0].WorkspaceID != workspaceID {
+		t.Errorf("ListRunOutputsByWorkspace: got artifact_id=%q chat_id=%q chat_run_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].ChatRunID, artList[0].WorkspaceID)
 	}
 	if artList[0].ChatInputSnippet != "input" {
-		t.Errorf("ListArtifactsByWorkspace: chat_input_snippet = %q, want input", artList[0].ChatInputSnippet)
+		t.Errorf("ListRunOutputsByWorkspace: chat_input_snippet = %q, want input", artList[0].ChatInputSnippet)
 	}
 
-	// GetArtifactByID
-	got, err := s.GetArtifactByID(ctx, artifactID)
-	if err != nil || got == nil || got.ArtifactID != artifactID {
-		t.Fatalf("GetArtifactByID: got %v %v", got, err)
-	}
-	gotNil, _ := s.GetArtifactByID(ctx, "nonexistent")
-	if gotNil != nil {
-		t.Errorf("GetArtifactByID(nonexistent): got %v, want nil", gotNil)
-	}
-
-	// GetChat
-	chatGot, err := s.GetChat(ctx, chat.ChatID)
-	if err != nil || chatGot == nil || chatGot.ChatID != chat.ChatID {
-		t.Fatalf("GetChat: got %v %v", chatGot, err)
-	}
-	chatNil, _ := s.GetChat(ctx, "nonexistent-chat")
-	if chatNil != nil {
-		t.Errorf("GetChat(nonexistent): got %v, want nil", chatNil)
-	}
-
-	// ListArtifactItems
-	items, err := s.ListArtifactItems(ctx, artifactID)
+	// GetChatRunOutputFiles
+	items, err := s.GetChatRunOutputFiles(ctx, chatRunID)
 	if err != nil {
-		t.Fatalf("ListArtifactItems: %v", err)
+		t.Fatalf("GetChatRunOutputFiles: %v", err)
 	}
-	if len(items) != 1 {
-		t.Fatalf("ListArtifactItems: got %d items, want 1", len(items))
+	if len(items) != 2 {
+		t.Fatalf("GetChatRunOutputFiles: got %d items, want 2", len(items))
 	}
-	if items[0].RelativePath != "result-chat.md" {
-		t.Errorf("ListArtifactItems[0].RelativePath = %q, want result-chat.md", items[0].RelativePath)
+	paths := []string{items[0].RelativePath, items[1].RelativePath}
+	if (paths[0] != "result.md" || paths[1] != "extra.txt") && (paths[0] != "extra.txt" || paths[1] != "result.md") {
+		t.Errorf("GetChatRunOutputFiles: got %v", paths)
 	}
-	itemsEmpty, _ := s.ListArtifactItems(ctx, "nonexistent-artifact")
+	itemsEmpty, _ := s.GetChatRunOutputFiles(ctx, "nonexistent-run")
 	if len(itemsEmpty) != 0 {
-		t.Errorf("ListArtifactItems(nonexistent): got %d, want 0", len(itemsEmpty))
+		t.Errorf("GetChatRunOutputFiles(nonexistent): got %d, want 0", len(itemsEmpty))
 	}
 }
 

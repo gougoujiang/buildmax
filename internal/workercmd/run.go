@@ -91,7 +91,7 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 		slog.Error("worker: failed to build persist storage", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.RunOutputDir, s3Client)
 	if err != nil {
 		slog.Error("worker: failed to build artifact storage", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("artifact storage: %w", err)

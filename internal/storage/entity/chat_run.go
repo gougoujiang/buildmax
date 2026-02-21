@@ -161,8 +161,8 @@ func (s *Store) UpdateChatRunWorkerInfo(ctx context.Context, chatRunID, workerTy
 	return s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", chatRunID).Updates(updates).Error
 }
 
-// OnRunComplete creates the artifact with chat_run_id, one artifact_item per relativePath, updates chat denormalized fields (last_run_id, status, output, etc.) and chat.session_id if the run set it.
-func (s *Store) OnRunComplete(ctx context.Context, chatRunID, artifactID string, relativePaths []string) error {
+// OnRunComplete creates chat_run_output_file rows (one per relativePath) and updates chat denormalized fields.
+func (s *Store) OnRunComplete(ctx context.Context, chatRunID string, relativePaths []string) error {
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
@@ -171,36 +171,18 @@ func (s *Store) OnRunComplete(ctx context.Context, chatRunID, artifactID string,
 		if err := tx.Where("chat_run_id = ?", chatRunID).First(&run).Error; err != nil {
 			return err
 		}
-		// Create artifact + items
-		art := Artifact{
-			ChatID:     run.ChatID,
-			ChatRunID:  run.ChatRunID,
-			ArtifactID: artifactID,
-			CreatedAt:  time.Now().Unix(),
-			Seq:        0,
-		}
-		var count int64
-		if err := tx.Model(&Artifact{}).Where("chat_id = ?", run.ChatID).Count(&count).Error; err != nil {
-			return err
-		}
-		art.Seq = int(count) + 1
-		if err := tx.Create(&art).Error; err != nil {
-			return err
-		}
 		for _, relPath := range relativePaths {
-			if err := tx.Create(&ArtifactItem{ArtifactItemID: util.NewPrefixedID(util.PrefixArtifactItem), ArtifactID: artifactID, RelativePath: relPath}).Error; err != nil {
+			if err := tx.Create(&ChatRunOutputFile{ChatRunID: chatRunID, RelativePath: relPath}).Error; err != nil {
 				return err
 			}
 		}
-		// Update chat denormalized from run (worker_type, k8s_* live only on chat_run)
 		updates := map[string]interface{}{
-			"last_run_id":      chatRunID,
-			"status":           run.Status,
-			"output":           run.Output,
-			"started_at":       run.StartedAt,
-			"ended_at":         run.EndedAt,
-			"error_message":    run.ErrorMessage,
-			"last_artifact_id": artifactID,
+			"last_run_id":   chatRunID,
+			"status":        run.Status,
+			"output":        run.Output,
+			"started_at":    run.StartedAt,
+			"ended_at":      run.EndedAt,
+			"error_message": run.ErrorMessage,
 		}
 		if run.SessionID != nil {
 			updates["session_id"] = *run.SessionID

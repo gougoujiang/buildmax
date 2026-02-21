@@ -11,17 +11,17 @@ const resultFilename = "result.md"
 
 // LocalFSArtifactStorage implements ArtifactStorage using the local filesystem.
 type LocalFSArtifactStorage struct {
-	artifactDir func(workspaceID, chatID, chatRunID, artifactID string) string
+	runOutputDir func(workspaceID, chatID, chatRunID string) string
 }
 
-// NewLocalFSArtifactStorage returns an ArtifactStorage that uses the given dir function.
-func NewLocalFSArtifactStorage(artifactDir func(workspaceID, chatID, chatRunID, artifactID string) string) *LocalFSArtifactStorage {
-	return &LocalFSArtifactStorage{artifactDir: artifactDir}
+// NewLocalFSArtifactStorage returns an ArtifactStorage that uses the given dir function (run output dir, no artifactID).
+func NewLocalFSArtifactStorage(runOutputDir func(workspaceID, chatID, chatRunID string) string) *LocalFSArtifactStorage {
+	return &LocalFSArtifactStorage{runOutputDir: runOutputDir}
 }
 
-// PutResult writes the artifact result file as result.md.
-func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error {
-	dir := s.artifactDir(workspaceID, chatID, chatRunID, artifactID)
+// PutResult writes the run result file as result.md.
+func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
+	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -29,18 +29,18 @@ func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, workspaceID, cha
 }
 
 // GetResult reads result.md. Returns os.ErrNotExist if not found.
-func (s *LocalFSArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
-	dir := s.artifactDir(workspaceID, chatID, chatRunID, artifactID)
+func (s *LocalFSArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
+	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
 	return os.ReadFile(filepath.Join(dir, resultFilename))
 }
 
-// PutArtifactFile writes one file under the artifact dir at relPath.
-func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error {
+// PutArtifactFile writes one file under the run output dir at relPath.
+func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
 	clean, err := CleanRelPath(relPath)
 	if err != nil {
 		return err
 	}
-	dir := s.artifactDir(workspaceID, chatID, chatRunID, artifactID)
+	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
 	fullPath := filepath.Join(dir, filepath.FromSlash(clean))
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return err
@@ -54,13 +54,13 @@ func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, workspaceI
 	return err
 }
 
-// GetArtifactFile reads one file under the artifact dir. Returns ErrNotFound if not found.
-func (s *LocalFSArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error) {
+// GetArtifactFile reads one file under the run output dir. Returns ErrNotFound if not found.
+func (s *LocalFSArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
 	clean, err := CleanRelPath(relPath)
 	if err != nil {
 		return nil, err
 	}
-	dir := s.artifactDir(workspaceID, chatID, chatRunID, artifactID)
+	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
 	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(clean)))
 	if err != nil {
 		if os.IsNotExist(err) {

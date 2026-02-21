@@ -7,7 +7,6 @@ import (
 
 	"buildmax/internal/util"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // ListChatsByWorkspace returns chats in the workspace, ordered by created_at.
@@ -151,17 +150,4 @@ func (s *Store) UpdateChatStatusIf(ctx context.Context, chatID, expectedStatus, 
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
-}
-
-// IncrementChatSeq atomically increments the chat's artifact_seq and returns the new value.
-func (s *Store) IncrementChatSeq(ctx context.Context, chatID string) (newSeq int, err error) {
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var c Chat
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("chat_id = ?", chatID).First(&c).Error; err != nil {
-			return err
-		}
-		newSeq = c.ArtifactSeq + 1
-		return tx.Model(&Chat{}).Where("chat_id = ?", chatID).Update("artifact_seq", newSeq).Error
-	})
-	return newSeq, err
 }

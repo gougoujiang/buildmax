@@ -42,7 +42,6 @@ type ChatStore interface {
 	CreateChat(ctx context.Context, workspaceID, input, title, createdBy string) (*Chat, error)
 	UpdateChatStatus(ctx context.Context, chatID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 	UpdateChatStatusIf(ctx context.Context, chatID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
-	IncrementChatSeq(ctx context.Context, chatID string) (newSeq int, err error)
 }
 
 // ErrRunInProgress is returned by CreateChatRun when the chat already has a run in PENDING, SCHEDULED, or RUNNING.
@@ -61,20 +60,8 @@ type ChatRunStore interface {
 	UpdateChatRunStatusIf(ctx context.Context, chatRunID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error)
 	UpdateChatRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 	UpdateChatRunWorkerInfo(ctx context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
-	// OnRunComplete creates artifact with one or more artifact_item rows (one per relativePath), updates chat denormalized fields. Use for SUCCEEDED runs.
-	OnRunComplete(ctx context.Context, chatRunID, artifactID string, relativePaths []string) error
-	// SyncChatFromRun updates chat denormalized fields and last_run_id from the run (no artifact). Use for FAILED runs.
+	// OnRunComplete creates chat_run_output_file rows (one per relativePath) and updates chat denormalized fields. Use for SUCCEEDED runs.
+	OnRunComplete(ctx context.Context, chatRunID string, relativePaths []string) error
+	// SyncChatFromRun updates chat denormalized fields and last_run_id from the run (no output). Use for FAILED runs.
 	SyncChatFromRun(ctx context.Context, chatRunID string) error
-}
-
-// ArtifactStore provides artifact persistence.
-type ArtifactStore interface {
-	// CreateArtifactWithItem creates one artifact row (with chat_run_id), one artifact_item row, and updates chat.last_artifact_id.
-	CreateArtifactWithItem(ctx context.Context, chatID, chatRunID, artifactID string, seq int, relativePath string) error
-	// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by chat_id. Order: created_at DESC. Chat_input_snippet is truncated to 200 chars.
-	ListArtifactsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]ArtifactWithChat, error)
-	// GetArtifactByID returns the artifact by artifact_id, or (nil, nil) if not found.
-	GetArtifactByID(ctx context.Context, artifactID string) (*Artifact, error)
-	// ListArtifactItems returns all artifact_item rows for the given artifact_id, ordered by id.
-	ListArtifactItems(ctx context.Context, artifactID string) ([]ArtifactItem, error)
 }

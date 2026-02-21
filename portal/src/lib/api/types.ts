@@ -97,7 +97,6 @@ export interface ApiArtifact {
   workspace_id: string
   project_id: string | null
   created_at: number
-  seq: number
   chat_input_snippet: string
 }
 

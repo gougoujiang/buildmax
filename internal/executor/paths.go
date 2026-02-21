@@ -10,7 +10,7 @@ type WorkspacePaths interface {
 	RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string
 	RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string
 	RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string
-	ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string
+	RunOutputDir(workspaceID, chatID, chatRunID string) string
 }
 
 // workspacePathsRoot implements WorkspacePaths with a single root directory (e.g. WorkspacesDir).
@@ -43,6 +43,6 @@ func (p *workspacePathsRoot) RuntimeChatRunGlobalDir(workspaceID, chatID, chatRu
 	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "global")
 }
 
-func (p *workspacePathsRoot) ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string {
-	return filepath.Join(p.root, workspaceID, "artifacts", chatID, chatRunID, artifactID)
+func (p *workspacePathsRoot) RunOutputDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, workspaceID, "artifacts", chatID, chatRunID)
 }

@@ -18,30 +18,30 @@ func NewS3ArtifactStorage(client S3Client, bucket, prefix string) *S3ArtifactSto
 	return &S3ArtifactStorage{client: client, bucket: bucket, prefix: prefix}
 }
 
-// PutResult writes the artifact result as result.md in the artifact key path.
-func (s *S3ArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error {
-	key := ArtifactResultKey(s.prefix, workspaceID, chatID, chatRunID, artifactID)
+// PutResult writes the run result as result.md.
+func (s *S3ArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
+	key := ArtifactResultKey(s.prefix, workspaceID, chatID, chatRunID)
 	return s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data))
 }
 
-// GetResult reads result.md for the artifact.
-func (s *S3ArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
-	key := ArtifactResultKey(s.prefix, workspaceID, chatID, chatRunID, artifactID)
+// GetResult reads result.md for the run. Returns ErrNotFound if the object does not exist.
+func (s *S3ArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
+	key := ArtifactResultKey(s.prefix, workspaceID, chatID, chatRunID)
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
-// PutArtifactFile writes one file under the artifact key path.
-func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error {
-	key, err := ArtifactFileKey(s.prefix, workspaceID, chatID, chatRunID, artifactID, relPath)
+// PutArtifactFile writes one file under the run output key path.
+func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+	key, err := ArtifactFileKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
 	if err != nil {
 		return err
 	}
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetArtifactFile reads one file under the artifact. Returns ErrNotFound if the object does not exist.
-func (s *S3ArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error) {
-	key, err := ArtifactFileKey(s.prefix, workspaceID, chatID, chatRunID, artifactID, relPath)
+// GetArtifactFile reads one file under the run output. Returns ErrNotFound if the object does not exist.
+func (s *S3ArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+	key, err := ArtifactFileKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
 	if err != nil {
 		return nil, err
 	}

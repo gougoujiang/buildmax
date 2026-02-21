@@ -19,8 +19,25 @@ func TestPersistObjectKey(t *testing.T) {
 }
 
 func TestArtifactResultKey(t *testing.T) {
-	key := ArtifactResultKey("workspaces", "ws1", "chat1", "run1", "art1")
-	if key != "workspaces/ws1/artifacts/chat1/run1/art1/result.md" {
+	key := ArtifactResultKey("workspaces", "ws1", "chat1", "run1")
+	if key != "workspaces/ws1/artifacts/chat1/run1/result.md" {
+		t.Errorf("got %q", key)
+	}
+}
+
+func TestArtifactFileKey(t *testing.T) {
+	key, err := ArtifactFileKey("workspaces", "ws1", "chat1", "run1", "result.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "workspaces/ws1/artifacts/chat1/run1/result.md" {
+		t.Errorf("got %q", key)
+	}
+	key, err = ArtifactFileKey("w", "ws", "c", "r", "sub/file.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "w/ws/artifacts/c/r/sub/file.txt" {
 		t.Errorf("got %q", key)
 	}
 }

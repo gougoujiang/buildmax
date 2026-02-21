@@ -25,6 +25,12 @@ type ChatTitleGenerator interface {
 	GenerateChatTitle(ctx context.Context, input string) (string, error)
 }
 
+// RunOutputLister lists run outputs (artifacts) by workspace and gets output files for a run.
+type RunOutputLister interface {
+	ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error)
+	GetChatRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.ChatRunOutputFile, error)
+}
+
 // Config holds server configuration.
 type Config struct {
 	Addr               string                 // Listen address (e.g. ":5678")
@@ -33,7 +39,7 @@ type Config struct {
 	AgentStore         entity.AgentStore      // Optional; required for GET/POST /api/workspaces/{id}/agents
 	ChatStore          entity.ChatStore       // Optional; required for chat list/create
 	ChatRunStore       entity.ChatRunStore    // Optional; required for POST runs and worker chat-runs API
-	ArtifactStore      entity.ArtifactStore   // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
+	RunOutputLister    RunOutputLister        // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
 	PersistStorage     blob.PersistStorage    // Optional; required for upload and Explore (files tree/content)
 	ArtifactStorage    blob.ArtifactStorage   // Optional; required for artifact content file read
 	WorkspacesDir      string                 // Optional; overrides config.WorkspacesDir() for workspace file operations

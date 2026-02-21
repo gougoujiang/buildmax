@@ -257,7 +257,8 @@ cmd_deploy() {
     echo "Error: kubectl rollout restart failed"
     return 1
   fi
-  echo "Deployed. Add 127.0.0.1 buildmax-api.kind.local to /etc/hosts, then open http://buildmax-api.kind.local"
+  echo "Deployed. Add to /etc/hosts: 127.0.0.1 buildmax-api.kind.local buildmax.kind.local"
+  echo "Then open the portal: http://buildmax.kind.local"
 }
 
 cmd="${1:-}"

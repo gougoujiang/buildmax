@@ -20,11 +20,11 @@ type PersistStorage interface {
 	GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error)
 }
 
-// ArtifactStorage reads/writes artifact files. Path: artifacts/<chatID>/<chatRunID>/<artifactID>/<relPath>.
-// PutResult/GetResult are for the primary result (result.md). PutArtifactFile/GetArtifactFile support multiple files per artifact.
+// ArtifactStorage reads/writes run output files. Path: artifacts/<chatID>/<chatRunID>/<relPath>. One namespace per chat run.
+// PutResult/GetResult are for result.md. PutArtifactFile/GetArtifactFile support multiple files per run.
 type ArtifactStorage interface {
-	PutResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error
-	GetResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error)
-	PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error
-	GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error)
+	PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error
+	GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error)
+	PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error
+	GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error)
 }

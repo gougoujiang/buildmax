@@ -521,13 +521,13 @@ func TestRuntimeChatRunGlobalDir(t *testing.T) {
 	}
 }
 
-func TestArtifactDir(t *testing.T) {
+func TestRunOutputDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := ArtifactDir("ws-1", "chat-456", "run-1", "art-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "chat-456", "run-1", "art-789")
+	got := RunOutputDir("ws-1", "chat-456", "run-1")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "chat-456", "run-1")
 	if got != want {
-		t.Errorf("ArtifactDir(\"ws-1\", \"chat-456\", \"run-1\", \"art-789\") = %q, want %q", got, want)
+		t.Errorf("RunOutputDir(\"ws-1\", \"chat-456\", \"run-1\") = %q, want %q", got, want)
 	}
 }
 

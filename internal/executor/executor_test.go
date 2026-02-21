@@ -35,8 +35,8 @@ func (testWorkspacePaths) RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRu
 func (testWorkspacePaths) RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string {
 	return config.RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string {
-	return config.ArtifactDir(workspaceID, chatID, chatRunID, artifactID)
+func (testWorkspacePaths) RunOutputDir(workspaceID, chatID, chatRunID string) string {
+	return config.RunOutputDir(workspaceID, chatID, chatRunID)
 }
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
@@ -146,24 +146,24 @@ func (f *fakePersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceI
 	return data, nil
 }
 
-// fakeArtifactStorage is an in-memory ArtifactStorage for tests.
+// fakeArtifactStorage is an in-memory ArtifactStorage for tests (run output keyed by chatRunID only).
 type fakeArtifactStorage struct {
-	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content (PutResult)
-	files   map[string][]byte // "workspaceID/chatID/chatRunID/artifactID/relPath" -> content (PutArtifactFile)
+	results map[string][]byte // "workspaceID/chatID/chatRunID" -> content (PutResult)
+	files   map[string][]byte // "workspaceID/chatID/chatRunID/relPath" -> content (PutArtifactFile)
 }
 
 func newFakeArtifactStorage() *fakeArtifactStorage {
 	return &fakeArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
+func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
+	key := workspaceID + "/" + chatID + "/" + chatRunID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
+func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
+	key := workspaceID + "/" + chatID + "/" + chatRunID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -171,21 +171,21 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID
 	return data, nil
 }
 
-func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error {
+func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
 	if f.files == nil {
 		f.files = make(map[string][]byte)
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
 	data, _ := io.ReadAll(r)
 	f.files[key] = data
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error) {
+func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
 	if f.files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
 	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -213,7 +213,7 @@ func (mockChatRunStore) UpdateChatRunStatus(_ context.Context, _, _ string, _, _
 func (mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
 	return nil
 }
-func (mockChatRunStore) OnRunComplete(_ context.Context, _, _ string, _ []string) error { return nil }
+func (mockChatRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error { return nil }
 func (mockChatRunStore) SyncChatFromRun(_ context.Context, _ string) error      { return nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {

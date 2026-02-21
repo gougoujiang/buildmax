@@ -265,10 +265,10 @@ func RuntimeChatWSDir(workspaceID, chatID string) string {
 	return filepath.Join(RuntimeWorkspaceDir(workspaceID, chatID), "ws")
 }
 
-// ArtifactDir returns the directory for one artifact's files (snapshot output of a chat run).
-// It is WorkspacesDir()/<workspaceID>/artifacts/<chatID>/<chatRunID>/<artifactID>.
-func ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", chatID, chatRunID, artifactID)
+// RunOutputDir returns the directory for a chat run's output files (one artifact per run).
+// It is WorkspacesDir()/<workspaceID>/artifacts/<chatID>/<chatRunID>.
+func RunOutputDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", chatID, chatRunID)
 }
 
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.

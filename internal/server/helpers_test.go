@@ -227,16 +227,6 @@ func (m *mockChatStore) UpdateChatStatusIf(_ context.Context, chatID, expectedSt
 	return false, nil
 }
 
-func (m *mockChatStore) IncrementChatSeq(_ context.Context, chatID string) (int, error) {
-	for i := range m.list {
-		if m.list[i].ChatID == chatID {
-			m.list[i].ArtifactSeq++
-			return m.list[i].ArtifactSeq, nil
-		}
-	}
-	return 0, nil
-}
-
 func (m *mockChatStore) GetChat(_ context.Context, chatID string) (*entity.Chat, error) {
 	for i := range m.list {
 		if m.list[i].ChatID == chatID {
@@ -326,88 +316,72 @@ func (m *mockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, sta
 func (m *mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
 	return nil
 }
-func (m *mockChatRunStore) OnRunComplete(_ context.Context, chatRunID, artifactID string, relativePaths []string) error {
+func (m *mockChatRunStore) OnRunComplete(_ context.Context, chatRunID string, relativePaths []string) error {
 	return nil
 }
 func (m *mockChatRunStore) SyncChatFromRun(_ context.Context, chatRunID string) error {
 	return nil
 }
 
-// mockArtifactStore is an in-memory ArtifactStore for tests.
-type mockArtifactStore struct {
-	list      []entity.ArtifactWithChat
-	listErr   error
-	get       map[string]*entity.Artifact    // artifact_id -> artifact
-	getErr    error
-	listItems map[string][]entity.ArtifactItem // artifact_id -> items
+// mockRunOutputLister is an in-memory RunOutputLister for tests.
+type mockRunOutputLister struct {
+	list       []entity.ArtifactWithChat
+	listErr    error
+	outputFiles map[string][]entity.ChatRunOutputFile // chat_run_id -> files
 }
 
-func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, chatID, chatRunID, artifactID string, seq int, relativePath string) error {
-	return nil
-}
-
-func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error) {
+func (m *mockRunOutputLister) ListRunOutputsByWorkspace(_ context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	return m.list, nil
 }
 
-func (m *mockArtifactStore) GetArtifactByID(_ context.Context, artifactID string) (*entity.Artifact, error) {
-	if m.getErr != nil {
-		return nil, m.getErr
-	}
-	if m.get != nil {
-		return m.get[artifactID], nil
+func (m *mockRunOutputLister) GetChatRunOutputFiles(_ context.Context, chatRunID string) ([]entity.ChatRunOutputFile, error) {
+	if m.outputFiles != nil {
+		return m.outputFiles[chatRunID], nil
 	}
 	return nil, nil
 }
 
-func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID string) ([]entity.ArtifactItem, error) {
-	if m.listItems != nil {
-		return m.listItems[artifactID], nil
-	}
-	return nil, nil
-}
-
-// mockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
+// mockArtifactStorage is an in-memory blob.ArtifactStorage for tests (run output keyed by chatRunID only).
 type mockArtifactStorage struct {
-	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content (PutResult)
-	files   map[string][]byte // "workspaceID/chatID/chatRunID/artifactID/relPath" -> content (PutArtifactFile)
+	results map[string][]byte // "workspaceID/chatID/chatRunID" -> content (PutResult)
+	files   map[string][]byte // "workspaceID/chatID/chatRunID/relPath" -> content (PutArtifactFile)
 }
 
 func newMockArtifactStorage() *mockArtifactStorage {
 	return &mockArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error {
-	m.results[workspaceID+"/"+chatID+"/"+chatRunID+"/"+artifactID] = append([]byte(nil), data...)
+func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
+	m.results[workspaceID+"/"+chatID+"/"+chatRunID] = append([]byte(nil), data...)
 	return nil
 }
 
-func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
+func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
+	key := workspaceID + "/" + chatID + "/" + chatRunID
 	if data, ok := m.results[key]; ok {
 		return data, nil
 	}
 	return nil, blob.ErrNotFound
 }
 
-func (m *mockArtifactStorage) PutArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error {
+func (m *mockArtifactStorage) PutArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
 	if m.files == nil {
 		m.files = make(map[string][]byte)
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
 	data, _ := io.ReadAll(r)
 	m.files[key] = data
 	return nil
 }
 
-func (m *mockArtifactStorage) GetArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error) {
+func (m *mockArtifactStorage) GetArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
 	if m.files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
 	if data, ok := m.files[key]; ok {
 		return data, nil
 	}
