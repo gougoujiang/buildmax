@@ -92,6 +92,36 @@ func TestGenerateTitle_TruncatesLongAssistantReply(t *testing.T) {
 	}
 }
 
+func TestGenerateTitleFromInput_Success(t *testing.T) {
+	title, err := GenerateTitleFromInput(context.Background(), fakeChatFunc("Refactor Login Flow", nil), "Please refactor the login flow to use OAuth")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if title != "Refactor Login Flow" {
+		t.Errorf("title = %q, want %q", title, "Refactor Login Flow")
+	}
+}
+
+func TestGenerateTitleFromInput_EmptyInput(t *testing.T) {
+	title, err := GenerateTitleFromInput(context.Background(), fakeChatFunc("Should Not Use", nil), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if title != "" {
+		t.Errorf("title = %q, want empty", title)
+	}
+}
+
+func TestGenerateTitleFromInput_StripsQuotes(t *testing.T) {
+	title, err := GenerateTitleFromInput(context.Background(), fakeChatFunc(`"Task One"`, nil), "do something")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if title != "Task One" {
+		t.Errorf("title = %q, want %q", title, "Task One")
+	}
+}
+
 func TestCleanTitle(t *testing.T) {
 	tests := []struct {
 		input string

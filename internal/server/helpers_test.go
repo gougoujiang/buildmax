@@ -167,7 +167,7 @@ func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID stri
 	return out, nil
 }
 
-func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, createdBy string) (*entity.Task, error) {
+func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*entity.Task, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -180,6 +180,7 @@ func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID string, projec
 		ProjectID:   projectID,
 		Status:      "PENDING",
 		Input:       input,
+		Title:       title,
 		CreatedBy:   createdBy,
 		CreatedAt:   12345,
 	}, nil

@@ -20,21 +20,27 @@ var staticFS embed.FS
 
 const shutdownTimeout = 10 * time.Second
 
+// TaskTitleGenerator generates a short title from task input. Optional; when nil, create-task uses truncated input.
+type TaskTitleGenerator interface {
+	GenerateTaskTitle(ctx context.Context, input string) (string, error)
+}
+
 // Config holds server configuration.
 type Config struct {
-	Addr            string                      // Listen address (e.g. ":5678")
-	UserStore       entity.UserStore            // Optional; required for login
-	WorkspaceStore  entity.WorkspaceStore       // Optional; required for GET /api/workspaces
-	ProjectStore    entity.ProjectStore         // Optional; required for project list/create
-	TaskStore       entity.TaskStore            // Optional; required for task list/create
-	TaskRunStore    entity.TaskRunStore         // Optional; required for POST runs and worker task-runs API
-	ArtifactStore   entity.ArtifactStore        // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
-	PersistStorage  blob.PersistStorage         // Optional; required for upload and Explore (files tree/content)
-	ArtifactStorage blob.ArtifactStorage        // Optional; required for artifact content file read
-	WorkspacesDir   string                      // Optional; overrides config.WorkspacesDir() for workspace file operations
-	JWTSecret       string                      // Required for login when UserStore is set
-	CORSOrigin      string                      // If set, enable CORS with this origin (e.g. "http://localhost:5173")
-	WorkerToken     string                      // If set, required for /api/worker/* (worker-to-server auth)
+	Addr               string                 // Listen address (e.g. ":5678")
+	UserStore          entity.UserStore       // Optional; required for login
+	WorkspaceStore     entity.WorkspaceStore  // Optional; required for GET /api/workspaces
+	ProjectStore       entity.ProjectStore    // Optional; required for project list/create
+	TaskStore          entity.TaskStore       // Optional; required for task list/create
+	TaskRunStore       entity.TaskRunStore     // Optional; required for POST runs and worker task-runs API
+	ArtifactStore      entity.ArtifactStore   // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
+	PersistStorage     blob.PersistStorage    // Optional; required for upload and Explore (files tree/content)
+	ArtifactStorage    blob.ArtifactStorage   // Optional; required for artifact content file read
+	WorkspacesDir      string                 // Optional; overrides config.WorkspacesDir() for workspace file operations
+	JWTSecret          string                 // Required for login when UserStore is set
+	CORSOrigin         string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	WorkerToken        string                 // If set, required for /api/worker/* (worker-to-server auth)
+	TaskTitleGenerator TaskTitleGenerator     // Optional; when set, used to generate task title from input at create time
 }
 
 // Server wraps the HTTP server and runs it.

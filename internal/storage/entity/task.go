@@ -49,7 +49,7 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task
 }
 
 // CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id set.
-func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error) {
+func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*Task, error) {
 	now := time.Now().Unix()
 	taskID := util.NewULID()
 	runID := util.NewULID()
@@ -59,6 +59,7 @@ func (s *Store) CreateTask(ctx context.Context, workspaceID string, projectID *s
 		ProjectID:   projectID,
 		Status:      "PENDING",
 		Input:       input,
+		Title:       title,
 		CreatedBy:   createdBy,
 		CreatedAt:   now,
 		LastRunID:   &runID,

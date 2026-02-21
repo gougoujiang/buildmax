@@ -26,6 +26,29 @@ func (f TitleChatFunc) Chat(ctx context.Context, messages []llm.Message) (string
 // titleSystemPrompt instructs the LLM to produce a concise session title.
 const titleSystemPrompt = `Generate a short, descriptive title (3-8 words) for this conversation. Return ONLY the title text, nothing else. Do not use quotes or punctuation at the start or end.`
 
+// taskTitleSystemPrompt instructs the LLM to produce a short task title from a single user input.
+const taskTitleSystemPrompt = `Generate a short task title (3-5 words) from this user request. Return ONLY the title, no quotes or punctuation.`
+
+// GenerateTitleFromInput uses an LLM to produce a concise title from a single input string (e.g. task prompt).
+// Returns the cleaned title string. Reuses cleanTitle for trimming and quote stripping.
+func GenerateTitleFromInput(ctx context.Context, client TitleChatClient, input string) (string, error) {
+	if input == "" {
+		return "", nil
+	}
+	messages := []llm.Message{
+		{Role: "system", Content: taskTitleSystemPrompt},
+		{Role: "user", Content: input},
+	}
+	slog.Debug("generating task title via LLM")
+	title, err := client.Chat(ctx, messages)
+	if err != nil {
+		return "", err
+	}
+	title = cleanTitle(title)
+	slog.Debug("generated task title", "title", title)
+	return title, nil
+}
+
 // GenerateTitle uses an LLM to produce a concise title from the conversation messages.
 // It extracts the first user message and first assistant reply (if any) to keep the
 // prompt small and cheap. Returns the cleaned title string.

@@ -49,7 +49,12 @@ export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
 }
 
 export function apiTaskToTask(api: ApiTask): Task {
-  const title = api.input.length > 80 ? api.input.slice(0, 77) + "..." : api.input
+  const title =
+    api.title && api.title.trim() !== ""
+      ? api.title
+      : api.input.length > 80
+        ? api.input.slice(0, 77) + "..."
+        : api.input
   const summary =
     api.output ?? (api.input.length > 120 ? api.input.slice(0, 117) + "..." : api.input)
   const ts = api.ended_at ?? api.created_at

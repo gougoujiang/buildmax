@@ -21,6 +21,7 @@ type TaskResponse struct {
 	SessionID        *string `json:"session_id,omitempty"`
 	Status           string  `json:"status"`
 	Input            string  `json:"input"`
+	Title            string  `json:"title,omitempty"`
 	Output           *string `json:"output,omitempty"`
 	CreatedBy        string  `json:"created_by"`
 	CreatedAt        int64   `json:"created_at"`
@@ -43,12 +44,13 @@ func taskToResponse(t model.Task) TaskResponse {
 		SessionID:       t.SessionID,
 		Status:          t.Status,
 		Input:           t.Input,
+		Title:           t.Title,
 		Output:          t.Output,
 		CreatedBy:       t.CreatedBy,
 		CreatedAt:       t.CreatedAt,
-		StartedAt:    t.StartedAt,
-		EndedAt:      t.EndedAt,
-		ErrorMessage: t.ErrorMessage,
+		StartedAt:       t.StartedAt,
+		EndedAt:         t.EndedAt,
+		ErrorMessage:    t.ErrorMessage,
 	}
 }
 
@@ -128,6 +130,15 @@ func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, out)
 }
 
+// truncateTaskTitle returns the first maxRunes runes of input; if longer, appends "…".
+func truncateTaskTitle(input string, maxRunes int) string {
+	runes := []rune(input)
+	if len(runes) <= maxRunes {
+		return input
+	}
+	return string(runes[:maxRunes]) + "…"
+}
+
 // createWorkspaceTaskHandler handles POST /api/workspaces/{workspace_id}/tasks.
 // Body: { "input": "…", "project_id": "optional" }.
 func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Request) {
@@ -147,6 +158,12 @@ func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Reque
 		writeJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
+	title := truncateTaskTitle(req.Input, 50)
+	if s.cfg.TaskTitleGenerator != nil {
+		if gen, err := s.cfg.TaskTitleGenerator.GenerateTaskTitle(r.Context(), req.Input); err == nil && gen != "" {
+			title = gen
+		}
+	}
 	var projectIDPtr *string
 	if req.ProjectID != "" {
 		project, ok := s.resolveProjectForWorkspace(w, r, workspaceID, req.ProjectID)
@@ -157,7 +174,7 @@ func (s *Server) createWorkspaceTaskHandler(w http.ResponseWriter, r *http.Reque
 			projectIDPtr = &project.ProjectID
 		}
 	}
-	task, err := s.cfg.TaskStore.CreateTask(r.Context(), workspaceID, projectIDPtr, req.Input, userID)
+	task, err := s.cfg.TaskStore.CreateTask(r.Context(), workspaceID, projectIDPtr, req.Input, title, userID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_task", "workspace_id", workspaceID)
 		return

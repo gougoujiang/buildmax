@@ -92,7 +92,7 @@ func TestIncrementTaskSeq(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	wsID := list[0].WorkspaceID
-	task, err := s.CreateTask(ctx, wsID, nil, "input", "inc-seq-user")
+	task, err := s.CreateTask(ctx, wsID, nil, "input", "", "inc-seq-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestCreateArtifactWithItem(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	workspaceID := wsList[0].WorkspaceID
-	task, err := s.CreateTask(ctx, workspaceID, nil, "input", "artifact-user")
+	task, err := s.CreateTask(ctx, workspaceID, nil, "input", "", "artifact-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestUpdateTaskStatusIf(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	wsID := list[0].WorkspaceID
-	task, err := s.CreateTask(ctx, wsID, nil, "input", "update-if-user")
+	task, err := s.CreateTask(ctx, wsID, nil, "input", "", "update-if-user")
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}

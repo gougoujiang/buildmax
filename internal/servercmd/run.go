@@ -9,11 +9,26 @@ import (
 
 	"buildmax/internal/config"
 	"buildmax/internal/executor"
+	"buildmax/internal/llm"
 	"buildmax/internal/server"
+	"buildmax/internal/session"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/storage/setup"
 )
+
+// taskTitleGenAdapter implements server.TaskTitleGenerator using session.GenerateTitleFromInput and an LLM client.
+type taskTitleGenAdapter struct {
+	client *llm.Client
+}
+
+func (a *taskTitleGenAdapter) GenerateTaskTitle(ctx context.Context, input string) (string, error) {
+	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
+		content, _, err := a.client.ChatWithTools(ctx, msgs, nil)
+		return content, err
+	})
+	return session.GenerateTitleFromInput(ctx, titleClient, input)
+}
 
 // RunServer loads server env and workspaces dir, opens the DB, builds blob storage,
 // creates and starts the task executor, then runs the HTTP server until shutdown.
@@ -71,6 +86,9 @@ func RunServer(ctx context.Context, port int) error {
 		JWTSecret:        serverEnv.JWTSecret,
 		CORSOrigin:       serverEnv.CORSOrigin,
 		WorkerToken:      config.WorkerToken(),
+	}
+	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
+		cfg.TaskTitleGenerator = &taskTitleGenAdapter{client: llm.NewClient(llmCfg)}
 	}
 	var runner executor.WorkerRunner
 	switch config.WorkerRunMode() {

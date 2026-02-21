@@ -35,8 +35,8 @@ type TaskStore interface {
 	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
-	// CreateTask creates a new task and its first TaskRun (input, PENDING). Returns the task with last_run_id set.
-	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, createdBy string) (*Task, error)
+	// CreateTask creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.
+	CreateTask(ctx context.Context, workspaceID string, projectID *string, input, title, createdBy string) (*Task, error)
 	UpdateTaskStatus(ctx context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 	UpdateTaskStatusIf(ctx context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
 	IncrementTaskSeq(ctx context.Context, taskID string) (newSeq int, err error)

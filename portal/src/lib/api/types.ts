@@ -43,6 +43,7 @@ export interface ApiTask {
   session_id: string | null
   status: string
   input: string
+  title?: string
   output: string | null
   created_by: string
   created_at: number

@@ -56,6 +56,7 @@ type Task struct {
 	ProjectID       *string `gorm:"type:varchar(64);index" json:"project_id,omitempty"`
 	Status          string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input           string  `gorm:"type:text;not null" json:"input"`
+	Title           string  `gorm:"type:varchar(256)" json:"title,omitempty"`
 	Output          *string `gorm:"type:text" json:"output,omitempty"`
 	CreatedBy       string  `gorm:"type:varchar(64);not null" json:"created_by"`
 	CreatedAt       int64   `gorm:"autoCreateTime" json:"created_at"`
