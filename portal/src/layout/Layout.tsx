@@ -43,7 +43,7 @@ export function Layout({
         />
         <main className="shell__main">
           <Breadcrumbs route={route} workspaceChats={workspaceChats} />
-          {children}
+          <div className="shell__content">{children}</div>
         </main>
       </div>
     </div>

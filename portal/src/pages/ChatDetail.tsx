@@ -6,6 +6,9 @@ import { getErrorMessage } from "../lib/errorMessage"
 import { getChatConversation, createChatRun, getChats } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
+import UserIcon from "../icons/user.svg?react"
+import AgentsIcon from "../icons/agents.svg?react"
+import ToolboxIcon from "../icons/toolbox.svg?react"
 
 const POLL_INTERVAL_MS = 2000
 const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
@@ -38,7 +41,6 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const [followUpLoading, setFollowUpLoading] = useState(false)
   const [followUpError, setFollowUpError] = useState<string | null>(null)
 
-  // Clear poll on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
@@ -56,7 +58,6 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
     try {
       await createChatRun(workspaceId, chat.id, { input }, token)
       setFollowUpInput("")
-      // Poll until chat status is SUCCEEDED or FAILED
       pollIntervalRef.current = setInterval(async () => {
         if (!token) return
         try {
@@ -83,33 +84,79 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
 
   return (
     <div className="page-chat">
-      <header className="page-chat__header">
-        <h1 className="page-chat__title">{chat.title?.trim() || "Chat"}</h1>
-        <button
-          type="button"
-          className="page-chat__restore-btn"
-          disabled
-          title="Restore is not yet available"
-        >
-          Restore
-        </button>
-      </header>
+      <section className="page-chat__history">
+        {sessionLoading && (
+          <p className="page-chat__text page-chat__muted">Loading conversation…</p>
+        )}
+        {sessionError && (
+          <p className="page-chat__text page-chat__muted">Error: {sessionError}</p>
+        )}
+        {session && !sessionLoading && !sessionError && (
+          <>
+            {session.messages.length === 0 && (
+              <p className="page-chat__text page-chat__muted">
+                No messages yet. Use the input below to start.
+              </p>
+            )}
+            {session.messages.map((msg, i) => {
+              const Icon =
+                msg.role === "user"
+                  ? UserIcon
+                  : msg.role === "tool"
+                    ? ToolboxIcon
+                    : AgentsIcon
+              return (
+                <div
+                  key={i}
+                  className={`page-chat__msg-row page-chat__msg-row--${msg.role}`}
+                  role="article"
+                  aria-label={msg.role === "user" ? "You" : msg.role}
+                >
+                  <span className="page-chat__msg-icon" aria-hidden>
+                    <Icon />
+                  </span>
+                  <div
+                    className={`page-chat__msg page-chat__msg--${msg.role}`}
+                  >
+                    {msg.content ? (
+                      <div className="page-chat__msg-content page-chat__markdown">
+                        <Markdown remarkPlugins={[remarkGfm]}>
+                          {msg.content}
+                        </Markdown>
+                      </div>
+                    ) : null}
+                    {msg.tool_calls && msg.tool_calls.length > 0 && (
+                      <ul className="page-chat__msg-toolcalls">
+                        {msg.tool_calls.map((tc) => (
+                          <li key={tc.id}>
+                            <strong>{tc.name}</strong>
+                            {tc.arguments ? (
+                              <pre className="page-chat__msg-args">
+                                {tc.arguments}
+                              </pre>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </>
+        )}
+      </section>
 
-      {/* Follow-up: rerun with new input */}
-      <section className="page-chat__section page-chat__follow-up">
-        <h2 className="page-chat__section-heading">Follow-up</h2>
-        <p className="page-chat__text page-chat__muted">
-          Add more context or a new question to run the chat again. The agent will use the previous conversation.
-        </p>
-        <div className="page-chat__follow-up-row">
+      <section className="page-chat__input">
+        <div className="page-chat__input-box">
           <textarea
             className="page-chat__follow-up-input"
             value={followUpInput}
             onChange={(e) => setFollowUpInput(e.target.value)}
-            placeholder="e.g. Now focus on Q3 only"
+            placeholder="Ask a follow-up question…"
             rows={2}
             disabled={followUpLoading}
-            aria-label="Follow-up input"
+            aria-label="Chat input"
           />
           <button
             type="button"
@@ -117,7 +164,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
             onClick={handleFollowUpSubmit}
             disabled={followUpLoading || !followUpInput.trim()}
           >
-            {followUpLoading ? "Running…" : "Run follow-up"}
+            {followUpLoading ? "Running…" : "Send"}
           </button>
         </div>
         {followUpError && (
@@ -125,76 +172,6 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
             {followUpError}
           </p>
         )}
-      </section>
-
-      {/* Result — rendered as markdown */}
-      <section className="page-chat__section">
-        <h2 className="page-chat__section-heading">Result</h2>
-        <div className="page-chat__markdown">
-          <Markdown remarkPlugins={[remarkGfm]}>{chat.summary}</Markdown>
-        </div>
-      </section>
-
-      {/* Agent conversation — how the agent worked for this chat */}
-      {(session !== null || sessionLoading || sessionError) && (
-        <section className="page-chat__section">
-          <h2 className="page-chat__section-heading">Agent session</h2>
-          {sessionLoading && (
-            <p className="page-chat__text page-chat__muted">Loading conversation…</p>
-          )}
-          {sessionError && (
-            <p className="page-chat__text page-chat__muted">Error: {sessionError}</p>
-          )}
-          {session && !sessionLoading && (
-            <div className="page-chat__session">
-              {session.messages.length === 0 && (
-                <p className="page-chat__text page-chat__muted">No messages in this session.</p>
-              )}
-              {session.messages.map((msg, i) => (
-                <div key={i} className={`page-chat__session-msg page-chat__session-msg--${msg.role}`}>
-                  <span className="page-chat__session-role">{msg.role}</span>
-                  {msg.content ? (
-                    <div className="page-chat__session-content">
-                      <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
-                    </div>
-                  ) : null}
-                  {msg.tool_calls && msg.tool_calls.length > 0 && (
-                    <ul className="page-chat__session-toolcalls">
-                      {msg.tool_calls.map((tc) => (
-                        <li key={tc.id}>
-                          <strong>{tc.name}</strong>
-                          {tc.arguments ? (
-                            <pre className="page-chat__session-args">{tc.arguments}</pre>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* What changed — not yet available from backend */}
-      <section className="page-chat__section">
-        <h2 className="page-chat__section-heading">What changed</h2>
-        <p className="page-chat__text page-chat__muted">Not yet available.</p>
-      </section>
-
-      {/* Evidence / Data used — not yet available from backend */}
-      <section className="page-chat__section">
-        <h2 className="page-chat__section-heading">Evidence / Data used</h2>
-        <p className="page-chat__text page-chat__muted">Not yet available.</p>
-      </section>
-
-      {/* Meta */}
-      <section className="page-chat__section">
-        <h2 className="page-chat__section-heading">Details</h2>
-        <p className="page-chat__meta">
-          Status: <strong>{chat.status}</strong> &middot; {chat.timeLabel}
-        </p>
       </section>
     </div>
   )
