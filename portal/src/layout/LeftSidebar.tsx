@@ -76,19 +76,8 @@ export function LeftSidebar({
           >
             New Chat
           </button>
-          <button
-            type="button"
-            className={
-              "sidebar__nav-item" +
-              (isAgentsActive(route) ? " sidebar__nav-item--active" : "")
-            }
-            onClick={() => navigate({ name: "agents", workspaceId })}
-          >
-            Agents
-          </button>
-
           <div className="sidebar__chats">
-            <span className="sidebar__heading">Chats</span>
+            <span className="sidebar__heading">Recent</span>
             <ul className="sidebar__list">
               {chats.map((chat) => (
                 <li key={chat.id} className="sidebar__item">
@@ -120,6 +109,16 @@ export function LeftSidebar({
               </button>
             )}
           </div>
+          <button
+            type="button"
+            className={
+              "sidebar__nav-item" +
+              (isAgentsActive(route) ? " sidebar__nav-item--active" : "")
+            }
+            onClick={() => navigate({ name: "agents", workspaceId })}
+          >
+            Agents
+          </button>
         </div>
       </nav>
     </aside>

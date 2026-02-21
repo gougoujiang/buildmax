@@ -415,7 +415,6 @@ body {
   margin: 0 1rem 0.75rem;
   font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #777;
 }
@@ -621,6 +620,90 @@ body {
   margin: 0.75rem 0 0;
   font-size: 0.85rem;
   color: #c00;
+}
+
+/* New Chat: tabs (Chats | Files) below input */
+.page-new-chat__tabs {
+  margin-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.page-new-chat__tab-list {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fff;
+}
+
+.page-new-chat__tab {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.95rem;
+  color: #666;
+  cursor: pointer;
+}
+
+.page-new-chat__tab:hover {
+  color: #333;
+}
+
+.page-new-chat__tab--active {
+  color: #333;
+  font-weight: 600;
+  border-bottom-color: #6b7fff;
+  background: #fafafa;
+}
+
+.page-new-chat__tabpanel {
+  padding: 1rem;
+  min-height: 200px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.page-new-chat__tabpanel--files {
+  padding: 0;
+  max-height: 65vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-new-chat__chats {
+  padding: 0.25rem 0;
+}
+
+.page-new-chat__files-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 6px;
+}
+
+.page-new-chat__files-panel .page-explore__upload-bar {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.page-new-chat__files-panel .page-explore__panels {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
 }
 
 .page-workspace__new-project {

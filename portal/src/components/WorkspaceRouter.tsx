@@ -41,6 +41,9 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
         workspaceId={route.workspaceId}
         token={token ?? undefined}
         onRefetchWorkspaceChats={refetchWorkspaceChats}
+        workspaceChats={workspaceChats}
+        artifacts={artifacts}
+        onViewArtifact={onViewArtifact}
       />
     )
   }
