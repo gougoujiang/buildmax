@@ -3,6 +3,16 @@ import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import NewChatIcon from "../icons/new-chat.svg?react"
+
+/** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
+const LOGO_ASCII = `
+ ______        _ _     _ ______         _    _ 
+(____  \\      (_) |   | |  ___ \\   /\\  \\ \\  / /
+ ____)  )_   _ _| | _ | | | _ | | /  \\  \\ \\/ / 
+|  __  (| | | | | |/ || | || || |/ /\\ \\  )  (  
+| |__)  ) |_| | | ( (_| | || || | |__| |/ /\\ \\ 
+|______/ \\____|_|_|\\____|_||_||_|______/_/  \\_\\
+`.trim()
 import RecentIcon from "../icons/recent.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 
@@ -39,12 +49,33 @@ export function LeftSidebar({
   user,
   onLogout,
 }: LeftSidebarProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [chatsCollapsed, setChatsCollapsed] = useState(false)
   const chats = workspaceChats.slice(0, CHATS_LIMIT)
   const hasMoreChats = workspaceChats.length > CHATS_LIMIT
 
   return (
-    <aside className="sidebar" aria-label="Sidebar">
+    <aside
+      className={"sidebar" + (sidebarCollapsed ? " sidebar--collapsed" : "")}
+      aria-label="Sidebar"
+    >
+      <div className="sidebar__header">
+        <pre className="sidebar__logo-ascii" aria-hidden>
+          {LOGO_ASCII}
+        </pre>
+        <span className="sidebar__logo-short" aria-hidden>
+          BM
+        </span>
+        <button
+          type="button"
+          className="sidebar__collapse-btn"
+          onClick={() => setSidebarCollapsed((c) => !c)}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {sidebarCollapsed ? "▶" : "◀"}
+        </button>
+      </div>
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__workspace">
           <span className="sidebar__workspace-label" title="Workspace">
@@ -85,7 +116,7 @@ export function LeftSidebar({
             onClick={() => navigate({ name: "newChat", workspaceId })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            New Chat
+            <span className="sidebar__nav-item-text">New Chat</span>
           </button>
           <div className="sidebar__chats">
             <button
@@ -143,7 +174,7 @@ export function LeftSidebar({
             onClick={() => navigate({ name: "agents", workspaceId })}
           >
             <AgentsIcon className="sidebar__nav-icon" aria-hidden />
-            Agents
+            <span className="sidebar__nav-item-text">Agents</span>
           </button>
         </div>
       </nav>

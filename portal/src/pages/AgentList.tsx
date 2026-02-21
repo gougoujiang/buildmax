@@ -59,14 +59,14 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         <div className="page-activity__actions">
           <button
             type="button"
-            className="topbar__workspace-new"
+            className="page-activity__action-btn"
             onClick={() => navigate({ name: "workspace", workspaceId })}
           >
             Back to workspace
           </button>
           <button
             type="button"
-            className="topbar__workspace-new agent-list__create-btn"
+            className="page-activity__action-btn agent-list__create-btn"
             onClick={() => {
               setError(null)
               setModalOpen(true)

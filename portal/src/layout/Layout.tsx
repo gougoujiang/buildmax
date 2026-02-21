@@ -3,7 +3,6 @@ import type { Chat, Workspace } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { useWorkspace } from "../contexts/WorkspaceContext"
-import { TopBar } from "./TopBar"
 import { LeftSidebar } from "./LeftSidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
 
@@ -30,7 +29,6 @@ export function Layout({
 
   return (
     <div className="shell">
-      <TopBar />
       <div className="shell__body">
         <LeftSidebar
           workspaceId={route.workspaceId}
