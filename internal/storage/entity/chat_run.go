@@ -161,7 +161,7 @@ func (s *Store) UpdateChatRunWorkerInfo(ctx context.Context, chatRunID, workerTy
 	return s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", chatRunID).Updates(updates).Error
 }
 
-// OnRunComplete creates chat_run_output_file rows (one per relativePath) and updates chat denormalized fields.
+// OnRunComplete creates chat_run_artifact rows (one per relativePath) and updates chat denormalized fields.
 func (s *Store) OnRunComplete(ctx context.Context, chatRunID string, relativePaths []string) error {
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
@@ -172,7 +172,7 @@ func (s *Store) OnRunComplete(ctx context.Context, chatRunID string, relativePat
 			return err
 		}
 		for _, relPath := range relativePaths {
-			if err := tx.Create(&ChatRunOutputFile{ChatRunID: chatRunID, RelativePath: relPath}).Error; err != nil {
+			if err := tx.Create(&ChatRunArtifact{ChatRunID: chatRunID, RelativePath: relPath}).Error; err != nil {
 				return err
 			}
 		}

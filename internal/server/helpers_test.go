@@ -327,7 +327,7 @@ func (m *mockChatRunStore) SyncChatFromRun(_ context.Context, chatRunID string) 
 type mockRunOutputLister struct {
 	list       []entity.ArtifactWithChat
 	listErr    error
-	outputFiles map[string][]entity.ChatRunOutputFile // chat_run_id -> files
+	outputFiles map[string][]entity.ChatRunArtifact // chat_run_id -> files
 }
 
 func (m *mockRunOutputLister) ListRunOutputsByWorkspace(_ context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error) {
@@ -337,7 +337,7 @@ func (m *mockRunOutputLister) ListRunOutputsByWorkspace(_ context.Context, works
 	return m.list, nil
 }
 
-func (m *mockRunOutputLister) GetChatRunOutputFiles(_ context.Context, chatRunID string) ([]entity.ChatRunOutputFile, error) {
+func (m *mockRunOutputLister) GetChatRunOutputFiles(_ context.Context, chatRunID string) ([]entity.ChatRunArtifact, error) {
 	if m.outputFiles != nil {
 		return m.outputFiles[chatRunID], nil
 	}

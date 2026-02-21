@@ -76,14 +76,15 @@ func (ChatRun) TableName() string { return "chat_run" }
 // TableName returns the table name for GORM (singular per project convention).
 func (Chat) TableName() string { return "chat" }
 
-// ChatRunOutputFile is one output file for a chat run (replaces artifact_item keyed by chat_run_id). JSON uses snake_case.
-type ChatRunOutputFile struct {
-	ChatRunID    string `gorm:"type:varchar(64);not null;primaryKey" json:"chat_run_id"`
-	RelativePath string `gorm:"type:varchar(512);not null;primaryKey" json:"relative_path"`
+// ChatRunArtifact is one output file (artifact) for a chat run. Table name aligns with blob store path term. JSON uses snake_case.
+type ChatRunArtifact struct {
+	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	ChatRunID    string `gorm:"type:varchar(64);not null;uniqueIndex:uq_chat_run_artifact_run_path" json:"chat_run_id"`
+	RelativePath string `gorm:"type:varchar(512);not null;uniqueIndex:uq_chat_run_artifact_run_path" json:"relative_path"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (ChatRunOutputFile) TableName() string { return "chat_run_output_file" }
+func (ChatRunArtifact) TableName() string { return "chat_run_artifact" }
 
 // Agent is the agent model (workspace-scoped persona). JSON uses snake_case.
 // Internal DB numeric id is not exposed; API uses agent_id.

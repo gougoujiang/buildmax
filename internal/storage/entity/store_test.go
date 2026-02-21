@@ -101,7 +101,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	}
 	chatRunID := *chat.LastRunID
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&ChatRunOutputFile{}, "chat_run_id = ?", chatRunID)
+		_ = s.db.WithContext(ctx).Delete(&ChatRunArtifact{}, "chat_run_id = ?", chatRunID)
 		_ = s.db.WithContext(ctx).Delete(&ChatRun{}, "chat_id = ?", chat.ChatID)
 		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
 	}()
@@ -113,7 +113,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OnRunComplete: %v", err)
 	}
-	var files []ChatRunOutputFile
+	var files []ChatRunArtifact
 	if err := s.db.WithContext(ctx).Where("chat_run_id = ?", chatRunID).Find(&files).Error; err != nil {
 		t.Fatalf("find output files: %v", err)
 	}

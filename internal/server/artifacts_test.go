@@ -109,7 +109,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 		chatList: []entity.Chat{{ChatID: "chat-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &mockRunOutputLister{
-		outputFiles: map[string][]entity.ChatRunOutputFile{
+		outputFiles: map[string][]entity.ChatRunArtifact{
 			chatRunID: {{ChatRunID: chatRunID, RelativePath: "result-chat1.md"}},
 		},
 	}
@@ -155,7 +155,7 @@ func TestArtifactContentHandler(t *testing.T) {
 		chatList: []entity.Chat{{ChatID: chatID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockListerFound := &mockRunOutputLister{
-		outputFiles: map[string][]entity.ChatRunOutputFile{chatRunID: {{ChatRunID: chatRunID, RelativePath: "result.md"}}},
+		outputFiles: map[string][]entity.ChatRunArtifact{chatRunID: {{ChatRunID: chatRunID, RelativePath: "result.md"}}},
 	}
 
 	tests := []struct {

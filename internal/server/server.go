@@ -28,7 +28,7 @@ type ChatTitleGenerator interface {
 // RunOutputLister lists run outputs (artifacts) by workspace and gets output files for a run.
 type RunOutputLister interface {
 	ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error)
-	GetChatRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.ChatRunOutputFile, error)
+	GetChatRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.ChatRunArtifact, error)
 }
 
 // Config holds server configuration.

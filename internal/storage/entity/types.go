@@ -10,6 +10,6 @@ type User = model.User
 type Workspace = model.Workspace
 type Chat = model.Chat
 type ChatRun = model.ChatRun
-type ChatRunOutputFile = model.ChatRunOutputFile
+type ChatRunArtifact = model.ChatRunArtifact
 type Agent = model.Agent
 type ArtifactWithChat = model.ArtifactWithChat

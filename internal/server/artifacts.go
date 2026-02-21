@@ -142,7 +142,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-	// Allow result.md or any path that appears in chat_run_output_file for this run
+	// Allow result.md or any path that appears in chat_run_artifact for this run
 	allowed := pathParam == artifactResultFilename
 	if !allowed {
 		items, listErr := s.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
