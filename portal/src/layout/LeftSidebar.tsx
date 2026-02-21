@@ -1,5 +1,9 @@
+import { useState } from "react"
 import type { Route, Chat } from "../lib/types"
 import { navigate } from "../router"
+import NewChatIcon from "../icons/new-chat.svg?react"
+import RecentIcon from "../icons/recent.svg?react"
+import AgentsIcon from "../icons/agents.svg?react"
 
 const CHATS_LIMIT = 5
 
@@ -30,6 +34,7 @@ export function LeftSidebar({
   onNewWorkspace,
   workspaceChats,
 }: LeftSidebarProps) {
+  const [chatsCollapsed, setChatsCollapsed] = useState(false)
   const chats = workspaceChats.slice(0, CHATS_LIMIT)
   const hasMoreChats = workspaceChats.length > CHATS_LIMIT
 
@@ -74,40 +79,55 @@ export function LeftSidebar({
             }
             onClick={() => navigate({ name: "newChat", workspaceId })}
           >
+            <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             New Chat
           </button>
           <div className="sidebar__chats">
-            <span className="sidebar__heading">Recent</span>
-            <ul className="sidebar__list">
-              {chats.map((chat) => (
-                <li key={chat.id} className="sidebar__item">
-                  <button
-                    type="button"
-                    className={
-                      "sidebar__link" +
-                      (isChatActive(route, chat.id) ? " sidebar__link--active" : "")
-                    }
-                    onClick={() =>
-                      navigate({ name: "chat", workspaceId, chatId: chat.id })
-                    }
-                  >
-                    <span className="sidebar__chat-title">
-                      {chat.title?.trim() || "New chat"}
-                    </span>
-                    <span className="sidebar__chat-meta">{chat.timeLabel}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {hasMoreChats && (
-              <button
-                type="button"
-                className="sidebar__chats-see-all"
-                onClick={() => navigate({ name: "chats", workspaceId })}
-              >
-                See all
-              </button>
-            )}
+            <button
+              type="button"
+              className="sidebar__chats-toggle"
+              onClick={() => setChatsCollapsed((c) => !c)}
+              aria-expanded={!chatsCollapsed}
+              aria-controls="sidebar-chats-list"
+            >
+              <RecentIcon className="sidebar__nav-icon" aria-hidden />
+              <span className="sidebar__heading">Recent Chats</span>
+              <span className="sidebar__chats-chevron" aria-hidden>
+                {chatsCollapsed ? "▶" : "▼"}
+              </span>
+            </button>
+            <div id="sidebar-chats-list" hidden={chatsCollapsed}>
+              <ul className="sidebar__list">
+                {chats.map((chat) => (
+                  <li key={chat.id} className="sidebar__item">
+                    <button
+                      type="button"
+                      className={
+                        "sidebar__link" +
+                        (isChatActive(route, chat.id) ? " sidebar__link--active" : "")
+                      }
+                      onClick={() =>
+                        navigate({ name: "chat", workspaceId, chatId: chat.id })
+                      }
+                    >
+                      <span className="sidebar__chat-title">
+                        {chat.title?.trim() || "New chat"}
+                      </span>
+                      <span className="sidebar__chat-meta">{chat.timeLabel}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {hasMoreChats && (
+                <button
+                  type="button"
+                  className="sidebar__chats-see-all"
+                  onClick={() => navigate({ name: "chats", workspaceId })}
+                >
+                  See all
+                </button>
+              )}
+            </div>
           </div>
           <button
             type="button"
@@ -117,6 +137,7 @@ export function LeftSidebar({
             }
             onClick={() => navigate({ name: "agents", workspaceId })}
           >
+            <AgentsIcon className="sidebar__nav-icon" aria-hidden />
             Agents
           </button>
         </div>

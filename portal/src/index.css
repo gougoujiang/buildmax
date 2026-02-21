@@ -271,7 +271,9 @@ body {
 }
 
 .sidebar__nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: none;
@@ -283,6 +285,14 @@ body {
   cursor: pointer;
   border-radius: 6px;
   border-left: 3px solid transparent;
+}
+
+.sidebar__nav-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
 }
 
 .sidebar__nav-item:hover {
@@ -376,6 +386,38 @@ body {
   margin: 0.5rem 0;
 }
 
+.sidebar__chats-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__chats-toggle:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__chats-toggle:focus {
+  outline: none;
+}
+
+.sidebar__chats-chevron {
+  font-size: 0.6rem;
+  line-height: 1;
+  color: #888;
+}
+
 .sidebar__chats .sidebar__list {
   margin-top: 0.25rem;
 }
@@ -412,11 +454,10 @@ body {
 }
 
 .sidebar__heading {
-  margin: 0 1rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: #777;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 .sidebar__list {
