@@ -2,6 +2,9 @@ import { useState } from "react"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
+import LogoIcon from "../icons/logo.svg?react"
+import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
+import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
@@ -60,21 +63,33 @@ export function LeftSidebar({
       aria-label="Sidebar"
     >
       <div className="sidebar__header">
-        <pre className="sidebar__logo-ascii" aria-hidden>
-          {LOGO_ASCII}
-        </pre>
-        <span className="sidebar__logo-short" aria-hidden>
-          BM
-        </span>
-        <button
-          type="button"
-          className="sidebar__collapse-btn"
-          onClick={() => setSidebarCollapsed((c) => !c)}
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {sidebarCollapsed ? "▶" : "◀"}
-        </button>
+        {sidebarCollapsed ? (
+          <button
+            type="button"
+            className="sidebar__logo-expand"
+            onClick={() => setSidebarCollapsed(false)}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
+            <LogoIcon className="sidebar__logo-icon" aria-hidden />
+            <SidebarExpandIcon className="sidebar__logo-expand-icon" aria-hidden />
+          </button>
+        ) : (
+          <>
+            <pre className="sidebar__logo-ascii" aria-hidden>
+              {LOGO_ASCII}
+            </pre>
+            <button
+              type="button"
+              className="sidebar__collapse-btn"
+              onClick={() => setSidebarCollapsed(true)}
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+            >
+              <SidebarCollapseIcon className="sidebar__collapse-btn-icon" aria-hidden />
+            </button>
+          </>
+        )}
       </div>
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__workspace">
