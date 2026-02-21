@@ -117,6 +117,8 @@
 .sidebar--collapsed {
   width: 4rem;
   overflow: visible;
+  position: relative;
+  z-index: 100;
 }
 
 .sidebar--collapsed .sidebar__header {
@@ -151,6 +153,48 @@
   justify-content: center;
   padding-left: 0.75rem;
   padding-right: 0.75rem;
+}
+
+/* Collapsed: Recent Chats popup on hover */
+.sidebar--collapsed .sidebar__chats {
+  position: relative;
+}
+
+.sidebar--collapsed .sidebar__chats-list {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 0.25rem;
+  min-width: 14rem;
+  max-height: 70vh;
+  padding: 0.5rem;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+  border-left: none;
+  margin-top: 0;
+  z-index: 10;
+  display: none;
+}
+
+.sidebar--collapsed .sidebar__chats:hover .sidebar__chats-list {
+  display: block !important;
+}
+
+/* Portal-rendered Recent Chats popup (foreground, not clipped) */
+.sidebar__chats-list--portal {
+  min-width: 14rem;
+  max-height: 70vh;
+  margin: 0;
+  padding: 0.5rem;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+  border-left: none;
 }
 
 .sidebar__nav {

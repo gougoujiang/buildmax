@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { cn } from "../lib/cn"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
@@ -59,11 +60,26 @@ export function Sidebar({
 }: SidebarProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [chatsCollapsed, setChatsCollapsed] = useState(false)
+  const [chatsPopupOpen, setChatsPopupOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const chatsTriggerRef = useRef<HTMLDivElement>(null)
+  const chatsCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chats = workspaceChats.slice(0, CHATS_LIMIT)
   const hasMoreChats = workspaceChats.length > CHATS_LIMIT
+
+  function openChatsPopup() {
+    if (chatsCloseTimeoutRef.current) {
+      clearTimeout(chatsCloseTimeoutRef.current)
+      chatsCloseTimeoutRef.current = null
+    }
+    setChatsPopupOpen(true)
+  }
+
+  function scheduleCloseChatsPopup() {
+    chatsCloseTimeoutRef.current = setTimeout(() => setChatsPopupOpen(false), 150)
+  }
 
   useEffect(() => {
     if (!userMenuOpen) return
@@ -122,7 +138,12 @@ export function Sidebar({
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">New Chat</span>
           </button>
-          <div className="sidebar__chats">
+          <div
+            className="sidebar__chats"
+            ref={chatsTriggerRef}
+            onMouseEnter={sidebarCollapsed ? openChatsPopup : undefined}
+            onMouseLeave={sidebarCollapsed ? scheduleCloseChatsPopup : undefined}
+          >
             <button
               type="button"
               className="sidebar__chats-toggle"
@@ -136,36 +157,91 @@ export function Sidebar({
                 {chatsCollapsed ? "▶" : "▼"}
               </span>
             </button>
-            <div id="sidebar-chats-list" className="sidebar__chats-list" hidden={chatsCollapsed}>
-              <ul className="sidebar__list">
-                {chats.map((chat) => (
-                  <li key={chat.id} className="sidebar__item">
-                    <button
-                      type="button"
-                      className={cn("sidebar__link", isChatActive(route, chat.id) && "sidebar__link--active")}
-                      onClick={() =>
-                        navigate({ name: "chat", workspaceId, chatId: chat.id })
-                      }
-                    >
-                      <span className="sidebar__chat-title">
-                        {chat.title?.trim() || "New chat"}
-                      </span>
-                      <span className="sidebar__chat-meta">{chat.timeLabel}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {hasMoreChats && (
-                <button
-                  type="button"
-                  className="sidebar__chats-see-all"
-                  onClick={() => navigate({ name: "chats", workspaceId })}
-                >
-                  See all
-                </button>
-              )}
-            </div>
+            {!sidebarCollapsed && (
+              <div
+                id="sidebar-chats-list"
+                className="sidebar__chats-list"
+                hidden={chatsCollapsed}
+              >
+                <ul className="sidebar__list">
+                  {chats.map((chat) => (
+                    <li key={chat.id} className="sidebar__item">
+                      <button
+                        type="button"
+                        className={cn("sidebar__link", isChatActive(route, chat.id) && "sidebar__link--active")}
+                        onClick={() =>
+                          navigate({ name: "chat", workspaceId, chatId: chat.id })
+                        }
+                      >
+                        <span className="sidebar__chat-title">
+                          {chat.title?.trim() || "New chat"}
+                        </span>
+                        <span className="sidebar__chat-meta">{chat.timeLabel}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {hasMoreChats && (
+                  <button
+                    type="button"
+                    className="sidebar__chats-see-all"
+                    onClick={() => navigate({ name: "chats", workspaceId })}
+                  >
+                    See all
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+          {sidebarCollapsed &&
+            chatsPopupOpen &&
+            chatsTriggerRef.current &&
+            createPortal(
+              <div
+                className="sidebar__chats-list sidebar__chats-list--portal"
+                onMouseEnter={openChatsPopup}
+                onMouseLeave={scheduleCloseChatsPopup}
+                style={{
+                  position: "fixed",
+                  left: chatsTriggerRef.current.getBoundingClientRect().right + 4,
+                  top: chatsTriggerRef.current.getBoundingClientRect().top,
+                  zIndex: 1000,
+                }}
+              >
+                <ul className="sidebar__list">
+                  {chats.map((chat) => (
+                    <li key={chat.id} className="sidebar__item">
+                      <button
+                        type="button"
+                        className={cn("sidebar__link", isChatActive(route, chat.id) && "sidebar__link--active")}
+                        onClick={() => {
+                          setChatsPopupOpen(false)
+                          navigate({ name: "chat", workspaceId, chatId: chat.id })
+                        }}
+                      >
+                        <span className="sidebar__chat-title">
+                          {chat.title?.trim() || "New chat"}
+                        </span>
+                        <span className="sidebar__chat-meta">{chat.timeLabel}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {hasMoreChats && (
+                  <button
+                    type="button"
+                    className="sidebar__chats-see-all"
+                    onClick={() => {
+                      setChatsPopupOpen(false)
+                      navigate({ name: "chats", workspaceId })
+                    }}
+                  >
+                    See all
+                  </button>
+                )}
+              </div>,
+              document.body
+            )}
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
