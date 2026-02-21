@@ -11,11 +11,10 @@ import (
 	"buildmax/internal/storage/blob"
 )
 
-// ArtifactResponse is one artifact in the list response (snake_case). ArtifactID is chat_run_id.
+// ArtifactResponse is one run output in the list response (snake_case). ID is chat_run_id.
 type ArtifactResponse struct {
-	ArtifactID       string `json:"artifact_id"`
-	ChatID           string `json:"chat_id"`
 	ChatRunID        string `json:"chat_run_id"`
+	ChatID           string `json:"chat_id"`
 	WorkspaceID      string `json:"workspace_id"`
 	CreatedAt        int64  `json:"created_at"`
 	ChatInputSnippet string `json:"chat_input_snippet"`
@@ -23,9 +22,8 @@ type ArtifactResponse struct {
 
 func artifactWithChatToResponse(a model.ArtifactWithChat) ArtifactResponse {
 	return ArtifactResponse{
-		ArtifactID:       a.ArtifactID,
+		ChatRunID:        a.ArtifactID, // ArtifactID is chat_run_id from query
 		ChatID:           a.ChatID,
-		ChatRunID:        a.ChatRunID,
 		WorkspaceID:      a.WorkspaceID,
 		CreatedAt:        a.CreatedAt,
 		ChatInputSnippet: a.ChatInputSnippet,
@@ -33,7 +31,7 @@ func artifactWithChatToResponse(a model.ArtifactWithChat) ArtifactResponse {
 }
 
 // listWorkspaceArtifactsHandler handles GET /api/workspaces/{workspace_id}/artifacts.
-// Optional query param: chat_id. artifact_id in response is chat_run_id.
+// Optional query param: chat_id. Response uses chat_run_id for each run output.
 func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -63,8 +61,8 @@ type ArtifactItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
-// listArtifactItemsHandler handles GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/items.
-// artifact_id is chat_run_id. Returns the list of output files for that run.
+// listArtifactItemsHandler handles GET /api/workspaces/{workspace_id}/artifacts/{chat_run_id}/items.
+// Returns the list of output files for that run.
 func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -73,9 +71,9 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 	if !s.requireStore(w, s.cfg.RunOutputLister, "artifacts not configured") || !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
 		return
 	}
-	chatRunID := r.PathValue("artifact_id")
+	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "artifact_id required")
+		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
 	run, chat, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
@@ -105,8 +103,8 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 
 const artifactResultFilename = "result.md"
 
-// artifactContentHandler handles GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/content.
-// artifact_id is chat_run_id. Optional query param path: file path relative to the run output (default "result.md").
+// artifactContentHandler handles GET /api/workspaces/{workspace_id}/artifacts/{chat_run_id}/content.
+// Optional query param path: file path relative to the run output (default "result.md").
 func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -115,9 +113,9 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	if !s.requireStore(w, s.cfg.RunOutputLister, "artifacts not configured") || !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") || !s.requireStore(w, s.cfg.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
-	chatRunID := r.PathValue("artifact_id")
+	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "artifact_id required")
+		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
 	run, chat, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)

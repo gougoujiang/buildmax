@@ -124,7 +124,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts/"+chatRunID+"/items", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.SetPathValue("workspace_id", workspaceID)
-	req.SetPathValue("artifact_id", chatRunID)
+	req.SetPathValue("chat_run_id", chatRunID)
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -203,7 +203,7 @@ func TestArtifactContentHandler(t *testing.T) {
 				req.Header.Set("Authorization", tt.auth)
 			}
 			req.SetPathValue("workspace_id", workspaceID)
-			req.SetPathValue("artifact_id", chatRunID)
+			req.SetPathValue("chat_run_id", chatRunID)
 			rec := httptest.NewRecorder()
 			s.Handler().ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {

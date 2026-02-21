@@ -291,12 +291,10 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "artifact_id": { "type": "string" },
-                      "chat_id": { "type": "string" },
                       "chat_run_id": { "type": "string" },
+                      "chat_id": { "type": "string" },
                       "workspace_id": { "type": "string" },
                       "created_at": { "type": "integer" },
-                      "seq": { "type": "integer" },
                       "chat_input_snippet": { "type": "string" }
                     }
                   }
@@ -309,14 +307,14 @@
         }
       }
     },
-    "/api/workspaces/{workspace_id}/artifacts/{artifact_id}/items": {
+    "/api/workspaces/{workspace_id}/artifacts/{chat_run_id}/items": {
       "get": {
-        "summary": "List artifact items",
-        "description": "Returns the list of files (items) for an artifact. Caller must own the workspace. Requires Bearer JWT.",
+        "summary": "List run output items",
+        "description": "Returns the list of output files for a chat run. Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "artifact_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id (run output id)" }
         ],
         "responses": {
           "200": {
@@ -335,22 +333,22 @@
               }
             }
           },
-          "400": { "description": "artifact_id required" },
+          "400": { "description": "chat_run_id required" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
-          "404": { "description": "Artifact not found" }
+          "404": { "description": "Run output not found" }
         }
       }
     },
-    "/api/workspaces/{workspace_id}/artifacts/{artifact_id}/content": {
+    "/api/workspaces/{workspace_id}/artifacts/{chat_run_id}/content": {
       "get": {
-        "summary": "Get artifact content",
-        "description": "Returns raw file content for an artifact. Optional query param path (default result.md). Caller must own the workspace. Requires Bearer JWT.",
+        "summary": "Get run output content",
+        "description": "Returns raw file content for a chat run output. Optional query param path (default result.md). Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "artifact_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "File path relative to artifact (default result.md)" }
+          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id (run output id)" },
+          { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "File path relative to run output (default result.md)" }
         ],
         "responses": {
           "200": {
@@ -361,7 +359,7 @@
           },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
-          "404": { "description": "Artifact or file not found" }
+          "404": { "description": "Run output or file not found" }
         }
       }
     },
@@ -549,6 +547,225 @@
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
           "404": { "description": "Chat or conversation not found" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/agents": {
+      "get": {
+        "summary": "List agents",
+        "description": "Returns workspace-scoped agents (personas). Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "workspace_id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "description": { "type": "string" },
+                      "instructions": { "type": "string" },
+                      "created_at": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "503": { "description": "Agents not configured" }
+        }
+      },
+      "post": {
+        "summary": "Create agent",
+        "description": "Creates a workspace-scoped agent. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "instructions": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "workspace_id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "description": { "type": "string" },
+                    "instructions": { "type": "string" },
+                    "created_at": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (name required)" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "503": { "description": "Agents not configured" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/agents/{agent_id}": {
+      "get": {
+        "summary": "Get agent",
+        "description": "Returns one workspace-scoped agent. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "agent_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "workspace_id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "description": { "type": "string" },
+                    "instructions": { "type": "string" },
+                    "created_at": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "agent_id required" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Agent not found" },
+          "503": { "description": "Agents not configured" }
+        }
+      }
+    },
+    "/api/worker/chat-runs/{chat_run_id}": {
+      "get": {
+        "summary": "Get chat run (worker)",
+        "description": "Returns the chat run and chat for the worker. Requires worker Bearer token (BUILDMAX_WORKER_TOKEN).",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "object",
+                      "properties": {
+                        "chat_run_id": { "type": "string" },
+                        "chat_id": { "type": "string" },
+                        "input": { "type": "string" },
+                        "status": { "type": "string" },
+                        "created_at": { "type": "integer" }
+                      }
+                    },
+                    "chat": {
+                      "type": "object",
+                      "properties": {
+                        "chat_id": { "type": "string" },
+                        "workspace_id": { "type": "string" },
+                        "session_id": { "type": "string", "nullable": true },
+                        "last_run_id": { "type": "string", "nullable": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "chat_run_id required" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Run not found" },
+          "503": { "description": "Chat runs not configured" }
+        }
+      },
+      "patch": {
+        "summary": "Update chat run (worker)",
+        "description": "Updates run status; on SUCCEEDED with artifact reports output files; on FAILED syncs chat from run. Requires worker Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": { "type": "string" },
+                  "session_id": { "type": "string", "nullable": true },
+                  "started_at": { "type": "integer", "nullable": true },
+                  "ended_at": { "type": "integer", "nullable": true },
+                  "output": { "type": "string", "nullable": true },
+                  "error_message": { "type": "string", "nullable": true },
+                  "artifact": {
+                    "type": "object",
+                    "properties": {
+                      "relative_path": { "type": "string" },
+                      "relative_paths": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid body or status required" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Run not found" },
+          "409": { "description": "Run not scheduled or already running" },
+          "503": { "description": "Chat runs not configured" }
         }
       }
     }

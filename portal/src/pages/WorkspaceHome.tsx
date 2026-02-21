@@ -109,7 +109,7 @@ export function WorkspaceHome({
                   <button
                     type="button"
                     className="page-workspace__artifact-view"
-                    onClick={() => onViewArtifact({ workspaceId, artifactId: a.id })}
+                    onClick={() => onViewArtifact({ workspaceId, chatRunId: a.id })}
                   >
                     View
                   </button>

@@ -89,18 +89,17 @@ export interface CreateChatRunResponse {
   chat_id: string
 }
 
-/** Artifact as returned by GET /api/workspaces/{id}/artifacts */
+/** Run output (artifact) as returned by GET /api/workspaces/{id}/artifacts */
 export interface ApiArtifact {
-  artifact_id: string
-  chat_id: string
   chat_run_id: string
+  chat_id: string
   workspace_id: string
-  project_id: string | null
+  project_id?: string | null
   created_at: number
   chat_input_snippet: string
 }
 
-/** Artifact item as returned by GET /api/workspaces/{id}/artifacts/{id}/items */
+/** Artifact item as returned by GET /api/workspaces/{id}/artifacts/{chat_run_id}/items */
 export interface ApiArtifactItem {
   relative_path: string
 }

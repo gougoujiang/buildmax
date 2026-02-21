@@ -68,7 +68,7 @@ export function Chats({
                       <button
                         type="button"
                         className="page-activity__artifact-view"
-                        onClick={() => onViewArtifact({ workspaceId, artifactId: a.id })}
+                        onClick={() => onViewArtifact({ workspaceId, chatRunId: a.id })}
                       >
                         View
                       </button>

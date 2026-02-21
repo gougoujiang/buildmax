@@ -53,11 +53,11 @@ export type Route =
   | { name: "explore"; workspaceId: string }
   | { name: "agents"; workspaceId: string }
 
-// --- View artifact (modal) ---
+// --- View run output (artifact modal) ---
 
 export interface ViewArtifactParams {
   workspaceId: string
-  artifactId: string
+  chatRunId: string
 }
 
 // --- Agent (workspace-scoped persona) ---

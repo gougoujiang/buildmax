@@ -22,7 +22,7 @@ function AppContent() {
   } = useWorkspace()
 
   const [showNewWorkspace, setShowNewWorkspace] = useState(false)
-  const [viewArtifact, setViewArtifact] = useState<{ workspaceId: string; artifactId: string } | null>(null)
+  const [viewArtifact, setViewArtifact] = useState<{ workspaceId: string; chatRunId: string } | null>(null)
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
   const [createWsError, setCreateWsError] = useState<string | null>(null)
 
@@ -96,7 +96,7 @@ function AppContent() {
         <ArtifactContentModal
           open={true}
           workspaceId={viewArtifact.workspaceId}
-          artifactId={viewArtifact.artifactId}
+          chatRunId={viewArtifact.chatRunId}
           token={token}
           onClose={() => setViewArtifact(null)}
         />

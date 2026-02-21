@@ -204,20 +204,20 @@ export async function getArtifacts(
 
 export async function getArtifactItems(
   workspaceId: string,
-  artifactId: string,
+  chatRunId: string,
   token: string
 ): Promise<ApiArtifactItem[]> {
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifactId)}/items`
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(chatRunId)}/items`
   return requestJson<ApiArtifactItem[]>(url, { headers: authHeaders(token) })
 }
 
 export async function getArtifactContent(
   workspaceId: string,
-  artifactId: string,
+  chatRunId: string,
   token: string,
   path?: string
 ): Promise<string> {
-  let url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifactId)}/content`
+  let url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(chatRunId)}/content`
   if (path) {
     url += `?path=${encodeURIComponent(path)}`
   }

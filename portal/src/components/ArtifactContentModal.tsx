@@ -9,7 +9,7 @@ import { useFetch } from "../hooks/useFetch"
 interface ArtifactContentModalProps {
   open: boolean
   workspaceId: string
-  artifactId: string
+  chatRunId: string
   token: string
   onClose: () => void
 }
@@ -17,23 +17,23 @@ interface ArtifactContentModalProps {
 export function ArtifactContentModal({
   open,
   workspaceId,
-  artifactId,
+  chatRunId,
   token,
   onClose,
 }: ArtifactContentModalProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
 
-  const itemsEnabled = !!(open && workspaceId && artifactId && token)
+  const itemsEnabled = !!(open && workspaceId && chatRunId && token)
   const {
     data: itemsData,
     loading: itemsLoading,
     error: itemsError,
   } = useFetch(
-    () => getArtifactItems(workspaceId, artifactId, token),
-    [open, workspaceId, artifactId, token],
+    () => getArtifactItems(workspaceId, chatRunId, token),
+    [open, workspaceId, chatRunId, token],
     {
       enabled: itemsEnabled,
-      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load artifact files"),
+      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load run output files"),
     }
   )
   const items = itemsData ?? []
@@ -56,8 +56,8 @@ export function ArtifactContentModal({
     loading: contentLoading,
     error: contentError,
   } = useFetch(
-    () => getArtifactContent(workspaceId, artifactId, token, selectedPath!),
-    [open, workspaceId, artifactId, token, selectedPath],
+    () => getArtifactContent(workspaceId, chatRunId, token, selectedPath!),
+    [open, workspaceId, chatRunId, token, selectedPath],
     {
       enabled: contentEnabled,
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load file content"),

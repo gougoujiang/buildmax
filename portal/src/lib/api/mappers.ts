@@ -50,13 +50,13 @@ export function apiAgentToAgent(api: ApiAgent): Agent {
 
 export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
   return {
-    id: api.artifact_id,
+    id: api.chat_run_id,
     chatId: api.chat_id,
-    chatRunId: api.chat_run_id ?? undefined,
+    chatRunId: api.chat_run_id,
     projectId: api.project_id ?? undefined,
     workspaceId: api.workspace_id,
     timeLabel: formatRelativeTime(api.created_at),
-    title: api.chat_input_snippet || `Artifact ${api.artifact_id}`,
+    title: api.chat_input_snippet || `Run output ${api.chat_run_id}`,
   }
 }
 

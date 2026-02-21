@@ -89,19 +89,19 @@ Status values: `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED`.
 
 ---
 
-## Artifacts (workspace-scoped)
+## Artifacts (run outputs, workspace-scoped)
 
-### GET /api/workspaces/{workspace_id}/artifacts?task_id=&project_id=
+### GET /api/workspaces/{workspace_id}/artifacts?chat_id=
 
-**Response 200:** `[{ "artifact_id": string, "task_id": string, "workspace_id": string, "project_id": string | null, "created_at": number, "seq": number, "task_input_snippet": string }]`
+**Response 200:** `[{ "chat_run_id": string, "chat_id": string, "workspace_id": string, "created_at": number, "chat_input_snippet": string }]`
 
-### GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/items
+### GET /api/workspaces/{workspace_id}/artifacts/{chat_run_id}/items
 
 **Response 200:** `[{ "relative_path": string }]`
 
-### GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/content?path=
+### GET /api/workspaces/{workspace_id}/artifacts/{chat_run_id}/content?path=
 
-**Response 200:** Plain text body (file content). Optional `path` for a specific item.
+**Response 200:** Plain text body (file content). Optional `path` for a specific file (default `result.md`).
 
 ---
 
