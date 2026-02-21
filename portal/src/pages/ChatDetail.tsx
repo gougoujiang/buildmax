@@ -6,8 +6,7 @@ import { getErrorMessage } from "../lib/errorMessage"
 import { getChatConversation, createChatRun, getChats } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
-import { UserAvatar } from "../components/UserAvatar"
-import AgentsIcon from "../icons/agents.svg?react"
+import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
 
 const POLL_INTERVAL_MS = 2000
 const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
@@ -124,7 +123,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
                       {isUser && user ? (
                         <UserAvatar user={user} size="sm" />
                       ) : (
-                        <AgentsIcon />
+                        <AgentAvatar size="sm" />
                       )}
                     </span>
                   )}

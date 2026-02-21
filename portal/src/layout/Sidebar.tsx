@@ -3,7 +3,7 @@ import { cn } from "../lib/cn"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
-import { UserAvatar } from "../components/UserAvatar"
+import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
 import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
 import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
@@ -23,7 +23,6 @@ const LOGO_ASCII = `
 const ASCII_B = LOGO_ASCII.split("\n").map((line) => line.slice(0, 7)).join("\n")
 
 import RecentIcon from "../icons/recent.svg?react"
-import AgentsIcon from "../icons/agents.svg?react"
 
 const CHATS_LIMIT = 5
 
@@ -172,7 +171,7 @@ export function Sidebar({
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
             onClick={() => navigate({ name: "agents", workspaceId })}
           >
-            <AgentsIcon className="sidebar__nav-icon" aria-hidden />
+            <AgentAvatar size="sm" />
             <span className="sidebar__nav-item-text">Agents</span>
           </button>
         </div>

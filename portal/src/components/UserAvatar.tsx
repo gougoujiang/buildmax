@@ -18,3 +18,19 @@ export function UserAvatar({ user, size = "md", className }: UserAvatarProps) {
     </span>
   )
 }
+
+interface AgentAvatarProps {
+  size?: "sm" | "md"
+  className?: string
+}
+
+export function AgentAvatar({ size = "sm", className }: AgentAvatarProps) {
+  return (
+    <span
+      className={cn("user-avatar", size && `user-avatar--${size}`, className)}
+      aria-hidden
+    >
+      A
+    </span>
+  )
+}
