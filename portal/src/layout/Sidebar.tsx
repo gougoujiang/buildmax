@@ -23,7 +23,6 @@ const ASCII_B = LOGO_ASCII.split("\n").map((line) => line.slice(0, 7)).join("\n"
 
 import RecentIcon from "../icons/recent.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
-import UserIcon from "../icons/user.svg?react"
 
 const CHATS_LIMIT = 5
 
@@ -45,6 +44,18 @@ function isAgentsActive(route: Route): boolean {
 
 function isChatActive(route: Route, chatId: string): boolean {
   return route.name === "chat" && route.chatId === chatId
+}
+
+function getUserInitials(user: LoginUser): string {
+  if (user.name?.trim()) {
+    const parts = user.name.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2)
+    }
+    return user.name.trim().slice(0, 2).toUpperCase()
+  }
+  const local = user.email.split("@")[0]
+  return (local.slice(0, 2) || "?").toUpperCase()
 }
 
 export function Sidebar({
@@ -216,13 +227,23 @@ export function Sidebar({
           aria-haspopup="menu"
           aria-label="User menu"
         >
-          <UserIcon className="sidebar__user-icon" aria-hidden />
+          <span className="sidebar__user-avatar sidebar__user-avatar--trigger" aria-hidden>
+            {getUserInitials(user)}
+          </span>
           <span className="sidebar__user-name">{user.name || user.email}</span>
         </button>
         {userMenuOpen && (
           <div className="sidebar__user-menu" role="menu">
-            <div className="sidebar__user-menu-item sidebar__user-menu-item--email" role="none">
-              {user.email}
+            <div className="sidebar__user-menu-header" role="none">
+              <span className="sidebar__user-avatar" aria-hidden>
+                {getUserInitials(user)}
+              </span>
+              <div className="sidebar__user-menu-header-text">
+                {user.name ? (
+                  <span className="sidebar__user-menu-name">{user.name}</span>
+                ) : null}
+                <span className="sidebar__user-menu-email">{user.email}</span>
+              </div>
             </div>
             <div className="sidebar__user-menu-divider" role="separator" />
             <button

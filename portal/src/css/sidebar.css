@@ -116,6 +116,7 @@
 
 .sidebar--collapsed {
   width: 4rem;
+  overflow: visible;
 }
 
 .sidebar--collapsed .sidebar__header {
@@ -131,13 +132,18 @@
 .sidebar--collapsed .sidebar__heading,
 .sidebar--collapsed .sidebar__chats-chevron,
 .sidebar--collapsed .sidebar__chats-list,
-.sidebar--collapsed .sidebar__user-name,
-.sidebar--collapsed .sidebar__user-trigger {
+.sidebar--collapsed .sidebar__user-name {
   display: none !important;
 }
 
 .sidebar--collapsed .sidebar__footer {
-  display: none;
+  padding: 0.5rem 0.5rem 0.75rem;
+  align-items: center;
+}
+
+.sidebar--collapsed .sidebar__user-trigger {
+  justify-content: center;
+  padding: 0.35rem;
 }
 
 .sidebar--collapsed .sidebar__nav-item,
@@ -183,11 +189,10 @@
   text-align: left;
 }
 
-.sidebar__user-icon {
-  flex-shrink: 0;
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #555;
+.sidebar__user-trigger .sidebar__user-avatar--trigger {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.65rem;
 }
 
 .sidebar__user-trigger:hover {
@@ -225,6 +230,62 @@
   display: flex;
   flex-direction: column;
   z-index: 10;
+}
+
+.sidebar--collapsed .sidebar__user-menu {
+  bottom: 0;
+  left: 100%;
+  right: auto;
+  margin-left: 0.25rem;
+  margin-bottom: 0;
+  min-width: 12rem;
+}
+
+.sidebar__user-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  min-width: 0;
+}
+
+.sidebar__user-avatar {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: #555;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.sidebar__user-menu-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.sidebar__user-menu-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__user-menu-email {
+  font-size: 0.8rem;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar__user-menu-item {
