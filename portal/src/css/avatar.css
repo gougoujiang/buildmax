@@ -1,0 +1,25 @@
+/* Shared user avatar (initials in circle) */
+
+.user-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #555;
+  color: #fff;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.user-avatar--sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.65rem;
+}
+
+.user-avatar--md {
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 0.8rem;
+}

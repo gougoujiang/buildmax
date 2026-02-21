@@ -6,7 +6,7 @@ import { getErrorMessage } from "../lib/errorMessage"
 import { getChatConversation, createChatRun, getChats } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
-import UserIcon from "../icons/user.svg?react"
+import { UserAvatar } from "../components/UserAvatar"
 import AgentsIcon from "../icons/agents.svg?react"
 
 const POLL_INTERVAL_MS = 2000
@@ -19,7 +19,7 @@ interface ChatDetailProps {
 }
 
 export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const {
@@ -108,8 +108,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
               </p>
             )}
             {session.messages.map((msg, i) => {
-              const Icon =
-                msg.role === "user" ? UserIcon : AgentsIcon
+              const isUser = msg.role === "user"
               const isTool = msg.role === "tool"
               const isToolExpanded = expandedToolIndices.has(i)
 
@@ -118,11 +117,15 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
                   key={i}
                   className={`page-chat__msg-row page-chat__msg-row--${msg.role}`}
                   role="article"
-                  aria-label={msg.role === "user" ? "You" : msg.role}
+                  aria-label={isUser ? "You" : msg.role}
                 >
                   {!isTool && (
                     <span className="page-chat__msg-icon" aria-hidden>
-                      <Icon />
+                      {isUser && user ? (
+                        <UserAvatar user={user} size="sm" />
+                      ) : (
+                        <AgentsIcon />
+                      )}
                     </span>
                   )}
                   <div

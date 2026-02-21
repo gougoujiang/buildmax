@@ -1,6 +1,7 @@
 /* BuildMax Portal — entry point: imports all partials in order */
 
 @import './css/base.css';
+@import './css/avatar.css';
 @import './css/layout.css';
 @import './css/login.css';
 @import './css/sidebar.css';

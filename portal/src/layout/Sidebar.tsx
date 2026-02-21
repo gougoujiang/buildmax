@@ -3,6 +3,7 @@ import { cn } from "../lib/cn"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
+import { UserAvatar } from "../components/UserAvatar"
 import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
 import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
@@ -44,18 +45,6 @@ function isAgentsActive(route: Route): boolean {
 
 function isChatActive(route: Route, chatId: string): boolean {
   return route.name === "chat" && route.chatId === chatId
-}
-
-function getUserInitials(user: LoginUser): string {
-  if (user.name?.trim()) {
-    const parts = user.name.trim().split(/\s+/)
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2)
-    }
-    return user.name.trim().slice(0, 2).toUpperCase()
-  }
-  const local = user.email.split("@")[0]
-  return (local.slice(0, 2) || "?").toUpperCase()
 }
 
 export function Sidebar({
@@ -227,17 +216,13 @@ export function Sidebar({
           aria-haspopup="menu"
           aria-label="User menu"
         >
-          <span className="sidebar__user-avatar sidebar__user-avatar--trigger" aria-hidden>
-            {getUserInitials(user)}
-          </span>
+          <UserAvatar user={user} size="sm" />
           <span className="sidebar__user-name">{user.name || user.email}</span>
         </button>
         {userMenuOpen && (
           <div className="sidebar__user-menu" role="menu">
             <div className="sidebar__user-menu-header" role="none">
-              <span className="sidebar__user-avatar" aria-hidden>
-                {getUserInitials(user)}
-              </span>
+              <UserAvatar user={user} size="md" />
               <div className="sidebar__user-menu-header-text">
                 {user.name ? (
                   <span className="sidebar__user-menu-name">{user.name}</span>

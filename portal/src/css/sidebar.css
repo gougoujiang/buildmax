@@ -189,11 +189,6 @@
   text-align: left;
 }
 
-.sidebar__user-trigger .sidebar__user-avatar--trigger {
-  width: 1.5rem;
-  height: 1.5rem;
-  font-size: 0.65rem;
-}
 
 .sidebar__user-trigger:hover {
   background: #e4e4e4;
@@ -247,21 +242,6 @@
   gap: 0.6rem;
   padding: 0.6rem 1rem;
   min-width: 0;
-}
-
-.sidebar__user-avatar {
-  flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 50%;
-  background: #555;
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
 }
 
 .sidebar__user-menu-header-text {
