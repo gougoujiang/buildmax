@@ -464,40 +464,40 @@ func TestPersistentWorkspaceDir(t *testing.T) {
 func TestRuntimeWorkspaceDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeWorkspaceDir("ws-1", "task-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456")
+	got := RuntimeWorkspaceDir("ws-1", "chat-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456")
 	if got != want {
-		t.Errorf("RuntimeWorkspaceDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
+		t.Errorf("RuntimeWorkspaceDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
 	}
 }
 
-func TestRuntimeTaskBuildmaxDir(t *testing.T) {
+func TestRuntimeChatBuildmaxDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeTaskBuildmaxDir("ws-1", "task-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456", "buildmax")
+	got := RuntimeChatBuildmaxDir("ws-1", "chat-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "buildmax")
 	if got != want {
-		t.Errorf("RuntimeTaskBuildmaxDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
+		t.Errorf("RuntimeChatBuildmaxDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
 	}
 }
 
-func TestRuntimeTaskWSDir(t *testing.T) {
+func TestRuntimeChatWSDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeTaskWSDir("ws-1", "task-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456", "ws")
+	got := RuntimeChatWSDir("ws-1", "chat-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "ws")
 	if got != want {
-		t.Errorf("RuntimeTaskWSDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
+		t.Errorf("RuntimeChatWSDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
 	}
 }
 
 func TestArtifactDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := ArtifactDir("ws-1", "task-456", "run-1", "art-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "task-456", "run-1", "art-789")
+	got := ArtifactDir("ws-1", "chat-456", "run-1", "art-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "artifacts", "chat-456", "run-1", "art-789")
 	if got != want {
-		t.Errorf("ArtifactDir(\"ws-1\", \"task-456\", \"run-1\", \"art-789\") = %q, want %q", got, want)
+		t.Errorf("ArtifactDir(\"ws-1\", \"chat-456\", \"run-1\", \"art-789\") = %q, want %q", got, want)
 	}
 }
 

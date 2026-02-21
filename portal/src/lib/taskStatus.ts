@@ -1,6 +1,6 @@
-import type { Task } from "./types"
+import type { Chat } from "./types"
 
-export function taskStatusIcon(status: Task["status"]): string {
+export function chatStatusIcon(status: Chat["status"]): string {
   switch (status) {
     case "success":
       return "\u2705"

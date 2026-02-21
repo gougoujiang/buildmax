@@ -20,9 +20,9 @@ var staticFS embed.FS
 
 const shutdownTimeout = 10 * time.Second
 
-// TaskTitleGenerator generates a short title from task input. Optional; when nil, create-task uses truncated input.
-type TaskTitleGenerator interface {
-	GenerateTaskTitle(ctx context.Context, input string) (string, error)
+// ChatTitleGenerator generates a short title from chat input. Optional; when nil, create-chat uses truncated input.
+type ChatTitleGenerator interface {
+	GenerateChatTitle(ctx context.Context, input string) (string, error)
 }
 
 // Config holds server configuration.
@@ -31,8 +31,8 @@ type Config struct {
 	UserStore          entity.UserStore       // Optional; required for login
 	WorkspaceStore     entity.WorkspaceStore  // Optional; required for GET /api/workspaces
 	AgentStore         entity.AgentStore      // Optional; required for GET/POST /api/workspaces/{id}/agents
-	TaskStore          entity.TaskStore       // Optional; required for task list/create
-	TaskRunStore       entity.TaskRunStore     // Optional; required for POST runs and worker task-runs API
+	ChatStore          entity.ChatStore       // Optional; required for chat list/create
+	ChatRunStore       entity.ChatRunStore    // Optional; required for POST runs and worker chat-runs API
 	ArtifactStore      entity.ArtifactStore   // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
 	PersistStorage     blob.PersistStorage    // Optional; required for upload and Explore (files tree/content)
 	ArtifactStorage    blob.ArtifactStorage   // Optional; required for artifact content file read
@@ -40,7 +40,7 @@ type Config struct {
 	JWTSecret          string                 // Required for login when UserStore is set
 	CORSOrigin         string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	WorkerToken        string                 // If set, required for /api/worker/* (worker-to-server auth)
-	TaskTitleGenerator TaskTitleGenerator     // Optional; when set, used to generate task title from input at create time
+	ChatTitleGenerator ChatTitleGenerator     // Optional; when set, used to generate chat title from input at create time
 }
 
 // Server wraps the HTTP server and runs it.
@@ -65,18 +65,18 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents", s.listAgentsHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/agents", s.createAgentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents/{agent_id}", s.getAgentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks", s.listWorkspaceTasksHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks", s.createWorkspaceTaskHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks/{task_id}/runs", s.createTaskRunHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats", s.listWorkspaceChatsHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/chats", s.createWorkspaceChatHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/chats/{chat_id}/runs", s.createChatRunHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts", s.listWorkspaceArtifactsHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/items", s.listArtifactItemsHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{artifact_id}/content", s.artifactContentHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/upload", s.uploadHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation", s.getTaskConversationHandler)
-	mux.Handle("GET /api/worker/task-runs/{run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskRunHandler)))
-	mux.Handle("PATCH /api/worker/task-runs/{run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskRunHandler)))
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/conversation", s.getChatConversationHandler)
+	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler)))
+	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler)))
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

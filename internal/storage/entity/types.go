@@ -8,9 +8,9 @@ import "buildmax/internal/model"
 // internal/model for the concrete data shapes.
 type User = model.User
 type Workspace = model.Workspace
-type Task = model.Task
-type TaskRun = model.TaskRun
+type Chat = model.Chat
+type ChatRun = model.ChatRun
 type Artifact = model.Artifact
 type ArtifactItem = model.ArtifactItem
 type Agent = model.Agent
-type ArtifactWithTask = model.ArtifactWithTask
+type ArtifactWithChat = model.ArtifactWithChat

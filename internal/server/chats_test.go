@@ -13,25 +13,25 @@ import (
 
 func ptrStr(s string) *string { return &s }
 
-func TestListWorkspaceTasksHandler(t *testing.T) {
-	secret := "test-tasks-secret"
+func TestListWorkspaceChatsHandler(t *testing.T) {
+	secret := "test-chats-secret"
 	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
 	mockWS := &mockWorkspaceStore{list: userWorkspaces}
 
-	task1 := entity.Task{
-		TaskID: "t1", WorkspaceID: "ws1", Status: "PENDING", Input: "Do something",
+	chat1 := entity.Chat{
+		ChatID: "c1", WorkspaceID: "ws1", Status: "PENDING", Input: "Do something",
 		CreatedBy: "u1", CreatedAt: 1000,
 	}
-	task2 := entity.Task{
-		TaskID: "t2", WorkspaceID: "ws1", Status: "PENDING", Input: "Explore",
+	chat2 := entity.Chat{
+		ChatID: "c2", WorkspaceID: "ws1", Status: "PENDING", Input: "Explore",
 		CreatedBy: "u1", CreatedAt: 1001,
 	}
 
 	tests := []struct {
 		name         string
-		taskStore    entity.TaskStore
+		chatStore    entity.ChatStore
 		authHeader   string
 		path         string
 		jwtSecret    string
@@ -41,9 +41,9 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 	}{
 		{
 			name:         "no auth returns 401",
-			taskStore:    &mockTaskStore{},
+			chatStore:    &mockChatStore{},
 			authHeader:   "",
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusUnauthorized,
 			wantBodyHas:  "unauthorized",
@@ -51,9 +51,9 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "workspace not owned returns 403",
-			taskStore:    &mockTaskStore{},
+			chatStore:    &mockChatStore{},
 			authHeader:   "Bearer " + signJWT("u1", secret),
-			path:         "/api/workspaces/ws-other/tasks",
+			path:         "/api/workspaces/ws-other/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusForbidden,
 			wantBodyHas:  "forbidden",
@@ -61,32 +61,32 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned workspace empty list returns 200",
-			taskStore:    &mockTaskStore{list: []entity.Task{}},
+			chatStore:    &mockChatStore{list: []entity.Chat{}},
 			authHeader:   "Bearer " + signJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "[]",
 			wantArrayLen: 0,
 		},
 		{
-			name:         "owned workspace with tasks returns 200",
-			taskStore:    &mockTaskStore{list: []entity.Task{task1, task2}},
+			name:         "owned workspace with chats returns 200",
+			chatStore:    &mockChatStore{list: []entity.Chat{chat1, chat2}},
 			authHeader:   "Bearer " + signJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusOK,
-			wantBodyHas:  "t1",
+			wantBodyHas:  "c1",
 			wantArrayLen: 2,
 		},
 		{
-			name:         "task store nil returns 503",
-			taskStore:    nil,
+			name:         "chat store nil returns 503",
+			chatStore:    nil,
 			authHeader:   "Bearer " + signJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusServiceUnavailable,
-			wantBodyHas:  "tasks not configured",
+			wantBodyHas:  "chats not configured",
 			wantArrayLen: -1,
 		},
 	}
@@ -96,8 +96,8 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 				WorkspaceStore: mockWS,
 				JWTSecret:      tt.jwtSecret,
 			}
-			if tt.taskStore != nil {
-				cfg.TaskStore = tt.taskStore
+			if tt.chatStore != nil {
+				cfg.ChatStore = tt.chatStore
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
@@ -129,8 +129,8 @@ func TestListWorkspaceTasksHandler(t *testing.T) {
 	}
 }
 
-func TestCreateWorkspaceTaskHandler(t *testing.T) {
-	secret := "test-create-task-secret"
+func TestCreateWorkspaceChatHandler(t *testing.T) {
+	secret := "test-create-chat-secret"
 	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
@@ -138,7 +138,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		taskStore    entity.TaskStore
+		chatStore    entity.ChatStore
 		authHeader   string
 		path         string
 		body         string
@@ -149,9 +149,9 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 	}{
 		{
 			name:        "no auth returns 401",
-			taskStore:   &mockTaskStore{},
+			chatStore:   &mockChatStore{},
 			authHeader:  "",
-			path:        "/api/workspaces/ws1/tasks",
+			path:        "/api/workspaces/ws1/chats",
 			body:        `{"input":"Do X"}`,
 			jwtSecret:   secret,
 			wantStatus:  http.StatusUnauthorized,
@@ -159,9 +159,9 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:        "workspace not owned returns 403",
-			taskStore:   &mockTaskStore{},
+			chatStore:   &mockChatStore{},
 			authHeader:  "Bearer " + signJWT("u1", secret),
-			path:        "/api/workspaces/ws-other/tasks",
+			path:        "/api/workspaces/ws-other/chats",
 			body:        `{"input":"Do X"}`,
 			jwtSecret:   secret,
 			wantStatus:  http.StatusForbidden,
@@ -169,9 +169,9 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:        "missing input returns 400",
-			taskStore:   &mockTaskStore{},
+			chatStore:   &mockChatStore{},
 			authHeader:  "Bearer " + signJWT("u1", secret),
-			path:        "/api/workspaces/ws1/tasks",
+			path:        "/api/workspaces/ws1/chats",
 			body:        `{}`,
 			jwtSecret:   secret,
 			wantStatus:  http.StatusBadRequest,
@@ -179,9 +179,9 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name:        "empty input returns 400",
-			taskStore:   &mockTaskStore{},
+			chatStore:   &mockChatStore{},
 			authHeader:  "Bearer " + signJWT("u1", secret),
-			path:        "/api/workspaces/ws1/tasks",
+			path:        "/api/workspaces/ws1/chats",
 			body:        `{"input":""}`,
 			jwtSecret:   secret,
 			wantStatus:  http.StatusBadRequest,
@@ -189,18 +189,18 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		},
 		{
 			name: "valid body returns 201",
-			taskStore: &mockTaskStore{
-				create: &entity.Task{
-					TaskID: "new-task-id", WorkspaceID: "ws1", Status: "PENDING",
+			chatStore: &mockChatStore{
+				create: &entity.Chat{
+					ChatID: "new-chat-id", WorkspaceID: "ws1", Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
 			authHeader:   "Bearer " + signJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/workspaces/ws1/chats",
 			body:         `{"input":"Do X"}`,
 			jwtSecret:    secret,
 			wantStatus:   http.StatusCreated,
-			wantBodyHas:  "new-task-id",
+			wantBodyHas:  "new-chat-id",
 			checkCreated: true,
 		},
 	}
@@ -208,7 +208,7 @@ func TestCreateWorkspaceTaskHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				WorkspaceStore: mockWS,
-				TaskStore:      tt.taskStore,
+				ChatStore:      tt.chatStore,
 				JWTSecret:      tt.jwtSecret,
 			}
 			s := New(cfg)

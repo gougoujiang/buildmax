@@ -4,7 +4,7 @@ import { getArtifacts, apiArtifactToArtifact } from "../lib/api"
 
 export interface UseArtifactsOptions {
   projectId?: string
-  taskId?: string
+  chatId?: string
 }
 
 export function useArtifacts(
@@ -24,8 +24,8 @@ export function useArtifacts(
       }
       const opts = overrides ?? optionsRef.current
       const query =
-        opts?.projectId !== undefined || opts?.taskId !== undefined
-          ? { projectId: opts?.projectId, taskId: opts?.taskId }
+        opts?.projectId !== undefined || opts?.chatId !== undefined
+          ? { projectId: opts?.projectId, chatId: opts?.chatId }
           : undefined
       getArtifacts(workspaceId, token, query)
         .then((list) => setData(list.map(apiArtifactToArtifact)))
@@ -40,7 +40,7 @@ export function useArtifacts(
       return
     }
     runFetch()
-  }, [token, workspaceId, options?.projectId, options?.taskId, runFetch])
+  }, [token, workspaceId, options?.projectId, options?.chatId, runFetch])
 
   const refetch = useCallback(
     (overrides?: UseArtifactsOptions) => {

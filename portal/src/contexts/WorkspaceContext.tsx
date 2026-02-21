@@ -3,7 +3,7 @@ import {
   useContext,
   type ReactNode,
 } from "react"
-import type { Artifact, Route, Task } from "../lib/types"
+import type { Artifact, Route, Chat } from "../lib/types"
 import type { ApiWorkspace } from "../lib/api"
 import { getWorkspaceScope, useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
@@ -14,12 +14,12 @@ export interface WorkspaceContextValue {
   route: Route
   scope: ReturnType<typeof getWorkspaceScope>
   workspaces: ApiWorkspace[]
-  workspaceTasks: Task[]
+  workspaceChats: Chat[]
   artifacts: Artifact[]
   loadingWorkspaces: boolean
   refetchWorkspaces: () => void
-  refetchWorkspaceTasks: () => void
-  refetchArtifacts: (taskId?: string) => void
+  refetchWorkspaceChats: () => void
+  refetchArtifacts: (chatId?: string) => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -35,11 +35,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     route,
     scope,
     workspaces: data.workspaces,
-    workspaceTasks: data.workspaceTasks,
+    workspaceChats: data.workspaceChats,
     artifacts: data.artifacts,
     loadingWorkspaces: data.loadingWorkspaces,
     refetchWorkspaces: data.refetchWorkspaces,
-    refetchWorkspaceTasks: data.refetchWorkspaceTasks,
+    refetchWorkspaceChats: data.refetchWorkspaceChats,
     refetchArtifacts: data.refetchArtifacts,
   }
 

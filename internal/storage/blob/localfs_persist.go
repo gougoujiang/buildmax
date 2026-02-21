@@ -73,13 +73,13 @@ func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, workspaceID strin
 	return out, err
 }
 
-// PutTaskBuildmax is a no-op for local FS (task buildmax files already live on worker disk).
-func (s *LocalFSPersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string, r io.Reader) error {
+// PutChatBuildmax is a no-op for local FS (chat buildmax files already live on worker disk).
+func (s *LocalFSPersistStorage) PutChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
 	return nil
 }
 
-// GetTaskBuildmax returns ErrNotFound; task buildmax files are not in the persist root for local_fs (caller uses local path).
-func (s *LocalFSPersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string) ([]byte, error) {
+// GetChatBuildmax returns ErrNotFound; chat buildmax files are not in the persist root for local_fs (caller uses local path).
+func (s *LocalFSPersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
 	return nil, ErrNotFound
 }
 

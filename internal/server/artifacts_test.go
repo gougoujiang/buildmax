@@ -21,14 +21,15 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 		},
 	}
 	mockArt := &mockArtifactStore{
-		list: []entity.ArtifactWithTask{
+		list: []entity.ArtifactWithChat{
 			{
 				ArtifactID:       "art-1",
-				TaskID:           "task-1",
+				ChatID:           "chat-1",
+				ChatRunID:        "run-1",
 				WorkspaceID:      workspaceID,
 				CreatedAt:        100,
 				Seq:              1,
-				TaskInputSnippet: "input snippet",
+				ChatInputSnippet: "input snippet",
 			},
 		},
 	}
@@ -104,24 +105,24 @@ func TestListArtifactItemsHandler(t *testing.T) {
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockTask := &mockTaskStore{
-		list: []entity.Task{
-			{TaskID: "task-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
+	mockChat := &mockChatStore{
+		list: []entity.Chat{
+			{ChatID: "chat-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockArt := &mockArtifactStore{
 		get: map[string]*entity.Artifact{
-			artifactID: {ArtifactID: artifactID, TaskID: "task-1", CreatedAt: 1, Seq: 1},
+			artifactID: {ArtifactID: artifactID, ChatID: "chat-1", ChatRunID: "run-1", CreatedAt: 1, Seq: 1},
 		},
 		listItems: map[string][]entity.ArtifactItem{
-			artifactID: {{ArtifactID: artifactID, RelativePath: "result-task1.md"}},
+			artifactID: {{ArtifactID: artifactID, RelativePath: "result-chat1.md"}},
 		},
 	}
 
 	cfg := Config{
 		WorkspaceStore: mockWS,
 		ArtifactStore:  mockArt,
-		TaskStore:      mockTask,
+		ChatStore:      mockChat,
 		JWTSecret:      secret,
 	}
 	s := New(cfg)
@@ -135,8 +136,8 @@ func TestListArtifactItemsHandler(t *testing.T) {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "relative_path") || !strings.Contains(body, "result-task1.md") {
-		t.Errorf("body should contain relative_path and result-task1.md, got %q", body)
+	if !strings.Contains(body, "relative_path") || !strings.Contains(body, "result-chat1.md") {
+		t.Errorf("body should contain relative_path and result-chat1.md, got %q", body)
 	}
 }
 
@@ -145,7 +146,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	userID := "user-1"
 	workspaceID := "ws-1"
 	artifactID := "art-1"
-	taskID := "task-1"
+	chatID := "chat-1"
 	token := signJWT(userID, secret)
 
 	mockWS := &mockWorkspaceStore{
@@ -153,43 +154,43 @@ func TestArtifactContentHandler(t *testing.T) {
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockTask := &mockTaskStore{
-		list: []entity.Task{
-			{TaskID: taskID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
+	mockChat := &mockChatStore{
+		list: []entity.Chat{
+			{ChatID: chatID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockArtNotFound := &mockArtifactStore{get: map[string]*entity.Artifact{}}
 	mockArtFound := &mockArtifactStore{
 		get: map[string]*entity.Artifact{
-			artifactID: {ArtifactID: artifactID, TaskID: taskID, CreatedAt: 1, Seq: 1},
+			artifactID: {ArtifactID: artifactID, ChatID: chatID, ChatRunID: "run-1", CreatedAt: 1, Seq: 1},
 		},
 	}
 
 	tests := []struct {
 		name          string
 		artifactStore entity.ArtifactStore
-		taskStore     entity.TaskStore
+		chatStore     entity.ChatStore
 		auth          string
 		wantStatus    int
 	}{
 		{
 			name:          "404 when artifact not found",
 			artifactStore: mockArtNotFound,
-			taskStore:     mockTask,
+			chatStore:     mockChat,
 			auth:          "Bearer " + token,
 			wantStatus:    http.StatusNotFound,
 		},
 		{
 			name:          "503 without ArtifactStore",
 			artifactStore: nil,
-			taskStore:     mockTask,
+			chatStore:     mockChat,
 			auth:          "Bearer " + token,
 			wantStatus:    http.StatusServiceUnavailable,
 		},
 		{
 			name:          "401 without auth",
 			artifactStore: mockArtFound,
-			taskStore:     mockTask,
+			chatStore:     mockChat,
 			auth:          "",
 			wantStatus:    http.StatusUnauthorized,
 		},
@@ -201,7 +202,7 @@ func TestArtifactContentHandler(t *testing.T) {
 				WorkspaceStore:   mockWS,
 				ArtifactStore:    tt.artifactStore,
 				ArtifactStorage:  artifactStorage,
-				TaskStore:        tt.taskStore,
+				ChatStore:        tt.chatStore,
 				JWTSecret:        secret,
 			}
 			s := New(cfg)

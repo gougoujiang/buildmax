@@ -1,17 +1,17 @@
-import type { Artifact, Task, ViewArtifactParams } from "../lib/types"
-import { taskStatusIcon } from "../lib/taskStatus"
+import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
+import { chatStatusIcon } from "../lib/taskStatus"
 import { navigate } from "../router"
 
 interface ChatsProps {
   workspaceId: string
-  tasks: Task[]
+  chats: Chat[]
   artifacts: Artifact[]
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 export function Chats({
   workspaceId,
-  tasks,
+  chats,
   artifacts,
   onViewArtifact,
 }: ChatsProps) {
@@ -21,14 +21,14 @@ export function Chats({
       <p className="page-activity__subtitle">
         All chats and artifacts in this workspace.
       </p>
-      {tasks.length === 0 && artifacts.length === 0 ? (
+      {chats.length === 0 && artifacts.length === 0 ? (
         <p className="page-activity__empty">No chats yet.</p>
       ) : (
         <>
-          {tasks.length > 0 && (
+          {chats.length > 0 && (
             <ul className="page-activity__list">
-              {tasks.map((task) => (
-                <li key={task.id} className="page-activity__item">
+              {chats.map((chat) => (
+                <li key={chat.id} className="page-activity__item">
                   <button
                     type="button"
                     className="page-activity__link"
@@ -36,16 +36,16 @@ export function Chats({
                       navigate({
                         name: "chat",
                         workspaceId,
-                        taskId: task.id,
+                        chatId: chat.id,
                       })
                     }
                   >
                     <span className="page-activity__icon">
-                      {taskStatusIcon(task.status)}
+                      {chatStatusIcon(chat.status)}
                     </span>
                     <span className="page-activity__content">
-                      <span className="page-activity__task-title">{task.title}</span>
-                      <span className="page-activity__meta">{task.timeLabel}</span>
+                      <span className="page-activity__task-title">{chat.title}</span>
+                      <span className="page-activity__meta">{chat.timeLabel}</span>
                     </span>
                   </button>
                 </li>
@@ -61,7 +61,7 @@ export function Chats({
                     <span className="page-activity__content">
                       <span className="page-activity__task-title">{a.title}</span>
                       <span className="page-activity__meta">
-                        {a.timeLabel} · task: {a.taskId} · artifact: {a.id}
+                        {a.timeLabel} · chat: {a.chatId} · artifact: {a.id}
                       </span>
                     </span>
                     {onViewArtifact && (

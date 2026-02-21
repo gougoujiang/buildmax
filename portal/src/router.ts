@@ -5,7 +5,7 @@ import type { Route, WorkspaceScope } from "./lib/types"
 export function getWorkspaceScope(route: Route): WorkspaceScope {
   return {
     workspaceId: route.workspaceId,
-    taskId: "taskId" in route ? route.taskId : undefined,
+    chatId: "chatId" in route ? route.chatId : undefined,
   }
 }
 
@@ -23,7 +23,7 @@ export const SEGMENT = {
 
 /**
  * Parse window.location.hash into a typed Route.
- * Hash format: #<workspaceId> | #<workspaceId>/chat/<taskId> | #<workspaceId>/chats | ...
+ * Hash format: #<workspaceId> | #<workspaceId>/chat/<chatId> | #<workspaceId>/chats | ...
  * First segment = workspaceId (use as-is; if missing, "").
  */
 export function parseHash(hash: string): Route {
@@ -45,7 +45,7 @@ export function parseHash(hash: string): Route {
     return { name: "agents", workspaceId }
   }
   if (parts[1] === SEGMENT.chat && parts[2]) {
-    return { name: "chat", workspaceId, taskId: parts[2] }
+    return { name: "chat", workspaceId, chatId: parts[2] }
   }
   return { name: "workspace", workspaceId }
 }
@@ -58,7 +58,7 @@ export function buildHash(route: Route): string {
     case "newChat":
       return `#${route.workspaceId}/${SEGMENT.new}`
     case "chat":
-      return `#${route.workspaceId}/${SEGMENT.chat}/${route.taskId}`
+      return `#${route.workspaceId}/${SEGMENT.chat}/${route.chatId}`
     case "chats":
       return `#${route.workspaceId}/${SEGMENT.chats}`
     case "explore":

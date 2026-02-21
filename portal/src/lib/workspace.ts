@@ -1,9 +1,9 @@
-import type { Task } from "./types"
+import type { Chat } from "./types"
 
-/** Resolve task by id from workspace task list (tasks are workspace-scoped only). */
-export function getTaskForDetail(
-  workspaceTasks: Task[],
-  taskId: string
-): Task | undefined {
-  return workspaceTasks.find((t) => t.id === taskId)
+/** Resolve chat by id from workspace chat list (chats are workspace-scoped only). */
+export function getChatForDetail(
+  workspaceChats: Chat[],
+  chatId: string
+): Chat | undefined {
+  return workspaceChats.find((c) => c.id === chatId)
 }

@@ -1,14 +1,14 @@
-import type { Task } from "../lib/types"
-import { getTasks, apiTaskToTask } from "../lib/api"
+import type { Chat } from "../lib/types"
+import { getChats, apiChatToChat } from "../lib/api"
 import { useAsyncList } from "./useAsyncList"
 
-export function useWorkspaceTasks(
+export function useWorkspaceChats(
   workspaceId: string,
   token: string | null
-): { data: Task[]; refetch: () => void } {
+): { data: Chat[]; refetch: () => void } {
   return useAsyncList(
-    () => getTasks(workspaceId, token!),
-    (list) => list.map(apiTaskToTask),
+    () => getChats(workspaceId, token!),
+    (list) => list.map(apiChatToChat),
     [token, workspaceId],
     !!(token && workspaceId)
   )

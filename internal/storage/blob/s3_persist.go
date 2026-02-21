@@ -61,18 +61,18 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, workspaceID string) ([
 	return out, nil
 }
 
-// PutTaskBuildmax writes one file under the task run buildmax key space (prefix/workspaceID/tasks/taskID/runID/buildmax/relPath).
-func (s *S3PersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string, r io.Reader) error {
-	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, runID, relPath)
+// PutChatBuildmax writes one file under the chat run buildmax key space (prefix/workspaceID/chats/chatID/chatRunID/buildmax/relPath).
+func (s *S3PersistStorage) PutChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+	key, err := ChatBuildmaxObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
 	if err != nil {
 		return err
 	}
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetTaskBuildmax reads one file from the task run buildmax key space. Returns ErrNotFound if the object does not exist.
-func (s *S3PersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string) ([]byte, error) {
-	key, err := TaskBuildmaxObjectKey(s.prefix, workspaceID, taskID, runID, relPath)
+// GetChatBuildmax reads one file from the chat run buildmax key space. Returns ErrNotFound if the object does not exist.
+func (s *S3PersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+	key, err := ChatBuildmaxObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
 	if err != nil {
 		return nil, err
 	}

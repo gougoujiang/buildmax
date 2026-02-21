@@ -9,11 +9,11 @@ import type {
   ApiAgent,
   ApiArtifact,
   ApiArtifactItem,
+  ApiChat,
+  ApiChatsListResponse,
   ApiSession,
-  ApiTask,
-  ApiTasksListResponse,
   ApiWorkspace,
-  CreateTaskRunResponse,
+  CreateChatRunResponse,
   LoginResponse,
   LoginUser,
   OtpRequestResponse,
@@ -24,11 +24,11 @@ export type { LoginUser, LoginResponse }
 export type {
   ApiWorkspace,
   ApiAgent,
-  ApiTask,
-  ApiTasksListResponse,
+  ApiChat,
+  ApiChatsListResponse,
   ApiSession,
   ApiSessionMessage,
-  CreateTaskRunResponse,
+  CreateChatRunResponse,
   ApiArtifact,
   ApiArtifactItem,
   UploadResponse,
@@ -36,7 +36,7 @@ export type {
 export {
   apiAgentToAgent,
   apiArtifactToArtifact,
-  apiTaskToTask,
+  apiChatToChat,
 } from "./mappers"
 
 export async function requestOtp(
@@ -90,12 +90,12 @@ export async function createWorkspace(
   return res.json() as Promise<ApiWorkspace>
 }
 
-export async function getTasks(
+export async function getChats(
   workspaceId: string,
   token: string,
   projectId?: string
-): Promise<ApiTask[]> {
-  let url = `${getApiBase()}/api/workspaces/${workspaceId}/tasks`
+): Promise<ApiChat[]> {
+  let url = `${getApiBase()}/api/workspaces/${workspaceId}/chats`
   if (projectId) {
     url += `?project_id=${encodeURIComponent(projectId)}`
   }
@@ -104,30 +104,30 @@ export async function getTasks(
   })
   checkUnauthorized(res)
   await throwIfNotOk(res)
-  return res.json() as Promise<ApiTask[]>
+  return res.json() as Promise<ApiChat[]>
 }
 
-export interface GetTasksPaginatedOptions {
+export interface GetChatsPaginatedOptions {
   limit?: number
   offset?: number
   executedOnly?: boolean
 }
 
-export async function getTasksPaginated(
+export async function getChatsPaginated(
   workspaceId: string,
   token: string,
-  options?: GetTasksPaginatedOptions
-): Promise<ApiTasksListResponse> {
+  options?: GetChatsPaginatedOptions
+): Promise<ApiChatsListResponse> {
   const params = new URLSearchParams()
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks${q ? `?${q}` : ""}`
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats${q ? `?${q}` : ""}`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   checkUnauthorized(res)
   await throwIfNotOk(res)
-  return res.json() as Promise<ApiTasksListResponse>
+  return res.json() as Promise<ApiChatsListResponse>
 }
 
 export async function getAgents(
@@ -164,13 +164,13 @@ export async function createAgent(
   return res.json() as Promise<ApiAgent>
 }
 
-export async function getTaskConversation(
+export async function getChatConversation(
   workspaceId: string,
-  taskId: string,
+  chatId: string,
   token: string
 ): Promise<ApiSession | null> {
   const res = await fetch(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/conversation`,
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/conversation`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
   checkUnauthorized(res)
@@ -179,12 +179,12 @@ export async function getTaskConversation(
   return res.json() as Promise<ApiSession>
 }
 
-export async function createTask(
+export async function createChat(
   workspaceId: string,
   body: { input: string; project_id?: string },
   token: string
-): Promise<ApiTask> {
-  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/tasks`, {
+): Promise<ApiChat> {
+  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/chats`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -194,17 +194,17 @@ export async function createTask(
   })
   checkUnauthorized(res)
   await throwIfNotOk(res)
-  return res.json() as Promise<ApiTask>
+  return res.json() as Promise<ApiChat>
 }
 
-export async function createTaskRun(
+export async function createChatRun(
   workspaceId: string,
-  taskId: string,
+  chatId: string,
   body: { input: string },
   token: string
-): Promise<CreateTaskRunResponse> {
+): Promise<CreateChatRunResponse> {
   const res = await fetch(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(taskId)}/runs`,
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/runs`,
     {
       method: "POST",
       headers: {
@@ -216,22 +216,22 @@ export async function createTaskRun(
   )
   checkUnauthorized(res)
   if (res.status === 409) {
-    const msg = await parseErrorResponse(res, "A run is already in progress for this task")
+    const msg = await parseErrorResponse(res, "A run is already in progress for this chat")
     throw new Error(msg)
   }
   await throwIfNotOk(res)
-  return res.json() as Promise<CreateTaskRunResponse>
+  return res.json() as Promise<CreateChatRunResponse>
 }
 
 export async function getArtifacts(
   workspaceId: string,
   token: string,
-  options?: { projectId?: string; taskId?: string }
+  options?: { projectId?: string; chatId?: string }
 ): Promise<ApiArtifact[]> {
   let url = `${getApiBase()}/api/workspaces/${workspaceId}/artifacts`
   const params = new URLSearchParams()
   if (options?.projectId) params.set("project_id", options.projectId)
-  if (options?.taskId) params.set("task_id", options.taskId)
+  if (options?.chatId) params.set("chat_id", options.chatId)
   const q = params.toString()
   if (q) url += `?${q}`
   const res = await fetch(url, {

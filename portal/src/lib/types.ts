@@ -13,7 +13,7 @@ export interface Project {
   updatedAtLabel: string
 }
 
-export interface Task {
+export interface Chat {
   id: string
   projectId?: string
   sessionId?: string
@@ -25,7 +25,8 @@ export interface Task {
 
 export interface Artifact {
   id: string
-  taskId: string
+  chatId: string
+  chatRunId?: string
   projectId?: string
   workspaceId: string
   timeLabel: string
@@ -33,21 +34,21 @@ export interface Artifact {
 }
 
 // --- Workspace scope (derived from route) ---
-// Scope = what is in context for the current view (workspaceId; taskId when on task).
+// Scope = what is in context for the current view (workspaceId; chatId when on chat).
 // Route = URL state; scope = derived context for data and display.
 
 export interface WorkspaceScope {
   workspaceId: string
-  taskId?: string
+  chatId?: string
 }
 
 // --- Route types ---
-// Portal uses chat/chats; one chat = backend task.
+// Portal uses chat/chats; one chat = backend chat.
 
 export type Route =
   | { name: "workspace"; workspaceId: string }
   | { name: "newChat"; workspaceId: string }
-  | { name: "chat"; workspaceId: string; taskId: string }
+  | { name: "chat"; workspaceId: string; chatId: string }
   | { name: "chats"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
   | { name: "agents"; workspaceId: string }

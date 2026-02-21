@@ -45,14 +45,14 @@ export interface ApiAgent {
   created_at: number
 }
 
-/** Paginated tasks response when using limit/offset/executed_only */
-export interface ApiTasksListResponse {
-  tasks: ApiTask[]
+/** Paginated chats response when using limit/offset/executed_only (if backend supports it). */
+export interface ApiChatsListResponse {
+  chats: ApiChat[]
   total: number
 }
 
-/** Task as returned by GET/POST /api/workspaces/{id}/tasks */
-export interface ApiTask {
+/** Chat as returned by GET/POST /api/workspaces/{id}/chats */
+export interface ApiChat {
   id: string
   workspace_id: string
   project_id: string | null
@@ -68,7 +68,7 @@ export interface ApiTask {
   error_message: string | null
 }
 
-/** Conversation as returned by GET /api/workspaces/{id}/tasks/{id}/conversation */
+/** Conversation as returned by GET /api/workspaces/{id}/chats/{id}/conversation */
 export interface ApiSession {
   id: string
   title: string
@@ -83,21 +83,22 @@ export interface ApiSessionMessage {
   tool_calls?: { id: string; name: string; arguments?: string }[]
 }
 
-/** Response from POST /api/workspaces/{id}/tasks/{task_id}/runs */
-export interface CreateTaskRunResponse {
-  run_id: string
-  task_id: string
+/** Response from POST /api/workspaces/{id}/chats/{chat_id}/runs */
+export interface CreateChatRunResponse {
+  chat_run_id: string
+  chat_id: string
 }
 
 /** Artifact as returned by GET /api/workspaces/{id}/artifacts */
 export interface ApiArtifact {
   artifact_id: string
-  task_id: string
+  chat_id: string
+  chat_run_id: string
   workspace_id: string
   project_id: string | null
   created_at: number
   seq: number
-  task_input_snippet: string
+  chat_input_snippet: string
 }
 
 /** Artifact item as returned by GET /api/workspaces/{id}/artifacts/{id}/items */

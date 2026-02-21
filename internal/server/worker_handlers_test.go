@@ -10,32 +10,32 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
+func TestGetWorkerChatRunHandler_RequiresWorkerAuth(t *testing.T) {
 	secret := "test-worker-secret"
-	runID := "run-1"
-	run := entity.TaskRun{RunID: runID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := entity.Task{TaskID: "task-1", WorkspaceID: "ws1", CreatedBy: "u1"}
-	mockRun := &mockTaskRunStore{runs: []entity.TaskRun{run}, taskList: []entity.Task{task}}
+	chatRunID := "run-1"
+	run := entity.ChatRun{ChatRunID: chatRunID, ChatID: "chat-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	chat := entity.Chat{ChatID: "chat-1", WorkspaceID: "ws1", CreatedBy: "u1"}
+	mockRun := &mockChatRunStore{runs: []entity.ChatRun{run}, chatList: []entity.Chat{chat}}
 	cfg := Config{
-		JWTSecret:    secret,
-		TaskRunStore: mockRun,
-		WorkerToken:  "worker-token-123",
+		JWTSecret:     secret,
+		ChatRunStore:  mockRun,
+		WorkerToken:   "worker-token-123",
 	}
 	s := New(cfg)
-	handler := s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskRunHandler))
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler))
 
 	// Without token: 401
-	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+runID, nil)
-	req.SetPathValue("run_id", runID)
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/chat-runs/"+chatRunID, nil)
+	req.SetPathValue("chat_run_id", chatRunID)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("without token: got status %d, want 401", w.Code)
 	}
 
-	// With correct token: 200 and run+task body
-	req = httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+runID, nil)
-	req.SetPathValue("run_id", runID)
+	// With correct token: 200 and run+chat body
+	req = httptest.NewRequest(http.MethodGet, "/api/worker/chat-runs/"+chatRunID, nil)
+	req.SetPathValue("chat_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer worker-token-123")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -47,16 +47,16 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	}
 }
 
-func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
+func TestGetWorkerChatRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
 		JWTSecret:    "secret",
-		TaskRunStore: &mockTaskRunStore{runs: []entity.TaskRun{}},
+		ChatRunStore: &mockChatRunStore{runs: []entity.ChatRun{}},
 		WorkerToken:  "token",
 	}
 	s := New(cfg)
-	handler := s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerTaskRunHandler))
-	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/nonexistent", nil)
-	req.SetPathValue("run_id", "nonexistent")
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler))
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/chat-runs/nonexistent", nil)
+	req.SetPathValue("chat_run_id", "nonexistent")
 	req.Header.Set("Authorization", "Bearer token")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -65,23 +65,23 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	}
 }
 
-func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
-	runID := "run-scheduled"
-	run := entity.TaskRun{RunID: runID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := entity.Task{TaskID: "task1", WorkspaceID: "ws1"}
-	mockRun := &mockTaskRunStore{runs: []entity.TaskRun{run}, taskList: []entity.Task{task}}
+func TestPatchWorkerChatRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
+	chatRunID := "run-scheduled"
+	run := entity.ChatRun{ChatRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	chat := entity.Chat{ChatID: "chat1", WorkspaceID: "ws1"}
+	mockRun := &mockChatRunStore{runs: []entity.ChatRun{run}, chatList: []entity.Chat{chat}}
 	cfg := Config{
 		JWTSecret:    "secret",
-		TaskRunStore: mockRun,
+		ChatRunStore: mockRun,
 		WorkerToken:  "token",
 	}
 	s := New(cfg)
-	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskRunHandler))
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler))
 
 	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1", "started_at": int64(123)}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+runID, bytes.NewReader(raw))
-	req.SetPathValue("run_id", runID)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/chat-runs/"+chatRunID, bytes.NewReader(raw))
+	req.SetPathValue("chat_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -95,23 +95,23 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	}
 }
 
-func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
-	runID := "run-pending"
-	run := entity.TaskRun{RunID: runID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: 1}
-	task := entity.Task{TaskID: "task1", WorkspaceID: "ws1"}
-	mockRun := &mockTaskRunStore{runs: []entity.TaskRun{run}, taskList: []entity.Task{task}}
+func TestPatchWorkerChatRun_RUNNING_WhenPending_Returns409(t *testing.T) {
+	chatRunID := "run-pending"
+	run := entity.ChatRun{ChatRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "PENDING", CreatedAt: 1}
+	chat := entity.Chat{ChatID: "chat1", WorkspaceID: "ws1"}
+	mockRun := &mockChatRunStore{runs: []entity.ChatRun{run}, chatList: []entity.Chat{chat}}
 	cfg := Config{
 		JWTSecret:    "secret",
-		TaskRunStore: mockRun,
+		ChatRunStore: mockRun,
 		WorkerToken:  "token",
 	}
 	s := New(cfg)
-	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerTaskRunHandler))
+	handler := s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler))
 
 	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1"}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+runID, bytes.NewReader(raw))
-	req.SetPathValue("run_id", runID)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/chat-runs/"+chatRunID, bytes.NewReader(raw))
+	req.SetPathValue("chat_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

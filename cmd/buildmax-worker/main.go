@@ -21,19 +21,19 @@ func main() {
 		level = "debug"
 	}
 	log.Init(config.LogsDir(), level, "buildmax-worker.log", true)
-	runID := flag.String("task-run-id", "", "task run ID to run (required)")
+	chatRunID := flag.String("chat-run-id", "", "chat run ID to run (required)")
 	flag.Parse()
-	if *runID == "" {
-		slog.Error("worker: --task-run-id is required")
-		fmt.Fprintf(os.Stderr, "error: --task-run-id is required\n")
+	if *chatRunID == "" {
+		slog.Error("worker: --chat-run-id is required")
+		fmt.Fprintf(os.Stderr, "error: --chat-run-id is required\n")
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	if err := workercmd.RunWorker(ctx, *runID); err != nil {
+	if err := workercmd.RunWorker(ctx, *chatRunID); err != nil {
 		if errors.Is(err, workercmd.ErrAlreadyClaimed) {
 			os.Exit(2) // run not executed (already claimed by another worker)
 		}
-		slog.Error("worker run failed", "run_id", *runID, "err", err)
+		slog.Error("worker run failed", "chat_run_id", *chatRunID, "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

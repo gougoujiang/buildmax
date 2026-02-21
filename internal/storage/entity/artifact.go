@@ -8,14 +8,14 @@ import (
 	"gorm.io/gorm"
 )
 
-const taskInputSnippetMaxLen = 200
+const chatInputSnippetMaxLen = 200
 
-// CreateArtifactWithItem creates one artifact row (with task_run_id), one artifact_item row, and updates task.last_artifact_id in a transaction.
-func (s *Store) CreateArtifactWithItem(ctx context.Context, taskID, taskRunID, artifactID string, seq int, relativePath string) error {
+// CreateArtifactWithItem creates one artifact row (with chat_run_id), one artifact_item row, and updates chat.last_artifact_id in a transaction.
+func (s *Store) CreateArtifactWithItem(ctx context.Context, chatID, chatRunID, artifactID string, seq int, relativePath string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		art := Artifact{
-			TaskID:     taskID,
-			TaskRunID:  taskRunID,
+			ChatID:     chatID,
+			ChatRunID:  chatRunID,
 			ArtifactID: artifactID,
 			CreatedAt:  time.Now().Unix(),
 			Seq:        seq,
@@ -30,24 +30,24 @@ func (s *Store) CreateArtifactWithItem(ctx context.Context, taskID, taskRunID, a
 		if err := tx.Create(&item).Error; err != nil {
 			return err
 		}
-		return tx.Model(&Task{}).Where("task_id = ?", taskID).Updates(map[string]interface{}{"last_artifact_id": artifactID}).Error
+		return tx.Model(&Chat{}).Where("chat_id = ?", chatID).Updates(map[string]interface{}{"last_artifact_id": artifactID}).Error
 	})
 }
 
-// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by task_id, ordered by created_at DESC. Includes task_run_id and task_input_snippet from run input.
-func (s *Store) ListArtifactsByWorkspace(ctx context.Context, workspaceID string, taskID *string) ([]ArtifactWithTask, error) {
-	q := `SELECT a.artifact_id, a.task_id, a.task_run_id, a.created_at, a.seq, t.workspace_id, LEFT(r.input, ?) AS task_input_snippet
+// ListArtifactsByWorkspace returns artifacts in the workspace, optionally filtered by chat_id, ordered by created_at DESC. Includes chat_run_id and chat_input_snippet from run input.
+func (s *Store) ListArtifactsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]ArtifactWithChat, error) {
+	q := `SELECT a.artifact_id, a.chat_id, a.chat_run_id, a.created_at, a.seq, c.workspace_id, LEFT(r.input, ?) AS chat_input_snippet
 		FROM artifact a
-		JOIN task t ON a.task_id = t.task_id
-		JOIN task_run r ON a.task_run_id = r.run_id
-		WHERE t.workspace_id = ?`
-	args := []interface{}{taskInputSnippetMaxLen, workspaceID}
-	if taskID != nil {
-		q += ` AND t.task_id = ?`
-		args = append(args, *taskID)
+		JOIN chat c ON a.chat_id = c.chat_id
+		JOIN chat_run r ON a.chat_run_id = r.chat_run_id
+		WHERE c.workspace_id = ?`
+	args := []interface{}{chatInputSnippetMaxLen, workspaceID}
+	if chatID != nil {
+		q += ` AND c.chat_id = ?`
+		args = append(args, *chatID)
 	}
 	q += ` ORDER BY a.created_at DESC`
-	var out []ArtifactWithTask
+	var out []ArtifactWithChat
 	err := s.db.WithContext(ctx).Raw(q, args...).Scan(&out).Error
 	return out, err
 }

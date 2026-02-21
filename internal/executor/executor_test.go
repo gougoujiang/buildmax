@@ -23,32 +23,32 @@ type testWorkspacePaths struct{}
 func (testWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
 	return config.PersistentWorkspaceDir(workspaceID)
 }
-func (testWorkspacePaths) RuntimeWorkspaceDir(workspaceID, taskID string) string {
-	return config.RuntimeWorkspaceDir(workspaceID, taskID)
+func (testWorkspacePaths) RuntimeWorkspaceDir(workspaceID, chatID string) string {
+	return config.RuntimeWorkspaceDir(workspaceID, chatID)
 }
-func (testWorkspacePaths) RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
-	return config.RuntimeTaskBuildmaxDir(workspaceID, taskID)
+func (testWorkspacePaths) RuntimeChatBuildmaxDir(workspaceID, chatID string) string {
+	return config.RuntimeChatBuildmaxDir(workspaceID, chatID)
 }
-func (testWorkspacePaths) RuntimeTaskRunBuildmaxDir(workspaceID, taskID, runID string) string {
-	return config.RuntimeTaskRunBuildmaxDir(workspaceID, taskID, runID)
+func (testWorkspacePaths) RuntimeChatRunBuildmaxDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeChatRunBuildmaxDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeTaskWSDir(workspaceID, taskID string) string {
-	return config.RuntimeTaskWSDir(workspaceID, taskID)
+func (testWorkspacePaths) RuntimeChatWSDir(workspaceID, chatID string) string {
+	return config.RuntimeChatWSDir(workspaceID, chatID)
 }
-func (testWorkspacePaths) ArtifactDir(workspaceID, taskID, runID, artifactID string) string {
-	return config.ArtifactDir(workspaceID, taskID, runID, artifactID)
+func (testWorkspacePaths) ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string {
+	return config.ArtifactDir(workspaceID, chatID, chatRunID, artifactID)
 }
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
-	files        map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
-	taskBuildmax map[string][]byte            // "workspaceID/taskID/runID/relPath" -> content
+	files         map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
+	chatBuildmax  map[string][]byte            // "workspaceID/chatID/chatRunID/relPath" -> content
 }
 
 func newFakePersistStorage() *fakePersistStorage {
 	return &fakePersistStorage{
 		files:        make(map[string]map[string][]byte),
-		taskBuildmax: make(map[string][]byte),
+		chatBuildmax: make(map[string][]byte),
 	}
 }
 
@@ -99,18 +99,18 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 	return nil
 }
 
-func (f *fakePersistStorage) PutTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string, r io.Reader) error {
-	key := workspaceID + "/" + taskID + "/" + runID + "/" + relPath
+func (f *fakePersistStorage) PutChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
 	data, _ := io.ReadAll(r)
-	f.taskBuildmax[key] = data
+	f.chatBuildmax[key] = data
 	return nil
 }
 
-// taskBuildmaxRelPaths returns the set of relPaths uploaded for the given workspaceID/taskID/runID.
-func (f *fakePersistStorage) taskBuildmaxRelPaths(workspaceID, taskID, runID string) []string {
-	prefix := workspaceID + "/" + taskID + "/" + runID + "/"
+// chatBuildmaxRelPaths returns the set of relPaths uploaded for the given workspaceID/chatID/chatRunID.
+func (f *fakePersistStorage) chatBuildmaxRelPaths(workspaceID, chatID, chatRunID string) []string {
+	prefix := workspaceID + "/" + chatID + "/" + chatRunID + "/"
 	var out []string
-	for k := range f.taskBuildmax {
+	for k := range f.chatBuildmax {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
 			out = append(out, k[len(prefix):])
 		}
@@ -118,9 +118,9 @@ func (f *fakePersistStorage) taskBuildmaxRelPaths(workspaceID, taskID, runID str
 	return out
 }
 
-func (f *fakePersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, taskID, runID, relPath string) ([]byte, error) {
-	key := workspaceID + "/" + taskID + "/" + runID + "/" + relPath
-	data, ok := f.taskBuildmax[key]
+func (f *fakePersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+	data, ok := f.chatBuildmax[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
@@ -129,21 +129,21 @@ func (f *fakePersistStorage) GetTaskBuildmax(ctx context.Context, workspaceID, t
 
 // fakeArtifactStorage is an in-memory ArtifactStorage for tests.
 type fakeArtifactStorage struct {
-	results map[string][]byte // "workspaceID/taskID/artifactID" -> content
+	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content
 }
 
 func newFakeArtifactStorage() *fakeArtifactStorage {
 	return &fakeArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, taskID, runID, artifactID string, data []byte) error {
-	key := workspaceID + "/" + taskID + "/" + runID + "/" + artifactID
+func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID, runID, artifactID string) ([]byte, error) {
-	key := workspaceID + "/" + taskID + "/" + runID + "/" + artifactID
+func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -151,41 +151,41 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, taskID
 	return data, nil
 }
 
-// mockTaskRunStore is a minimal TaskRunStore for Scheduler constructor tests.
-type mockTaskRunStore struct{}
+// mockChatRunStore is a minimal ChatRunStore for Scheduler constructor tests.
+type mockChatRunStore struct{}
 
-func (mockTaskRunStore) CreateTaskRun(_ context.Context, _, _, _ string) (*entity.TaskRun, error) {
+func (mockChatRunStore) CreateChatRun(_ context.Context, _, _, _ string) (*entity.ChatRun, error) {
 	return nil, nil
 }
-func (mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) { return nil, nil }
-func (mockTaskRunStore) GetTaskRun(_ context.Context, _ string) (*entity.TaskRun, error) { return nil, nil }
-func (mockTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*entity.TaskRun, *entity.Task, error) {
+func (mockChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.ChatRun, error) { return nil, nil }
+func (mockChatRunStore) GetChatRun(_ context.Context, _ string) (*entity.ChatRun, error) { return nil, nil }
+func (mockChatRunStore) GetChatRunWithChat(_ context.Context, _ string) (*entity.ChatRun, *entity.Chat, error) {
 	return nil, nil, nil
 }
-func (mockTaskRunStore) UpdateTaskRunStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
+func (mockChatRunStore) UpdateChatRunStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
 	return false, nil
 }
-func (mockTaskRunStore) UpdateTaskRunStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
+func (mockChatRunStore) UpdateChatRunStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
 	return nil
 }
-func (mockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+func (mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
 	return nil
 }
-func (mockTaskRunStore) OnRunComplete(_ context.Context, _, _, _ string) error { return nil }
-func (mockTaskRunStore) SyncTaskFromRun(_ context.Context, _ string) error      { return nil }
+func (mockChatRunStore) OnRunComplete(_ context.Context, _, _, _ string) error { return nil }
+func (mockChatRunStore) SyncChatFromRun(_ context.Context, _ string) error      { return nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {
 	runner := NewLocalRunner("buildmax-worker")
-	// Nil taskRunStore should error.
+	// Nil chatRunStore should error.
 	_, err := NewScheduler(nil, runner)
 	if err == nil {
-		t.Fatal("NewScheduler with nil taskRunStore should error")
+		t.Fatal("NewScheduler with nil chatRunStore should error")
 	}
-	if err.Error() != "executor: taskRunStore must not be nil" {
+	if err.Error() != "executor: chatRunStore must not be nil" {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Nil runner should error.
-	_, err = NewScheduler(mockTaskRunStore{}, nil)
+	_, err = NewScheduler(mockChatRunStore{}, nil)
 	if err == nil {
 		t.Fatal("NewScheduler with nil runner should error")
 	}
@@ -193,7 +193,7 @@ func TestNewScheduler_ValidatesInputs(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Valid args should succeed.
-	s, err := NewScheduler(mockTaskRunStore{}, runner)
+	s, err := NewScheduler(mockChatRunStore{}, runner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, fake)
-	run := entity.TaskRun{RunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "task1", Status: "SCHEDULED"}
+	run := entity.ChatRun{ChatRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", ChatID: "chat1", Status: "SCHEDULED"}
 
 	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run)
 	if err != nil {
@@ -270,7 +270,7 @@ func TestFakePersistStorage_MaterializeToDir(t *testing.T) {
 	}
 }
 
-func TestUploadTaskBuildmax_UploadsPresentFiles(t *testing.T) {
+func TestUploadChatBuildmax_UploadsPresentFiles(t *testing.T) {
 	ctx := context.Background()
 	buildmaxDir := t.TempDir()
 	// Create a subset of buildmax files (no log; sessions dir with two files)
@@ -288,9 +288,9 @@ func TestUploadTaskBuildmax_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", "run1", fake)
+	uploadChatBuildmax(ctx, buildmaxDir, "ws1", "chat1", "run1", fake)
 
-	got := fake.taskBuildmaxRelPaths("ws1", "task1", "run1")
+	got := fake.chatBuildmaxRelPaths("ws1", "chat1", "run1")
 	if len(got) != 3 {
 		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
 	}
@@ -301,21 +301,20 @@ func TestUploadTaskBuildmax_UploadsPresentFiles(t *testing.T) {
 		}
 	}
 	// Content sanity
-	key := "ws1/task1/run1/settings.json"
-	if string(fake.taskBuildmax[key]) != "{}" {
+	key := "ws1/chat1/run1/settings.json"
+	if string(fake.chatBuildmax[key]) != "{}" {
 		t.Errorf("settings.json content mismatch")
 	}
 }
 
-func TestUploadTaskBuildmax_SkipsMissingFiles(t *testing.T) {
+func TestUploadChatBuildmax_SkipsMissingFiles(t *testing.T) {
 	ctx := context.Background()
 	buildmaxDir := t.TempDir()
 	// Empty buildmax dir: no files created
 	fake := newFakePersistStorage()
-	uploadTaskBuildmax(ctx, buildmaxDir, "ws1", "task1", "run1", fake)
-	got := fake.taskBuildmaxRelPaths("ws1", "task1", "run1")
+	uploadChatBuildmax(ctx, buildmaxDir, "ws1", "chat1", "run1", fake)
+	got := fake.chatBuildmaxRelPaths("ws1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}
 }
-

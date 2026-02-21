@@ -1,26 +1,26 @@
-import type { Artifact, Route, Task } from "../lib/types"
+import type { Artifact, Route, Chat } from "../lib/types"
 import type { ApiWorkspace } from "../lib/api"
 import { useWorkspaces } from "./useWorkspaces"
-import { useWorkspaceTasks } from "./useWorkspaceTasks"
+import { useWorkspaceChats } from "./useWorkspaceTasks"
 import { useArtifacts } from "./useArtifacts"
 
 export interface UseWorkspaceDataResult {
   workspaces: ApiWorkspace[]
-  workspaceTasks: Task[]
+  workspaceChats: Chat[]
   artifacts: Artifact[]
   loadingWorkspaces: boolean
   refetchWorkspaces: () => void
-  refetchWorkspaceTasks: () => void
-  refetchArtifacts: (taskId?: string) => void
+  refetchWorkspaceChats: () => void
+  refetchArtifacts: (chatId?: string) => void
 }
 
-/** Composes useWorkspaces, useWorkspaceTasks, useArtifacts for the current route. */
+/** Composes useWorkspaces, useWorkspaceChats, useArtifacts for the current route. */
 export function useWorkspaceData(
   token: string | null,
   route: Route
 ): UseWorkspaceDataResult {
   const { data: workspaces, loading: loadingWorkspaces, refetch: refetchWorkspaces } = useWorkspaces(token)
-  const { data: workspaceTasks, refetch: refetchWorkspaceTasks } = useWorkspaceTasks(
+  const { data: workspaceChats, refetch: refetchWorkspaceChats } = useWorkspaceChats(
     route.workspaceId,
     token
   )
@@ -30,17 +30,17 @@ export function useWorkspaceData(
     {}
   )
 
-  const refetchArtifacts = (taskId?: string) => {
-    artifactsRefetch(taskId !== undefined ? { taskId } : undefined)
+  const refetchArtifacts = (chatId?: string) => {
+    artifactsRefetch(chatId !== undefined ? { chatId } : undefined)
   }
 
   return {
     workspaces,
-    workspaceTasks,
+    workspaceChats,
     artifacts,
     loadingWorkspaces,
     refetchWorkspaces,
-    refetchWorkspaceTasks,
+    refetchWorkspaceChats,
     refetchArtifacts,
   }
 }

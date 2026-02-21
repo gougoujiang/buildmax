@@ -1,5 +1,5 @@
-// Scheduler polls for pending tasks and runs the worker via a WorkerRunner (local process or k8s Job).
-// It does not perform task execution; the worker process calls executor.RunTask.
+// Scheduler polls for pending chat runs and runs the worker via a WorkerRunner (local process or k8s Job).
+// It does not perform run execution; the worker process calls executor.RunTask.
 package executor
 
 import (
@@ -13,25 +13,25 @@ import (
 
 const defaultPollInterval = 5 * time.Second
 
-// Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
+// Scheduler polls the chat run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	taskRuns     entity.TaskRunStore
+	chatRuns     entity.ChatRunStore
 	runner       WorkerRunner
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 }
 
-// NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
-func NewScheduler(taskRunStore entity.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
-	if taskRunStore == nil {
-		return nil, errors.New("executor: taskRunStore must not be nil")
+// NewScheduler creates a Scheduler that polls for pending chat runs and runs the worker via the given runner. Call Start() to begin polling.
+func NewScheduler(chatRunStore entity.ChatRunStore, runner WorkerRunner) (*Scheduler, error) {
+	if chatRunStore == nil {
+		return nil, errors.New("executor: chatRunStore must not be nil")
 	}
 	if runner == nil {
 		return nil, errors.New("executor: runner must not be nil")
 	}
 	return &Scheduler{
-		taskRuns:     taskRunStore,
+		chatRuns:     chatRunStore,
 		runner:       runner,
 		pollInterval: defaultPollInterval,
 		stopCh:       make(chan struct{}),
@@ -65,7 +65,7 @@ func (s *Scheduler) loop() {
 			return
 		case <-ticker.C:
 			ctx := context.Background()
-			run, err := s.taskRuns.GetNextPendingTaskRun(ctx)
+			run, err := s.chatRuns.GetNextPendingChatRun(ctx)
 			if err != nil {
 				slog.Warn("scheduler: poll failed", "err", err)
 				continue
@@ -73,9 +73,9 @@ func (s *Scheduler) loop() {
 			if run == nil {
 				continue
 			}
-			updated, err := s.taskRuns.UpdateTaskRunStatusIf(ctx, run.RunID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+			updated, err := s.chatRuns.UpdateChatRunStatusIf(ctx, run.ChatRunID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
 			if err != nil {
-				slog.Warn("scheduler: claim failed", "run_id", run.RunID, "err", err)
+				slog.Warn("scheduler: claim failed", "chat_run_id", run.ChatRunID, "err", err)
 				continue
 			}
 			if !updated {
@@ -83,14 +83,14 @@ func (s *Scheduler) loop() {
 			}
 			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run)
 			if err != nil {
-				slog.Warn("scheduler: worker run failed, reverting run to PENDING", "run_id", run.RunID, "err", err)
-				if revertErr := s.taskRuns.UpdateTaskRunStatus(ctx, run.RunID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
-					slog.Error("scheduler: failed to revert run to PENDING", "run_id", run.RunID, "err", revertErr)
+				slog.Warn("scheduler: worker run failed, reverting run to PENDING", "chat_run_id", run.ChatRunID, "err", err)
+				if revertErr := s.chatRuns.UpdateChatRunStatus(ctx, run.ChatRunID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
+					slog.Error("scheduler: failed to revert run to PENDING", "chat_run_id", run.ChatRunID, "err", revertErr)
 				}
 				continue
 			}
-			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.RunID, workerType, k8sName, k8sAt); err != nil {
-				slog.Warn("scheduler: failed to persist worker info", "run_id", run.RunID, "err", err)
+			if err := s.chatRuns.UpdateChatRunWorkerInfo(ctx, run.ChatRunID, workerType, k8sName, k8sAt); err != nil {
+				slog.Warn("scheduler: failed to persist worker info", "chat_run_id", run.ChatRunID, "err", err)
 			}
 		}
 	}

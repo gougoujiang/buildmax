@@ -1,18 +1,18 @@
 import { useState } from "react"
 import { navigate } from "../router"
-import { createTask } from "../lib/api"
+import { createChat } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 
 interface NewChatProps {
   workspaceId: string
   token?: string
-  onRefetchWorkspaceTasks?: () => void
+  onRefetchWorkspaceChats?: () => void
 }
 
 export function NewChat({
   workspaceId,
   token,
-  onRefetchWorkspaceTasks,
+  onRefetchWorkspaceChats,
 }: NewChatProps) {
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
@@ -24,10 +24,10 @@ export function NewChat({
     setRunning(true)
     setRunError(null)
     try {
-      const task = await createTask(workspaceId, { input }, token)
+      const chat = await createChat(workspaceId, { input }, token)
       setPrompt("")
-      onRefetchWorkspaceTasks?.()
-      navigate({ name: "chat", workspaceId, taskId: task.id })
+      onRefetchWorkspaceChats?.()
+      navigate({ name: "chat", workspaceId, chatId: chat.id })
     } catch (err) {
       setRunError(err instanceof Error ? err.message : "Failed to start chat")
     } finally {

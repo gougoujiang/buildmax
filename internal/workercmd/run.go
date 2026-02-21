@@ -18,61 +18,61 @@ import (
 )
 
 // ErrAlreadyClaimed is returned by RunWorker when the run was already claimed by another worker (server returned 409).
-var ErrAlreadyClaimed = errors.New("task run already claimed by another worker")
+var ErrAlreadyClaimed = errors.New("chat run already claimed by another worker")
 
-// RunWorker validates worker env, fetches run+task from the server, marks run RUNNING,
+// RunWorker validates worker env, fetches run+chat from the server, marks run RUNNING,
 // builds blob storage, then runs the run (materialize, optionally restore session, buildmax -p, update status).
-// runID must be non-empty; from --task-run-id.
-func RunWorker(ctx context.Context, runID string) error {
-	if runID == "" {
-		slog.Error("worker: task-run-id is required")
-		return fmt.Errorf("task-run-id is required")
+// chatRunID must be non-empty; from --chat-run-id.
+func RunWorker(ctx context.Context, chatRunID string) error {
+	if chatRunID == "" {
+		slog.Error("worker: chat-run-id is required")
+		return fmt.Errorf("chat-run-id is required")
 	}
 	baseURL := config.WorkerServerURL()
 	token := config.WorkerToken()
 	if baseURL == "" {
-		slog.Error("worker: server URL not set", "run_id", runID, "env", config.EnvKeyBuildmaxServerURL)
+		slog.Error("worker: server URL not set", "chat_run_id", chatRunID, "env", config.EnvKeyBuildmaxServerURL)
 		return fmt.Errorf("%s is required", config.EnvKeyBuildmaxServerURL)
 	}
 	if token == "" {
-		slog.Error("worker: worker token not set", "run_id", runID, "env", config.EnvKeyBuildmaxWorkerToken)
+		slog.Error("worker: worker token not set", "chat_run_id", chatRunID, "env", config.EnvKeyBuildmaxWorkerToken)
 		return fmt.Errorf("%s is required", config.EnvKeyBuildmaxWorkerToken)
 	}
 	workspacesDir := config.WorkspacesDir()
 	if workspacesDir == "" {
-		slog.Error("worker: workspaces dir not set", "run_id", runID, "env", config.EnvKeyBuildmaxWorkspacesDir)
+		slog.Error("worker: workspaces dir not set", "chat_run_id", chatRunID, "env", config.EnvKeyBuildmaxWorkspacesDir)
 		return fmt.Errorf("%s is required for worker", config.EnvKeyBuildmaxWorkspacesDir)
 	}
 	if abs, err := filepath.Abs(workspacesDir); err == nil {
 		workspacesDir = abs
 	}
 
-	run, task, err := executor.GetWorkerTaskRun(ctx, baseURL, token, runID, nil)
+	run, chat, err := executor.GetWorkerChatRun(ctx, baseURL, token, chatRunID, nil)
 	if err != nil {
-		slog.Error("worker: get run failed", "run_id", runID, "err", err)
+		slog.Error("worker: get run failed", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("get run: %w", err)
 	}
-	if run == nil || task == nil {
-		slog.Error("worker: run not found", "run_id", runID)
+	if run == nil || chat == nil {
+		slog.Error("worker: run not found", "chat_run_id", chatRunID)
 		return fmt.Errorf("run not found")
 	}
 	if run.Status != workerapi.StatusScheduled {
-		slog.Error("worker: run not in SCHEDULED status", "run_id", runID, "status", run.Status)
+		slog.Error("worker: run not in SCHEDULED status", "chat_run_id", chatRunID, "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
 
 	sessionID := uuid.New().String()
-	if task.SessionID != nil {
-		sessionID = *task.SessionID
+	if chat.SessionID != nil {
+		sessionID = *chat.SessionID
 	}
 	updater := &executor.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
-	if err := updater.UpdateRunStatus(ctx, run.RunID, workerapi.StatusRunning, &now, nil, nil, nil, &sessionID, nil); err != nil {
-		if errors.Is(err, executor.ErrTaskAlreadyClaimed) {
-			slog.Info("run already claimed by another worker", "run_id", runID)
+	if err := updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusRunning, &now, nil, nil, nil, &sessionID, nil); err != nil {
+		if errors.Is(err, executor.ErrChatRunAlreadyClaimed) {
+			slog.Info("run already claimed by another worker", "chat_run_id", chatRunID)
 			return ErrAlreadyClaimed
 		}
-		slog.Error("worker: failed to mark run RUNNING", "run_id", runID, "err", err)
+		slog.Error("worker: failed to mark run RUNNING", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("mark RUNNING: %w", err)
 	}
 
@@ -82,25 +82,25 @@ func RunWorker(ctx context.Context, runID string) error {
 		var s3Err error
 		s3Client, s3Err = setup.BuildS3Client(ctx, wsCfg)
 		if s3Err != nil {
-			slog.Error("worker: failed to build S3 client", "run_id", runID, "err", s3Err)
+			slog.Error("worker: failed to build S3 client", "chat_run_id", chatRunID, "err", s3Err)
 			return fmt.Errorf("S3 client: %w", s3Err)
 		}
 	}
 	persistStorage, err := setup.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
 	if err != nil {
-		slog.Error("worker: failed to build persist storage", "run_id", runID, "err", err)
+		slog.Error("worker: failed to build persist storage", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
 	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.ArtifactDir, s3Client)
 	if err != nil {
-		slog.Error("worker: failed to build artifact storage", "run_id", runID, "err", err)
+		slog.Error("worker: failed to build artifact storage", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("artifact storage: %w", err)
 	}
 
 	paths := executor.NewWorkspacePathsFromRoot(workspacesDir)
-	err = executor.RunTask(ctx, task, run, sessionID, paths, persistStorage, artifactStorage, updater)
+	err = executor.RunTask(ctx, chat, run, sessionID, paths, persistStorage, artifactStorage, updater)
 	if err != nil {
-		slog.Error("worker: run execution failed", "run_id", runID, "err", err)
+		slog.Error("worker: run execution failed", "chat_run_id", chatRunID, "err", err)
 		return err
 	}
 	return nil

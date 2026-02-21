@@ -1,5 +1,5 @@
 import type { ViewArtifactParams } from "../lib/types"
-import { getTaskForDetail } from "../lib/workspace"
+import { getChatForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Chats } from "../pages/Chats"
 import { AgentList } from "../pages/AgentList"
@@ -17,19 +17,19 @@ export interface WorkspaceRouterProps {
 export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
   const {
     route,
-    workspaceTasks,
+    workspaceChats,
     artifacts,
     token,
-    refetchWorkspaceTasks,
+    refetchWorkspaceChats,
   } = useWorkspace()
 
   const fallbackHome = (
     <WorkspaceHome
       workspaceId={route.workspaceId}
-      workspaceTasks={workspaceTasks}
+      workspaceChats={workspaceChats}
       artifacts={artifacts}
       token={token ?? undefined}
-      onRefetchWorkspaceTasks={refetchWorkspaceTasks}
+      onRefetchWorkspaceChats={refetchWorkspaceChats}
       onViewArtifact={onViewArtifact}
     />
   )
@@ -40,7 +40,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
       <NewChat
         workspaceId={route.workspaceId}
         token={token ?? undefined}
-        onRefetchWorkspaceTasks={refetchWorkspaceTasks}
+        onRefetchWorkspaceChats={refetchWorkspaceChats}
       />
     )
   }
@@ -48,7 +48,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     return (
       <Chats
         workspaceId={route.workspaceId}
-        tasks={workspaceTasks}
+        chats={workspaceChats}
         artifacts={artifacts}
         onViewArtifact={onViewArtifact}
       />
@@ -66,13 +66,13 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
   }
 
   if (route.name === "chat") {
-    const task = getTaskForDetail(workspaceTasks, route.taskId)
-    if (!task) return fallbackHome
+    const chat = getChatForDetail(workspaceChats, route.chatId)
+    if (!chat) return fallbackHome
     return (
       <TaskDetail
-        task={task}
+        chat={chat}
         workspaceId={route.workspaceId}
-        onRefetch={() => refetchWorkspaceTasks()}
+        onRefetch={() => refetchWorkspaceChats()}
       />
     )
   }

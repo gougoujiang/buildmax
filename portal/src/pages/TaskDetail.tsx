@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import type { Task } from "../lib/types"
-import { getTaskConversation, createTaskRun, getTasks } from "../lib/api"
+import type { Chat } from "../lib/types"
+import { getChatConversation, createChatRun, getChats } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
 
@@ -10,12 +10,12 @@ const POLL_INTERVAL_MS = 2000
 const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
 
 interface TaskDetailProps {
-  task: Task
+  chat: Chat
   workspaceId: string
   onRefetch?: () => void
 }
 
-export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
+export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
   const { token } = useAuth()
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -25,10 +25,10 @@ export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
     error: sessionError,
     refetch: refetchSession,
   } = useFetch(
-    () => getTaskConversation(workspaceId, task.id, token!),
-    [workspaceId, task.id, token],
+    () => getChatConversation(workspaceId, chat.id, token!),
+    [workspaceId, chat.id, token],
     {
-      enabled: !!(token && workspaceId && task.id),
+      enabled: !!(token && workspaceId && chat.id),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load session"),
     }
   )
@@ -53,14 +53,14 @@ export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
     setFollowUpError(null)
     setFollowUpLoading(true)
     try {
-      await createTaskRun(workspaceId, task.id, { input }, token)
+      await createChatRun(workspaceId, chat.id, { input }, token)
       setFollowUpInput("")
-      // Poll until task status is SUCCEEDED or FAILED
+      // Poll until chat status is SUCCEEDED or FAILED
       pollIntervalRef.current = setInterval(async () => {
         if (!token) return
         try {
-          const list = await getTasks(workspaceId, token)
-          const updated = list.find((t) => t.id === task.id)
+          const list = await getChats(workspaceId, token)
+          const updated = list.find((c) => c.id === chat.id)
           if (updated && TERMINAL_STATUSES.includes(updated.status)) {
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current)
@@ -83,7 +83,7 @@ export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
   return (
     <div className="page-task">
       <header className="page-task__header">
-        <h1 className="page-task__title">{task.title?.trim() || "Chat"}</h1>
+        <h1 className="page-task__title">{chat.title?.trim() || "Chat"}</h1>
         <button
           type="button"
           className="page-task__restore-btn"
@@ -130,7 +130,7 @@ export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
       <section className="page-task__section">
         <h2 className="page-task__section-heading">Result</h2>
         <div className="page-task__markdown">
-          <Markdown remarkPlugins={[remarkGfm]}>{task.summary}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]}>{chat.summary}</Markdown>
         </div>
       </section>
 
@@ -192,7 +192,7 @@ export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
       <section className="page-task__section">
         <h2 className="page-task__section-heading">Details</h2>
         <p className="page-task__meta">
-          Status: <strong>{task.status}</strong> &middot; {task.timeLabel}
+          Status: <strong>{chat.status}</strong> &middot; {chat.timeLabel}
         </p>
       </section>
     </div>

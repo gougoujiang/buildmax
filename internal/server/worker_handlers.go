@@ -7,53 +7,53 @@ import (
 	"buildmax/internal/workerapi"
 )
 
-// getWorkerTaskRunHandler handles GET /api/worker/task-runs/{run_id}. Returns run and task for the worker.
-func (s *Server) getWorkerTaskRunHandler(w http.ResponseWriter, r *http.Request) {
-	runID := r.PathValue("run_id")
-	if runID == "" {
-		writeJSONError(w, http.StatusBadRequest, "run_id required")
+// getWorkerChatRunHandler handles GET /api/worker/chat-runs/{chat_run_id}. Returns run and chat for the worker.
+func (s *Server) getWorkerChatRunHandler(w http.ResponseWriter, r *http.Request) {
+	chatRunID := r.PathValue("chat_run_id")
+	if chatRunID == "" {
+		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.TaskRunStore, "task runs not configured") {
+	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
 		return
 	}
-	run, task, err := s.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), runID)
+	run, chat, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "get_worker_task_run", "run_id", runID)
+		writeInternalError(w, err, "handler", "get_worker_chat_run", "chat_run_id", chatRunID)
 		return
 	}
-	if run == nil || task == nil {
+	if run == nil || chat == nil {
 		writeJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, workerapi.GetTaskRunResponse{
-		Run: workerapi.TaskRunRun{
-			RunID:     run.RunID,
-			TaskID:    run.TaskID,
+	writeJSON(w, http.StatusOK, workerapi.GetChatRunResponse{
+		Run: workerapi.ChatRunRun{
+			ChatRunID: run.ChatRunID,
+			ChatID:    run.ChatID,
 			Input:     run.Input,
 			Status:    run.Status,
 			CreatedAt: run.CreatedAt,
 		},
-		Task: workerapi.TaskRunTask{
-			TaskID:      task.TaskID,
-			WorkspaceID: task.WorkspaceID,
-			SessionID:   task.SessionID,
-			LastRunID:   task.LastRunID,
+		Chat: workerapi.ChatRunChat{
+			ChatID:      chat.ChatID,
+			WorkspaceID: chat.WorkspaceID,
+			SessionID:   chat.SessionID,
+			LastRunID:   chat.LastRunID,
 		},
 	})
 }
 
-// patchWorkerTaskRunHandler handles PATCH /api/worker/task-runs/{run_id}. Updates run status; on SUCCEEDED with artifact calls OnRunComplete, on FAILED calls SyncTaskFromRun.
-func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Request) {
-	runID := r.PathValue("run_id")
-	if runID == "" {
-		writeJSONError(w, http.StatusBadRequest, "run_id required")
+// patchWorkerChatRunHandler handles PATCH /api/worker/chat-runs/{chat_run_id}. Updates run status; on SUCCEEDED with artifact calls OnRunComplete, on FAILED calls SyncChatFromRun.
+func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Request) {
+	chatRunID := r.PathValue("chat_run_id")
+	if chatRunID == "" {
+		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.TaskRunStore, "task runs not configured") {
+	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
 		return
 	}
-	var req workerapi.PatchTaskRunRequest
+	var req workerapi.PatchChatRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
@@ -64,9 +64,9 @@ func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	if req.Status == workerapi.StatusRunning {
-		updated, err := s.cfg.TaskRunStore.UpdateTaskRunStatusIf(r.Context(), runID, workerapi.StatusScheduled, workerapi.StatusRunning, req.StartedAt, nil, nil, nil, req.SessionID)
+		updated, err := s.cfg.ChatRunStore.UpdateChatRunStatusIf(r.Context(), chatRunID, workerapi.StatusScheduled, workerapi.StatusRunning, req.StartedAt, nil, nil, nil, req.SessionID)
 		if err != nil {
-			writeInternalError(w, err, "handler", "patch_worker_task_run", "run_id", runID)
+			writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 			return
 		}
 		if !updated {
@@ -74,18 +74,18 @@ func (s *Server) patchWorkerTaskRunHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	} else {
-		if err := s.cfg.TaskRunStore.UpdateTaskRunStatus(r.Context(), runID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID); err != nil {
-			writeInternalError(w, err, "handler", "patch_worker_task_run", "run_id", runID)
+		if err := s.cfg.ChatRunStore.UpdateChatRunStatus(r.Context(), chatRunID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID); err != nil {
+			writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 			return
 		}
 		if req.Status == workerapi.StatusSucceeded && req.Artifact != nil && req.Artifact.ArtifactID != "" && req.Artifact.RelativePath != "" {
-			if err := s.cfg.TaskRunStore.OnRunComplete(r.Context(), runID, req.Artifact.ArtifactID, req.Artifact.RelativePath); err != nil {
-				writeInternalError(w, err, "handler", "patch_worker_task_run_on_complete", "run_id", runID)
+			if err := s.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, req.Artifact.ArtifactID, req.Artifact.RelativePath); err != nil {
+				writeInternalError(w, err, "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
 				return
 			}
 		} else if req.Status == workerapi.StatusFailed {
-			if err := s.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), runID); err != nil {
-				writeInternalError(w, err, "handler", "patch_worker_task_run_sync", "run_id", runID)
+			if err := s.cfg.ChatRunStore.SyncChatFromRun(r.Context(), chatRunID); err != nil {
+				writeInternalError(w, err, "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
 				return
 			}
 		}

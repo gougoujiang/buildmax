@@ -1,16 +1,16 @@
 import { useState } from "react"
-import type { Artifact, Task, ViewArtifactParams } from "../lib/types"
+import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
 import { navigate } from "../router"
-import { createTask } from "../lib/api"
-import { taskStatusIcon } from "../lib/taskStatus"
+import { createChat } from "../lib/api"
+import { chatStatusIcon } from "../lib/taskStatus"
 import { PromptArea } from "../components/PromptArea"
 
 interface WorkspaceHomeProps {
   workspaceId: string
-  workspaceTasks: Task[]
+  workspaceChats: Chat[]
   artifacts: Artifact[]
   token?: string
-  onRefetchWorkspaceTasks?: () => void
+  onRefetchWorkspaceChats?: () => void
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
@@ -18,10 +18,10 @@ const RECENT_CHATS = 5
 
 export function WorkspaceHome({
   workspaceId,
-  workspaceTasks,
+  workspaceChats,
   artifacts,
   token,
-  onRefetchWorkspaceTasks,
+  onRefetchWorkspaceChats,
   onViewArtifact,
 }: WorkspaceHomeProps) {
   const [prompt, setPrompt] = useState("")
@@ -34,18 +34,18 @@ export function WorkspaceHome({
     setRunning(true)
     setRunError(null)
     try {
-      const task = await createTask(workspaceId, { input }, token)
+      const chat = await createChat(workspaceId, { input }, token)
       setPrompt("")
-      onRefetchWorkspaceTasks?.()
-      navigate({ name: "chat", workspaceId, taskId: task.id })
+      onRefetchWorkspaceChats?.()
+      navigate({ name: "chat", workspaceId, chatId: chat.id })
     } catch (err) {
-      setRunError(err instanceof Error ? err.message : "Failed to start task")
+      setRunError(err instanceof Error ? err.message : "Failed to start chat")
     } finally {
       setRunning(false)
     }
   }
 
-  const recentChats = workspaceTasks.slice(0, RECENT_CHATS)
+  const recentChats = workspaceChats.slice(0, RECENT_CHATS)
 
   return (
     <div className="page-workspace">
@@ -67,23 +67,23 @@ export function WorkspaceHome({
           <p className="page-workspace__empty">No chats yet. Start one above or use New Chat in the sidebar.</p>
         ) : (
           <ul className="page-workspace__list">
-            {recentChats.map((task) => (
-              <li key={task.id} className="page-workspace__chat-card">
+            {recentChats.map((chat) => (
+              <li key={chat.id} className="page-workspace__chat-card">
                 <button
                   type="button"
                   className="page-workspace__chat-link"
                   onClick={() =>
-                    navigate({ name: "chat", workspaceId, taskId: task.id })
+                    navigate({ name: "chat", workspaceId, chatId: chat.id })
                   }
                 >
                   <span className="page-workspace__chat-name">
-                    {task.title?.trim() || "New chat"}
+                    {chat.title?.trim() || "New chat"}
                   </span>
                   <span className="page-workspace__chat-status">
-                    {taskStatusIcon(task.status)}
+                    {chatStatusIcon(chat.status)}
                   </span>
                   <span className="page-workspace__chat-time">
-                    {task.timeLabel}
+                    {chat.timeLabel}
                   </span>
                 </button>
               </li>

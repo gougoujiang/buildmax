@@ -9,20 +9,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// Store implements UserStore, WorkspaceStore, TaskStore, and ArtifactStore with a MySQL backend.
+// Store implements UserStore, WorkspaceStore, ChatStore, ChatRunStore, and ArtifactStore with a MySQL backend.
 type Store struct {
 	db *gorm.DB
 }
 
-// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Agent, Task, TaskRun, Artifact, and ArtifactItem.
+// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Agent, Chat, ChatRun, Artifact, and ArtifactItem.
 // The context can be used for connection timeout; the returned Store holds the DB for the process lifetime.
-// Table names are singular (user, workspace, task). Existing DBs with plural tables require a one-time migration.
+// Table names are singular (user, workspace, chat). Existing DBs with plural tables require a one-time migration.
 func New(ctx context.Context, dsn string) (*Store, error) {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Task{}, &TaskRun{}, &Artifact{}, &ArtifactItem{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &Artifact{}, &ArtifactItem{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil

@@ -14,26 +14,28 @@ import (
 // ArtifactResponse is one artifact in the list response (snake_case).
 type ArtifactResponse struct {
 	ArtifactID       string `json:"artifact_id"`
-	TaskID           string `json:"task_id"`
+	ChatID           string `json:"chat_id"`
+	ChatRunID        string `json:"chat_run_id"`
 	WorkspaceID      string `json:"workspace_id"`
 	CreatedAt        int64  `json:"created_at"`
 	Seq              int    `json:"seq"`
-	TaskInputSnippet string `json:"task_input_snippet"`
+	ChatInputSnippet string `json:"chat_input_snippet"`
 }
 
-func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
+func artifactWithChatToResponse(a model.ArtifactWithChat) ArtifactResponse {
 	return ArtifactResponse{
 		ArtifactID:       a.ArtifactID,
-		TaskID:           a.TaskID,
+		ChatID:           a.ChatID,
+		ChatRunID:        a.ChatRunID,
 		WorkspaceID:      a.WorkspaceID,
 		CreatedAt:        a.CreatedAt,
 		Seq:              a.Seq,
-		TaskInputSnippet: a.TaskInputSnippet,
+		ChatInputSnippet: a.ChatInputSnippet,
 	}
 }
 
 // listWorkspaceArtifactsHandler handles GET /api/workspaces/{workspace_id}/artifacts.
-// Optional query param: task_id.
+// Optional query param: chat_id.
 func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -42,18 +44,18 @@ func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Re
 	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") {
 		return
 	}
-	var taskIDPtr *string
-	if tid := r.URL.Query().Get("task_id"); tid != "" {
-		taskIDPtr = &tid
+	var chatIDPtr *string
+	if cid := r.URL.Query().Get("chat_id"); cid != "" {
+		chatIDPtr = &cid
 	}
-	list, err := s.cfg.ArtifactStore.ListArtifactsByWorkspace(r.Context(), workspaceID, taskIDPtr)
+	list, err := s.cfg.ArtifactStore.ListArtifactsByWorkspace(r.Context(), workspaceID, chatIDPtr)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_artifacts", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]ArtifactResponse, len(list))
 	for i := range list {
-		out[i] = artifactWithTaskToResponse(list[i])
+		out[i] = artifactWithChatToResponse(list[i])
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -70,7 +72,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") || !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") {
+	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") || !s.requireStore(w, s.cfg.ChatStore, "chats not configured") {
 		return
 	}
 	artifactID := r.PathValue("artifact_id")
@@ -87,7 +89,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	if _, ok := s.getTaskForWorkspace(w, r, workspaceID, artifact.TaskID); !ok {
+	if _, ok := s.getChatForWorkspace(w, r, workspaceID, artifact.ChatID); !ok {
 		return
 	}
 	items, err := s.cfg.ArtifactStore.ListArtifactItems(r.Context(), artifactID)
@@ -113,7 +115,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") || !s.requireStore(w, s.cfg.TaskStore, "tasks not configured") || !s.requireStore(w, s.cfg.ArtifactStorage, "artifact storage not configured") {
+	if !s.requireStore(w, s.cfg.ArtifactStore, "artifacts not configured") || !s.requireStore(w, s.cfg.ChatStore, "chats not configured") || !s.requireStore(w, s.cfg.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
 	artifactID := r.PathValue("artifact_id")
@@ -130,7 +132,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	task, ok := s.getTaskForWorkspace(w, r, workspaceID, artifact.TaskID)
+	_, ok = s.getChatForWorkspace(w, r, workspaceID, artifact.ChatID)
 	if !ok {
 		return
 	}
@@ -162,8 +164,8 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
 		return
 	}
-	// Current layout: only result.md is stored; serve via ArtifactStorage (path includes task_run_id).
-	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, task.TaskID, artifact.TaskRunID, artifactID)
+	// Current layout: only result.md is stored; serve via ArtifactStorage (path includes chat_run_id).
+	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, artifact.ChatID, artifact.ChatRunID, artifactID)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "artifact content not found")

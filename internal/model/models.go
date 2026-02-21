@@ -32,12 +32,12 @@ type Workspace struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (Workspace) TableName() string { return "workspace" }
 
-// Task is the task model. JSON uses snake_case per project convention.
-// API exposes task_id as "id". Task holds denormalized "last run" state (status, output, etc.)
+// Chat is the chat model. JSON uses snake_case per project convention.
+// API exposes chat_id as "id". Chat holds denormalized "last run" state (status, output, etc.)
 // and LastRunID for conversation/artifact lookup. Input is the initial (first run) prompt.
-type Task struct {
+type Chat struct {
 	ID              uint    `gorm:"primaryKey;autoIncrement" json:"-"`
-	TaskID          string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"task_id"`
+	ChatID          string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"chat_id"`
 	WorkspaceID     string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
 	Status          string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input           string  `gorm:"type:text;not null" json:"input"`
@@ -45,20 +45,20 @@ type Task struct {
 	Output          *string `gorm:"type:text" json:"output,omitempty"`
 	CreatedBy       string  `gorm:"type:varchar(64);not null" json:"created_by"`
 	CreatedAt       int64   `gorm:"autoCreateTime" json:"created_at"`
-	StartedAt      *int64  `gorm:"" json:"started_at,omitempty"`
-	EndedAt        *int64  `gorm:"" json:"ended_at,omitempty"`
-	ErrorMessage   *string `gorm:"type:text" json:"error_message,omitempty"`
-	SessionID      *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
-	LastRunID      *string `gorm:"type:varchar(64);index" json:"last_run_id,omitempty"`
-	ArtifactSeq    int     `gorm:"column:artifact_seq" json:"artifact_seq"`
-	LastArtifactID *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
+	StartedAt       *int64  `gorm:"" json:"started_at,omitempty"`
+	EndedAt         *int64  `gorm:"" json:"ended_at,omitempty"`
+	ErrorMessage    *string `gorm:"type:text" json:"error_message,omitempty"`
+	SessionID       *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
+	LastRunID       *string `gorm:"type:varchar(64);index" json:"last_run_id,omitempty"`
+	ArtifactSeq     int     `gorm:"column:artifact_seq" json:"artifact_seq"`
+	LastArtifactID  *string `gorm:"type:varchar(64)" json:"last_artifact_id,omitempty"`
 }
 
-// TaskRun is one execution (initial or follow-up) of a task. Status: PENDING → SCHEDULED → RUNNING → SUCCEEDED | FAILED.
-type TaskRun struct {
+// ChatRun is one execution (initial or follow-up) of a chat. Status: PENDING → SCHEDULED → RUNNING → SUCCEEDED | FAILED.
+type ChatRun struct {
 	ID              uint    `gorm:"primaryKey;autoIncrement" json:"-"`
-	RunID           string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"run_id"`
-	TaskID          string  `gorm:"type:varchar(64);not null;index" json:"task_id"`
+	ChatRunID       string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"chat_run_id"`
+	ChatID          string  `gorm:"type:varchar(64);not null;index" json:"chat_id"`
 	Input           string  `gorm:"type:text;not null" json:"input"`
 	Status          string  `gorm:"type:varchar(32);not null" json:"status"`
 	Output          *string `gorm:"type:text" json:"output,omitempty"`
@@ -73,16 +73,16 @@ type TaskRun struct {
 }
 
 // TableName returns the table name for GORM (singular).
-func (TaskRun) TableName() string { return "task_run" }
+func (ChatRun) TableName() string { return "chat_run" }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (Task) TableName() string { return "task" }
+func (Chat) TableName() string { return "chat" }
 
-// Artifact is the artifact model (one per task run output). JSON uses snake_case.
+// Artifact is the artifact model (one per chat run output). JSON uses snake_case.
 type Artifact struct {
 	ID         uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	TaskID     string `gorm:"type:varchar(64);not null;index" json:"task_id"`
-	TaskRunID  string `gorm:"type:varchar(64);not null;index" json:"task_run_id"`
+	ChatID     string `gorm:"type:varchar(64);not null;index" json:"chat_id"`
+	ChatRunID  string `gorm:"type:varchar(64);not null;index" json:"chat_run_id"`
 	ArtifactID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"artifact_id"`
 	CreatedAt  int64  `gorm:"autoCreateTime" json:"created_at"`
 	Seq        int    `gorm:"not null" json:"seq"`
@@ -101,7 +101,7 @@ type ArtifactItem struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (ArtifactItem) TableName() string { return "artifact_item" }
 
-// Agent is the agent model (workspace-scoped persona/task template). JSON uses snake_case.
+// Agent is the agent model (workspace-scoped persona). JSON uses snake_case.
 // Internal DB numeric id is not exposed; API uses agent_id.
 type Agent struct {
 	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
@@ -116,14 +116,13 @@ type Agent struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (Agent) TableName() string { return "agent" }
 
-// ArtifactWithTask is a DTO for listing artifacts with task/run context (not a table). JSON uses snake_case.
-type ArtifactWithTask struct {
+// ArtifactWithChat is a DTO for listing artifacts with chat/run context (not a table). JSON uses snake_case.
+type ArtifactWithChat struct {
 	ArtifactID       string `json:"artifact_id"`
-	TaskID           string `json:"task_id"`
-	TaskRunID        string `json:"task_run_id"`
-	WorkspaceID      string `json:"workspace_id"`
-	CreatedAt        int64  `json:"created_at"`
-	Seq              int    `json:"seq"`
-	TaskInputSnippet string `json:"task_input_snippet"`
+	ChatID            string `json:"chat_id"`
+	ChatRunID         string `json:"chat_run_id"`
+	WorkspaceID       string `json:"workspace_id"`
+	CreatedAt         int64  `json:"created_at"`
+	Seq               int    `json:"seq"`
+	ChatInputSnippet  string `json:"chat_input_snippet"`
 }
-

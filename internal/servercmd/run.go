@@ -17,12 +17,12 @@ import (
 	"buildmax/internal/storage/setup"
 )
 
-// taskTitleGenAdapter implements server.TaskTitleGenerator using session.GenerateTitleFromInput and an LLM client.
-type taskTitleGenAdapter struct {
+// chatTitleGenAdapter implements server.ChatTitleGenerator using session.GenerateTitleFromInput and an LLM client.
+type chatTitleGenAdapter struct {
 	client *llm.Client
 }
 
-func (a *taskTitleGenAdapter) GenerateTaskTitle(ctx context.Context, input string) (string, error) {
+func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, error) {
 	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
 		content, _, err := a.client.ChatWithTools(ctx, msgs, nil)
 		return content, err
@@ -73,18 +73,18 @@ func RunServer(ctx context.Context, port int) error {
 		UserStore:       st,
 		WorkspaceStore:  st,
 		AgentStore:      st,
-		TaskStore:       st,
-		TaskRunStore:     st,
-		ArtifactStore:    st,
-		PersistStorage:   persistStorage,
-		ArtifactStorage:  artifactStorage,
-		WorkspacesDir:    workspacesDir,
-		JWTSecret:        serverEnv.JWTSecret,
-		CORSOrigin:       serverEnv.CORSOrigin,
-		WorkerToken:      config.WorkerToken(),
+		ChatStore:       st,
+		ChatRunStore:    st,
+		ArtifactStore:   st,
+		PersistStorage:  persistStorage,
+		ArtifactStorage: artifactStorage,
+		WorkspacesDir:   workspacesDir,
+		JWTSecret:       serverEnv.JWTSecret,
+		CORSOrigin:      serverEnv.CORSOrigin,
+		WorkerToken:     config.WorkerToken(),
 	}
 	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
-		cfg.TaskTitleGenerator = &taskTitleGenAdapter{client: llm.NewClient(llmCfg)}
+		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llm.NewClient(llmCfg)}
 	}
 	var runner executor.WorkerRunner
 	switch config.WorkerRunMode() {

@@ -96,16 +96,16 @@ func (m *mockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name str
 	return &w, nil
 }
 
-// mockTaskStore is an in-memory TaskStore for tests.
-type mockTaskStore struct {
-	list      []entity.Task
+// mockChatStore is an in-memory ChatStore for tests.
+type mockChatStore struct {
+	list      []entity.Chat
 	listErr   error
-	create    *entity.Task
+	create    *entity.Chat
 	createErr error
 }
 
-func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, order string) ([]entity.Task, error) {
-	list, _, err := m.ListTasksByWorkspacePaginated(context.Background(), workspaceID, false, 0, 0)
+func (m *mockChatStore) ListChatsByWorkspace(_ context.Context, workspaceID string, order string) ([]entity.Chat, error) {
+	list, _, err := m.ListChatsByWorkspacePaginated(context.Background(), workspaceID, false, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -117,19 +117,19 @@ func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID stri
 	return list, nil
 }
 
-func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]entity.Task, int, error) {
+func (m *mockChatStore) ListChatsByWorkspacePaginated(_ context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]entity.Chat, int, error) {
 	if m.listErr != nil {
 		return nil, 0, m.listErr
 	}
-	var filtered []entity.Task
-	for _, t := range m.list {
-		if t.WorkspaceID != workspaceID {
+	var filtered []entity.Chat
+	for _, c := range m.list {
+		if c.WorkspaceID != workspaceID {
 			continue
 		}
-		if executedOnly && (t.LastRunID == nil || *t.LastRunID == "") {
+		if executedOnly && (c.LastRunID == nil || *c.LastRunID == "") {
 			continue
 		}
-		filtered = append(filtered, t)
+		filtered = append(filtered, c)
 	}
 	// Sort by created_at DESC (simple reverse by index if already ascending in list)
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -137,7 +137,7 @@ func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspa
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []entity.Task{}, total, nil
+		return []entity.Chat{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 {
@@ -149,15 +149,15 @@ func (m *mockTaskStore) ListTasksByWorkspacePaginated(_ context.Context, workspa
 	return filtered[offset:end], total, nil
 }
 
-func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID, input, title, createdBy string) (*entity.Task, error) {
+func (m *mockChatStore) CreateChat(_ context.Context, workspaceID, input, title, createdBy string) (*entity.Chat, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	if m.create != nil {
 		return m.create, nil
 	}
-	return &entity.Task{
-		TaskID:      "task-uuid-1",
+	return &entity.Chat{
+		ChatID:      "chat-uuid-1",
 		WorkspaceID: workspaceID,
 		Status:      "PENDING",
 		Input:       input,
@@ -167,7 +167,7 @@ func (m *mockTaskStore) CreateTask(_ context.Context, workspaceID, input, title,
 	}, nil
 }
 
-func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*entity.Task, error) {
+func (m *mockChatStore) GetChatBySessionID(_ context.Context, sessionID string) (*entity.Chat, error) {
 	for i := range m.list {
 		if m.list[i].SessionID != nil && *m.list[i].SessionID == sessionID {
 			return &m.list[i], nil
@@ -176,9 +176,9 @@ func (m *mockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+func (m *mockChatStore) UpdateChatStatus(_ context.Context, chatID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
 	for i := range m.list {
-		if m.list[i].TaskID == taskID {
+		if m.list[i].ChatID == chatID {
 			m.list[i].Status = status
 			if startedAt != nil {
 				m.list[i].StartedAt = startedAt
@@ -201,9 +201,9 @@ func (m *mockTaskStore) UpdateTaskStatus(_ context.Context, taskID, status strin
 	return nil
 }
 
-func (m *mockTaskStore) UpdateTaskStatusIf(_ context.Context, taskID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+func (m *mockChatStore) UpdateChatStatusIf(_ context.Context, chatID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
 	for i := range m.list {
-		if m.list[i].TaskID == taskID && m.list[i].Status == expectedStatus {
+		if m.list[i].ChatID == chatID && m.list[i].Status == expectedStatus {
 			m.list[i].Status = newStatus
 			if startedAt != nil {
 				m.list[i].StartedAt = startedAt
@@ -226,9 +226,9 @@ func (m *mockTaskStore) UpdateTaskStatusIf(_ context.Context, taskID, expectedSt
 	return false, nil
 }
 
-func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int, error) {
+func (m *mockChatStore) IncrementChatSeq(_ context.Context, chatID string) (int, error) {
 	for i := range m.list {
-		if m.list[i].TaskID == taskID {
+		if m.list[i].ChatID == chatID {
 			m.list[i].ArtifactSeq++
 			return m.list[i].ArtifactSeq, nil
 		}
@@ -236,37 +236,37 @@ func (m *mockTaskStore) IncrementTaskSeq(_ context.Context, taskID string) (int,
 	return 0, nil
 }
 
-func (m *mockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task, error) {
+func (m *mockChatStore) GetChat(_ context.Context, chatID string) (*entity.Chat, error) {
 	for i := range m.list {
-		if m.list[i].TaskID == taskID {
+		if m.list[i].ChatID == chatID {
 			return &m.list[i], nil
 		}
 	}
 	return nil, nil
 }
 
-// mockTaskRunStore is an in-memory TaskRunStore for tests. Uses runs list and taskList to resolve GetTaskRunWithTask.
-type mockTaskRunStore struct {
-	runs     []entity.TaskRun
-	taskList []entity.Task // tasks by task_id for GetTaskRunWithTask
+// mockChatRunStore is an in-memory ChatRunStore for tests. Uses runs list and chatList to resolve GetChatRunWithChat.
+type mockChatRunStore struct {
+	runs     []entity.ChatRun
+	chatList []entity.Chat // chats by chat_id for GetChatRunWithChat
 }
 
-func (m *mockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy string) (*entity.TaskRun, error) {
+func (m *mockChatRunStore) CreateChatRun(_ context.Context, chatID, input, createdBy string) (*entity.ChatRun, error) {
 	return nil, nil
 }
-func (m *mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) { return nil, nil }
-func (m *mockTaskRunStore) GetTaskRun(_ context.Context, runID string) (*entity.TaskRun, error) {
+func (m *mockChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.ChatRun, error) { return nil, nil }
+func (m *mockChatRunStore) GetChatRun(_ context.Context, chatRunID string) (*entity.ChatRun, error) {
 	for i := range m.runs {
-		if m.runs[i].RunID == runID {
+		if m.runs[i].ChatRunID == chatRunID {
 			return &m.runs[i], nil
 		}
 	}
 	return nil, nil
 }
-func (m *mockTaskRunStore) GetTaskRunWithTask(_ context.Context, runID string) (*entity.TaskRun, *entity.Task, error) {
-	var run *entity.TaskRun
+func (m *mockChatRunStore) GetChatRunWithChat(_ context.Context, chatRunID string) (*entity.ChatRun, *entity.Chat, error) {
+	var run *entity.ChatRun
 	for i := range m.runs {
-		if m.runs[i].RunID == runID {
+		if m.runs[i].ChatRunID == chatRunID {
 			run = &m.runs[i]
 			break
 		}
@@ -274,18 +274,18 @@ func (m *mockTaskRunStore) GetTaskRunWithTask(_ context.Context, runID string) (
 	if run == nil {
 		return nil, nil, nil
 	}
-	var task *entity.Task
-	for i := range m.taskList {
-		if m.taskList[i].TaskID == run.TaskID {
-			task = &m.taskList[i]
+	var chat *entity.Chat
+	for i := range m.chatList {
+		if m.chatList[i].ChatID == run.ChatID {
+			chat = &m.chatList[i]
 			break
 		}
 	}
-	return run, task, nil
+	return run, chat, nil
 }
-func (m *mockTaskRunStore) UpdateTaskRunStatusIf(_ context.Context, runID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+func (m *mockChatRunStore) UpdateChatRunStatusIf(_ context.Context, chatRunID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
 	for i := range m.runs {
-		if m.runs[i].RunID == runID && m.runs[i].Status == expectedStatus {
+		if m.runs[i].ChatRunID == chatRunID && m.runs[i].Status == expectedStatus {
 			m.runs[i].Status = newStatus
 			if startedAt != nil {
 				m.runs[i].StartedAt = startedAt
@@ -298,9 +298,9 @@ func (m *mockTaskRunStore) UpdateTaskRunStatusIf(_ context.Context, runID, expec
 	}
 	return false, nil
 }
-func (m *mockTaskRunStore) UpdateTaskRunStatus(_ context.Context, runID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+func (m *mockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
 	for i := range m.runs {
-		if m.runs[i].RunID == runID {
+		if m.runs[i].ChatRunID == chatRunID {
 			m.runs[i].Status = status
 			if startedAt != nil {
 				m.runs[i].StartedAt = startedAt
@@ -322,30 +322,30 @@ func (m *mockTaskRunStore) UpdateTaskRunStatus(_ context.Context, runID, status 
 	}
 	return nil
 }
-func (m *mockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, runID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+func (m *mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
 	return nil
 }
-func (m *mockTaskRunStore) OnRunComplete(_ context.Context, runID, artifactID, relativePath string) error {
+func (m *mockChatRunStore) OnRunComplete(_ context.Context, chatRunID, artifactID, relativePath string) error {
 	return nil
 }
-func (m *mockTaskRunStore) SyncTaskFromRun(_ context.Context, runID string) error {
+func (m *mockChatRunStore) SyncChatFromRun(_ context.Context, chatRunID string) error {
 	return nil
 }
 
 // mockArtifactStore is an in-memory ArtifactStore for tests.
 type mockArtifactStore struct {
-	list      []entity.ArtifactWithTask
+	list      []entity.ArtifactWithChat
 	listErr   error
 	get       map[string]*entity.Artifact    // artifact_id -> artifact
 	getErr    error
 	listItems map[string][]entity.ArtifactItem // artifact_id -> items
 }
 
-func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, taskID, taskRunID, artifactID string, seq int, relativePath string) error {
+func (m *mockArtifactStore) CreateArtifactWithItem(_ context.Context, chatID, chatRunID, artifactID string, seq int, relativePath string) error {
 	return nil
 }
 
-func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, taskID *string) ([]entity.ArtifactWithTask, error) {
+func (m *mockArtifactStore) ListArtifactsByWorkspace(_ context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -371,20 +371,20 @@ func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID stri
 
 // mockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
 type mockArtifactStorage struct {
-	results map[string][]byte // "workspaceID/taskID/runID/artifactID" -> content
+	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content
 }
 
 func newMockArtifactStorage() *mockArtifactStorage {
 	return &mockArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, taskID, runID, artifactID string, data []byte) error {
-	m.results[workspaceID+"/"+taskID+"/"+runID+"/"+artifactID] = append([]byte(nil), data...)
+func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, chatID, chatRunID, artifactID string, data []byte) error {
+	m.results[workspaceID+"/"+chatID+"/"+chatRunID+"/"+artifactID] = append([]byte(nil), data...)
 	return nil
 }
 
-func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, taskID, runID, artifactID string) ([]byte, error) {
-	key := workspaceID + "/" + taskID + "/" + runID + "/" + artifactID
+func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
 	if data, ok := m.results[key]; ok {
 		return data, nil
 	}

@@ -1,4 +1,4 @@
-import type { Route, Task } from "../lib/types"
+import type { Route, Chat } from "../lib/types"
 import { navigate } from "../router"
 
 const CHATS_LIMIT = 5
@@ -10,15 +10,15 @@ interface LeftSidebarProps {
   workspaces: { id: string; name: string }[]
   onWorkspaceChange: (workspaceId: string) => void
   onNewWorkspace?: () => void
-  workspaceTasks: Task[]
+  workspaceChats: Chat[]
 }
 
 function isAgentsActive(route: Route): boolean {
   return route.name === "agents"
 }
 
-function isChatActive(route: Route, taskId: string): boolean {
-  return route.name === "chat" && route.taskId === taskId
+function isChatActive(route: Route, chatId: string): boolean {
+  return route.name === "chat" && route.chatId === chatId
 }
 
 export function LeftSidebar({
@@ -28,10 +28,10 @@ export function LeftSidebar({
   workspaces,
   onWorkspaceChange,
   onNewWorkspace,
-  workspaceTasks,
+  workspaceChats,
 }: LeftSidebarProps) {
-  const chats = workspaceTasks.slice(0, CHATS_LIMIT)
-  const hasMoreChats = workspaceTasks.length > CHATS_LIMIT
+  const chats = workspaceChats.slice(0, CHATS_LIMIT)
+  const hasMoreChats = workspaceChats.length > CHATS_LIMIT
 
   return (
     <aside className="sidebar" aria-label="Sidebar">
@@ -90,22 +90,22 @@ export function LeftSidebar({
           <div className="sidebar__chats">
             <span className="sidebar__heading">Chats</span>
             <ul className="sidebar__list">
-              {chats.map((task) => (
-                <li key={task.id} className="sidebar__item">
+              {chats.map((chat) => (
+                <li key={chat.id} className="sidebar__item">
                   <button
                     type="button"
                     className={
                       "sidebar__link" +
-                      (isChatActive(route, task.id) ? " sidebar__link--active" : "")
+                      (isChatActive(route, chat.id) ? " sidebar__link--active" : "")
                     }
                     onClick={() =>
-                      navigate({ name: "chat", workspaceId, taskId: task.id })
+                      navigate({ name: "chat", workspaceId, chatId: chat.id })
                     }
                   >
                     <span className="sidebar__chat-title">
-                      {task.title?.trim() || "New chat"}
+                      {chat.title?.trim() || "New chat"}
                     </span>
-                    <span className="sidebar__chat-meta">{task.timeLabel}</span>
+                    <span className="sidebar__chat-meta">{chat.timeLabel}</span>
                   </button>
                 </li>
               ))}
