@@ -1,60 +1,61 @@
 package util
 
 import (
-	"crypto/rand"
 	"math/big"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/oklog/ulid/v2"
+)
+
+// Prefix constants for prefixed IDs. Use with NewPrefixedID.
+// Semantics: u=user, w=workspace, a=agent, c=chat, r=chat run, ar=artifact, f=artifact item.
+const (
+	PrefixUser         = "u"
+	PrefixWorkspace    = "w"
+	PrefixAgent        = "a"
+	PrefixChat         = "c"
+	PrefixChatRun      = "r"
+	PrefixArtifact     = "ar"
+	PrefixArtifactItem = "f"
 )
 
 const (
-	idAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	idBase     = 36
-	idLen      = 25 // ceil(128 * log2 / log36) = 25
+	idBodyLen       = 20
+	idBase36        = 36
+	idAlphabetLower = "0123456789abcdefghijklmnopqrstuvwxyz"
 )
 
-var idBig36 = big.NewInt(idBase)
+var (
+	idBig36   = big.NewInt(idBase36)
+	idMaxBody = new(big.Int).Exp(big.NewInt(idBase36), big.NewInt(idBodyLen), nil)
+)
 
-// NewID generates a globally unique 25-character base36 ID (uppercase + digits).
-// Use for non–time-ordered entities (user, workspace, project).
-// Internally creates a UUID v4, interprets its 128 bits as a big.Int,
-// and encodes in base36.
-func NewID() string {
+// NewPrefixedID returns a string of the form "<prefix>_<body>", where body is 20
+// characters from [a-z0-9] (lowercase base36), derived from 128 bits of
+// crypto-random entropy. Ordering is by created_at; IDs are not time-ordered.
+func NewPrefixedID(prefix string) string {
 	u := uuid.New()
 	n := new(big.Int).SetBytes(u[:])
-	return encodeBase36(n)
+	n.Mod(n, idMaxBody)
+	return prefix + "_" + encodeBase36Lower(n, idBodyLen)
 }
 
-// encodeBase36 converts a non-negative big.Int to a base36 string,
-// zero-padded to idLen characters.
-func encodeBase36(n *big.Int) string {
-	if n.Sign() == 0 {
-		buf := make([]byte, idLen)
-		for i := range buf {
-			buf[i] = idAlphabet[0]
-		}
-		return string(buf)
+// encodeBase36Lower encodes a non-negative big.Int to a base36 string (0-9, a-z),
+// zero-padded to length characters.
+func encodeBase36Lower(n *big.Int, length int) string {
+	if n.Sign() < 0 {
+		n = new(big.Int).Set(n)
+		n.Neg(n)
 	}
-
-	buf := make([]byte, idLen)
+	buf := make([]byte, length)
 	for i := range buf {
-		buf[i] = idAlphabet[0]
+		buf[i] = idAlphabetLower[0]
 	}
-
 	mod := new(big.Int)
-	pos := idLen - 1
-	for n.Sign() > 0 {
+	pos := length - 1
+	for n.Sign() > 0 && pos >= 0 {
 		n.DivMod(n, idBig36, mod)
-		buf[pos] = idAlphabet[mod.Int64()]
+		buf[pos] = idAlphabetLower[mod.Int64()]
 		pos--
 	}
 	return string(buf)
-}
-
-// NewULID generates a 26-character ULID (time-ordered, lexicographically sortable).
-// Use for time-ordered entities (task_id, artifact_id).
-func NewULID() string {
-	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 }

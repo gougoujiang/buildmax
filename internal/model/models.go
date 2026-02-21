@@ -93,9 +93,10 @@ func (Artifact) TableName() string { return "artifact" }
 
 // ArtifactItem is one file in an artifact. JSON uses snake_case.
 type ArtifactItem struct {
-	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	ArtifactID   string `gorm:"type:varchar(64);not null;index" json:"artifact_id"`
-	RelativePath string `gorm:"type:varchar(512);not null" json:"relative_path"`
+	ID             uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	ArtifactItemID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"artifact_item_id"`
+	ArtifactID     string `gorm:"type:varchar(64);not null;index" json:"artifact_id"`
+	RelativePath   string `gorm:"type:varchar(512);not null" json:"relative_path"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).

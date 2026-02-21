@@ -3,37 +3,46 @@ package util
 import (
 	"strings"
 	"testing"
-
-	"github.com/oklog/ulid/v2"
 )
 
-func TestNewID(t *testing.T) {
-	const wantLen = 25
-	const allowedChars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+func TestNewPrefixedID(t *testing.T) {
+	const bodyLen = 20
+	const allowedChars = "0123456789abcdefghijklmnopqrstuvwxyz"
 
-	for i := 0; i < 100; i++ {
-		id := NewID()
-		if len(id) != wantLen {
-			t.Errorf("NewID() length = %d, want %d", len(id), wantLen)
-		}
-		for _, c := range id {
-			if !strings.ContainsRune(allowedChars, c) {
-				t.Errorf("NewID() contains invalid char %q", c)
+	for _, prefix := range []string{PrefixUser, PrefixWorkspace, "ar"} {
+		t.Run("prefix_"+prefix, func(t *testing.T) {
+			seen := make(map[string]bool)
+			for i := 0; i < 100; i++ {
+				id := NewPrefixedID(prefix)
+				parts := strings.SplitN(id, "_", 2)
+				if len(parts) != 2 || parts[0] != prefix {
+					t.Errorf("NewPrefixedID(%q) = %q, want prefix %q_<body>", prefix, id, prefix)
+				}
+				body := parts[1]
+				if len(body) != bodyLen {
+					t.Errorf("body length = %d, want %d", len(body), bodyLen)
+				}
+				for _, c := range body {
+					if !strings.ContainsRune(allowedChars, c) {
+						t.Errorf("body contains invalid char %q", c)
+					}
+				}
+				if seen[id] {
+					t.Errorf("duplicate ID %q", id)
+				}
+				seen[id] = true
 			}
-		}
+		})
 	}
 }
 
-func TestNewULID(t *testing.T) {
-	const wantLen = 26
-
-	for i := 0; i < 100; i++ {
-		s := NewULID()
-		if len(s) != wantLen {
-			t.Errorf("NewULID() length = %d, want %d", len(s), wantLen)
+func TestNewPrefixedID_Uniqueness(t *testing.T) {
+	seen := make(map[string]bool)
+	for i := 0; i < 1000; i++ {
+		id := NewPrefixedID(PrefixChat)
+		if seen[id] {
+			t.Fatalf("collision at iteration %d: %q", i, id)
 		}
-		if _, err := ulid.Parse(s); err != nil {
-			t.Errorf("NewULID() = %q: parse error: %v", s, err)
-		}
+		seen[id] = true
 	}
 }

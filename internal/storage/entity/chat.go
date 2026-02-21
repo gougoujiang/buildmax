@@ -74,8 +74,8 @@ func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat
 // CreateChat creates a new chat and its first ChatRun (PENDING) in one transaction. Returns the chat with last_run_id set.
 func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, createdBy string) (*Chat, error) {
 	now := time.Now().Unix()
-	chatID := util.NewULID()
-	chatRunID := util.NewULID()
+	chatID := util.NewPrefixedID(util.PrefixChat)
+	chatRunID := util.NewPrefixedID(util.PrefixChatRun)
 	c := &Chat{
 		ChatID:      chatID,
 		WorkspaceID: workspaceID,

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
@@ -24,8 +25,9 @@ func (s *Store) CreateArtifactWithItem(ctx context.Context, chatID, chatRunID, a
 			return err
 		}
 		item := ArtifactItem{
-			ArtifactID:   artifactID,
-			RelativePath: relativePath,
+			ArtifactItemID: util.NewPrefixedID(util.PrefixArtifactItem),
+			ArtifactID:     artifactID,
+			RelativePath:   relativePath,
 		}
 		if err := tx.Create(&item).Error; err != nil {
 			return err

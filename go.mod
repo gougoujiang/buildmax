@@ -14,7 +14,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/k3a/html2text v1.3.0
-	github.com/oklog/ulid/v2 v2.1.1
 	github.com/sashabaranov/go-openai v1.23.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1

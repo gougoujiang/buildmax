@@ -18,7 +18,7 @@ func (s *Store) EnsureDefaultWorkspaceForUser(ctx context.Context, userID string
 		return nil
 	}
 	w := Workspace{
-		WorkspaceID: util.NewID(),
+		WorkspaceID: util.NewPrefixedID(util.PrefixWorkspace),
 		OwnerUserID: userID,
 		Name:        "Default",
 		CreatedAt:   time.Now().Unix(),
@@ -43,7 +43,7 @@ func (s *Store) WorkspaceBelongsToUser(ctx context.Context, workspaceID, userID 
 // CreateWorkspace creates a new workspace for the user and returns it.
 func (s *Store) CreateWorkspace(ctx context.Context, userID, name string) (*Workspace, error) {
 	w := &Workspace{
-		WorkspaceID: util.NewID(),
+		WorkspaceID: util.NewPrefixedID(util.PrefixWorkspace),
 		OwnerUserID: userID,
 		Name:        name,
 		CreatedAt:   time.Now().Unix(),

@@ -20,7 +20,7 @@ func (s *Store) CreateChatRun(ctx context.Context, chatID, input, createdBy stri
 		return nil, ErrRunInProgress
 	}
 	run := &ChatRun{
-		ChatRunID:  util.NewULID(),
+		ChatRunID:  util.NewPrefixedID(util.PrefixChatRun),
 		ChatID:     chatID,
 		Input:      input,
 		Status:     "PENDING",
@@ -184,7 +184,7 @@ func (s *Store) OnRunComplete(ctx context.Context, chatRunID, artifactID, relati
 		if err := tx.Create(&art).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&ArtifactItem{ArtifactID: artifactID, RelativePath: relativePath}).Error; err != nil {
+		if err := tx.Create(&ArtifactItem{ArtifactItemID: util.NewPrefixedID(util.PrefixArtifactItem), ArtifactID: artifactID, RelativePath: relativePath}).Error; err != nil {
 			return err
 		}
 		// Update chat denormalized from run (worker_type, k8s_* live only on chat_run)

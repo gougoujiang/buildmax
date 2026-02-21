@@ -134,7 +134,7 @@ func reportRunFailure(ctx context.Context, chatRunID string, err error, updater 
 }
 
 func reportRunSuccess(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, endTime int64, outputStr, resultFilename string, output []byte, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
-	artifactID := util.NewULID()
+	artifactID := util.NewPrefixedID(util.PrefixArtifact)
 	if putErr := artifactStorage.PutResult(ctx, chat.WorkspaceID, chat.ChatID, run.ChatRunID, artifactID, output); putErr != nil {
 		slog.Error("executor: failed to write result to artifact storage", "chat_run_id", run.ChatRunID, "err", putErr)
 	}

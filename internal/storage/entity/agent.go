@@ -32,7 +32,7 @@ func (s *Store) ListAgentsByWorkspace(ctx context.Context, workspaceID string) (
 // CreateAgent inserts a new agent and returns it.
 func (s *Store) CreateAgent(ctx context.Context, workspaceID, name, description, instructions string) (*Agent, error) {
 	a := &Agent{
-		AgentID:      util.NewID(),
+		AgentID:      util.NewPrefixedID(util.PrefixAgent),
 		WorkspaceID:  workspaceID,
 		Name:         name,
 		Description:  description,

@@ -33,7 +33,7 @@ func (s *Store) CreateUser(ctx context.Context, email string) (*User, error) {
 		return nil, ErrEmailExists
 	}
 	u := User{
-		UserID:    util.NewID(),
+		UserID:    util.NewPrefixedID(util.PrefixUser),
 		Email:     email,
 		Name:      "",
 		CreatedAt: time.Now().Unix(),
