@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
 import { navigate } from "../router"
+import { getErrorMessage } from "../lib/errorMessage"
 import { createChat } from "../lib/api"
 import { chatStatusIcon } from "../lib/taskStatus"
 import { PromptArea } from "../components/PromptArea"
@@ -39,7 +40,7 @@ export function WorkspaceHome({
       onRefetchWorkspaceChats?.()
       navigate({ name: "chat", workspaceId, chatId: chat.id })
     } catch (err) {
-      setRunError(err instanceof Error ? err.message : "Failed to start chat")
+      setRunError(getErrorMessage(err, "Failed to start chat"))
     } finally {
       setRunning(false)
     }

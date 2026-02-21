@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Agent } from "../lib/types"
 import { navigate } from "../router"
+import { getErrorMessage } from "../lib/errorMessage"
 import { getAgents, createAgent, apiAgentToAgent } from "../lib/api"
 import { CreateAgentModal } from "../components/CreateAgentModal"
 
@@ -41,9 +42,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         setAgents((prev) => [...prev, apiAgentToAgent(created)])
         setModalOpen(false)
       })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to create agent")
-      )
+      .catch((err) => setError(getErrorMessage(err, "Failed to create agent")))
       .finally(() => setCreating(false))
   }
 

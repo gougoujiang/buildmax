@@ -1,19 +1,19 @@
-import { useState } from "react"
+import { getErrorMessage } from "../lib/errorMessage"
 import { getWorkspaces, type ApiWorkspace } from "../lib/api"
 import { useAsyncList } from "./useAsyncList"
 
 export function useWorkspaces(token: string | null): {
   data: ApiWorkspace[]
   loading: boolean
+  error: string | null
   refetch: () => void
 } {
-  const [loading, setLoading] = useState(true)
-  const { data, refetch } = useAsyncList(
+  const { data, loading, error, refetch } = useAsyncList(
     () => getWorkspaces(token!),
     (x) => x,
     [token],
     !!token,
-    { setLoading }
+    { errorMessage: (e) => getErrorMessage(e, "Failed to load workspaces") }
   )
-  return { data, loading, refetch }
+  return { data, loading, error, refetch }
 }

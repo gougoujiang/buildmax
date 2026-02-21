@@ -33,6 +33,22 @@ export async function throwIfNotOk(res: Response): Promise<void> {
   throw new Error(msg)
 }
 
+/** Fetch URL, check 401, throw if not ok, return JSON. Use for standard API calls. */
+export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init)
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.json() as Promise<T>
+}
+
+/** Fetch URL, check 401, throw if not ok, return text. */
+export async function requestText(url: string, init?: RequestInit): Promise<string> {
+  const res = await fetch(url, init)
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+  return res.text()
+}
+
 /**
  * API base URL.
  * - When the portal is served from buildmax.kind.local (deployed in kind), use http://buildmax-api.kind.local.

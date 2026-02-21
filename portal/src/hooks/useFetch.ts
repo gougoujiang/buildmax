@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { getErrorMessage } from "../lib/errorMessage"
 
 export interface UseFetchOptions {
   /** When false, no fetch runs and data/error are cleared. Default true. */
@@ -23,7 +24,7 @@ export function useFetch<T>(
   deps: unknown[],
   options: UseFetchOptions = {}
 ): UseFetchResult<T> {
-  const { enabled = true, errorMessage = (e) => (e instanceof Error ? e.message : "Request failed") } = options
+  const { enabled = true, errorMessage = (e) => getErrorMessage(e, "Request failed") } = options
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

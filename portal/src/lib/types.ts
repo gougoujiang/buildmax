@@ -66,8 +66,8 @@ export interface Agent {
   id: string
   workspaceId: string
   name: string
-  description: string
-  instructions: string
+  description?: string
+  instructions?: string
   createdAt: number
 }
 

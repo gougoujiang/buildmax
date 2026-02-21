@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { navigate } from "./router"
+import { getErrorMessage } from "./lib/errorMessage"
 import { createWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext"
@@ -66,7 +67,7 @@ function AppContent() {
       setShowNewWorkspace(false)
       navigate({ name: "workspace", workspaceId: ws.id })
     } catch (err) {
-      setCreateWsError(err instanceof Error ? err.message : "Failed to create workspace")
+      setCreateWsError(getErrorMessage(err, "Failed to create workspace"))
     } finally {
       setCreatingWorkspace(false)
     }

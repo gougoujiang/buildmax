@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { cn } from "../lib/cn"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { BaseModal } from "./BaseModal"
@@ -86,7 +87,7 @@ export function ArtifactContentModal({
                   <li key={item.relative_path} className="artifact-modal__file-item">
                     <button
                       type="button"
-                      className={`artifact-modal__file-link ${selectedPath === item.relative_path ? "artifact-modal__file-link--active" : ""}`}
+                      className={cn("artifact-modal__file-link", selectedPath === item.relative_path && "artifact-modal__file-link--active")}
                       onClick={() => setSelectedPath(item.relative_path)}
                     >
                       {item.relative_path}

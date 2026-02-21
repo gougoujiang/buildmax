@@ -4,7 +4,7 @@
  */
 
 import type { ExploreNode } from "../types"
-import { getApiBase, checkUnauthorized, throwIfNotOk, parseErrorResponse, UNAUTHORIZED_EVENT } from "./client"
+import { getApiBase, checkUnauthorized, parseErrorResponse, requestJson, requestText, throwIfNotOk, UNAUTHORIZED_EVENT } from "./client"
 import type {
   ApiAgent,
   ApiArtifact,
@@ -39,55 +39,46 @@ export {
   apiChatToChat,
 } from "./mappers"
 
+const jsonHeaders = { "Content-Type": "application/json" }
+
+function authHeaders(token: string) {
+  return { Authorization: `Bearer ${token}` }
+}
+
 export async function requestOtp(
   email: string,
   intent: "signup" | "login"
 ): Promise<OtpRequestResponse> {
-  const res = await fetch(`${getApiBase()}/api/otp/request`, {
+  return requestJson<OtpRequestResponse>(`${getApiBase()}/api/otp/request`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify({ email, intent }),
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<OtpRequestResponse>
 }
 
 export async function login(email: string, otp: string): Promise<LoginResponse> {
-  const res = await fetch(`${getApiBase()}/api/login`, {
+  return requestJson<LoginResponse>(`${getApiBase()}/api/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify({ email, otp }),
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<LoginResponse>
 }
 
 export async function getWorkspaces(token: string): Promise<ApiWorkspace[]> {
-  const res = await fetch(`${getApiBase()}/api/workspaces`, {
-    headers: { Authorization: `Bearer ${token}` },
+  return requestJson<ApiWorkspace[]>(`${getApiBase()}/api/workspaces`, {
+    headers: authHeaders(token),
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiWorkspace[]>
 }
 
 export async function createWorkspace(
   body: { name: string },
   token: string
 ): Promise<ApiWorkspace> {
-  const res = await fetch(`${getApiBase()}/api/workspaces`, {
+  return requestJson<ApiWorkspace>(`${getApiBase()}/api/workspaces`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiWorkspace>
 }
 
 export async function getChats(
@@ -99,12 +90,7 @@ export async function getChats(
   if (projectId) {
     url += `?project_id=${encodeURIComponent(projectId)}`
   }
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiChat[]>
+  return requestJson<ApiChat[]>(url, { headers: authHeaders(token) })
 }
 
 export interface GetChatsPaginatedOptions {
@@ -124,23 +110,17 @@ export async function getChatsPaginated(
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
   const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats${q ? `?${q}` : ""}`
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiChatsListResponse>
+  return requestJson<ApiChatsListResponse>(url, { headers: authHeaders(token) })
 }
 
 export async function getAgents(
   workspaceId: string,
   token: string
 ): Promise<ApiAgent[]> {
-  const res = await fetch(
+  return requestJson<ApiAgent[]>(
     `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: authHeaders(token) }
   )
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiAgent[]>
 }
 
 export async function createAgent(
@@ -148,20 +128,14 @@ export async function createAgent(
   body: { name: string; description?: string; instructions?: string },
   token: string
 ): Promise<ApiAgent> {
-  const res = await fetch(
+  return requestJson<ApiAgent>(
     `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { ...jsonHeaders, ...authHeaders(token) },
       body: JSON.stringify(body),
     }
   )
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiAgent>
 }
 
 export async function getChatConversation(
@@ -171,7 +145,7 @@ export async function getChatConversation(
 ): Promise<ApiSession | null> {
   const res = await fetch(
     `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/conversation`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: authHeaders(token) }
   )
   checkUnauthorized(res)
   if (res.status === 404) return null
@@ -184,17 +158,11 @@ export async function createChat(
   body: { input: string; project_id?: string },
   token: string
 ): Promise<ApiChat> {
-  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/chats`, {
+  return requestJson<ApiChat>(`${getApiBase()}/api/workspaces/${workspaceId}/chats`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiChat>
 }
 
 export async function createChatRun(
@@ -207,10 +175,7 @@ export async function createChatRun(
     `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/runs`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { ...jsonHeaders, ...authHeaders(token) },
       body: JSON.stringify(body),
     }
   )
@@ -234,12 +199,7 @@ export async function getArtifacts(
   if (options?.chatId) params.set("chat_id", options.chatId)
   const q = params.toString()
   if (q) url += `?${q}`
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiArtifact[]>
+  return requestJson<ApiArtifact[]>(url, { headers: authHeaders(token) })
 }
 
 export async function getArtifactItems(
@@ -248,12 +208,7 @@ export async function getArtifactItems(
   token: string
 ): Promise<ApiArtifactItem[]> {
   const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifactId)}/items`
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiArtifactItem[]>
+  return requestJson<ApiArtifactItem[]>(url, { headers: authHeaders(token) })
 }
 
 export async function getArtifactContent(
@@ -266,12 +221,7 @@ export async function getArtifactContent(
   if (path) {
     url += `?path=${encodeURIComponent(path)}`
   }
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.text()
+  return requestText(url, { headers: authHeaders(token) })
 }
 
 export async function uploadFiles(
@@ -289,23 +239,17 @@ export async function uploadFiles(
       formData.append("paths", p)
     }
   }
-  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/upload`, {
+  return requestJson<UploadResponse>(`${getApiBase()}/api/workspaces/${workspaceId}/upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders(token),
     body: formData,
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<UploadResponse>
 }
 
 export async function getFileTree(workspaceId: string, token: string): Promise<ExploreNode> {
-  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/files`, {
-    headers: { Authorization: `Bearer ${token}` },
+  return requestJson<ExploreNode>(`${getApiBase()}/api/workspaces/${workspaceId}/files`, {
+    headers: authHeaders(token),
   })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ExploreNode>
 }
 
 export async function getFileContent(
@@ -314,13 +258,8 @@ export async function getFileContent(
   token: string
 ): Promise<string> {
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/")
-  const res = await fetch(
+  return requestText(
     `${getApiBase()}/api/workspaces/${workspaceId}/files/${encodedPath}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
+    { headers: authHeaders(token) }
   )
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.text()
 }

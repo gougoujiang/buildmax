@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getErrorMessage } from "../lib/errorMessage"
 import { requestOtp, login } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 
@@ -18,7 +19,7 @@ export function SignUp() {
       await requestOtp(email, "signup")
       setStep("otp")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed")
+      setError(getErrorMessage(err, "Request failed"))
     } finally {
       setLoading(false)
     }
@@ -32,7 +33,7 @@ export function SignUp() {
       const res = await login(email, otp)
       setAuth(res.token, res.user)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign up failed")
+      setError(getErrorMessage(err, "Sign up failed"))
     } finally {
       setLoading(false)
     }

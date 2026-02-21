@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { cn } from "../lib/cn"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
@@ -78,7 +79,7 @@ export function Sidebar({
 
   return (
     <aside
-      className={"sidebar" + (sidebarCollapsed ? " sidebar--collapsed" : "")}
+      className={cn("sidebar", sidebarCollapsed && "sidebar--collapsed")}
       aria-label="Sidebar"
     >
       <div className="sidebar__header">
@@ -116,10 +117,7 @@ export function Sidebar({
         <div className="sidebar__section">
           <button
             type="button"
-            className={
-              "sidebar__nav-item" +
-              (route.name === "newChat" ? " sidebar__nav-item--active" : "")
-            }
+            className={cn("sidebar__nav-item", route.name === "newChat" && "sidebar__nav-item--active")}
             onClick={() => navigate({ name: "newChat", workspaceId })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
@@ -145,10 +143,7 @@ export function Sidebar({
                   <li key={chat.id} className="sidebar__item">
                     <button
                       type="button"
-                      className={
-                        "sidebar__link" +
-                        (isChatActive(route, chat.id) ? " sidebar__link--active" : "")
-                      }
+                      className={cn("sidebar__link", isChatActive(route, chat.id) && "sidebar__link--active")}
                       onClick={() =>
                         navigate({ name: "chat", workspaceId, chatId: chat.id })
                       }
@@ -174,10 +169,7 @@ export function Sidebar({
           </div>
           <button
             type="button"
-            className={
-              "sidebar__nav-item" +
-              (isAgentsActive(route) ? " sidebar__nav-item--active" : "")
-            }
+            className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
             onClick={() => navigate({ name: "agents", workspaceId })}
           >
             <AgentsIcon className="sidebar__nav-icon" aria-hidden />

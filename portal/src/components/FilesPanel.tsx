@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from "react"
 import type { ExploreNode } from "../lib/types"
 import { getChildren, findNodeById } from "../lib/explore"
+import { getErrorMessage } from "../lib/errorMessage"
+import { cn } from "../lib/cn"
 import { uploadFiles, getFileTree, getFileContent } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
@@ -24,7 +26,7 @@ export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
     [workspaceId, token],
     {
       enabled: !!token,
-      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load files"),
+      errorMessage: (e) => getErrorMessage(e, "Failed to load files"),
     }
   )
 
@@ -45,7 +47,7 @@ export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
     [workspaceId, selectedFileId, token],
     {
       enabled: !!(token && selectedFileId),
-      errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load file"),
+      errorMessage: (e) => getErrorMessage(e, "Failed to load file"),
     }
   )
 
@@ -63,62 +65,59 @@ export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
     setSelectedFileId(node.id)
   }, [])
 
-  const handleUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selected = e.target.files
-      if (!selected || selected.length === 0) return
-      if (selected.length > 10) {
-        setUploadMsg({ text: "Too many files (max 10)", isError: true })
-        if (fileInputRef.current) fileInputRef.current.value = ""
-        return
-      }
+  const doUpload = useCallback(
+    async (files: File[], paths?: string[], options?: { maxFiles?: number }) => {
       if (!token) {
         setUploadMsg({ text: "Not authenticated", isError: true })
+        return
+      }
+      const { maxFiles } = options ?? {}
+      if (maxFiles != null && files.length > maxFiles) {
+        setUploadMsg({ text: `Too many files (max ${maxFiles})`, isError: true })
         return
       }
       setUploading(true)
       setUploadMsg(null)
       try {
-        const files = Array.from(selected)
-        const res = await uploadFiles(workspaceId, files, token)
+        const res = await uploadFiles(workspaceId, files, token, paths)
         setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
         await fetchTree()
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload failed"
-        setUploadMsg({ text: msg, isError: true })
+        setUploadMsg({ text: getErrorMessage(err, "Upload failed"), isError: true })
       } finally {
         setUploading(false)
-        if (fileInputRef.current) fileInputRef.current.value = ""
       }
     },
     [workspaceId, token, fetchTree]
+  )
+
+  const handleUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files
+      if (!selected || selected.length === 0) return
+      const files = Array.from(selected)
+      try {
+        await doUpload(files, undefined, { maxFiles: 10 })
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = ""
+      }
+    },
+    [doUpload]
   )
 
   const handleFolderUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const selected = e.target.files
       if (!selected || selected.length === 0) return
-      if (!token) {
-        setUploadMsg({ text: "Not authenticated", isError: true })
-        return
-      }
-      setUploading(true)
-      setUploadMsg(null)
+      const files = Array.from(selected)
+      const paths = files.map((f) => f.webkitRelativePath)
       try {
-        const files = Array.from(selected)
-        const paths = files.map((f) => f.webkitRelativePath)
-        const res = await uploadFiles(workspaceId, files, token, paths)
-        setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
-        await fetchTree()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload failed"
-        setUploadMsg({ text: msg, isError: true })
+        await doUpload(files, paths)
       } finally {
-        setUploading(false)
         if (folderInputRef.current) folderInputRef.current.value = ""
       }
     },
-    [workspaceId, token, fetchTree]
+    [doUpload]
   )
 
   const children = tree ? getChildren(tree, selectedFolderId) : []
@@ -167,10 +166,10 @@ export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
         </button>
         {uploadMsg && (
           <span
-            className={
-              "page-explore__upload-msg" +
-              (uploadMsg.isError ? " page-explore__upload-msg--error" : "")
-            }
+            className={cn(
+              "page-explore__upload-msg",
+              uploadMsg.isError && "page-explore__upload-msg--error"
+            )}
           >
             {uploadMsg.text}
           </span>
@@ -224,7 +223,7 @@ export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
                     ) : (
                       <button
                         type="button"
-                        className={`page-explore__link ${selectedFileId === node.id ? "page-explore__link--selected" : ""}`}
+                        className={cn("page-explore__link", selectedFileId === node.id && "page-explore__link--selected")}
                         onClick={() => handleFileSelect(node)}
                       >
                         <span className="page-explore__icon page-explore__icon--file" aria-hidden>📄</span>

@@ -52,11 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const stored = loadStored()
-    setState(stored)
-  }, [])
-
-  useEffect(() => {
     function onUnauthorized() {
       logout()
     }

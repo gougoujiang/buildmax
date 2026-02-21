@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Chat } from "../lib/types"
+import { getErrorMessage } from "../lib/errorMessage"
 import { getChatConversation, createChatRun, getChats } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
@@ -75,7 +76,7 @@ export function TaskDetail({ chat, workspaceId, onRefetch }: TaskDetailProps) {
         }
       }, POLL_INTERVAL_MS)
     } catch (err) {
-      setFollowUpError(err instanceof Error ? err.message : "Failed to start run")
+      setFollowUpError(getErrorMessage(err, "Failed to start run"))
       setFollowUpLoading(false)
     }
   }

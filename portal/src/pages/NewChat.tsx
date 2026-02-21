@@ -1,5 +1,7 @@
 import { useState } from "react"
 import { navigate } from "../router"
+import { getErrorMessage } from "../lib/errorMessage"
+import { cn } from "../lib/cn"
 import { createChat } from "../lib/api"
 import { chatStatusIcon } from "../lib/taskStatus"
 import { PromptArea } from "../components/PromptArea"
@@ -41,7 +43,7 @@ export function NewChat({
       onRefetchWorkspaceChats?.()
       navigate({ name: "chat", workspaceId, chatId: chat.id })
     } catch (err) {
-      setRunError(err instanceof Error ? err.message : "Failed to start chat")
+      setRunError(getErrorMessage(err, "Failed to start chat"))
     } finally {
       setRunning(false)
     }
@@ -74,7 +76,7 @@ export function NewChat({
             aria-selected={activeTab === "chats"}
             aria-controls="new-chat-tabpanel-chats"
             id="new-chat-tab-chats"
-            className={"page-new-chat__tab" + (activeTab === "chats" ? " page-new-chat__tab--active" : "")}
+            className={cn("page-new-chat__tab", activeTab === "chats" && "page-new-chat__tab--active")}
             onClick={() => setActiveTab("chats")}
           >
             Chats
@@ -85,7 +87,7 @@ export function NewChat({
             aria-selected={activeTab === "artifacts"}
             aria-controls="new-chat-tabpanel-artifacts"
             id="new-chat-tab-artifacts"
-            className={"page-new-chat__tab" + (activeTab === "artifacts" ? " page-new-chat__tab--active" : "")}
+            className={cn("page-new-chat__tab", activeTab === "artifacts" && "page-new-chat__tab--active")}
             onClick={() => setActiveTab("artifacts")}
           >
             Artifacts
@@ -96,7 +98,7 @@ export function NewChat({
             aria-selected={activeTab === "files"}
             aria-controls="new-chat-tabpanel-files"
             id="new-chat-tab-files"
-            className={"page-new-chat__tab" + (activeTab === "files" ? " page-new-chat__tab--active" : "")}
+            className={cn("page-new-chat__tab", activeTab === "files" && "page-new-chat__tab--active")}
             onClick={() => setActiveTab("files")}
           >
             Files

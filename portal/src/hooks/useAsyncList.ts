@@ -1,36 +1,60 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { getErrorMessage } from "../lib/errorMessage"
+
+export interface UseAsyncListOptions {
+  /** Optional callback when loading state changes (e.g. for parent state). */
+  setLoading?: (loading: boolean) => void
+  /** Map caught error to message. Default: getErrorMessage(err, "Request failed"). */
+  errorMessage?: (err: unknown) => string
+}
 
 /**
  * Fetches a list when deps are valid (enabled). Clears when disabled. refetch() re-runs the fetch.
- * Uses the same fetch+map logic for both the effect and refetch to avoid duplication.
+ * Returns data, loading, error so callers can show loading and error states.
  */
 export function useAsyncList<T, U>(
   fetchFn: () => Promise<T[]>,
   map: (raw: T[]) => U[],
   deps: unknown[],
   enabled: boolean,
-  options?: { setLoading?: (loading: boolean) => void }
-): { data: U[]; refetch: () => void } {
+  options?: UseAsyncListOptions
+): { data: U[]; loading: boolean; error: string | null; refetch: () => void } {
   const [data, setData] = useState<U[]>([])
+  const [loading, setLoadingState] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const fetchFnRef = useRef(fetchFn)
   const mapRef = useRef(map)
+  const errorMessageRef = useRef(options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed")))
   fetchFnRef.current = fetchFn
   mapRef.current = map
-  const setLoading = options?.setLoading
+  errorMessageRef.current = options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed"))
 
   const runFetch = useCallback(() => {
-    setLoading?.(true)
+    setLoadingState(true)
+    setError(null)
+    options?.setLoading?.(true)
     fetchFnRef
       .current()
-      .then((raw) => setData(mapRef.current(raw)))
-      .catch(() => setData([]))
-      .finally(() => setLoading?.(false))
-  }, [setLoading])
+      .then((raw) => {
+        setData(mapRef.current(raw))
+        setError(null)
+      })
+      .catch((err) => {
+        setData([])
+        setError(errorMessageRef.current(err))
+      })
+      .finally(() => {
+        setLoadingState(false)
+        options?.setLoading?.(false)
+      })
+  }, [options?.setLoading])
 
   useEffect(() => {
     if (!enabled) {
       setData([])
-      setLoading?.(false)
+      setError(null)
+      setLoadingState(false)
+      options?.setLoading?.(false)
       return
     }
     runFetch()
@@ -42,5 +66,5 @@ export function useAsyncList<T, U>(
     runFetch()
   }, [enabled, runFetch])
 
-  return { data, refetch }
+  return { data, loading, error, refetch }
 }
