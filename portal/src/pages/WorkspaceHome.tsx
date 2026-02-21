@@ -3,7 +3,7 @@ import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { createChat } from "../lib/api"
-import { chatStatusIcon } from "../lib/taskStatus"
+import { chatStatusIcon } from "../lib/chatStatus"
 import { PromptArea } from "../components/PromptArea"
 
 interface WorkspaceHomeProps {

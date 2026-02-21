@@ -1,5 +1,5 @@
 import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
-import { chatStatusIcon } from "../lib/taskStatus"
+import { chatStatusIcon } from "../lib/chatStatus"
 import { navigate } from "../router"
 
 interface ChatsProps {
