@@ -14,7 +14,7 @@ import (
 // fileNode is the JSON shape for a directory tree node.
 type fileNode struct {
 	ID       string      `json:"id"`                 // relative path from workspace root; "." for root
-	Name     string      `json:"name"`               // base name (or "Workspace" for root)
+	Name     string      `json:"name"`               // base name (or "home" for root; uploaded files live under home/)
 	Type     string      `json:"type"`               // "folder" or "file"
 	Children []*fileNode `json:"children,omitempty"` // only for folders
 }
@@ -37,14 +37,14 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tree := buildTreeFromFileList(relPaths)
 	tree.ID = "."
-	tree.Name = "Workspace"
+	tree.Name = "home"
 	writeJSON(w, http.StatusOK, tree)
 }
 
 // buildTreeFromFileList builds a fileNode tree from a flat list of relative file paths.
 // Folders appear only when they contain at least one file.
 func buildTreeFromFileList(relPaths []string) *fileNode {
-	root := &fileNode{ID: ".", Name: "Workspace", Type: "folder", Children: []*fileNode{}}
+	root := &fileNode{ID: ".", Name: "home", Type: "folder", Children: []*fileNode{}}
 	seenDirs := make(map[string]*fileNode)
 	seenDirs[""] = root
 	sort.Strings(relPaths)

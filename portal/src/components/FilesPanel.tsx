@@ -125,7 +125,7 @@ export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
   const selectedFolderNode = tree ? findNodeById(tree, selectedFolderId) : undefined
   const folderName =
     selectedFolderId === "."
-      ? "Workspace"
+      ? "home"
       : selectedFolderNode?.name ?? "—"
 
   const selectedFileName = tree && selectedFileId
