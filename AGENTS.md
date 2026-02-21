@@ -37,7 +37,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 - **Intent over tools**: User states goals; agent operates on a versioned text workspace (Markdown, CSV, JSON, YAML). Flow: Human → Agent → Workspace → Versioned state.
 - **Agent loop**: Observe → Plan → Act → Observe. Agent reads/edits files, runs code, commits; user does not interact with files directly.
-- **Workspace model**: Workspace (context) → Project (work unit) → Task (single run). Git is the hidden version engine; user sees timeline + restore, not commits/branches.
+- **Workspace model**: Workspace (context) → Chat (conversation) → ChatRun (single run). No project entity; chats and artifacts are workspace-scoped. Git is the hidden version engine; user sees timeline + restore, not commits/branches.
 - **Principles**: Intent first; text as primary representation; state versioned and reversible; mechanisms hidden, meaning visible; workspace as the agent’s body.
 - **Mental model**: User feels “I describe what I want” and “I can always go back,” not “I am operating software” or “I am managing versions.”
 
@@ -71,12 +71,12 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 **HTTP server & Portal backend**
 - **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
-- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/workspaces`, `GET/POST /api/workspaces/{id}/projects`, `GET/POST /api/workspaces/{id}/tasks`, `GET /api/workspaces/{id}/artifacts`, `GET .../artifacts/{id}/items`, `GET .../artifacts/{id}/content`; `POST /api/workspaces/{id}/upload`, `GET /api/workspaces/{id}/files`, `GET /api/workspaces/{id}/files/{path...}`; `GET /api/sessions/{session_id}`; **worker API** (task-id-only, worker token): `GET /api/worker/tasks/{task_id}`, `PATCH /api/worker/tasks/{task_id}`. JWT auth for user API; workspace-scoped access.
-- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — User, Workspace, Project, Task, Artifact, ArtifactItem. Blob storage in `internal/storage/blob` — PersistStorage (uploads, Explore files) and ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. The **worker** accesses MinIO (or local storage) directly for materialize and artifact blobs; no proxy through server.
-- **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING tasks, spawns the **buildmax-worker** binary with `--task-id` only. **Worker** (`buildmax-worker` binary): gets task via `GET /api/worker/tasks/{task_id}`, updates status/results via `PATCH`, uses direct storage for materialize and artifacts, runs `buildmax -p` to execute the task. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
+- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/workspaces`, `GET/POST /api/workspaces/{id}/chats`, `GET /api/workspaces/{id}/artifacts`, `GET .../artifacts/{id}/items`, `GET .../artifacts/{id}/content`; `POST /api/workspaces/{id}/upload`, `GET /api/workspaces/{id}/files`, `GET /api/workspaces/{id}/files/{path...}`; `GET /api/sessions/{session_id}`; **worker API** (chat-run-id only, worker token): `GET /api/worker/chat-runs/{chat_run_id}`, `PATCH /api/worker/chat-runs/{chat_run_id}`. JWT auth for user API; workspace-scoped access.
+- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — User, Workspace, Chat, ChatRun, Artifact, ArtifactItem. Blob storage in `internal/storage/blob` — PersistStorage (workspace uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Workspace on-disk layout**: workspace root has `home/` (uploads); each chat run uses `chats/<chatID>/<chatRunID>/` with `home/` (materialized workspace home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use segment `home` for workspace uploads and `chats/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
+- **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING chat runs, spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets chat run via `GET /api/worker/chat-runs/{chat_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, runs `buildmax -p` with BUILDMAX_HOME = run `global` and cwd = run dir (so agent sees run `home/`, `artifacts/`, `global/`), writes result to run `artifacts/result.md`, uploads run `global` to blob. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Portal (web)**
-- **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), Projects, Project, Activity, TaskDetail; API client in `lib/api.ts`; AuthContext; AppShell, Sidebar, TopBar, modals (CreateWorkspace, CreateProject, ArtifactContent). Connects to Go backend for auth and workspace/project/task/artifact/file APIs.
+- **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), WorkspaceHome, Activity, TaskDetail (chat detail); API client in `lib/api.ts`; AuthContext; AppShell, Sidebar, TopBar, modals (CreateWorkspace, ArtifactContent). Sidebar: New Chat, Workspace block (switcher), Agents, Chats list, Explore, Activity. Connects to Go backend for auth and workspace/chat/artifact/file APIs (no project; chats are workspace-scoped).
 
 ### 4.2 Planned / Not yet implemented
 
@@ -93,9 +93,9 @@ buildmax/
 ├── cmd/
 │   ├── buildmax/              # CLI binary (TUI, -p, version)
 │   │   └── main.go
-│   ├── buildmax-server/       # Server binary (HTTP API + task scheduler)
+│   ├── buildmax-server/       # Server binary (HTTP API + chat-run scheduler)
 │   │   └── main.go
-│   └── buildmax-worker/       # Worker binary (runs one task via API + direct storage)
+│   └── buildmax-worker/       # Worker binary (runs one chat run via API + direct storage)
 │       └── main.go
 ├── internal/                  # Private packages (this project only)
 │   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
@@ -107,21 +107,21 @@ buildmax/
 │   ├── log/                   # slog init, BUILDMAX_LOG_LEVEL, rotated file
 │   ├── session/               # Session (id, title, history), SaveToDir, LoadFromDir, list index (sessions.json)
 │   ├── tools/                 # Tool implementations (readfile, writefile, editfile, bash, glob, grep, webfetch, todowrite, skill, agentdef, task)
-│   ├── util/                  # ID generation, workspace helpers, git, argparse
-│   ├── model/                 # Shared domain types (User, Workspace, Project, Task, Artifact, ArtifactItem, ArtifactWithTask)
+│   ├── util/                  # ID generation (prefixed IDs: u_, w_, c_, r_, ar_, f_), workspace helpers, git, argparse
+│   ├── model/                 # Shared domain types (User, Workspace, Chat, ChatRun, Artifact, ArtifactItem, ArtifactWithChat)
 │   ├── storage/               # Persistence under one namespace
-│   │   ├── entity/            # MySQL (GORM): User, Workspace, Project, Task, Artifact; interfaces and Store
-│   │   └── blob/              # Blob/file storage: PersistStorage, ArtifactStorage; local FS and S3 adapters; keys, relpath
-│   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, projects, tasks, artifacts, upload, files, sessions; static (openapi, swagger)
+│   │   ├── entity/            # MySQL (GORM): User, Workspace, Chat, ChatRun, Artifact; interfaces and Store
+│   │   └── blob/              # Blob/file storage: PersistStorage (workspace home), ArtifactStorage; local FS and S3; keys use home, chats/.../global
+│   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, chats, artifacts, upload, files, sessions; static (openapi, swagger)
 │   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewScheduler, server.Run); used by cmd/buildmax-server
-│   ├── workercmd/             # Worker startup: RunWorker (env, get task, blob storage, executor.RunTask); used by cmd/buildmax-worker
-│   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask (executor, used by worker): materialize, buildmax -p, TaskUpdater (API)
+│   ├── workercmd/             # Worker startup: RunWorker (env, get chat run via API, blob storage, executor.RunTask); used by cmd/buildmax-worker
+│   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask: run-scoped dirs (home, artifacts, global), materialize, buildmax -p, ChatRunUpdater (API)
 ├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
 │   ├── package.json           # Scripts: dev, build, preview
 │   ├── vite.config.ts         # Vite config (build out: dist/)
 │   ├── index.html             # Vite entry HTML
 │   ├── README.md              # Install, build, dev instructions
-│   └── src/                   # App, router; pages (Login, SignUp, Explore, Projects, Project, Activity, TaskDetail); components; lib (api, types); contexts (Auth)
+│   └── src/                   # App, router; pages (Login, SignUp, Explore, WorkspaceHome, Activity, TaskDetail); components; lib (api, types); contexts (Auth)
 ├── design/                    # Design docs (001-about-portal, 002-env-config, 003-store-workspacestorage-reorg)
 ├── configs/                   # Config file examples
 ├── example/                   # Example files for tools (e.g. shakespeare.txt)
@@ -136,8 +136,8 @@ buildmax/
 ```
 
 - **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`.
-- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and task scheduler (spawns `buildmax-worker` per task); use `./make run server` to build and run it.
-- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-id`; calls `workercmd.RunWorker` (get task via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env.
+- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and chat-run scheduler (spawns `buildmax-worker` per pending chat run); use `./make run server` to build and run it.
+- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--chat-run-id`; calls `workercmd.RunWorker` (get chat run via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
 - **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, internal setup for agent/session. No server subcommand.
 - **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
 - **internal/server**: HTTP API for the Portal; depends on `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
@@ -148,7 +148,7 @@ buildmax/
 ## 6. Documentation and Repository
 
 - **Task docs**: `.vibe/NNN.md` (e.g. `.vibe/001.md`); design docs `.vibe/NNN-design.md`. TOC: `.vibe/000-TOC.md`.
-- **Design docs** (in `design/`): [design/001-about-portal.md](design/001-about-portal.md) — Portal/Nexus product vision, concepts, principles, wireframe; [design/002-env-config-maintainability.md](design/002-env-config-maintainability.md) — env-based config; [design/003-store-workspacestorage-reorg.md](design/003-store-workspacestorage-reorg.md) — storage layout (entity/blob).
+- **Design docs** (in `design/`): [design/001-about-portal.md](design/001-about-portal.md) — Portal/Nexus product vision, concepts, principles, wireframe; [design/002-env-config-maintainability.md](design/002-env-config-maintainability.md) — env-based config; [design/003-store-workspacestorage-reorg.md](design/003-store-workspacestorage-reorg.md) — storage layout (entity/blob). **Workspace on-disk layout** (home, run dirs home/artifacts/global): `.vibe/075-design.md`.
 - **Env reference**: `.env.example` and `internal/config/env_spec.go` (single source of truth for env keys).
 - Code and scripts: repository root, managed with Go modules.
 
@@ -160,9 +160,13 @@ buildmax/
 
 ### 6.2 Database table naming
 
-- **Use singular table names.** One table per entity type, named in the singular (e.g. `user`, `workspace`, `project`, `task`). Do not use plural names (e.g. `users`, `workspaces`). This applies to all database tables created or migrated by the project.
+- **Use singular table names.** One table per entity type, named in the singular (e.g. `user`, `workspace`, `chat`, `chat_run`, `artifact`). Do not use plural names (e.g. `users`, `workspaces`). This applies to all database tables created or migrated by the project.
 
-### 6.3 Tool output for LLM
+### 6.3 Entity ID format
+
+- **Entity IDs use a prefixed format** `<prefix>_<body>`: prefix is a short type abbreviation (e.g. `u_` user, `w_` workspace, `a_` agent, `c_` chat, `r_` chat run, `ar_` artifact, `f_` artifact item), body is 20 characters from `[a-z0-9]` (lowercase base36). Generated via `internal/util.NewPrefixedID(prefix)`; ordering uses `created_at`, not ID. See `.vibe/074-design.md` for full semantics.
+
+### 6.4 Tool output for LLM
 
 - **Tools are built for the LLM.** The agent passes tool results back to the model as tool-role messages.
 - **Output meaningful results on both success and failure** so the LLM can understand what happened and decide on next steps (e.g. retry, inform the user, or continue).
