@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 import { createTask } from "../lib/api"
 import { PromptArea } from "../components/PromptArea"
 

@@ -1,13 +1,13 @@
 import type { ReactNode } from "react"
 import type { Task, Workspace } from "../lib/types"
 import type { LoginUser } from "../lib/api"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { TopBar } from "./TopBar"
 import { LeftSidebar } from "./LeftSidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
 
-interface AppShellProps {
+export interface LayoutProps {
   currentWorkspace: Workspace
   workspaces: { id: string; name: string }[]
   onNewWorkspace?: () => void
@@ -17,7 +17,7 @@ interface AppShellProps {
   children: ReactNode
 }
 
-export function AppShell({
+export function Layout({
   currentWorkspace,
   workspaces,
   onNewWorkspace,
@@ -25,7 +25,7 @@ export function AppShell({
   user,
   onLogout,
   children,
-}: AppShellProps) {
+}: LayoutProps) {
   const { route } = useWorkspace()
 
   return (

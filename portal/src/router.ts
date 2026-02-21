@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import type { Route, WorkspaceScope } from "./types"
+import type { Route, WorkspaceScope } from "./lib/types"
 
 /** Derive workspace scope from route (for data fetching and display). */
 export function getWorkspaceScope(route: Route): WorkspaceScope {

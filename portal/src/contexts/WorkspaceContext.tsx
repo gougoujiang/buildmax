@@ -3,9 +3,9 @@ import {
   useContext,
   type ReactNode,
 } from "react"
-import type { Artifact, Project, Route, Task } from "../lib/types"
+import type { Artifact, Route, Task } from "../lib/types"
 import type { ApiWorkspace } from "../lib/api"
-import { getWorkspaceScope, useHashRoute } from "../lib/router"
+import { getWorkspaceScope, useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
 import { useWorkspaceData } from "../hooks/useWorkspaceData"
 
@@ -14,16 +14,12 @@ export interface WorkspaceContextValue {
   route: Route
   scope: ReturnType<typeof getWorkspaceScope>
   workspaces: ApiWorkspace[]
-  projects: Project[]
-  tasks: Task[]
   workspaceTasks: Task[]
   artifacts: Artifact[]
   loadingWorkspaces: boolean
   refetchWorkspaces: () => void
-  refetchProjects: () => void
-  refetchTasks: () => void
   refetchWorkspaceTasks: () => void
-  refetchArtifacts: (projectId?: string, taskId?: string) => void
+  refetchArtifacts: (taskId?: string) => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -39,14 +35,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     route,
     scope,
     workspaces: data.workspaces,
-    projects: data.projects,
-    tasks: data.tasks,
     workspaceTasks: data.workspaceTasks,
     artifacts: data.artifacts,
     loadingWorkspaces: data.loadingWorkspaces,
     refetchWorkspaces: data.refetchWorkspaces,
-    refetchProjects: data.refetchProjects,
-    refetchTasks: data.refetchTasks,
     refetchWorkspaceTasks: data.refetchWorkspaceTasks,
     refetchArtifacts: data.refetchArtifacts,
   }

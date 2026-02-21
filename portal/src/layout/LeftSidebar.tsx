@@ -1,5 +1,5 @@
 import type { Route, Task } from "../lib/types"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 
 const CHATS_LIMIT = 5
 

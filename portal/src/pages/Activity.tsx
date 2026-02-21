@@ -1,6 +1,6 @@
 import type { Artifact, Task, ViewArtifactParams } from "../lib/types"
 import { taskStatusIcon } from "../lib/taskStatus"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 
 interface ActivityProps {
   workspaceId: string

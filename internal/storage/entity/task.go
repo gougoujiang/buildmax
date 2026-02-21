@@ -11,14 +11,20 @@ import (
 )
 
 // ListTasksByWorkspace returns tasks in the workspace, ordered by created_at.
+// order is "asc" (oldest first) or "desc" (latest first); default "desc".
 // If projectID is non-nil, only tasks with that project_id are returned.
-func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error) {
+func (s *Store) ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string, order string) ([]Task, error) {
 	var list []Task
 	q := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
 	if projectID != nil {
 		q = q.Where("project_id = ?", *projectID)
 	}
-	err := q.Order("created_at ASC").Find(&list).Error
+	if order == "asc" {
+		q = q.Order("created_at ASC")
+	} else {
+		q = q.Order("created_at DESC")
+	}
+	err := q.Find(&list).Error
 	return list, err
 }
 

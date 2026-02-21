@@ -652,11 +652,11 @@ body {
   padding: 0;
 }
 
-.page-workspace__project-card {
+.page-workspace__chat-card {
   margin-bottom: 0.5rem;
 }
 
-.page-workspace__project-link {
+.page-workspace__chat-link {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -672,22 +672,22 @@ body {
   text-align: left;
 }
 
-.page-workspace__project-link:hover {
+.page-workspace__chat-link:hover {
   border-color: #bbb;
   background: #f9f9ff;
 }
 
-.page-workspace__project-name {
+.page-workspace__chat-name {
   flex: 1;
   font-weight: 500;
 }
 
-.page-workspace__project-status {
+.page-workspace__chat-status {
   font-size: 0.8rem;
   color: #666;
 }
 
-.page-workspace__project-time {
+.page-workspace__chat-time {
   font-size: 0.8rem;
   color: #999;
 }
@@ -1155,7 +1155,7 @@ body {
   word-break: break-word;
 }
 
-/* === Page: Project Dashboard === */
+/* === Page: Project (removed) — legacy .page-project__* kept for reference === */
 
 .page-project__overview {
   margin-bottom: 1.5rem;

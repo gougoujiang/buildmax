@@ -4,7 +4,7 @@ import { getChildren, findNodeById } from "../lib/explore"
 import { uploadFiles, getFileTree, getFileContent } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
-import { TreePanel } from "../components/ExploreTree"
+import { TreePanel } from "../components/TreePanel"
 
 interface ExploreProps {
   workspaceId: string

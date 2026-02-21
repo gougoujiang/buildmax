@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Task, ViewArtifactParams } from "../lib/types"
 import { taskStatusIcon } from "../lib/taskStatus"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 import { getTasksPaginated, apiTaskToTask } from "../lib/api"
 
 const PAGE_SIZE = 20

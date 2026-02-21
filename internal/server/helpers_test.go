@@ -150,10 +150,15 @@ type mockTaskStore struct {
 	createErr error
 }
 
-func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string) ([]entity.Task, error) {
+func (m *mockTaskStore) ListTasksByWorkspace(_ context.Context, workspaceID string, projectID *string, order string) ([]entity.Task, error) {
 	list, _, err := m.ListTasksByWorkspacePaginated(context.Background(), workspaceID, projectID, false, 0, 0)
 	if err != nil {
 		return nil, err
+	}
+	if order == "asc" {
+		for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+			list[i], list[j] = list[j], list[i]
+		}
 	}
 	return list, nil
 }

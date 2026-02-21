@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Agent } from "../lib/types"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 import { getAgents, createAgent, apiAgentToAgent } from "../lib/api"
 
 interface AgentListProps {

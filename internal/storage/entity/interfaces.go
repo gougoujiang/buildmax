@@ -39,7 +39,8 @@ type AgentStore interface {
 // TaskStore provides task persistence. Tasks belong to a workspace; project is optional.
 // CreateTask creates task + first TaskRun (both in one transaction).
 type TaskStore interface {
-	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string) ([]Task, error)
+	// ListTasksByWorkspace returns tasks in the workspace. order is "asc" (oldest first) or "desc" (latest first); default "desc".
+	ListTasksByWorkspace(ctx context.Context, workspaceID string, projectID *string, order string) ([]Task, error)
 	// ListTasksByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
 	ListTasksByWorkspacePaginated(ctx context.Context, workspaceID string, projectID *string, executedOnly bool, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)

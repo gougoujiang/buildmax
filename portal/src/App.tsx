@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
-import { navigate } from "./lib"
+import { navigate } from "./router"
 import { createWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext"
-import { AppShell } from "./components/AppShell"
+import { Layout } from "./layout/Layout"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { ArtifactContentModal } from "./components/ArtifactContentModal"
 import { WorkspaceRouter } from "./components/WorkspaceRouter"
@@ -74,7 +74,7 @@ function AppContent() {
 
   return (
     <>
-      <AppShell
+      <Layout
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
         onNewWorkspace={handleNewWorkspace}
@@ -83,7 +83,7 @@ function AppContent() {
         onLogout={logout}
       >
         <WorkspaceRouter onViewArtifact={setViewArtifact} />
-      </AppShell>
+      </Layout>
       <CreateWorkspaceModal
         open={showNewWorkspace}
         loading={creatingWorkspace}

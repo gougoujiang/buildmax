@@ -106,7 +106,7 @@ type tasksListResponse struct {
 }
 
 // listWorkspaceTasksHandler handles GET /api/workspaces/{workspace_id}/tasks.
-// Optional: project_id, limit, offset, executed_only (when true, only tasks that have been run).
+// Optional: project_id, limit, offset, executed_only (when true, only tasks that have been run), order (asc or desc; default desc = latest first).
 // When limit, offset, or executed_only are set, response is { "tasks": [...], "total": N } ordered by created_at DESC.
 func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
@@ -154,7 +154,11 @@ func (s *Server) listWorkspaceTasksHandler(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusOK, tasksListResponse{Tasks: out, Total: total})
 		return
 	}
-	list, err := s.cfg.TaskStore.ListTasksByWorkspace(r.Context(), workspaceID, projectIDPtr)
+	order := q.Get("order")
+	if order != "asc" && order != "desc" {
+		order = "desc"
+	}
+	list, err := s.cfg.TaskStore.ListTasksByWorkspace(r.Context(), workspaceID, projectIDPtr, order)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_tasks", "workspace_id", workspaceID)
 		return

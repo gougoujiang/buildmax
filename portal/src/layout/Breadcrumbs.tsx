@@ -1,5 +1,5 @@
 import type { Route } from "../lib/types"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 
 interface BreadcrumbsProps {
   route: Route
@@ -12,9 +12,9 @@ export function Breadcrumbs({ route }: BreadcrumbsProps) {
   if (route.name === "newChat") {
     crumbs = [{ label: "New Chat", route: { name: "newChat", workspaceId } }]
   } else if (route.name === "activity") {
-    crumbs = [{ label: "Activity", route: { name: "activity", workspaceId } }]
+    crumbs = [{ label: "Chats", route: { name: "activity", workspaceId } }]
   } else if (route.name === "explore") {
-    crumbs = [{ label: "Explore", route: { name: "explore", workspaceId } }]
+    crumbs = [{ label: "Files", route: { name: "explore", workspaceId } }]
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
   } else if (route.name === "agentList") {
@@ -25,7 +25,7 @@ export function Breadcrumbs({ route }: BreadcrumbsProps) {
   } else if (route.name === "task") {
     crumbs = [
       { label: "Chats", route: { name: "activity", workspaceId } },
-      { label: "Task", route },
+      { label: "Chat", route },
     ]
   } else {
     crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]

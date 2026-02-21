@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { Artifact, Task, ViewArtifactParams } from "../lib/types"
-import { navigate } from "../lib/router"
+import { navigate } from "../router"
 import { createTask } from "../lib/api"
 import { taskStatusIcon } from "../lib/taskStatus"
 import { PromptArea } from "../components/PromptArea"
@@ -61,28 +61,28 @@ export function WorkspaceHome({
         </p>
       )}
 
-      <section className="page-workspace__projects">
+      <section className="page-workspace__chats">
         <h2 className="page-workspace__heading">Recent chats</h2>
         {recentChats.length === 0 ? (
           <p className="page-workspace__empty">No chats yet. Start one above or use New Chat in the sidebar.</p>
         ) : (
           <ul className="page-workspace__list">
             {recentChats.map((task) => (
-              <li key={task.id} className="page-workspace__project-card">
+              <li key={task.id} className="page-workspace__chat-card">
                 <button
                   type="button"
-                  className="page-workspace__project-link"
+                  className="page-workspace__chat-link"
                   onClick={() =>
                     navigate({ name: "task", workspaceId, taskId: task.id })
                   }
                 >
-                  <span className="page-workspace__project-name">
+                  <span className="page-workspace__chat-name">
                     {task.title?.trim() || "New chat"}
                   </span>
-                  <span className="page-workspace__project-status">
+                  <span className="page-workspace__chat-status">
                     {taskStatusIcon(task.status)}
                   </span>
-                  <span className="page-workspace__project-time">
+                  <span className="page-workspace__chat-time">
                     {task.timeLabel}
                   </span>
                 </button>
