@@ -217,9 +217,9 @@ func WorkspacesDir() string {
 }
 
 // PersistentWorkspaceDir returns the directory for a workspace's persistent files (uploads, result files).
-// It is WorkspacesDir()/<workspaceID>/persist.
+// It is WorkspacesDir()/<workspaceID>/home.
 func PersistentWorkspaceDir(workspaceID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "persist")
+	return filepath.Join(WorkspacesDir(), workspaceID, "home")
 }
 
 // RuntimeWorkspaceDir returns the ephemeral directory for a chat run.
@@ -244,8 +244,23 @@ func RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string {
 	return filepath.Join(WorkspacesDir(), workspaceID, "chats", chatID, chatRunID)
 }
 
+// RuntimeChatRunHomeDir returns the run's home dir (materialized workspace home): .../chats/<chatID>/<chatRunID>/home.
+func RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(RuntimeChatRunDir(workspaceID, chatID, chatRunID), "home")
+}
+
+// RuntimeChatRunArtifactsDir returns the run's artifacts dir (run outputs): .../chats/<chatID>/<chatRunID>/artifacts.
+func RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(RuntimeChatRunDir(workspaceID, chatID, chatRunID), "artifacts")
+}
+
+// RuntimeChatRunGlobalDir returns the run's global dir (BUILDMAX_HOME): .../chats/<chatID>/<chatRunID>/global.
+func RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(RuntimeChatRunDir(workspaceID, chatID, chatRunID), "global")
+}
+
 // RuntimeChatWSDir returns the workspace subdir for a chat run (materialized persist files).
-// It is RuntimeWorkspaceDir(workspaceID, chatID)/ws.
+// It is RuntimeWorkspaceDir(workspaceID, chatID)/ws. Deprecated: use RuntimeChatRunHomeDir for run-scoped materialize.
 func RuntimeChatWSDir(workspaceID, chatID string) string {
 	return filepath.Join(RuntimeWorkspaceDir(workspaceID, chatID), "ws")
 }

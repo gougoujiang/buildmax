@@ -29,7 +29,7 @@ type ChatRunUpdater interface {
 	UpdateRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *workerapi.ArtifactPayload) error
 }
 
-// RunTask runs a single chat run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload buildmax, update run and chat via updater.
+// RunTask runs a single chat run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload run global to blob, update run and chat via updater.
 func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessionID string, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
 	if chat == nil || run == nil {
 		return errors.New("executor: chat and run must not be nil")
@@ -38,15 +38,17 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 		return errors.New("executor: paths, persist, artifactStorage and updater must not be nil")
 	}
 
-	buildmaxDir := paths.RuntimeChatRunBuildmaxDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID)
-	wsDir := paths.RuntimeChatWSDir(chat.WorkspaceID, chat.ChatID)
+	runDir := paths.RuntimeChatRunDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID)
+	runHome := paths.RuntimeChatRunHomeDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID)
+	runArtifacts := paths.RuntimeChatRunArtifactsDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID)
+	runGlobal := paths.RuntimeChatRunGlobalDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID)
 
-	if err := ensureRunDirs(buildmaxDir, wsDir); err != nil {
+	if err := ensureRunDirs(runHome, runArtifacts, runGlobal); err != nil {
 		reportRunFailure(ctx, run.ChatRunID, err, updater)
 		return err
 	}
-	restoreSessionFromPreviousRun(ctx, chat, run, buildmaxDir, persist)
-	if err := persist.MaterializeToDir(ctx, chat.WorkspaceID, wsDir); err != nil {
+	restoreSessionFromPreviousRun(ctx, chat, run, runGlobal, persist)
+	if err := persist.MaterializeToDir(ctx, chat.WorkspaceID, runHome); err != nil {
 		slog.Error("executor: failed to materialize workspace", "chat_run_id", run.ChatRunID, "workspace_id", chat.WorkspaceID, "err", err)
 		reportRunFailure(ctx, run.ChatRunID, err, updater)
 		return err
@@ -56,12 +58,12 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 	if chat.SessionID != nil {
 		effectiveSessionID = *chat.SessionID
 	}
-	output, cmdErr := runBuildmaxCmd(ctx, run, wsDir, buildmaxDir, effectiveSessionID)
+	output, cmdErr := runBuildmaxCmd(ctx, run, runDir, runGlobal, effectiveSessionID)
 	endTime := time.Now().Unix()
 	outputStr := string(output)
 
-	persistRunResult(buildmaxDir, run.ChatRunID, output)
-	uploadChatBuildmax(ctx, buildmaxDir, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
+	persistRunResult(runArtifacts, output)
+	uploadChatBuildmax(ctx, runGlobal, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
 
 	if cmdErr != nil {
 		slog.Error("executor: run failed", "chat_run_id", run.ChatRunID, "err", cmdErr, "output_len", len(outputStr))
@@ -69,25 +71,27 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 		return cmdErr
 	}
 
-	resultFilename := fmt.Sprintf("result-%s.md", run.ChatRunID)
-	if err := reportRunSuccess(ctx, chat, run, endTime, outputStr, resultFilename, output, artifactStorage, updater); err != nil {
+	if err := reportRunSuccess(ctx, chat, run, endTime, outputStr, "result.md", output, artifactStorage, updater); err != nil {
 		return err
 	}
 	slog.Info("executor: run succeeded", "chat_run_id", run.ChatRunID)
 	return nil
 }
 
-func ensureRunDirs(buildmaxDir, wsDir string) error {
-	if err := os.MkdirAll(buildmaxDir, 0755); err != nil {
-		return fmt.Errorf("create buildmax dir: %w", err)
+func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
+	if err := os.MkdirAll(runHome, 0755); err != nil {
+		return fmt.Errorf("create run home dir: %w", err)
 	}
-	if err := os.MkdirAll(wsDir, 0755); err != nil {
-		return fmt.Errorf("create ws dir: %w", err)
+	if err := os.MkdirAll(runArtifacts, 0755); err != nil {
+		return fmt.Errorf("create run artifacts dir: %w", err)
+	}
+	if err := os.MkdirAll(runGlobal, 0755); err != nil {
+		return fmt.Errorf("create run global dir: %w", err)
 	}
 	return nil
 }
 
-func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, buildmaxDir string, persist blob.PersistStorage) {
+func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, runGlobalDir string, persist blob.PersistStorage) {
 	if chat.SessionID == nil || chat.LastRunID == nil || *chat.LastRunID == run.ChatRunID {
 		return
 	}
@@ -96,14 +100,14 @@ func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *
 	if err != nil {
 		return
 	}
-	sessionsDir := filepath.Join(buildmaxDir, "sessions")
+	sessionsDir := filepath.Join(runGlobalDir, "sessions")
 	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(sessionsDir, *chat.SessionID+".json"), data, 0644)
 }
 
-func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, wsDir, buildmaxDir, sessionID string) ([]byte, error) {
+func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, runDir, runGlobalDir, sessionID string) ([]byte, error) {
 	env := os.Environ()
 	prefix := config.EnvKeyBuildmaxHome + "="
 	filtered := make([]string, 0, len(env)+1)
@@ -113,17 +117,15 @@ func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, wsDir, buildmaxDir
 		}
 	}
 	cmd := exec.CommandContext(ctx, "buildmax", "-p", run.Input, "--session-id", sessionID)
-	cmd.Dir = wsDir
-	cmd.Env = append(filtered, prefix+buildmaxDir)
+	cmd.Dir = runDir
+	cmd.Env = append(filtered, prefix+runGlobalDir)
 	return cmd.CombinedOutput()
 }
 
-func persistRunResult(buildmaxDir, chatRunID string, output []byte) {
-	resultFilename := fmt.Sprintf("result-%s.md", chatRunID)
-	runDir := filepath.Dir(buildmaxDir)
-	resultPath := filepath.Join(runDir, resultFilename)
+func persistRunResult(runArtifactsDir string, output []byte) {
+	resultPath := filepath.Join(runArtifactsDir, "result.md")
 	if err := os.WriteFile(resultPath, output, 0644); err != nil {
-		slog.Error("executor: failed to write result file", "chat_run_id", chatRunID, "path", resultPath, "err", err)
+		slog.Error("executor: failed to write result file", "path", resultPath, "err", err)
 	}
 }
 
@@ -141,10 +143,10 @@ func reportRunSuccess(ctx context.Context, chat *entity.Chat, run *entity.ChatRu
 	return updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusSucceeded, nil, &endTime, &outputStr, nil, nil, &workerapi.ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename})
 }
 
-// uploadChatBuildmax uploads buildmax dir files (logs, sessions, settings) to persist storage for the run.
-func uploadChatBuildmax(ctx context.Context, buildmaxDir, workspaceID, chatID, chatRunID string, persist blob.PersistStorage) {
+// uploadChatBuildmax uploads the run's global dir (logs, sessions, settings) to blob storage for the run.
+func uploadChatBuildmax(ctx context.Context, globalDir, workspaceID, chatID, chatRunID string, persist blob.PersistStorage) {
 	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.json"}
-	sessionsDir := filepath.Join(buildmaxDir, "sessions")
+	sessionsDir := filepath.Join(globalDir, "sessions")
 	entries, err := os.ReadDir(sessionsDir)
 	if err == nil {
 		for _, e := range entries {
@@ -155,20 +157,20 @@ func uploadChatBuildmax(ctx context.Context, buildmaxDir, workspaceID, chatID, c
 		}
 	}
 	for _, relPath := range relPaths {
-		fullPath := filepath.Join(buildmaxDir, filepath.FromSlash(relPath))
+		fullPath := filepath.Join(globalDir, filepath.FromSlash(relPath))
 		info, err := os.Stat(fullPath)
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
 		f, err := os.Open(fullPath)
 		if err != nil {
-			slog.Warn("executor: upload chat buildmax open failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", err)
+			slog.Warn("executor: upload run global open failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", err)
 			continue
 		}
 		putErr := persist.PutChatBuildmax(ctx, workspaceID, chatID, chatRunID, filepath.ToSlash(relPath), f)
 		f.Close()
 		if putErr != nil {
-			slog.Warn("executor: upload chat buildmax put failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", putErr)
+			slog.Warn("executor: upload run global put failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", putErr)
 		}
 	}
 }

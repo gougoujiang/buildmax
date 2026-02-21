@@ -455,7 +455,7 @@ func TestPersistentWorkspaceDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := PersistentWorkspaceDir("ws-123")
-	want := filepath.Join(filepath.Clean(tmp), "ws-123", "persist")
+	want := filepath.Join(filepath.Clean(tmp), "ws-123", "home")
 	if got != want {
 		t.Errorf("PersistentWorkspaceDir(\"ws-123\") = %q, want %q", got, want)
 	}
@@ -488,6 +488,36 @@ func TestRuntimeChatWSDir(t *testing.T) {
 	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "ws")
 	if got != want {
 		t.Errorf("RuntimeChatWSDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeChatRunHomeDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
+	got := RuntimeChatRunHomeDir("ws-1", "chat-456", "run-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "run-789", "home")
+	if got != want {
+		t.Errorf("RuntimeChatRunHomeDir(...) = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeChatRunArtifactsDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
+	got := RuntimeChatRunArtifactsDir("ws-1", "chat-456", "run-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "run-789", "artifacts")
+	if got != want {
+		t.Errorf("RuntimeChatRunArtifactsDir(...) = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeChatRunGlobalDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
+	got := RuntimeChatRunGlobalDir("ws-1", "chat-456", "run-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "run-789", "global")
+	if got != want {
+		t.Errorf("RuntimeChatRunGlobalDir(...) = %q, want %q", got, want)
 	}
 }
 

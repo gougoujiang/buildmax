@@ -20,11 +20,11 @@ type createWorkspaceRequest struct {
 	Name string `json:"name"`
 }
 
-// ensureWorkspaceDirs creates workspace root and persist subdir for each workspace. Ignores errors (best-effort).
-// Layout: root/<workspaceID>/persist (so that PersistentWorkspaceDir(workspaceID) exists).
+// ensureWorkspaceDirs creates workspace root and home subdir for each workspace. Ignores errors (best-effort).
+// Layout: root/<workspaceID>/home (so that PersistentWorkspaceDir(workspaceID) exists).
 func ensureWorkspaceDirs(root string, workspaceIDs []string) {
 	for _, id := range workspaceIDs {
-		_ = os.MkdirAll(filepath.Join(root, id, "persist"), 0755)
+		_ = os.MkdirAll(filepath.Join(root, id, "home"), 0755)
 	}
 }
 

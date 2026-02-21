@@ -294,6 +294,6 @@ func (s *Server) loadChatConversationData(ctx context.Context, chat *model.Chat,
 			return nil, err
 		}
 	}
-	localPath := filepath.Join(s.workspacesDir(), chat.WorkspaceID, "chats", chat.ChatID, lastRunID, "buildmax", "sessions", sessionID+".json")
+	localPath := filepath.Join(s.workspacesDir(), chat.WorkspaceID, "chats", chat.ChatID, lastRunID, "global", "sessions", sessionID+".json")
 	return os.ReadFile(localPath)
 }

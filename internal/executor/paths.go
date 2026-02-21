@@ -6,10 +6,10 @@ import "path/filepath"
 // It is injected for testability and to avoid hard dependency on internal/config.
 type WorkspacePaths interface {
 	PersistentWorkspaceDir(workspaceID string) string
-	RuntimeWorkspaceDir(workspaceID, chatID string) string
-	RuntimeChatBuildmaxDir(workspaceID, chatID string) string
-	RuntimeChatRunBuildmaxDir(workspaceID, chatID, chatRunID string) string
-	RuntimeChatWSDir(workspaceID, chatID string) string
+	RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string
+	RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string
+	RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string
+	RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string
 	ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string
 }
 
@@ -24,23 +24,23 @@ func NewWorkspacePathsFromRoot(root string) WorkspacePaths {
 }
 
 func (p *workspacePathsRoot) PersistentWorkspaceDir(workspaceID string) string {
-	return filepath.Join(p.root, workspaceID, "persist")
+	return filepath.Join(p.root, workspaceID, "home")
 }
 
-func (p *workspacePathsRoot) RuntimeWorkspaceDir(workspaceID, chatID string) string {
-	return filepath.Join(p.root, workspaceID, "chats", chatID)
+func (p *workspacePathsRoot) RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, workspaceID, "chats", chatID, chatRunID)
 }
 
-func (p *workspacePathsRoot) RuntimeChatBuildmaxDir(workspaceID, chatID string) string {
-	return filepath.Join(p.root, workspaceID, "chats", chatID, "buildmax")
+func (p *workspacePathsRoot) RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "home")
 }
 
-func (p *workspacePathsRoot) RuntimeChatRunBuildmaxDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.root, workspaceID, "chats", chatID, chatRunID, "buildmax")
+func (p *workspacePathsRoot) RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "artifacts")
 }
 
-func (p *workspacePathsRoot) RuntimeChatWSDir(workspaceID, chatID string) string {
-	return filepath.Join(p.root, workspaceID, "chats", chatID, "ws")
+func (p *workspacePathsRoot) RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "global")
 }
 
 func (p *workspacePathsRoot) ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string {

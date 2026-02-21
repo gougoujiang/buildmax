@@ -23,17 +23,17 @@ type testWorkspacePaths struct{}
 func (testWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
 	return config.PersistentWorkspaceDir(workspaceID)
 }
-func (testWorkspacePaths) RuntimeWorkspaceDir(workspaceID, chatID string) string {
-	return config.RuntimeWorkspaceDir(workspaceID, chatID)
+func (testWorkspacePaths) RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeChatRunDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeChatBuildmaxDir(workspaceID, chatID string) string {
-	return config.RuntimeChatBuildmaxDir(workspaceID, chatID)
+func (testWorkspacePaths) RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeChatRunBuildmaxDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeChatRunBuildmaxDir(workspaceID, chatID, chatRunID)
+func (testWorkspacePaths) RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeChatWSDir(workspaceID, chatID string) string {
-	return config.RuntimeChatWSDir(workspaceID, chatID)
+func (testWorkspacePaths) RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID)
 }
 func (testWorkspacePaths) ArtifactDir(workspaceID, chatID, chatRunID, artifactID string) string {
 	return config.ArtifactDir(workspaceID, chatID, chatRunID, artifactID)
@@ -272,23 +272,23 @@ func TestFakePersistStorage_MaterializeToDir(t *testing.T) {
 
 func TestUploadChatBuildmax_UploadsPresentFiles(t *testing.T) {
 	ctx := context.Background()
-	buildmaxDir := t.TempDir()
-	// Create a subset of buildmax files (no log; sessions dir with two files)
-	if err := os.WriteFile(filepath.Join(buildmaxDir, "settings.json"), []byte("{}"), 0644); err != nil {
+	globalDir := t.TempDir()
+	// Create a subset of global dir files (no log; sessions dir with two files)
+	if err := os.WriteFile(filepath.Join(globalDir, "settings.json"), []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(buildmaxDir, "sessions"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(globalDir, "sessions"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(buildmaxDir, "sessions", "sessions.json"), []byte("[]"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(globalDir, "sessions", "sessions.json"), []byte("[]"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(buildmaxDir, "sessions", "sid-1.json"), []byte("{}"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(globalDir, "sessions", "sid-1.json"), []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	fake := newFakePersistStorage()
-	uploadChatBuildmax(ctx, buildmaxDir, "ws1", "chat1", "run1", fake)
+	uploadChatBuildmax(ctx, globalDir, "ws1", "chat1", "run1", fake)
 
 	got := fake.chatBuildmaxRelPaths("ws1", "chat1", "run1")
 	if len(got) != 3 {
@@ -309,10 +309,10 @@ func TestUploadChatBuildmax_UploadsPresentFiles(t *testing.T) {
 
 func TestUploadChatBuildmax_SkipsMissingFiles(t *testing.T) {
 	ctx := context.Background()
-	buildmaxDir := t.TempDir()
-	// Empty buildmax dir: no files created
+	globalDir := t.TempDir()
+	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadChatBuildmax(ctx, buildmaxDir, "ws1", "chat1", "run1", fake)
+	uploadChatBuildmax(ctx, globalDir, "ws1", "chat1", "run1", fake)
 	got := fake.chatBuildmaxRelPaths("ws1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)

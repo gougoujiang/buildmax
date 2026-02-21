@@ -14,6 +14,6 @@ func (s *Server) workspacesDir() string {
 }
 
 func (s *Server) persistentWorkspaceDir(workspaceID string) string {
-	return filepath.Join(s.workspacesDir(), workspaceID, "persist")
+	return filepath.Join(s.workspacesDir(), workspaceID, "home")
 }
 

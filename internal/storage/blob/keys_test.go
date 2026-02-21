@@ -9,7 +9,7 @@ func TestPersistObjectKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "workspaces/ws1/persist/a/b.txt" {
+	if key != "workspaces/ws1/home/a/b.txt" {
 		t.Errorf("got %q", key)
 	}
 	_, err = PersistObjectKey("w", "ws", "../x")
@@ -27,35 +27,46 @@ func TestArtifactResultKey(t *testing.T) {
 
 func TestPersistPrefix(t *testing.T) {
 	p := PersistPrefix("workspaces", "ws1")
-	if p != "workspaces/ws1/persist/" {
+	if p != "workspaces/ws1/home/" {
 		t.Errorf("got %q", p)
 	}
 }
 
 func TestChatBuildmaxObjectKey(t *testing.T) {
+	// ChatBuildmaxObjectKey delegates to ChatRunGlobalObjectKey (segment "global").
 	key, err := ChatBuildmaxObjectKey("workspaces", "ws1", "chat1", "run1", "logs/buildmax.log")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "workspaces/ws1/chats/chat1/run1/buildmax/logs/buildmax.log" {
+	if key != "workspaces/ws1/chats/chat1/run1/global/logs/buildmax.log" {
 		t.Errorf("got %q", key)
 	}
-	key, err = ChatBuildmaxObjectKey("w", "ws", "cid", "rid", "sessions/sessions.json")
+}
+
+func TestChatRunGlobalObjectKey(t *testing.T) {
+	key, err := ChatRunGlobalObjectKey("workspaces", "ws1", "chat1", "run1", "logs/buildmax.log")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "w/ws/chats/cid/rid/buildmax/sessions/sessions.json" {
+	if key != "workspaces/ws1/chats/chat1/run1/global/logs/buildmax.log" {
 		t.Errorf("got %q", key)
 	}
-	_, err = ChatBuildmaxObjectKey("w", "ws", "cid", "rid", "../x")
+	key, err = ChatRunGlobalObjectKey("w", "ws", "cid", "rid", "sessions/sessions.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "w/ws/chats/cid/rid/global/sessions/sessions.json" {
+		t.Errorf("got %q", key)
+	}
+	_, err = ChatRunGlobalObjectKey("w", "ws", "cid", "rid", "../x")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for .. path, got %v", err)
 	}
-	_, err = ChatBuildmaxObjectKey("w", "ws", "cid", "rid", "")
+	_, err = ChatRunGlobalObjectKey("w", "ws", "cid", "rid", "")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for empty path, got %v", err)
 	}
-	_, err = ChatBuildmaxObjectKey("w", "ws", "cid", "rid", "/abs")
+	_, err = ChatRunGlobalObjectKey("w", "ws", "cid", "rid", "/abs")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for absolute path, got %v", err)
 	}
