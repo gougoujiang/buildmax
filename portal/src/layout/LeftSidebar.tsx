@@ -2,7 +2,6 @@ import { useState } from "react"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
-import LogoIcon from "../icons/logo.svg?react"
 import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
 import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
@@ -16,6 +15,10 @@ const LOGO_ASCII = `
 | |__)  ) |_| | | ( (_| | || || | |__| |/ /\\ \\ 
 |______/ \\____|_|_|\\____|_||_||_|______/_/  \\_\\
 `.trim()
+
+/** First letter "B" extracted from LOGO_ASCII for collapsed sidebar. */
+const ASCII_B = LOGO_ASCII.split("\n").map((line) => line.slice(0, 7)).join("\n")
+
 import RecentIcon from "../icons/recent.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 
@@ -71,7 +74,9 @@ export function LeftSidebar({
             aria-label="Expand sidebar"
             title="Expand sidebar"
           >
-            <LogoIcon className="sidebar__logo-icon" aria-hidden />
+            <pre className="sidebar__logo-ascii-collapsed" aria-hidden>
+              {ASCII_B}
+            </pre>
             <SidebarExpandIcon className="sidebar__logo-expand-icon" aria-hidden />
           </button>
         ) : (
