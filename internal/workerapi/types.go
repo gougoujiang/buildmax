@@ -38,8 +38,9 @@ type PatchChatRunRequest struct {
 
 // ArtifactPayload is the artifact field in PATCH (and the payload passed to ChatRunUpdater).
 type ArtifactPayload struct {
-	ArtifactID   string `json:"artifact_id"`
-	RelativePath string `json:"relative_path"`
+	ArtifactID    string   `json:"artifact_id"`
+	RelativePath  string   `json:"relative_path,omitempty"`   // deprecated: use relative_paths
+	RelativePaths []string `json:"relative_paths,omitempty"`  // all files in the artifact (e.g. result.md, other generated files)
 }
 
 // Run status constants for the worker API.

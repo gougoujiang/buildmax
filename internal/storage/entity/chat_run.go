@@ -161,14 +161,17 @@ func (s *Store) UpdateChatRunWorkerInfo(ctx context.Context, chatRunID, workerTy
 	return s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", chatRunID).Updates(updates).Error
 }
 
-// OnRunComplete creates the artifact with chat_run_id, updates chat denormalized fields (last_run_id, status, output, etc.) and chat.session_id if the run set it.
-func (s *Store) OnRunComplete(ctx context.Context, chatRunID, artifactID, relativePath string) error {
+// OnRunComplete creates the artifact with chat_run_id, one artifact_item per relativePath, updates chat denormalized fields (last_run_id, status, output, etc.) and chat.session_id if the run set it.
+func (s *Store) OnRunComplete(ctx context.Context, chatRunID, artifactID string, relativePaths []string) error {
+	if len(relativePaths) == 0 {
+		relativePaths = []string{"result.md"}
+	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var run ChatRun
 		if err := tx.Where("chat_run_id = ?", chatRunID).First(&run).Error; err != nil {
 			return err
 		}
-		// Create artifact + item
+		// Create artifact + items
 		art := Artifact{
 			ChatID:     run.ChatID,
 			ChatRunID:  run.ChatRunID,
@@ -184,8 +187,10 @@ func (s *Store) OnRunComplete(ctx context.Context, chatRunID, artifactID, relati
 		if err := tx.Create(&art).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&ArtifactItem{ArtifactItemID: util.NewPrefixedID(util.PrefixArtifactItem), ArtifactID: artifactID, RelativePath: relativePath}).Error; err != nil {
-			return err
+		for _, relPath := range relativePaths {
+			if err := tx.Create(&ArtifactItem{ArtifactItemID: util.NewPrefixedID(util.PrefixArtifactItem), ArtifactID: artifactID, RelativePath: relPath}).Error; err != nil {
+				return err
+			}
 		}
 		// Update chat denormalized from run (worker_type, k8s_* live only on chat_run)
 		updates := map[string]interface{}{

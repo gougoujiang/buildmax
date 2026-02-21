@@ -79,6 +79,24 @@ func (s *S3PersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, cha
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
+// PutChatRunArtifacts writes one file under the chat run artifacts key space (prefix/.../chats/chatID/chatRunID/artifacts/relPath).
+func (s *S3PersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+	key, err := ChatRunArtifactsObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+	if err != nil {
+		return err
+	}
+	return s.client.PutObject(ctx, s.bucket, key, r)
+}
+
+// GetChatRunArtifacts reads one file from the chat run artifacts key space. Returns ErrNotFound if the object does not exist.
+func (s *S3PersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+	key, err := ChatRunArtifactsObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+	if err != nil {
+		return nil, err
+	}
+	return s.client.GetObject(ctx, s.bucket, key)
+}
+
 // MaterializeToDir downloads all persistent files into dstDir.
 func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, workspaceID string, dstDir string) error {
 	keys, err := s.ListFiles(ctx, workspaceID)

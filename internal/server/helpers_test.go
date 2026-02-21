@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"buildmax/internal/storage/blob"
@@ -325,7 +326,7 @@ func (m *mockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, sta
 func (m *mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
 	return nil
 }
-func (m *mockChatRunStore) OnRunComplete(_ context.Context, chatRunID, artifactID, relativePath string) error {
+func (m *mockChatRunStore) OnRunComplete(_ context.Context, chatRunID, artifactID string, relativePaths []string) error {
 	return nil
 }
 func (m *mockChatRunStore) SyncChatFromRun(_ context.Context, chatRunID string) error {
@@ -371,7 +372,8 @@ func (m *mockArtifactStore) ListArtifactItems(_ context.Context, artifactID stri
 
 // mockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
 type mockArtifactStorage struct {
-	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content
+	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content (PutResult)
+	files   map[string][]byte // "workspaceID/chatID/chatRunID/artifactID/relPath" -> content (PutArtifactFile)
 }
 
 func newMockArtifactStorage() *mockArtifactStorage {
@@ -386,6 +388,27 @@ func (m *mockArtifactStorage) PutResult(_ context.Context, workspaceID, chatID, 
 func (m *mockArtifactStorage) GetResult(_ context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
 	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
 	if data, ok := m.results[key]; ok {
+		return data, nil
+	}
+	return nil, blob.ErrNotFound
+}
+
+func (m *mockArtifactStorage) PutArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error {
+	if m.files == nil {
+		m.files = make(map[string][]byte)
+	}
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	data, _ := io.ReadAll(r)
+	m.files[key] = data
+	return nil
+}
+
+func (m *mockArtifactStorage) GetArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error) {
+	if m.files == nil {
+		return nil, blob.ErrNotFound
+	}
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	if data, ok := m.files[key]; ok {
 		return data, nil
 	}
 	return nil, blob.ErrNotFound

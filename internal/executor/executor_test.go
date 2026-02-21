@@ -127,9 +127,29 @@ func (f *fakePersistStorage) GetChatBuildmax(ctx context.Context, workspaceID, c
 	return data, nil
 }
 
+func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/artifacts/" + relPath
+	data, _ := io.ReadAll(r)
+	if f.chatBuildmax == nil {
+		f.chatBuildmax = make(map[string][]byte)
+	}
+	f.chatBuildmax[key] = data
+	return nil
+}
+
+func (f *fakePersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/artifacts/" + relPath
+	data, ok := f.chatBuildmax[key]
+	if !ok {
+		return nil, blob.ErrNotFound
+	}
+	return data, nil
+}
+
 // fakeArtifactStorage is an in-memory ArtifactStorage for tests.
 type fakeArtifactStorage struct {
-	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content
+	results map[string][]byte // "workspaceID/chatID/chatRunID/artifactID" -> content (PutResult)
+	files   map[string][]byte // "workspaceID/chatID/chatRunID/artifactID/relPath" -> content (PutArtifactFile)
 }
 
 func newFakeArtifactStorage() *fakeArtifactStorage {
@@ -145,6 +165,28 @@ func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID
 func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID, artifactID string) ([]byte, error) {
 	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID
 	data, ok := f.results[key]
+	if !ok {
+		return nil, blob.ErrNotFound
+	}
+	return data, nil
+}
+
+func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string, r io.Reader) error {
+	if f.files == nil {
+		f.files = make(map[string][]byte)
+	}
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	data, _ := io.ReadAll(r)
+	f.files[key] = data
+	return nil
+}
+
+func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, artifactID, relPath string) ([]byte, error) {
+	if f.files == nil {
+		return nil, blob.ErrNotFound
+	}
+	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + artifactID + "/" + relPath
+	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
@@ -171,7 +213,7 @@ func (mockChatRunStore) UpdateChatRunStatus(_ context.Context, _, _ string, _, _
 func (mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
 	return nil
 }
-func (mockChatRunStore) OnRunComplete(_ context.Context, _, _, _ string) error { return nil }
+func (mockChatRunStore) OnRunComplete(_ context.Context, _, _ string, _ []string) error { return nil }
 func (mockChatRunStore) SyncChatFromRun(_ context.Context, _ string) error      { return nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {

@@ -17,6 +17,15 @@ func ArtifactResultKey(prefix, workspaceID, chatID, chatRunID, artifactID string
 	return path.Join(prefix, workspaceID, "artifacts", chatID, chatRunID, artifactID, "result.md")
 }
 
+// ArtifactFileKey returns the S3 object key for one file under an artifact. relPath is validated with CleanRelPath.
+func ArtifactFileKey(prefix, workspaceID, chatID, chatRunID, artifactID, relPath string) (string, error) {
+	clean, err := CleanRelPath(relPath)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(prefix, workspaceID, "artifacts", chatID, chatRunID, artifactID, clean), nil
+}
+
 // PersistPrefix returns the key prefix under which all persist files for a workspace live (for ListObjectsV2).
 func PersistPrefix(prefix, workspaceID string) string {
 	return path.Join(prefix, workspaceID, "home") + "/"
@@ -36,4 +45,14 @@ func ChatRunGlobalObjectKey(prefix, workspaceID, chatID, chatRunID, relPath stri
 		return "", err
 	}
 	return path.Join(prefix, workspaceID, "chats", chatID, chatRunID, "global", clean), nil
+}
+
+// ChatRunArtifactsObjectKey returns the S3 object key for a chat run artifacts dir file (run output files).
+// relPath is validated with CleanRelPath (no .., no absolute).
+func ChatRunArtifactsObjectKey(prefix, workspaceID, chatID, chatRunID, relPath string) (string, error) {
+	clean, err := CleanRelPath(relPath)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(prefix, workspaceID, "chats", chatID, chatRunID, "artifacts", clean), nil
 }

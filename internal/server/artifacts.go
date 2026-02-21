@@ -148,9 +148,9 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	// Allow result.md or any path that appears in artifact_item for this artifact
 	allowed := pathParam == artifactResultFilename
 	if !allowed {
-		items, err := s.cfg.ArtifactStore.ListArtifactItems(r.Context(), artifactID)
-		if err != nil {
-			writeInternalError(w, err, "handler", "artifact_content", "artifact_id", artifactID)
+		items, listErr := s.cfg.ArtifactStore.ListArtifactItems(r.Context(), artifactID)
+		if listErr != nil {
+			writeInternalError(w, listErr, "handler", "artifact_content", "artifact_id", artifactID)
 			return
 		}
 		for _, it := range items {
@@ -164,8 +164,12 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
 		return
 	}
-	// Current layout: only result.md is stored; serve via ArtifactStorage (path includes chat_run_id).
-	data, err := s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, artifact.ChatID, artifact.ChatRunID, artifactID)
+	var data []byte
+	if pathParam == artifactResultFilename {
+		data, err = s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, artifact.ChatID, artifact.ChatRunID, artifactID)
+	} else {
+		data, err = s.cfg.ArtifactStorage.GetArtifactFile(r.Context(), workspaceID, artifact.ChatID, artifact.ChatRunID, artifactID, pathParam)
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "artifact content not found")

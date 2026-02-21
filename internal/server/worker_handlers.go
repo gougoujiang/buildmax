@@ -78,8 +78,15 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 			writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 			return
 		}
-		if req.Status == workerapi.StatusSucceeded && req.Artifact != nil && req.Artifact.ArtifactID != "" && req.Artifact.RelativePath != "" {
-			if err := s.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, req.Artifact.ArtifactID, req.Artifact.RelativePath); err != nil {
+		if req.Status == workerapi.StatusSucceeded && req.Artifact != nil && req.Artifact.ArtifactID != "" {
+			relativePaths := req.Artifact.RelativePaths
+			if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
+				relativePaths = []string{req.Artifact.RelativePath}
+			}
+			if len(relativePaths) == 0 {
+				relativePaths = []string{"result.md"}
+			}
+			if err := s.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, req.Artifact.ArtifactID, relativePaths); err != nil {
 				writeInternalError(w, err, "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
 				return
 			}

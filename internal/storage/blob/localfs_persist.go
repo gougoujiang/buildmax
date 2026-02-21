@@ -83,6 +83,16 @@ func (s *LocalFSPersistStorage) GetChatBuildmax(ctx context.Context, workspaceID
 	return nil, ErrNotFound
 }
 
+// PutChatRunArtifacts is a no-op for local FS (run artifacts already live on worker disk).
+func (s *LocalFSPersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+	return nil
+}
+
+// GetChatRunArtifacts returns ErrNotFound; run artifacts are not in the persist root for local_fs (caller uses local path).
+func (s *LocalFSPersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+	return nil, ErrNotFound
+}
+
 // MaterializeToDir copies all persistent files from the workspace into dstDir.
 // If the persist root does not exist or is empty, no error (empty dst).
 func (s *LocalFSPersistStorage) MaterializeToDir(ctx context.Context, workspaceID string, dstDir string) error {

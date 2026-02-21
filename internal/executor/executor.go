@@ -64,6 +64,7 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 
 	persistRunResult(runArtifacts, output)
 	uploadChatBuildmax(ctx, runGlobal, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
+	uploadChatRunArtifacts(ctx, runArtifacts, chat.WorkspaceID, chat.ChatID, run.ChatRunID, persist)
 
 	if cmdErr != nil {
 		slog.Error("executor: run failed", "chat_run_id", run.ChatRunID, "err", cmdErr, "output_len", len(outputStr))
@@ -71,7 +72,7 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 		return cmdErr
 	}
 
-	if err := reportRunSuccess(ctx, chat, run, endTime, outputStr, "result.md", output, artifactStorage, updater); err != nil {
+	if err := reportRunSuccess(ctx, chat, run, endTime, outputStr, runArtifacts, output, artifactStorage, updater); err != nil {
 		return err
 	}
 	slog.Info("executor: run succeeded", "chat_run_id", run.ChatRunID)
@@ -135,12 +136,81 @@ func reportRunFailure(ctx context.Context, chatRunID string, err error, updater 
 	_ = updater.UpdateRunStatus(ctx, chatRunID, workerapi.StatusFailed, nil, ptrInt64(endTime), nil, &errMsg, nil, nil)
 }
 
-func reportRunSuccess(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, endTime int64, outputStr, resultFilename string, output []byte, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
+func reportRunSuccess(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, endTime int64, outputStr, runArtifactsDir string, output []byte, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
 	artifactID := util.NewPrefixedID(util.PrefixArtifact)
 	if putErr := artifactStorage.PutResult(ctx, chat.WorkspaceID, chat.ChatID, run.ChatRunID, artifactID, output); putErr != nil {
 		slog.Error("executor: failed to write result to artifact storage", "chat_run_id", run.ChatRunID, "err", putErr)
 	}
-	return updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusSucceeded, nil, &endTime, &outputStr, nil, nil, &workerapi.ArtifactPayload{ArtifactID: artifactID, RelativePath: resultFilename})
+	relativePaths := uploadRunArtifactsToStorage(ctx, runArtifactsDir, chat.WorkspaceID, chat.ChatID, run.ChatRunID, artifactID, artifactStorage)
+	if len(relativePaths) == 0 {
+		relativePaths = []string{"result.md"}
+	}
+	return updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusSucceeded, nil, &endTime, &outputStr, nil, nil, &workerapi.ArtifactPayload{ArtifactID: artifactID, RelativePaths: relativePaths})
+}
+
+// uploadChatRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).
+func uploadChatRunArtifacts(ctx context.Context, artifactsDir, workspaceID, chatID, chatRunID string, persist blob.PersistStorage) {
+	if err := filepath.Walk(artifactsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !info.Mode().IsRegular() {
+			return nil
+		}
+		relPath, err := filepath.Rel(artifactsDir, path)
+		if err != nil {
+			return err
+		}
+		relPath = filepath.ToSlash(relPath)
+		f, err := os.Open(path)
+		if err != nil {
+			slog.Warn("executor: upload run artifacts open failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", err)
+			return nil
+		}
+		putErr := persist.PutChatRunArtifacts(ctx, workspaceID, chatID, chatRunID, relPath, f)
+		f.Close()
+		if putErr != nil {
+			slog.Warn("executor: upload run artifacts put failed", "chat_run_id", chatRunID, "rel_path", relPath, "err", putErr)
+		}
+		return nil
+	}); err != nil {
+		slog.Error("executor: walk run artifacts failed", "chat_run_id", chatRunID, "err", err)
+	}
+}
+
+// uploadRunArtifactsToStorage scans runArtifactsDir and uploads each file to artifact blob storage. Returns relative paths (slash form) for each file.
+func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir, workspaceID, chatID, chatRunID, artifactID string, artifactStorage blob.ArtifactStorage) []string {
+	var relativePaths []string
+	if err := filepath.Walk(runArtifactsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !info.Mode().IsRegular() {
+			return nil
+		}
+		relPath, err := filepath.Rel(runArtifactsDir, path)
+		if err != nil {
+			return err
+		}
+		relPath = filepath.ToSlash(relPath)
+		f, err := os.Open(path)
+		if err != nil {
+			slog.Warn("executor: artifact file open failed", "rel_path", relPath, "err", err)
+			return nil
+		}
+		putErr := artifactStorage.PutArtifactFile(ctx, workspaceID, chatID, chatRunID, artifactID, relPath, f)
+		f.Close()
+		if putErr != nil {
+			slog.Warn("executor: PutArtifactFile failed", "rel_path", relPath, "err", putErr)
+			return nil
+		}
+		relativePaths = append(relativePaths, relPath)
+		return nil
+	}); err != nil {
+		slog.Error("executor: walk run artifacts for storage failed", "err", err)
+		return relativePaths
+	}
+	return relativePaths
 }
 
 // uploadChatBuildmax uploads the run's global dir (logs, sessions, settings) to blob storage for the run.

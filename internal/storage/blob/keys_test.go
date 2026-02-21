@@ -71,3 +71,13 @@ func TestChatRunGlobalObjectKey(t *testing.T) {
 		t.Errorf("want ErrInvalidPath for absolute path, got %v", err)
 	}
 }
+
+func TestChatRunArtifactsObjectKey(t *testing.T) {
+	key, err := ChatRunArtifactsObjectKey("workspaces", "ws1", "chat1", "run1", "result.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key != "workspaces/ws1/chats/chat1/run1/artifacts/result.md" {
+		t.Errorf("got %q", key)
+	}
+}
