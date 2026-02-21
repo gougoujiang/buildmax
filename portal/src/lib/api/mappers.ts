@@ -3,11 +3,11 @@
  * Imports API types from ./types and UI types from ../types.
  */
 
-import type { ApiAgent, ApiArtifact, ApiProject, ApiTask } from "./types"
-import type { Agent, Artifact, Project, Task } from "../types"
+import type { ApiAgent, ApiArtifact, ApiTask } from "./types"
+import type { Agent, Artifact, Task } from "../types"
 
 /** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
-export function formatRelativeTime(secondsSinceEpoch: number): string {
+function formatRelativeTime(secondsSinceEpoch: number): string {
   const d = new Date(secondsSinceEpoch * 1000)
   const today = new Date()
   if (d.toDateString() === today.toDateString()) {
@@ -77,20 +77,5 @@ export function apiTaskToTask(api: ApiTask): Task {
     status: taskStatusToUI(api.status),
     timeLabel: formatRelativeTime(ts),
     summary,
-  }
-}
-
-export function apiProjectToProject(api: ApiProject): Project {
-  const created = new Date(api.created_at * 1000)
-  const label =
-    created.toDateString() === new Date().toDateString()
-      ? "Created today"
-      : `Created ${created.toLocaleDateString()}`
-  return {
-    id: api.id,
-    workspaceId: api.workspace_id,
-    name: api.name,
-    status: "active",
-    updatedAtLabel: label,
   }
 }

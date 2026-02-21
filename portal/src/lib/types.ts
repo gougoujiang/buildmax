@@ -53,13 +53,6 @@ export type Route =
   | { name: "agents"; workspaceId: string }
   | { name: "agentList"; workspaceId: string }
 
-// --- Activity (workspace-scoped) ---
-
-export interface ActivityItem {
-  title: string
-  time: string
-}
-
 // --- View artifact (modal) ---
 
 export interface ViewArtifactParams {

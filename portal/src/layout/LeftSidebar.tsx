@@ -37,8 +37,8 @@ export function LeftSidebar({
     <aside className="sidebar" aria-label="Sidebar">
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__workspace">
-          <span className="sidebar__workspace-label" title={currentWorkspace.name}>
-            {currentWorkspace.name}
+          <span className="sidebar__workspace-label" title="Workspace">
+            Workspace
           </span>
           <div className="sidebar__workspace-controls">
             <select

@@ -9,7 +9,6 @@ import type {
   ApiAgent,
   ApiArtifact,
   ApiArtifactItem,
-  ApiProject,
   ApiSession,
   ApiTask,
   ApiTasksListResponse,
@@ -24,7 +23,6 @@ export { UNAUTHORIZED_EVENT, parseErrorResponse, getApiBase }
 export type { LoginUser, LoginResponse }
 export type {
   ApiWorkspace,
-  ApiProject,
   ApiAgent,
   ApiTask,
   ApiTasksListResponse,
@@ -36,11 +34,9 @@ export type {
   UploadResponse,
 } from "./types"
 export {
-  formatRelativeTime,
   apiAgentToAgent,
   apiArtifactToArtifact,
   apiTaskToTask,
-  apiProjectToProject,
 } from "./mappers"
 
 export async function requestOtp(
@@ -92,33 +88,6 @@ export async function createWorkspace(
   checkUnauthorized(res)
   await throwIfNotOk(res)
   return res.json() as Promise<ApiWorkspace>
-}
-
-export async function getProjects(workspaceId: string, token: string): Promise<ApiProject[]> {
-  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/projects`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiProject[]>
-}
-
-export async function createProject(
-  workspaceId: string,
-  body: { name: string; description?: string },
-  token: string
-): Promise<ApiProject> {
-  const res = await fetch(`${getApiBase()}/api/workspaces/${workspaceId}/projects`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  })
-  checkUnauthorized(res)
-  await throwIfNotOk(res)
-  return res.json() as Promise<ApiProject>
 }
 
 export async function getTasks(
