@@ -1,10 +1,11 @@
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import type { Route, Chat } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
 import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
+import { SettingsModal } from "../components/SettingsModal"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -21,6 +22,7 @@ const ASCII_B = LOGO_ASCII.split("\n").map((line) => line.slice(0, 7)).join("\n"
 
 import RecentIcon from "../icons/recent.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
+import UserIcon from "../icons/user.svg?react"
 
 const CHATS_LIMIT = 5
 
@@ -57,8 +59,22 @@ export function LeftSidebar({
 }: LeftSidebarProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [chatsCollapsed, setChatsCollapsed] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const chats = workspaceChats.slice(0, CHATS_LIMIT)
   const hasMoreChats = workspaceChats.length > CHATS_LIMIT
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [userMenuOpen])
 
   return (
     <aside
@@ -198,19 +214,59 @@ export function LeftSidebar({
           </button>
         </div>
       </nav>
-      <div className="sidebar__footer" aria-label="User">
-        <span className="sidebar__user-name" title={user.email}>
-          {user.name || user.email}
-        </span>
+      <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
         <button
           type="button"
-          className="sidebar__logout"
-          onClick={onLogout}
-          aria-label="Log out"
+          className="sidebar__user-trigger"
+          onClick={() => setUserMenuOpen((open) => !open)}
+          aria-expanded={userMenuOpen}
+          aria-haspopup="menu"
+          aria-label="User menu"
         >
-          Logout
+          <UserIcon className="sidebar__user-icon" aria-hidden />
+          <span className="sidebar__user-name">{user.name || user.email}</span>
         </button>
+        {userMenuOpen && (
+          <div className="sidebar__user-menu" role="menu">
+            <div className="sidebar__user-menu-item sidebar__user-menu-item--email" role="none">
+              {user.email}
+            </div>
+            <div className="sidebar__user-menu-divider" role="separator" />
+            <button
+              type="button"
+              className="sidebar__user-menu-item"
+              role="menuitem"
+              onClick={() => {
+                setUserMenuOpen(false)
+                setSettingsModalOpen(true)
+              }}
+            >
+              Settings
+            </button>
+            <button
+              type="button"
+              className="sidebar__user-menu-item"
+              role="menuitem"
+              onClick={() => setUserMenuOpen(false)}
+            >
+              Help
+            </button>
+            <div className="sidebar__user-menu-divider" role="separator" />
+            <button
+              type="button"
+              className="sidebar__user-menu-item"
+              role="menuitem"
+              onClick={() => {
+                setUserMenuOpen(false)
+                onLogout()
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
       </div>
+      <SettingsModal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
     </aside>
   )
 }

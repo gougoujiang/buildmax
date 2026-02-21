@@ -132,7 +132,7 @@
 .sidebar--collapsed .sidebar__chats-chevron,
 .sidebar--collapsed .sidebar__chats-list,
 .sidebar--collapsed .sidebar__user-name,
-.sidebar--collapsed .sidebar__logout {
+.sidebar--collapsed .sidebar__user-trigger {
   display: none !important;
 }
 
@@ -166,6 +166,41 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  position: relative;
+}
+
+.sidebar__user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__user-icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #555;
+}
+
+.sidebar__user-trigger:hover {
+  background: #e4e4e4;
+}
+
+.sidebar__user-trigger:focus {
+  outline: none;
+}
+
+.sidebar__user-trigger .sidebar__user-name {
+  flex: 1;
+  min-width: 0;
 }
 
 .sidebar__user-name {
@@ -176,23 +211,53 @@
   text-overflow: ellipsis;
 }
 
-.sidebar__logout {
-  font: inherit;
-  font-size: 0.85rem;
-  color: #555;
-  background: transparent;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.35rem 0.6rem;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
+.sidebar__user-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0.5rem;
+  right: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0.35rem 0;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
 }
 
-.sidebar__logout:hover {
+.sidebar__user-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
   color: #333;
-  border-color: #999;
-  background: #e8e8e8;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar__user-menu-item:hover {
+  background: #f0f0f0;
+}
+
+.sidebar__user-menu-item--email {
+  cursor: default;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.sidebar__user-menu-item--email:hover {
+  background: transparent;
+}
+
+.sidebar__user-menu-divider {
+  height: 1px;
+  margin: 0.25rem 0.5rem;
+  background: #e0e0e0;
 }
 
 .sidebar__nav-item {
