@@ -1,5 +1,6 @@
 import { useState } from "react"
 import type { Route, Chat } from "../lib/types"
+import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import NewChatIcon from "../icons/new-chat.svg?react"
 import RecentIcon from "../icons/recent.svg?react"
@@ -15,6 +16,8 @@ interface LeftSidebarProps {
   onWorkspaceChange: (workspaceId: string) => void
   onNewWorkspace?: () => void
   workspaceChats: Chat[]
+  user: LoginUser
+  onLogout: () => void
 }
 
 function isAgentsActive(route: Route): boolean {
@@ -33,6 +36,8 @@ export function LeftSidebar({
   onWorkspaceChange,
   onNewWorkspace,
   workspaceChats,
+  user,
+  onLogout,
 }: LeftSidebarProps) {
   const [chatsCollapsed, setChatsCollapsed] = useState(false)
   const chats = workspaceChats.slice(0, CHATS_LIMIT)
@@ -96,7 +101,7 @@ export function LeftSidebar({
                 {chatsCollapsed ? "▶" : "▼"}
               </span>
             </button>
-            <div id="sidebar-chats-list" hidden={chatsCollapsed}>
+            <div id="sidebar-chats-list" className="sidebar__chats-list" hidden={chatsCollapsed}>
               <ul className="sidebar__list">
                 {chats.map((chat) => (
                   <li key={chat.id} className="sidebar__item">
@@ -142,6 +147,19 @@ export function LeftSidebar({
           </button>
         </div>
       </nav>
+      <div className="sidebar__footer" aria-label="User">
+        <span className="sidebar__user-name" title={user.email}>
+          {user.name || user.email}
+        </span>
+        <button
+          type="button"
+          className="sidebar__logout"
+          onClick={onLogout}
+          aria-label="Log out"
+        >
+          Logout
+        </button>
+      </div>
     </aside>
   )
 }

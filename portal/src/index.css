@@ -252,22 +252,62 @@ body {
 /* -- Sidebar -- */
 
 .sidebar {
-  width: 14rem;
+  width: 18rem;
   flex-shrink: 0;
   background: #f0f0f0;
   border-right: 1px solid #e0e0e0;
-  padding: 1rem 0;
+  padding: 1rem 0 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  min-height: 0;
 }
 
 .sidebar__nav {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   margin-bottom: 0.75rem;
   padding: 0 0.5rem;
+}
+
+.sidebar__footer {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e0e0e0;
+  background: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sidebar__user-name {
+  font-size: 0.85rem;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__logout {
+  font: inherit;
+  font-size: 0.85rem;
+  color: #555;
+  background: transparent;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.sidebar__logout:hover {
+  color: #333;
+  border-color: #999;
+  background: #e8e8e8;
 }
 
 .sidebar__nav-item {
@@ -416,6 +456,12 @@ body {
   font-size: 0.6rem;
   line-height: 1;
   color: #888;
+}
+
+.sidebar__chats-list {
+  padding-left: 1rem;
+  margin-left: 0.5rem;
+  border-left: 1px solid #e0e0e0;
 }
 
 .sidebar__chats .sidebar__list {

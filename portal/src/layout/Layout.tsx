@@ -30,7 +30,7 @@ export function Layout({
 
   return (
     <div className="shell">
-      <TopBar user={user} onLogout={onLogout} />
+      <TopBar />
       <div className="shell__body">
         <LeftSidebar
           workspaceId={route.workspaceId}
@@ -40,6 +40,8 @@ export function Layout({
           onWorkspaceChange={(workspaceId) => navigate({ name: "workspace", workspaceId })}
           onNewWorkspace={onNewWorkspace}
           workspaceChats={workspaceChats}
+          user={user}
+          onLogout={onLogout}
         />
         <main className="shell__main">
           <Breadcrumbs route={route} />
