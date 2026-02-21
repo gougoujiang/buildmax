@@ -113,35 +113,6 @@ export function LeftSidebar({
         )}
       </div>
       <nav className="sidebar__nav" aria-label="Primary">
-        <div className="sidebar__workspace">
-          <span className="sidebar__workspace-label" title="Workspace">
-            Workspace
-          </span>
-          <select
-            className="sidebar__workspace-select"
-            value={currentWorkspace.id}
-            onChange={(e) => onWorkspaceChange(e.target.value)}
-            aria-label="Select workspace"
-          >
-            {workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-          {onNewWorkspace && (
-            <button
-              type="button"
-              className="sidebar__workspace-new"
-              onClick={onNewWorkspace}
-              aria-label="New workspace"
-              title="New workspace"
-            >
-              +
-            </button>
-          )}
-        </div>
-
         <div className="sidebar__section">
           <button
             type="button"
@@ -214,6 +185,36 @@ export function LeftSidebar({
           </button>
         </div>
       </nav>
+      <div className="sidebar__workspace-wrap">
+        <div className="sidebar__workspace">
+          <span className="sidebar__workspace-label" title="Workspace">
+            Workspace
+          </span>
+          <select
+            className="sidebar__workspace-select"
+            value={currentWorkspace.id}
+            onChange={(e) => onWorkspaceChange(e.target.value)}
+            aria-label="Select workspace"
+          >
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+          {onNewWorkspace && (
+            <button
+              type="button"
+              className="sidebar__workspace-new"
+              onClick={onNewWorkspace}
+              aria-label="New workspace"
+              title="New workspace"
+            >
+              +
+            </button>
+          )}
+        </div>
+      </div>
       <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
         <button
           type="button"
