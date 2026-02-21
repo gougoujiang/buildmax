@@ -11,20 +11,15 @@ export function Breadcrumbs({ route }: BreadcrumbsProps) {
 
   if (route.name === "newChat") {
     crumbs = [{ label: "New Chat", route: { name: "newChat", workspaceId } }]
-  } else if (route.name === "activity") {
-    crumbs = [{ label: "Chats", route: { name: "activity", workspaceId } }]
+  } else if (route.name === "chats") {
+    crumbs = [{ label: "Chats", route: { name: "chats", workspaceId } }]
   } else if (route.name === "explore") {
     crumbs = [{ label: "Files", route: { name: "explore", workspaceId } }]
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
-  } else if (route.name === "agentList") {
+  } else if (route.name === "chat") {
     crumbs = [
-      { label: "Agents", route: { name: "agents", workspaceId } },
-      { label: "Manage agents", route: { name: "agentList", workspaceId } },
-    ]
-  } else if (route.name === "task") {
-    crumbs = [
-      { label: "Chats", route: { name: "activity", workspaceId } },
+      { label: "Chats", route: { name: "chats", workspaceId } },
       { label: "Chat", route },
     ]
   } else {

@@ -83,7 +83,7 @@ export function TaskDetail({ task, workspaceId, onRefetch }: TaskDetailProps) {
   return (
     <div className="page-task">
       <header className="page-task__header">
-        <h1 className="page-task__title">Task: {task.title}</h1>
+        <h1 className="page-task__title">{task.title?.trim() || "Chat"}</h1>
         <button
           type="button"
           className="page-task__restore-btn"

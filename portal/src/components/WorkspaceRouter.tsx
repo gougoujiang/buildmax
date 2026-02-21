@@ -1,8 +1,7 @@
 import type { ViewArtifactParams } from "../lib/types"
 import { getTaskForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
-import { Activity } from "../pages/Activity"
-import { Agents } from "../pages/Agents"
+import { Chats } from "../pages/Chats"
 import { AgentList } from "../pages/AgentList"
 import { TaskDetail } from "../pages/TaskDetail"
 import { WorkspaceHome } from "../pages/WorkspaceHome"
@@ -45,9 +44,9 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
       />
     )
   }
-  if (route.name === "activity") {
+  if (route.name === "chats") {
     return (
-      <Activity
+      <Chats
         workspaceId={route.workspaceId}
         tasks={workspaceTasks}
         artifacts={artifacts}
@@ -59,15 +58,6 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
 
   if (route.name === "agents") {
     return (
-      <Agents
-        workspaceId={route.workspaceId}
-        token={token ?? null}
-        onViewArtifact={onViewArtifact}
-      />
-    )
-  }
-  if (route.name === "agentList") {
-    return (
       <AgentList
         workspaceId={route.workspaceId}
         token={token ?? null}
@@ -75,7 +65,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     )
   }
 
-  if (route.name === "task") {
+  if (route.name === "chat") {
     const task = getTaskForDetail(workspaceTasks, route.taskId)
     if (!task) return fallbackHome
     return (

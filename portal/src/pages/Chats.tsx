@@ -2,27 +2,27 @@ import type { Artifact, Task, ViewArtifactParams } from "../lib/types"
 import { taskStatusIcon } from "../lib/taskStatus"
 import { navigate } from "../router"
 
-interface ActivityProps {
+interface ChatsProps {
   workspaceId: string
   tasks: Task[]
   artifacts: Artifact[]
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
-export function Activity({
+export function Chats({
   workspaceId,
   tasks,
   artifacts,
   onViewArtifact,
-}: ActivityProps) {
+}: ChatsProps) {
   return (
     <div className="page-activity">
-      <h1 className="page-activity__title">Activity</h1>
+      <h1 className="page-activity__title">Chats</h1>
       <p className="page-activity__subtitle">
-        All tasks and artifacts in this workspace.
+        All chats and artifacts in this workspace.
       </p>
       {tasks.length === 0 && artifacts.length === 0 ? (
-        <p className="page-activity__empty">No activity yet.</p>
+        <p className="page-activity__empty">No chats yet.</p>
       ) : (
         <>
           {tasks.length > 0 && (
@@ -34,7 +34,7 @@ export function Activity({
                     className="page-activity__link"
                     onClick={() =>
                       navigate({
-                        name: "task",
+                        name: "chat",
                         workspaceId,
                         taskId: task.id,
                       })

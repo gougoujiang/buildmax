@@ -37,7 +37,7 @@ export function WorkspaceHome({
       const task = await createTask(workspaceId, { input }, token)
       setPrompt("")
       onRefetchWorkspaceTasks?.()
-      navigate({ name: "task", workspaceId, taskId: task.id })
+      navigate({ name: "chat", workspaceId, taskId: task.id })
     } catch (err) {
       setRunError(err instanceof Error ? err.message : "Failed to start task")
     } finally {
@@ -73,7 +73,7 @@ export function WorkspaceHome({
                   type="button"
                   className="page-workspace__chat-link"
                   onClick={() =>
-                    navigate({ name: "task", workspaceId, taskId: task.id })
+                    navigate({ name: "chat", workspaceId, taskId: task.id })
                   }
                 >
                   <span className="page-workspace__chat-name">

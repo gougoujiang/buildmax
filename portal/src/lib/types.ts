@@ -42,16 +42,15 @@ export interface WorkspaceScope {
 }
 
 // --- Route types ---
-// Tasks are workspace-scoped only; no project in route.
+// Portal uses chat/chats; one chat = backend task.
 
 export type Route =
   | { name: "workspace"; workspaceId: string }
   | { name: "newChat"; workspaceId: string }
-  | { name: "task"; workspaceId: string; taskId: string }
-  | { name: "activity"; workspaceId: string }
+  | { name: "chat"; workspaceId: string; taskId: string }
+  | { name: "chats"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
   | { name: "agents"; workspaceId: string }
-  | { name: "agentList"; workspaceId: string }
 
 // --- View artifact (modal) ---
 

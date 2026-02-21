@@ -14,11 +14,11 @@ interface LeftSidebarProps {
 }
 
 function isAgentsActive(route: Route): boolean {
-  return route.name === "agents" || route.name === "agentList"
+  return route.name === "agents"
 }
 
-function isTaskActive(route: Route, taskId: string): boolean {
-  return route.name === "task" && route.taskId === taskId
+function isChatActive(route: Route, taskId: string): boolean {
+  return route.name === "chat" && route.taskId === taskId
 }
 
 export function LeftSidebar({
@@ -40,31 +40,29 @@ export function LeftSidebar({
           <span className="sidebar__workspace-label" title="Workspace">
             Workspace
           </span>
-          <div className="sidebar__workspace-controls">
-            <select
-              className="sidebar__workspace-select"
-              value={currentWorkspace.id}
-              onChange={(e) => onWorkspaceChange(e.target.value)}
-              aria-label="Select workspace"
+          <select
+            className="sidebar__workspace-select"
+            value={currentWorkspace.id}
+            onChange={(e) => onWorkspaceChange(e.target.value)}
+            aria-label="Select workspace"
+          >
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+          {onNewWorkspace && (
+            <button
+              type="button"
+              className="sidebar__workspace-new"
+              onClick={onNewWorkspace}
+              aria-label="New workspace"
+              title="New workspace"
             >
-              {workspaces.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-            {onNewWorkspace && (
-              <button
-                type="button"
-                className="sidebar__workspace-new"
-                onClick={onNewWorkspace}
-                aria-label="New workspace"
-                title="New workspace"
-              >
-                +
-              </button>
-            )}
-          </div>
+              +
+            </button>
+          )}
         </div>
 
         <div className="sidebar__section">
@@ -98,10 +96,10 @@ export function LeftSidebar({
                     type="button"
                     className={
                       "sidebar__link" +
-                      (isTaskActive(route, task.id) ? " sidebar__link--active" : "")
+                      (isChatActive(route, task.id) ? " sidebar__link--active" : "")
                     }
                     onClick={() =>
-                      navigate({ name: "task", workspaceId, taskId: task.id })
+                      navigate({ name: "chat", workspaceId, taskId: task.id })
                     }
                   >
                     <span className="sidebar__chat-title">
@@ -116,7 +114,7 @@ export function LeftSidebar({
               <button
                 type="button"
                 className="sidebar__chats-see-all"
-                onClick={() => navigate({ name: "activity", workspaceId })}
+                onClick={() => navigate({ name: "chats", workspaceId })}
               >
                 See all
               </button>
