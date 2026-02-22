@@ -62,6 +62,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 **Agent & tools**
 - **LLM integration**: OpenAI-compatible client in `internal/llm` (OpenRouter default); env-based config (`BUILDMAX_API_KEY`, `BUILDMAX_BASE_URL`, `BUILDMAX_MODEL`).
 - **Agent loop**: Single-turn flow with tool calling (LLM → tool_calls → execute tools → re-call LLM → reply) in `internal/agent`; default system prompt prepended in `Process`.
+- **Optional workspace AGENTS.md**: When running the CLI, if a file named `AGENTS.md` exists at the workspace root (current working directory), its contents are appended to the default system prompt so the agent receives project-specific instructions. See the [agents.md](https://agents.md/) convention. This applies only to the `buildmax` CLI; the server and worker do not read AGENTS.md.
 - **Tools** (`internal/tools`): `read_file`, `writefile`, `editfile`, `bash`, `glob`, `grep` (with format), `webfetch`, `todowrite`, `skill`, `agentdef`, `task`; path under configurable root (e.g. CWD). Tool output is LLM-oriented (meaningful on success and failure).
 
 **Config & infra**

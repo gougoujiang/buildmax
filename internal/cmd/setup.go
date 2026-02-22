@@ -194,8 +194,16 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 		return setupResult{}, fmt.Errorf("create task tool: %w", err)
 	}
 
+	// Compose system prompt: default + optional AGENTS.md from workspace root (agents.md convention).
+	effectivePrompt := agent.DefaultSystemPrompt
+	if extra, err := agent.ReadAgentsMd(cwd); err != nil {
+		slog.Warn("read AGENTS.md", "err", err)
+	} else if extra != "" {
+		effectivePrompt = effectivePrompt + "\n\n" + extra
+	}
+
 	// Main agent includes the task tool so it can delegate to sub-agents.
-	a := agent.NewAgent(client, append(baseTools, taskTool))
+	a := agent.NewAgent(client, append(baseTools, taskTool), agent.SystemPrompt(effectivePrompt))
 
 	sessionsDir := config.SessionsDir()
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
