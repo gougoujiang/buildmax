@@ -19,6 +19,13 @@ func (m *mockCaller) ChatWithTools(_ context.Context, _ []llm.Message, _ []llm.T
 	return m.content, nil, nil
 }
 
+func (m *mockCaller) ChatWithToolsStream(_ context.Context, _ []llm.Message, _ []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, error) {
+	if onDelta != nil && m.content != "" {
+		onDelta(m.content)
+	}
+	return m.content, nil, nil
+}
+
 // mockAgentTool is a minimal agent.Tool for constructing AgentTypeConfig in tests.
 type mockAgentTool struct {
 	name string

@@ -7,9 +7,20 @@ import (
 	"os"
 	"time"
 
+	"buildmax/internal/agent"
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
 )
+
+// stdoutStreamSink writes each delta to stdout and flushes so output appears incrementally.
+type stdoutStreamSink struct {
+	w *os.File
+}
+
+func (s *stdoutStreamSink) OnDelta(delta string) {
+	_, _ = s.w.WriteString(delta)
+	_ = s.w.Sync()
+}
 
 func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	res, err := setupAgentAndSession(resumeID, modelSelector)
@@ -19,7 +30,8 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	}
 	ctx := context.Background()
 	start := time.Now()
-	reply, stats, err := res.Agent.Process(ctx, res.Session, prompt)
+	sink := &stdoutStreamSink{w: os.Stdout}
+	reply, stats, err := res.Agent.Process(ctx, res.Session, prompt, agent.WithStreamSink(sink))
 	elapsed := time.Since(start)
 	slog.Debug("session details", "id", res.Session.ID(), "title", res.Session.Title(), "created_at", res.Session.CreatedAt())
 	slog.Debug("session history", "messages", res.Session.Messages())
@@ -46,10 +58,13 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 		return fmt.Errorf("persist session: %w", err)
 	}
 	slog.Info("agent reply", "len", len(reply))
-	fmt.Println(reply)
+	// Reply was already streamed to stdout; print newline before stats if we streamed something.
+	if len(reply) > 0 {
+		fmt.Fprintln(os.Stdout)
+	}
 
 	// Print run statistics.
-	fmt.Fprintf(os.Stdout, "\n---\nSession:    %s\nTool calls: %d\nDuration:   %s\nWorkspace:  %s\n", res.Session.ID(), stats.ToolCalls, formatDuration(elapsed), res.CWD)
+	fmt.Fprintf(os.Stdout, "---\nSession:    %s\nTool calls: %d\nDuration:   %s\nWorkspace:  %s\n", res.Session.ID(), stats.ToolCalls, formatDuration(elapsed), res.CWD)
 	return nil
 }
 

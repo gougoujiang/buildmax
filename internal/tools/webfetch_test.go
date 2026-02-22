@@ -27,6 +27,16 @@ func (m *mockWebFetchLLM) ChatWithTools(ctx context.Context, messages []llm.Mess
 	return m.reply, nil, nil
 }
 
+func (m *mockWebFetchLLM) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, error) {
+	m.mu.Lock()
+	m.callCount++
+	m.mu.Unlock()
+	if onDelta != nil && m.reply != "" {
+		onDelta(m.reply)
+	}
+	return m.reply, nil, nil
+}
+
 func (m *mockWebFetchLLM) getCallCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()

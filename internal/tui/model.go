@@ -54,6 +54,11 @@ type agentDoneMsg struct {
 	Err   error
 }
 
+// streamDeltaMsg is sent when a content delta arrives from the streaming LLM.
+type streamDeltaMsg struct {
+	Delta string
+}
+
 // carouselTickMsg is sent by tea.Tick to advance the assistant "..." carousel.
 type carouselTickMsg struct{}
 
@@ -68,16 +73,27 @@ type scrollIdleMsg struct{ id int }
 
 // Model is the root Bubble Tea model: viewport (banner + chat), input, footer.
 type Model struct {
-	opts          TUIOpts
-	viewportBlock ViewportBlock
-	inputBlock    InputBlock
-	busy          bool
-	err           string // last error to show
-	width         int
-	height        int
-	carouselDots  int  // 0, 1, 2 for ".", "..", "..."
-	focusInput    bool // true = input has focus; false = viewport has scroll focus
-	lastScrollID  int  // used to ignore stale scroll-idle timers when user scrolls again
+	opts           TUIOpts
+	viewportBlock  ViewportBlock
+	inputBlock     InputBlock
+	busy           bool
+	err            string // last error to show
+	width          int
+	height         int
+	carouselDots   int  // 0, 1, 2 for ".", "..", "..."
+	focusInput     bool // true = input has focus; false = viewport has scroll focus
+	lastScrollID   int  // used to ignore stale scroll-idle timers when user scrolls again
+	streamingBuffer string       // current turn's assistant text while streaming
+	streamChannel   chan tea.Msg // receives streamDeltaMsg and agentDoneMsg; set when agent run starts
+}
+
+// streamSinkToChannel implements agent.StreamSink by sending streamDeltaMsg to a channel.
+type streamSinkToChannel struct {
+	channel chan tea.Msg
+}
+
+func (s *streamSinkToChannel) OnDelta(delta string) {
+	s.channel <- streamDeltaMsg{Delta: delta}
 }
 
 // NewModel builds a TUI model with viewport (banner + chat), input, and stored opts.
@@ -90,7 +106,7 @@ func NewModel(opts TUIOpts) *Model {
 		height:        24,
 		focusInput:    true,
 	}
-	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0)
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0, "")
 	return m
 }
 
@@ -99,10 +115,16 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, m.inputBlock.Focus())
 }
 
-// runAgentAfterUserAppended runs agent.ProcessAfterUserAppended in the background (user message already in session).
-func runAgentAfterUserAppended(opts TUIOpts) tea.Msg {
-	reply, _, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session)
-	return agentDoneMsg{Reply: reply, Err: err}
+// runAgentWithStream starts the agent in a goroutine with a stream sink that sends deltas to channel,
+// then sends agentDoneMsg and closes the channel. It returns a Cmd that reads one message from the channel.
+func runAgentWithStream(opts TUIOpts, channel chan tea.Msg) tea.Cmd {
+	sink := &streamSinkToChannel{channel: channel}
+	go func() {
+		reply, _, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session, agent.WithStreamSink(sink))
+		channel <- agentDoneMsg{Reply: reply, Err: err}
+		close(channel)
+	}()
+	return func() tea.Msg { return <-channel }
 }
 
 // FocusInput returns true when the input has focus, false when the viewport has scroll focus.
@@ -177,13 +199,16 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputBlock.Reset()
 		m.inputBlock.SyncHeight()
 		m.opts.Session.Append(llm.Message{Role: "user", Content: text})
-		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, 0)
+		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, 0, "")
 		m.busy = true
 		m.err = ""
 		m.carouselDots = 0
+		m.streamingBuffer = ""
+		channel := make(chan tea.Msg)
+		m.streamChannel = channel
 		return m, tea.Batch(
 			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
-			tea.Cmd(func() tea.Msg { return runAgentAfterUserAppended(m.opts) }),
+			runAgentWithStream(m.opts, channel),
 		)
 	}
 	cmd := m.inputBlock.Update(msg)
@@ -212,12 +237,14 @@ func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	m.busy = false
 	m.carouselDots = 0
+	m.streamingBuffer = ""
+	m.streamChannel = nil
 	if msg.Err != nil {
 		m.err = msg.Err.Error()
 		slog.Error("agent failed", "err", msg.Err)
 		return m, nil
 	}
-	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0)
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0, "")
 
 	// Remember whether the session had no title before persist (i.e. first turn).
 	needsLLMTitle := m.opts.Session.Title() == ""
@@ -266,10 +293,19 @@ func handleTitleGenerated(m *Model, msg titleGeneratedMsg) (tea.Model, tea.Cmd) 
 func handleCarouselTick(m *Model, msg carouselTickMsg) (tea.Model, tea.Cmd) {
 	if m.busy {
 		m.carouselDots = (m.carouselDots + 1) % 3
-		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots)
+		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots, m.streamingBuffer)
 		return m, tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} })
 	}
 	return m, nil
+}
+
+func handleStreamDelta(m *Model, msg streamDeltaMsg) (tea.Model, tea.Cmd) {
+	m.streamingBuffer += msg.Delta
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots, m.streamingBuffer)
+	if m.streamChannel == nil {
+		return m, nil
+	}
+	return m, func() tea.Msg { return <-m.streamChannel }
 }
 
 func handleMouseMsg(m *Model, msg tea.MouseMsg) (tea.Model, tea.Cmd) {
@@ -307,7 +343,7 @@ func handleScrollIdle(m *Model, msg scrollIdleMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// Update handles messages: keys (quit, submit, focus toggle, scroll), resize, agentDoneMsg.
+// Update handles messages: keys (quit, submit, focus toggle, scroll), resize, agentDoneMsg, streamDeltaMsg.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -316,6 +352,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleWindowSize(m, msg)
 	case agentDoneMsg:
 		return handleAgentDone(m, msg)
+	case streamDeltaMsg:
+		return handleStreamDelta(m, msg)
 	case titleGeneratedMsg:
 		return handleTitleGenerated(m, msg)
 	case carouselTickMsg:

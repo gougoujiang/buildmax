@@ -122,8 +122,9 @@ func wrapLine(line string, width int) []string {
 }
 
 // buildViewportContent returns the full scrollable content: banner plus message lines (with bar for user/assistant, wrapped to width).
-// If busy is true, appends a carousel line "• ." / ".." / "..." based on carouselDots (0, 1, 2).
-func buildViewportContent(sess *session.Session, version string, width int, busy bool, carouselDots int) string {
+// If streamingTail is non-empty, appends it as the current assistant line (same style as "• " + content).
+// If busy is true and streamingTail is empty, appends a carousel line "• ." / ".." / "..." based on carouselDots (0, 1, 2).
+func buildViewportContent(sess *session.Session, version string, width int, busy bool, carouselDots int, streamingTail string) string {
 	if width <= 0 {
 		width = 80
 	}
@@ -156,7 +157,16 @@ func buildViewportContent(sess *session.Session, version string, width int, busy
 			}
 		}
 	}
-	if busy {
+	if streamingTail != "" {
+		if len(messages) > 0 {
+			b.WriteString("\n")
+		}
+		line := messageBarStyle.Render("• ") + streamingTail
+		for _, w := range wrapLine(line, width) {
+			b.WriteString(w)
+			b.WriteString("\n")
+		}
+	} else if busy {
 		if len(messages) > 0 {
 			b.WriteString("\n") // margin before carousel, same as between messages
 		}

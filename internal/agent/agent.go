@@ -73,9 +73,30 @@ type Tool interface {
 	Execute(ctx context.Context, args map[string]any) (result string, err error)
 }
 
+// StreamSink receives content deltas during streaming. Implementations may write to stdout or send to a TUI.
+type StreamSink interface {
+	OnDelta(delta string)
+}
+
 // LLMCaller can perform chat-with-tools. *llm.Client implements this.
 type LLMCaller interface {
 	ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, err error)
+	ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error)
+}
+
+// processConfig holds per-call options for Process/ProcessAfterUserAppended.
+type processConfig struct {
+	streamSink StreamSink
+}
+
+// ProcessOption configures a single agent run (e.g. streaming).
+type ProcessOption func(*processConfig)
+
+// WithStreamSink sets the sink that receives content deltas during the LLM stream.
+func WithStreamSink(sink StreamSink) ProcessOption {
+	return func(c *processConfig) {
+		c.streamSink = sink
+	}
 }
 
 // RunStats holds statistics collected during a single agent run.
@@ -140,17 +161,21 @@ func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
 // Process runs the agent loop for one user message using the given session:
 // appends the user message to the session, then runs the loop (LLM call → tool calls if any → append to session),
 // and returns the final assistant reply along with run statistics.
-func (a *Agent) Process(ctx context.Context, sess *session.Session, userMessage string) (reply string, stats RunStats, err error) {
+func (a *Agent) Process(ctx context.Context, sess *session.Session, userMessage string, opts ...ProcessOption) (reply string, stats RunStats, err error) {
 	slog.Info("agent process with session started")
 	sess.Append(llm.Message{Role: "user", Content: userMessage})
 	slog.Info("user message", "content", userMessage)
-	return a.processLoop(ctx, sess)
+	cfg := processConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return a.processLoop(ctx, sess, cfg)
 }
 
 // ProcessAfterUserAppended runs the agent loop when the last message in the session is already the user message.
 // It does not append the user message; use this when the caller (e.g. TUI) has already appended it and refreshed the view.
 // Returns an error if the session is empty or the last message is not from the user.
-func (a *Agent) ProcessAfterUserAppended(ctx context.Context, sess *session.Session) (reply string, stats RunStats, err error) {
+func (a *Agent) ProcessAfterUserAppended(ctx context.Context, sess *session.Session, opts ...ProcessOption) (reply string, stats RunStats, err error) {
 	msgs := sess.Messages()
 	if len(msgs) == 0 {
 		return "", RunStats{}, errors.New("agent: session has no messages")
@@ -160,17 +185,27 @@ func (a *Agent) ProcessAfterUserAppended(ctx context.Context, sess *session.Sess
 		return "", RunStats{}, fmt.Errorf("agent: last message is %q, not user", last.Role)
 	}
 	slog.Info("agent process after user appended", "content", last.Content)
-	return a.processLoop(ctx, sess)
+	cfg := processConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return a.processLoop(ctx, sess, cfg)
 }
 
 // processLoop runs the LLM loop: build messages (system + session), call LLM, handle tool_calls, append to session, repeat until final reply.
-func (a *Agent) processLoop(ctx context.Context, sess *session.Session) (reply string, stats RunStats, err error) {
+func (a *Agent) processLoop(ctx context.Context, sess *session.Session, cfg processConfig) (reply string, stats RunStats, err error) {
 	var totalToolCalls int
 	for i := 0; i < a.maxIter; i++ {
 		ctx = session.CtxWithSessionID(ctx, sess.ID())
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
 		messages := append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, sess.Messages()...)
-		content, toolCalls, err := a.caller.ChatWithTools(ctx, messages, a.toolDefs)
+		var content string
+		var toolCalls []llm.ToolCall
+		if cfg.streamSink != nil {
+			content, toolCalls, err = a.caller.ChatWithToolsStream(ctx, messages, a.toolDefs, cfg.streamSink.OnDelta)
+		} else {
+			content, toolCalls, err = a.caller.ChatWithTools(ctx, messages, a.toolDefs)
+		}
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)
 			return "", RunStats{ToolCalls: totalToolCalls}, fmt.Errorf("llm call: %w", err)

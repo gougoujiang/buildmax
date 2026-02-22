@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -30,6 +31,14 @@ func (m *mockLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Messag
 	r := m.responses[m.calls]
 	m.calls++
 	return r.content, r.toolCalls, nil
+}
+
+func (m *mockLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error) {
+	content, toolCalls, err = m.ChatWithTools(ctx, messages, tools)
+	if err == nil && onDelta != nil && content != "" {
+		onDelta(content)
+	}
+	return content, toolCalls, err
 }
 
 func (m *mockLLMCaller) callCount() int {
@@ -156,6 +165,10 @@ func (r *recordingLLMCaller) ChatWithTools(ctx context.Context, messages []llm.M
 	return r.inner.ChatWithTools(ctx, messages, tools)
 }
 
+func (r *recordingLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error) {
+	return r.inner.ChatWithToolsStream(ctx, messages, tools, onDelta)
+}
+
 // lastCallLLMCaller records the messages from the last ChatWithTools call (for ProcessWithSession tests).
 type lastCallLLMCaller struct {
 	inner   *mockLLMCaller
@@ -169,6 +182,10 @@ func (r *lastCallLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Me
 	copy(r.lastMsg, messages)
 	r.lastMu.Unlock()
 	return r.inner.ChatWithTools(ctx, messages, tools)
+}
+
+func (r *lastCallLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error) {
+	return r.inner.ChatWithToolsStream(ctx, messages, tools, onDelta)
 }
 
 func (r *lastCallLLMCaller) lastMessages() []llm.Message {
@@ -313,6 +330,60 @@ func TestProcessWithSession(t *testing.T) {
 	}
 	if lastMsg[3].Role != "user" || lastMsg[3].Content != "Second message" {
 		t.Errorf("lastMsg[3] = %q %q", lastMsg[3].Role, lastMsg[3].Content)
+	}
+}
+
+// recordingStreamSink records each OnDelta call for tests.
+type recordingStreamSink struct {
+	deltas []string
+	mu     sync.Mutex
+}
+
+func (r *recordingStreamSink) OnDelta(delta string) {
+	r.mu.Lock()
+	r.deltas = append(r.deltas, delta)
+	r.mu.Unlock()
+}
+
+func (r *recordingStreamSink) getDeltas() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.deltas...)
+}
+
+// TestProcess_Streaming asserts that when WithStreamSink is used, the sink receives content deltas
+// and the session ends with the full assistant message.
+func TestProcess_Streaming(t *testing.T) {
+	ctx := context.Background()
+	fullReply := "Hello, I am the streamed reply."
+	mock := &mockLLMCaller{
+		responses: []mockResponse{
+			{content: fullReply, toolCalls: nil},
+		},
+	}
+	sink := &recordingStreamSink{}
+	a := NewAgent(mock, nil)
+	sess := session.NewSession("")
+	reply, _, err := a.Process(ctx, sess, "Hi", WithStreamSink(sink))
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if reply != fullReply {
+		t.Errorf("reply = %q, want %q", reply, fullReply)
+	}
+	deltas := sink.getDeltas()
+	if len(deltas) == 0 {
+		t.Error("streaming sink received no deltas")
+	}
+	if got := strings.Join(deltas, ""); got != fullReply {
+		t.Errorf("deltas joined = %q, want %q", got, fullReply)
+	}
+	msgs := sess.Messages()
+	if len(msgs) != 2 {
+		t.Fatalf("session has %d messages, want 2", len(msgs))
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != fullReply {
+		t.Errorf("session last message = %q %q", msgs[1].Role, msgs[1].Content)
 	}
 }
 

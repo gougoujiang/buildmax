@@ -21,10 +21,10 @@ func NewViewportBlock(width, height int) ViewportBlock {
 	return ViewportBlock{viewport: vp}
 }
 
-// RefreshAndGotoBottom builds viewport content from session/version/width/busy/carouselDots,
+// RefreshAndGotoBottom builds viewport content from session/version/width/busy/carouselDots/streamingTail,
 // sets it on the viewport, and scrolls to the bottom.
-func (vb *ViewportBlock) RefreshAndGotoBottom(sess *session.Session, version string, width int, busy bool, carouselDots int) {
-	content := buildViewportContent(sess, version, width, busy, carouselDots)
+func (vb *ViewportBlock) RefreshAndGotoBottom(sess *session.Session, version string, width int, busy bool, carouselDots int, streamingTail string) {
+	content := buildViewportContent(sess, version, width, busy, carouselDots, streamingTail)
 	vb.viewport.SetContent(content)
 	vb.viewport.GotoBottom()
 }
