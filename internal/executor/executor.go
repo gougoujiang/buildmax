@@ -52,6 +52,11 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 		reportRunFailure(ctx, run.ChatRunID, err, updater)
 		return err
 	}
+	if err := WriteRunAgentsMd(runDir, runHome); err != nil {
+		slog.Error("executor: failed to prepare run AGENTS.md", "chat_run_id", run.ChatRunID, "err", err)
+		reportRunFailure(ctx, run.ChatRunID, err, updater)
+		return err
+	}
 
 	effectiveSessionID := sessionID
 	if chat.SessionID != nil {
