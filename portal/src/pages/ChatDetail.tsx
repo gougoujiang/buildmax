@@ -17,6 +17,7 @@ interface ChatDetailProps {
 export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const { token, user } = useAuth()
   const streamCleanupRef = useRef<(() => void) | null>(null)
+  const historyRef = useRef<HTMLElement | null>(null)
 
   const {
     data: session,
@@ -36,6 +37,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const [followUpLoading, setFollowUpLoading] = useState(false)
   const [followUpError, setFollowUpError] = useState<string | null>(null)
   const [streamingContent, setStreamingContent] = useState("")
+  const [lastSentMessage, setLastSentMessage] = useState<string | null>(null)
   const [expandedToolIndices, setExpandedToolIndices] = useState<Set<number>>(new Set())
 
   function toggleToolExpand(index: number) {
@@ -56,15 +58,27 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
     }
   }, [])
 
+  // Keep chat history scrolled to bottom: first load, after refetch, and while streaming.
+  useEffect(() => {
+    const el = historyRef.current
+    if (!el) return
+    const scrollToBottom = () => {
+      el.scrollTop = el.scrollHeight
+    }
+    const id = requestAnimationFrame(scrollToBottom)
+    return () => cancelAnimationFrame(id)
+  }, [session, streamingContent, lastSentMessage])
+
   async function handleFollowUpSubmit() {
     const input = followUpInput.trim()
     if (!input || !token || followUpLoading) return
     setFollowUpError(null)
     setFollowUpLoading(true)
     setStreamingContent("")
+    setLastSentMessage(input)
+    setFollowUpInput("")
     try {
       const { chat_run_id } = await createChatRun(workspaceId, chat.id, { input }, token)
-      setFollowUpInput("")
       streamCleanupRef.current = subscribeRunStream(
         workspaceId,
         chat.id,
@@ -78,6 +92,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
               streamCleanupRef.current = null
             }
             setStreamingContent("")
+            setLastSentMessage(null)
             setFollowUpLoading(false)
             onRefetch?.()
             refetchSession()
@@ -100,7 +115,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
 
   return (
     <div className="page-chat">
-      <section className="page-chat__history">
+      <section ref={historyRef} className="page-chat__history" aria-label="Chat history">
         {sessionLoading && (
           <p className="page-chat__text page-chat__muted">Loading conversation…</p>
         )}
@@ -205,6 +220,22 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
                 </div>
               )
             })}
+            {lastSentMessage ? (
+              <div
+                className="page-chat__msg-row page-chat__msg-row--user"
+                role="article"
+                aria-label="You"
+              >
+                <span className="page-chat__msg-icon" aria-hidden>
+                  {user ? <UserAvatar user={user} size="sm" /> : <AgentAvatar size="sm" />}
+                </span>
+                <div className="page-chat__msg page-chat__msg--user">
+                  <div className="page-chat__msg-content page-chat__markdown">
+                    <Markdown remarkPlugins={[remarkGfm]}>{lastSentMessage}</Markdown>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             {streamingContent ? (
               <div
                 className="page-chat__msg-row page-chat__msg-row--assistant"
