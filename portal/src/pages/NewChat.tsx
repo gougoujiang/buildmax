@@ -2,7 +2,7 @@ import { useState } from "react"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
-import { createChat } from "../lib/api"
+import { createChat, apiChatToChat } from "../lib/api"
 import { chatStatusIcon } from "../lib/chatStatus"
 import { FilesPanel } from "../components/FilesPanel"
 import { useWorkspace } from "../contexts/WorkspaceContext"
@@ -41,7 +41,7 @@ export function NewChat({
     try {
       const chat = await createChat(workspaceId, { input }, token)
       setPrompt("")
-      setPendingChat({ chat, initialInput: input })
+      setPendingChat({ chat: apiChatToChat(chat), initialInput: input })
       navigate({ name: "chat", workspaceId, chatId: chat.id })
       onRefetchWorkspaceChats?.()
     } catch (err) {

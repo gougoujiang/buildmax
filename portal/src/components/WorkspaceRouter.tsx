@@ -26,12 +26,13 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     setPendingChat,
   } = useWorkspace()
 
+  const routeChatId = route.name === "chat" ? route.chatId : undefined
   // Clear pending chat only when navigating away from this chat, so initialInput stays visible until we leave.
   useEffect(() => {
     if (!pendingChat) return
     const viewingThisChat = route.name === "chat" && route.chatId === pendingChat.chat.id
     if (!viewingThisChat) setPendingChat(null)
-  }, [route.name, route.chatId, pendingChat, setPendingChat])
+  }, [route.name, routeChatId, pendingChat, setPendingChat])
 
   const fallbackHome = (
     <WorkspaceHome
