@@ -5,6 +5,7 @@ import { cn } from "../lib/cn"
 import { createChat } from "../lib/api"
 import { chatStatusIcon } from "../lib/chatStatus"
 import { FilesPanel } from "../components/FilesPanel"
+import { useWorkspace } from "../contexts/WorkspaceContext"
 import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
 
 type NewChatTab = "chats" | "artifacts" | "files"
@@ -26,12 +27,13 @@ export function NewChat({
   artifacts,
   onViewArtifact,
 }: NewChatProps) {
+  const { setPendingChat } = useWorkspace()
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<NewChatTab>("chats")
 
-  async function handleRun() {
+  async function handleSend() {
     const input = prompt.trim()
     if (!input || !token || running) return
     setRunning(true)
@@ -39,8 +41,9 @@ export function NewChat({
     try {
       const chat = await createChat(workspaceId, { input }, token)
       setPrompt("")
-      onRefetchWorkspaceChats?.()
+      setPendingChat({ chat, initialInput: input })
       navigate({ name: "chat", workspaceId, chatId: chat.id })
+      onRefetchWorkspaceChats?.()
     } catch (err) {
       setRunError(getErrorMessage(err, "Failed to start chat"))
     } finally {
@@ -70,10 +73,10 @@ export function NewChat({
           <button
             type="button"
             className="page-chat__follow-up-btn"
-            onClick={handleRun}
+            onClick={handleSend}
             disabled={running || !prompt.trim()}
           >
-            {running ? "Running…" : "Run"}
+            {running ? "Sending…" : "Send"}
           </button>
         </div>
         {runError && (

@@ -12,9 +12,11 @@ interface ChatDetailProps {
   chat: Chat
   workspaceId: string
   onRefetch?: () => void
+  /** First user query when navigating from New Chat before session has messages */
+  initialInput?: string
 }
 
-export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
+export function ChatDetail({ chat, workspaceId, onRefetch, initialInput }: ChatDetailProps) {
   const { token, user } = useAuth()
   const streamCleanupRef = useRef<(() => void) | null>(null)
   const historyRef = useRef<HTMLElement | null>(null)
@@ -57,6 +59,13 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
       }
     }
   }, [])
+
+  // When we came from New Chat and conversation isn't ready yet (404), poll until the run completes.
+  useEffect(() => {
+    if (!initialInput || session !== null || sessionLoading || sessionError) return
+    const interval = setInterval(() => refetchSession(), 2500)
+    return () => clearInterval(interval)
+  }, [initialInput, session, sessionLoading, sessionError, refetchSession])
 
   // Keep chat history scrolled to bottom: first load, after refetch, and while streaming.
   useEffect(() => {
@@ -113,6 +122,13 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
     }
   }
 
+  // Show first user message when we have initialInput and no session yet (404) or session has no messages.
+  const showInitialInput =
+    initialInput &&
+    !sessionLoading &&
+    !sessionError &&
+    (!session || session.messages.length === 0)
+
   return (
     <div className="page-chat">
       <section ref={historyRef} className="page-chat__history" aria-label="Chat history">
@@ -122,9 +138,25 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
         {sessionError && (
           <p className="page-chat__text page-chat__muted">Error: {sessionError}</p>
         )}
+        {showInitialInput && (
+          <div
+            className="page-chat__msg-row page-chat__msg-row--user"
+            role="article"
+            aria-label="You"
+          >
+            <span className="page-chat__msg-icon" aria-hidden>
+              {user ? <UserAvatar user={user} size="sm" /> : <AgentAvatar size="sm" />}
+            </span>
+            <div className="page-chat__msg page-chat__msg--user">
+              <div className="page-chat__msg-content page-chat__markdown">
+                <Markdown remarkPlugins={[remarkGfm]}>{initialInput}</Markdown>
+              </div>
+            </div>
+          </div>
+        )}
         {session && !sessionLoading && !sessionError && (
           <>
-            {session.messages.length === 0 && (
+            {session.messages.length === 0 && !initialInput && (
               <p className="page-chat__text page-chat__muted">
                 No messages yet. Use the input below to start.
               </p>
@@ -275,7 +307,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
             onClick={handleFollowUpSubmit}
             disabled={followUpLoading || !followUpInput.trim()}
           >
-            {followUpLoading ? "Running…" : "Send"}
+            {followUpLoading ? "Sending…" : "Send"}
           </button>
         </div>
         {followUpError && (

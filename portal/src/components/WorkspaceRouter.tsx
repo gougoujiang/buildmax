@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import type { ViewArtifactParams } from "../lib/types"
 import { getChatForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
@@ -21,7 +22,16 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     artifacts,
     token,
     refetchWorkspaceChats,
+    pendingChat,
+    setPendingChat,
   } = useWorkspace()
+
+  // Clear pending chat only when navigating away from this chat, so initialInput stays visible until we leave.
+  useEffect(() => {
+    if (!pendingChat) return
+    const viewingThisChat = route.name === "chat" && route.chatId === pendingChat.chat.id
+    if (!viewingThisChat) setPendingChat(null)
+  }, [route.name, route.chatId, pendingChat, setPendingChat])
 
   const fallbackHome = (
     <WorkspaceHome
@@ -69,13 +79,16 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
   }
 
   if (route.name === "chat") {
-    const chat = getChatForDetail(workspaceChats, route.chatId)
+    const chatFromList = getChatForDetail(workspaceChats, route.chatId)
+    const chat = chatFromList ?? (pendingChat?.chat.id === route.chatId ? pendingChat.chat : null)
     if (!chat) return fallbackHome
+    const initialInput = pendingChat?.chat.id === route.chatId ? pendingChat.initialInput : undefined
     return (
       <ChatDetail
         chat={chat}
         workspaceId={route.workspaceId}
         onRefetch={() => refetchWorkspaceChats()}
+        initialInput={initialInput}
       />
     )
   }
