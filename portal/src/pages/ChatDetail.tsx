@@ -3,7 +3,7 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Chat } from "../lib/types"
 import { getErrorMessage } from "../lib/errorMessage"
-import { getChatConversation, createChatRun, subscribeRunStream } from "../lib/api"
+import { getChatConversation, createChatRun, subscribeChatStream } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
 import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
@@ -60,6 +60,30 @@ export function ChatDetail({ chat, workspaceId, onRefetch, initialInput }: ChatD
     }
   }, [])
 
+  // Subscribe to chat stream (keyed by chat_id; no run_id). One subscription for the lifetime of this view.
+  useEffect(() => {
+    if (!token || !workspaceId || !chat.id) return
+    const cleanup = subscribeChatStream(workspaceId, chat.id, token, {
+      onDelta: (text) => setStreamingContent((prev) => prev + text),
+      onDone: () => {
+        setStreamingContent("")
+        setLastSentMessage(null)
+        setFollowUpLoading(false)
+        refetchSession()
+        onRefetch?.()
+      },
+      onError: (err) => {
+        setFollowUpError(getErrorMessage(err, "Stream failed"))
+        setFollowUpLoading(false)
+      },
+    })
+    streamCleanupRef.current = cleanup
+    return () => {
+      cleanup()
+      streamCleanupRef.current = null
+    }
+  }, [workspaceId, chat.id, token, refetchSession, onRefetch])
+
   // When we came from New Chat and conversation isn't ready yet (404), poll until the run completes.
   useEffect(() => {
     if (!initialInput || session !== null || sessionLoading || sessionError) return
@@ -87,35 +111,8 @@ export function ChatDetail({ chat, workspaceId, onRefetch, initialInput }: ChatD
     setLastSentMessage(input)
     setFollowUpInput("")
     try {
-      const { chat_run_id } = await createChatRun(workspaceId, chat.id, { input }, token)
-      streamCleanupRef.current = subscribeRunStream(
-        workspaceId,
-        chat.id,
-        chat_run_id,
-        token,
-        {
-          onDelta: (text) => setStreamingContent((prev) => prev + text),
-          onDone: () => {
-            if (streamCleanupRef.current) {
-              streamCleanupRef.current()
-              streamCleanupRef.current = null
-            }
-            setStreamingContent("")
-            setLastSentMessage(null)
-            setFollowUpLoading(false)
-            onRefetch?.()
-            refetchSession()
-          },
-          onError: (err) => {
-            if (streamCleanupRef.current) {
-              streamCleanupRef.current()
-              streamCleanupRef.current = null
-            }
-            setFollowUpError(getErrorMessage(err, "Stream failed"))
-            setFollowUpLoading(false)
-          },
-        }
-      )
+      await createChatRun(workspaceId, chat.id, { input }, token)
+      // Stream is already subscribed (chat-scoped) in the mount effect; deltas will arrive there.
     } catch (err) {
       setFollowUpError(getErrorMessage(err, "Failed to start run"))
       setFollowUpLoading(false)

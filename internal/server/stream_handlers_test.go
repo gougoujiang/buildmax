@@ -69,7 +69,8 @@ func TestGetRunStreamHandler_ReturnsStreamWithBuffer(t *testing.T) {
 		ChatRunStore:   &mockChatRunStore{runs: []entity.ChatRun{{ChatRunID: runID, ChatID: chatID}}, chatList: []entity.Chat{{ChatID: chatID, WorkspaceID: workspaceID}}},
 	}
 	s := New(cfg)
-	s.hub.Append(runID, "hello stream")
+	// Hub is keyed by chat_id; run-scoped handler subscribes with chatID from path.
+	s.hub.Append(chatID, "hello stream")
 
 	path := "/api/workspaces/" + workspaceID + "/chats/" + chatID + "/runs/" + runID + "/stream"
 	ctx, cancel := context.WithCancel(context.Background())

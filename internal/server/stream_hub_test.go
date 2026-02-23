@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"buildmax/internal/storage/entity"
 )
 
 func TestMemStreamHub_AppendBufferDone(t *testing.T) {
@@ -71,9 +73,11 @@ func TestMemStreamHub_SubscribeReceivesDeltasAndDone(t *testing.T) {
 
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	chatRunID := "r_run1"
+	chatID := "c_chat1"
 	cfg := Config{
-		JWTSecret:   "secret",
-		WorkerToken: "worker-tok",
+		JWTSecret:     "secret",
+		WorkerToken:   "worker-tok",
+		ChatRunStore:  &mockChatRunStore{runs: []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID}}, chatList: []entity.Chat{{ChatID: chatID}}},
 	}
 	s := New(cfg)
 	handler := s.workerAuthMiddleware(http.HandlerFunc(s.postWorkerStreamHandler))
@@ -89,7 +93,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("POST stream: got status %d, want 200", w.Code)
 	}
-	if got := s.hub.Buffer(chatRunID); got != "hello " {
+	// Hub is keyed by chat_id, not run_id.
+	if got := s.hub.Buffer(chatID); got != "hello " {
 		t.Errorf("hub buffer: got %q, want \"hello \"", got)
 	}
 
@@ -103,7 +108,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	if w2.Code != http.StatusOK {
 		t.Errorf("POST stream second: got status %d, want 200", w2.Code)
 	}
-	if got := s.hub.Buffer(chatRunID); got != "hello world" {
+	if got := s.hub.Buffer(chatID); got != "hello world" {
 		t.Errorf("hub buffer after second: got %q, want \"hello world\"", got)
 	}
 }

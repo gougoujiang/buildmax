@@ -7,6 +7,64 @@
 
 ---
 
+## 0. User vs internal model (chat vs chat-run)
+
+**Principle:** Chat run is an internal concept (server ↔ worker). The user is not exposed to “runs”; they only see “chat”: they start a chat on the New Chat page, then continue the conversation on the chat detail page.
+
+| Layer | User-facing (Portal ↔ Server) | Internal (Server ↔ Worker) |
+|-------|-------------------------------|----------------------------|
+| **Concepts** | **Chat** only: create chat, get conversation, get stream for “this chat” | **Chat run**: worker gets run by id, reports deltas/status per run |
+| **Session** | Allocated when the user submits a new chat; if “no session” (e.g. conversation 404), treat as “chat just started” and show initial user input | Session ID is created at chat creation and passed through to the worker so the same ID is used from the start |
+| **Streaming** | Portal gets stream **by chat**: e.g. `GET .../chats/{chat_id}/stream` (no run_id in URL) | Worker still reports per run: `POST /api/worker/chat-runs/{run_id}/stream`; server maps run → chat and keys hub by chat_id |
+| **Swagger / APIs** | User-facing APIs use **chat** (and workspace); no chat_run_id in Portal-facing paths | Worker APIs keep **chat_run** in the path; these are internal and not exposed to the user |
+
+**Concrete changes (to implement):**
+
+1. **Session ID at chat creation**  
+   When a new chat is submitted (create chat), allocate a **session_id** and persist it on the chat immediately. Pass this session_id through to the worker (e.g. in the run payload or via chat) so the agent/CLI uses it from the very beginning. This ensures a session is “allocated” at the start and avoids races.
+
+2. **No session / conversation not found**  
+   If the conversation API returns “not found” (e.g. no session file in blob yet), treat this as “chat just started.” The chat detail page can show the user’s initial input first (already supported in the Portal) and optionally poll or subscribe to the stream until the first run produces a conversation.
+
+3. **Stream by chat (user-facing)**  
+   The Portal should get the stream **by chat**, not by run:
+   - **User API:** e.g. `GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream` (no run_id). The client subscribes to “this chat’s” stream; at most one run is active per chat, so this is well-defined.
+   - **Existing run-scoped URL** (e.g. `GET .../chats/{chat_id}/runs/{run_id}/stream`) can remain for backward compatibility or be deprecated in favor of the chat-scoped endpoint.
+
+4. **Stream hub keyed by chat_id**  
+   The worker (each chat-run) still reports to the server using run-scoped endpoints, but the **stream hub** should be keyed by **chat_id**, not chat_run_id:
+   - Worker: `POST /api/worker/chat-runs/{run_id}/stream` with `{ "delta": "..." }` (unchanged).
+   - Server: resolve run_id → chat_id (e.g. via ChatRunStore); then `hub.Append(chat_id, delta)` and `hub.Done(chat_id)` when the run completes. So all run-level traffic is translated to chat-level keys in the hub.
+   - User: `GET .../chats/{chat_id}/stream` subscribes to `hub.Subscribe(chat_id)`, receiving deltas for whichever run is currently active for that chat.
+
+This keeps the user model simple (one chat, one stream) while preserving the internal run-based model for scheduling and worker communication.
+
+**Current implementation (Phases 1–3)** uses run-scoped hub keys and run-scoped user stream URL (`GET .../chats/{chat_id}/runs/{run_id}/stream`). The Portal currently receives `chat_run_id` from `createChatRun` and subscribes using that run_id. **Next steps** are to: (1) allocate session_id at chat creation and pass it to the worker; (2) add chat-scoped stream endpoint and key the hub by chat_id; (3) have the Portal subscribe by chat_id only (no run_id in the URL).
+
+### 0.1 Implementation checklist
+
+Status as of doc update: **Done** = implemented; **Partial** = partly there; **No** = not done.
+
+| # | Area | Task | Status | Notes |
+|---|------|------|--------|--------|
+| 1 | **Storage / entity** | Allocate `session_id` when creating a chat (e.g. in `CreateChat` or handler). Persist on the chat row. | **Done** | `entity/chat.go` `CreateChat` allocates a UUID (`uuid.New().String()`) for session_id; session is not exposed to user, buildmax CLI expects UUID. |
+| 2 | **Server (create chat)** | Ensure create-chat response and DB state include `session_id`. | **Done** | Chat returned from store now has session_id from creation. |
+| 3 | **Worker API (get run)** | Include `session_id` in the run/chat payload returned to the worker (e.g. `GET /api/worker/chat-runs/{id}`). | **Done** | `GetChatRunResponse.Chat.SessionID` is already returned (`worker_handlers.go`, `workerapi/types.go`). Value is nil until 1 is done. |
+| 4 | **Worker (run task)** | Pass `session_id` from API response into the run environment or CLI args so the agent uses it. | **Done** | `workercmd/run.go`: uses `chat.SessionID` when present, else generates UUID. `executor.RunTask` receives `sessionID` and passes it to `runBuildmaxCmd` (e.g. `--session-id`). Once 1 is done, worker will use server-allocated id. |
+| 5 | **Stream hub** | Change hub to be keyed by **chat_id** instead of chat_run_id. | **Done** | `stream_hub.go`: interface and impl use `chatID` (Append/Buffer/Done/Subscribe all keyed by chat_id). |
+| 6 | **Server (worker stream)** | In `POST /api/worker/chat-runs/{run_id}/stream`: resolve run_id → chat_id (via ChatRunStore), then `hub.Append(chat_id, delta)`. | **Done** | `postWorkerStreamHandler` calls `GetChatRunWithChat` then `hub.Append(run.ChatID, req.Delta)`. |
+| 7 | **Server (worker PATCH)** | When worker PATCHes run SUCCEEDED/FAILED: call `hub.Done(chat_id)` (resolve run_id → chat_id). | **Done** | `patchWorkerChatRunHandler` resolves run → chat_id and calls `hub.Done(run.ChatID)`. |
+| 8 | **Server (user stream)** | Add `GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream` (no run_id). Auth: workspace + chat ownership. Subscribe to `hub.Subscribe(chat_id)`; send buffer then live deltas then "done". | **Done** | `getChatStreamHandler` in `stream_handlers.go`; route in `server.go`. |
+| 9 | **OpenAPI / Swagger** | Document the new chat-scoped stream endpoint for user API. Keep worker stream endpoints as internal (or clearly marked). | **Done** | `openapi.json`: path `GET .../chats/{chat_id}/stream` added. |
+| 10 | **Portal** | After create chat or create run: subscribe to `GET .../chats/{chat_id}/stream` (no run_id). No need to pass or store chat_run_id for streaming. | **Done** | `subscribeChatStream(workspaceId, chatId, token, callbacks)` in `api/index.ts`; ChatDetail subscribes on mount and does not use run_id for streaming; follow-up only calls `createChatRun`. |
+| 11 | **Conversation 404** | When conversation API returns 404 (no session file yet): Portal already shows initial user input; ensure session_id on chat doesn’t change this (404 when file missing is still valid). | **Done** | Chat detail shows `initialInput` when session is null or empty; conversation API can still 404 until session file exists in blob. |
+
+**Summary:** All items implemented. **1, 2**: session_id at chat creation. **3, 4**: worker API returns and uses session_id. **5–7**: hub keyed by chat_id; worker POST/PATCH map run → chat_id. **8–9**: chat-scoped GET stream + OpenAPI. **10**: Portal subscribes by chat on mount; no run_id for streaming. **11**: initial input on 404 (unchanged).
+
+**Ordering:** 1–2 (session at creation) first. Then 5–7 (hub keyed by chat_id, worker POST/PATCH map to chat_id), then 8–9 (user stream endpoint + docs) and 10 (Portal).
+
+---
+
 ## 1. Current State
 
 ### 1.1 Where streaming exists today
@@ -232,3 +290,4 @@ No need to implement Redis for Phase 1–3; just keep the hub behind an interfac
 - `internal/executor.runBuildmaxCmd` (currently `CombinedOutput()`).
 - Portal: `portal/src/pages/ChatDetail.tsx` (polling + `getChatConversation`).
 - Server: `internal/server/chats.go` (`getChatConversationHandler`, `loadChatConversationData`).
+- **Section 0 refactor:** `internal/storage/entity/chat.go` (CreateChat, session_id); `internal/server/stream_hub.go` (key by chat_id); `internal/server/worker_handlers.go` (POST stream, PATCH run → resolve to chat_id); `internal/server/stream_handlers.go` (user GET stream by chat_id); `internal/executor/worker_api.go`, `internal/workercmd/run.go` (worker receives and uses session_id).

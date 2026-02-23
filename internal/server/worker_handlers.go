@@ -43,15 +43,27 @@ func (s *Server) getWorkerChatRunHandler(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// postWorkerStreamHandler handles POST /api/worker/chat-runs/{chat_run_id}/stream. Appends delta to run's stream buffer (Phase 1).
+// postWorkerStreamHandler handles POST /api/worker/chat-runs/{chat_run_id}/stream. Appends delta to the chat's stream buffer (hub keyed by chat_id).
 func (s *Server) postWorkerStreamHandler(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
 		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
+	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
+		return
+	}
 	if s.hub == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "stream hub not configured")
+		return
+	}
+	run, _, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	if err != nil || run == nil {
+		if err != nil {
+			writeInternalError(w, err, "handler", "post_worker_stream", "chat_run_id", chatRunID)
+		} else {
+			writeJSONError(w, http.StatusNotFound, "run not found")
+		}
 		return
 	}
 	var req workerapi.StreamDeltaRequest
@@ -59,7 +71,7 @@ func (s *Server) postWorkerStreamHandler(w http.ResponseWriter, r *http.Request)
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	s.hub.Append(chatRunID, req.Delta)
+	s.hub.Append(run.ChatID, req.Delta)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -116,9 +128,12 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 				return
 			}
 		}
-		// Release stream buffer for this run (Phase 1: free memory; Phase 2: will also close SSE subscribers).
+		// Release stream buffer for this chat (hub keyed by chat_id).
 		if s.hub != nil {
-			s.hub.Done(chatRunID)
+			run, _, _ := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+			if run != nil {
+				s.hub.Done(run.ChatID)
+			}
 		}
 	}
 

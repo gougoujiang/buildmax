@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"buildmax/internal/util"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -70,11 +71,12 @@ func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat
 	return &c, nil
 }
 
-// CreateChat creates a new chat and its first ChatRun (PENDING) in one transaction. Returns the chat with last_run_id set.
+// CreateChat creates a new chat and its first ChatRun (PENDING) in one transaction. Returns the chat with last_run_id and session_id set.
 func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, createdBy string) (*Chat, error) {
 	now := time.Now().Unix()
 	chatID := util.NewPrefixedID(util.PrefixChat)
 	chatRunID := util.NewPrefixedID(util.PrefixChatRun)
+	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
 	c := &Chat{
 		ChatID:      chatID,
 		WorkspaceID: workspaceID,
@@ -84,6 +86,7 @@ func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, creat
 		CreatedBy:   createdBy,
 		CreatedAt:   now,
 		LastRunID:   &chatRunID,
+		SessionID:   &sessionID,
 	}
 	run := &ChatRun{
 		ChatRunID:  chatRunID,
