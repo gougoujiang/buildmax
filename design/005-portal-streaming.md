@@ -3,6 +3,8 @@
 **Design reference for adding streaming assistant text to the Portal.**  
 *Context: Task 080 added streaming in the CLI (print + TUI); the Portal still loads the full conversation only after a run completes.*
 
+**Implementation status:** Phases 1–3 are implemented. Worker streams stdout to server (POST stream); server hub + GET SSE endpoint; Portal subscribes after createChatRun and shows streaming reply until done, then refetches conversation.
+
 ---
 
 ## 1. Current State
