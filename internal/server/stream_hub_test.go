@@ -37,6 +37,38 @@ func TestMemStreamHub_EmptyDeltaIgnored(t *testing.T) {
 	}
 }
 
+func TestMemStreamHub_SubscribeReceivesDeltasAndDone(t *testing.T) {
+	hub := NewStreamHub().(*memStreamHub)
+	runID := "r_sub"
+	events, unsub := hub.Subscribe(runID)
+	defer unsub()
+
+	hub.Append(runID, "one ")
+	hub.Append(runID, "two ")
+	var received []string
+	go func() {
+		hub.Append(runID, "three")
+		hub.Done(runID)
+	}()
+	for msg := range events {
+		received = append(received, msg)
+		if msg == StreamEventDone {
+			break
+		}
+	}
+
+	want := []string{"one ", "two ", "three", StreamEventDone}
+	if len(received) != len(want) {
+		t.Errorf("received %d events, want %d: %v", len(received), len(want), received)
+	} else {
+		for i := range want {
+			if received[i] != want[i] {
+				t.Errorf("received[%d] = %q, want %q", i, received[i], want[i])
+			}
+		}
+	}
+}
+
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	chatRunID := "r_run1"
 	cfg := Config{
