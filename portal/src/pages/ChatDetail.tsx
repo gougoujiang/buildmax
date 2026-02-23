@@ -3,13 +3,10 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Chat } from "../lib/types"
 import { getErrorMessage } from "../lib/errorMessage"
-import { getChatConversation, createChatRun, getChats } from "../lib/api"
+import { getChatConversation, createChatRun, subscribeRunStream } from "../lib/api"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
 import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
-
-const POLL_INTERVAL_MS = 2000
-const TERMINAL_STATUSES = ["SUCCEEDED", "FAILED"]
 
 interface ChatDetailProps {
   chat: Chat
@@ -19,7 +16,7 @@ interface ChatDetailProps {
 
 export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const { token, user } = useAuth()
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const streamCleanupRef = useRef<(() => void) | null>(null)
 
   const {
     data: session,
@@ -38,6 +35,7 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
   const [followUpInput, setFollowUpInput] = useState("")
   const [followUpLoading, setFollowUpLoading] = useState(false)
   const [followUpError, setFollowUpError] = useState<string | null>(null)
+  const [streamingContent, setStreamingContent] = useState("")
   const [expandedToolIndices, setExpandedToolIndices] = useState<Set<number>>(new Set())
 
   function toggleToolExpand(index: number) {
@@ -51,9 +49,9 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
 
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
+      if (streamCleanupRef.current) {
+        streamCleanupRef.current()
+        streamCleanupRef.current = null
       }
     }
   }, [])
@@ -63,27 +61,37 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
     if (!input || !token || followUpLoading) return
     setFollowUpError(null)
     setFollowUpLoading(true)
+    setStreamingContent("")
     try {
-      await createChatRun(workspaceId, chat.id, { input }, token)
+      const { chat_run_id } = await createChatRun(workspaceId, chat.id, { input }, token)
       setFollowUpInput("")
-      pollIntervalRef.current = setInterval(async () => {
-        if (!token) return
-        try {
-          const list = await getChats(workspaceId, token)
-          const updated = list.find((c) => c.id === chat.id)
-          if (updated && TERMINAL_STATUSES.includes(updated.status)) {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
+      streamCleanupRef.current = subscribeRunStream(
+        workspaceId,
+        chat.id,
+        chat_run_id,
+        token,
+        {
+          onDelta: (text) => setStreamingContent((prev) => prev + text),
+          onDone: () => {
+            if (streamCleanupRef.current) {
+              streamCleanupRef.current()
+              streamCleanupRef.current = null
             }
+            setStreamingContent("")
             setFollowUpLoading(false)
             onRefetch?.()
             refetchSession()
-          }
-        } catch {
-          // ignore poll errors; keep polling
+          },
+          onError: (err) => {
+            if (streamCleanupRef.current) {
+              streamCleanupRef.current()
+              streamCleanupRef.current = null
+            }
+            setFollowUpError(getErrorMessage(err, "Stream failed"))
+            setFollowUpLoading(false)
+          },
         }
-      }, POLL_INTERVAL_MS)
+      )
     } catch (err) {
       setFollowUpError(getErrorMessage(err, "Failed to start run"))
       setFollowUpLoading(false)
@@ -197,6 +205,24 @@ export function ChatDetail({ chat, workspaceId, onRefetch }: ChatDetailProps) {
                 </div>
               )
             })}
+            {streamingContent ? (
+              <div
+                className="page-chat__msg-row page-chat__msg-row--assistant"
+                role="article"
+                aria-label="Assistant (streaming)"
+              >
+                <span className="page-chat__msg-icon" aria-hidden>
+                  <AgentAvatar size="sm" />
+                </span>
+                <div className="page-chat__msg page-chat__msg--assistant">
+                  <div className="page-chat__msg-content page-chat__markdown">
+                    <Markdown remarkPlugins={[remarkGfm]}>
+                      {streamingContent}
+                    </Markdown>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </section>

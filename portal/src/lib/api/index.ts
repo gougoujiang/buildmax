@@ -186,6 +186,94 @@ export async function createChatRun(
   return res.json() as Promise<CreateChatRunResponse>
 }
 
+/** Callbacks for run stream SSE (Phase 3 streaming). */
+export interface RunStreamCallbacks {
+  onDelta: (text: string) => void
+  onDone: () => void
+  onError: (err: Error) => void
+}
+
+/**
+ * Subscribes to the run stream (GET .../runs/{runId}/stream). Uses fetch + ReadableStream so
+ * Authorization header is sent. Parses SSE and calls onDelta for each data event, onDone when
+ * the server sends the "done" event or the stream ends. Call the returned cleanup to abort.
+ */
+export function subscribeRunStream(
+  workspaceId: string,
+  chatId: string,
+  runId: string,
+  token: string,
+  callbacks: RunStreamCallbacks
+): () => void {
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/runs/${encodeURIComponent(runId)}/stream`
+  const controller = new AbortController()
+  const { onDelta, onDone, onError } = callbacks
+
+  fetch(url, { headers: authHeaders(token), signal: controller.signal })
+    .then((res) => {
+      checkUnauthorized(res)
+      if (!res.ok) {
+        return parseErrorResponse(res, "Stream failed").then((msg) => {
+          onError(new Error(msg))
+        })
+      }
+      const reader = res.body?.getReader()
+      if (!reader) {
+        onDone()
+        return
+      }
+      const decoder = new TextDecoder()
+      let buffer = ""
+      const r = reader
+      return readStream()
+      async function readStream() {
+        try {
+          while (true) {
+            const { done, value } = await r.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const events = buffer.split("\n\n")
+            buffer = events.pop() ?? ""
+            for (const event of events) {
+              const data = parseSSEEvent(event)
+              if (data !== null) {
+                if (data === "done") {
+                  onDone()
+                  return
+                }
+                onDelta(data)
+              }
+            }
+          }
+          // Stream ended without "done" event
+          if (buffer.trim()) {
+            const data = parseSSEEvent(buffer)
+            if (data === "done") onDone()
+            else if (data !== null) onDelta(data)
+          }
+          onDone()
+        } catch (e) {
+          if ((e as Error).name === "AbortError") return
+          onError(e instanceof Error ? e : new Error(String(e)))
+        }
+      }
+    })
+    .catch((e) => {
+      if ((e as Error).name === "AbortError") return
+      onError(e instanceof Error ? e : new Error(String(e)))
+    })
+
+  function parseSSEEvent(event: string): string | null {
+    const lines = event.split("\n").filter((line) => line.startsWith("data: "))
+    if (lines.length === 0) return null
+    return lines
+      .map((line) => line.slice(5)) // "data: ".length
+      .join("\n")
+  }
+
+  return () => controller.abort()
+}
+
 export async function getArtifacts(
   workspaceId: string,
   token: string,
