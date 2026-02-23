@@ -7,14 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
+	"time"
 
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/workerapi"
 )
 
 // StreamSender sends run output deltas to the server (e.g. for live streaming). Optional; when nil, run output is not streamed.
+// Flush sends any buffered data; call when the stream ends so the last chunk is not lost.
 type StreamSender interface {
 	SendDelta(ctx context.Context, chatRunID, delta string) error
+	Flush(ctx context.Context, chatRunID string) error
 }
 
 // ErrChatRunAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (run not SCHEDULED or already RUNNING).
@@ -152,4 +157,96 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta
 		return fmt.Errorf("worker API POST stream %s: %s", url, resp.Status)
 	}
 	return nil
+}
+
+// Flush is a no-op; WorkerHTTPStreamSender sends each delta immediately.
+func (u *WorkerHTTPStreamSender) Flush(ctx context.Context, chatRunID string) error {
+	return nil
+}
+
+// DebouncedStreamSender wraps a StreamSender and buffers deltas, flushing after an interval or when buffer size is reached.
+// Reduces server API pressure and gives a smoother typewriter-like experience on the client.
+const (
+	DebounceIntervalMs = 80  // flush at most every 80ms when there is buffered data
+	DebounceMaxBytes   = 512 // flush when buffer reaches 512 bytes
+)
+
+// DebouncedStreamSender implements StreamSender with debouncing.
+type DebouncedStreamSender struct {
+	Inner      StreamSender
+	IntervalMs int // override default when > 0
+	MaxBytes   int // override default when > 0
+
+	mu              sync.Mutex
+	buf             strings.Builder
+	currentChatRunID string
+	timer           *time.Timer
+}
+
+func (d *DebouncedStreamSender) SendDelta(ctx context.Context, chatRunID, delta string) error {
+	return d.sendOrFlush(ctx, chatRunID, delta, false)
+}
+
+func (d *DebouncedStreamSender) Flush(ctx context.Context, chatRunID string) error {
+	return d.sendOrFlush(ctx, chatRunID, "", true)
+}
+
+func (d *DebouncedStreamSender) sendOrFlush(ctx context.Context, chatRunID, delta string, forceFlush bool) error {
+	intervalMs := d.IntervalMs
+	if intervalMs <= 0 {
+		intervalMs = DebounceIntervalMs
+	}
+	maxBytes := d.MaxBytes
+	if maxBytes <= 0 {
+		maxBytes = DebounceMaxBytes
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if forceFlush {
+		d.flushLocked(ctx)
+		return nil
+	}
+
+	if delta == "" {
+		return nil
+	}
+	if d.buf.Len() == 0 {
+		d.currentChatRunID = chatRunID
+	}
+	d.buf.WriteString(delta)
+
+	if d.buf.Len() >= maxBytes {
+		d.flushLocked(ctx)
+		return nil
+	}
+
+	if d.timer != nil {
+		d.timer.Stop()
+		d.timer = nil
+	}
+	d.timer = time.AfterFunc(time.Duration(intervalMs)*time.Millisecond, func() {
+		d.mu.Lock()
+		d.flushLocked(context.Background())
+		d.mu.Unlock()
+	})
+	return nil
+}
+
+// flushLocked sends the current buffer via Inner and clears it. Caller must hold d.mu.
+func (d *DebouncedStreamSender) flushLocked(ctx context.Context) {
+	if d.timer != nil {
+		d.timer.Stop()
+		d.timer = nil
+	}
+	if d.buf.Len() == 0 {
+		return
+	}
+	payload := d.buf.String()
+	runID := d.currentChatRunID
+	d.buf.Reset()
+	d.mu.Unlock()
+	defer d.mu.Lock()
+	_ = d.Inner.SendDelta(ctx, runID, payload)
 }

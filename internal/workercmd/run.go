@@ -98,7 +98,8 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 	}
 
 	paths := executor.NewWorkspacePathsFromRoot(workspacesDir)
-	streamSender := &executor.WorkerHTTPStreamSender{BaseURL: baseURL, Token: token}
+	httpSender := &executor.WorkerHTTPStreamSender{BaseURL: baseURL, Token: token}
+	streamSender := &executor.DebouncedStreamSender{Inner: httpSender}
 	err = executor.RunTask(ctx, chat, run, sessionID, paths, persistStorage, artifactStorage, updater, streamSender)
 	if err != nil {
 		slog.Error("worker: run execution failed", "chat_run_id", chatRunID, "err", err)

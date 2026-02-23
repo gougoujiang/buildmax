@@ -171,6 +171,10 @@ func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, runDir, runGlobalD
 
 	stderrBuf, _ := io.ReadAll(stderrPipe)
 	wg.Wait()
+	// Flush any buffered stream data (e.g. debouncer) so the last chunk is sent.
+	if flushErr := streamSender.Flush(ctx, run.ChatRunID); flushErr != nil {
+		slog.Warn("executor: stream flush failed", "chat_run_id", run.ChatRunID, "err", flushErr)
+	}
 
 	fullOutput := append(stdoutBuf.Bytes(), stderrBuf...)
 	cmdErr := cmd.Wait()
