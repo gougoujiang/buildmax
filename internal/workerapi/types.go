@@ -42,6 +42,11 @@ type ArtifactPayload struct {
 	RelativePaths []string `json:"relative_paths,omitempty"`  // all files in the run output (e.g. result.md)
 }
 
+// StreamDeltaRequest is the JSON body for POST /api/worker/chat-runs/{chat_run_id}/stream (snake_case).
+type StreamDeltaRequest struct {
+	Delta string `json:"delta"`
+}
+
 // Run status constants for the worker API.
 const (
 	StatusPending   = "PENDING"

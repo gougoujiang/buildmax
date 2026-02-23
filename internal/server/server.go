@@ -53,11 +53,12 @@ type Config struct {
 type Server struct {
 	srv *http.Server
 	cfg Config
+	hub StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
 // New builds an HTTP server with routes for /healthz, /openapi.json, /swagger/, and POST /api/login.
 func New(cfg Config) *Server {
-	s := &Server{cfg: cfg}
+	s := &Server{cfg: cfg, hub: NewStreamHub()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
 	mux.HandleFunc("GET /openapi.json", openAPIHandler)
@@ -83,6 +84,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/conversation", s.getChatConversationHandler)
 	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler)))
 	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler)))
+	mux.Handle("POST /api/worker/chat-runs/{chat_run_id}/stream", s.workerAuthMiddleware(http.HandlerFunc(s.postWorkerStreamHandler)))
 
 	handler := http.Handler(mux)
 	if cfg.CORSOrigin != "" {

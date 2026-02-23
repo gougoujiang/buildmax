@@ -5,14 +5,17 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"buildmax/internal/config"
@@ -29,7 +32,8 @@ type ChatRunUpdater interface {
 }
 
 // RunTask runs a single chat run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload run global to blob, update run and chat via updater.
-func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessionID string, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
+// If streamSender is non-nil, stdout is streamed to the server as deltas; full output is still accumulated for persist and PATCH.
+func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessionID string, paths WorkspacePaths, persist blob.PersistStorage, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater, streamSender StreamSender) error {
 	if chat == nil || run == nil {
 		return errors.New("executor: chat and run must not be nil")
 	}
@@ -62,7 +66,7 @@ func RunTask(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, sessio
 	if chat.SessionID != nil {
 		effectiveSessionID = *chat.SessionID
 	}
-	output, cmdErr := runBuildmaxCmd(ctx, run, runDir, runGlobal, effectiveSessionID)
+	output, cmdErr := runBuildmaxCmd(ctx, run, runDir, runGlobal, effectiveSessionID, streamSender)
 	endTime := time.Now().Unix()
 	outputStr := string(output)
 
@@ -112,7 +116,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *
 	_ = os.WriteFile(filepath.Join(sessionsDir, *chat.SessionID+".json"), data, 0644)
 }
 
-func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, runDir, runGlobalDir, sessionID string) ([]byte, error) {
+func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, runDir, runGlobalDir, sessionID string, streamSender StreamSender) ([]byte, error) {
 	env := os.Environ()
 	prefix := config.EnvKeyBuildmaxHome + "="
 	filtered := make([]string, 0, len(env)+1)
@@ -124,7 +128,53 @@ func runBuildmaxCmd(ctx context.Context, run *entity.ChatRun, runDir, runGlobalD
 	cmd := exec.CommandContext(ctx, "buildmax", "-p", run.Input, "--session-id", sessionID)
 	cmd.Dir = runDir
 	cmd.Env = append(filtered, prefix+runGlobalDir)
-	return cmd.CombinedOutput()
+
+	if streamSender == nil {
+		return cmd.CombinedOutput()
+	}
+
+	// Stream stdout to sender and capture stdout+stderr for full output.
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	var stdoutBuf bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		buf := make([]byte, 1024)
+		for {
+			n, readErr := stdoutPipe.Read(buf)
+			if n > 0 {
+				stdoutBuf.Write(buf[:n])
+				if sendErr := streamSender.SendDelta(ctx, run.ChatRunID, string(buf[:n])); sendErr != nil {
+					slog.Warn("executor: stream send delta failed", "chat_run_id", run.ChatRunID, "err", sendErr)
+				}
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					slog.Warn("executor: stdout read error", "chat_run_id", run.ChatRunID, "err", readErr)
+				}
+				return
+			}
+		}
+	}()
+
+	stderrBuf, _ := io.ReadAll(stderrPipe)
+	wg.Wait()
+
+	fullOutput := append(stdoutBuf.Bytes(), stderrBuf...)
+	cmdErr := cmd.Wait()
+	return fullOutput, cmdErr
 }
 
 func persistRunResult(runArtifactsDir string, output []byte) {

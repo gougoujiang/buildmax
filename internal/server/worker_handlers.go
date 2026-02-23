@@ -43,6 +43,26 @@ func (s *Server) getWorkerChatRunHandler(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// postWorkerStreamHandler handles POST /api/worker/chat-runs/{chat_run_id}/stream. Appends delta to run's stream buffer (Phase 1).
+func (s *Server) postWorkerStreamHandler(w http.ResponseWriter, r *http.Request) {
+	chatRunID := r.PathValue("chat_run_id")
+	if chatRunID == "" {
+		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		return
+	}
+	if s.hub == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "stream hub not configured")
+		return
+	}
+	var req workerapi.StreamDeltaRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	s.hub.Append(chatRunID, req.Delta)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // patchWorkerChatRunHandler handles PATCH /api/worker/chat-runs/{chat_run_id}. Updates run status; on SUCCEEDED with artifact calls OnRunComplete, on FAILED calls SyncChatFromRun.
 func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
@@ -95,6 +115,10 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 				writeInternalError(w, err, "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
 				return
 			}
+		}
+		// Release stream buffer for this run (Phase 1: free memory; Phase 2: will also close SSE subscribers).
+		if s.hub != nil {
+			s.hub.Done(chatRunID)
 		}
 	}
 
