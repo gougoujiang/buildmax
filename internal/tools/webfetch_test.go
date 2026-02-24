@@ -20,21 +20,21 @@ type mockWebFetchLLM struct {
 	callCount int
 }
 
-func (m *mockWebFetchLLM) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, error) {
+func (m *mockWebFetchLLM) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()
-	return m.reply, nil, nil
+	return m.reply, nil, llm.Usage{}, nil
 }
 
-func (m *mockWebFetchLLM) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, error) {
+func (m *mockWebFetchLLM) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()
 	if onDelta != nil && m.reply != "" {
 		onDelta(m.reply)
 	}
-	return m.reply, nil, nil
+	return m.reply, nil, llm.Usage{}, nil
 }
 
 func (m *mockWebFetchLLM) getCallCount() int {

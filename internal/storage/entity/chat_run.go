@@ -102,7 +102,7 @@ func (s *Store) UpdateChatRunStatusIf(ctx context.Context, chatRunID, expectedSt
 
 // UpdateChatRunStatus updates a run's status and optional fields.
 // When status is SCHEDULED or RUNNING, the chat's denormalized status is synced to match.
-func (s *Store) UpdateChatRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+func (s *Store) UpdateChatRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) error {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {
 		updates["started_at"] = *startedAt
@@ -118,6 +118,12 @@ func (s *Store) UpdateChatRunStatus(ctx context.Context, chatRunID, status strin
 	}
 	if sessionID != nil {
 		updates["session_id"] = *sessionID
+	}
+	if promptTokens != nil {
+		updates["prompt_tokens"] = *promptTokens
+	}
+	if completionTokens != nil {
+		updates["completion_tokens"] = *completionTokens
 	}
 	if err := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", chatRunID).Updates(updates).Error; err != nil {
 		return err

@@ -67,6 +67,8 @@ type ChatRun struct {
 	WorkerType      string  `gorm:"type:varchar(32)" json:"worker_type,omitempty"`
 	K8sJobName      *string `gorm:"type:varchar(128)" json:"k8s_job_name,omitempty"`
 	K8sJobCreatedAt *int64  `gorm:"column:k8s_job_created_at" json:"k8s_job_created_at,omitempty"`
+	PromptTokens    *int    `gorm:"" json:"prompt_tokens,omitempty"`
+	CompletionTokens *int   `gorm:"" json:"completion_tokens,omitempty"`
 	CreatedAt       int64   `gorm:"autoCreateTime" json:"created_at"`
 }
 

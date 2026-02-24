@@ -20,25 +20,26 @@ type mockLLMCaller struct {
 type mockResponse struct {
 	content   string
 	toolCalls []llm.ToolCall
+	usage     llm.Usage
 }
 
-func (m *mockLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, err error) {
+func (m *mockLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.responses) {
-		return "", nil, nil
+		return "", nil, llm.Usage{}, nil
 	}
 	r := m.responses[m.calls]
 	m.calls++
-	return r.content, r.toolCalls, nil
+	return r.content, r.toolCalls, r.usage, nil
 }
 
-func (m *mockLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error) {
-	content, toolCalls, err = m.ChatWithTools(ctx, messages, tools)
+func (m *mockLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+	content, toolCalls, usage, err = m.ChatWithTools(ctx, messages, tools)
 	if err == nil && onDelta != nil && content != "" {
 		onDelta(content)
 	}
-	return content, toolCalls, err
+	return content, toolCalls, usage, err
 }
 
 func (m *mockLLMCaller) callCount() int {
@@ -150,6 +151,36 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 	}
 }
 
+// TestProcessWithSession_AccumulatesUsage asserts that RunStats accumulates prompt and completion tokens across LLM calls.
+func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
+	ctx := context.Background()
+	mock := &mockLLMCaller{
+		responses: []mockResponse{
+			{content: "", toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}}, usage: llm.Usage{PromptTokens: 10, CompletionTokens: 5}},
+			{content: "Done.", toolCalls: nil, usage: llm.Usage{PromptTokens: 20, CompletionTokens: 8}},
+		},
+	}
+	tool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	a := NewAgent(mock, []Tool{tool})
+	sess := session.NewSession("")
+	reply, stats, err := a.Process(ctx, sess, "Hi")
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if reply != "Done." {
+		t.Errorf("reply = %q, want %q", reply, "Done.")
+	}
+	if stats.ToolCalls != 1 {
+		t.Errorf("stats.ToolCalls = %d, want 1", stats.ToolCalls)
+	}
+	if stats.PromptTokens != 30 {
+		t.Errorf("stats.PromptTokens = %d, want 30", stats.PromptTokens)
+	}
+	if stats.CompletionTokens != 13 {
+		t.Errorf("stats.CompletionTokens = %d, want 13", stats.CompletionTokens)
+	}
+}
+
 // recordingLLMCaller wraps an LLMCaller and records the messages from the first ChatWithTools call.
 type recordingLLMCaller struct {
 	inner    *mockLLMCaller
@@ -157,7 +188,7 @@ type recordingLLMCaller struct {
 	once     sync.Once
 }
 
-func (r *recordingLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, err error) {
+func (r *recordingLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
 	r.once.Do(func() {
 		r.firstMsg = make([]llm.Message, len(messages))
 		copy(r.firstMsg, messages)
@@ -165,7 +196,7 @@ func (r *recordingLLMCaller) ChatWithTools(ctx context.Context, messages []llm.M
 	return r.inner.ChatWithTools(ctx, messages, tools)
 }
 
-func (r *recordingLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error) {
+func (r *recordingLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
 	return r.inner.ChatWithToolsStream(ctx, messages, tools, onDelta)
 }
 
@@ -176,7 +207,7 @@ type lastCallLLMCaller struct {
 	lastMu  sync.Mutex
 }
 
-func (r *lastCallLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, err error) {
+func (r *lastCallLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
 	r.lastMu.Lock()
 	r.lastMsg = make([]llm.Message, len(messages))
 	copy(r.lastMsg, messages)
@@ -184,7 +215,7 @@ func (r *lastCallLLMCaller) ChatWithTools(ctx context.Context, messages []llm.Me
 	return r.inner.ChatWithTools(ctx, messages, tools)
 }
 
-func (r *lastCallLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error) {
+func (r *lastCallLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
 	return r.inner.ChatWithToolsStream(ctx, messages, tools, onDelta)
 }
 

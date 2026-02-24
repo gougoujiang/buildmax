@@ -216,7 +216,7 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 		sess, err = session.LoadFromDir(sessionsDir, sessionID)
 		if err != nil {
 			if errors.Is(err, session.ErrSessionNotFound) {
-				sess = session.NewSessionFromData(sessionID, "", time.Now(), nil)
+				sess = session.NewSessionFromData(sessionID, "", time.Now(), nil, 0, 0)
 				slog.Info("created session with id", "id", sess.ID())
 			} else {
 				slog.Error("load session failed", "err", err)

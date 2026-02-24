@@ -290,7 +290,7 @@ func (m *mockChatRunStore) UpdateChatRunStatusIf(_ context.Context, chatRunID, e
 	}
 	return false, nil
 }
-func (m *mockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+func (m *mockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) error {
 	for i := range m.runs {
 		if m.runs[i].ChatRunID == chatRunID {
 			m.runs[i].Status = status
@@ -308,6 +308,12 @@ func (m *mockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, sta
 			}
 			if sessionID != nil {
 				m.runs[i].SessionID = sessionID
+			}
+			if promptTokens != nil {
+				m.runs[i].PromptTokens = promptTokens
+			}
+			if completionTokens != nil {
+				m.runs[i].CompletionTokens = completionTokens
 			}
 			return nil
 		}

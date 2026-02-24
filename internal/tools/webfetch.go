@@ -166,7 +166,7 @@ func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, er
 	// 8. Optional LLM step
 	finalURL := resp.Request.URL.String()
 	if prompt != "" {
-		reply, _, err := w.caller.ChatWithTools(ctx, []llm.Message{
+		reply, _, _, err := w.caller.ChatWithTools(ctx, []llm.Message{
 			{Role: "system", Content: "Answer based only on the following content.\n\n" + content},
 			{Role: "user", Content: prompt},
 		}, nil)

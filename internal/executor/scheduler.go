@@ -84,7 +84,7 @@ func (s *Scheduler) loop() {
 			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run)
 			if err != nil {
 				slog.Warn("scheduler: worker run failed, reverting run to PENDING", "chat_run_id", run.ChatRunID, "err", err)
-				if revertErr := s.chatRuns.UpdateChatRunStatus(ctx, run.ChatRunID, "PENDING", nil, nil, nil, nil, nil); revertErr != nil {
+				if revertErr := s.chatRuns.UpdateChatRunStatus(ctx, run.ChatRunID, "PENDING", nil, nil, nil, nil, nil, nil, nil); revertErr != nil {
 					slog.Error("scheduler: failed to revert run to PENDING", "chat_run_id", run.ChatRunID, "err", revertErr)
 				}
 				continue

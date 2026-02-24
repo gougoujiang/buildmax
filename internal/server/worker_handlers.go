@@ -106,7 +106,7 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	} else {
-		if err := s.cfg.ChatRunStore.UpdateChatRunStatus(r.Context(), chatRunID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID); err != nil {
+		if err := s.cfg.ChatRunStore.UpdateChatRunStatus(r.Context(), chatRunID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID, req.PromptTokens, req.CompletionTokens); err != nil {
 			writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 			return
 		}

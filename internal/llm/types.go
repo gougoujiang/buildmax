@@ -23,3 +23,10 @@ type ToolCall struct {
 	Name      string `json:"name"`             // tool name to invoke
 	Arguments string `json:"arguments,omitempty"` // JSON object of arguments
 }
+
+// Usage holds token counts from the API (same shape for non-stream and stream responses).
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}

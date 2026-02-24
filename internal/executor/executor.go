@@ -40,10 +40,12 @@ type RunScope struct {
 
 // RunResult holds the outcome of a successful run (output and paths) for reportRunSuccess.
 type RunResult struct {
-	EndTime         int64
-	OutputStr       string
-	RunArtifactsDir string
-	Output          []byte
+	EndTime          int64
+	OutputStr        string
+	RunArtifactsDir  string
+	Output           []byte
+	PromptTokens     *int
+	CompletionTokens *int
 }
 
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
@@ -114,7 +116,13 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return cmdErr
 	}
 
-	if err := reportRunSuccess(ctx, scope, RunResult{EndTime: endTime, OutputStr: outputStr, RunArtifactsDir: runArtifacts, Output: output}, artifactStorage, updater); err != nil {
+	result := RunResult{EndTime: endTime, OutputStr: outputStr, RunArtifactsDir: runArtifacts, Output: output}
+	if prompt, completion, readErr := ReadRunUsage(runGlobal); readErr == nil && prompt != nil && completion != nil && *prompt >= 0 && *completion >= 0 {
+		result.PromptTokens = prompt
+		result.CompletionTokens = completion
+	}
+
+	if err := reportRunSuccess(ctx, scope, result, artifactStorage, updater); err != nil {
 		return err
 	}
 	slog.Info("executor: run succeeded", "chat_run_id", run.ChatRunID)
@@ -240,12 +248,19 @@ func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, art
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
-	return updater.UpdateRunStatus(ctx, scope.ChatRunID, &workerapi.PatchChatRunRequest{
+	req := &workerapi.PatchChatRunRequest{
 		Status:   workerapi.StatusSucceeded,
 		EndedAt:  &result.EndTime,
 		Output:   &result.OutputStr,
 		Artifact: &workerapi.ArtifactPayload{RelativePaths: relativePaths},
-	})
+	}
+	if result.PromptTokens != nil {
+		req.PromptTokens = result.PromptTokens
+	}
+	if result.CompletionTokens != nil {
+		req.CompletionTokens = result.CompletionTokens
+	}
+	return updater.UpdateRunStatus(ctx, scope.ChatRunID, req)
 }
 
 // uploadChatRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).

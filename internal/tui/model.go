@@ -51,6 +51,7 @@ type TUIOpts struct {
 // agentDoneMsg is sent when agent.Process finishes (in a tea.Cmd).
 type agentDoneMsg struct {
 	Reply string
+	Stats agent.RunStats
 	Err   error
 }
 
@@ -120,8 +121,8 @@ func (m *Model) Init() tea.Cmd {
 func runAgentWithStream(opts TUIOpts, channel chan tea.Msg) tea.Cmd {
 	sink := &streamSinkToChannel{channel: channel}
 	go func() {
-		reply, _, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session, agent.WithStreamSink(sink))
-		channel <- agentDoneMsg{Reply: reply, Err: err}
+		reply, stats, err := opts.Agent.ProcessAfterUserAppended(context.Background(), opts.Session, agent.WithStreamSink(sink))
+		channel <- agentDoneMsg{Reply: reply, Stats: stats, Err: err}
 		close(channel)
 	}()
 	return func() tea.Msg { return <-channel }
@@ -249,6 +250,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	// Remember whether the session had no title before persist (i.e. first turn).
 	needsLLMTitle := m.opts.Session.Title() == ""
 
+	m.opts.Session.AddUsage(msg.Stats.PromptTokens, msg.Stats.CompletionTokens)
 	if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
 		slog.Error("persist session failed", "err", err)
 		m.err = err.Error()
@@ -266,7 +268,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 func generateTitleCmd(opts TUIOpts) tea.Cmd {
 	return func() tea.Msg {
 		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
-			content, _, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
+			content, _, _, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
 			return content, err
 		})
 		title, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages())

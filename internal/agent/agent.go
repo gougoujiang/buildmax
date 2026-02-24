@@ -80,8 +80,8 @@ type StreamSink interface {
 
 // LLMCaller can perform chat-with-tools. *llm.Client implements this.
 type LLMCaller interface {
-	ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, err error)
-	ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, err error)
+	ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error)
+	ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error)
 }
 
 // processConfig holds per-call options for Process/ProcessAfterUserAppended.
@@ -101,7 +101,9 @@ func WithStreamSink(sink StreamSink) ProcessOption {
 
 // RunStats holds statistics collected during a single agent run.
 type RunStats struct {
-	ToolCalls int // total number of individual tool invocations
+	ToolCalls        int // total number of individual tool invocations
+	PromptTokens     int // accumulated prompt tokens from LLM calls
+	CompletionTokens int // accumulated completion tokens from LLM calls
 }
 
 // Agent runs the agent loop: LLM call → execute tool_calls if any → repeat until final reply.
@@ -194,26 +196,29 @@ func (a *Agent) ProcessAfterUserAppended(ctx context.Context, sess *session.Sess
 
 // processLoop runs the LLM loop: build messages (system + session), call LLM, handle tool_calls, append to session, repeat until final reply.
 func (a *Agent) processLoop(ctx context.Context, sess *session.Session, cfg processConfig) (reply string, stats RunStats, err error) {
-	var totalToolCalls int
+	var totalToolCalls, totalPrompt, totalCompletion int
 	for i := 0; i < a.maxIter; i++ {
 		ctx = session.CtxWithSessionID(ctx, sess.ID())
 		slog.Debug("agent iteration", "iter", i+1, "max", a.maxIter)
 		messages := append([]llm.Message{{Role: "system", Content: a.systemPrompt}}, sess.Messages()...)
 		var content string
 		var toolCalls []llm.ToolCall
+		var usage llm.Usage
 		if cfg.streamSink != nil {
-			content, toolCalls, err = a.caller.ChatWithToolsStream(ctx, messages, a.toolDefs, cfg.streamSink.OnDelta)
+			content, toolCalls, usage, err = a.caller.ChatWithToolsStream(ctx, messages, a.toolDefs, cfg.streamSink.OnDelta)
 		} else {
-			content, toolCalls, err = a.caller.ChatWithTools(ctx, messages, a.toolDefs)
+			content, toolCalls, usage, err = a.caller.ChatWithTools(ctx, messages, a.toolDefs)
 		}
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)
-			return "", RunStats{ToolCalls: totalToolCalls}, fmt.Errorf("llm call: %w", err)
+			return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, fmt.Errorf("llm call: %w", err)
 		}
+		totalPrompt += usage.PromptTokens
+		totalCompletion += usage.CompletionTokens
 		if len(toolCalls) == 0 {
 			slog.Debug("agent reply", "content", content)
 			sess.Append(llm.Message{Role: "assistant", Content: content})
-			return content, RunStats{ToolCalls: totalToolCalls}, nil
+			return content, RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, nil
 		}
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
 		sess.Append(llm.Message{
@@ -227,7 +232,7 @@ func (a *Agent) processLoop(ctx context.Context, sess *session.Session, cfg proc
 		totalToolCalls += len(toolCalls)
 	}
 	slog.Warn("agent max iterations exceeded")
-	return "", RunStats{ToolCalls: totalToolCalls}, errors.New("agent: max iterations exceeded")
+	return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, errors.New("agent: max iterations exceeded")
 }
 
 // processOneToolCall resolves the tool by name, parses arguments, executes, and appends

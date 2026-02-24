@@ -40,19 +40,24 @@ func SessionIDFromContext(ctx context.Context) (string, bool) {
 // Used only for encoding/decoding; Session's internal fields stay unexported.
 // omitempty skips null/empty values so persisted JSON stays minimal.
 type sessionFile struct {
-	ID        string        `json:"id"`
-	Title     string        `json:"title,omitempty"`
-	CreatedAt string        `json:"created_at"` // RFC3339
-	Messages  []llm.Message `json:"messages,omitempty"`
+	ID               string        `json:"id"`
+	Title            string        `json:"title,omitempty"`
+	CreatedAt        string        `json:"created_at"` // RFC3339
+	Messages         []llm.Message `json:"messages,omitempty"`
+	PromptTokens     int           `json:"prompt_tokens,omitempty"`
+	CompletionTokens int           `json:"completion_tokens,omitempty"`
 }
 
 // Session holds conversation history (user, assistant, tool messages) and metadata.
 // The system message is not stored; it is prepended at call time by the agent.
+// promptTokens and completionTokens hold accumulated token usage across turns.
 type Session struct {
-	id        string
-	title     string
-	createdAt time.Time
-	messages  []llm.Message
+	id               string
+	title            string
+	createdAt        time.Time
+	messages         []llm.Message
+	promptTokens     int
+	completionTokens int
 }
 
 // NewSession creates a new session with a generated UUID, the given title,
@@ -68,17 +73,20 @@ func NewSession(title string) *Session {
 
 // NewSessionFromData constructs a Session from persisted data (e.g. after LoadFromDir).
 // Used to restore a session without exporting Session's internal fields.
-func NewSessionFromData(id, title string, createdAt time.Time, messages []llm.Message) *Session {
+// promptTokens and completionTokens are the accumulated usage from the session file (0 for old files).
+func NewSessionFromData(id, title string, createdAt time.Time, messages []llm.Message, promptTokens, completionTokens int) *Session {
 	var msgs []llm.Message
 	if len(messages) > 0 {
 		msgs = make([]llm.Message, len(messages))
 		copy(msgs, messages)
 	}
 	return &Session{
-		id:        id,
-		title:     title,
-		createdAt: createdAt,
-		messages:  msgs,
+		id:               id,
+		title:            title,
+		createdAt:        createdAt,
+		messages:         msgs,
+		promptTokens:     promptTokens,
+		completionTokens: completionTokens,
 	}
 }
 
@@ -119,6 +127,22 @@ func (s *Session) SetTitle(title string) {
 	s.title = title
 }
 
+// PromptTokens returns the accumulated prompt token count for the session.
+func (s *Session) PromptTokens() int {
+	return s.promptTokens
+}
+
+// CompletionTokens returns the accumulated completion token count for the session.
+func (s *Session) CompletionTokens() int {
+	return s.completionTokens
+}
+
+// AddUsage adds this turn's token counts to the session's accumulated usage.
+func (s *Session) AddUsage(promptTokens, completionTokens int) {
+	s.promptTokens += promptTokens
+	s.completionTokens += completionTokens
+}
+
 // SaveToDir serializes the session to JSON and writes it to dir/<s.ID()>.json.
 // Creates dir (and parents) if it does not exist.
 func SaveToDir(s *Session, dir string) error {
@@ -126,10 +150,12 @@ func SaveToDir(s *Session, dir string) error {
 		return err
 	}
 	f := sessionFile{
-		ID:        s.ID(),
-		Title:     s.Title(),
-		CreatedAt: s.CreatedAt().Format(time.RFC3339),
-		Messages:  s.Messages(),
+		ID:               s.ID(),
+		Title:            s.Title(),
+		CreatedAt:        s.CreatedAt().Format(time.RFC3339),
+		Messages:         s.Messages(),
+		PromptTokens:     s.PromptTokens(),
+		CompletionTokens: s.CompletionTokens(),
 	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
@@ -158,5 +184,5 @@ func LoadFromDir(dir string, sessionID string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid session file: bad created_at: %w", err)
 	}
-	return NewSessionFromData(f.ID, f.Title, createdAt, f.Messages), nil
+	return NewSessionFromData(f.ID, f.Title, createdAt, f.Messages, f.PromptTokens, f.CompletionTokens), nil
 }

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"buildmax/internal/agent"
+	"buildmax/internal/config"
+	"buildmax/internal/executor"
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
 )
@@ -42,7 +44,7 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	// Generate an LLM title for new sessions (no title yet).
 	if res.Session.Title() == "" {
 		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
-			content, _, err := res.LLMClient.ChatWithTools(ctx, msgs, nil)
+			content, _, _, err := res.LLMClient.ChatWithTools(ctx, msgs, nil)
 			return content, err
 		})
 		title, err := session.GenerateTitle(ctx, titleClient, res.Session.Messages())
@@ -52,10 +54,16 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 			res.Session.SetTitle(title)
 		}
 	}
+	res.Session.AddUsage(stats.PromptTokens, stats.CompletionTokens)
 	if err := session.PersistAfterReply(res.Session, res.SessionsDir, res.CWD, 100); err != nil {
 		slog.Error("persist session failed", "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return fmt.Errorf("persist session: %w", err)
+	}
+	if stats.PromptTokens > 0 || stats.CompletionTokens > 0 {
+		if writeErr := executor.WriteUsageFile(config.DataDir(), stats.PromptTokens, stats.CompletionTokens); writeErr != nil {
+			slog.Warn("write usage file failed", "err", writeErr)
+		}
 	}
 	slog.Info("agent reply", "len", len(reply))
 	// Reply was already streamed to stdout; print newline before stats if we streamed something.
@@ -64,7 +72,14 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	}
 
 	// Print run statistics.
-	fmt.Fprintf(os.Stdout, "---\nSession:    %s\nTool calls: %d\nDuration:   %s\nWorkspace:  %s\n", res.Session.ID(), stats.ToolCalls, formatDuration(elapsed), res.CWD)
+	fmt.Fprintln(os.Stdout, "---")
+	fmt.Fprintf(os.Stdout, "Session:    %s\n", res.Session.ID())
+	fmt.Fprintf(os.Stdout, "Tool calls: %d\n", stats.ToolCalls)
+	fmt.Fprintf(os.Stdout, "Duration:   %s\n", formatDuration(elapsed))
+	fmt.Fprintf(os.Stdout, "Workspace:  %s\n", res.CWD)
+	if stats.PromptTokens > 0 || stats.CompletionTokens > 0 {
+		fmt.Fprintf(os.Stdout, "Usage:      %d prompt + %d completion tokens\n", stats.PromptTokens, stats.CompletionTokens)
+	}
 	return nil
 }
 

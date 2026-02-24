@@ -207,7 +207,7 @@ func (mockChatRunStore) GetChatRunWithChat(_ context.Context, _ string) (*entity
 func (mockChatRunStore) UpdateChatRunStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
 	return false, nil
 }
-func (mockChatRunStore) UpdateChatRunStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string) error {
+func (mockChatRunStore) UpdateChatRunStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string, _, _ *int) error {
 	return nil
 }
 func (mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {

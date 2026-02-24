@@ -209,3 +209,24 @@ func TestSaveToDir_LoadFromDir_RoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestSaveToDir_LoadFromDir_UsageRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSession("")
+	s.Append(llm.Message{Role: "user", Content: "Hi"})
+	s.AddUsage(50, 30)
+	if err := SaveToDir(s, dir); err != nil {
+		t.Fatalf("SaveToDir: %v", err)
+	}
+	loaded, err := LoadFromDir(dir, s.ID())
+	if err != nil {
+		t.Fatalf("LoadFromDir: %v", err)
+	}
+	if loaded.PromptTokens() != 50 || loaded.CompletionTokens() != 30 {
+		t.Errorf("loaded usage: prompt=%d completion=%d, want 50, 30", loaded.PromptTokens(), loaded.CompletionTokens())
+	}
+	loaded.AddUsage(10, 5)
+	if loaded.PromptTokens() != 60 || loaded.CompletionTokens() != 35 {
+		t.Errorf("after AddUsage: prompt=%d completion=%d, want 60, 35", loaded.PromptTokens(), loaded.CompletionTokens())
+	}
+}

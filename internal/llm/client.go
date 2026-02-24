@@ -2,15 +2,24 @@
 package llm
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
+	"sync"
 
 	"buildmax/internal/config"
 
 	openai "github.com/sashabaranov/go-openai"
 )
+
+// contextKey type for stream usage context value.
+type contextKey struct{}
+
+var streamUsageKey = &contextKey{}
 
 // Client calls an OpenAI-compatible API (e.g. OpenRouter).
 type Client struct {
@@ -22,14 +31,26 @@ type Client struct {
 func NewClient(cfg config.LLM) *Client {
 	clientConfig := openai.DefaultConfig(cfg.APIKey)
 	clientConfig.BaseURL = cfg.BaseURL
+	base := clientConfig.HTTPClient
+	if base == nil {
+		base = http.DefaultClient
+	}
+	transport := base.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	clientConfig.HTTPClient = &http.Client{
+		Transport: &usageCaptureTransport{base: transport},
+		Timeout:   base.Timeout,
+	}
 	return &Client{
 		client: openai.NewClientWithConfig(clientConfig),
 		model:  cfg.Model,
 	}
 }
 
-// ChatWithTools sends messages and tool definitions, returns assistant content and any tool calls.
-func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, err error) {
+// ChatWithTools sends messages and tool definitions, returns assistant content, any tool calls, and usage.
+func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, usage Usage, err error) {
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
 		msg := openai.ChatCompletionMessage{
@@ -70,10 +91,10 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 	}
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("chat completion: %w", err)
+		return "", nil, Usage{}, fmt.Errorf("chat completion: %w", err)
 	}
 	if len(resp.Choices) == 0 {
-		return "", nil, fmt.Errorf("no choices in response")
+		return "", nil, Usage{}, fmt.Errorf("no choices in response")
 	}
 	msg := resp.Choices[0].Message
 	content = msg.Content
@@ -87,12 +108,17 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 			})
 		}
 	}
-	return content, toolCalls, nil
+	usage = Usage{
+		PromptTokens:     resp.Usage.PromptTokens,
+		CompletionTokens: resp.Usage.CompletionTokens,
+		TotalTokens:      resp.Usage.TotalTokens,
+	}
+	return content, toolCalls, usage, nil
 }
 
 // ChatWithToolsStream sends messages and tool definitions, streams content deltas via onDelta,
-// and returns full content and any tool calls at stream end. If onDelta is nil, it is not called.
-func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(delta string)) (content string, toolCalls []ToolCall, err error) {
+// and returns full content, any tool calls, and usage (when the provider sends it in a chunk). If onDelta is nil, it is not called.
+func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(delta string)) (content string, toolCalls []ToolCall, usage Usage, err error) {
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
 		msg := openai.ChatCompletionMessage{
@@ -131,9 +157,11 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, to
 		Messages: openaiMsgs,
 		Tools:    openaiTools,
 	}
+	var streamUsage Usage
+	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
 	stream, err := c.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("chat completion stream: %w", err)
+		return "", nil, Usage{}, fmt.Errorf("chat completion stream: %w", err)
 	}
 	defer stream.Close()
 
@@ -150,11 +178,12 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, to
 			if err == io.EOF {
 				break
 			}
-			return fullContent.String(), nil, fmt.Errorf("stream recv: %w", err)
+			return fullContent.String(), nil, Usage{}, fmt.Errorf("stream recv: %w", err)
 		}
 		if len(resp.Choices) == 0 {
 			continue
 		}
+		// Usage is captured from raw SSE by usageCaptureTransport when the provider sends it.
 		delta := resp.Choices[0].Delta
 		if delta.Content != "" {
 			fullContent.WriteString(delta.Content)
@@ -202,5 +231,92 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, to
 			})
 		}
 	}
-	return fullContent.String(), toolCalls, nil
+	return fullContent.String(), toolCalls, streamUsage, nil
+}
+
+// streamRespUsage extracts usage from a stream response when the provider includes it.
+// go-openai ChatCompletionStreamResponse does not currently expose Usage; capture is done via usageCaptureTransport.
+func streamRespUsage(resp openai.ChatCompletionStreamResponse) Usage {
+	return Usage{}
+}
+
+// usageCaptureTransport wraps the response body for SSE streams to capture usage from raw chunks.
+type usageCaptureTransport struct {
+	base http.RoundTripper
+}
+
+func (t *usageCaptureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/event-stream") {
+		return resp, nil
+	}
+	if v := req.Context().Value(streamUsageKey); v != nil {
+		if usage, ok := v.(*Usage); ok && usage != nil {
+			resp.Body = &usageCaptureReader{body: resp.Body, usage: usage}
+		}
+	}
+	return resp, nil
+}
+
+// usageCaptureReader tees the stream and parses SSE "data:" lines for usage.
+type usageCaptureReader struct {
+	body  io.ReadCloser
+	usage *Usage
+	buf   []byte
+	mu    sync.Mutex
+}
+
+func (r *usageCaptureReader) Read(p []byte) (n int, err error) {
+	n, err = r.body.Read(p)
+	if n > 0 {
+		r.mu.Lock()
+		r.buf = append(r.buf, p[:n]...)
+		r.parseUsageLocked()
+		r.mu.Unlock()
+	}
+	return n, err
+}
+
+func (r *usageCaptureReader) Close() error {
+	return r.body.Close()
+}
+
+func (r *usageCaptureReader) parseUsageLocked() {
+	const dataPrefix = "data: "
+	for {
+		idx := bytes.Index(r.buf, []byte("\n\n"))
+		if idx < 0 {
+			break
+		}
+		event := r.buf[:idx]
+		r.buf = r.buf[idx+2:]
+		lines := bytes.Split(event, []byte("\n"))
+		for _, line := range lines {
+			line = bytes.TrimSpace(line)
+			if !bytes.HasPrefix(line, []byte(dataPrefix)) {
+				continue
+			}
+			jsonBytes := line[len(dataPrefix):]
+			if string(jsonBytes) == "[DONE]" {
+				continue
+			}
+			var obj struct {
+				Usage *struct {
+					PromptTokens     int `json:"prompt_tokens"`
+					CompletionTokens int `json:"completion_tokens"`
+					TotalTokens      int `json:"total_tokens"`
+				} `json:"usage,omitempty"`
+			}
+			if json.Unmarshal(jsonBytes, &obj) != nil || obj.Usage == nil {
+				continue
+			}
+			r.usage.PromptTokens = obj.Usage.PromptTokens
+			r.usage.CompletionTokens = obj.Usage.CompletionTokens
+			r.usage.TotalTokens = obj.Usage.TotalTokens
+		}
+	}
 }

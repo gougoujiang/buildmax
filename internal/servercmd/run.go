@@ -24,7 +24,7 @@ type chatTitleGenAdapter struct {
 
 func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, error) {
 	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
-		content, _, err := a.client.ChatWithTools(ctx, msgs, nil)
+		content, _, _, err := a.client.ChatWithTools(ctx, msgs, nil)
 		return content, err
 	})
 	return session.GenerateTitleFromInput(ctx, titleClient, input)
