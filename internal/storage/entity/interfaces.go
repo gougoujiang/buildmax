@@ -41,7 +41,8 @@ type ChatStore interface {
 	GetChat(ctx context.Context, chatID string) (*Chat, error)
 	GetChatBySessionID(ctx context.Context, sessionID string) (*Chat, error)
 	// CreateChat creates a new chat and its first ChatRun (input, title, PENDING). Returns the chat with last_run_id set.
-	CreateChat(ctx context.Context, workspaceID, input, title, createdBy string) (*Chat, error)
+	// titlePromptTokens and titleCompletionTokens are the LLM usage for title generation (0 when title is truncated input).
+	CreateChat(ctx context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int) (*Chat, error)
 	UpdateChatStatus(ctx context.Context, chatID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
 	UpdateChatStatusIf(ctx context.Context, chatID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
 }

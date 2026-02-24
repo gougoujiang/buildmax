@@ -160,12 +160,15 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	title := truncateChatTitle(req.Input, 50)
+	var titlePromptTokens, titleCompletionTokens int
 	if s.cfg.ChatTitleGenerator != nil {
-		if gen, err := s.cfg.ChatTitleGenerator.GenerateChatTitle(r.Context(), req.Input); err == nil && gen != "" {
+		if gen, usage, err := s.cfg.ChatTitleGenerator.GenerateChatTitle(r.Context(), req.Input); err == nil && gen != "" {
 			title = gen
+			titlePromptTokens = usage.PromptTokens
+			titleCompletionTokens = usage.CompletionTokens
 		}
 	}
-	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, req.Input, title, userID)
+	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, req.Input, title, userID, titlePromptTokens, titleCompletionTokens)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
 		return

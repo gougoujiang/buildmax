@@ -151,7 +151,7 @@ func (m *mockChatStore) ListChatsByWorkspacePaginated(_ context.Context, workspa
 	return filtered[offset:end], total, nil
 }
 
-func (m *mockChatStore) CreateChat(_ context.Context, workspaceID, input, title, createdBy string) (*entity.Chat, error) {
+func (m *mockChatStore) CreateChat(_ context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int) (*entity.Chat, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}

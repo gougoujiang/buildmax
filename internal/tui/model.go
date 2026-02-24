@@ -65,8 +65,10 @@ type carouselTickMsg struct{}
 
 // titleGeneratedMsg is sent when the async LLM title generation finishes.
 type titleGeneratedMsg struct {
-	Title string
-	Err   error
+	Title            string
+	PromptTokens     int
+	CompletionTokens int
+	Err              error
 }
 
 // scrollIdleMsg is sent after scrollIdleDelay ms of no scroll; when its id matches lastScrollID, focus returns to input.
@@ -267,12 +269,12 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 // generateTitleCmd returns a tea.Cmd that calls the LLM to generate a session title in the background.
 func generateTitleCmd(opts TUIOpts) tea.Cmd {
 	return func() tea.Msg {
-		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
-			content, _, _, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
-			return content, err
+		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+			content, _, usage, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
+			return content, usage, err
 		})
-		title, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages())
-		return titleGeneratedMsg{Title: title, Err: err}
+		title, usage, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages())
+		return titleGeneratedMsg{Title: title, PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens, Err: err}
 	}
 }
 
@@ -284,8 +286,11 @@ func handleTitleGenerated(m *Model, msg titleGeneratedMsg) (tea.Model, tea.Cmd) 
 	if msg.Title == "" {
 		return m, nil
 	}
+	if msg.PromptTokens > 0 || msg.CompletionTokens > 0 {
+		m.opts.Session.AddUsage(msg.PromptTokens, msg.CompletionTokens)
+	}
 	m.opts.Session.SetTitle(msg.Title)
-	// Re-persist with the LLM-generated title.
+	// Re-persist with the LLM-generated title and title usage.
 	if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
 		slog.Error("re-persist session with LLM title failed", "err", err)
 	}

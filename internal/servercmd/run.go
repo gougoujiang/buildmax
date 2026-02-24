@@ -22,12 +22,16 @@ type chatTitleGenAdapter struct {
 	client *llm.Client
 }
 
-func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, error) {
-	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
-		content, _, _, err := a.client.ChatWithTools(ctx, msgs, nil)
-		return content, err
+func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, server.TokenUsage, error) {
+	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+		content, _, usage, err := a.client.ChatWithTools(ctx, msgs, nil)
+		return content, usage, err
 	})
-	return session.GenerateTitleFromInput(ctx, titleClient, input)
+	title, usage, err := session.GenerateTitleFromInput(ctx, titleClient, input)
+	if err != nil {
+		return "", server.TokenUsage{}, err
+	}
+	return title, server.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, nil
 }
 
 // RunServer loads server env and workspaces dir, opens the DB, builds blob storage,

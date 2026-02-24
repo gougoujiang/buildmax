@@ -21,8 +21,15 @@ var staticFS embed.FS
 const shutdownTimeout = 10 * time.Second
 
 // ChatTitleGenerator generates a short title from chat input. Optional; when nil, create-chat uses truncated input.
+// Usage is returned for metering (billing). When the generator is used, the server stores title token usage on the chat.
 type ChatTitleGenerator interface {
-	GenerateChatTitle(ctx context.Context, input string) (string, error)
+	GenerateChatTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
+}
+
+// TokenUsage holds prompt and completion token counts for a single LLM call.
+type TokenUsage struct {
+	PromptTokens     int
+	CompletionTokens int
 }
 
 // RunOutputLister lists run outputs (artifacts) by workspace and gets output files for a run.

@@ -43,15 +43,20 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	}
 	// Generate an LLM title for new sessions (no title yet).
 	if res.Session.Title() == "" {
-		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, error) {
-			content, _, _, err := res.LLMClient.ChatWithTools(ctx, msgs, nil)
-			return content, err
+		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+			content, _, usage, err := res.LLMClient.ChatWithTools(ctx, msgs, nil)
+			return content, usage, err
 		})
-		title, err := session.GenerateTitle(ctx, titleClient, res.Session.Messages())
+		title, titleUsage, err := session.GenerateTitle(ctx, titleClient, res.Session.Messages())
 		if err != nil {
 			slog.Warn("LLM title generation failed, using fallback", "err", err)
-		} else if title != "" {
-			res.Session.SetTitle(title)
+		} else {
+			if titleUsage.PromptTokens > 0 || titleUsage.CompletionTokens > 0 {
+				res.Session.AddUsage(titleUsage.PromptTokens, titleUsage.CompletionTokens)
+			}
+			if title != "" {
+				res.Session.SetTitle(title)
+			}
 		}
 	}
 	res.Session.AddUsage(stats.PromptTokens, stats.CompletionTokens)
@@ -60,8 +65,8 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return fmt.Errorf("persist session: %w", err)
 	}
-	if stats.PromptTokens > 0 || stats.CompletionTokens > 0 {
-		if writeErr := executor.WriteUsageFile(config.DataDir(), stats.PromptTokens, stats.CompletionTokens); writeErr != nil {
+	if res.Session.PromptTokens() > 0 || res.Session.CompletionTokens() > 0 {
+		if writeErr := executor.WriteUsageFile(config.DataDir(), res.Session.PromptTokens(), res.Session.CompletionTokens()); writeErr != nil {
 			slog.Warn("write usage file failed", "err", writeErr)
 		}
 	}
@@ -77,8 +82,8 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	fmt.Fprintf(os.Stdout, "Tool calls: %d\n", stats.ToolCalls)
 	fmt.Fprintf(os.Stdout, "Duration:   %s\n", formatDuration(elapsed))
 	fmt.Fprintf(os.Stdout, "Workspace:  %s\n", res.CWD)
-	if stats.PromptTokens > 0 || stats.CompletionTokens > 0 {
-		fmt.Fprintf(os.Stdout, "Usage:      %d prompt + %d completion tokens\n", stats.PromptTokens, stats.CompletionTokens)
+	if res.Session.PromptTokens() > 0 || res.Session.CompletionTokens() > 0 {
+		fmt.Fprintf(os.Stdout, "Usage:      %d prompt + %d completion tokens\n", res.Session.PromptTokens(), res.Session.CompletionTokens())
 	}
 	return nil
 }

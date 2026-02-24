@@ -9,10 +9,10 @@ import (
 	"buildmax/internal/llm"
 )
 
-// fakeChatFunc returns a TitleChatClient that replies with the given fixed response.
+// fakeChatFunc returns a TitleChatClient that replies with the given fixed response and zero usage.
 func fakeChatFunc(reply string, err error) TitleChatClient {
-	return TitleChatFunc(func(_ context.Context, _ []llm.Message) (string, error) {
-		return reply, err
+	return TitleChatFunc(func(_ context.Context, _ []llm.Message) (string, llm.Usage, error) {
+		return reply, llm.Usage{}, err
 	})
 }
 
@@ -21,7 +21,7 @@ func TestGenerateTitle_Success(t *testing.T) {
 	s.Append(llm.Message{Role: "user", Content: "How do I sort a slice in Go?"})
 	s.Append(llm.Message{Role: "assistant", Content: "You can use sort.Slice..."})
 
-	title, err := GenerateTitle(context.Background(), fakeChatFunc("Sorting Slices in Go", nil), s.Messages())
+	title, _, err := GenerateTitle(context.Background(), fakeChatFunc("Sorting Slices in Go", nil), s.Messages())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestGenerateTitle_StripsQuotes(t *testing.T) {
 	s := NewSession("")
 	s.Append(llm.Message{Role: "user", Content: "Hello"})
 
-	title, err := GenerateTitle(context.Background(), fakeChatFunc(`"My Chat Title"`, nil), s.Messages())
+	title, _, err := GenerateTitle(context.Background(), fakeChatFunc(`"My Chat Title"`, nil), s.Messages())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,14 +47,14 @@ func TestGenerateTitle_LLMError_Fallthrough(t *testing.T) {
 	s := NewSession("")
 	s.Append(llm.Message{Role: "user", Content: "Hello"})
 
-	_, err := GenerateTitle(context.Background(), fakeChatFunc("", errors.New("api error")), s.Messages())
+	_, _, err := GenerateTitle(context.Background(), fakeChatFunc("", errors.New("api error")), s.Messages())
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
 func TestGenerateTitle_NoUserMessage(t *testing.T) {
-	title, err := GenerateTitle(context.Background(), fakeChatFunc("Should Not Call", nil), nil)
+	title, _, err := GenerateTitle(context.Background(), fakeChatFunc("Should Not Call", nil), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -70,11 +70,11 @@ func TestGenerateTitle_TruncatesLongAssistantReply(t *testing.T) {
 
 	// The chat func captures messages to verify assistant content was truncated.
 	var captured []llm.Message
-	titleClient := TitleChatFunc(func(_ context.Context, msgs []llm.Message) (string, error) {
+	titleClient := TitleChatFunc(func(_ context.Context, msgs []llm.Message) (string, llm.Usage, error) {
 		captured = msgs
-		return "A Short Story", nil
+		return "A Short Story", llm.Usage{}, nil
 	})
-	title, err := GenerateTitle(context.Background(), titleClient, s.Messages())
+	title, _, err := GenerateTitle(context.Background(), titleClient, s.Messages())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestGenerateTitle_TruncatesLongAssistantReply(t *testing.T) {
 }
 
 func TestGenerateTitleFromInput_Success(t *testing.T) {
-	title, err := GenerateTitleFromInput(context.Background(), fakeChatFunc("Refactor Login Flow", nil), "Please refactor the login flow to use OAuth")
+	title, _, err := GenerateTitleFromInput(context.Background(), fakeChatFunc("Refactor Login Flow", nil), "Please refactor the login flow to use OAuth")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestGenerateTitleFromInput_Success(t *testing.T) {
 }
 
 func TestGenerateTitleFromInput_EmptyInput(t *testing.T) {
-	title, err := GenerateTitleFromInput(context.Background(), fakeChatFunc("Should Not Use", nil), "")
+	title, _, err := GenerateTitleFromInput(context.Background(), fakeChatFunc("Should Not Use", nil), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestGenerateTitleFromInput_EmptyInput(t *testing.T) {
 }
 
 func TestGenerateTitleFromInput_StripsQuotes(t *testing.T) {
-	title, err := GenerateTitleFromInput(context.Background(), fakeChatFunc(`"Task One"`, nil), "do something")
+	title, _, err := GenerateTitleFromInput(context.Background(), fakeChatFunc(`"Task One"`, nil), "do something")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
