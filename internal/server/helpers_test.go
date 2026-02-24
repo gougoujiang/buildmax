@@ -10,6 +10,7 @@ import (
 	"buildmax/internal/storage/entity"
 
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 // signJWT builds a JWT with sub claim for use in tests.
@@ -342,6 +343,65 @@ func (m *mockRunOutputLister) GetChatRunOutputFiles(_ context.Context, chatRunID
 		return m.outputFiles[chatRunID], nil
 	}
 	return nil, nil
+}
+
+// mockAgentStore is an in-memory AgentStore for tests.
+type mockAgentStore struct {
+	agents []entity.Agent
+}
+
+func (m *mockAgentStore) ListAgentsByWorkspace(_ context.Context, workspaceID string) ([]entity.Agent, error) {
+	var out []entity.Agent
+	for _, a := range m.agents {
+		if a.WorkspaceID == workspaceID {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockAgentStore) GetAgent(_ context.Context, agentID string) (*entity.Agent, error) {
+	for i := range m.agents {
+		if m.agents[i].AgentID == agentID {
+			return &m.agents[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockAgentStore) CreateAgent(_ context.Context, workspaceID, name, description, instructions string) (*entity.Agent, error) {
+	a := entity.Agent{
+		AgentID:      fmt.Sprintf("a_%d", len(m.agents)+1),
+		WorkspaceID:  workspaceID,
+		Name:         name,
+		Description:  description,
+		Instructions: instructions,
+		CreatedAt:    time.Now().Unix(),
+	}
+	m.agents = append(m.agents, a)
+	return &m.agents[len(m.agents)-1], nil
+}
+
+func (m *mockAgentStore) UpdateAgent(_ context.Context, agentID, workspaceID, name, description, instructions string) (*entity.Agent, error) {
+	for i := range m.agents {
+		if m.agents[i].AgentID == agentID && m.agents[i].WorkspaceID == workspaceID {
+			m.agents[i].Name = name
+			m.agents[i].Description = description
+			m.agents[i].Instructions = instructions
+			return &m.agents[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockAgentStore) DeleteAgent(_ context.Context, agentID, workspaceID string) error {
+	for i := range m.agents {
+		if m.agents[i].AgentID == agentID && m.agents[i].WorkspaceID == workspaceID {
+			m.agents = append(m.agents[:i], m.agents[i+1:]...)
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
 }
 
 // mockArtifactStorage is an in-memory blob.ArtifactStorage for tests (run output keyed by chatRunID only).

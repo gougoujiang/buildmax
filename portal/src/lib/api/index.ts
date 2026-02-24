@@ -136,6 +136,33 @@ export async function createAgent(
   )
 }
 
+export async function updateAgent(
+  workspaceId: string,
+  agentId: string,
+  body: { name: string; description?: string; instructions?: string },
+  token: string
+): Promise<ApiAgent> {
+  return requestJson<ApiAgent>(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}`,
+    {
+      method: "PATCH",
+      headers: { ...jsonHeaders, ...authHeaders(token) },
+      body: JSON.stringify(body),
+    }
+  )
+}
+
+export async function deleteAgent(
+  workspaceId: string,
+  agentId: string,
+  token: string
+): Promise<void> {
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}`
+  const res = await fetch(url, { method: "DELETE", headers: authHeaders(token) })
+  checkUnauthorized(res)
+  await throwIfNotOk(res)
+}
+
 export async function getChatConversation(
   workspaceId: string,
   chatId: string,

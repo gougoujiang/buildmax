@@ -17,6 +17,10 @@ export interface CreateEntityModalProps {
   titleId: string
   fields: CreateEntityFieldConfig[]
   hint?: string
+  /** When provided and modal opens, form is prefilled with these values (key -> value per field). */
+  initialValues?: Record<string, string>
+  /** Optional danger action (e.g. Delete) shown as a button in the actions row. */
+  dangerAction?: { label: string; onClick: () => void; disabled?: boolean }
   loading: boolean
   error: string | null
   submitLabel: string
@@ -30,6 +34,8 @@ export function CreateEntityModal({
   titleId,
   fields,
   hint,
+  initialValues,
+  dangerAction,
   loading,
   error,
   submitLabel,
@@ -42,9 +48,17 @@ export function CreateEntityModal({
 
   useEffect(() => {
     if (open) {
-      setValues(Object.fromEntries(fields.map((f) => [f.key, ""])))
+      if (initialValues != null) {
+        setValues(
+          Object.fromEntries(
+            fields.map((f) => [f.key, initialValues[f.key] ?? ""])
+          )
+        )
+      } else {
+        setValues(Object.fromEntries(fields.map((f) => [f.key, ""])))
+      }
     }
-  }, [open, fields])
+  }, [open, fields, initialValues])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -95,6 +109,16 @@ export function CreateEntityModal({
           </p>
         )}
         <div className="modal__actions">
+          {dangerAction ? (
+            <button
+              type="button"
+              className="modal__btn modal__btn--danger"
+              onClick={dangerAction.onClick}
+              disabled={loading || dangerAction.disabled}
+            >
+              {dangerAction.disabled ? `${dangerAction.label}…` : dangerAction.label}
+            </button>
+          ) : null}
           <button
             type="button"
             className="modal__btn modal__btn--secondary"
@@ -108,7 +132,7 @@ export function CreateEntityModal({
             className="modal__btn modal__btn--primary"
             disabled={loading || fields.some((f) => !f.optional && !values[f.key]?.trim())}
           >
-            {loading ? "Creating…" : submitLabel}
+            {loading ? `${submitLabel}…` : submitLabel}
           </button>
         </div>
       </form>

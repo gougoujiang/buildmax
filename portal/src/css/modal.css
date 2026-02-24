@@ -188,6 +188,17 @@
   border-color: #999;
 }
 
+.modal__btn--danger {
+  background: #fff;
+  color: #b91c1c;
+  border: 1px solid #b91c1c;
+}
+
+.modal__btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #991b1b;
+}
+
 .artifact-modal__loading,
 .artifact-modal__error {
   margin: 0;

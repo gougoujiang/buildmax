@@ -3,7 +3,7 @@ import {
   type CreateEntityFieldConfig,
 } from "./CreateEntityModal"
 
-const AGENT_FIELDS: CreateEntityFieldConfig[] = [
+export const AGENT_FIELDS: CreateEntityFieldConfig[] = [
   {
     key: "name",
     label: "Name",

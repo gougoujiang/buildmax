@@ -72,6 +72,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents", s.listAgentsHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/agents", s.createAgentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents/{agent_id}", s.getAgentHandler)
+	mux.HandleFunc("PATCH /api/workspaces/{workspace_id}/agents/{agent_id}", s.patchAgentHandler)
+	mux.HandleFunc("DELETE /api/workspaces/{workspace_id}/agents/{agent_id}", s.deleteAgentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats", s.listWorkspaceChatsHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/chats", s.createWorkspaceChatHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/chats/{chat_id}/runs", s.createChatRunHandler)

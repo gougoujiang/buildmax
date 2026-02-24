@@ -27,6 +27,8 @@ type AgentStore interface {
 	ListAgentsByWorkspace(ctx context.Context, workspaceID string) ([]Agent, error)
 	GetAgent(ctx context.Context, agentID string) (*Agent, error)
 	CreateAgent(ctx context.Context, workspaceID, name, description, instructions string) (*Agent, error)
+	UpdateAgent(ctx context.Context, agentID, workspaceID, name, description, instructions string) (*Agent, error)
+	DeleteAgent(ctx context.Context, agentID, workspaceID string) error
 }
 
 // ChatStore provides chat persistence. Chats belong to a workspace.

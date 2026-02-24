@@ -2,8 +2,15 @@ import { useCallback, useEffect, useState } from "react"
 import type { Agent } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
-import { getAgents, createAgent, apiAgentToAgent } from "../lib/api"
+import {
+  getAgents,
+  createAgent,
+  updateAgent,
+  deleteAgent,
+  apiAgentToAgent,
+} from "../lib/api"
 import { CreateAgentModal } from "../components/CreateAgentModal"
+import { EditAgentModal } from "../components/EditAgentModal"
 
 interface AgentListProps {
   workspaceId: string
@@ -15,6 +22,9 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(() => {
@@ -44,6 +54,38 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to create agent")))
       .finally(() => setCreating(false))
+  }
+
+  function handleSaveAgent(values: {
+    name: string
+    description?: string
+    instructions?: string
+  }) {
+    if (!token || editingAgent == null) return
+    setError(null)
+    setSaving(true)
+    updateAgent(workspaceId, editingAgent.id, values, token)
+      .then((updated) => {
+        setAgents((prev) =>
+          prev.map((a) => (a.id === editingAgent.id ? apiAgentToAgent(updated) : a))
+        )
+        setEditingAgent(null)
+      })
+      .catch((err) => setError(getErrorMessage(err, "Failed to update agent")))
+      .finally(() => setSaving(false))
+  }
+
+  function handleDeleteAgent() {
+    if (!token || editingAgent == null) return
+    setError(null)
+    setDeleting(true)
+    deleteAgent(workspaceId, editingAgent.id, token)
+      .then(() => {
+        setAgents((prev) => prev.filter((a) => a.id !== editingAgent.id))
+        setEditingAgent(null)
+      })
+      .catch((err) => setError(getErrorMessage(err, "Failed to delete agent")))
+      .finally(() => setDeleting(false))
   }
 
   return (
@@ -87,7 +129,23 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         ) : (
           <div className="agent-list__grid">
             {agents.map((a) => (
-              <article key={a.id} className="agent-card">
+              <article
+                key={a.id}
+                className="agent-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setError(null)
+                  setEditingAgent(a)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    setError(null)
+                    setEditingAgent(a)
+                  }
+                }}
+              >
                 <h3 className="agent-card__name">{a.name}</h3>
                 {a.description ? (
                   <p className="agent-card__description">{a.description}</p>
@@ -112,6 +170,20 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
           setError(null)
         }}
         onCreate={handleCreateAgent}
+      />
+
+      <EditAgentModal
+        open={editingAgent != null}
+        agent={editingAgent}
+        loading={saving}
+        error={error}
+        deleting={deleting}
+        onClose={() => {
+          setEditingAgent(null)
+          setError(null)
+        }}
+        onSave={handleSaveAgent}
+        onDelete={handleDeleteAgent}
       />
     </div>
   )
