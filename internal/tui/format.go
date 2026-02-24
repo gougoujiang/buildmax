@@ -121,17 +121,27 @@ func wrapLine(line string, width int) []string {
 	return out
 }
 
+// ViewportContentOpts holds display options for building viewport content (version, width, busy state, carousel, streaming tail).
+type ViewportContentOpts struct {
+	Version      string
+	Width        int
+	Busy         bool
+	CarouselDots int
+	StreamingTail string
+}
+
 // buildViewportContent returns the full scrollable content: banner plus message lines (with bar for user/assistant, wrapped to width).
-// If streamingTail is non-empty, appends it as the current assistant line (same style as "• " + content).
-// If busy is true and streamingTail is empty, appends a carousel line "• ." / ".." / "..." based on carouselDots (0, 1, 2).
-func buildViewportContent(sess *session.Session, version string, width int, busy bool, carouselDots int, streamingTail string) string {
+// If opts.StreamingTail is non-empty, appends it as the current assistant line (same style as "• " + content).
+// If opts.Busy is true and opts.StreamingTail is empty, appends a carousel line "• ." / ".." / "..." based on opts.CarouselDots (0, 1, 2).
+func buildViewportContent(sess *session.Session, opts ViewportContentOpts) string {
+	width := opts.Width
 	if width <= 0 {
 		width = 80
 	}
 	var b strings.Builder
 	// Top margin so the banner is not clipped by the terminal title/tab bar.
 	b.WriteString("\n\n")
-	b.WriteString(bannerWithVersion(version))
+	b.WriteString(bannerWithVersion(opts.Version))
 	b.WriteString("\n")
 	messages := sess.Messages()
 	if len(messages) > 0 {
@@ -157,21 +167,21 @@ func buildViewportContent(sess *session.Session, version string, width int, busy
 			}
 		}
 	}
-	if streamingTail != "" {
+	if opts.StreamingTail != "" {
 		if len(messages) > 0 {
 			b.WriteString("\n")
 		}
-		line := messageBarStyle.Render("• ") + streamingTail
+		line := messageBarStyle.Render("• ") + opts.StreamingTail
 		for _, w := range wrapLine(line, width) {
 			b.WriteString(w)
 			b.WriteString("\n")
 		}
-	} else if busy {
+	} else if opts.Busy {
 		if len(messages) > 0 {
 			b.WriteString("\n") // margin before carousel, same as between messages
 		}
 		dots := []string{".", "..", "..."}
-		idx := carouselDots % 3
+		idx := opts.CarouselDots % 3
 		line := messageBarStyle.Render("• ") + dots[idx]
 		for _, w := range wrapLine(line, width) {
 			b.WriteString(w)

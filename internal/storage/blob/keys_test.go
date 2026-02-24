@@ -23,6 +23,10 @@ func TestArtifactResultKey(t *testing.T) {
 	if key != "workspaces/ws1/artifacts/chat1/run1/result.md" {
 		t.Errorf("got %q", key)
 	}
+	key = ArtifactResultKeyScope(ObjectKeyScope{Prefix: "workspaces", WorkspaceID: "ws1", ChatID: "chat1", ChatRunID: "run1"})
+	if key != "workspaces/ws1/artifacts/chat1/run1/result.md" {
+		t.Errorf("ArtifactResultKeyScope got %q", key)
+	}
 }
 
 func TestArtifactFileKey(t *testing.T) {

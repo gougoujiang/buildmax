@@ -20,7 +20,7 @@ func main() {
 	if level == "" {
 		level = "debug"
 	}
-	log.Init(config.LogsDir(), level, "buildmax-worker.log", true)
+	log.Init(log.LogConfig{LogsDir: config.LogsDir(), Level: level, Filename: "buildmax-worker.log", AlsoStdout: true})
 	chatRunID := flag.String("chat-run-id", "", "chat run ID to run (required)")
 	flag.Parse()
 	if *chatRunID == "" {

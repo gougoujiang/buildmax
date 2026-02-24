@@ -47,7 +47,7 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 		workspacesDir = abs
 	}
 
-	run, chat, err := executor.GetWorkerChatRun(ctx, baseURL, token, chatRunID, nil)
+	run, chat, err := executor.GetWorkerChatRun(ctx, executor.WorkerAPIClientConfig{BaseURL: baseURL, Token: token}, chatRunID)
 	if err != nil {
 		slog.Error("worker: get run failed", "chat_run_id", chatRunID, "err", err)
 		return fmt.Errorf("get run: %w", err)
@@ -67,7 +67,11 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 	}
 	updater := &executor.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
-	if err := updater.UpdateRunStatus(ctx, run.ChatRunID, workerapi.StatusRunning, &now, nil, nil, nil, &sessionID, nil); err != nil {
+	if err := updater.UpdateRunStatus(ctx, run.ChatRunID, &workerapi.PatchChatRunRequest{
+		Status:    workerapi.StatusRunning,
+		StartedAt: &now,
+		SessionID: &sessionID,
+	}); err != nil {
 		if errors.Is(err, executor.ErrChatRunAlreadyClaimed) {
 			slog.Info("run already claimed by another worker", "chat_run_id", chatRunID)
 			return ErrAlreadyClaimed
@@ -100,7 +104,16 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 	paths := executor.NewWorkspacePathsFromRoot(workspacesDir)
 	httpSender := &executor.WorkerHTTPStreamSender{BaseURL: baseURL, Token: token}
 	streamSender := &executor.DebouncedStreamSender{Inner: httpSender}
-	err = executor.RunTask(ctx, chat, run, sessionID, paths, persistStorage, artifactStorage, updater, streamSender)
+	err = executor.RunTask(ctx, executor.RunTaskInput{
+		Chat:            chat,
+		Run:             run,
+		SessionID:       sessionID,
+		Paths:           paths,
+		Persist:         persistStorage,
+		ArtifactStorage: artifactStorage,
+		Updater:         updater,
+		StreamSender:    streamSender,
+	})
 	if err != nil {
 		slog.Error("worker: run execution failed", "chat_run_id", chatRunID, "err", err)
 		return err

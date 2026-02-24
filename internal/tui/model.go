@@ -106,7 +106,7 @@ func NewModel(opts TUIOpts) *Model {
 		height:        24,
 		focusInput:    true,
 	}
-	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0, "")
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width})
 	return m
 }
 
@@ -199,7 +199,7 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputBlock.Reset()
 		m.inputBlock.SyncHeight()
 		m.opts.Session.Append(llm.Message{Role: "user", Content: text})
-		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, 0, "")
+		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width, Busy: true})
 		m.busy = true
 		m.err = ""
 		m.carouselDots = 0
@@ -244,7 +244,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 		slog.Error("agent failed", "err", msg.Err)
 		return m, nil
 	}
-	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, false, 0, "")
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width})
 
 	// Remember whether the session had no title before persist (i.e. first turn).
 	needsLLMTitle := m.opts.Session.Title() == ""
@@ -293,7 +293,7 @@ func handleTitleGenerated(m *Model, msg titleGeneratedMsg) (tea.Model, tea.Cmd) 
 func handleCarouselTick(m *Model, msg carouselTickMsg) (tea.Model, tea.Cmd) {
 	if m.busy {
 		m.carouselDots = (m.carouselDots + 1) % 3
-		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots, m.streamingBuffer)
+		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width, Busy: true, CarouselDots: m.carouselDots, StreamingTail: m.streamingBuffer})
 		return m, tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} })
 	}
 	return m, nil
@@ -301,7 +301,7 @@ func handleCarouselTick(m *Model, msg carouselTickMsg) (tea.Model, tea.Cmd) {
 
 func handleStreamDelta(m *Model, msg streamDeltaMsg) (tea.Model, tea.Cmd) {
 	m.streamingBuffer += msg.Delta
-	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, m.opts.Version, m.width, true, m.carouselDots, m.streamingBuffer)
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width, Busy: true, CarouselDots: m.carouselDots, StreamingTail: m.streamingBuffer})
 	if m.streamChannel == nil {
 		return m, nil
 	}

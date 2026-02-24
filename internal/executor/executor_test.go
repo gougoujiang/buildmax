@@ -330,7 +330,7 @@ func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, "ws1", "chat1", "run1", fake)
+	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", ChatRunID: "run1"}, fake)
 
 	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
 	if len(got) != 3 {
@@ -354,7 +354,7 @@ func TestUploadChatGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, "ws1", "chat1", "run1", fake)
+	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", ChatRunID: "run1"}, fake)
 	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)

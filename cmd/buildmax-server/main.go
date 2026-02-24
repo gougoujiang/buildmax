@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	log.Init(config.LogsDir(), config.LogLevel(), "buildmax-server.log", true)
+	log.Init(log.LogConfig{LogsDir: config.LogsDir(), Level: config.LogLevel(), Filename: "buildmax-server.log", AlsoStdout: true})
 	portFlag := flag.Int("port", 0, "port to listen on (default: 5678 or BUILDMAX_SERVER_PORT)")
 	flag.Parse()
 

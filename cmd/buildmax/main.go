@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	log.Init(config.LogsDir(), config.LogLevel(), "", false)
+	log.Init(log.LogConfig{LogsDir: config.LogsDir(), Level: config.LogLevel(), AlsoStdout: false})
 	root := cmd.NewRootCommand()
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

@@ -31,27 +31,35 @@ var currentLevel = slog.LevelInfo
 // fileWriter is the rotating log file writer, if Init() created one. Used by DisableConsole.
 var fileWriter io.Writer
 
-// Init configures slog.Default() with the given level string (e.g. "debug", "info").
-// It creates logsDir if needed and sets output to a rotating file there.
-// If filename is empty, "buildmax.log" is used. When alsoStdout is true,
+// LogConfig holds configuration for log initialization.
+type LogConfig struct {
+	LogsDir    string
+	Level      string
+	Filename   string
+	AlsoStdout bool
+}
+
+// Init configures slog.Default() with the given config.
+// It creates LogsDir if needed and sets output to a rotating file there.
+// If Filename is empty, "buildmax.log" is used. When AlsoStdout is true,
 // logs go to both the file and os.Stdout; when false, file only.
-func Init(logsDir, level string, filename string, alsoStdout bool) {
-	parsedLevel := parseLevel(level)
+func Init(cfg LogConfig) {
+	parsedLevel := parseLevel(cfg.Level)
 	currentLevel = parsedLevel
 
-	chosenName := filename
+	chosenName := cfg.Filename
 	if chosenName == "" {
 		chosenName = logFilename
 	}
 
-	if err := os.MkdirAll(logsDir, 0750); err != nil {
+	if err := os.MkdirAll(cfg.LogsDir, 0750); err != nil {
 		fileWriter = nil
 		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: parsedLevel})))
 		return
 	}
 
 	lj := &lumberjack.Logger{
-		Filename:   filepath.Join(logsDir, chosenName),
+		Filename:   filepath.Join(cfg.LogsDir, chosenName),
 		MaxSize:    logMaxSizeMB,
 		MaxBackups: logMaxBackups,
 		MaxAge:     logMaxAgeDays,
@@ -59,7 +67,7 @@ func Init(logsDir, level string, filename string, alsoStdout bool) {
 	}
 	fileWriter = lj
 	out := io.Writer(lj)
-	if alsoStdout {
+	if cfg.AlsoStdout {
 		out = io.MultiWriter(lj, os.Stdout)
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: parsedLevel})))

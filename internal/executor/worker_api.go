@@ -25,16 +25,24 @@ type StreamSender interface {
 // ErrChatRunAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (run not SCHEDULED or already RUNNING).
 var ErrChatRunAlreadyClaimed = errors.New("chat run already claimed or not scheduled")
 
+// WorkerAPIClientConfig holds base URL, token, and HTTP client for worker API calls.
+type WorkerAPIClientConfig struct {
+	BaseURL string
+	Token   string
+	Client  *http.Client
+}
+
 // GetWorkerChatRun fetches run and chat from the server (GET /api/worker/chat-runs/{chat_run_id}). Returns nil, nil, nil if not found.
-func GetWorkerChatRun(ctx context.Context, baseURL, token, chatRunID string, client *http.Client) (*entity.ChatRun, *entity.Chat, error) {
-	url := baseURL + "/api/worker/chat-runs/" + chatRunID
+func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID string) (*entity.ChatRun, *entity.Chat, error) {
+	url := cfg.BaseURL + "/api/worker/chat-runs/" + chatRunID
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.Token)
 	}
+	client := cfg.Client
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -77,34 +85,28 @@ type WorkerHTTPUpdater struct {
 }
 
 // UpdateRunStatus sends PATCH to the server to update run status and optional fields.
-func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errMsg, sessionID *string, artifact *workerapi.ArtifactPayload) error {
-	body := workerapi.PatchChatRunRequest{
-		Status:       status,
-		SessionID:    sessionID,
-		StartedAt:   startedAt,
-		EndedAt:     endedAt,
-		Output:      output,
-		ErrorMessage: errMsg,
-		Artifact:    artifact,
+func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchChatRunRequest) error {
+	if req == nil {
+		req = &workerapi.PatchChatRunRequest{}
 	}
-	raw, err := json.Marshal(body)
+	raw, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
 	url := u.BaseURL + "/api/worker/chat-runs/" + chatRunID
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(raw))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 	if u.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+u.Token)
+		httpReq.Header.Set("Authorization", "Bearer "+u.Token)
 	}
 	client := u.Client
 	if client == nil {
 		client = http.DefaultClient
 	}
-	resp, err := client.Do(req)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}

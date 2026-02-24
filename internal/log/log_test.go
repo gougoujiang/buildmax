@@ -9,7 +9,7 @@ import (
 
 func TestLevelFiltering(t *testing.T) {
 	tmp := t.TempDir()
-	Init(tmp, "info", "", false)
+	Init(LogConfig{LogsDir: tmp, Level: "info"})
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
@@ -32,7 +32,7 @@ func TestLevelFiltering(t *testing.T) {
 
 func TestEnvDefault_Debug(t *testing.T) {
 	tmp := t.TempDir()
-	Init(tmp, "debug", "", false)
+	Init(LogConfig{LogsDir: tmp, Level: "debug"})
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
@@ -49,7 +49,7 @@ func TestEnvDefault_Debug(t *testing.T) {
 
 func TestOutputContent(t *testing.T) {
 	tmp := t.TempDir()
-	Init(tmp, "info", "", false)
+	Init(LogConfig{LogsDir: tmp, Level: "info"})
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
@@ -67,7 +67,7 @@ func TestOutputContent(t *testing.T) {
 
 func TestParseLevel_InvalidDefaultsToInfo(t *testing.T) {
 	tmp := t.TempDir()
-	Init(tmp, "invalid", "", false)
+	Init(LogConfig{LogsDir: tmp, Level: "invalid"})
 
 	var buf bytes.Buffer
 	SetOutput(&buf)
