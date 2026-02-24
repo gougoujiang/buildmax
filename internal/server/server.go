@@ -83,7 +83,6 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/conversation", s.getChatConversationHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream", s.getChatStreamHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/runs/{run_id}/stream", s.getRunStreamHandler)
 	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler)))
 	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler)))
 	mux.Handle("POST /api/worker/chat-runs/{chat_run_id}/stream", s.workerAuthMiddleware(http.HandlerFunc(s.postWorkerStreamHandler)))

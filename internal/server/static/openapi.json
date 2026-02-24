@@ -530,31 +530,6 @@
         }
       }
     },
-    "/api/workspaces/{workspace_id}/chats/{chat_id}/runs/{run_id}/stream": {
-      "get": {
-        "summary": "Stream run output (by run id)",
-        "description": "Server-Sent Events stream of the run's assistant output. Same as chat-scoped stream but requires run_id. Prefer GET .../chats/{chat_id}/stream for Portal. Requires Bearer JWT.",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id" }
-        ],
-        "responses": {
-          "200": {
-            "description": "SSE stream (Content-Type: text/event-stream). Events: delta (data: text), done.",
-            "content": {
-              "text/event-stream": { "schema": { "type": "string" } }
-            }
-          },
-          "400": { "description": "chat_id or run_id required" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Run not found" },
-          "503": { "description": "Stream not available" }
-        }
-      }
-    },
     "/api/workspaces/{workspace_id}/chats/{chat_id}/conversation": {
       "get": {
         "summary": "Get chat conversation",
