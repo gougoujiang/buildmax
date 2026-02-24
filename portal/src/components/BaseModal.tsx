@@ -5,6 +5,8 @@ interface BaseModalProps {
   title: string
   titleId: string
   onClose: () => void
+  /** Optional class name(s) applied to the modal container (e.g. modal--large). */
+  className?: string
   children: ReactNode
 }
 
@@ -13,6 +15,7 @@ export function BaseModal({
   title,
   titleId,
   onClose,
+  className,
   children,
 }: BaseModalProps) {
   const focusRef = useRef<HTMLDivElement>(null)
@@ -41,7 +44,7 @@ export function BaseModal({
     <div className="modal-overlay" onClick={onClose}>
       <div
         ref={focusRef}
-        className="modal"
+        className={className ? `modal ${className}` : "modal"}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

@@ -21,6 +21,8 @@ export interface CreateEntityModalProps {
   initialValues?: Record<string, string>
   /** Optional danger action (e.g. Delete) shown as a button in the actions row. */
   dangerAction?: { label: string; onClick: () => void; disabled?: boolean }
+  /** Optional class for the modal container (e.g. modal--large for edit dialogs). */
+  modalClassName?: string
   loading: boolean
   error: string | null
   submitLabel: string
@@ -36,6 +38,7 @@ export function CreateEntityModal({
   hint,
   initialValues,
   dangerAction,
+  modalClassName,
   loading,
   error,
   submitLabel,
@@ -68,7 +71,7 @@ export function CreateEntityModal({
   }
 
   return (
-    <BaseModal open={open} title={title} titleId={titleId} onClose={onClose}>
+    <BaseModal open={open} title={title} titleId={titleId} onClose={onClose} className={modalClassName}>
       <form onSubmit={handleSubmit} className="modal__body">
         {fields.map((field) => (
           <div key={field.key}>

@@ -52,6 +52,7 @@ export function EditAgentModal({
       fields={AGENT_FIELDS}
       hint="Agents are personas or task templates you can use in this workspace."
       initialValues={initialValues}
+      modalClassName="modal--large"
       dangerAction={{
         label: "Delete",
         onClick: handleDelete,

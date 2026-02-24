@@ -9,6 +9,7 @@ import {
   deleteAgent,
   apiAgentToAgent,
 } from "../lib/api"
+import { AgentAvatar } from "../components/UserAvatar"
 import { CreateAgentModal } from "../components/CreateAgentModal"
 import { EditAgentModal } from "../components/EditAgentModal"
 
@@ -134,6 +135,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
                 className="agent-card"
                 role="button"
                 tabIndex={0}
+                aria-label={`Edit agent ${a.name}`}
                 onClick={() => {
                   setError(null)
                   setEditingAgent(a)
@@ -146,14 +148,23 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
                   }
                 }}
               >
-                <h3 className="agent-card__name">{a.name}</h3>
+                <header className="agent-card__header">
+                  <AgentAvatar size="md" className="agent-card__avatar" />
+                  <div className="agent-card__title-row">
+                    <h3 className="agent-card__name">{a.name}</h3>
+                    <span className="agent-card__edit-hint" aria-hidden>Edit</span>
+                  </div>
+                </header>
                 {a.description ? (
                   <p className="agent-card__description">{a.description}</p>
                 ) : null}
                 {a.instructions ? (
-                  <p className="agent-card__instructions" title={a.instructions}>
-                    {a.instructions}
-                  </p>
+                  <div className="agent-card__instructions-wrap">
+                    <span className="agent-card__instructions-label">Instructions</span>
+                    <p className="agent-card__instructions" title={a.instructions}>
+                      {a.instructions}
+                    </p>
+                  </div>
                 ) : null}
               </article>
             ))}
