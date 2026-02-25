@@ -268,6 +268,7 @@
           "400": { "description": "Bad request (input missing)" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
+          "429": { "description": "Quota exceeded (run or token limit)" },
           "503": { "description": "Chats not configured" }
         }
       }
@@ -502,6 +503,7 @@
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
           "404": { "description": "Chat not found" },
+          "429": { "description": "Quota exceeded (run or token limit)" },
           "503": { "description": "Chats not configured" }
         }
       }

@@ -64,7 +64,7 @@ func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.cfg.UserStore.CreateUser(r.Context(), req.Email)
+	_, err = s.cfg.UserStore.CreateUser(r.Context(), req.Email, s.cfg.DefaultQuotaTier)
 	if err != nil {
 		if errors.Is(err, entity.ErrEmailExists) {
 			writeJSONError(w, http.StatusConflict, "email already registered")

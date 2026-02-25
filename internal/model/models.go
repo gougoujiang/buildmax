@@ -9,11 +9,12 @@ package model
 // User is the user model. JSON uses snake_case per project convention.
 // Internal DB numeric id is intentionally not exposed; API and JWT use user_id.
 type User struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	UserID    string `gorm:"type:varchar(64);uniqueIndex;not null" json:"user_id"`
-	Email     string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-	Name      string `gorm:"type:varchar(255)" json:"name"`
-	CreatedAt int64  `gorm:"autoCreateTime" json:"created_at"`
+	ID         uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	UserID     string `gorm:"type:varchar(64);uniqueIndex;not null" json:"user_id"`
+	Email      string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
+	Name       string `gorm:"type:varchar(255)" json:"name"`
+	QuotaTier  string `gorm:"type:varchar(64)" json:"quota_tier,omitempty"`
+	CreatedAt  int64  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
@@ -104,6 +105,17 @@ type Agent struct {
 
 // TableName returns the table name for GORM (singular per project convention).
 func (Agent) TableName() string { return "agent" }
+
+// QuotaTier is one row in the quota_tier table; defines limits for a tier (e.g. free_trial, pro).
+type QuotaTier struct {
+	TierName            string `gorm:"column:tier_name;primaryKey;type:varchar(64)" json:"tier_name"`
+	MaxRunsPerPeriod    int    `gorm:"column:max_runs_per_period;not null" json:"max_runs_per_period"`
+	MaxTokensPerPeriod  int    `gorm:"column:max_tokens_per_period;not null" json:"max_tokens_per_period"`
+	PeriodDays          int    `gorm:"column:period_days;not null" json:"period_days"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (QuotaTier) TableName() string { return "quota_tier" }
 
 // ArtifactWithChat is a DTO for listing run outputs (artifacts) with chat/run context. ArtifactID holds chat_run_id for API compatibility. JSON uses snake_case.
 type ArtifactWithChat struct {

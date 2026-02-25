@@ -27,7 +27,7 @@ func TestCreateUser(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", existing.UserID)
 	}
 
-	u, err := s.CreateUser(ctx, email)
+	u, err := s.CreateUser(ctx, email, "")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 	}
 
 	email := "dup-test@example.com"
-	u, err := s.CreateUser(ctx, email)
+	u, err := s.CreateUser(ctx, email, "")
 	if err != nil {
 		t.Fatalf("first CreateUser: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", u.UserID)
 	}()
 
-	_, err = s.CreateUser(ctx, email)
+	_, err = s.CreateUser(ctx, email, "")
 	if err == nil {
 		t.Error("second CreateUser: expected error")
 	}

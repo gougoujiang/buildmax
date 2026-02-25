@@ -40,6 +40,8 @@ const (
 	EnvKeyBuildmaxMinioSecretKey  = "BUILDMAX_MINIO_SECRET_KEY"
 	EnvKeyBuildmaxMinioBucket     = "BUILDMAX_MINIO_BUCKET"
 	EnvKeyBuildmaxMinioPrefix     = "BUILDMAX_MINIO_PREFIX"
+	// Quota (per-user tier and limits; limits in DB, default tier name from env)
+	EnvKeyBuildmaxDefaultQuotaTier = "BUILDMAX_DEFAULT_QUOTA_TIER"
 	// Optional / scripts
 	EnvKeyBuildmaxKindCluster = "BUILDMAX_KIND_CLUSTER"
 	// Test only
@@ -90,6 +92,8 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxMinioSecretKey, "minio123", "MinIO/S3 secret key"},
 	{EnvKeyBuildmaxMinioBucket, "bmstore", "MinIO/S3 bucket"},
 	{EnvKeyBuildmaxMinioPrefix, "workspaces", "MinIO/S3 key prefix"},
+	// Quota
+	{EnvKeyBuildmaxDefaultQuotaTier, "free_trial", "Default quota tier name for new users (tier limits in quota_tier table)"},
 	// Optional / scripts
 	{EnvKeyBuildmaxKindCluster, "buildmaxdev", "Kind cluster name in setup scripts"},
 	// Test only

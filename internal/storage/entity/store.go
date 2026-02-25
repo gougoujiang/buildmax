@@ -22,8 +22,11 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &ChatRunArtifact{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &ChatRunArtifact{}, &QuotaTier{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
+	}
+	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {
+		return nil, fmt.Errorf("seed quota tiers: %w", err)
 	}
 	if err := migrateFromArtifactTables(ctx, db); err != nil {
 		return nil, fmt.Errorf("migrate from artifact: %w", err)

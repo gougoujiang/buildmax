@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"buildmax/internal/quota"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
@@ -54,6 +55,8 @@ type Config struct {
 	CORSOrigin         string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	WorkerToken        string                 // If set, required for /api/worker/* (worker-to-server auth)
 	ChatTitleGenerator ChatTitleGenerator     // Optional; when set, used to generate chat title from input at create time
+	QuotaChecker       *quota.Checker         // Optional; when set, create chat/run enforce quota and return 429 when exceeded
+	DefaultQuotaTier   string                 // Default quota tier for new users (e.g. signup); used when calling CreateUser
 }
 
 // Server wraps the HTTP server and runs it.

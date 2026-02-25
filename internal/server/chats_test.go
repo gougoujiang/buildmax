@@ -2,16 +2,45 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"buildmax/internal/quota"
 	"buildmax/internal/storage/entity"
 )
 
 func ptrStr(s string) *string { return &s }
+
+// denyQuotaUserStore is used by quota 429 test to supply a user with tier.
+type denyQuotaUserStore struct {
+	user *entity.User
+}
+
+func (d *denyQuotaUserStore) UserByEmail(_ context.Context, _ string) (*entity.User, error) { return nil, nil }
+func (d *denyQuotaUserStore) GetUser(_ context.Context, _ string) (*entity.User, error)     { return d.user, nil }
+func (d *denyQuotaUserStore) CreateUser(_ context.Context, _, _ string) (*entity.User, error) {
+	return nil, nil
+}
+
+type denyQuotaUsageReader struct {
+	runCount, totalTokens int
+}
+
+func (d *denyQuotaUsageReader) UserUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
+	return d.runCount, d.totalTokens, nil
+}
+
+type denyQuotaTierStore struct {
+	tier *entity.QuotaTier
+}
+
+func (d *denyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*entity.QuotaTier, error) {
+	return d.tier, nil
+}
 
 func TestListWorkspaceChatsHandler(t *testing.T) {
 	secret := "test-chats-secret"
@@ -204,12 +233,42 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 			checkCreated: true,
 		},
 	}
+	// Quota 429 test: use a checker that denies (user at run limit).
+	denyChecker := quota.NewChecker(
+		&denyQuotaUserStore{user: &entity.User{UserID: "u1", QuotaTier: "free_trial"}},
+		&denyQuotaUsageReader{runCount: 10, totalTokens: 0},
+		&denyQuotaTierStore{tier: &entity.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		"free_trial",
+	)
+	tests = append(tests, struct {
+		name         string
+		chatStore    entity.ChatStore
+		authHeader   string
+		path         string
+		body         string
+		jwtSecret    string
+		wantStatus   int
+		wantBodyHas  string
+		checkCreated bool
+	}{
+		name:        "quota exceeded returns 429",
+		chatStore:   &mockChatStore{},
+		authHeader:  "Bearer " + signJWT("u1", secret),
+		path:        "/api/workspaces/ws1/chats",
+		body:        `{"input":"Do X"}`,
+		jwtSecret:   secret,
+		wantStatus:  http.StatusTooManyRequests,
+		wantBodyHas: "quota exceeded",
+	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				WorkspaceStore: mockWS,
 				ChatStore:      tt.chatStore,
 				JWTSecret:      tt.jwtSecret,
+			}
+			if tt.name == "quota exceeded returns 429" {
+				cfg.QuotaChecker = denyChecker
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body))

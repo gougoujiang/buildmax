@@ -18,6 +18,11 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+// writeQuotaExceeded writes HTTP 429 with JSON body {"error": reason}.
+func writeQuotaExceeded(w http.ResponseWriter, reason string) {
+	writeJSONError(w, http.StatusTooManyRequests, reason)
+}
+
 // writeInternalError logs the error with attrs then writes 500 and {"error": "internal error"}.
 // Use when returning a generic error response so the real cause is visible in logs.
 func writeInternalError(w http.ResponseWriter, err error, attrs ...any) {

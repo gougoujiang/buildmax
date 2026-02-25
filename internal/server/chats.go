@@ -168,6 +168,13 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 			titleCompletionTokens = usage.CompletionTokens
 		}
 	}
+	if s.cfg.QuotaChecker != nil {
+		allowed, reason := s.cfg.QuotaChecker.Check(r.Context(), userID, 1, titlePromptTokens+titleCompletionTokens)
+		if !allowed {
+			writeQuotaExceeded(w, reason)
+			return
+		}
+	}
 	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, req.Input, title, userID, titlePromptTokens, titleCompletionTokens)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
@@ -207,6 +214,13 @@ func (s *Server) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Input == "" {
 		writeJSONError(w, http.StatusBadRequest, "input required")
 		return
+	}
+	if s.cfg.QuotaChecker != nil {
+		allowed, reason := s.cfg.QuotaChecker.Check(r.Context(), userID, 1, 0)
+		if !allowed {
+			writeQuotaExceeded(w, reason)
+			return
+		}
 	}
 	run, err := s.cfg.ChatRunStore.CreateChatRun(r.Context(), chatID, req.Input, userID)
 	if err != nil {

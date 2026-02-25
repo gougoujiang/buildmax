@@ -10,6 +10,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/executor"
 	"buildmax/internal/llm"
+	"buildmax/internal/quota"
 	"buildmax/internal/server"
 	"buildmax/internal/session"
 	"buildmax/internal/storage/blob"
@@ -72,20 +73,24 @@ func RunServer(ctx context.Context, port int) error {
 		return fmt.Errorf("artifact storage: %w", err)
 	}
 
+	defaultQuotaTier := config.DefaultQuotaTier()
+	quotaChecker := quota.NewChecker(st, st, st, defaultQuotaTier)
 	cfg := server.Config{
-		Addr:            ":" + strconv.Itoa(port),
-		UserStore:       st,
-		WorkspaceStore:  st,
-		AgentStore:      st,
-		ChatStore:       st,
-		ChatRunStore:    st,
-		RunOutputLister: st,
-		PersistStorage:  persistStorage,
-		ArtifactStorage: artifactStorage,
-		WorkspacesDir:   workspacesDir,
-		JWTSecret:       serverEnv.JWTSecret,
-		CORSOrigin:      serverEnv.CORSOrigin,
-		WorkerToken:     config.WorkerToken(),
+		Addr:              ":" + strconv.Itoa(port),
+		UserStore:         st,
+		WorkspaceStore:    st,
+		AgentStore:        st,
+		ChatStore:         st,
+		ChatRunStore:      st,
+		RunOutputLister:   st,
+		PersistStorage:    persistStorage,
+		ArtifactStorage:   artifactStorage,
+		WorkspacesDir:     workspacesDir,
+		JWTSecret:         serverEnv.JWTSecret,
+		CORSOrigin:        serverEnv.CORSOrigin,
+		WorkerToken:       config.WorkerToken(),
+		QuotaChecker:      quotaChecker,
+		DefaultQuotaTier:  defaultQuotaTier,
 	}
 	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
 		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llm.NewClient(llmCfg)}

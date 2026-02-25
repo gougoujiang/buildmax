@@ -8,8 +8,22 @@ import (
 // UserStore looks up users by email and creates new users.
 type UserStore interface {
 	UserByEmail(ctx context.Context, email string) (*User, error)
-	// CreateUser creates a user with the given email. Returns ErrEmailExists if the email is already registered.
-	CreateUser(ctx context.Context, email string) (*User, error)
+	// GetUser returns the user by user_id, or (nil, nil) when not found.
+	GetUser(ctx context.Context, userID string) (*User, error)
+	// CreateUser creates a user with the given email. defaultQuotaTier is applied when non-empty. Returns ErrEmailExists if the email is already registered.
+	CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*User, error)
+}
+
+// QuotaTierStore provides quota tier limits by tier name.
+type QuotaTierStore interface {
+	// GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
+	GetQuotaTier(ctx context.Context, tierName string) (*QuotaTier, error)
+}
+
+// UsageInWindowReader provides usage aggregation for a user in a time window.
+type UsageInWindowReader interface {
+	// UserUsageInWindow returns run count and total tokens for the user in [sinceUnix, untilUnix].
+	UserUsageInWindow(ctx context.Context, userID string, sinceUnix, untilUnix int64) (runCount, totalTokens int, err error)
 }
 
 // WorkspaceStore provides workspace persistence.
