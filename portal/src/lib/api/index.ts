@@ -12,6 +12,7 @@ import type {
   ApiChat,
   ApiChatsListResponse,
   ApiSession,
+  ApiUsage,
   ApiWorkspace,
   CreateChatRunResponse,
   LoginResponse,
@@ -28,6 +29,7 @@ export type {
   ApiChatsListResponse,
   ApiSession,
   ApiSessionMessage,
+  ApiUsage,
   CreateChatRunResponse,
   ApiArtifact,
   ApiArtifactItem,
@@ -66,6 +68,12 @@ export async function login(email: string, otp: string): Promise<LoginResponse> 
 
 export async function getWorkspaces(token: string): Promise<ApiWorkspace[]> {
   return requestJson<ApiWorkspace[]>(`${getApiBase()}/api/workspaces`, {
+    headers: authHeaders(token),
+  })
+}
+
+export async function getUsage(token: string): Promise<ApiUsage> {
+  return requestJson<ApiUsage>(`${getApiBase()}/api/usage`, {
     headers: authHeaders(token),
   })
 }

@@ -114,6 +114,35 @@
         }
       }
     },
+    "/api/usage": {
+      "get": {
+        "summary": "Get current user usage",
+        "description": "Returns usage and tier limits for the authenticated user (rolling window). Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run_count": { "type": "integer" },
+                    "total_tokens": { "type": "integer" },
+                    "tier": { "type": "string" },
+                    "period_days": { "type": "integer" },
+                    "max_runs_per_period": { "type": "integer" },
+                    "max_tokens_per_period": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "503": { "description": "Usage not available (quota not configured)" }
+        }
+      }
+    },
     "/api/workspaces": {
       "get": {
         "summary": "List workspaces",

@@ -77,6 +77,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
 	mux.HandleFunc("POST /api/otp/request", s.otpRequestHandler)
 	mux.HandleFunc("POST /api/login", s.loginHandler)
+	mux.HandleFunc("GET /api/usage", s.usageHandler)
 	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
 	mux.HandleFunc("POST /api/workspaces", s.createWorkspaceHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents", s.listAgentsHandler)

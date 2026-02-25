@@ -27,6 +27,72 @@ func NewChecker(userStore entity.UserStore, usageReader entity.UsageInWindowRead
 	}
 }
 
+// UsageInfo is a snapshot of a user's usage and tier limits for display (e.g. settings page).
+type UsageInfo struct {
+	RunCount           int
+	TotalTokens        int
+	TierName           string
+	PeriodDays         int
+	MaxRunsPerPeriod   *int // nil when tier unknown or not found
+	MaxTokensPerPeriod *int
+}
+
+const defaultUsagePeriodDays = 30
+
+// GetUsage returns the current user's usage and tier info in the same rolling window used by Check.
+// When user or tier is not found, returns usage for a default 30-day window with limits nil.
+func (c *Checker) GetUsage(ctx context.Context, userID string) (*UsageInfo, error) {
+	user, err := c.UserStore.GetUser(ctx, userID)
+	if err != nil {
+		return &UsageInfo{}, nil
+	}
+	if user == nil {
+		return &UsageInfo{}, nil
+	}
+	tierName := user.QuotaTier
+	if tierName == "" {
+		tierName = c.DefaultTier
+	}
+	now := c.clock().Unix()
+
+	// Resolve tier limits; if not found, still return usage for default window with limits nil
+	tier, err := c.TierStore.GetQuotaTier(ctx, tierName)
+	if err != nil {
+		return &UsageInfo{}, err
+	}
+	if tier == nil {
+		periodDays := defaultUsagePeriodDays
+		since := now - int64(periodDays)*86400
+		runCount, totalTokens, err := c.UsageReader.UserUsageInWindow(ctx, userID, since, now)
+		if err != nil {
+			return &UsageInfo{}, err
+		}
+		return &UsageInfo{
+			RunCount:    runCount,
+			TotalTokens: totalTokens,
+			TierName:    tierName,
+			PeriodDays:  periodDays,
+		}, nil
+	}
+
+	periodSec := int64(tier.PeriodDays) * 86400
+	since := now - periodSec
+	runCount, totalTokens, err := c.UsageReader.UserUsageInWindow(ctx, userID, since, now)
+	if err != nil {
+		return nil, err
+	}
+	maxRuns := tier.MaxRunsPerPeriod
+	maxTokens := tier.MaxTokensPerPeriod
+	return &UsageInfo{
+		RunCount:           runCount,
+		TotalTokens:        totalTokens,
+		TierName:           tier.TierName,
+		PeriodDays:         tier.PeriodDays,
+		MaxRunsPerPeriod:   &maxRuns,
+		MaxTokensPerPeriod: &maxTokens,
+	}, nil
+}
+
 // Check returns whether the user is allowed to add addRuns and addTokens. If not allowed, reason is the 429 message.
 func (c *Checker) Check(ctx context.Context, userID string, addRuns, addTokens int) (allowed bool, reason string) {
 	user, err := c.UserStore.GetUser(ctx, userID)

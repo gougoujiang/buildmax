@@ -41,6 +41,57 @@
   gap: 0.75rem;
 }
 
+/* Settings modal – larger, tabbed layout */
+.modal--settings {
+  max-width: 560px;
+  min-height: 360px;
+}
+
+.settings-modal__body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 280px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 1.25rem 0 1rem;
+  background: #fafafa;
+}
+
+.settings-tabs__tab {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #666;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-tabs__tab:hover {
+  color: #333;
+}
+
+.settings-tabs__tab--active {
+  color: #1a1a1a;
+  border-bottom-color: #1a1a1a;
+}
+
+.settings-panel {
+  padding: 1.25rem 1.5rem 1.5rem;
+  flex: 1;
+  overflow: auto;
+}
+
 .modal--large .modal__textarea {
   min-height: 140px;
 }
@@ -287,4 +338,54 @@
   margin: 0;
   color: #666;
   font-size: 0.95rem;
+}
+
+/* Settings modal – usage section */
+.settings-section {
+  margin: 0;
+}
+
+.settings-section__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.settings-section__muted {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.settings-section__error {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #c00;
+}
+
+.settings-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.settings-usage__row {
+  margin: 0;
+  font-size: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.settings-usage__label {
+  font-weight: 500;
+  color: #555;
+}
+
+.settings-usage__period {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: #888;
 }

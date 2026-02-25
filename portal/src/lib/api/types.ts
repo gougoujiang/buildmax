@@ -97,3 +97,13 @@ export interface ApiArtifactItem {
 export interface UploadResponse {
   uploaded: string[]
 }
+
+/** Usage as returned by GET /api/usage */
+export interface ApiUsage {
+  run_count: number
+  total_tokens: number
+  tier: string
+  period_days: number
+  max_runs_per_period?: number
+  max_tokens_per_period?: number
+}
