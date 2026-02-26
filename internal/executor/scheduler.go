@@ -11,7 +11,10 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-const defaultPollInterval = 5 * time.Second
+const (
+	defaultPollInterval   = 5 * time.Second
+	maxErrorMessageLength = 500
+)
 
 // Scheduler polls the chat run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
@@ -24,16 +27,24 @@ type Scheduler struct {
 
 // NewScheduler creates a Scheduler that polls for pending chat runs and runs the worker via the given runner. Call Start() to begin polling.
 func NewScheduler(chatRunStore entity.ChatRunStore, runner WorkerRunner) (*Scheduler, error) {
+	return NewSchedulerWithPollInterval(chatRunStore, runner, defaultPollInterval)
+}
+
+// NewSchedulerWithPollInterval is like NewScheduler but allows setting the poll interval (e.g. for tests). Use 0 for default.
+func NewSchedulerWithPollInterval(chatRunStore entity.ChatRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
 	if chatRunStore == nil {
 		return nil, errors.New("executor: chatRunStore must not be nil")
 	}
 	if runner == nil {
 		return nil, errors.New("executor: runner must not be nil")
 	}
+	if pollInterval == 0 {
+		pollInterval = defaultPollInterval
+	}
 	return &Scheduler{
 		chatRuns:     chatRunStore,
 		runner:       runner,
-		pollInterval: defaultPollInterval,
+		pollInterval: pollInterval,
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
 	}, nil
@@ -53,7 +64,7 @@ func (s *Scheduler) Stop() {
 }
 
 // loop is the main poll loop: on each tick it fetches the next PENDING run, claims it (PENDING→SCHEDULED), runs the worker, and persists worker info on success.
-// If run fails, the run is reverted to PENDING so the next poll retries.
+// State machine: PENDING → SCHEDULED → RUNNING → SUCCEEDED/FAILED. If spawn fails, run is set to FAILED (no revert to PENDING).
 func (s *Scheduler) loop() {
 	defer close(s.doneCh)
 	ticker := time.NewTicker(s.pollInterval)
@@ -83,9 +94,18 @@ func (s *Scheduler) loop() {
 			}
 			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run)
 			if err != nil {
-				slog.Warn("scheduler: worker run failed, reverting run to PENDING", "chat_run_id", run.ChatRunID, "err", err)
-				if revertErr := s.chatRuns.UpdateChatRunStatus(ctx, run.ChatRunID, "PENDING", nil, nil, nil, nil, nil, nil, nil); revertErr != nil {
-					slog.Error("scheduler: failed to revert run to PENDING", "chat_run_id", run.ChatRunID, "err", revertErr)
+				slog.Warn("scheduler: worker spawn failed, marking run as FAILED", "chat_run_id", run.ChatRunID, "err", err)
+				errorMsg := err.Error()
+				if len(errorMsg) > maxErrorMessageLength {
+					errorMsg = errorMsg[:maxErrorMessageLength]
+				}
+				endedAt := time.Now().Unix()
+				if updateErr := s.chatRuns.UpdateChatRunStatus(ctx, run.ChatRunID, "FAILED", nil, &endedAt, nil, &errorMsg, nil, nil, nil); updateErr != nil {
+					slog.Error("scheduler: failed to set run to FAILED", "chat_run_id", run.ChatRunID, "err", updateErr)
+					continue
+				}
+				if syncErr := s.chatRuns.SyncChatFromRun(ctx, run.ChatRunID); syncErr != nil {
+					slog.Warn("scheduler: failed to sync chat from run", "chat_run_id", run.ChatRunID, "err", syncErr)
 				}
 				continue
 			}
