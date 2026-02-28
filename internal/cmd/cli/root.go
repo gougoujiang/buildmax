@@ -1,5 +1,5 @@
-// Package cmd: root and subcommands for the BuildMax CLI.
-package cmd
+// Package cli: root and subcommands for the BuildMax CLI.
+package cli
 
 import (
 	"fmt"

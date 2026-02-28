@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	"buildmax/internal/cmd"
+	"buildmax/internal/cmd/cli"
 	"buildmax/internal/config"
 	log "buildmax/internal/log"
 )
 
 func main() {
 	log.Init(log.LogConfig{LogsDir: config.LogsDir(), Level: config.LogLevel(), AlsoStdout: false})
-	root := cmd.NewRootCommand()
+	root := cli.NewRootCommand()
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

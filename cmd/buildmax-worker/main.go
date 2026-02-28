@@ -11,7 +11,7 @@ import (
 
 	"buildmax/internal/config"
 	log "buildmax/internal/log"
-	"buildmax/internal/workercmd"
+	"buildmax/internal/cmd/worker"
 )
 
 func main() {
@@ -29,8 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	if err := workercmd.RunWorker(ctx, *chatRunID); err != nil {
-		if errors.Is(err, workercmd.ErrAlreadyClaimed) {
+	if err := worker.RunWorker(ctx, *chatRunID); err != nil {
+		if errors.Is(err, worker.ErrAlreadyClaimed) {
 			os.Exit(2) // run not executed (already claimed by another worker)
 		}
 		slog.Error("worker run failed", "chat_run_id", *chatRunID, "err", err)

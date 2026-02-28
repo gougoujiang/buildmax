@@ -9,7 +9,7 @@ import (
 
 	"buildmax/internal/config"
 	log "buildmax/internal/log"
-	"buildmax/internal/servercmd"
+	"buildmax/internal/cmd/server"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	if err := servercmd.RunServer(ctx, port); err != nil {
+	if err := server.RunServer(ctx, port); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

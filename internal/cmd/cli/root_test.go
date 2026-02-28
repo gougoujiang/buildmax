@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 func TestRootCommand_InvalidSessionIDReturnsError(t *testing.T) {
 	tests := []struct {
-		name    string
+		name      string
 		sessionID string
 	}{
 		{"non-uuid string", "not-a-uuid"},

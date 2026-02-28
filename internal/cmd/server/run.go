@@ -1,4 +1,4 @@
-package servercmd
+package server
 
 import (
 	"context"
@@ -11,28 +11,28 @@ import (
 	"buildmax/internal/executor"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
-	"buildmax/internal/server"
+	httpserver "buildmax/internal/server"
 	"buildmax/internal/session"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/storage/setup"
 )
 
-// chatTitleGenAdapter implements server.ChatTitleGenerator using session.GenerateTitleFromInput and an LLM client.
+// chatTitleGenAdapter implements httpserver.ChatTitleGenerator using session.GenerateTitleFromInput and an LLM client.
 type chatTitleGenAdapter struct {
 	client *llm.Client
 }
 
-func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, server.TokenUsage, error) {
+func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, httpserver.TokenUsage, error) {
 	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
 		content, _, usage, err := a.client.ChatWithTools(ctx, msgs, nil)
 		return content, usage, err
 	})
 	title, usage, err := session.GenerateTitleFromInput(ctx, titleClient, input)
 	if err != nil {
-		return "", server.TokenUsage{}, err
+		return "", httpserver.TokenUsage{}, err
 	}
-	return title, server.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, nil
+	return title, httpserver.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, nil
 }
 
 // RunServer loads server env and workspaces dir, opens the DB, builds blob storage,
@@ -75,7 +75,7 @@ func RunServer(ctx context.Context, port int) error {
 
 	defaultQuotaTier := config.DefaultQuotaTier()
 	quotaChecker := quota.NewChecker(st, st, st, defaultQuotaTier)
-	cfg := server.Config{
+	cfg := httpserver.Config{
 		Addr:              ":" + strconv.Itoa(port),
 		UserStore:         st,
 		WorkspaceStore:    st,
@@ -122,7 +122,7 @@ func RunServer(ctx context.Context, port int) error {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	s := server.New(cfg)
+	s := httpserver.New(cfg)
 	slog.Info("server starting", "addr", cfg.Addr)
 	err = s.Run()
 	slog.Info("server stopped")
