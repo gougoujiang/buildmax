@@ -108,7 +108,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
     createChat(workspaceId, { agent_id: newChatAgent.id, input: editedInput }, token)
       .then((chat) => {
         setNewChatAgent(null)
-        setPendingChat({ chat: apiChatToChat(chat), initialInput: "" })
+        setPendingChat({ chat: apiChatToChat(chat), initialInput: chat.input ?? "" })
         navigate({ name: "chat", workspaceId, chatId: chat.id })
         refetchWorkspaceChats()
       })

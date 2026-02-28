@@ -76,5 +76,6 @@ export function apiChatToChat(api: ApiChat): Chat {
     status: chatStatusToUI(api.status),
     timeLabel: formatRelativeTime(ts),
     summary,
+    agentId: api.agent_id ?? undefined,
   }
 }

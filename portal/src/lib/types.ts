@@ -12,6 +12,8 @@ export interface Chat {
   status: "pending" | "running" | "success" | "failed" | "canceled"
   timeLabel: string
   summary: string
+  /** Set when the chat was started from an agent. */
+  agentId?: string
 }
 
 export interface Artifact {

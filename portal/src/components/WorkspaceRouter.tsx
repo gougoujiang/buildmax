@@ -63,8 +63,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
       <Chats
         workspaceId={route.workspaceId}
         chats={workspaceChats}
-        artifacts={artifacts}
-        onViewArtifact={onViewArtifact}
+        token={token ?? null}
       />
     )
   }
