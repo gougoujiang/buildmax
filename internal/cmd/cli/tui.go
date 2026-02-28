@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"buildmax/internal/app"
 	"buildmax/internal/tui"
 	"buildmax/internal/util"
 
@@ -27,7 +26,7 @@ func runTUI(resumeID string, modelSelector string) error {
 		Version:     Version,
 		SessionsDir: res.SessionsDir,
 	}
-	p := tea.NewProgram(app.NewModel(opts), tea.WithAltScreen())
+	p := tea.NewProgram(tui.NewModel(opts), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		slog.Error("TUI failed", "err", err)
 		return fmt.Errorf("TUI: %w", err)

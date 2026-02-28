@@ -56,7 +56,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 **CLI & TUI**
 - **CLI**: Cobra in `internal/cmd` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand; `cmd/buildmax/main.go` is the thin entry point. The server runs as a separate binary (`buildmax-server`).
-- **TUI**: Bubble Tea via `internal/app` + `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner + version, chat history), input at bottom, footer (model, workspace, ctrl+c: quit). `--resume <id>`, `--continue`, `--session-id <uuid>` for session handling. Session persisted after each assistant reply.
+- **TUI**: Bubble Tea via `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner + version, chat history), input at bottom, footer (model, workspace, ctrl+c: quit). `--resume <id>`, `--continue`, `--session-id <uuid>` for session handling. Session persisted after each assistant reply.
 - **Session**: In-memory session in `internal/session` (id, title, created_at, message history); multi-turn; save/load under `DataDir()/sessions/<id>.json`; list index in `sessions.json` via `session.LoadList`.
 
 **Agent & tools**
@@ -100,8 +100,7 @@ buildmax/
 │       └── main.go
 ├── internal/                  # Private packages (this project only)
 │   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
-│   ├── app/                   # App bootstrap and TUI program entry
-│   ├── tui/                   # Bubble Tea models and views (banner, input, viewport, format)
+│   ├── tui/                   # Bubble Tea TUI (models, views, program entry: banner, input, viewport, format)
 │   ├── agent/                 # Core Agent logic (Process, tools, system prompt, subagent runner)
 │   ├── llm/                   # LLM client (OpenAI-compatible), types, ChatWithTools
 │   ├── config/                # Config: LoadLLM(), DataDir(), MySQLDSN(), server env, workspace paths, workspace storage (env_spec.go, workspace_storage.go)
