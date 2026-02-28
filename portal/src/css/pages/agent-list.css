@@ -149,3 +149,31 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.agent-card__actions {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.agent-card__new-chat-btn {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6366f1;
+  background: transparent;
+  border: 1px solid #6366f1;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.agent-card__new-chat-btn:hover:not(:disabled) {
+  background: #6366f1;
+  color: #fff;
+}
+
+.agent-card__new-chat-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

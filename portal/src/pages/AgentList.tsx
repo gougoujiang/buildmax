@@ -7,11 +7,15 @@ import {
   createAgent,
   updateAgent,
   deleteAgent,
+  createChat,
   apiAgentToAgent,
+  apiChatToChat,
 } from "../lib/api"
+import { useWorkspace } from "../contexts/WorkspaceContext"
 import { AgentAvatar } from "../components/UserAvatar"
 import { CreateAgentModal } from "../components/CreateAgentModal"
 import { EditAgentModal } from "../components/EditAgentModal"
+import { NewChatFromAgentModal } from "../components/NewChatFromAgentModal"
 
 interface AgentListProps {
   workspaceId: string
@@ -19,6 +23,7 @@ interface AgentListProps {
 }
 
 export function AgentList({ workspaceId, token }: AgentListProps) {
+  const { refetchWorkspaceChats, setPendingChat } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -26,6 +31,8 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [newChatAgent, setNewChatAgent] = useState<Agent | null>(null)
+  const [startingChatAgentId, setStartingChatAgentId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(() => {
@@ -87,6 +94,28 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to delete agent")))
       .finally(() => setDeleting(false))
+  }
+
+  function handleOpenNewChatModal(agent: Agent) {
+    setError(null)
+    setNewChatAgent(agent)
+  }
+
+  function handleStartChatFromAgent(editedInput: string) {
+    if (!token || !newChatAgent) return
+    setError(null)
+    setStartingChatAgentId(newChatAgent.id)
+    createChat(workspaceId, { agent_id: newChatAgent.id, input: editedInput }, token)
+      .then((chat) => {
+        setNewChatAgent(null)
+        setPendingChat({ chat: apiChatToChat(chat), initialInput: "" })
+        navigate({ name: "chat", workspaceId, chatId: chat.id })
+        refetchWorkspaceChats()
+      })
+      .catch((err) => {
+        setError(getErrorMessage(err, "Failed to start chat"))
+      })
+      .finally(() => setStartingChatAgentId(null))
   }
 
   return (
@@ -166,6 +195,20 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
                     </p>
                   </div>
                 ) : null}
+                <div className="agent-card__actions">
+                  <button
+                    type="button"
+                    className="agent-card__new-chat-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenNewChatModal(a)
+                    }}
+                    disabled={!token}
+                    aria-label={`New chat with ${a.name}`}
+                  >
+                    New chat
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -195,6 +238,18 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         }}
         onSave={handleSaveAgent}
         onDelete={handleDeleteAgent}
+      />
+
+      <NewChatFromAgentModal
+        open={newChatAgent != null}
+        agent={newChatAgent}
+        loading={startingChatAgentId !== null}
+        error={newChatAgent != null ? error : null}
+        onClose={() => {
+          setNewChatAgent(null)
+          if (newChatAgent) setError(null)
+        }}
+        onStartChat={handleStartChatFromAgent}
       />
     </div>
   )

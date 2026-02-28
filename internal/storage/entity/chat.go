@@ -73,7 +73,8 @@ func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat
 
 // CreateChat creates a new chat and its first ChatRun (PENDING) in one transaction. Returns the chat with last_run_id and session_id set.
 // titlePromptTokens and titleCompletionTokens record LLM usage for title generation (0 when title was truncated input).
-func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int) (*Chat, error) {
+// agentID is optional; when set, the chat is associated with that workspace agent.
+func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int, agentID *string) (*Chat, error) {
 	now := time.Now().Unix()
 	chatID := util.NewPrefixedID(util.PrefixChat)
 	chatRunID := util.NewPrefixedID(util.PrefixChatRun)
@@ -90,6 +91,7 @@ func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, creat
 		CreatedAt:              now,
 		LastRunID:              &chatRunID,
 		SessionID:              &sessionID,
+		AgentID:                agentID,
 	}
 	run := &ChatRun{
 		ChatRunID:  chatRunID,

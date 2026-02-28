@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,11 +29,23 @@ type ChatResponse struct {
 	StartedAt    *int64  `json:"started_at,omitempty"`
 	EndedAt      *int64  `json:"ended_at,omitempty"`
 	ErrorMessage *string `json:"error_message,omitempty"`
+	AgentID      *string `json:"agent_id,omitempty"`
 }
 
 // createChatRequest is the JSON body for POST /api/workspaces/{workspace_id}/chats.
 type createChatRequest struct {
-	Input string `json:"input"`
+	Input   string  `json:"input"`
+	AgentID *string `json:"agent_id,omitempty"`
+}
+
+// buildChatInputFromAgent builds the chat input string from an agent's name, description, and instructions.
+// If userInput is non-empty, it is appended after a blank line.
+func buildChatInputFromAgent(agent *model.Agent, userInput string) string {
+	out := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
+	if userInput != "" {
+		out = out + "\n\n" + userInput
+	}
+	return out
 }
 
 func chatToResponse(c model.Chat) ChatResponse {
@@ -49,6 +62,7 @@ func chatToResponse(c model.Chat) ChatResponse {
 		StartedAt:    c.StartedAt,
 		EndedAt:      c.EndedAt,
 		ErrorMessage: c.ErrorMessage,
+		AgentID:      c.AgentID,
 	}
 }
 
@@ -141,7 +155,7 @@ func truncateChatTitle(input string, maxRunes int) string {
 }
 
 // createWorkspaceChatHandler handles POST /api/workspaces/{workspace_id}/chats.
-// Body: { "input": "…" }.
+// Body: { "input"?: "…", "agent_id"?: "…" }. When agent_id is present, input is optional and the stored input is composed from the agent; when agent_id is absent, input is required.
 func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Request) {
 	userID, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -155,14 +169,39 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Input == "" {
-		writeJSONError(w, http.StatusBadRequest, "input required")
-		return
+	var input string
+	var agentID *string
+	if req.AgentID != nil && *req.AgentID != "" {
+		if s.cfg.AgentStore == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "agents not configured")
+			return
+		}
+		agent, err := s.cfg.AgentStore.GetAgent(r.Context(), *req.AgentID)
+		if err != nil {
+			writeInternalError(w, err, "handler", "get_agent", "agent_id", *req.AgentID)
+			return
+		}
+		if agent == nil || agent.WorkspaceID != workspaceID {
+			writeJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
+			return
+		}
+		if req.Input != "" {
+			input = req.Input // use client-provided input directly (e.g. user-edited instructions)
+		} else {
+			input = buildChatInputFromAgent(agent, "")
+		}
+		agentID = req.AgentID
+	} else {
+		if req.Input == "" {
+			writeJSONError(w, http.StatusBadRequest, "input required")
+			return
+		}
+		input = req.Input
 	}
-	title := truncateChatTitle(req.Input, 50)
+	title := truncateChatTitle(input, 50)
 	var titlePromptTokens, titleCompletionTokens int
 	if s.cfg.ChatTitleGenerator != nil {
-		if gen, usage, err := s.cfg.ChatTitleGenerator.GenerateChatTitle(r.Context(), req.Input); err == nil && gen != "" {
+		if gen, usage, err := s.cfg.ChatTitleGenerator.GenerateChatTitle(r.Context(), input); err == nil && gen != "" {
 			title = gen
 			titlePromptTokens = usage.PromptTokens
 			titleCompletionTokens = usage.CompletionTokens
@@ -175,7 +214,7 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, req.Input, title, userID, titlePromptTokens, titleCompletionTokens)
+	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
 		return

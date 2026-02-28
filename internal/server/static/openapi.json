@@ -238,7 +238,8 @@
                       "created_at": { "type": "integer" },
                       "started_at": { "type": "integer", "nullable": true },
                       "ended_at": { "type": "integer", "nullable": true },
-                      "error_message": { "type": "string", "nullable": true }
+                      "error_message": { "type": "string", "nullable": true },
+                      "agent_id": { "type": "string", "nullable": true, "description": "When set, chat was created from this workspace agent" }
                     }
                   }
                 }
@@ -252,7 +253,7 @@
       },
       "post": {
         "summary": "Create chat",
-        "description": "Creates a chat in the workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "description": "Creates a chat in the workspace. Caller must own the workspace. Requires Bearer JWT. When agent_id is provided, input is optional and the stored input is composed from the agent (name, description, instructions); when agent_id is absent, input is required.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -262,9 +263,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["input"],
                 "properties": {
-                  "input": { "type": "string" }
+                  "input": { "type": "string", "description": "Required when agent_id is absent; optional when agent_id is present (appended to agent block)" },
+                  "agent_id": { "type": "string", "description": "Optional. When set, must be a valid agent in the same workspace; stored input is composed from the agent" }
                 }
               }
             }
@@ -288,17 +289,18 @@
                     "created_at": { "type": "integer" },
                     "started_at": { "type": "integer", "nullable": true },
                     "ended_at": { "type": "integer", "nullable": true },
-                    "error_message": { "type": "string", "nullable": true }
+                    "error_message": { "type": "string", "nullable": true },
+                    "agent_id": { "type": "string", "nullable": true, "description": "When set, chat was created from this workspace agent" }
                   }
                 }
               }
             }
           },
-          "400": { "description": "Bad request (input missing)" },
+          "400": { "description": "Bad request (input missing when agent_id absent, or agent not found / not in workspace)" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
           "429": { "description": "Quota exceeded (run or token limit)" },
-          "503": { "description": "Chats not configured" }
+          "503": { "description": "Chats not configured, or agents not configured (when agent_id is sent)" }
         }
       }
     },

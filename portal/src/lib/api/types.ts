@@ -56,6 +56,7 @@ export interface ApiChat {
   started_at: number | null
   ended_at: number | null
   error_message: string | null
+  agent_id?: string | null
 }
 
 /** Conversation as returned by GET /api/workspaces/{id}/chats/{id}/conversation */

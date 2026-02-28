@@ -168,6 +168,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	tests := []struct {
 		name         string
 		chatStore    entity.ChatStore
+		agentStore   entity.AgentStore
 		authHeader   string
 		path         string
 		body         string
@@ -179,6 +180,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		{
 			name:        "no auth returns 401",
 			chatStore:   &mockChatStore{},
+			agentStore:  nil,
 			authHeader:  "",
 			path:        "/api/workspaces/ws1/chats",
 			body:        `{"input":"Do X"}`,
@@ -189,6 +191,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		{
 			name:        "workspace not owned returns 403",
 			chatStore:   &mockChatStore{},
+			agentStore:  nil,
 			authHeader:  "Bearer " + signJWT("u1", secret),
 			path:        "/api/workspaces/ws-other/chats",
 			body:        `{"input":"Do X"}`,
@@ -199,6 +202,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		{
 			name:        "missing input returns 400",
 			chatStore:   &mockChatStore{},
+			agentStore:  nil,
 			authHeader:  "Bearer " + signJWT("u1", secret),
 			path:        "/api/workspaces/ws1/chats",
 			body:        `{}`,
@@ -209,6 +213,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		{
 			name:        "empty input returns 400",
 			chatStore:   &mockChatStore{},
+			agentStore:  nil,
 			authHeader:  "Bearer " + signJWT("u1", secret),
 			path:        "/api/workspaces/ws1/chats",
 			body:        `{"input":""}`,
@@ -224,12 +229,45 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
+			agentStore:   nil,
 			authHeader:   "Bearer " + signJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			body:         `{"input":"Do X"}`,
 			jwtSecret:    secret,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "new-chat-id",
+			checkCreated: true,
+		},
+		{
+			name: "create with agent_id composes input and returns 201",
+			chatStore: &mockChatStore{}, // returns default chat with input from CreateChat
+			agentStore: &mockAgentStore{
+				agents: []entity.Agent{
+					{AgentID: "a_1", WorkspaceID: "ws1", Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
+				},
+			},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/chats",
+			body:         `{"agent_id":"a_1"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusCreated,
+			wantBodyHas:  "TestAgent", // composed input contains agent name; JSON may escape < >
+			checkCreated: true,
+		},
+		{
+			name: "create with agent_id and non-empty input uses input directly",
+			chatStore: &mockChatStore{},
+			agentStore: &mockAgentStore{
+				agents: []entity.Agent{
+					{AgentID: "a_1", WorkspaceID: "ws1", Name: "TestAgent", Description: "D", Instructions: "I", CreatedAt: 100},
+				},
+			},
+			authHeader:   "Bearer " + signJWT("u1", secret),
+			path:         "/api/workspaces/ws1/chats",
+			body:         `{"agent_id":"a_1","input":"My custom prompt for this run"}`,
+			jwtSecret:    secret,
+			wantStatus:   http.StatusCreated,
+			wantBodyHas:  "My custom prompt for this run",
 			checkCreated: true,
 		},
 	}
@@ -243,6 +281,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	tests = append(tests, struct {
 		name         string
 		chatStore    entity.ChatStore
+		agentStore   entity.AgentStore
 		authHeader   string
 		path         string
 		body         string
@@ -253,6 +292,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	}{
 		name:        "quota exceeded returns 429",
 		chatStore:   &mockChatStore{},
+		agentStore:  nil,
 		authHeader:  "Bearer " + signJWT("u1", secret),
 		path:        "/api/workspaces/ws1/chats",
 		body:        `{"input":"Do X"}`,
@@ -265,6 +305,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 			cfg := Config{
 				WorkspaceStore: mockWS,
 				ChatStore:      tt.chatStore,
+				AgentStore:     tt.agentStore,
 				JWTSecret:      tt.jwtSecret,
 			}
 			if tt.name == "quota exceeded returns 429" {

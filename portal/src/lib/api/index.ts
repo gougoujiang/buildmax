@@ -186,9 +186,15 @@ export async function getChatConversation(
   return res.json() as Promise<ApiSession>
 }
 
+/** Create chat body. When agent_id is set, input is optional (backend composes from agent). */
+export interface CreateChatBody {
+  input?: string
+  agent_id?: string
+}
+
 export async function createChat(
   workspaceId: string,
-  body: { input: string },
+  body: CreateChatBody,
   token: string
 ): Promise<ApiChat> {
   return requestJson<ApiChat>(`${getApiBase()}/api/workspaces/${workspaceId}/chats`, {

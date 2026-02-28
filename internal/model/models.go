@@ -52,7 +52,8 @@ type Chat struct {
 	EndedAt         *int64  `gorm:"" json:"ended_at,omitempty"`
 	ErrorMessage    *string `gorm:"type:text" json:"error_message,omitempty"`
 	SessionID       *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
-	LastRunID *string `gorm:"type:varchar(64);index" json:"last_run_id,omitempty"`
+	LastRunID       *string `gorm:"type:varchar(64);index" json:"last_run_id,omitempty"`
+	AgentID         *string `gorm:"type:varchar(64);index" json:"agent_id,omitempty"`
 }
 
 // ChatRun is one execution (initial or follow-up) of a chat. Status: PENDING → SCHEDULED → RUNNING → SUCCEEDED | FAILED.
