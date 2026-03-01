@@ -12,7 +12,7 @@ import (
 )
 
 // EditFile is a tool that performs exact string replacements in a file under a workspace root.
-// It implements the agent.Tool interface.
+// It implements core.Tool.
 type EditFile struct {
 	ws *util.Workspace
 }
