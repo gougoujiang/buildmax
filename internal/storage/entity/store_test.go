@@ -93,7 +93,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	workspaceID := wsList[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, workspaceID, "input", "", "run-output-user", 0, 0, nil)
+	chat, err := s.CreateChat(ctx, workspaceID, "input", "", "run-output-user", 0, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestUpdateChatStatusIf(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	wsID := list[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, wsID, "input", "", "update-if-user", 0, 0, nil)
+	chat, err := s.CreateChat(ctx, wsID, "input", "", "update-if-user", 0, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}

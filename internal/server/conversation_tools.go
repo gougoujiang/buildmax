@@ -10,25 +10,32 @@ import (
 
 // serverStartChatRunner implements tools.StartChatRunner using server config (ChatStore, etc.).
 type serverStartChatRunner struct {
-	s           *Server
-	workspaceID string
-	userID      string
+	s              *Server
+	workspaceID    string
+	userID         string
+	conversationID string
 }
 
 func (r *serverStartChatRunner) StartChat(ctx context.Context, _, _, input string, agentID *string) (chatID, runID string, err error) {
-	return r.s.doStartChat(ctx, r.workspaceID, r.userID, input, agentID)
+	var convID *string
+	if r.conversationID != "" {
+		convID = &r.conversationID
+	}
+	return r.s.doStartChat(ctx, r.workspaceID, r.userID, input, agentID, convID)
 }
 
 // startChatRunner returns a StartChatRunner when ChatStore is set; otherwise nil (StartChat tool is not added).
-func (s *Server) startChatRunner(workspaceID, userID string) tools.StartChatRunner {
+// conversationID is the Tier 1 conversation id when the runner is used from the conversation flow; empty for other uses.
+func (s *Server) startChatRunner(workspaceID, userID, conversationID string) tools.StartChatRunner {
 	if s.cfg.ChatStore == nil {
 		return nil
 	}
-	return &serverStartChatRunner{s: s, workspaceID: workspaceID, userID: userID}
+	return &serverStartChatRunner{s: s, workspaceID: workspaceID, userID: userID, conversationID: conversationID}
 }
 
 // doStartChat creates a chat and its first run (same logic as POST .../chats). Used by start_chat tool.
-func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal string, agentID *string) (chatID, runID string, err error) {
+// conversationID is optional; when set (e.g. from Tier 1), the chat record stores it.
+func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal string, agentID *string, conversationID *string) (chatID, runID string, err error) {
 	var input string
 	if agentID != nil && *agentID != "" {
 		if s.cfg.AgentStore == nil {
@@ -64,7 +71,7 @@ func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal 
 			return "", "", fmt.Errorf("quota exceeded: %s", reason)
 		}
 	}
-	chat, err := s.cfg.ChatStore.CreateChat(ctx, workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID)
+	chat, err := s.cfg.ChatStore.CreateChat(ctx, workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, conversationID)
 	if err != nil {
 		return "", "", err
 	}

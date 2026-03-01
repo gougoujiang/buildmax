@@ -164,7 +164,7 @@ func (m *mockChatStore) ListChatsByWorkspacePaginated(_ context.Context, workspa
 	return filtered[offset:end], total, nil
 }
 
-func (m *mockChatStore) CreateChat(_ context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int, agentID *string) (*entity.Chat, error) {
+func (m *mockChatStore) CreateChat(_ context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int, agentID *string, conversationID *string) (*entity.Chat, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -172,13 +172,14 @@ func (m *mockChatStore) CreateChat(_ context.Context, workspaceID, input, title,
 		return m.create, nil
 	}
 	c := &entity.Chat{
-		ChatID:      "chat-uuid-1",
-		WorkspaceID: workspaceID,
-		Status:      "PENDING",
-		Input:       input,
-		Title:       title,
-		CreatedBy:   createdBy,
-		CreatedAt:   12345,
+		ChatID:         "chat-uuid-1",
+		WorkspaceID:    workspaceID,
+		Status:         "PENDING",
+		Input:          input,
+		Title:          title,
+		CreatedBy:      createdBy,
+		CreatedAt:      12345,
+		ConversationID: conversationID,
 	}
 	if agentID != nil {
 		c.AgentID = agentID

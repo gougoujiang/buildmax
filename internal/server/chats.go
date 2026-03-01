@@ -16,19 +16,20 @@ import (
 
 // ChatResponse is one chat in the list/create response (snake_case). ID is the chat_id.
 type ChatResponse struct {
-	ID           string  `json:"id"`
-	WorkspaceID  string  `json:"workspace_id"`
-	SessionID    *string `json:"session_id,omitempty"`
-	Status       string  `json:"status"`
-	Input        string  `json:"input"`
-	Title        string  `json:"title,omitempty"`
-	Output       *string `json:"output,omitempty"`
-	CreatedBy    string  `json:"created_by"`
-	CreatedAt    int64   `json:"created_at"`
-	StartedAt    *int64  `json:"started_at,omitempty"`
-	EndedAt      *int64  `json:"ended_at,omitempty"`
-	ErrorMessage *string `json:"error_message,omitempty"`
-	AgentID      *string `json:"agent_id,omitempty"`
+	ID              string  `json:"id"`
+	WorkspaceID     string  `json:"workspace_id"`
+	SessionID       *string `json:"session_id,omitempty"`
+	Status          string  `json:"status"`
+	Input           string  `json:"input"`
+	Title           string  `json:"title,omitempty"`
+	Output          *string `json:"output,omitempty"`
+	CreatedBy       string  `json:"created_by"`
+	CreatedAt       int64   `json:"created_at"`
+	StartedAt       *int64  `json:"started_at,omitempty"`
+	EndedAt         *int64  `json:"ended_at,omitempty"`
+	ErrorMessage    *string `json:"error_message,omitempty"`
+	AgentID         *string `json:"agent_id,omitempty"`
+	ConversationID  *string `json:"conversation_id,omitempty"`
 }
 
 // createChatRequest is the JSON body for POST /api/workspaces/{workspace_id}/chats.
@@ -49,19 +50,20 @@ func buildChatInputFromAgent(agent *model.Agent, userInput string) string {
 
 func chatToResponse(c model.Chat) ChatResponse {
 	return ChatResponse{
-		ID:           c.ChatID,
-		WorkspaceID:  c.WorkspaceID,
-		SessionID:    c.SessionID,
-		Status:       c.Status,
-		Input:        c.Input,
-		Title:        c.Title,
-		Output:       c.Output,
-		CreatedBy:    c.CreatedBy,
-		CreatedAt:    c.CreatedAt,
-		StartedAt:    c.StartedAt,
-		EndedAt:      c.EndedAt,
-		ErrorMessage: c.ErrorMessage,
-		AgentID:      c.AgentID,
+		ID:             c.ChatID,
+		WorkspaceID:    c.WorkspaceID,
+		SessionID:      c.SessionID,
+		Status:         c.Status,
+		Input:          c.Input,
+		Title:          c.Title,
+		Output:         c.Output,
+		CreatedBy:      c.CreatedBy,
+		CreatedAt:      c.CreatedAt,
+		StartedAt:      c.StartedAt,
+		EndedAt:        c.EndedAt,
+		ErrorMessage:   c.ErrorMessage,
+		AgentID:        c.AgentID,
+		ConversationID: c.ConversationID,
 	}
 }
 
@@ -202,7 +204,7 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID)
+	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, nil)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
 		return

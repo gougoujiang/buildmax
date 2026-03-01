@@ -137,7 +137,7 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		sink := &sseSink{w: w, flusher: flusher}
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID), sink)
+			s.startChatRunner(workspaceID, userID, conv.ConversationID), sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -153,7 +153,7 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 	if req.Message != "" && s.cfg.ConversationLLMCaller != nil {
 		reply, err = conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID))
+			s.startChatRunner(workspaceID, userID, conv.ConversationID))
 		if err != nil {
 			writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
 			return
@@ -257,7 +257,7 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		sink := &sseSink{w: w, flusher: flusher}
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 			caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID), sink)
+			s.startChatRunner(workspaceID, userID, conv.ConversationID), sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -271,7 +271,7 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 	}
 	reply, err := conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 		caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-		s.startChatRunner(workspaceID, userID))
+		s.startChatRunner(workspaceID, userID, conv.ConversationID))
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return
