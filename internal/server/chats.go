@@ -261,6 +261,34 @@ func (s *Server) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if s.cfg.ConversationEngine != nil && s.cfg.PortalAdapter != nil {
+		input := &PortalTurnInput{
+			WorkspaceID: workspaceID,
+			ChatID:      chatID,
+			UserID:      userID,
+			Message:     req.Input,
+		}
+		turn, err := s.cfg.PortalAdapter.Receive(r.Context(), input)
+		if err != nil {
+			writeInternalError(w, err, "handler", "receive_turn", "chat_id", chatID)
+			return
+		}
+		result, err := s.cfg.ConversationEngine.Process(r.Context(), workspaceID, chatID, turn)
+		if err != nil {
+			if errors.Is(err, entity.ErrRunInProgress) {
+				writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
+				return
+			}
+			writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
+			return
+		}
+		if len(result.TaskIDs) == 0 {
+			writeJSONError(w, http.StatusInternalServerError, "no run created")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": result.TaskIDs[0], "chat_id": chatID})
+		return
+	}
 	run, err := s.cfg.ChatRunStore.CreateChatRun(r.Context(), chatID, req.Input, userID)
 	if err != nil {
 		if errors.Is(err, entity.ErrRunInProgress) {

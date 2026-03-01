@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"buildmax/internal/conversation"
 	"buildmax/internal/quota"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
@@ -57,6 +58,9 @@ type Config struct {
 	ChatTitleGenerator ChatTitleGenerator     // Optional; when set, used to generate chat title from input at create time
 	QuotaChecker       *quota.Checker         // Optional; when set, create chat/run enforce quota and return 429 when exceeded
 	DefaultQuotaTier   string                 // Default quota tier for new users (e.g. signup); used when calling CreateUser
+	// Tier 1 conversation (optional). When set, create-run uses adapter + engine instead of direct CreateChatRun.
+	ConversationEngine conversation.ConversationEngine // Optional; when set, createChatRunHandler uses Tier 1
+	PortalAdapter      conversation.ChannelAdapter    // Optional; when ConversationEngine is set, used to build turn from request
 }
 
 // Server wraps the HTTP server and runs it.

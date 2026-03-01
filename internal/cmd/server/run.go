@@ -76,7 +76,7 @@ func RunServer(ctx context.Context, port int) error {
 	defaultQuotaTier := config.DefaultQuotaTier()
 	quotaChecker := quota.NewChecker(st, st, st, defaultQuotaTier)
 	cfg := httpserver.Config{
-		Addr:              ":" + strconv.Itoa(port),
+		Addr:               ":" + strconv.Itoa(port),
 		UserStore:         st,
 		WorkspaceStore:    st,
 		AgentStore:        st,
@@ -92,6 +92,8 @@ func RunServer(ctx context.Context, port int) error {
 		QuotaChecker:      quotaChecker,
 		DefaultQuotaTier:  defaultQuotaTier,
 	}
+	cfg.ConversationEngine = httpserver.NewPassThroughEngine(st)
+	cfg.PortalAdapter = &httpserver.PortalAdapter{}
 	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
 		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llm.NewClient(llmCfg)}
 	}
