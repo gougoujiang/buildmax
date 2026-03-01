@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
@@ -104,18 +103,7 @@ func (s *Server) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reques
 	q := r.URL.Query()
 	usePaginated := q.Has("limit") || q.Has("offset") || q.Get("executed_only") == "true"
 	if usePaginated {
-		limit := 50
-		if l := q.Get("limit"); l != "" {
-			if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 200 {
-				limit = n
-			}
-		}
-		offset := 0
-		if o := q.Get("offset"); o != "" {
-			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
-				offset = n
-			}
-		}
+		limit, offset := parseLimitOffset(q, "limit", "offset", 50, 200)
 		executedOnly := q.Get("executed_only") == "true"
 		list, total, err := s.cfg.ChatStore.ListChatsByWorkspacePaginated(r.Context(), workspaceID, executedOnly, limit, offset)
 		if err != nil {

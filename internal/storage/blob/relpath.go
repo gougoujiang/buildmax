@@ -9,6 +9,11 @@ import (
 // ErrInvalidPath is returned when a path is empty, absolute, or contains traversal.
 var ErrInvalidPath = errors.New("invalid path: empty, absolute, or contains traversal")
 
+// normalizeRelSegment normalizes a path segment to forward slashes and cleans it (no new package dependency).
+func normalizeRelSegment(p string) string {
+	return path.Clean(strings.ReplaceAll(p, "\\", "/"))
+}
+
 // CleanRelPath normalizes and validates a relative path. Rejects "", absolute paths, ".." (anywhere), and backslashes.
 // Returns a slash-separated clean path suitable for storage keys or file paths under a root.
 func CleanRelPath(p string) (string, error) {
@@ -18,8 +23,7 @@ func CleanRelPath(p string) (string, error) {
 	if strings.Contains(p, "..") {
 		return "", ErrInvalidPath
 	}
-	// Normalize to forward slashes and clean
-	p = path.Clean(strings.ReplaceAll(p, "\\", "/"))
+	p = normalizeRelSegment(p)
 	if p == "." {
 		return "", ErrInvalidPath
 	}

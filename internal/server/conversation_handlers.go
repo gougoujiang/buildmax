@@ -4,7 +4,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"buildmax/internal/conversation"
 	"buildmax/internal/storage/entity"
@@ -81,18 +80,7 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	if !s.requireStore(w, s.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
-	limit := 50
-	offset := 0
-	if q := r.URL.Query().Get("limit"); q != "" {
-		if n, err := strconv.Atoi(q); err == nil && n > 0 && n <= 100 {
-			limit = n
-		}
-	}
-	if q := r.URL.Query().Get("offset"); q != "" {
-		if n, err := strconv.Atoi(q); err == nil && n >= 0 {
-			offset = n
-		}
-	}
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
 	list, total, err := s.cfg.ConversationStore.ListConversationsByWorkspace(r.Context(), workspaceID, limit, offset)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_conversations", "workspace_id", workspaceID)

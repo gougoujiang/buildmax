@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
@@ -51,8 +50,7 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, workspaceID string) ([
 		if !strings.HasPrefix(k, listPrefix) {
 			continue
 		}
-		rel := strings.TrimPrefix(k, listPrefix)
-		rel = path.Clean(strings.ReplaceAll(rel, "\\", "/"))
+		rel := normalizeRelSegment(strings.TrimPrefix(k, listPrefix))
 		if rel == "" || rel == "." {
 			continue
 		}

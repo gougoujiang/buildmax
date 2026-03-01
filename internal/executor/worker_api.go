@@ -32,12 +32,21 @@ type WorkerAPIClientConfig struct {
 	Client  *http.Client
 }
 
-// GetWorkerChatRun fetches run and chat from the server (GET /api/worker/chat-runs/{chat_run_id}). Returns nil, nil, nil if not found.
-func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID string) (*entity.ChatRun, *entity.Chat, error) {
-	url := cfg.BaseURL + "/api/worker/chat-runs/" + chatRunID
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// workerDo performs an HTTP request to the worker API (URL build, Bearer auth, default client). Caller must close resp.Body.
+func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix string, body []byte) (*http.Response, error) {
+	url := cfg.BaseURL + pathSuffix
+	var req *http.Request
+	var err error
+	if body != nil {
+		req, err = http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
+	} else {
+		req, err = http.NewRequestWithContext(ctx, method, url, nil)
+	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	if body != nil && (method == http.MethodPatch || method == http.MethodPost) {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	if cfg.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+cfg.Token)
@@ -48,6 +57,16 @@ func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID 
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetWorkerChatRun fetches run and chat from the server (GET /api/worker/chat-runs/{chat_run_id}). Returns nil, nil, nil if not found.
+func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID string) (*entity.ChatRun, *entity.Chat, error) {
+	pathSuffix := "/api/worker/chat-runs/" + chatRunID
+	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
+	if err != nil {
 		return nil, nil, err
 	}
 	defer resp.Body.Close()
@@ -55,7 +74,7 @@ func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID 
 		return nil, nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, fmt.Errorf("worker API GET %s: %s", url, resp.Status)
+		return nil, nil, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
 	}
 	var got workerapi.GetChatRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -93,20 +112,9 @@ func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID strin
 	if err != nil {
 		return err
 	}
-	url := u.BaseURL + "/api/worker/chat-runs/" + chatRunID
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if u.Token != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+u.Token)
-	}
-	client := u.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(httpReq)
+	cfg := WorkerAPIClientConfig{BaseURL: u.BaseURL, Token: u.Token, Client: u.Client}
+	pathSuffix := "/api/worker/chat-runs/" + chatRunID
+	resp, err := workerDo(ctx, cfg, http.MethodPatch, pathSuffix, raw)
 	if err != nil {
 		return err
 	}
@@ -115,7 +123,7 @@ func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID strin
 		return ErrChatRunAlreadyClaimed
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("worker API PATCH %s: %s", url, resp.Status)
+		return fmt.Errorf("worker API PATCH %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
 	}
 	return nil
 }
@@ -137,26 +145,15 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta
 	if err != nil {
 		return err
 	}
-	url := u.BaseURL + "/api/worker/chat-runs/" + chatRunID + "/stream"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if u.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+u.Token)
-	}
-	client := u.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
+	cfg := WorkerAPIClientConfig{BaseURL: u.BaseURL, Token: u.Token, Client: u.Client}
+	pathSuffix := "/api/worker/chat-runs/" + chatRunID + "/stream"
+	resp, err := workerDo(ctx, cfg, http.MethodPost, pathSuffix, raw)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("worker API POST stream %s: %s", url, resp.Status)
+		return fmt.Errorf("worker API POST stream %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
 	}
 	return nil
 }

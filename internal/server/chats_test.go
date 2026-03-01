@@ -13,8 +13,6 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-func ptrStr(s string) *string { return &s }
-
 // denyQuotaUserStore is used by quota 429 test to supply a user with tier.
 type denyQuotaUserStore struct {
 	user *entity.User

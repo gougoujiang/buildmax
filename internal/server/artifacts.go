@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
@@ -135,8 +133,8 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	if pathParam == "" {
 		pathParam = artifactResultFilename
 	}
-	// Reject path traversal
-	if strings.Contains(pathParam, "..") || filepath.Clean(pathParam) != pathParam || strings.HasPrefix(pathParam, "/") {
+	pathParam, err = blob.CleanRelPath(pathParam)
+	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
