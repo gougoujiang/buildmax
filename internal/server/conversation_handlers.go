@@ -60,6 +60,19 @@ type addMessageResponse struct {
 	Reply string `json:"reply"`
 }
 
+// sseSink writes content deltas as SSE events and flushes. Used when stream=1.
+type sseSink struct {
+	w       http.ResponseWriter
+	flusher http.Flusher
+}
+
+func (s *sseSink) OnDelta(delta string) {
+	writeSSE(s.w, delta)
+	if s.flusher != nil {
+		s.flusher.Flush()
+	}
+}
+
 func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -120,6 +133,31 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 	conv, err := s.cfg.ConversationStore.CreateConversation(r.Context(), workspaceID, req.Channel, userID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_conversation", "workspace_id", workspaceID)
+		return
+	}
+	streamRequested := r.URL.Query().Get("stream") == "1"
+	if streamRequested && req.Message != "" && s.cfg.ConversationStreamLLMCaller != nil {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusCreated)
+		flusher, _ := w.(http.Flusher)
+		writeSSE(w, `{"conversation_id":"`+conv.ConversationID+`"}`)
+		if flusher != nil {
+			flusher.Flush()
+		}
+		sink := &sseSink{w: w, flusher: flusher}
+		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
+			s.cfg.ConversationStreamLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, sink)
+		if err != nil {
+			errJSON, _ := json.Marshal(err.Error())
+			writeSSE(w, `{"error":`+string(errJSON)+`}`)
+		}
+		writeSSE(w, "done")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		_ = reply
 		return
 	}
 	reply := ""
@@ -196,7 +234,9 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 	if !s.requireStore(w, s.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
-	if s.cfg.ConversationLLMCaller == nil {
+	streamCaller := s.cfg.ConversationStreamLLMCaller
+	nonStreamCaller := s.cfg.ConversationLLMCaller
+	if streamCaller == nil && nonStreamCaller == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}
@@ -218,8 +258,29 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		writeJSONError(w, http.StatusBadRequest, "content required")
 		return
 	}
+	streamRequested := r.URL.Query().Get("stream") == "1"
+	if streamRequested && streamCaller != nil {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		sink := &sseSink{w: w, flusher: flusher}
+		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
+			streamCaller, conversationID, req.Content, conv.Channel, nil, sink)
+		if err != nil {
+			errJSON, _ := json.Marshal(err.Error())
+			writeSSE(w, `{"error":`+string(errJSON)+`}`)
+		}
+		writeSSE(w, "done")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		_ = reply
+		return
+	}
 	reply, err := conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-		s.cfg.ConversationLLMCaller, conversationID, req.Content, conv.Channel, nil)
+		nonStreamCaller, conversationID, req.Content, conv.Channel, nil)
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return

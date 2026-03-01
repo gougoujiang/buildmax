@@ -1,8 +1,10 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
+import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
-import { createConversation } from "../lib/api"
+import { createConversationStream } from "../lib/api"
 import { chatStatusIcon } from "../lib/chatStatus"
 import { FilesPanel } from "../components/FilesPanel"
 import { useWorkspace } from "../contexts/WorkspaceContext"
@@ -32,21 +34,58 @@ export function NewChat({
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<NewChatTab>("chats")
+  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null)
+  const [streamingContent, setStreamingContent] = useState("")
+  const conversationIdRef = useRef<string | null>(null)
+  const streamHadErrorRef = useRef(false)
 
   async function handleSend() {
     const input = prompt.trim()
     if (!input || !token || running) return
     setRunning(true)
     setRunError(null)
+    setStreamingConversationId(null)
+    setStreamingContent("")
+    conversationIdRef.current = null
+    streamHadErrorRef.current = false
     try {
-      const res = await createConversation(workspaceId, { channel: "portal", message: input }, token)
-      setPrompt("")
-      navigate({ name: "conversation", workspaceId, conversationId: res.conversation_id })
-      onRefetchWorkspaceChats?.()
+      await createConversationStream(
+        workspaceId,
+        { channel: "portal", message: input },
+        token,
+        {
+          onConversationId: (id) => {
+            conversationIdRef.current = id
+            setStreamingConversationId(id)
+          },
+          onDelta: (delta) => setStreamingContent((prev) => prev + delta),
+          onDone: () => {
+            setPrompt("")
+            setRunning(false)
+            setStreamingContent("")
+            setStreamingConversationId(null)
+            if (!streamHadErrorRef.current) {
+              const id = conversationIdRef.current
+              if (id) {
+                navigate({ name: "conversation", workspaceId, conversationId: id })
+                onRefetchWorkspaceChats?.()
+              }
+            }
+          },
+          onError: (err) => {
+            streamHadErrorRef.current = true
+            setRunError(getErrorMessage(err, "Failed to start conversation"))
+            setRunning(false)
+            setStreamingContent("")
+            setStreamingConversationId(null)
+          },
+        }
+      )
     } catch (err) {
       setRunError(getErrorMessage(err, "Failed to start conversation"))
-    } finally {
       setRunning(false)
+      setStreamingContent("")
+      setStreamingConversationId(null)
     }
   }
 
@@ -82,6 +121,18 @@ export function NewChat({
           <p className="page-chat__text page-chat__error" role="alert">
             {runError}
           </p>
+        )}
+        {(streamingContent.length > 0 || (running && streamingConversationId)) && (
+          <div className="page-chat__message page-chat__message--assistant" aria-live="polite">
+            <span className="page-chat__message-role">assistant</span>
+            <div className="page-chat__message-content">
+              {streamingContent ? (
+                <Markdown remarkPlugins={[remarkGfm]}>{streamingContent}</Markdown>
+              ) : (
+                <p className="page-chat__text page-chat__muted">Thinking…</p>
+              )}
+            </div>
+          </div>
         )}
       </section>
 

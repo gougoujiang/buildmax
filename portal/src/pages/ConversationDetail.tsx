@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { getConversationMessages, addConversationMessage } from "../lib/api"
+import { getConversationMessages, addConversationMessageStream } from "../lib/api"
 import { getErrorMessage } from "../lib/errorMessage"
 import { useAuth } from "../contexts/AuthContext"
 import { useFetch } from "../hooks/useFetch"
@@ -38,27 +38,46 @@ export function ConversationDetail({
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [streamingContent, setStreamingContent] = useState<string | null>(null)
 
   useEffect(() => {
     const el = historyRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [messagesData?.messages])
+  }, [messagesData?.messages, streamingContent])
 
   async function handleSend() {
     const content = input.trim()
     if (!content || !token || sending) return
     setSending(true)
     setSendError(null)
+    setStreamingContent("")
     try {
-      await addConversationMessage(workspaceId, conversationId, { content }, token)
-      setInput("")
-      refetchMessages()
-      onRefetch?.()
+      await addConversationMessageStream(
+        workspaceId,
+        conversationId,
+        { content },
+        token,
+        {
+          onDelta: (delta) => setStreamingContent((prev) => (prev ?? "") + delta),
+          onDone: () => {
+            setInput("")
+            setSending(false)
+            setStreamingContent(null)
+            refetchMessages()
+            onRefetch?.()
+          },
+          onError: (err) => {
+            setSendError(getErrorMessage(err, "Failed to send message"))
+            setSending(false)
+            setStreamingContent(null)
+          },
+        }
+      )
     } catch (err) {
       setSendError(getErrorMessage(err, "Failed to send message"))
-    } finally {
       setSending(false)
+      setStreamingContent(null)
     }
   }
 
@@ -97,6 +116,22 @@ export function ConversationDetail({
                 </div>
               </li>
             ))}
+            {streamingContent !== null && (
+              <li
+                className="page-chat__message page-chat__message--assistant"
+                data-role="assistant"
+                aria-live="polite"
+              >
+                <span className="page-chat__message-role">assistant</span>
+                <div className="page-chat__message-content">
+                  {streamingContent ? (
+                    <Markdown remarkPlugins={[remarkGfm]}>{streamingContent}</Markdown>
+                  ) : (
+                    <p className="page-chat__text page-chat__muted">Thinking…</p>
+                  )}
+                </div>
+              </li>
+            )}
           </ul>
         )}
       </section>

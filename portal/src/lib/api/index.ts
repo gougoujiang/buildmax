@@ -428,6 +428,176 @@ export async function createConversation(
   )
 }
 
+/** Callbacks for conversation stream (POST with ?stream=1). */
+export interface ConversationStreamCallbacks {
+  onConversationId?: (id: string) => void
+  onDelta: (text: string) => void
+  onDone: () => void
+  onError: (err: Error) => void
+}
+
+/**
+ * Creates a conversation with optional first message, streaming the reply via SSE.
+ * Server sends: optional event {"conversation_id":"cv_xxx"}, then content deltas, then "done" or {"error":"..."}.
+ */
+export async function createConversationStream(
+  workspaceId: string,
+  body: { channel?: string; message?: string },
+  token: string,
+  callbacks: ConversationStreamCallbacks
+): Promise<void> {
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/conversations?stream=1`
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...jsonHeaders, ...authHeaders(token) },
+    body: JSON.stringify(body),
+  })
+  checkUnauthorized(res)
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res, "Create conversation failed")
+    callbacks.onError(new Error(msg))
+    return
+  }
+  const reader = res.body?.getReader()
+  if (!reader) {
+    callbacks.onDone()
+    return
+  }
+  const decoder = new TextDecoder()
+  let buffer = ""
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const events = buffer.split("\n\n")
+      buffer = events.pop() ?? ""
+      for (const event of events) {
+        const data = parseSSEEventPayload(event)
+        if (data === null) continue
+        if (data === "done") {
+          callbacks.onDone()
+          return
+        }
+        const parsed = tryParseConversationStreamEvent(data)
+        if (parsed.conversationId !== undefined) {
+          callbacks.onConversationId?.(parsed.conversationId)
+        } else if (parsed.error !== undefined) {
+          callbacks.onError(new Error(parsed.error))
+        } else {
+          callbacks.onDelta(data)
+        }
+      }
+    }
+    if (buffer.trim()) {
+      const data = parseSSEEventPayload(buffer)
+      if (data === "done") {
+        callbacks.onDone()
+        return
+      }
+      if (data !== null) {
+        const parsed = tryParseConversationStreamEvent(data)
+        if (parsed.error !== undefined) callbacks.onError(new Error(parsed.error))
+        else callbacks.onDelta(data)
+      }
+    }
+    callbacks.onDone()
+  } catch (e) {
+    callbacks.onError(e instanceof Error ? e : new Error(String(e)))
+  }
+}
+
+/**
+ * Adds a message to a conversation, streaming the reply via SSE.
+ * Server sends content deltas then "done" or {"error":"..."}.
+ */
+export async function addConversationMessageStream(
+  workspaceId: string,
+  conversationId: string,
+  body: { content: string },
+  token: string,
+  callbacks: Pick<ConversationStreamCallbacks, "onDelta" | "onDone" | "onError">
+): Promise<void> {
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/messages?stream=1`
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...jsonHeaders, ...authHeaders(token) },
+    body: JSON.stringify(body),
+  })
+  checkUnauthorized(res)
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res, "Send message failed")
+    callbacks.onError(new Error(msg))
+    return
+  }
+  const reader = res.body?.getReader()
+  if (!reader) {
+    callbacks.onDone()
+    return
+  }
+  const decoder = new TextDecoder()
+  let buffer = ""
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const events = buffer.split("\n\n")
+      buffer = events.pop() ?? ""
+      for (const event of events) {
+        const data = parseSSEEventPayload(event)
+        if (data === null) continue
+        if (data === "done") {
+          callbacks.onDone()
+          return
+        }
+        const parsed = tryParseConversationStreamEvent(data)
+        if (parsed.error !== undefined) {
+          callbacks.onError(new Error(parsed.error))
+        } else {
+          callbacks.onDelta(data)
+        }
+      }
+    }
+    if (buffer.trim()) {
+      const data = parseSSEEventPayload(buffer)
+      if (data === "done") {
+        callbacks.onDone()
+        return
+      }
+      if (data !== null) {
+        const parsed = tryParseConversationStreamEvent(data)
+        if (parsed.error !== undefined) callbacks.onError(new Error(parsed.error))
+        else callbacks.onDelta(data)
+      }
+    }
+    callbacks.onDone()
+  } catch (e) {
+    callbacks.onError(e instanceof Error ? e : new Error(String(e)))
+  }
+}
+
+function parseSSEEventPayload(event: string): string | null {
+  const lines = event.split("\n").filter((line) => line.startsWith("data: "))
+  if (lines.length === 0) return null
+  return lines
+    .map((line) => line.slice(5))
+    .join("\n")
+}
+
+function tryParseConversationStreamEvent(
+  data: string
+): { conversationId?: string; error?: string } {
+  try {
+    const o = JSON.parse(data) as Record<string, unknown>
+    if (typeof o.conversation_id === "string") return { conversationId: o.conversation_id }
+    if (typeof o.error === "string") return { error: o.error }
+  } catch {
+    /* not JSON, treat as content delta */
+  }
+  return {}
+}
+
 export async function getConversationMessages(
   workspaceId: string,
   conversationId: string,

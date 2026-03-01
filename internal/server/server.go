@@ -62,9 +62,10 @@ type Config struct {
 	ConversationEngine conversation.ConversationEngine // Optional; when set, createChatRunHandler uses Tier 1
 	PortalAdapter      conversation.ChannelAdapter    // Optional; when ConversationEngine is set, used to build turn from request
 	// Tier 1 conversation entity API: conversations and messages. When set, handlers serve /api/workspaces/{id}/conversations.
-	ConversationStore        entity.ConversationStore        // Optional; required for conversation list/create
-	ConversationMessageStore entity.ConversationMessageStore // Optional; required for conversation messages
-	ConversationLLMCaller    conversation.LLMCaller           // Optional; when set, create with message and add message run conversation LLM loop
+	ConversationStore         entity.ConversationStore         // Optional; required for conversation list/create
+	ConversationMessageStore  entity.ConversationMessageStore // Optional; required for conversation messages
+	ConversationLLMCaller     conversation.LLMCaller          // Optional; when set, create with message and add message run conversation LLM loop (non-stream)
+	ConversationStreamLLMCaller conversation.StreamLLMCaller  // Optional; when set and client sends stream=1, responses are streamed via SSE
 }
 
 // Server wraps the HTTP server and runs it.
