@@ -6,6 +6,7 @@ export function getWorkspaceScope(route: Route): WorkspaceScope {
   return {
     workspaceId: route.workspaceId,
     chatId: "chatId" in route ? route.chatId : undefined,
+    conversationId: "conversationId" in route ? route.conversationId : undefined,
   }
 }
 
@@ -16,6 +17,7 @@ export function getWorkspaceScope(route: Route): WorkspaceScope {
 export const SEGMENT = {
   new: "new",
   chat: "chat",
+  conversation: "conversation",
   chats: "chats",
   explore: "explore",
   agents: "agents",
@@ -47,6 +49,9 @@ export function parseHash(hash: string): Route {
   if (parts[1] === SEGMENT.chat && parts[2]) {
     return { name: "chat", workspaceId, chatId: parts[2] }
   }
+  if (parts[1] === SEGMENT.conversation && parts[2]) {
+    return { name: "conversation", workspaceId, conversationId: parts[2] }
+  }
   return { name: "workspace", workspaceId }
 }
 
@@ -59,6 +64,8 @@ export function buildHash(route: Route): string {
       return `#${route.workspaceId}/${SEGMENT.new}`
     case "chat":
       return `#${route.workspaceId}/${SEGMENT.chat}/${route.chatId}`
+    case "conversation":
+      return `#${route.workspaceId}/${SEGMENT.conversation}/${route.conversationId}`
     case "chats":
       return `#${route.workspaceId}/${SEGMENT.chats}`
     case "explore":

@@ -94,8 +94,12 @@ func RunServer(ctx context.Context, port int) error {
 	}
 	cfg.ConversationEngine = httpserver.NewPassThroughEngine(st)
 	cfg.PortalAdapter = &httpserver.PortalAdapter{}
+	cfg.ConversationStore = st
+	cfg.ConversationMessageStore = st
 	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
-		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llm.NewClient(llmCfg)}
+		llmClient := llm.NewClient(llmCfg)
+		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
+		cfg.ConversationLLMCaller = llmClient
 	}
 	var runner executor.WorkerRunner
 	switch config.WorkerRunMode() {

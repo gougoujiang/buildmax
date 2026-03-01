@@ -108,3 +108,43 @@ export interface ApiUsage {
   max_runs_per_period?: number
   max_tokens_per_period?: number
 }
+
+/** Tier 1 conversation as returned by GET /api/workspaces/{id}/conversations */
+export interface ApiConversation {
+  id: string
+  workspace_id: string
+  channel: string
+  created_at: number
+  created_by: string
+}
+
+/** Response from GET /api/workspaces/{id}/conversations */
+export interface ApiConversationsListResponse {
+  conversations: ApiConversation[]
+  total: number
+}
+
+/** Response from POST /api/workspaces/{id}/conversations */
+export interface CreateConversationResponse {
+  conversation_id: string
+  reply?: string
+}
+
+/** Message as returned by GET /api/workspaces/{id}/conversations/{id}/messages */
+export interface ApiConversationMessage {
+  id: string
+  role: string
+  content: string
+  channel?: string | null
+  created_at: number
+}
+
+/** Response from GET /api/workspaces/{id}/conversations/{id}/messages */
+export interface ApiConversationMessagesResponse {
+  messages: ApiConversationMessage[]
+}
+
+/** Response from POST /api/workspaces/{id}/conversations/{id}/messages */
+export interface AddConversationMessageResponse {
+  reply: string
+}

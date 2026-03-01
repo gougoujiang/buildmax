@@ -127,3 +127,33 @@ type ArtifactWithChat struct {
 	CreatedAt       int64  `json:"created_at"`
 	ChatInputSnippet string `json:"chat_input_snippet"`
 }
+
+// Conversation is the Tier 1 conversation container (multi-turn from portal, cron, webhook, telegram). JSON uses snake_case.
+type Conversation struct {
+	ID              uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	ConversationID  string `gorm:"type:varchar(64);uniqueIndex;not null" json:"conversation_id"`
+	WorkspaceID     string `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	Channel         string `gorm:"type:varchar(32);not null" json:"channel"`
+	CreatedBy       string `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt       int64  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (Conversation) TableName() string { return "conversation" }
+
+// ConversationMessage is one message in a Tier 1 conversation (user, assistant, or tool). JSON uses snake_case.
+// For role=assistant with tool calls, ToolCallsJSON holds the serialized tool_calls array (id, name, arguments).
+type ConversationMessage struct {
+	ID                     uint    `gorm:"primaryKey;autoIncrement" json:"-"`
+	ConversationMessageID  string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"conversation_message_id"`
+	ConversationID         string  `gorm:"type:varchar(64);not null;index" json:"conversation_id"`
+	Role                   string  `gorm:"type:varchar(16);not null" json:"role"`
+	Content                string  `gorm:"type:text;not null" json:"content"`
+	Channel                *string `gorm:"type:varchar(32)" json:"channel,omitempty"`
+	ToolCallID             *string `gorm:"type:varchar(64);column:tool_call_id" json:"tool_call_id,omitempty"`
+	ToolCallsJSON          *string `gorm:"type:text;column:tool_calls" json:"tool_calls,omitempty"`
+	CreatedAt              int64   `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (ConversationMessage) TableName() string { return "conversation_message" }

@@ -14,3 +14,5 @@ type ChatRun = model.ChatRun
 type ChatRunArtifact = model.ChatRunArtifact
 type Agent = model.Agent
 type ArtifactWithChat = model.ArtifactWithChat
+type Conversation = model.Conversation
+type ConversationMessage = model.ConversationMessage

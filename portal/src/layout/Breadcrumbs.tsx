@@ -25,6 +25,11 @@ export function Breadcrumbs({ route, workspaceChats = [] }: BreadcrumbsProps) {
       { label: "Chats", route: { name: "chats", workspaceId } },
       { label: chatTitle, route },
     ]
+  } else if (route.name === "conversation") {
+    crumbs = [
+      { label: "New Chat", route: { name: "newChat", workspaceId } },
+      { label: "Conversation", route },
+    ]
   } else {
     crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]
   }

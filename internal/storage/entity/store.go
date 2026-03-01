@@ -22,7 +22,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &ChatRunArtifact{}, &QuotaTier{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &ChatRunArtifact{}, &QuotaTier{}, &Conversation{}, &ConversationMessage{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {

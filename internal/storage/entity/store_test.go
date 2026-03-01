@@ -231,3 +231,124 @@ func TestUpdateChatStatusIf(t *testing.T) {
 		t.Error("UpdateChatStatusIf SCHEDULED->RUNNING when already RUNNING: want updated false, got true")
 	}
 }
+
+func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := s.EnsureDefaultWorkspaceForUser(ctx, "conv-test-user"); err != nil {
+		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
+	}
+	list, _ := s.ListWorkspacesByOwner(ctx, "conv-test-user")
+	if len(list) == 0 {
+		t.Fatal("no workspace for user")
+	}
+	workspaceID := list[0].WorkspaceID
+
+	conv, err := s.CreateConversation(ctx, workspaceID, "portal", "conv-test-user")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&ConversationMessage{})
+		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&Conversation{})
+	}()
+	if conv.ConversationID == "" || conv.WorkspaceID != workspaceID || conv.Channel != "portal" {
+		t.Errorf("CreateConversation: got %+v", conv)
+	}
+
+	ch := "portal"
+	m1, err := s.AppendMessage(ctx, conv.ConversationID, "user", "hello", &ch, nil, nil)
+	if err != nil {
+		t.Fatalf("AppendMessage user: %v", err)
+	}
+	if m1.ConversationMessageID == "" || m1.Role != "user" || m1.Content != "hello" {
+		t.Errorf("AppendMessage user: got %+v", m1)
+	}
+
+	m2, err := s.AppendMessage(ctx, conv.ConversationID, "assistant", "hi there", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("AppendMessage assistant: %v", err)
+	}
+	if m2.Role != "assistant" || m2.Content != "hi there" {
+		t.Errorf("AppendMessage assistant: got %+v", m2)
+	}
+
+	tcID := "call_1"
+	m3, err := s.AppendMessage(ctx, conv.ConversationID, "tool", "2025-03-01", nil, &tcID, nil)
+	if err != nil {
+		t.Fatalf("AppendMessage tool: %v", err)
+	}
+	if m3.Role != "tool" || m3.Content != "2025-03-01" || m3.ToolCallID == nil || *m3.ToolCallID != tcID {
+		t.Errorf("AppendMessage tool: got %+v", m3)
+	}
+
+	msgs, err := s.ListMessages(ctx, conv.ConversationID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("ListMessages: got %d, want 3", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "hello" {
+		t.Errorf("ListMessages[0]: got role=%q content=%q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "hi there" {
+		t.Errorf("ListMessages[1]: got role=%q content=%q", msgs[1].Role, msgs[1].Content)
+	}
+	if msgs[2].Role != "tool" || msgs[2].Content != "2025-03-01" {
+		t.Errorf("ListMessages[2]: got role=%q content=%q", msgs[2].Role, msgs[2].Content)
+	}
+}
+
+func TestListConversationsByWorkspace(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := s.EnsureDefaultWorkspaceForUser(ctx, "conv-list-user"); err != nil {
+		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
+	}
+	list, _ := s.ListWorkspacesByOwner(ctx, "conv-list-user")
+	if len(list) == 0 {
+		t.Fatal("no workspace for user")
+	}
+	workspaceID := list[0].WorkspaceID
+
+	conv, err := s.CreateConversation(ctx, workspaceID, "portal", "conv-list-user")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&Conversation{})
+	}()
+
+	convs, total, err := s.ListConversationsByWorkspace(ctx, workspaceID, 10, 0)
+	if err != nil {
+		t.Fatalf("ListConversationsByWorkspace: %v", err)
+	}
+	if total < 1 || len(convs) < 1 {
+		t.Fatalf("ListConversationsByWorkspace: got %d items, total %d", len(convs), total)
+	}
+	found := false
+	for _, c := range convs {
+		if c.ConversationID == conv.ConversationID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("ListConversationsByWorkspace: did not find created conversation")
+	}
+}

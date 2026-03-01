@@ -2,7 +2,7 @@ import { useState } from "react"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
-import { createChat, apiChatToChat } from "../lib/api"
+import { createConversation } from "../lib/api"
 import { chatStatusIcon } from "../lib/chatStatus"
 import { FilesPanel } from "../components/FilesPanel"
 import { useWorkspace } from "../contexts/WorkspaceContext"
@@ -27,7 +27,7 @@ export function NewChat({
   artifacts,
   onViewArtifact,
 }: NewChatProps) {
-  const { setPendingChat } = useWorkspace()
+  useWorkspace()
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -39,13 +39,12 @@ export function NewChat({
     setRunning(true)
     setRunError(null)
     try {
-      const chat = await createChat(workspaceId, { input }, token)
+      const res = await createConversation(workspaceId, { channel: "portal", message: input }, token)
       setPrompt("")
-      setPendingChat({ chat: apiChatToChat(chat), initialInput: input })
-      navigate({ name: "chat", workspaceId, chatId: chat.id })
+      navigate({ name: "conversation", workspaceId, conversationId: res.conversation_id })
       onRefetchWorkspaceChats?.()
     } catch (err) {
-      setRunError(getErrorMessage(err, "Failed to start chat"))
+      setRunError(getErrorMessage(err, "Failed to start conversation"))
     } finally {
       setRunning(false)
     }

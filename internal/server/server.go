@@ -61,6 +61,10 @@ type Config struct {
 	// Tier 1 conversation (optional). When set, create-run uses adapter + engine instead of direct CreateChatRun.
 	ConversationEngine conversation.ConversationEngine // Optional; when set, createChatRunHandler uses Tier 1
 	PortalAdapter      conversation.ChannelAdapter    // Optional; when ConversationEngine is set, used to build turn from request
+	// Tier 1 conversation entity API: conversations and messages. When set, handlers serve /api/workspaces/{id}/conversations.
+	ConversationStore        entity.ConversationStore        // Optional; required for conversation list/create
+	ConversationMessageStore entity.ConversationMessageStore // Optional; required for conversation messages
+	ConversationLLMCaller    conversation.LLMCaller           // Optional; when set, create with message and add message run conversation LLM loop
 }
 
 // Server wraps the HTTP server and runs it.
@@ -100,6 +104,10 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/conversation", s.getChatConversationHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream", s.getChatStreamHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations", s.listConversationsHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations", s.createConversationHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", s.getConversationMessagesHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", s.addConversationMessageHandler)
 	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler)))
 	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler)))
 	mux.Handle("POST /api/worker/chat-runs/{chat_run_id}/stream", s.workerAuthMiddleware(http.HandlerFunc(s.postWorkerStreamHandler)))

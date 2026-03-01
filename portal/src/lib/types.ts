@@ -32,6 +32,7 @@ export interface Artifact {
 export interface WorkspaceScope {
   workspaceId: string
   chatId?: string
+  conversationId?: string
 }
 
 // --- Route types ---
@@ -41,6 +42,7 @@ export type Route =
   | { name: "workspace"; workspaceId: string }
   | { name: "newChat"; workspaceId: string }
   | { name: "chat"; workspaceId: string; chatId: string }
+  | { name: "conversation"; workspaceId: string; conversationId: string }
   | { name: "chats"; workspaceId: string }
   | { name: "explore"; workspaceId: string }
   | { name: "agents"; workspaceId: string }

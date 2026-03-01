@@ -5,6 +5,7 @@ import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Chats } from "../pages/Chats"
 import { AgentList } from "../pages/AgentList"
 import { ChatDetail } from "../pages/ChatDetail"
+import { ConversationDetail } from "../pages/ConversationDetail"
 import { WorkspaceHome } from "../pages/WorkspaceHome"
 import { NewChat } from "../pages/NewChat"
 import { Explore } from "../pages/Explore"
@@ -89,6 +90,16 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
         workspaceId={route.workspaceId}
         onRefetch={() => refetchWorkspaceChats()}
         initialInput={initialInput}
+      />
+    )
+  }
+
+  if (route.name === "conversation") {
+    return (
+      <ConversationDetail
+        conversationId={route.conversationId}
+        workspaceId={route.workspaceId}
+        onRefetch={refetchWorkspaceChats}
       />
     )
   }

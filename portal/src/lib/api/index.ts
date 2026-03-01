@@ -11,10 +11,14 @@ import type {
   ApiArtifactItem,
   ApiChat,
   ApiChatsListResponse,
+  ApiConversationsListResponse,
+  ApiConversationMessagesResponse,
   ApiSession,
   ApiUsage,
   ApiWorkspace,
   CreateChatRunResponse,
+  CreateConversationResponse,
+  AddConversationMessageResponse,
   LoginResponse,
   LoginUser,
   OtpRequestResponse,
@@ -34,6 +38,12 @@ export type {
   ApiArtifact,
   ApiArtifactItem,
   UploadResponse,
+  ApiConversation,
+  ApiConversationsListResponse,
+  ApiConversationMessage,
+  ApiConversationMessagesResponse,
+  CreateConversationResponse,
+  AddConversationMessageResponse,
 } from "./types"
 export {
   apiAgentToAgent,
@@ -385,5 +395,62 @@ export async function getFileContent(
   return requestText(
     `${getApiBase()}/api/workspaces/${workspaceId}/files/${encodedPath}`,
     { headers: authHeaders(token) }
+  )
+}
+
+// --- Tier 1 conversations ---
+
+export async function getConversations(
+  workspaceId: string,
+  token: string,
+  options?: { limit?: number; offset?: number }
+): Promise<ApiConversationsListResponse> {
+  const params = new URLSearchParams()
+  if (options?.limit != null) params.set("limit", String(options.limit))
+  if (options?.offset != null) params.set("offset", String(options.offset))
+  const q = params.toString()
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/conversations${q ? `?${q}` : ""}`
+  return requestJson<ApiConversationsListResponse>(url, { headers: authHeaders(token) })
+}
+
+export async function createConversation(
+  workspaceId: string,
+  body: { channel?: string; message?: string },
+  token: string
+): Promise<CreateConversationResponse> {
+  return requestJson<CreateConversationResponse>(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/conversations`,
+    {
+      method: "POST",
+      headers: { ...jsonHeaders, ...authHeaders(token) },
+      body: JSON.stringify(body),
+    }
+  )
+}
+
+export async function getConversationMessages(
+  workspaceId: string,
+  conversationId: string,
+  token: string
+): Promise<ApiConversationMessagesResponse> {
+  return requestJson<ApiConversationMessagesResponse>(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/messages`,
+    { headers: authHeaders(token) }
+  )
+}
+
+export async function addConversationMessage(
+  workspaceId: string,
+  conversationId: string,
+  body: { content: string },
+  token: string
+): Promise<AddConversationMessageResponse> {
+  return requestJson<AddConversationMessageResponse>(
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      method: "POST",
+      headers: { ...jsonHeaders, ...authHeaders(token) },
+      body: JSON.stringify(body),
+    }
   )
 }

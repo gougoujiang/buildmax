@@ -83,3 +83,17 @@ type ChatRunStore interface {
 	// SyncChatFromRun updates chat denormalized fields and last_run_id from the run (no output). Use for FAILED runs.
 	SyncChatFromRun(ctx context.Context, chatRunID string) error
 }
+
+// ConversationStore provides Tier 1 conversation persistence. Conversations are workspace-scoped.
+type ConversationStore interface {
+	CreateConversation(ctx context.Context, workspaceID, channel, createdBy string) (*Conversation, error)
+	GetConversation(ctx context.Context, conversationID string) (*Conversation, error)
+	ListConversationsByWorkspace(ctx context.Context, workspaceID string, limit, offset int) ([]Conversation, int, error)
+}
+
+// ConversationMessageStore provides Tier 1 conversation message persistence.
+// For role=assistant with tool calls, toolCallsJSON should be the JSON-encoded array of tool calls (id, name, arguments).
+type ConversationMessageStore interface {
+	AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*ConversationMessage, error)
+	ListMessages(ctx context.Context, conversationID string) ([]ConversationMessage, error)
+}

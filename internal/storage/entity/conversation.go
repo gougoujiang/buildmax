@@ -1,0 +1,54 @@
+package entity
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"buildmax/internal/util"
+	"gorm.io/gorm"
+)
+
+// CreateConversation creates a new Tier 1 conversation. Returns the conversation with conversation_id set.
+func (s *Store) CreateConversation(ctx context.Context, workspaceID, channel, createdBy string) (*Conversation, error) {
+	now := time.Now().Unix()
+	conv := &Conversation{
+		ConversationID: util.NewPrefixedID(util.PrefixConversation),
+		WorkspaceID:    workspaceID,
+		Channel:       channel,
+		CreatedBy:     createdBy,
+		CreatedAt:     now,
+	}
+	if err := s.db.WithContext(ctx).Create(conv).Error; err != nil {
+		return nil, err
+	}
+	return conv, nil
+}
+
+// GetConversation returns the conversation by conversation_id, or (nil, nil) if not found.
+func (s *Store) GetConversation(ctx context.Context, conversationID string) (*Conversation, error) {
+	var c Conversation
+	err := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID).First(&c).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &c, nil
+}
+
+// ListConversationsByWorkspace returns conversations in the workspace ordered by created_at DESC.
+// total is the total count of matching conversations (ignoring limit/offset).
+func (s *Store) ListConversationsByWorkspace(ctx context.Context, workspaceID string, limit, offset int) ([]Conversation, int, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&Conversation{}).Where("workspace_id = ?", workspaceID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []Conversation
+	err := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).
+		Order("created_at DESC").
+		Limit(limit).Offset(offset).
+		Find(&list).Error
+	return list, int(total), err
+}
