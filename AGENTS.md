@@ -79,7 +79,13 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 **Portal (web)**
 - **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), WorkspaceHome, Activity, TaskDetail (chat detail); API client in `lib/api.ts`; AuthContext; AppShell, Sidebar, TopBar, modals (CreateWorkspace, ArtifactContent). Sidebar: New Chat, Workspace block (switcher), Agents, Chats list, Explore, Activity. Connects to Go backend for auth and workspace/chat/artifact/file APIs (no project; chats are workspace-scoped).
 
-### 4.2 Planned / Not yet implemented
+### 4.2 Tier 1 and Tier 2 architecture
+
+- **Tier 1 = Conversation agent (orchestrator).** The conversation agent (`internal/conversation`; API: workspaces → conversations → messages) receives the user query, owns the conversation, and decides what the user sees. It runs the LLM loop with tools and streams or posts the assistant reply. Tier 1 is the single voice to the user.
+- **Tier 2 = Chat + ChatRun (execution in the back).** A Chat with one or more ChatRuns is Tier 2: the worker runs `buildmax -p` in a run directory, produces artifacts, and can take a long time. Tier 2 is “tools in the back”—it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
+- **Tier 1 tools for Tier 2 (planned):** The conversation agent can use tools to (1) **create a Tier 2 task** — create a Chat and ChatRun so the worker executes; (2) **rerun / follow-up on an existing chat** — send a follow-up input to an existing Chat (like a user adding a follow-up), which creates a new run. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
+
+### 4.3 Planned / Not yet implemented
 
 - Session list/delete from CLI; TUI session picker (session list type exists in `internal/session`).
 - Config subcommand, Viper, or config-file binding (env-only today).

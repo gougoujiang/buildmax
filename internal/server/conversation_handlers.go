@@ -147,8 +147,9 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 			flusher.Flush()
 		}
 		sink := &sseSink{w: w, flusher: flusher}
+		tools := s.conversationToolsForRequest(workspaceID, userID)
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-			s.cfg.ConversationStreamLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, sink)
+			s.cfg.ConversationStreamLLMCaller, conv.ConversationID, req.Message, req.Channel, tools, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -162,8 +163,9 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 	}
 	reply := ""
 	if req.Message != "" && s.cfg.ConversationLLMCaller != nil {
+		tools := s.conversationToolsForRequest(workspaceID, userID)
 		reply, err = conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil)
+			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, tools)
 		if err != nil {
 			writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
 			return
@@ -219,7 +221,7 @@ func (s *Server) getConversationMessagesHandler(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+	userID, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
@@ -266,8 +268,9 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
 		sink := &sseSink{w: w, flusher: flusher}
+		tools := s.conversationToolsForRequest(workspaceID, userID)
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-			streamCaller, conversationID, req.Content, conv.Channel, nil, sink)
+			streamCaller, conversationID, req.Content, conv.Channel, tools, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -279,8 +282,9 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		_ = reply
 		return
 	}
+	tools := s.conversationToolsForRequest(workspaceID, userID)
 	reply, err := conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-		nonStreamCaller, conversationID, req.Content, conv.Channel, nil)
+		nonStreamCaller, conversationID, req.Content, conv.Channel, tools)
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return

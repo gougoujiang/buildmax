@@ -12,7 +12,9 @@ import (
 )
 
 const maxIterations = 10
-const systemPrompt = "You are a helpful assistant. You can call get_current_date to get today's date. Reply concisely."
+const systemPrompt = `You are a helpful assistant. You can call get_current_date to get today's date. Reply concisely.
+
+You can manage background chat tasks: use the start_chat tool to create and schedule a long-running task (e.g. analysis, a multi-step job). When you start a background task, you must tell the user clearly that a background task was started, and give them the chat id (and optionally run id) so they can check progress or results later (e.g. in Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.`
 
 // LLMCaller can perform chat with tools for the conversation loop.
 type LLMCaller interface {
