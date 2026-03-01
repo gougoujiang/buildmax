@@ -13,6 +13,7 @@ import (
 
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
+	"buildmax/internal/core"
 )
 
 // DefaultMaxIterations is the default cap on agent loop iterations.
@@ -65,14 +66,6 @@ Tool results and user messages may include <system_reminder> tags; those are int
 # Code references
 When referring to specific code, use the pattern file_path:line_number so the user can jump to the source (e.g. "Handled in src/services/process.ts:712.").`
 
-// Tool is a capability the agent can invoke by name.
-type Tool interface {
-	Name() string
-	Description() string
-	Parameters() any // JSON schema for arguments (e.g. map[string]any)
-	Execute(ctx context.Context, args map[string]any) (result string, err error)
-}
-
 // StreamSink receives content deltas during streaming. Implementations may write to stdout or send to a TUI.
 type StreamSink interface {
 	OnDelta(delta string)
@@ -109,11 +102,11 @@ type RunStats struct {
 // Agent runs the agent loop: LLM call → execute tool_calls if any → repeat until final reply.
 type Agent struct {
 	caller       LLMCaller
-	tools        []Tool
+	tools        []core.Tool
 	maxIter      int
 	systemPrompt string
 	toolDefs     []llm.ToolDef // cached from tools for each request
-	toolsByName  map[string]Tool
+	toolsByName  map[string]core.Tool
 }
 
 // Option configures an Agent.
@@ -134,21 +127,48 @@ func SystemPrompt(prompt string) Option {
 	}
 }
 
-// NewAgent builds an agent with the given LLM caller and tools.
-func NewAgent(caller LLMCaller, tools []Tool, opts ...Option) *Agent {
-	toolDefs := make([]llm.ToolDef, 0, len(tools))
-	byName := make(map[string]Tool, len(tools))
-	for _, t := range tools {
-		toolDefs = append(toolDefs, llm.ToolDef{
+// ToolDefs builds LLM tool definitions from a slice of Tool. Used by both the CLI agent and the conversation loop.
+func ToolDefs(toolList []core.Tool) []llm.ToolDef {
+	defs := make([]llm.ToolDef, 0, len(toolList))
+	for _, t := range toolList {
+		defs = append(defs, llm.ToolDef{
 			Name:        t.Name(),
 			Description: t.Description(),
 			Parameters:  t.Parameters(),
 		})
+	}
+	return defs
+}
+
+// ExecuteTool runs one tool call: parses tc.Arguments, calls tool.Execute, and returns the result or an error string.
+// Used by both the CLI agent (which then appends to session) and the conversation loop.
+func ExecuteTool(ctx context.Context, t core.Tool, tc llm.ToolCall) string {
+	var args map[string]any
+	if tc.Arguments != "" {
+		if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
+			return fmt.Sprintf("error: invalid arguments: %v", err)
+		}
+	}
+	if args == nil {
+		args = make(map[string]any)
+	}
+	result, err := t.Execute(ctx, args)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return result
+}
+
+// NewAgent builds an agent with the given LLM caller and tools.
+func NewAgent(caller LLMCaller, toolList []core.Tool, opts ...Option) *Agent {
+	toolDefs := ToolDefs(toolList)
+	byName := make(map[string]core.Tool, len(toolList))
+	for _, t := range toolList {
 		byName[t.Name()] = t
 	}
 	a := &Agent{
 		caller:       caller,
-		tools:        tools,
+		tools:        toolList,
 		maxIter:      DefaultMaxIterations,
 		systemPrompt: DefaultSystemPrompt,
 		toolDefs:     toolDefs,
@@ -235,7 +255,7 @@ func (a *Agent) processLoop(ctx context.Context, sess *session.Session, cfg proc
 	return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, errors.New("agent: max iterations exceeded")
 }
 
-// processOneToolCall resolves the tool by name, parses arguments, executes, and appends
+// processOneToolCall resolves the tool by name, executes via ExecuteTool, and appends
 // exactly one tool message (result or error) to the session. The assistant message with
 // toolCalls is already appended by processLoop before the loop.
 func processOneToolCall(ctx context.Context, a *Agent, sess *session.Session, tc llm.ToolCall) {
@@ -248,35 +268,12 @@ func processOneToolCall(ctx context.Context, a *Agent, sess *session.Session, tc
 		})
 		return
 	}
-	var args map[string]any
-	if tc.Arguments != "" {
-		if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-			sess.Append(llm.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("error: invalid arguments: %v", err),
-				ToolCallID: tc.ID,
-			})
-			return
-		}
+	result := ExecuteTool(ctx, tool, tc)
+	if len(result) > 500 {
+		slog.Debug("tool result", "tool", tc.Name, "content", result[:500]+"...")
+	} else {
+		slog.Debug("tool result", "tool", tc.Name, "content", result)
 	}
-	if args == nil {
-		args = make(map[string]any)
-	}
-	result, err := tool.Execute(ctx, args)
-	if err != nil {
-		slog.Debug("tool result", "tool", tc.Name, "error", err.Error())
-		sess.Append(llm.Message{
-			Role:       "tool",
-			Content:    fmt.Sprintf("error: %v", err),
-			ToolCallID: tc.ID,
-		})
-		return
-	}
-	resultPreview := result
-	if len(resultPreview) > 500 {
-		resultPreview = resultPreview[:500] + "..."
-	}
-	slog.Debug("tool result", "tool", tc.Name, "content", resultPreview)
 	sess.Append(llm.Message{
 		Role:       "tool",
 		Content:    result,

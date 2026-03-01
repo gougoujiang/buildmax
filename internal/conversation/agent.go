@@ -7,14 +7,17 @@ import (
 	"fmt"
 	"log/slog"
 
+	"buildmax/internal/agent"
 	"buildmax/internal/llm"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/core"
+	"buildmax/internal/tools"
 )
 
 const maxIterations = 10
-const systemPrompt = `You are a helpful assistant. You can call get_current_date to get today's date. Reply concisely.
+const systemPrompt = `You are a helpful assistant. You can call GetCurrentDate to get today's date. Reply concisely.
 
-You can manage background chat tasks: use the start_chat tool to create and schedule a long-running task (e.g. analysis, a multi-step job). When you start a background task, you must tell the user clearly that a background task was started, and give them the chat id (and optionally run id) so they can check progress or results later (e.g. in Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.`
+You can manage background chat tasks: use the StartChat tool to create and schedule a long-running task (e.g. analysis, a multi-step job). When you start a background task, you must tell the user clearly that a background task was started, and give them the chat id (and optionally run id) so they can check progress or results later (e.g. in Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.`
 
 // LLMCaller can perform chat with tools for the conversation loop.
 type LLMCaller interface {
@@ -33,7 +36,7 @@ type StreamSink interface {
 
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
-// If tools is nil, DefaultTools() is used.
+// If toolsList is nil, tools.DefaultConversationTools() is used.
 func RunLoop(
 	ctx context.Context,
 	convStore entity.ConversationStore,
@@ -42,7 +45,7 @@ func RunLoop(
 	conversationID string,
 	userContent string,
 	channel string,
-	tools []Tool,
+	toolsList []core.Tool,
 ) (reply string, err error) {
 	if llmCaller == nil {
 		return "", fmt.Errorf("conversation LLM not configured")
@@ -74,12 +77,12 @@ func RunLoop(
 	}
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
 
-	if tools == nil {
-		tools = DefaultTools()
+	if toolsList == nil {
+		toolsList = tools.DefaultConversationTools()
 	}
-	defs := toolDefs(tools)
-	toolsByName := make(map[string]Tool, len(tools))
-	for _, t := range tools {
+	defs := agent.ToolDefs(toolsList)
+	toolsByName := make(map[string]core.Tool, len(toolsList))
+	for _, t := range toolsList {
 		toolsByName[t.Name()] = t
 	}
 
@@ -110,7 +113,7 @@ func RunLoop(
 		for _, tc := range toolCalls {
 			var toolResult string
 			if tool, ok := toolsByName[tc.Name]; ok {
-				toolResult = executeTool(ctx, tool, tc)
+				toolResult = agent.ExecuteTool(ctx, tool, tc)
 			} else {
 				toolResult = fmt.Sprintf("error: unknown tool %q", tc.Name)
 			}
@@ -134,7 +137,7 @@ func RunLoopStream(
 	conversationID string,
 	userContent string,
 	channel string,
-	tools []Tool,
+	toolsList []core.Tool,
 	sink StreamSink,
 ) (reply string, err error) {
 	if streamCaller == nil {
@@ -165,12 +168,12 @@ func RunLoopStream(
 	}
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
 
-	if tools == nil {
-		tools = DefaultTools()
+	if toolsList == nil {
+		toolsList = tools.DefaultConversationTools()
 	}
-	defs := toolDefs(tools)
-	toolsByName := make(map[string]Tool, len(tools))
-	for _, t := range tools {
+	defs := agent.ToolDefs(toolsList)
+	toolsByName := make(map[string]core.Tool, len(toolsList))
+	for _, t := range toolsList {
 		toolsByName[t.Name()] = t
 	}
 
@@ -205,7 +208,7 @@ func RunLoopStream(
 		for _, tc := range toolCalls {
 			var toolResult string
 			if tool, ok := toolsByName[tc.Name]; ok {
-				toolResult = executeTool(ctx, tool, tc)
+				toolResult = agent.ExecuteTool(ctx, tool, tc)
 			} else {
 				toolResult = fmt.Sprintf("error: unknown tool %q", tc.Name)
 			}

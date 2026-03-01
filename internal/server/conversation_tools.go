@@ -5,11 +5,12 @@ import (
 	"context"
 	"fmt"
 
-	"buildmax/internal/conversation"
+	"buildmax/internal/core"
+	"buildmax/internal/tools"
 )
 
 // startChatFunc returns a StartChatFunc that creates a chat (and first run) using server config.
-func (s *Server) startChatFunc(workspaceID, userID string) conversation.StartChatFunc {
+func (s *Server) startChatFunc(workspaceID, userID string) tools.StartChatFunc {
 	if s.cfg.ChatStore == nil {
 		return nil
 	}
@@ -67,6 +68,6 @@ func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal 
 }
 
 // conversationToolsForRequest returns the tool list for the conversation loop (default + start_chat when ChatStore is set).
-func (s *Server) conversationToolsForRequest(workspaceID, userID string) []conversation.Tool {
-	return conversation.BuildToolsWithStartChat(workspaceID, userID, s.startChatFunc(workspaceID, userID))
+func (s *Server) conversationToolsForRequest(workspaceID, userID string) []core.Tool {
+	return tools.BuildConversationToolsWithStartChat(workspaceID, userID, s.startChatFunc(workspaceID, userID))
 }

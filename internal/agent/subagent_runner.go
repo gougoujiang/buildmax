@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"buildmax/internal/session"
+	"buildmax/internal/core"
 )
 
 // SubAgentRunner runs a sub-agent invocation using a separate ephemeral session.
@@ -12,7 +13,7 @@ import (
 type SubAgentRunner interface {
 	// RunSubAgent runs the sub-agent with the given tools and system prompt.
 	// description becomes the ephemeral session title.
-	RunSubAgent(ctx context.Context, tools []Tool, systemPrompt string, description string, prompt string) (reply string, err error)
+	RunSubAgent(ctx context.Context, tools []core.Tool, systemPrompt string, description string, prompt string) (reply string, err error)
 }
 
 type defaultSubAgentRunner struct {
@@ -28,7 +29,7 @@ func NewDefaultSubAgentRunner(caller LLMCaller) (SubAgentRunner, error) {
 	return &defaultSubAgentRunner{caller: caller}, nil
 }
 
-func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, tools []Tool, systemPrompt string, description string, prompt string) (string, error) {
+func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, tools []core.Tool, systemPrompt string, description string, prompt string) (string, error) {
 	sess := session.NewSession(description)
 	sub := NewAgent(r.caller, tools, SystemPrompt(systemPrompt))
 	reply, _, err := sub.Process(ctx, sess, prompt)

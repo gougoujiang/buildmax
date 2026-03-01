@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/agent"
+	"buildmax/internal/core"
 )
 
 func TestNewTodoWrite(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewTodoWrite(t *testing.T) {
 	if w.Name() != ToolNameTodoWrite {
 		t.Errorf("Name() = %q, want TodoWrite", w.Name())
 	}
-	var _ agent.Tool = (*TodoWrite)(nil)
+	var _ core.Tool = (*TodoWrite)(nil)
 }
 
 func TestTodoWrite_Execute_ValidTodos_ReturnsFormattedList(t *testing.T) {

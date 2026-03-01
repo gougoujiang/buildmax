@@ -8,7 +8,61 @@ import (
 
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
+	"buildmax/internal/core"
 )
+
+// TestToolDefs asserts ToolDefs builds one llm.ToolDef per tool with correct name/description/parameters.
+func TestToolDefs(t *testing.T) {
+	mock := &mockTool{
+		name:        "test_tool",
+		description: "A test tool",
+		params:      map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "string"}}},
+	}
+	defs := ToolDefs([]core.Tool{mock})
+	if len(defs) != 1 {
+		t.Fatalf("len(defs) = %d, want 1", len(defs))
+	}
+	if defs[0].Name != "test_tool" {
+		t.Errorf("defs[0].Name = %q, want test_tool", defs[0].Name)
+	}
+	if defs[0].Description != "A test tool" {
+		t.Errorf("defs[0].Description = %q, want A test tool", defs[0].Description)
+	}
+	if defs[0].Parameters == nil {
+		t.Error("defs[0].Parameters is nil")
+	}
+	// Ensure mockTool implements core.Tool
+	var _ core.Tool = (*mockTool)(nil)
+	// Empty tools
+	empty := ToolDefs(nil)
+	if len(empty) != 0 {
+		t.Errorf("ToolDefs(nil) length = %d, want 0", len(empty))
+	}
+}
+
+// TestExecuteTool asserts ExecuteTool parses arguments, calls Execute, and returns result or error string.
+func TestExecuteTool(t *testing.T) {
+	ctx := context.Background()
+	mock := &mockTool{name: "echo", result: "ok"}
+	t.Run("success", func(t *testing.T) {
+		out := ExecuteTool(ctx, mock, llm.ToolCall{ID: "1", Name: "echo", Arguments: `{"a":1}`})
+		if out != "ok" {
+			t.Errorf("ExecuteTool = %q, want ok", out)
+		}
+	})
+	t.Run("invalid_json", func(t *testing.T) {
+		out := ExecuteTool(ctx, mock, llm.ToolCall{ID: "2", Name: "echo", Arguments: `{invalid`})
+		if out == "" || !strings.HasPrefix(out, "error:") {
+			t.Errorf("ExecuteTool = %q, want error prefix", out)
+		}
+	})
+	t.Run("empty_arguments", func(t *testing.T) {
+		out := ExecuteTool(ctx, mock, llm.ToolCall{ID: "3", Name: "echo", Arguments: ""})
+		if out != "ok" {
+			t.Errorf("ExecuteTool = %q, want ok", out)
+		}
+	})
+}
 
 // mockLLMCaller is a fake LLM that returns configured content and tool calls.
 type mockLLMCaller struct {
@@ -58,9 +112,9 @@ type mockTool struct {
 	mu          sync.Mutex
 }
 
-func (t *mockTool) Name() string        { return t.name }
-func (t *mockTool) Description() string { return t.description }
-func (t *mockTool) Parameters() any     { return t.params }
+func (t *mockTool) Name() string         { return t.name }
+func (t *mockTool) Description() string  { return t.description }
+func (t *mockTool) Parameters() any      { return t.params }
 func (t *mockTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	t.mu.Lock()
 	t.executed++
@@ -83,13 +137,13 @@ func TestProcessWithSession_NoToolCall(t *testing.T) {
 			{content: "Hello, I am the final reply.", toolCalls: nil},
 		},
 	}
-	tool := &mockTool{
+	mockTool := &mockTool{
 		name:        "echo",
 		description: "Echoes input",
 		params:      map[string]any{"type": "object"},
 		result:      "echoed",
 	}
-	a := NewAgent(mock, []Tool{tool})
+	a := NewAgent(mock, []core.Tool{mockTool})
 	sess := session.NewSession("")
 	reply, stats, err := a.Process(ctx, sess, "Hi")
 	if err != nil {
@@ -101,8 +155,8 @@ func TestProcessWithSession_NoToolCall(t *testing.T) {
 	if stats.ToolCalls != 0 {
 		t.Errorf("stats.ToolCalls = %d, want 0", stats.ToolCalls)
 	}
-	if tool.executionCount() != 0 {
-		t.Errorf("tool executed %d times, want 0", tool.executionCount())
+	if mockTool.executionCount() != 0 {
+		t.Errorf("tool executed %d times, want 0", mockTool.executionCount())
 	}
 	if mock.callCount() != 1 {
 		t.Errorf("LLM called %d times, want 1", mock.callCount())
@@ -125,13 +179,13 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 			{content: "The weather in Boston is nice.", toolCalls: nil},
 		},
 	}
-	tool := &mockTool{
+	mockTool := &mockTool{
 		name:        "get_weather",
 		description: "Get weather for a location",
 		params:      map[string]any{"type": "object", "properties": map[string]any{"location": map[string]any{"type": "string"}}},
 		result:      toolResult,
 	}
-	a := NewAgent(mock, []Tool{tool})
+	a := NewAgent(mock, []core.Tool{mockTool})
 	sess := session.NewSession("")
 	reply, stats, err := a.Process(ctx, sess, "What is the weather in Boston?")
 	if err != nil {
@@ -143,8 +197,8 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 	if stats.ToolCalls != 1 {
 		t.Errorf("stats.ToolCalls = %d, want 1", stats.ToolCalls)
 	}
-	if tool.executionCount() != 1 {
-		t.Errorf("tool executed %d times, want 1", tool.executionCount())
+	if mockTool.executionCount() != 1 {
+		t.Errorf("tool executed %d times, want 1", mockTool.executionCount())
 	}
 	if mock.callCount() != 2 {
 		t.Errorf("LLM called %d times, want 2", mock.callCount())
@@ -160,8 +214,8 @@ func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 			{content: "Done.", toolCalls: nil, usage: llm.Usage{PromptTokens: 20, CompletionTokens: 8}},
 		},
 	}
-	tool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
-	a := NewAgent(mock, []Tool{tool})
+	mockTool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	a := NewAgent(mock, []core.Tool{mockTool})
 	sess := session.NewSession("")
 	reply, stats, err := a.Process(ctx, sess, "Hi")
 	if err != nil {
@@ -274,13 +328,13 @@ func TestProcessWithSession_MaxIterationsExceeded(t *testing.T) {
 		})
 	}
 	mock := &mockLLMCaller{responses: responses}
-	tool := &mockTool{
+	mockTool := &mockTool{
 		name:        "ping",
 		description: "Ping",
 		params:      map[string]any{"type": "object"},
 		result:      "pong",
 	}
-	a := NewAgent(mock, []Tool{tool}, MaxIterations(3))
+	a := NewAgent(mock, []core.Tool{mockTool}, MaxIterations(3))
 	sess := session.NewSession("")
 	_, stats, err := a.Process(ctx, sess, "ping")
 	if err == nil {

@@ -11,6 +11,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/llm"
 	"buildmax/internal/session"
+	"buildmax/internal/core"
 	"buildmax/internal/tools"
 	"buildmax/internal/util"
 )
@@ -29,20 +30,20 @@ type setupResult struct {
 // toolBuilder — accumulates tools, short-circuits on first error.
 // ---------------------------------------------------------------------------
 
-// toolBuilder collects agent.Tool instances and records the first error.
+// toolBuilder collects core.Tool instances and records the first error.
 type toolBuilder struct {
-	tools  []agent.Tool
-	byName map[string]agent.Tool
+	tools  []core.Tool
+	byName map[string]core.Tool
 	err    error
 }
 
 // newToolBuilder returns an initialised toolBuilder.
 func newToolBuilder() *toolBuilder {
-	return &toolBuilder{byName: make(map[string]agent.Tool)}
+	return &toolBuilder{byName: make(map[string]core.Tool)}
 }
 
 // add appends a tool if no prior error has occurred; records the first error.
-func (b *toolBuilder) add(t agent.Tool, err error) {
+func (b *toolBuilder) add(t core.Tool, err error) {
 	if b.err != nil {
 		return
 	}
@@ -55,7 +56,7 @@ func (b *toolBuilder) add(t agent.Tool, err error) {
 }
 
 // addTool appends a tool that cannot fail (e.g. workspace-based tools).
-func (b *toolBuilder) addTool(t agent.Tool) {
+func (b *toolBuilder) addTool(t core.Tool) {
 	if b.err != nil {
 		return
 	}
@@ -64,7 +65,7 @@ func (b *toolBuilder) addTool(t agent.Tool) {
 }
 
 // result returns the accumulated tools and lookup map, or the stored error.
-func (b *toolBuilder) result() ([]agent.Tool, map[string]agent.Tool, error) {
+func (b *toolBuilder) result() ([]core.Tool, map[string]core.Tool, error) {
 	if b.err != nil {
 		return nil, nil, b.err
 	}
@@ -77,7 +78,7 @@ func (b *toolBuilder) result() ([]agent.Tool, map[string]agent.Tool, error) {
 
 // buildBaseTools constructs all base tools (Task is excluded — sub-agents must not recurse).
 // Returns the tool slice and a name→tool lookup map.
-func buildBaseTools(client *llm.Client, ws *util.Workspace, skillPaths []string) ([]agent.Tool, map[string]agent.Tool, error) {
+func buildBaseTools(client *llm.Client, ws *util.Workspace, skillPaths []string) ([]core.Tool, map[string]core.Tool, error) {
 	b := newToolBuilder()
 	b.addTool(tools.NewReadFile(ws))
 	b.addTool(tools.NewWriteFile(ws))
@@ -93,10 +94,10 @@ func buildBaseTools(client *llm.Client, ws *util.Workspace, skillPaths []string)
 
 // buildAgentTypes resolves built-in sub-agent types from tools.BuiltinAgentDefs
 // and merges user-defined agent definitions.
-func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, cwd string) map[string]tools.AgentTypeConfig {
+func buildAgentTypes(baseTools []core.Tool, toolsByName map[string]core.Tool, cwd string) map[string]tools.AgentTypeConfig {
 	agentTypes := make(map[string]tools.AgentTypeConfig, len(tools.BuiltinAgentDefs))
 	for _, def := range tools.BuiltinAgentDefs {
-		var resolved []agent.Tool
+		var resolved []core.Tool
 		if def.ToolNames == nil {
 			// nil means all base tools.
 			resolved = baseTools
@@ -126,7 +127,7 @@ func buildAgentTypes(baseTools []agent.Tool, toolsByName map[string]agent.Tool, 
 			slog.Warn("skip user-defined agent: name conflicts with built-in", "name", def.Name)
 			continue
 		}
-		var resolved []agent.Tool
+		var resolved []core.Tool
 		for _, tn := range def.ToolNames {
 			t, ok := toolsByName[tn]
 			if !ok {

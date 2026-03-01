@@ -8,14 +8,14 @@ import (
 	"sort"
 	"strings"
 
-	"buildmax/internal/agent"
+	"buildmax/internal/core"
 )
 
 // SubAgentRunner runs a sub-agent with the given tools and prompt.
 // It is implemented by agent and injected when building the Task tool so that
 // tools do not depend on a concrete runner; tests can inject a mock.
 type SubAgentRunner interface {
-	RunSubAgent(ctx context.Context, tools []agent.Tool, systemPrompt string, description string, prompt string) (reply string, err error)
+	RunSubAgent(ctx context.Context, tools []core.Tool, systemPrompt string, description string, prompt string) (reply string, err error)
 }
 
 // Built-in sub-agent system prompts.
@@ -78,13 +78,13 @@ var builtinNames = func() map[string]bool {
 
 // AgentTypeConfig holds the configuration for one agent type (built-in or user-defined).
 type AgentTypeConfig struct {
-	Tools        []agent.Tool // tools available to this agent type
+	Tools        []core.Tool // tools available to this agent type
 	SystemPrompt string       // system prompt for the sub-agent
 	Description  string       // LLM-readable description of this agent type
 }
 
 // TaskTool is an agent tool that spawns sub-agents to handle complex subtasks.
-// It implements agent.Tool.
+// It implements core.Tool.
 type TaskTool struct {
 	runner     SubAgentRunner
 	agentTypes map[string]AgentTypeConfig
@@ -191,10 +191,10 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 	}
 
 	// Filter out the Task tool itself to prevent infinite recursion.
-	var subTools []agent.Tool
-	for _, tool := range config.Tools {
-		if tool.Name() != ToolNameTask {
-			subTools = append(subTools, tool)
+	var subTools []core.Tool
+	for _, tl := range config.Tools {
+		if tl.Name() != ToolNameTask {
+			subTools = append(subTools, tl)
 		}
 	}
 

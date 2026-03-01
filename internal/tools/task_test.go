@@ -7,6 +7,7 @@ import (
 
 	"buildmax/internal/agent"
 	"buildmax/internal/llm"
+	"buildmax/internal/core"
 )
 
 // mockCaller is a simple LLMCaller that returns a fixed reply with no tool calls.
@@ -26,7 +27,7 @@ func (m *mockCaller) ChatWithToolsStream(_ context.Context, _ []llm.Message, _ [
 	return m.content, nil, llm.Usage{}, nil
 }
 
-// mockAgentTool is a minimal agent.Tool for constructing AgentTypeConfig in tests.
+// mockAgentTool is a minimal core.Tool for constructing AgentTypeConfig in tests.
 type mockAgentTool struct {
 	name string
 }
@@ -36,23 +37,23 @@ func (t *mockAgentTool) Description() string                                    
 func (t *mockAgentTool) Parameters() any                                                      { return map[string]any{"type": "object"} }
 func (t *mockAgentTool) Execute(_ context.Context, _ map[string]any) (string, error)          { return "ok", nil }
 
-// Compile-time check: TaskTool implements agent.Tool.
-var _ agent.Tool = (*TaskTool)(nil)
+// Compile-time check: TaskTool implements core.Tool.
+var _ core.Tool = (*TaskTool)(nil)
 
 func testAgentTypes() map[string]AgentTypeConfig {
 	return map[string]AgentTypeConfig{
 		"general": {
-			Tools:        []agent.Tool{&mockAgentTool{name: ToolNameRead}},
+			Tools:        []core.Tool{&mockAgentTool{name: ToolNameRead}},
 			SystemPrompt: "General prompt.",
 			Description:  "General-purpose agent.",
 		},
 		"explore": {
-			Tools:        []agent.Tool{&mockAgentTool{name: ToolNameRead}},
+			Tools:        []core.Tool{&mockAgentTool{name: ToolNameRead}},
 			SystemPrompt: "Explore prompt.",
 			Description:  "Read-only agent.",
 		},
 		"custom-agent": {
-			Tools:        []agent.Tool{&mockAgentTool{name: ToolNameGrep}},
+			Tools:        []core.Tool{&mockAgentTool{name: ToolNameGrep}},
 			SystemPrompt: "Custom prompt.",
 			Description:  "A custom user-defined agent.",
 		},

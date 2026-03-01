@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"buildmax/internal/agent"
 	"buildmax/internal/llm"
+	"buildmax/internal/core"
 )
 
 // mockWebFetchLLM is a fake LLMCaller for WebFetch tests.
@@ -348,6 +348,6 @@ func TestWebFetch_NameAndParameters(t *testing.T) {
 	if !ok || len(req) == 0 {
 		t.Errorf("required should include url")
 	}
-	// Ensure WebFetch implements agent.Tool
-	var _ agent.Tool = (*WebFetch)(nil)
+	// Ensure WebFetch implements core.Tool
+	var _ core.Tool = (*WebFetch)(nil)
 }
