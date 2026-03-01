@@ -66,27 +66,16 @@ Tool results and user messages may include <system_reminder> tags; those are int
 # Code references
 When referring to specific code, use the pattern file_path:line_number so the user can jump to the source (e.g. "Handled in src/services/process.ts:712.").`
 
-// StreamSink receives content deltas during streaming. Implementations may write to stdout or send to a TUI.
-type StreamSink interface {
-	OnDelta(delta string)
-}
-
-// LLMCaller can perform chat-with-tools. *llm.Client implements this.
-type LLMCaller interface {
-	ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error)
-	ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error)
-}
-
 // processConfig holds per-call options for Process/ProcessAfterUserAppended.
 type processConfig struct {
-	streamSink StreamSink
+	streamSink llm.StreamSink
 }
 
 // ProcessOption configures a single agent run (e.g. streaming).
 type ProcessOption func(*processConfig)
 
 // WithStreamSink sets the sink that receives content deltas during the LLM stream.
-func WithStreamSink(sink StreamSink) ProcessOption {
+func WithStreamSink(sink llm.StreamSink) ProcessOption {
 	return func(c *processConfig) {
 		c.streamSink = sink
 	}
@@ -101,7 +90,7 @@ type RunStats struct {
 
 // Agent runs the agent loop: LLM call → execute tool_calls if any → repeat until final reply.
 type Agent struct {
-	caller       LLMCaller
+	caller       llm.LLMCaller
 	tools        []core.Tool
 	maxIter      int
 	systemPrompt string
@@ -160,7 +149,7 @@ func ExecuteTool(ctx context.Context, t core.Tool, tc llm.ToolCall) string {
 }
 
 // NewAgent builds an agent with the given LLM caller and tools.
-func NewAgent(caller LLMCaller, toolList []core.Tool, opts ...Option) *Agent {
+func NewAgent(caller llm.LLMCaller, toolList []core.Tool, opts ...Option) *Agent {
 	toolDefs := ToolDefs(toolList)
 	byName := make(map[string]core.Tool, len(toolList))
 	for _, t := range toolList {

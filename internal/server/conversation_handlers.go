@@ -124,7 +124,7 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
-	if streamRequested && req.Message != "" && s.cfg.ConversationStreamLLMCaller != nil {
+	if streamRequested && req.Message != "" && s.cfg.ConversationLLMCaller != nil {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Connection", "keep-alive")
@@ -137,7 +137,7 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		sink := &sseSink{w: w, flusher: flusher}
 		tools := s.conversationToolsForRequest(workspaceID, userID)
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-			s.cfg.ConversationStreamLLMCaller, conv.ConversationID, req.Message, req.Channel, tools, sink)
+			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, tools, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -224,9 +224,7 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 	if !s.requireStore(w, s.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
-	streamCaller := s.cfg.ConversationStreamLLMCaller
-	nonStreamCaller := s.cfg.ConversationLLMCaller
-	if streamCaller == nil && nonStreamCaller == nil {
+	if s.cfg.ConversationLLMCaller == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}
@@ -249,7 +247,8 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
-	if streamRequested && streamCaller != nil {
+	caller := s.cfg.ConversationLLMCaller
+	if streamRequested && caller != nil {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Connection", "keep-alive")
@@ -258,7 +257,7 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		sink := &sseSink{w: w, flusher: flusher}
 		tools := s.conversationToolsForRequest(workspaceID, userID)
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-			streamCaller, conversationID, req.Content, conv.Channel, tools, sink)
+			caller, conversationID, req.Content, conv.Channel, tools, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -272,7 +271,7 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 	}
 	tools := s.conversationToolsForRequest(workspaceID, userID)
 	reply, err := conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
-		nonStreamCaller, conversationID, req.Content, conv.Channel, tools)
+		caller, conversationID, req.Content, conv.Channel, tools)
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return

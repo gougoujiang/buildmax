@@ -19,21 +19,6 @@ const systemPrompt = `You are a helpful assistant. You can call GetCurrentDate t
 
 You can manage background chat tasks: use the StartChat tool to create and schedule a long-running task (e.g. analysis, a multi-step job). When you start a background task, you must tell the user clearly that a background task was started, and give them the chat id (and optionally run id) so they can check progress or results later (e.g. in Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.`
 
-// LLMCaller can perform chat with tools for the conversation loop.
-type LLMCaller interface {
-	ChatWithTools(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error)
-}
-
-// StreamLLMCaller can perform chat with tools and stream content deltas.
-type StreamLLMCaller interface {
-	ChatWithToolsStream(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error)
-}
-
-// StreamSink receives content deltas during streaming. Implementations write to the response or buffer.
-type StreamSink interface {
-	OnDelta(delta string)
-}
-
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
 // If toolsList is nil, tools.DefaultConversationTools() is used.
@@ -41,13 +26,13 @@ func RunLoop(
 	ctx context.Context,
 	convStore entity.ConversationStore,
 	msgStore entity.ConversationMessageStore,
-	llmCaller LLMCaller,
+	caller llm.LLMCaller,
 	conversationID string,
 	userContent string,
 	channel string,
 	toolsList []core.Tool,
 ) (reply string, err error) {
-	if llmCaller == nil {
+	if caller == nil {
 		return "", fmt.Errorf("conversation LLM not configured")
 	}
 	msgs, err := msgStore.ListMessages(ctx, conversationID)
@@ -89,7 +74,7 @@ func RunLoop(
 	for i := 0; i < maxIterations; i++ {
 		slog.Debug("conversation iteration", "iter", i+1, "conversation_id", conversationID)
 		messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, llmMsgs...)
-		content, toolCalls, _, callErr := llmCaller.ChatWithTools(ctx, messages, defs)
+		content, toolCalls, _, callErr := caller.ChatWithTools(ctx, messages, defs)
 		if callErr != nil {
 			return "", fmt.Errorf("llm call: %w", callErr)
 		}
@@ -127,20 +112,20 @@ func RunLoop(
 	return "", fmt.Errorf("conversation: max iterations (%d) exceeded", maxIterations)
 }
 
-// RunLoopStream is like RunLoop but streams assistant content deltas via sink. Use streamCaller for LLM calls.
+// RunLoopStream is like RunLoop but streams assistant content deltas via sink.
 // When the model returns tool calls, those turns are not streamed; only the final (or intermediate) text content is streamed.
 func RunLoopStream(
 	ctx context.Context,
 	convStore entity.ConversationStore,
 	msgStore entity.ConversationMessageStore,
-	streamCaller StreamLLMCaller,
+	caller llm.LLMCaller,
 	conversationID string,
 	userContent string,
 	channel string,
 	toolsList []core.Tool,
-	sink StreamSink,
+	sink llm.StreamSink,
 ) (reply string, err error) {
-	if streamCaller == nil {
+	if caller == nil {
 		return "", fmt.Errorf("conversation stream LLM not configured")
 	}
 	msgs, err := msgStore.ListMessages(ctx, conversationID)
@@ -186,7 +171,7 @@ func RunLoopStream(
 	for i := 0; i < maxIterations; i++ {
 		slog.Debug("conversation iteration", "iter", i+1, "conversation_id", conversationID)
 		messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, llmMsgs...)
-		content, toolCalls, _, callErr := streamCaller.ChatWithToolsStream(ctx, messages, defs, onDelta)
+		content, toolCalls, _, callErr := caller.ChatWithToolsStream(ctx, messages, defs, onDelta)
 		if callErr != nil {
 			return "", fmt.Errorf("llm call: %w", callErr)
 		}

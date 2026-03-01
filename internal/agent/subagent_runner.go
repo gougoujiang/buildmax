@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"buildmax/internal/session"
 	"buildmax/internal/core"
+	"buildmax/internal/llm"
+	"buildmax/internal/session"
 )
 
 // SubAgentRunner runs a sub-agent invocation using a separate ephemeral session.
@@ -17,12 +18,12 @@ type SubAgentRunner interface {
 }
 
 type defaultSubAgentRunner struct {
-	caller LLMCaller
+	caller llm.LLMCaller
 }
 
 // NewDefaultSubAgentRunner returns the default implementation of SubAgentRunner
 // backed by the same LLM caller used by the main agent.
-func NewDefaultSubAgentRunner(caller LLMCaller) (SubAgentRunner, error) {
+func NewDefaultSubAgentRunner(caller llm.LLMCaller) (SubAgentRunner, error) {
 	if caller == nil {
 		return nil, fmt.Errorf("subagent runner: caller must not be nil")
 	}

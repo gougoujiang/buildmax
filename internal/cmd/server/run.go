@@ -100,7 +100,6 @@ func RunServer(ctx context.Context, port int) error {
 		llmClient := llm.NewClient(llmCfg)
 		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
 		cfg.ConversationLLMCaller = llmClient
-		cfg.ConversationStreamLLMCaller = llmClient
 	}
 	var runner executor.WorkerRunner
 	switch config.WorkerRunMode() {

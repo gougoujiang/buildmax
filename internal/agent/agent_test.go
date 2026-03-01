@@ -96,6 +96,9 @@ func (m *mockLLMCaller) ChatWithToolsStream(ctx context.Context, messages []llm.
 	return content, toolCalls, usage, err
 }
 
+// Ensure mockLLMCaller implements llm.LLMCaller.
+var _ llm.LLMCaller = (*mockLLMCaller)(nil)
+
 func (m *mockLLMCaller) callCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -235,7 +238,7 @@ func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 	}
 }
 
-// recordingLLMCaller wraps an LLMCaller and records the messages from the first ChatWithTools call.
+// recordingLLMCaller wraps an llm.LLMCaller and records the messages from the first ChatWithTools call.
 type recordingLLMCaller struct {
 	inner    *mockLLMCaller
 	firstMsg []llm.Message
@@ -419,6 +422,8 @@ func TestProcessWithSession(t *testing.T) {
 }
 
 // recordingStreamSink records each OnDelta call for tests.
+var _ llm.StreamSink = (*recordingStreamSink)(nil)
+
 type recordingStreamSink struct {
 	deltas []string
 	mu     sync.Mutex

@@ -13,7 +13,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"buildmax/internal/agent"
 	"buildmax/internal/llm"
 
 	"github.com/k3a/html2text"
@@ -41,9 +40,9 @@ type cacheEntry struct {
 
 // WebFetch is a tool that fetches a URL, converts HTML to markdown, optionally
 // processes content with the LLM using a prompt, and returns the result.
-// It implements the agent.Tool interface.
+// It implements the core.Tool interface.
 type WebFetch struct {
-	caller   agent.LLMCaller
+	caller   llm.LLMCaller
 	cache    map[string]cacheEntry
 	cacheMu  sync.RWMutex
 	cacheTTL time.Duration
@@ -51,7 +50,7 @@ type WebFetch struct {
 
 // NewWebFetch creates a WebFetch tool with the given LLM caller and cache TTL.
 // caller must be non-nil.
-func NewWebFetch(caller agent.LLMCaller, cacheTTL time.Duration) (*WebFetch, error) {
+func NewWebFetch(caller llm.LLMCaller, cacheTTL time.Duration) (*WebFetch, error) {
 	if caller == nil {
 		return nil, errors.New("WebFetch: caller is required")
 	}

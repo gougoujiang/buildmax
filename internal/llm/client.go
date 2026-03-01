@@ -320,3 +320,6 @@ func (r *usageCaptureReader) parseUsageLocked() {
 		}
 	}
 }
+
+// Ensure *Client implements LLMCaller.
+var _ LLMCaller = (*Client)(nil)
