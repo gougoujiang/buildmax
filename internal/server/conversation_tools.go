@@ -1,22 +1,30 @@
-// Conversation tools: server-side implementation of StartChatFunc for the conversation agent.
+// Conversation tools: server-side StartChatRunner for the conversation agent.
 package server
 
 import (
 	"context"
 	"fmt"
 
-	"buildmax/internal/core"
 	"buildmax/internal/tools"
 )
 
-// startChatFunc returns a StartChatFunc that creates a chat (and first run) using server config.
-func (s *Server) startChatFunc(workspaceID, userID string) tools.StartChatFunc {
+// serverStartChatRunner implements tools.StartChatRunner using server config (ChatStore, etc.).
+type serverStartChatRunner struct {
+	s           *Server
+	workspaceID string
+	userID      string
+}
+
+func (r *serverStartChatRunner) StartChat(ctx context.Context, _, _, input string, agentID *string) (chatID, runID string, err error) {
+	return r.s.doStartChat(ctx, r.workspaceID, r.userID, input, agentID)
+}
+
+// startChatRunner returns a StartChatRunner when ChatStore is set; otherwise nil (StartChat tool is not added).
+func (s *Server) startChatRunner(workspaceID, userID string) tools.StartChatRunner {
 	if s.cfg.ChatStore == nil {
 		return nil
 	}
-	return func(ctx context.Context, input string, agentID *string) (chatID, runID string, err error) {
-		return s.doStartChat(ctx, workspaceID, userID, input, agentID)
-	}
+	return &serverStartChatRunner{s: s, workspaceID: workspaceID, userID: userID}
 }
 
 // doStartChat creates a chat and its first run (same logic as POST .../chats). Used by start_chat tool.
@@ -65,9 +73,4 @@ func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal 
 		runIDVal = *chat.LastRunID
 	}
 	return chat.ChatID, runIDVal, nil
-}
-
-// conversationToolsForRequest returns the tool list for the conversation loop (default + start_chat when ChatStore is set).
-func (s *Server) conversationToolsForRequest(workspaceID, userID string) []core.Tool {
-	return tools.BuildConversationToolsWithStartChat(workspaceID, userID, s.startChatFunc(workspaceID, userID))
 }

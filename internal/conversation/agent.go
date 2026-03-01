@@ -19,9 +19,24 @@ const systemPrompt = `You are a helpful assistant. You can call GetCurrentDate t
 
 You can manage background chat tasks: use the StartChat tool to create and schedule a long-running task (e.g. analysis, a multi-step job). When you start a background task, you must tell the user clearly that a background task was started, and give them the chat id (and optionally run id) so they can check progress or results later (e.g. in Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.`
 
+// DefaultConversationTools returns the default tool set for the conversation loop (GetCurrentDate only).
+// Callers (e.g. server) may append more tools (e.g. StartChat) when building the list for RunLoop/RunLoopStream.
+func DefaultConversationTools() []core.Tool {
+	return []core.Tool{tools.GetCurrentDate{}}
+}
+
+// buildConversationTools returns default tools and, when startChatRunner is non-nil, the StartChat tool.
+func buildConversationTools(workspaceID, userID string, startChatRunner tools.StartChatRunner) []core.Tool {
+	toolList := DefaultConversationTools()
+	if startChatRunner != nil {
+		toolList = append(toolList, tools.NewStartChatTool(workspaceID, userID, startChatRunner))
+	}
+	return toolList
+}
+
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
-// If toolsList is nil, tools.DefaultConversationTools() is used.
+// If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
 func RunLoop(
 	ctx context.Context,
 	convStore entity.ConversationStore,
@@ -31,6 +46,8 @@ func RunLoop(
 	userContent string,
 	channel string,
 	toolsList []core.Tool,
+	workspaceID, userID string,
+	startChatRunner tools.StartChatRunner,
 ) (reply string, err error) {
 	if caller == nil {
 		return "", fmt.Errorf("conversation LLM not configured")
@@ -63,7 +80,7 @@ func RunLoop(
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
 
 	if toolsList == nil {
-		toolsList = tools.DefaultConversationTools()
+		toolsList = buildConversationTools(workspaceID, userID, startChatRunner)
 	}
 	defs := agent.ToolDefs(toolsList)
 	toolsByName := make(map[string]core.Tool, len(toolsList))
@@ -114,6 +131,7 @@ func RunLoop(
 
 // RunLoopStream is like RunLoop but streams assistant content deltas via sink.
 // When the model returns tool calls, those turns are not streamed; only the final (or intermediate) text content is streamed.
+// If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
 func RunLoopStream(
 	ctx context.Context,
 	convStore entity.ConversationStore,
@@ -123,6 +141,8 @@ func RunLoopStream(
 	userContent string,
 	channel string,
 	toolsList []core.Tool,
+	workspaceID, userID string,
+	startChatRunner tools.StartChatRunner,
 	sink llm.StreamSink,
 ) (reply string, err error) {
 	if caller == nil {
@@ -154,7 +174,7 @@ func RunLoopStream(
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
 
 	if toolsList == nil {
-		toolsList = tools.DefaultConversationTools()
+		toolsList = buildConversationTools(workspaceID, userID, startChatRunner)
 	}
 	defs := agent.ToolDefs(toolsList)
 	toolsByName := make(map[string]core.Tool, len(toolsList))
