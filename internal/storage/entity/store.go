@@ -4,9 +4,12 @@ package entity
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // Store implements UserStore, WorkspaceStore, ChatStore, and ChatRunStore with a MySQL backend.
@@ -17,8 +20,12 @@ type Store struct {
 // New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Agent, Chat, ChatRun, and ChatRunArtifact.
 // If the legacy artifact table exists, migrates data to chat_run_artifact and drops artifact/artifact_item and chat columns.
 // If the old chat_run_output_file table exists, migrates its data to chat_run_artifact and drops it.
+// GORM logger is configured to ignore ErrRecordNotFound so expected "not found" lookups (e.g. GetNextPendingChatRun when idle) do not spam the console.
 func New(ctx context.Context, dsn string) (*Store, error) {
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	gormLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+		IgnoreRecordNotFoundError: true,
+	})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: gormLogger})
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
