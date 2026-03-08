@@ -3,12 +3,13 @@
 .page-explore__title {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
+  color: var(--color-text);
 }
 
 .page-explore__subtitle {
   margin: 0 0 1rem;
   font-size: 0.95rem;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .page-explore__upload-bar {
@@ -23,19 +24,20 @@
 }
 
 .page-explore__upload-btn {
-  padding: 0.45rem 1.1rem;
+  padding: 0.45rem 1rem;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #fff;
-  background: #2563eb;
-  border: none;
+  color: var(--color-text);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-input-border);
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .page-explore__upload-btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--color-bg-muted);
+  border-color: var(--color-text-muted);
 }
 
 .page-explore__upload-btn:disabled {
@@ -56,18 +58,18 @@
   display: flex;
   gap: 0;
   min-height: 420px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--color-bg-elevated);
 }
 
 .page-explore__tree-panel {
   width: 240px;
   flex-shrink: 0;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid var(--color-border);
   overflow-y: auto;
-  background: #fafafa;
+  background: var(--color-bg-muted);
 }
 
 .explore-tree__list {
@@ -91,25 +93,25 @@
   background: none;
   text-align: left;
   font: inherit;
-  color: #333;
+  color: var(--color-text);
   cursor: pointer;
   border-radius: 4px;
 }
 
 .explore-tree__row:hover {
-  background: #eee;
+  background: var(--color-bg-hover);
 }
 
 .explore-tree__row--selected {
-  background: #e0e8f0;
-  color: #1a365d;
+  background: var(--color-bg-hover);
+  color: var(--color-text);
 }
 
 .explore-tree__icon {
   flex-shrink: 0;
   width: 1rem;
   font-size: 0.6rem;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .explore-tree__icon--empty {
@@ -120,6 +122,18 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.explore-tree__loading,
+.explore-tree__error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.explore-tree__error {
+  color: #dc2626;
 }
 
 .page-explore__content-panel {
@@ -133,14 +147,14 @@
 .page-explore__file-list-wrap {
   flex: 0 0 auto;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .page-explore__content-heading {
   margin: 0 0 0.75rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #444;
+  color: var(--color-text);
 }
 
 .page-explore__list {
@@ -163,18 +177,18 @@
   background: none;
   text-align: left;
   font: inherit;
-  color: #333;
+  color: var(--color-text);
   cursor: pointer;
   border-radius: 6px;
 }
 
 .page-explore__link:hover {
-  background: #f0f0f0;
+  background: var(--color-bg-muted);
 }
 
 .page-explore__link--selected {
-  background: #e0e8f0;
-  color: #1a365d;
+  background: var(--color-bg-hover);
+  color: var(--color-text);
 }
 
 .page-explore__icon {
@@ -196,13 +210,13 @@
 
 .page-explore__meta {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--color-text-subtle);
 }
 
 .page-explore__empty {
   margin: 0;
   padding: 0.5rem 0;
-  color: #888;
+  color: var(--color-text-subtle);
   font-size: 0.9rem;
 }
 
@@ -212,15 +226,15 @@
   display: flex;
   flex-direction: column;
   padding: 1rem 1.25rem;
-  background: #f8f9fa;
-  border-top: 1px solid #eee;
+  background: var(--color-bg-muted);
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .page-explore__viewer-title {
   margin: 0 0 0.5rem;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #555;
+  color: var(--color-text-muted);
 }
 
 .page-explore__viewer-content {
@@ -230,10 +244,21 @@
   overflow: auto;
   font-size: 0.85rem;
   line-height: 1.5;
-  color: #333;
-  background: #fff;
-  border: 1px solid #e5e5e5;
+  color: var(--color-text);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.page-explore__viewer-loading,
+.page-explore__viewer-error {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.page-explore__viewer-error {
+  color: #dc2626;
 }

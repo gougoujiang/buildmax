@@ -1,11 +1,10 @@
 /* Breadcrumbs */
 
 .breadcrumbs {
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e0e0e0;
+  margin: 0;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--color-text-subtle);
+  min-width: 0;
 }
 
 .breadcrumbs__segment {
@@ -16,7 +15,7 @@
   border: none;
   background: none;
   font: inherit;
-  color: #1a73e8;
+  color: var(--color-link);
   cursor: pointer;
   padding: 0;
 }
@@ -27,9 +26,9 @@
 
 .breadcrumbs__separator {
   margin: 0 0.35rem;
-  color: #bbb;
+  color: var(--color-text-subtle);
 }
 
 .breadcrumbs__current {
-  color: #555;
+  color: var(--color-text-muted);
 }

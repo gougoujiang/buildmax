@@ -7,14 +7,14 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  background: #f0f0f0;
+  background: var(--color-bg-muted);
 }
 
 .login-page__card {
   width: 100%;
   max-width: 22rem;
   padding: 2rem;
-  background: #fff;
+  background: var(--color-bg-elevated);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -23,12 +23,13 @@
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
   font-weight: 700;
+  color: var(--color-text);
 }
 
 .login-page__subtitle {
   margin: 0 0 1.5rem;
   font-size: 0.9rem;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .login-page__form {
@@ -40,19 +41,22 @@
 .login-page__label {
   font-size: 0.85rem;
   font-weight: 500;
+  color: var(--color-text);
 }
 
 .login-page__input {
   font: inherit;
   font-size: 0.95rem;
   padding: 0.5rem 0.6rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-input-border);
   border-radius: 4px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
 }
 
 .login-page__input:focus {
   outline: none;
-  border-color: #1a1a1a;
+  border-color: var(--color-text);
 }
 
 .login-page__error {
@@ -66,15 +70,16 @@
   font-size: 0.95rem;
   padding: 0.5rem 1rem;
   margin-top: 0.25rem;
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
   border: none;
   border-radius: 4px;
   cursor: pointer;
 }
 
 .login-page__submit:hover:not(:disabled) {
-  background: #333;
+  opacity: 0.9;
+  filter: brightness(1.1);
 }
 
 .login-page__submit:disabled {
@@ -85,11 +90,11 @@
 .login-page__footer {
   margin: 0;
   font-size: 0.9rem;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .login-page__footer a {
-  color: #1a1a1a;
+  color: var(--color-link);
   text-decoration: underline;
 }
 
@@ -100,11 +105,11 @@
   margin-top: 0.25rem;
   background: none;
   border: none;
-  color: #666;
+  color: var(--color-text-muted);
   cursor: pointer;
   text-decoration: underline;
 }
 
 .login-page__link:hover {
-  color: #1a1a1a;
+  color: var(--color-text);
 }

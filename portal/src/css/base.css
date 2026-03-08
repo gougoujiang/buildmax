@@ -4,8 +4,8 @@
   font-family: system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #1a1a1a;
-  background-color: #fafafa;
+  color: var(--color-text);
+  background-color: var(--color-bg);
 }
 
 *,

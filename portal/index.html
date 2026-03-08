@@ -7,6 +7,9 @@
     <title>BuildMax Portal</title>
   </head>
   <body>
+    <script>
+      (function(){var t=localStorage.getItem("buildmax_theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);})();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

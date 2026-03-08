@@ -5,6 +5,7 @@ import { navigate } from "../router"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Sidebar } from "./Sidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
+import { ThemeToggle } from "../components/ThemeToggle"
 
 export interface LayoutProps {
   currentWorkspace: Workspace
@@ -42,7 +43,10 @@ export function Layout({
           onLogout={onLogout}
         />
         <main className="shell__main">
-          <Breadcrumbs route={route} workspaceChats={workspaceChats} />
+          <div className="shell__top">
+            <Breadcrumbs route={route} workspaceChats={workspaceChats} />
+            <ThemeToggle />
+          </div>
           <div className="shell__content">{children}</div>
         </main>
       </div>

@@ -7,6 +7,8 @@ interface BaseModalProps {
   onClose: () => void
   /** Optional class name(s) applied to the modal container (e.g. modal--large). */
   className?: string
+  /** When true, do not render the header (title + close). Caller renders close elsewhere. */
+  hideHeader?: boolean
   children: ReactNode
 }
 
@@ -16,6 +18,7 @@ export function BaseModal({
   titleId,
   onClose,
   className,
+  hideHeader,
   children,
 }: BaseModalProps) {
   const focusRef = useRef<HTMLDivElement>(null)
@@ -47,22 +50,25 @@ export function BaseModal({
         className={className ? `modal ${className}` : "modal"}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby={hideHeader ? undefined : titleId}
+        aria-label={hideHeader ? title : undefined}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal__header">
-          <h2 className="modal__title" id={titleId}>
-            {title}
-          </h2>
-          <button
-            type="button"
-            className="modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            &times;
-          </button>
-        </div>
+        {!hideHeader && (
+          <div className="modal__header">
+            <h2 className="modal__title" id={titleId}>
+              {title}
+            </h2>
+            <button
+              type="button"
+              className="modal__close"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+          </div>
+        )}
         {children}
       </div>
     </div>

@@ -12,7 +12,7 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 .page-workspace__error {
@@ -26,12 +26,13 @@
 .page-new-chat__title {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
+  color: var(--color-text);
 }
 
 .page-new-chat__subtitle {
   margin: 0 0 1.25rem;
   font-size: 0.95rem;
-  color: #555;
+  color: var(--color-text-muted);
 }
 
 .page-new-chat__error {
@@ -42,8 +43,8 @@
 
 .page-new-chat__tabs {
   margin-top: 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
-  background: #fafafa;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
   overflow: hidden;
 }
 
@@ -52,8 +53,8 @@
   gap: 0;
   padding: 0;
   margin: 0;
-  border-bottom: 1px solid #e0e0e0;
-  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
 }
 
 .page-new-chat__tab {
@@ -64,19 +65,19 @@
   background: transparent;
   font: inherit;
   font-size: 0.95rem;
-  color: #666;
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 
 .page-new-chat__tab:hover {
-  color: #333;
+  color: var(--color-text);
 }
 
 .page-new-chat__tab--active {
-  color: #333;
+  color: var(--color-text);
   font-weight: 600;
-  border-bottom-color: #6b7fff;
-  background: #fafafa;
+  border-bottom-color: var(--color-text);
+  background: var(--color-bg-muted);
 }
 
 .page-new-chat__tabpanel {
@@ -84,6 +85,7 @@
   min-height: 200px;
   max-height: 60vh;
   overflow: auto;
+  background: var(--color-bg);
 }
 
 .page-new-chat__tabpanel--files {
@@ -103,7 +105,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--color-bg-elevated);
   border-radius: 6px;
 }
 
@@ -111,7 +113,7 @@
   flex-shrink: 0;
   margin: 0;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .page-new-chat__files-panel .page-explore__panels {
@@ -124,17 +126,17 @@
 
 .page-workspace__new-project {
   padding: 0.4rem 0.75rem;
-  border: 1px solid #6b7fff;
+  border: 1px solid var(--color-primary);
   border-radius: 6px;
-  background: #6b7fff;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 .page-workspace__new-project:hover:not(:disabled) {
-  background: #5a6aeb;
-  border-color: #5a6aeb;
+  opacity: 0.9;
+  filter: brightness(1.05);
 }
 
 .page-workspace__new-project:disabled {

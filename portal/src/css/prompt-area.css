@@ -8,7 +8,7 @@
   margin: 0 0 1rem;
   font-size: 1.125rem;
   font-weight: 500;
-  color: #333;
+  color: var(--color-text);
   text-align: center;
 }
 
@@ -20,15 +20,16 @@
   margin-bottom: 0.75rem;
   font: inherit;
   font-size: 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-input-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-input-bg);
+  color: var(--color-text);
 }
 
 .prompt-area__input:focus {
   outline: none;
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.15);
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
 }
 
 .prompt-area__button {
@@ -38,13 +39,14 @@
   font: inherit;
   font-size: 1rem;
   font-weight: 500;
-  color: #fff;
-  background-color: #1a1a1a;
+  color: var(--color-primary-text);
+  background-color: var(--color-primary);
   border: none;
   border-radius: 6px;
   cursor: pointer;
 }
 
 .prompt-area__button:hover {
-  background-color: #333;
+  opacity: 0.9;
+  filter: brightness(1.1);
 }

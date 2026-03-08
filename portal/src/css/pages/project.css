@@ -106,13 +106,13 @@
   background: none;
   font: inherit;
   font-size: 0.9rem;
-  color: #1a73e8;
+  color: var(--color-link);
   cursor: pointer;
   text-align: left;
 }
 
 .page-project__artifact-link:hover {
-  background: #f5f8ff;
+  background: var(--color-bg-muted);
 }
 
 .page-project__artifact-kind {

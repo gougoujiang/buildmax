@@ -8,6 +8,9 @@ import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
 import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
 import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
+import SettingsIcon from "../icons/settings.svg?react"
+import HelpIcon from "../icons/help.svg?react"
+import SignOutIcon from "../icons/sign-out.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
@@ -19,9 +22,6 @@ const LOGO_ASCII = `
 | |__)  ) |_| | | ( (_| | || || | |__| |/ /\\ \\ 
 |______/ \\____|_|_|\\____|_||_||_|______/_/  \\_\\
 `.trim()
-
-/** First letter "B" extracted from LOGO_ASCII for collapsed sidebar. */
-const ASCII_B = LOGO_ASCII.split("\n").map((line) => line.slice(0, 7)).join("\n")
 
 import RecentIcon from "../icons/recent.svg?react"
 
@@ -106,9 +106,6 @@ export function Sidebar({
             aria-label="Expand sidebar"
             title="Expand sidebar"
           >
-            <pre className="sidebar__logo-ascii-collapsed" aria-hidden>
-              {ASCII_B}
-            </pre>
             <SidebarExpandIcon className="sidebar__logo-expand-icon" aria-hidden />
           </button>
         ) : (
@@ -292,7 +289,9 @@ export function Sidebar({
           aria-label="User menu"
         >
           <UserAvatar user={user} size="sm" />
-          <span className="sidebar__user-name">{user.name || user.email}</span>
+          <span className="sidebar__user-name">
+            {user.name?.trim() || (user.email ? user.email.split("@")[0] : "")}
+          </span>
         </button>
         {userMenuOpen && (
           <div className="sidebar__user-menu" role="menu">
@@ -315,6 +314,9 @@ export function Sidebar({
                 setSettingsModalOpen(true)
               }}
             >
+              <span className="sidebar__user-menu-item-icon" aria-hidden>
+                <SettingsIcon />
+              </span>
               Settings
             </button>
             <button
@@ -323,6 +325,9 @@ export function Sidebar({
               role="menuitem"
               onClick={() => setUserMenuOpen(false)}
             >
+              <span className="sidebar__user-menu-item-icon" aria-hidden>
+                <HelpIcon />
+              </span>
               Help
             </button>
             <div className="sidebar__user-menu-divider" role="separator" />
@@ -335,6 +340,9 @@ export function Sidebar({
                 onLogout()
               }}
             >
+              <span className="sidebar__user-menu-item-icon" aria-hidden>
+                <SignOutIcon />
+              </span>
               Sign Out
             </button>
           </div>

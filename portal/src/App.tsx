@@ -3,6 +3,7 @@ import { navigate } from "./router"
 import { getErrorMessage } from "./lib/errorMessage"
 import { createWorkspace } from "./lib/api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { ThemeProvider } from "./contexts/ThemeContext"
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext"
 import { Layout } from "./layout/Layout"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
@@ -107,11 +108,13 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <WorkspaceProvider>
-        <AppContent />
-      </WorkspaceProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <WorkspaceProvider>
+          <AppContent />
+        </WorkspaceProvider>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 
