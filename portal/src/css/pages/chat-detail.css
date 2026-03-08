@@ -220,7 +220,7 @@
 
 .page-chat__follow-up-input:disabled {
   background: transparent;
-  color: #888;
+  color: var(--color-text-subtle);
 }
 
 .page-chat__follow-up-btn {
@@ -231,19 +231,20 @@
   font: inherit;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #fff;
-  background: #1a1a1a;
+  color: var(--color-primary-text);
+  background: var(--color-primary);
   border: none;
   border-radius: 6px;
   cursor: pointer;
 }
 
 .page-chat__follow-up-btn:hover:not(:disabled) {
-  background: #333;
+  opacity: 0.9;
+  filter: brightness(1.05);
 }
 
 .page-chat__follow-up-btn:disabled {
-  background: #999;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -276,14 +277,14 @@
 }
 
 .page-chat__markdown code {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--color-bg-muted);
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
   font-size: 0.88rem;
 }
 
 .page-chat__markdown pre {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--color-bg-muted);
   padding: 0.75rem 1rem;
   border-radius: 6px;
   overflow-x: auto;
@@ -298,7 +299,7 @@
 .page-chat__markdown blockquote {
   margin: 0.75rem 0;
   padding: 0.5rem 1rem;
-  border-left: 3px solid rgba(0, 0, 0, 0.2);
+  border-left: 3px solid var(--color-border);
   opacity: 0.9;
 }
 
@@ -310,7 +311,7 @@
 
 .page-chat__markdown th,
 .page-chat__markdown td {
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--color-border-subtle);
   padding: 0.4rem 0.75rem;
   text-align: left;
   font-size: 0.9rem;

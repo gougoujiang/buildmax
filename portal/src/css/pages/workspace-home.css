@@ -86,6 +86,7 @@
   max-height: 60vh;
   overflow: auto;
   background: var(--color-bg);
+  color: var(--color-text);
 }
 
 .page-new-chat__tabpanel--files {
@@ -98,6 +99,7 @@
 
 .page-new-chat__chats {
   padding: 0.25rem 0;
+  color: var(--color-text);
 }
 
 .page-new-chat__files-panel {
@@ -160,19 +162,19 @@
   gap: 0.75rem;
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-bg-elevated);
   font: inherit;
   font-size: 0.95rem;
-  color: #333;
+  color: var(--color-text);
   cursor: pointer;
   text-align: left;
 }
 
 .page-workspace__chat-link:hover {
-  border-color: #bbb;
-  background: #f9f9ff;
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-muted);
 }
 
 .page-workspace__chat-name {
@@ -182,12 +184,12 @@
 
 .page-workspace__chat-status {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .page-workspace__chat-time {
   font-size: 0.8rem;
-  color: #999;
+  color: var(--color-text-subtle);
 }
 
 .page-workspace__action-grid {
@@ -198,18 +200,18 @@
 
 .page-workspace__action-btn {
   padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-input-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-bg-elevated);
   font: inherit;
   font-size: 0.9rem;
-  color: #444;
+  color: var(--color-text);
   cursor: pointer;
 }
 
 .page-workspace__action-btn:hover {
-  border-color: #aaa;
-  background: #f5f5f5;
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-muted);
 }
 
 .page-workspace__artifacts {
@@ -228,7 +230,7 @@
   align-items: center;
   gap: 0.5rem 1rem;
   padding: 0.75rem 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .page-workspace__artifact-main {
@@ -240,7 +242,7 @@
 
 .page-workspace__artifact-title {
   font-weight: 500;
-  color: #333;
+  color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -248,7 +250,7 @@
 
 .page-workspace__artifact-time {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
@@ -257,7 +259,7 @@
   flex-wrap: wrap;
   gap: 0.35rem;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--color-text-subtle);
   font-family: ui-monospace, monospace;
 }
 
@@ -271,19 +273,20 @@
   margin-left: auto;
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-input-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
   cursor: pointer;
 }
 
 .page-workspace__artifact-view:hover {
-  border-color: #1a1a1a;
-  background: #f5f5f5;
+  border-color: var(--color-text);
+  background: var(--color-bg-muted);
 }
 
 .page-workspace__empty {
   margin: 0;
-  color: #666;
+  color: var(--color-text-muted);
   font-size: 0.95rem;
 }

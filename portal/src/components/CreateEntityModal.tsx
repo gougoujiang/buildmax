@@ -132,7 +132,7 @@ export function CreateEntityModal({
           </button>
           <button
             type="submit"
-            className="modal__btn modal__btn--primary"
+            className="modal__btn modal__btn--secondary"
             disabled={loading || fields.some((f) => !f.optional && !values[f.key]?.trim())}
           >
             {loading ? `${submitLabel}…` : submitLabel}

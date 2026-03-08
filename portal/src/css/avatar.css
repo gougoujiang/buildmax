@@ -3,8 +3,8 @@
 .user-avatar {
   flex-shrink: 0;
   border-radius: 50%;
-  background: #555;
-  color: #fff;
+  background: var(--color-text-muted);
+  color: var(--color-bg);
   font-weight: 600;
   display: inline-flex;
   align-items: center;

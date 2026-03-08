@@ -275,7 +275,7 @@
 
 .modal__optional {
   font-weight: 400;
-  color: #999;
+  color: var(--color-text-subtle);
 }
 
 .modal__hint {
@@ -336,7 +336,7 @@
 }
 
 .modal__btn--danger {
-  background: #fff;
+  background: var(--color-bg-elevated);
   color: #b91c1c;
   border: 1px solid #b91c1c;
 }

@@ -80,7 +80,7 @@ export function NewChatFromAgentModal({
         </button>
         <button
           type="button"
-          className="modal__btn modal__btn--primary"
+          className="modal__btn modal__btn--secondary"
           onClick={handleSubmit}
           disabled={loading}
         >
