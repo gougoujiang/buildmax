@@ -10,11 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	chatapp "buildmax/internal/app/chat"
+	convapp "buildmax/internal/app/conversation"
+	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
 	"buildmax/internal/server/auth"
 	"buildmax/internal/server/httputil"
 	"buildmax/internal/server/portal"
+	"buildmax/internal/server/webhook"
 	"buildmax/internal/server/worker"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
@@ -54,12 +58,13 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore       entity.UserStore
-	WorkspaceStore  entity.WorkspaceStore
-	AgentStore      entity.AgentStore
-	ChatStore       entity.ChatStore
-	ChatRunStore    entity.ChatRunStore
-	RunOutputLister RunOutputLister
+	UserStore              entity.UserStore
+	WorkspaceStore         entity.WorkspaceStore
+	AgentStore             entity.AgentStore
+	ChatStore              entity.ChatStore
+	ChatRunStore           entity.ChatRunStore
+	RunOutputLister        RunOutputLister
+	WorkspaceWebhookKeyStore entity.WorkspaceWebhookKeyStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -82,6 +87,12 @@ type ConversationConfig struct {
 	ConversationLLMCaller    llm.LLMCaller
 }
 
+// WebhookConfig holds webhook handler options (message path and optional user ID for created runs).
+type WebhookConfig struct {
+	MessagePath string // JSON path for message in body (default "message")
+	UserID      string // CreatedBy for webhook runs (default "webhook")
+}
+
 // Config holds server configuration. Grouped fields document what is required for auth, storage, worker, and conversation.
 type Config struct {
 	Addr    string // Listen address (e.g. ":5678")
@@ -90,6 +101,7 @@ type Config struct {
 	Storage StorageConfig
 	Worker  WorkerConfig
 	Conv    ConversationConfig
+	Webhook WebhookConfig
 }
 
 // Server wraps the HTTP server and runs it.
@@ -128,6 +140,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,
 		Hub:                      hub,
+		WorkspaceWebhookKeyStore: cfg.Stores.WorkspaceWebhookKeyStore,
 	}
 }
 
@@ -151,6 +164,31 @@ func New(cfg Config) *Server {
 		ChatRunStore: cfg.Stores.ChatRunStore,
 		Hub:          s.hub,
 	}).Register(mux)
+	if cfg.Stores.WorkspaceWebhookKeyStore != nil {
+		msgPath := cfg.Webhook.MessagePath
+		if msgPath == "" {
+			msgPath = "message"
+		}
+		userID := cfg.Webhook.UserID
+		if userID == "" {
+			userID = conversation.DefaultWebhookUserID
+		}
+		chatSvc := &chatapp.Service{
+			Agents:         cfg.Stores.AgentStore,
+			Chats:          cfg.Stores.ChatStore,
+			ChatRuns:       cfg.Stores.ChatRunStore,
+			QuotaChecker:   cfg.Auth.QuotaChecker,
+			TitleGenerator: nil,
+		}
+		webhookHandler := webhook.NewHandler(webhook.Config{
+			Adapter:         conversation.NewWebhookAdapter(msgPath, userID),
+			Engine:          &convapp.RuleBasedEngine{Chat: chatSvc},
+			WorkspaceStore:  cfg.Stores.WorkspaceStore,
+			KeyStore:        cfg.Stores.WorkspaceWebhookKeyStore,
+			MessagePath:     msgPath,
+		})
+		webhookHandler.Register(mux)
+	}
 
 	handler := http.Handler(mux)
 	if cfg.Auth.CORSOrigin != "" {

@@ -1,13 +1,16 @@
 import { useEffect, useState, type ComponentType } from "react"
 import { useAuth } from "../contexts/AuthContext"
+import { useWorkspace } from "../contexts/WorkspaceContext"
 import type { ApiUsage } from "../lib/api"
 import { getUsage } from "../features/usage"
 import { BaseModal } from "@buildmax/gui"
 import { UserAvatar } from "./UserAvatar"
+import { WebhookKeysSection } from "./WebhookKeysSection"
 import SettingsIcon from "../icons/settings.svg?react"
 import UsageIcon from "../icons/usage.svg?react"
+import ToolboxIcon from "../icons/toolbox.svg?react"
 
-type SettingsTabId = "general" | "usage"
+type SettingsTabId = "general" | "usage" | "webhook"
 
 const SETTINGS_TABS: {
   id: SettingsTabId
@@ -16,6 +19,7 @@ const SETTINGS_TABS: {
 }[] = [
   { id: "general", label: "General", icon: SettingsIcon },
   { id: "usage", label: "Usage", icon: UsageIcon },
+  { id: "webhook", label: "Webhook", icon: ToolboxIcon },
 ]
 
 interface SettingsModalProps {
@@ -26,6 +30,7 @@ interface SettingsModalProps {
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTabId>("general")
   const { token, user } = useAuth()
+  const { token: workspaceToken, workspaces } = useWorkspace()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [usage, setUsage] = useState<ApiUsage | null>(null)
@@ -181,6 +186,18 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 </div>
               )}
             </section>
+          </div>
+          <div
+            id="settings-panel-webhook"
+            role="tabpanel"
+            aria-labelledby="settings-tab-webhook"
+            className="settings-panel"
+            hidden={activeTab !== "webhook"}
+          >
+            <WebhookKeysSection
+              workspaces={workspaces}
+              token={workspaceToken}
+            />
           </div>
         </div>
       </div>

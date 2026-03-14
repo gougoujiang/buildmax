@@ -1,0 +1,61 @@
+package conversation
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	chatapp "buildmax/internal/app/chat"
+	coreconv "buildmax/internal/conversation"
+)
+
+func TestRuleBasedEngine_Process_wrongChannel(t *testing.T) {
+	e := &RuleBasedEngine{}
+	ctx := context.Background()
+	turn := coreconv.ConversationTurn{
+		WorkspaceID: "w_1",
+		Channel:     coreconv.ChannelPortal,
+		Message:     "hi",
+		UserID:      "u_1",
+	}
+	_, err := e.Process(ctx, "w_1", "", turn)
+	if err == nil {
+		t.Fatal("expected error for non-webhook channel")
+	}
+	if !errors.Is(err, ErrChannelNotWebhook) {
+		t.Errorf("err = %v, want ErrChannelNotWebhook", err)
+	}
+}
+
+func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
+	e := &RuleBasedEngine{Chat: nil}
+	ctx := context.Background()
+	turn := coreconv.ConversationTurn{
+		WorkspaceID: "w_1",
+		Channel:     coreconv.ChannelWebhook,
+		Message:     "task",
+		UserID:      "webhook",
+	}
+	_, err := e.Process(ctx, "w_1", "", turn)
+	if err == nil {
+		t.Fatal("expected error when Chat is nil")
+	}
+	if !errors.Is(err, chatapp.ErrChatRunsNotConfigured) {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
+	e := &RuleBasedEngine{Chat: &chatapp.Service{}} // Chat has nil stores; CreateChat will fail later, but we validate message first
+	ctx := context.Background()
+	turn := coreconv.ConversationTurn{
+		WorkspaceID: "w_1",
+		Channel:     coreconv.ChannelWebhook,
+		Message:     "",
+		UserID:      "webhook",
+	}
+	_, err := e.Process(ctx, "w_1", "", turn)
+	if err == nil {
+		t.Fatal("expected error for empty message")
+	}
+}

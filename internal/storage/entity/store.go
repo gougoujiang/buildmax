@@ -17,7 +17,7 @@ type Store struct {
 	db *gorm.DB
 }
 
-// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Agent, Chat, ChatRun, and ChatRunArtifact.
+// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Agent, Chat, ChatRun, ChatRunArtifact, QuotaTier, Conversation, ConversationMessage, and WorkspaceWebhookKey.
 // If the legacy artifact table exists, migrates data to chat_run_artifact and drops artifact/artifact_item and chat columns.
 // If the old chat_run_output_file table exists, migrates its data to chat_run_artifact and drops it.
 // GORM logger is configured to ignore ErrRecordNotFound so expected "not found" lookups (e.g. GetNextPendingChatRun when idle) do not spam the console.
@@ -29,7 +29,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &ChatRunArtifact{}, &QuotaTier{}, &Conversation{}, &ConversationMessage{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &ChatRun{}, &ChatRunArtifact{}, &QuotaTier{}, &Conversation{}, &ConversationMessage{}, &WorkspaceWebhookKey{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {
