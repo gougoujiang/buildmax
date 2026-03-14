@@ -2,6 +2,7 @@
 
 :root,
 [data-theme="light"] {
+  color-scheme: light;
   --color-bg: #fafafa;
   --color-bg-elevated: #fff;
   --color-bg-muted: #f0f0f0;
@@ -21,6 +22,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --color-bg: #1a1a1a;
   --color-bg-elevated: #2d2d2d;
   --color-bg-muted: #252525;

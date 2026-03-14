@@ -67,6 +67,7 @@
   padding: 0.6rem 0;
   text-align: left;
   font: inherit;
+  font-weight: 400;
   color: var(--color-text);
   background: none;
   border: none;
@@ -104,7 +105,7 @@
 
 .page-activity__task-title {
   font-weight: 400;
-  color: var(--color-text);
+  color: var(--color-text-muted);
 }
 
 .page-activity__meta {

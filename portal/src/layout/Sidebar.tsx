@@ -12,6 +12,7 @@ import SettingsIcon from "../icons/settings.svg?react"
 import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
+import { WorkspaceSelect } from "../components/WorkspaceSelect"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -254,18 +255,12 @@ export function Sidebar({
           <span className="sidebar__workspace-label" title="Workspace">
             Workspace
           </span>
-          <select
-            className="sidebar__workspace-select"
+          <WorkspaceSelect
             value={currentWorkspace.id}
-            onChange={(e) => onWorkspaceChange(e.target.value)}
-            aria-label="Select workspace"
-          >
-            {workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+            options={workspaces}
+            onChange={onWorkspaceChange}
+            ariaLabel="Select workspace"
+          />
           {onNewWorkspace && (
             <button
               type="button"

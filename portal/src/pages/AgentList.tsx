@@ -130,13 +130,6 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         <div className="page-activity__actions">
           <button
             type="button"
-            className="page-activity__action-btn"
-            onClick={() => navigate({ name: "workspace", workspaceId })}
-          >
-            Back to workspace
-          </button>
-          <button
-            type="button"
             className="page-activity__action-btn agent-list__create-btn"
             onClick={() => {
               setError(null)
