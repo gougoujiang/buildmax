@@ -49,9 +49,15 @@ portal/node_modules/
 portal/dist/
 portal/*.tsbuildinfo
 
-# Desktop app (Wails)
+# Desktop app (Wails) — frontend in desktop/frontend (React + Vite)
 cmd/buildmax-desktop/build/
-cmd/buildmax-desktop/frontend/wailsjs/
+desktop/frontend/wailsjs/
+desktop/frontend/node_modules/
+desktop/frontend/dist/
+desktop/frontend/.env
+desktop/frontend/.env.*
+desktop/frontend/*.tsbuildinfo
+desktop/frontend/package.json.md5
 
 # Setup (kind/minio/mysql dev env)
 setup/.port-forward.pid

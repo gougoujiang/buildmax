@@ -16,7 +16,7 @@ usage() {
   echo ""
   echo "Commands:"
   echo "  build         Build $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, and desktop app (output: $SCRIPT_DIR/; desktop: $DESKTOP_DIR/build/)"
-  echo "  clean         Remove $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, $DESKTOP_DIR/build, portal/node_modules, portal/dist"
+  echo "  clean         Remove binaries, $DESKTOP_DIR/build, portal and desktop frontend (node_modules, dist)"
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
   echo "  run server    Build $SERVER_BINARY and start HTTP server (default port 5678)"
@@ -63,8 +63,8 @@ cmd_run_portal() {
 }
 
 cmd_run_desktop() {
-  if [[ ! -d "$SCRIPT_DIR/cmd/buildmax-desktop" ]]; then
-    echo "Error: cmd/buildmax-desktop/ directory not found"
+  if [[ ! -d "$SCRIPT_DIR/$DESKTOP_DIR" ]]; then
+    echo "Error: $DESKTOP_DIR/ directory not found"
     return 1
   fi
   if ! command -v wails &>/dev/null; then
@@ -72,8 +72,17 @@ cmd_run_desktop() {
     echo "Ensure \$HOME/go/bin or \$GOPATH/bin is in your PATH."
     return 1
   fi
+  local frontend_dir="$SCRIPT_DIR/desktop/frontend"
+  if [[ ! -d "$frontend_dir" ]]; then
+    echo "Error: desktop/frontend/ directory not found"
+    return 1
+  fi
+  if [[ ! -d "$frontend_dir/node_modules" ]]; then
+    echo "Installing desktop frontend dependencies..."
+    (cd "$frontend_dir" && npm install)
+  fi
   echo "Starting desktop app (Wails dev mode; Ctrl+C to stop)..."
-  (cd "$SCRIPT_DIR/cmd/buildmax-desktop" && wails dev)
+  (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails dev)
 }
 
 cmd_build() {
@@ -100,17 +109,29 @@ cmd_build() {
     echo "Warning: wails CLI not found; skipping desktop app. Run ./make setup or: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
   elif [[ ! -d "$SCRIPT_DIR/$DESKTOP_DIR" ]]; then
     echo "Warning: $DESKTOP_DIR not found; skipping desktop app."
-  elif (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails build); then
-    echo "Built desktop app at $SCRIPT_DIR/$DESKTOP_DIR/build/"
+  elif [[ ! -d "$SCRIPT_DIR/desktop/frontend" ]]; then
+    echo "Warning: desktop/frontend/ not found; skipping desktop app."
   else
-    echo "Warning: desktop app build failed (see above)."
+    local frontend_dir="$SCRIPT_DIR/desktop/frontend"
+    if [[ ! -d "$frontend_dir/node_modules" ]]; then
+      echo "  Installing desktop frontend dependencies..."
+      (cd "$frontend_dir" && npm install) || { echo "Warning: desktop frontend npm install failed; skipping desktop app."; return 0; }
+    fi
+    echo "  Building desktop frontend (React)..."
+    (cd "$frontend_dir" && npm run build) || { echo "Warning: desktop frontend build failed; skipping desktop app."; return 0; }
+    if (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails build); then
+      echo "Built desktop app at $SCRIPT_DIR/$DESKTOP_DIR/build/"
+    else
+      echo "Warning: desktop app (wails build) failed (see above)."
+    fi
   fi
 }
 
 cmd_clean() {
   rm -f "$CLI_BINARY" "$SERVER_BINARY" "$WORKER_BINARY"
   rm -rf "$DESKTOP_DIR/build" portal/node_modules portal/dist
-  echo "Cleaned: $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, $DESKTOP_DIR/build, portal/node_modules, portal/dist"
+  rm -rf desktop/frontend/node_modules desktop/frontend/dist
+  echo "Cleaned: binaries, $DESKTOP_DIR/build, portal/node_modules, portal/dist, desktop/frontend/node_modules, desktop/frontend/dist"
 }
 
 cmd_test() {
