@@ -15,8 +15,8 @@ func Run(assets fs.FS) error {
 	app := NewApp()
 	return wails.Run(&options.App{
 		Title:  "BuildMax",
-		Width:  900,
-		Height: 600,
+		Width:  1280,
+		Height: 800,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

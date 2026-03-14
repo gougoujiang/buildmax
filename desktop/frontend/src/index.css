@@ -1,3 +1,5 @@
+@import './css/theme.css';
+
 * {
   box-sizing: border-box;
 }
@@ -5,8 +7,8 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #1a1a2e;
-  color: #e4e4e7;
+  background: var(--color-bg);
+  color: var(--color-text);
   min-height: 100vh;
   overflow: hidden;
 }
@@ -22,13 +24,13 @@ body {
   min-width: 260px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #27272a;
-  background: #18181b;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
 }
 
 .sidebar-header {
   padding: 1rem 1rem 0.75rem;
-  border-bottom: 1px solid #27272a;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sidebar-title {
@@ -37,7 +39,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #a1a1aa;
+  color: var(--color-text-subtle);
 }
 
 .thread-list {
@@ -60,12 +62,13 @@ body {
 }
 
 .thread-item:hover {
-  background: #27272a;
+  background: var(--color-bg-hover);
 }
 
 .thread-item.active {
-  background: #3f3f46;
-  color: #fff;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }
 
 .thread-title {
@@ -78,11 +81,11 @@ body {
 
 .thread-meta {
   font-size: 0.75rem;
-  color: #71717a;
+  color: var(--color-text-muted);
 }
 
 .thread-item.active .thread-meta {
-  color: #a1a1aa;
+  color: var(--color-text-subtle);
 }
 
 /* ---- Main panel (chat history) ---- */
@@ -91,18 +94,24 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #1a1a2e;
+  background: var(--color-bg);
 }
 
 .chat-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #27272a;
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .chat-title {
   font-size: 0.9375rem;
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
 }
 
 .chat-history {
@@ -116,7 +125,7 @@ body {
 
 .chat-empty {
   margin: auto;
-  color: #71717a;
+  color: var(--color-text-muted);
   font-size: 0.875rem;
 }
 
@@ -128,14 +137,14 @@ body {
 
 .message--user {
   align-self: flex-end;
-  background: #3b82f6;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .message--assistant {
   align-self: flex-start;
-  background: #27272a;
-  border: 1px solid #3f3f46;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
 }
 
 .message-role {
@@ -144,11 +153,15 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 0.375rem;
-  color: #a1a1aa;
+  color: var(--color-text-subtle);
 }
 
 .message--user .message-role {
   color: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="dark"] .message--user .message-role {
+  color: rgba(0, 0, 0, 0.75);
 }
 
 .message-content {
@@ -162,4 +175,31 @@ body {
   content: '';
   display: block;
   margin-top: 0.25em;
+}
+
+/* Theme toggle (same as portal) */
+.theme-toggle {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0.35rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.theme-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.theme-toggle__icon {
+  width: 1.35rem;
+  height: 1.35rem;
 }

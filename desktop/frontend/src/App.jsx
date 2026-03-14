@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { ThemeProvider } from './ThemeContext';
+import { ThemeToggle } from './ThemeToggle';
 
 const MOCK_THREADS = [
   { id: '1', title: 'Summarize project README', updatedAt: '2 min ago' },
@@ -49,36 +51,38 @@ export default function App() {
   }, [selectedId]);
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <h2 className="sidebar-title">Chats</h2>
-        </div>
-        <ul className="thread-list" role="list">
-          {MOCK_THREADS.map((t) => (
-            <li
-              key={t.id}
-              className={`thread-item ${t.id === selectedId ? 'active' : ''}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedId(t.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSelectedId(t.id);
-                }
-              }}
-            >
-              <span className="thread-title">{t.title}</span>
-              <span className="thread-meta">{t.updatedAt}</span>
-            </li>
-          ))}
-        </ul>
-      </aside>
-      <main className="main-panel">
-        <div className="chat-header">
-          <span className="chat-title">{thread ? thread.title : 'Select a chat'}</span>
-        </div>
+    <ThemeProvider>
+      <div className="app">
+        <aside className="sidebar">
+          <div className="sidebar-header">
+            <h2 className="sidebar-title">Chats</h2>
+          </div>
+          <ul className="thread-list" role="list">
+            {MOCK_THREADS.map((t) => (
+              <li
+                key={t.id}
+                className={`thread-item ${t.id === selectedId ? 'active' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedId(t.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedId(t.id);
+                  }
+                }}
+              >
+                <span className="thread-title">{t.title}</span>
+                <span className="thread-meta">{t.updatedAt}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+        <main className="main-panel">
+          <div className="chat-header">
+            <span className="chat-title">{thread ? thread.title : 'Select a chat'}</span>
+            <ThemeToggle />
+          </div>
         <div className="chat-history" ref={historyRef} role="log" aria-live="polite">
           {!messages && <p className="chat-empty">Select a chat from the list.</p>}
           {messages?.map((m, i) => (
@@ -88,7 +92,8 @@ export default function App() {
             </div>
           ))}
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </ThemeProvider>
   );
 }
