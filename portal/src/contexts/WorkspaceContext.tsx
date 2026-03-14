@@ -5,7 +5,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react"
-import type { Artifact, Route, Chat } from "../lib/types"
+import type { Artifact, Route, Chat, Conversation } from "../lib/types"
 import type { ApiWorkspace } from "../lib/api"
 import { getWorkspaceScope, useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
@@ -22,10 +22,12 @@ export interface WorkspaceContextValue {
   scope: ReturnType<typeof getWorkspaceScope>
   workspaces: ApiWorkspace[]
   workspaceChats: Chat[]
+  workspaceConversations: Conversation[]
   artifacts: Artifact[]
   loadingWorkspaces: boolean
   refetchWorkspaces: () => Promise<void>
   refetchWorkspaceChats: () => Promise<void>
+  refetchWorkspaceConversations: () => Promise<void>
   refetchArtifacts: (chatId?: string) => void
   /** Set when navigating from New Chat so ChatDetail can render immediately and show initial query. */
   pendingChat: PendingChat | null
@@ -50,10 +52,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     scope,
     workspaces: data.workspaces,
     workspaceChats: data.workspaceChats,
+    workspaceConversations: data.workspaceConversations,
     artifacts: data.artifacts,
     loadingWorkspaces: data.loadingWorkspaces,
     refetchWorkspaces: data.refetchWorkspaces,
     refetchWorkspaceChats: data.refetchWorkspaceChats,
+    refetchWorkspaceConversations: data.refetchWorkspaceConversations,
     refetchArtifacts: data.refetchArtifacts,
     pendingChat,
     setPendingChat,

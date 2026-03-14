@@ -1,91 +1,42 @@
-import { useState } from "react"
-import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
+import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
 import { navigate } from "../router"
-import { getErrorMessage } from "../lib/errorMessage"
-import { createChat } from "../lib/api"
-import { chatStatusIcon } from "../lib/chatStatus"
-import { PromptArea } from "../components/PromptArea"
 
 interface WorkspaceHomeProps {
   workspaceId: string
-  workspaceChats: Chat[]
+  workspaceConversations: Conversation[]
   artifacts: Artifact[]
-  token?: string
-  onRefetchWorkspaceChats?: () => void
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
-const RECENT_CHATS = 5
+const RECENT_CONVERSATIONS = 5
 
 export function WorkspaceHome({
   workspaceId,
-  workspaceChats,
+  workspaceConversations,
   artifacts,
-  token,
-  onRefetchWorkspaceChats,
   onViewArtifact,
 }: WorkspaceHomeProps) {
-  const [prompt, setPrompt] = useState("")
-  const [running, setRunning] = useState(false)
-  const [runError, setRunError] = useState<string | null>(null)
-
-  async function handleRun() {
-    const input = prompt.trim()
-    if (!input || !token || running) return
-    setRunning(true)
-    setRunError(null)
-    try {
-      const chat = await createChat(workspaceId, { input }, token)
-      setPrompt("")
-      onRefetchWorkspaceChats?.()
-      navigate({ name: "chat", workspaceId, chatId: chat.id })
-    } catch (err) {
-      setRunError(getErrorMessage(err, "Failed to start chat"))
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  const recentChats = workspaceChats.slice(0, RECENT_CHATS)
+  const recentConversations = workspaceConversations.slice(0, RECENT_CONVERSATIONS)
 
   return (
     <div className="page-workspace">
-      <PromptArea
-        value={prompt}
-        onChange={(v) => { setPrompt(v); setRunError(null) }}
-        onRun={handleRun}
-        heading="What would you like to accomplish?"
-      />
-      {runError && (
-        <p className="page-workspace__error" role="alert">
-          {runError}
-        </p>
-      )}
-
       <section className="page-workspace__chats">
-        <h2 className="page-workspace__heading">Recent chats</h2>
-        {recentChats.length === 0 ? (
-          <p className="page-workspace__empty">No chats yet. Start one above or use New Chat in the sidebar.</p>
+        <h2 className="page-workspace__heading">Recent conversations</h2>
+        {recentConversations.length === 0 ? (
+          <p className="page-workspace__empty">No conversations yet. Use New Chat in the sidebar to start one.</p>
         ) : (
           <ul className="page-workspace__list">
-            {recentChats.map((chat) => (
-              <li key={chat.id} className="page-workspace__chat-card">
+            {recentConversations.map((conv) => (
+              <li key={conv.id} className="page-workspace__chat-card">
                 <button
                   type="button"
                   className="page-workspace__chat-link"
                   onClick={() =>
-                    navigate({ name: "chat", workspaceId, chatId: chat.id })
+                    navigate({ name: "conversation", workspaceId, conversationId: conv.id })
                   }
                 >
-                  <span className="page-workspace__chat-name">
-                    {chat.title?.trim() || "New chat"}
-                  </span>
-                  <span className="page-workspace__chat-status">
-                    {chatStatusIcon(chat.status)}
-                  </span>
-                  <span className="page-workspace__chat-time">
-                    {chat.timeLabel}
-                  </span>
+                  <span className="page-workspace__chat-name">Conversation</span>
+                  <span className="page-workspace__chat-time">{conv.timeLabel}</span>
                 </button>
               </li>
             ))}

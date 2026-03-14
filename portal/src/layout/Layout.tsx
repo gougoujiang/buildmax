@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Chat, Workspace } from "../lib/types"
+import type { Conversation, Workspace } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { useWorkspace } from "../contexts/WorkspaceContext"
@@ -11,7 +11,7 @@ export interface LayoutProps {
   currentWorkspace: Workspace
   workspaces: { id: string; name: string }[]
   onNewWorkspace?: () => void
-  workspaceChats: Chat[]
+  workspaceConversations: Conversation[]
   user: LoginUser
   onLogout: () => void
   children: ReactNode
@@ -21,7 +21,7 @@ export function Layout({
   currentWorkspace,
   workspaces,
   onNewWorkspace,
-  workspaceChats,
+  workspaceConversations,
   user,
   onLogout,
   children,
@@ -38,13 +38,13 @@ export function Layout({
           workspaces={workspaces}
           onWorkspaceChange={(workspaceId) => navigate({ name: "workspace", workspaceId })}
           onNewWorkspace={onNewWorkspace}
-          workspaceChats={workspaceChats}
+          workspaceConversations={workspaceConversations}
           user={user}
           onLogout={onLogout}
         />
         <main className="shell__main">
           <div className="shell__top">
-            <Breadcrumbs route={route} workspaceChats={workspaceChats} />
+            <Breadcrumbs route={route} workspaceConversations={workspaceConversations} />
             <ThemeToggle />
           </div>
           <div className="shell__content">{children}</div>

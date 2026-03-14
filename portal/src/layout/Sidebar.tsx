@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "../lib/cn"
-import type { Route, Chat } from "../lib/types"
+import type { Route, Conversation } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
@@ -35,7 +35,7 @@ interface SidebarProps {
   workspaces: { id: string; name: string }[]
   onWorkspaceChange: (workspaceId: string) => void
   onNewWorkspace?: () => void
-  workspaceChats: Chat[]
+  workspaceConversations: Conversation[]
   user: LoginUser
   onLogout: () => void
 }
@@ -44,8 +44,8 @@ function isAgentsActive(route: Route): boolean {
   return route.name === "agents"
 }
 
-function isChatActive(route: Route, chatId: string): boolean {
-  return route.name === "chat" && route.chatId === chatId
+function isConversationActive(route: Route, conversationId: string): boolean {
+  return route.name === "conversation" && route.conversationId === conversationId
 }
 
 export function Sidebar({
@@ -55,31 +55,31 @@ export function Sidebar({
   workspaces,
   onWorkspaceChange,
   onNewWorkspace,
-  workspaceChats,
+  workspaceConversations,
   user,
   onLogout,
 }: SidebarProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [chatsCollapsed, setChatsCollapsed] = useState(false)
-  const [chatsPopupOpen, setChatsPopupOpen] = useState(false)
+  const [conversationsCollapsed, setConversationsCollapsed] = useState(false)
+  const [conversationsPopupOpen, setConversationsPopupOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const chatsTriggerRef = useRef<HTMLDivElement>(null)
-  const chatsCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const chats = workspaceChats.slice(0, CHATS_LIMIT)
-  const hasMoreChats = workspaceChats.length > CHATS_LIMIT
+  const conversationsTriggerRef = useRef<HTMLDivElement>(null)
+  const conversationsCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const conversations = workspaceConversations.slice(0, CHATS_LIMIT)
+  const hasMoreConversations = workspaceConversations.length > CHATS_LIMIT
 
-  function openChatsPopup() {
-    if (chatsCloseTimeoutRef.current) {
-      clearTimeout(chatsCloseTimeoutRef.current)
-      chatsCloseTimeoutRef.current = null
+  function openConversationsPopup() {
+    if (conversationsCloseTimeoutRef.current) {
+      clearTimeout(conversationsCloseTimeoutRef.current)
+      conversationsCloseTimeoutRef.current = null
     }
-    setChatsPopupOpen(true)
+    setConversationsPopupOpen(true)
   }
 
-  function scheduleCloseChatsPopup() {
-    chatsCloseTimeoutRef.current = setTimeout(() => setChatsPopupOpen(false), 150)
+  function scheduleCloseConversationsPopup() {
+    conversationsCloseTimeoutRef.current = setTimeout(() => setConversationsPopupOpen(false), 150)
   }
 
   useEffect(() => {
@@ -138,48 +138,46 @@ export function Sidebar({
           </button>
           <div
             className="sidebar__chats"
-            ref={chatsTriggerRef}
-            onMouseEnter={sidebarCollapsed ? openChatsPopup : undefined}
-            onMouseLeave={sidebarCollapsed ? scheduleCloseChatsPopup : undefined}
+            ref={conversationsTriggerRef}
+            onMouseEnter={sidebarCollapsed ? openConversationsPopup : undefined}
+            onMouseLeave={sidebarCollapsed ? scheduleCloseConversationsPopup : undefined}
           >
             <button
               type="button"
               className="sidebar__chats-toggle"
-              onClick={() => setChatsCollapsed((c) => !c)}
-              aria-expanded={!chatsCollapsed}
-              aria-controls="sidebar-chats-list"
+              onClick={() => setConversationsCollapsed((c) => !c)}
+              aria-expanded={!conversationsCollapsed}
+              aria-controls="sidebar-conversations-list"
             >
               <RecentIcon className="sidebar__nav-icon" aria-hidden />
-              <span className="sidebar__heading">Recent Chats</span>
+              <span className="sidebar__heading">Recent</span>
               <span className="sidebar__chats-chevron" aria-hidden>
-                {chatsCollapsed ? "▶" : "▼"}
+                {conversationsCollapsed ? "▶" : "▼"}
               </span>
             </button>
             {!sidebarCollapsed && (
               <div
-                id="sidebar-chats-list"
+                id="sidebar-conversations-list"
                 className="sidebar__chats-list"
-                hidden={chatsCollapsed}
+                hidden={conversationsCollapsed}
               >
                 <ul className="sidebar__list">
-                  {chats.map((chat) => (
-                    <li key={chat.id} className="sidebar__item">
+                  {conversations.map((conv) => (
+                    <li key={conv.id} className="sidebar__item">
                       <button
                         type="button"
-                        className={cn("sidebar__link", isChatActive(route, chat.id) && "sidebar__link--active")}
+                        className={cn("sidebar__link", isConversationActive(route, conv.id) && "sidebar__link--active")}
                         onClick={() =>
-                          navigate({ name: "chat", workspaceId, chatId: chat.id })
+                          navigate({ name: "conversation", workspaceId, conversationId: conv.id })
                         }
                       >
-                        <span className="sidebar__chat-title">
-                          {chat.title?.trim() || "New chat"}
-                        </span>
-                        <span className="sidebar__chat-meta">{chat.timeLabel}</span>
+                        <span className="sidebar__chat-title">Conversation</span>
+                        <span className="sidebar__chat-meta">{conv.timeLabel}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
-                {hasMoreChats && (
+                {hasMoreConversations && (
                   <button
                     type="button"
                     className="sidebar__chats-see-all"
@@ -192,45 +190,43 @@ export function Sidebar({
             )}
           </div>
           {sidebarCollapsed &&
-            chatsPopupOpen &&
-            chatsTriggerRef.current &&
+            conversationsPopupOpen &&
+            conversationsTriggerRef.current &&
             createPortal(
               <div
                 className="sidebar__chats-list sidebar__chats-list--portal"
-                onMouseEnter={openChatsPopup}
-                onMouseLeave={scheduleCloseChatsPopup}
+                onMouseEnter={openConversationsPopup}
+                onMouseLeave={scheduleCloseConversationsPopup}
                 style={{
                   position: "fixed",
-                  left: chatsTriggerRef.current.getBoundingClientRect().right + 4,
-                  top: chatsTriggerRef.current.getBoundingClientRect().top,
+                  left: conversationsTriggerRef.current.getBoundingClientRect().right + 4,
+                  top: conversationsTriggerRef.current.getBoundingClientRect().top,
                   zIndex: 1000,
                 }}
               >
                 <ul className="sidebar__list">
-                  {chats.map((chat) => (
-                    <li key={chat.id} className="sidebar__item">
+                  {conversations.map((conv) => (
+                    <li key={conv.id} className="sidebar__item">
                       <button
                         type="button"
-                        className={cn("sidebar__link", isChatActive(route, chat.id) && "sidebar__link--active")}
+                        className={cn("sidebar__link", isConversationActive(route, conv.id) && "sidebar__link--active")}
                         onClick={() => {
-                          setChatsPopupOpen(false)
-                          navigate({ name: "chat", workspaceId, chatId: chat.id })
+                          setConversationsPopupOpen(false)
+                          navigate({ name: "conversation", workspaceId, conversationId: conv.id })
                         }}
                       >
-                        <span className="sidebar__chat-title">
-                          {chat.title?.trim() || "New chat"}
-                        </span>
-                        <span className="sidebar__chat-meta">{chat.timeLabel}</span>
+                        <span className="sidebar__chat-title">Conversation</span>
+                        <span className="sidebar__chat-meta">{conv.timeLabel}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
-                {hasMoreChats && (
+                {hasMoreConversations && (
                   <button
                     type="button"
                     className="sidebar__chats-see-all"
                     onClick={() => {
-                      setChatsPopupOpen(false)
+                      setConversationsPopupOpen(false)
                       navigate({ name: "chats", workspaceId })
                     }}
                   >

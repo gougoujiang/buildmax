@@ -3,8 +3,8 @@
  * Imports API types from ./types and UI types from ../types.
  */
 
-import type { ApiAgent, ApiArtifact, ApiChat } from "./types"
-import type { Agent, Artifact, Chat } from "../types"
+import type { ApiAgent, ApiArtifact, ApiChat, ApiConversation } from "./types"
+import type { Agent, Artifact, Chat, Conversation } from "../types"
 
 /** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
 function formatRelativeTime(secondsSinceEpoch: number): string {
@@ -77,5 +77,14 @@ export function apiChatToChat(api: ApiChat): Chat {
     timeLabel: formatRelativeTime(ts),
     summary,
     agentId: api.agent_id ?? undefined,
+  }
+}
+
+export function apiConversationToConversation(api: ApiConversation): Conversation {
+  return {
+    id: api.id,
+    channel: api.channel,
+    created_at: api.created_at,
+    timeLabel: formatRelativeTime(api.created_at),
   }
 }

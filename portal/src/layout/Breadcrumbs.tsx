@@ -1,34 +1,34 @@
-import type { Route, Chat } from "../lib/types"
+import type { Route, Conversation } from "../lib/types"
 import { navigate } from "../router"
 
 interface BreadcrumbsProps {
   route: Route
-  workspaceChats?: Chat[]
+  workspaceConversations?: Conversation[]
 }
 
-export function Breadcrumbs({ route, workspaceChats = [] }: BreadcrumbsProps) {
+export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsProps) {
   const workspaceId = route.workspaceId
   let crumbs: { label: string; route: Route }[] = []
 
   if (route.name === "newChat") {
     crumbs = [{ label: "New Chat", route: { name: "newChat", workspaceId } }]
   } else if (route.name === "chats") {
-    crumbs = [{ label: "Chats", route: { name: "chats", workspaceId } }]
+    crumbs = [{ label: "Conversations", route: { name: "chats", workspaceId } }]
   } else if (route.name === "explore") {
     crumbs = [{ label: "Files", route: { name: "explore", workspaceId } }]
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
-  } else if (route.name === "chat") {
-    const chat = workspaceChats.find((c) => c.id === route.chatId)
-    const chatTitle = chat?.title?.trim() || "Chat"
-    crumbs = [
-      { label: "Chats", route: { name: "chats", workspaceId } },
-      { label: chatTitle, route },
-    ]
   } else if (route.name === "conversation") {
+    const conv = workspaceConversations.find((c) => c.id === route.conversationId)
+    const convLabel = conv ? conv.timeLabel : "Conversation"
     crumbs = [
       { label: "New Chat", route: { name: "newChat", workspaceId } },
-      { label: "Conversation", route },
+      { label: convLabel, route },
+    ]
+  } else if (route.name === "chat") {
+    crumbs = [
+      { label: "Conversations", route: { name: "chats", workspaceId } },
+      { label: "Chat", route },
     ]
   } else {
     crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]

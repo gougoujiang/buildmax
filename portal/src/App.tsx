@@ -17,7 +17,7 @@ function AppContent() {
   const {
     route,
     workspaces,
-    workspaceChats,
+    workspaceConversations,
     loadingWorkspaces,
     refetchWorkspaces,
   } = useWorkspace()
@@ -80,7 +80,7 @@ function AppContent() {
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
         onNewWorkspace={handleNewWorkspace}
-        workspaceChats={workspaceChats}
+        workspaceConversations={workspaceConversations}
         user={user!}
         onLogout={logout}
       >

@@ -49,6 +49,7 @@ export {
   apiAgentToAgent,
   apiArtifactToArtifact,
   apiChatToChat,
+  apiConversationToConversation,
 } from "./mappers"
 
 const jsonHeaders = { "Content-Type": "application/json" }

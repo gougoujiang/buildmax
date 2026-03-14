@@ -5,18 +5,17 @@ import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
 import { createConversationStream } from "../lib/api"
-import { chatStatusIcon } from "../lib/chatStatus"
 import { FilesPanel } from "../components/FilesPanel"
 import { useWorkspace } from "../contexts/WorkspaceContext"
-import type { Artifact, Chat, ViewArtifactParams } from "../lib/types"
+import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
 
-type NewChatTab = "chats" | "artifacts" | "files"
+type NewChatTab = "conversations" | "artifacts" | "files"
 
 interface NewChatProps {
   workspaceId: string
   token?: string
-  onRefetchWorkspaceChats?: () => void
-  workspaceChats: Chat[]
+  onRefetchWorkspaceConversations?: () => void
+  workspaceConversations: Conversation[]
   artifacts: Artifact[]
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
@@ -24,8 +23,8 @@ interface NewChatProps {
 export function NewChat({
   workspaceId,
   token,
-  onRefetchWorkspaceChats,
-  workspaceChats,
+  onRefetchWorkspaceConversations,
+  workspaceConversations,
   artifacts,
   onViewArtifact,
 }: NewChatProps) {
@@ -33,7 +32,7 @@ export function NewChat({
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<NewChatTab>("chats")
+  const [activeTab, setActiveTab] = useState<NewChatTab>("conversations")
   const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null)
   const [streamingContent, setStreamingContent] = useState("")
   const conversationIdRef = useRef<string | null>(null)
@@ -68,7 +67,7 @@ export function NewChat({
               const id = conversationIdRef.current
               if (id) {
                 navigate({ name: "conversation", workspaceId, conversationId: id })
-                onRefetchWorkspaceChats?.()
+                onRefetchWorkspaceConversations?.()
               }
             }
           },
@@ -137,17 +136,17 @@ export function NewChat({
       </section>
 
       <div className="page-new-chat__tabs">
-        <div className="page-new-chat__tab-list" role="tablist" aria-label="Chats, artifacts, and files">
+        <div className="page-new-chat__tab-list" role="tablist" aria-label="Conversations, artifacts, and files">
           <button
             type="button"
             role="tab"
-            aria-selected={activeTab === "chats"}
-            aria-controls="new-chat-tabpanel-chats"
-            id="new-chat-tab-chats"
-            className={cn("page-new-chat__tab", activeTab === "chats" && "page-new-chat__tab--active")}
-            onClick={() => setActiveTab("chats")}
+            aria-selected={activeTab === "conversations"}
+            aria-controls="new-chat-tabpanel-conversations"
+            id="new-chat-tab-conversations"
+            className={cn("page-new-chat__tab", activeTab === "conversations" && "page-new-chat__tab--active")}
+            onClick={() => setActiveTab("conversations")}
           >
-            Chats
+            Conversations
           </button>
           <button
             type="button"
@@ -174,37 +173,34 @@ export function NewChat({
         </div>
 
         <div
-          id="new-chat-tabpanel-chats"
+          id="new-chat-tabpanel-conversations"
           role="tabpanel"
-          aria-labelledby="new-chat-tab-chats"
-          hidden={activeTab !== "chats"}
+          aria-labelledby="new-chat-tab-conversations"
+          hidden={activeTab !== "conversations"}
           className="page-new-chat__tabpanel"
         >
-          {activeTab === "chats" && (
+          {activeTab === "conversations" && (
             <div className="page-new-chat__chats">
-              {workspaceChats.length === 0 ? (
-                <p className="page-activity__empty">No chats yet.</p>
+              {workspaceConversations.length === 0 ? (
+                <p className="page-activity__empty">No conversations yet.</p>
               ) : (
                 <ul className="page-activity__list">
-                  {workspaceChats.map((chat) => (
-                    <li key={chat.id} className="page-activity__item">
+                  {workspaceConversations.map((conv) => (
+                    <li key={conv.id} className="page-activity__item">
                       <button
                         type="button"
                         className="page-activity__link"
                         onClick={() =>
                           navigate({
-                            name: "chat",
+                            name: "conversation",
                             workspaceId,
-                            chatId: chat.id,
+                            conversationId: conv.id,
                           })
                         }
                       >
-                        <span className="page-activity__icon">
-                          {chatStatusIcon(chat.status)}
-                        </span>
                         <span className="page-activity__content">
-                          <span className="page-activity__task-title">{chat.title}</span>
-                          <span className="page-activity__meta">{chat.timeLabel}</span>
+                          <span className="page-activity__task-title">Conversation</span>
+                          <span className="page-activity__meta">{conv.timeLabel}</span>
                         </span>
                       </button>
                     </li>

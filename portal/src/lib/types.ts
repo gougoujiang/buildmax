@@ -25,6 +25,14 @@ export interface Artifact {
   title: string
 }
 
+/** Tier 1 conversation (user-facing dialogue). */
+export interface Conversation {
+  id: string
+  channel: string
+  created_at: number
+  timeLabel: string
+}
+
 // --- Workspace scope (derived from route) ---
 // Scope = what is in context for the current view (workspaceId; chatId when on chat).
 // Route = URL state; scope = derived context for data and display.

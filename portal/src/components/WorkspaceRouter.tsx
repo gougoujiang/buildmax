@@ -20,9 +20,11 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
   const {
     route,
     workspaceChats,
+    workspaceConversations,
     artifacts,
     token,
     refetchWorkspaceChats,
+    refetchWorkspaceConversations,
     pendingChat,
     setPendingChat,
   } = useWorkspace()
@@ -38,10 +40,8 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
   const fallbackHome = (
     <WorkspaceHome
       workspaceId={route.workspaceId}
-      workspaceChats={workspaceChats}
+      workspaceConversations={workspaceConversations}
       artifacts={artifacts}
-      token={token ?? undefined}
-      onRefetchWorkspaceChats={refetchWorkspaceChats}
       onViewArtifact={onViewArtifact}
     />
   )
@@ -52,8 +52,8 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
       <NewChat
         workspaceId={route.workspaceId}
         token={token ?? undefined}
-        onRefetchWorkspaceChats={refetchWorkspaceChats}
-        workspaceChats={workspaceChats}
+        onRefetchWorkspaceConversations={refetchWorkspaceConversations}
+        workspaceConversations={workspaceConversations}
         artifacts={artifacts}
         onViewArtifact={onViewArtifact}
       />
@@ -63,8 +63,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
     return (
       <Chats
         workspaceId={route.workspaceId}
-        chats={workspaceChats}
-        token={token ?? null}
+        conversations={workspaceConversations}
       />
     )
   }
@@ -99,7 +98,7 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
       <ConversationDetail
         conversationId={route.conversationId}
         workspaceId={route.workspaceId}
-        onRefetch={refetchWorkspaceChats}
+        onRefetch={refetchWorkspaceConversations}
       />
     )
   }
