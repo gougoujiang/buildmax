@@ -20,7 +20,7 @@ usage() {
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
   echo "  run server    Build $SERVER_BINARY and start HTTP server (default port 5678)"
   echo "  run portal    Start Portal dev server (Vite; installs deps if needed)"
-  echo "  bump          Bump Version in internal/cmd/root.go (arg: patch|minor|major, default: patch)"
+  echo "  bump          Bump Version in internal/cmd/cli/root.go (arg: patch|minor|major, default: patch)"
   echo "  install       Install buildmax, buildmax-server, buildmax-worker to ~/.local/bin"
   echo "  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent)"
   echo "  unsetup       Tear down kind cluster and MinIO port-forward (brew tools kept)"
@@ -103,7 +103,7 @@ cmd_smoke() {
 }
 
 cmd_bump_version() {
-  local root_go="$SCRIPT_DIR/internal/cmd/root.go"
+  local root_go="$SCRIPT_DIR/internal/cmd/cli/root.go"
   if [[ ! -f "$root_go" ]]; then
     echo "Error: $root_go not found"
     return 1
