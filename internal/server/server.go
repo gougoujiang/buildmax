@@ -13,6 +13,8 @@ import (
 	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
+	"buildmax/internal/server/auth"
+	"buildmax/internal/server/portal"
 	"buildmax/internal/server/worker"
 	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/blob"
@@ -99,7 +101,18 @@ type Server struct {
 	hub streamhub.StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
-// New builds an HTTP server with routes for /healthz, /openapi.json, /swagger/, and POST /api/login.
+// chatTitleGenAdapter adapts server ChatTitleGenerator to portal.ChatTitleGenerator (TokenUsage type).
+type chatTitleGenAdapter struct{ gen ChatTitleGenerator }
+
+func (a chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, portal.TokenUsage, error) {
+	if a.gen == nil {
+		return "", portal.TokenUsage{}, nil
+	}
+	title, usage, err := a.gen.GenerateChatTitle(ctx, input)
+	return title, portal.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
+}
+
+// New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and worker.
 func New(cfg Config) *Server {
 	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
 	mux := http.NewServeMux()
@@ -108,31 +121,30 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
-	mux.HandleFunc("POST /api/otp/request", s.otpRequestHandler)
-	mux.HandleFunc("POST /api/login", s.loginHandler)
-	mux.HandleFunc("GET /api/usage", s.usageHandler)
-	mux.HandleFunc("GET /api/workspaces", s.workspacesHandler)
-	mux.HandleFunc("POST /api/workspaces", s.createWorkspaceHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents", s.listAgentsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/agents", s.createAgentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents/{agent_id}", s.getAgentHandler)
-	mux.HandleFunc("PATCH /api/workspaces/{workspace_id}/agents/{agent_id}", s.patchAgentHandler)
-	mux.HandleFunc("DELETE /api/workspaces/{workspace_id}/agents/{agent_id}", s.deleteAgentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats", s.listWorkspaceChatsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/chats", s.createWorkspaceChatHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/chats/{chat_id}/runs", s.createChatRunHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts", s.listWorkspaceArtifactsHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{chat_run_id}/items", s.listArtifactItemsHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{chat_run_id}/content", s.artifactContentHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/upload", s.uploadHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", s.filesTreeHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", s.fileContentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/conversation", s.getChatConversationHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream", s.getChatStreamHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations", s.listConversationsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations", s.createConversationHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", s.getConversationMessagesHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", s.addConversationMessageHandler)
+	auth.NewHandler(auth.Config{
+		UserStore:        cfg.Stores.UserStore,
+		JWTSecret:        cfg.Auth.JWTSecret,
+		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
+	}).Register(mux)
+	portal.NewHandler(portal.Config{
+		JWTSecret:                cfg.Auth.JWTSecret,
+		WorkspaceStore:           cfg.Stores.WorkspaceStore,
+		AgentStore:               cfg.Stores.AgentStore,
+		ChatStore:                cfg.Stores.ChatStore,
+		ChatRunStore:             cfg.Stores.ChatRunStore,
+		RunOutputLister:          cfg.Stores.RunOutputLister,
+		PersistStorage:           cfg.Storage.PersistStorage,
+		ArtifactStorage:          cfg.Storage.ArtifactStorage,
+		WorkspacesDir:            cfg.Storage.WorkspacesDir,
+		QuotaChecker:             cfg.Auth.QuotaChecker,
+		ChatTitleGenerator:       chatTitleGenAdapter{cfg.Conv.ChatTitleGenerator},
+		ConversationEngine:       cfg.Conv.ConversationEngine,
+		PortalAdapter:            cfg.Conv.PortalAdapter,
+		ConversationStore:        cfg.Conv.ConversationStore,
+		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
+		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,
+		Hub:                      s.hub,
+	}).Register(mux)
 	worker.NewHandler(worker.Config{
 		Token:        cfg.Worker.WorkerToken,
 		ChatRunStore: cfg.Stores.ChatRunStore,

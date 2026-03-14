@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"net/http"
@@ -7,8 +7,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// requireAuth extracts the user id from the request and writes 401 if missing or invalid.
-// Returns (userID, true) on success; on failure writes JSON error and returns ("", false).
+type jwtClaims struct {
+	jwt.RegisteredClaims
+	Sub string `json:"sub"`
+}
+
 func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (string, bool) {
 	userID, ok := userIDFromRequest(r, jwtSecret)
 	if !ok {
@@ -18,11 +21,8 @@ func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (stri
 	return userID, true
 }
 
-// withWorkspaceAuth performs requireAuth, extracts workspace_id from the path, and verifies ownership.
-// pathKey is the path variable name (e.g. "workspace_id"). Returns (userID, workspaceID, true) on success;
-// on failure writes the appropriate JSON error and returns ("", "", false).
-func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathKey string) (userID, workspaceID string, ok bool) {
-	userID, ok = requireAuth(w, r, s.cfg.Auth.JWTSecret)
+func (h *Handler) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathKey string) (userID, workspaceID string, ok bool) {
+	userID, ok = requireAuth(w, r, h.cfg.JWTSecret)
 	if !ok {
 		return "", "", false
 	}
@@ -31,7 +31,7 @@ func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathK
 		writeJSONError(w, http.StatusBadRequest, pathKey+" required")
 		return "", "", false
 	}
-	owned, err := s.userOwnsWorkspace(r, userID, workspaceID)
+	owned, err := h.userOwnsWorkspace(r, userID, workspaceID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "with_workspace_auth", pathKey, workspaceID)
 		return "", "", false
@@ -43,16 +43,14 @@ func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathK
 	return userID, workspaceID, true
 }
 
-// userOwnsWorkspace returns whether the user owns the workspace. Returns (false, nil) if WorkspaceStore is nil.
-func (s *Server) userOwnsWorkspace(r *http.Request, userID, workspaceID string) (bool, error) {
-	if s.cfg.Stores.WorkspaceStore == nil {
+func (h *Handler) userOwnsWorkspace(r *http.Request, userID, workspaceID string) (bool, error) {
+	if h.cfg.WorkspaceStore == nil {
 		return false, nil
 	}
-	return s.cfg.Stores.WorkspaceStore.WorkspaceBelongsToUser(r.Context(), workspaceID, userID)
+	return h.cfg.WorkspaceStore.WorkspaceBelongsToUser(r.Context(), workspaceID, userID)
 }
 
-// requireStore writes 503 with the given message and returns false if store is nil; otherwise returns true.
-func (s *Server) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
+func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
 	if store == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
 		return false
@@ -60,8 +58,6 @@ func (s *Server) requireStore(w http.ResponseWriter, store interface{}, unavaila
 	return true
 }
 
-// userIDFromRequest extracts the user id from the Authorization: Bearer <token> header.
-// Returns (userID, true) if the JWT is valid and contains a sub claim, or ("", false) otherwise.
 func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {
 	if jwtSecret == "" {
 		return "", false

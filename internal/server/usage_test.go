@@ -95,7 +95,14 @@ func TestUsageHandler(t *testing.T) {
 			jwtSecret:  secret,
 			wantStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body []byte) {
-				var resp usageResponse
+				var resp struct {
+					RunCount           int   `json:"run_count"`
+					TotalTokens        int   `json:"total_tokens"`
+					TierName           string `json:"tier"`
+					PeriodDays         int   `json:"period_days"`
+					MaxRunsPerPeriod   *int  `json:"max_runs_per_period,omitempty"`
+					MaxTokensPerPeriod *int  `json:"max_tokens_per_period,omitempty"`
+				}
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Fatalf("decode body: %v", err)
 				}

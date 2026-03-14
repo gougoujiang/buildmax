@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"bufio"
@@ -8,10 +8,8 @@ import (
 	"buildmax/internal/streamhub"
 )
 
-// getChatStreamHandler handles GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream.
-// Returns text/event-stream for the chat (no run_id in URL). Hub is keyed by chat_id.
-func (s *Server) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
@@ -20,11 +18,11 @@ func (s *Server) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "chat_id required")
 		return
 	}
-	_, ok = s.getChatForWorkspace(w, r, workspaceID, chatID)
+	_, ok = h.getChatForWorkspace(w, r, workspaceID, chatID)
 	if !ok {
 		return
 	}
-	if s.hub == nil {
+	if h.cfg.Hub == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "stream not available")
 		return
 	}
@@ -35,10 +33,10 @@ func (s *Server) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 
-	events, unsub := s.hub.Subscribe(chatID)
+	events, unsub := h.cfg.Hub.Subscribe(chatID)
 	defer unsub()
 
-	if buf := s.hub.Buffer(chatID); buf != "" {
+	if buf := h.cfg.Hub.Buffer(chatID); buf != "" {
 		writeSSE(w, buf)
 		if flusher != nil {
 			flusher.Flush()
@@ -68,7 +66,6 @@ func (s *Server) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeSSE writes one SSE event: each line of payload as "data: line\n", then "\n".
 func writeSSE(w http.ResponseWriter, payload string) {
 	if payload == "" {
 		w.Write([]byte("data: \n\n"))

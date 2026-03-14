@@ -1,4 +1,4 @@
-package server
+package auth
 
 import (
 	"encoding/json"
@@ -19,8 +19,8 @@ type OtpRequestResponse struct {
 	Message string `json:"message"`
 }
 
-func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.Stores.UserStore == nil {
+func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.UserStore == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "otp not configured")
 		return
 	}
@@ -43,7 +43,7 @@ func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.cfg.Stores.UserStore.UserByEmail(r.Context(), req.Email)
+	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
@@ -64,7 +64,7 @@ func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.cfg.Stores.UserStore.CreateUser(r.Context(), req.Email, s.cfg.Auth.DefaultQuotaTier)
+	_, err = h.cfg.UserStore.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
 	if err != nil {
 		if errors.Is(err, entity.ErrEmailExists) {
 			writeJSONError(w, http.StatusConflict, "email already registered")

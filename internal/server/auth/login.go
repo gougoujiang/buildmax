@@ -1,4 +1,4 @@
-package server
+package auth
 
 import (
 	"encoding/json"
@@ -19,8 +19,8 @@ const OtpCode = "123456"
 
 // LoginResponse is the JSON body for a successful login.
 type LoginResponse struct {
-	Token string     `json:"token"`
-	User  LoginUser  `json:"user"`
+	Token string    `json:"token"`
+	User  LoginUser `json:"user"`
 }
 
 // LoginUser is the user subset returned in the login response (snake_case).
@@ -30,7 +30,6 @@ type LoginUser struct {
 	Name  string `json:"name"`
 }
 
-// jwtClaims are the JWT claims (sub = user id, exp, iat).
 type jwtClaims struct {
 	jwt.RegisteredClaims
 	Sub string `json:"sub"`
@@ -38,8 +37,8 @@ type jwtClaims struct {
 
 const jwtExpiry = 24 * time.Hour
 
-func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.Stores.UserStore == nil || s.cfg.Auth.JWTSecret == "" {
+func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.UserStore == nil || h.cfg.JWTSecret == "" {
 		writeJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
@@ -62,7 +61,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.cfg.Stores.UserStore.UserByEmail(r.Context(), req.Email)
+	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
 		writeInternalError(w, err, "handler", "login", "email", req.Email)
 		return
@@ -80,7 +79,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Sub: user.UserID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(s.cfg.Auth.JWTSecret))
+	tokenStr, err := token.SignedString([]byte(h.cfg.JWTSecret))
 	if err != nil {
 		writeInternalError(w, err, "handler", "login", "sign_token")
 		return

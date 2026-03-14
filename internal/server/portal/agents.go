@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"encoding/json"
@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// AgentResponse is one agent in the list/get response (snake_case).
 type AgentResponse struct {
 	ID           string `json:"id"`
 	WorkspaceID  string `json:"workspace_id"`
@@ -19,14 +18,12 @@ type AgentResponse struct {
 	CreatedAt    int64  `json:"created_at"`
 }
 
-// createAgentRequest is the JSON body for POST /api/workspaces/{workspace_id}/agents.
 type createAgentRequest struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
 }
 
-// patchAgentRequest is the JSON body for PATCH /api/workspaces/{workspace_id}/agents/{agent_id}.
 type patchAgentRequest struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
@@ -44,16 +41,15 @@ func agentToResponse(a model.Agent) AgentResponse {
 	}
 }
 
-// listAgentsHandler handles GET /api/workspaces/{workspace_id}/agents.
-func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
+	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
 		return
 	}
-	list, err := s.cfg.Stores.AgentStore.ListAgentsByWorkspace(r.Context(), workspaceID)
+	list, err := h.cfg.AgentStore.ListAgentsByWorkspace(r.Context(), workspaceID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_agents", "workspace_id", workspaceID)
 		return
@@ -65,13 +61,12 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// createAgentHandler handles POST /api/workspaces/{workspace_id}/agents.
-func (s *Server) createAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
+	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
 		return
 	}
 	var req createAgentRequest
@@ -83,7 +78,7 @@ func (s *Server) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
-	agent, err := s.cfg.Stores.AgentStore.CreateAgent(r.Context(), workspaceID, req.Name, req.Description, req.Instructions)
+	agent, err := h.cfg.AgentStore.CreateAgent(r.Context(), workspaceID, req.Name, req.Description, req.Instructions)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_agent", "workspace_id", workspaceID)
 		return
@@ -91,13 +86,12 @@ func (s *Server) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, agentToResponse(*agent))
 }
 
-// getAgentHandler handles GET /api/workspaces/{workspace_id}/agents/{agent_id}.
-func (s *Server) getAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
+	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
 		return
 	}
 	agentID := r.PathValue("agent_id")
@@ -105,7 +99,7 @@ func (s *Server) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
-	agent, err := s.cfg.Stores.AgentStore.GetAgent(r.Context(), agentID)
+	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), agentID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_agent", "agent_id", agentID)
 		return
@@ -117,13 +111,12 @@ func (s *Server) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agentToResponse(*agent))
 }
 
-// patchAgentHandler handles PATCH /api/workspaces/{workspace_id}/agents/{agent_id}.
-func (s *Server) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
+	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
 		return
 	}
 	agentID := r.PathValue("agent_id")
@@ -136,12 +129,11 @@ func (s *Server) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	// Name must be non-empty when provided (edit dialog always sends name).
 	if req.Name == "" {
 		writeJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
-	agent, err := s.cfg.Stores.AgentStore.UpdateAgent(r.Context(), agentID, workspaceID, req.Name, req.Description, req.Instructions)
+	agent, err := h.cfg.AgentStore.UpdateAgent(r.Context(), agentID, workspaceID, req.Name, req.Description, req.Instructions)
 	if err != nil {
 		writeInternalError(w, err, "handler", "patch_agent", "agent_id", agentID)
 		return
@@ -153,13 +145,12 @@ func (s *Server) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agentToResponse(*agent))
 }
 
-// deleteAgentHandler handles DELETE /api/workspaces/{workspace_id}/agents/{agent_id}.
-func (s *Server) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
+	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
 		return
 	}
 	agentID := r.PathValue("agent_id")
@@ -167,7 +158,7 @@ func (s *Server) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
-	err := s.cfg.Stores.AgentStore.DeleteAgent(r.Context(), agentID, workspaceID)
+	err := h.cfg.AgentStore.DeleteAgent(r.Context(), agentID, workspaceID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			writeJSONError(w, http.StatusNotFound, "agent not found")

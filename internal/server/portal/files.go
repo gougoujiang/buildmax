@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"errors"
@@ -11,26 +11,23 @@ import (
 	"buildmax/internal/storage/blob"
 )
 
-// fileNode is the JSON shape for a directory tree node.
 type fileNode struct {
-	ID       string      `json:"id"`                 // relative path from workspace root; "." for root
-	Name     string      `json:"name"`               // base name (or "home" for root; uploaded files live under home/)
-	Type     string      `json:"type"`               // "folder" or "file"
-	Children []*fileNode `json:"children,omitempty"` // only for folders
+	ID       string      `json:"id"`
+	Name     string      `json:"name"`
+	Type     string      `json:"type"`
+	Children []*fileNode `json:"children,omitempty"`
 }
 
-// filesTreeHandler handles GET /api/workspaces/{workspace_id}/files.
-// Returns the full directory tree as nested JSON.
-func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Storage.PersistStorage, "persist storage not configured") {
+	if !h.requireStore(w, h.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	ctx := r.Context()
-	relPaths, err := s.cfg.Storage.PersistStorage.ListFiles(ctx, workspaceID)
+	relPaths, err := h.cfg.PersistStorage.ListFiles(ctx, workspaceID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "files_tree", "workspace_id", workspaceID)
 		return
@@ -41,8 +38,6 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tree)
 }
 
-// buildTreeFromFileList builds a fileNode tree from a flat list of relative file paths.
-// Folders appear only when they contain at least one file.
 func buildTreeFromFileList(relPaths []string) *fileNode {
 	root := &fileNode{ID: ".", Name: "home", Type: "folder", Children: []*fileNode{}}
 	seenDirs := make(map[string]*fileNode)
@@ -102,14 +97,12 @@ func sortFileNodes(n *fileNode) {
 	}
 }
 
-// fileContentHandler handles GET /api/workspaces/{workspace_id}/files/{path...}.
-// Returns the raw file content as text/plain.
-func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Storage.PersistStorage, "persist storage not configured") {
+	if !h.requireStore(w, h.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	filePath := r.PathValue("path")
@@ -122,7 +115,7 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-	data, err := s.cfg.Storage.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
+	data, err := h.cfg.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "file not found")

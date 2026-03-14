@@ -13,10 +13,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// testJWTClaims is used by signJWT for tests (matches JWT sub claim).
+type testJWTClaims struct {
+	jwt.RegisteredClaims
+	Sub string `json:"sub"`
+}
+
 // signJWT builds a JWT with sub claim for use in tests.
 func signJWT(sub, secret string) string {
 	now := time.Now()
-	claims := jwtClaims{
+	claims := testJWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),

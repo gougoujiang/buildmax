@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"fmt"
@@ -11,17 +11,16 @@ import (
 const maxUploadFiles = 10
 const maxUploadDirFiles = 200
 
-// uploadResponse is the JSON body returned on successful upload.
 type uploadResponse struct {
 	Uploaded []string `json:"uploaded"`
 }
 
-func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Storage.PersistStorage, "persist storage not configured") {
+	if !h.requireStore(w, h.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
@@ -81,7 +80,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(w, err, "handler", "upload", "name", relPath)
 			return
 		}
-		if err := s.cfg.Storage.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
+		if err := h.cfg.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
 			src.Close()
 			writeInternalError(w, err, "handler", "upload", "path", cleanPath)
 			return

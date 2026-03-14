@@ -1,13 +1,13 @@
 // Package server provides the HTTP server for BuildMax (backend for portal).
 //
-// Shared HTTP helpers (use these consistently; do not duplicate logic in handlers):
+// The server is split by API kind:
 //
-//   - Auth: auth.go — requireAuth, withWorkspaceAuth, userIDFromRequest. All workspace-scoped
-//     handlers must use withWorkspaceAuth to validate JWT and workspace ownership before
-//     touching stores.
-//   - Response: response.go — writeJSON, writeJSONError, writeQuotaExceeded, writeInternalError.
-//     Use these as the single way to send JSON responses.
-//   - Query: query.go — parseLimitOffset for pagination query params.
-//   - Paths: paths.go — workspacesDir(), persistentWorkspaceDir() for workspace file paths.
-//   - Middleware: middleware.go — corsMiddleware, requestLoggingMiddleware, workerAuthMiddleware.
+//   - server/auth — unauthenticated entry: POST /api/otp/request, POST /api/login.
+//   - server/portal — authenticated user API: workspaces, chats, agents, artifacts,
+//     conversations, stream, files, upload, usage. Uses JWT and workspace-scoped auth.
+//   - server/worker — worker API: GET/PATCH /api/worker/chat-runs/{id}, POST .../stream.
+//     Uses Bearer or X-Worker-Token auth.
+//
+// This package wires the three above (auth.Register, portal.Register, worker.Register),
+// holds Config and the stream hub, and serves healthz, openapi, swagger and middleware.
 package server

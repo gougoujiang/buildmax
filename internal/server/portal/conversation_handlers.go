@@ -1,5 +1,4 @@
-// HTTP handlers for Tier 1 conversations and conversation messages.
-package server
+package portal
 
 import (
 	"context"
@@ -10,7 +9,6 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// convTitleGen adapts ChatTitleGenerator to conversation.ConversationTitleGenerator (drops TokenUsage).
 type convTitleGen struct{ gen ChatTitleGenerator }
 
 func (c *convTitleGen) GenerateTitleFromInput(ctx context.Context, input string) (string, error) {
@@ -18,34 +16,30 @@ func (c *convTitleGen) GenerateTitleFromInput(ctx context.Context, input string)
 	return title, err
 }
 
-// conversationListResponse is the response for GET .../conversations (snake_case).
 type conversationListResponse struct {
 	Conversations []conversationResponse `json:"conversations"`
 	Total         int                   `json:"total"`
 }
 
 type conversationResponse struct {
-	ID             string `json:"id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Channel        string `json:"channel"`
-	Title          string `json:"title,omitempty"`
-	CreatedAt      int64  `json:"created_at"`
-	CreatedBy      string `json:"created_by"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Title       string `json:"title,omitempty"`
+	CreatedAt   int64  `json:"created_at"`
+	CreatedBy   string `json:"created_by"`
 }
 
-// createConversationRequest is the body for POST .../conversations.
 type createConversationRequest struct {
 	Channel  string `json:"channel"`
 	Message  string `json:"message"`
 }
 
-// createConversationResponse is the response for POST .../conversations.
 type createConversationResponse struct {
 	ConversationID string `json:"conversation_id"`
 	Reply          string `json:"reply,omitempty"`
 }
 
-// conversationMessageResponse is one message in GET .../messages (snake_case).
 type conversationMessageResponse struct {
 	ID        string  `json:"id"`
 	Role      string  `json:"role"`
@@ -54,22 +48,18 @@ type conversationMessageResponse struct {
 	CreatedAt int64   `json:"created_at"`
 }
 
-// messagesResponse is the response for GET .../conversations/{id}/messages.
 type messagesResponse struct {
 	Messages []conversationMessageResponse `json:"messages"`
 }
 
-// addMessageRequest is the body for POST .../conversations/{id}/messages.
 type addMessageRequest struct {
 	Content string `json:"content"`
 }
 
-// addMessageResponse is the response for POST .../conversations/{id}/messages.
 type addMessageResponse struct {
 	Reply string `json:"reply"`
 }
 
-// sseSink writes content deltas as SSE events and flushes. Used when stream=1.
 type sseSink struct {
 	w       http.ResponseWriter
 	flusher http.Flusher
@@ -82,16 +72,16 @@ func (s *sseSink) OnDelta(delta string) {
 	}
 }
 
-func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationStore, "conversations not configured") {
+	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
-	list, total, err := s.cfg.Conv.ConversationStore.ListConversationsByWorkspace(r.Context(), workspaceID, limit, offset)
+	list, total, err := h.cfg.ConversationStore.ListConversationsByWorkspace(r.Context(), workspaceID, limit, offset)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_conversations", "workspace_id", workspaceID)
 		return
@@ -110,15 +100,15 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, conversationListResponse{Conversations: out, Total: total})
 }
 
-func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationStore, "conversations not configured") {
+	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationMessageStore, "conversation messages not configured") {
+	if !h.requireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
 	var req createConversationRequest
@@ -129,13 +119,13 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 	if req.Channel == "" {
 		req.Channel = "portal"
 	}
-	conv, err := s.cfg.Conv.ConversationStore.CreateConversation(r.Context(), workspaceID, req.Channel, userID)
+	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), workspaceID, req.Channel, userID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_conversation", "workspace_id", workspaceID)
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
-	if streamRequested && req.Message != "" && s.cfg.Conv.ConversationLLMCaller != nil {
+	if streamRequested && req.Message != "" && h.cfg.ConversationLLMCaller != nil {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Connection", "keep-alive")
@@ -147,12 +137,12 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		}
 		sink := &sseSink{w: w, flusher: flusher}
 		var titleGen conversation.ConversationTitleGenerator
-		if s.cfg.Conv.ChatTitleGenerator != nil {
-			titleGen = &convTitleGen{s.cfg.Conv.ChatTitleGenerator}
+		if h.cfg.ChatTitleGenerator != nil {
+			titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
 		}
-		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.Conv.ConversationStore, s.cfg.Conv.ConversationMessageStore,
-			s.cfg.Conv.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
+		reply, err := conversation.RunLoopStream(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
+			h.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
+			h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -165,14 +155,14 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	reply := ""
-	if req.Message != "" && s.cfg.Conv.ConversationLLMCaller != nil {
+	if req.Message != "" && h.cfg.ConversationLLMCaller != nil {
 		var titleGen conversation.ConversationTitleGenerator
-		if s.cfg.Conv.ChatTitleGenerator != nil {
-			titleGen = &convTitleGen{s.cfg.Conv.ChatTitleGenerator}
+		if h.cfg.ChatTitleGenerator != nil {
+			titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
 		}
-		reply, err = conversation.RunLoop(r.Context(), s.cfg.Conv.ConversationStore, s.cfg.Conv.ConversationMessageStore,
-			s.cfg.Conv.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
+		reply, err = conversation.RunLoop(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
+			h.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
+			h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
 		if err != nil {
 			writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
 			return
@@ -184,8 +174,8 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (s *Server) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
@@ -194,13 +184,13 @@ func (s *Server) getConversationMessagesHandler(w http.ResponseWriter, r *http.R
 		writeJSONError(w, http.StatusBadRequest, "conversation_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationStore, "conversations not configured") {
+	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationMessageStore, "conversation messages not configured") {
+	if !h.requireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
-	conv, err := s.cfg.Conv.ConversationStore.GetConversation(r.Context(), conversationID)
+	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_conversation", "conversation_id", conversationID)
 		return
@@ -209,7 +199,7 @@ func (s *Server) getConversationMessagesHandler(w http.ResponseWriter, r *http.R
 		writeJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
-	msgs, err := s.cfg.Conv.ConversationMessageStore.ListMessages(r.Context(), conversationID)
+	msgs, err := h.cfg.ConversationMessageStore.ListMessages(r.Context(), conversationID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_messages", "conversation_id", conversationID)
 		return
@@ -227,8 +217,8 @@ func (s *Server) getConversationMessagesHandler(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusOK, messagesResponse{Messages: out})
 }
 
-func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := s.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
@@ -237,17 +227,17 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		writeJSONError(w, http.StatusBadRequest, "conversation_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationStore, "conversations not configured") {
+	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
-	if !s.requireStore(w, s.cfg.Conv.ConversationMessageStore, "conversation messages not configured") {
+	if !h.requireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
-	if s.cfg.Conv.ConversationLLMCaller == nil {
+	if h.cfg.ConversationLLMCaller == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}
-	conv, err := s.cfg.Conv.ConversationStore.GetConversation(r.Context(), conversationID)
+	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_conversation", "conversation_id", conversationID)
 		return
@@ -266,7 +256,7 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
-	caller := s.cfg.Conv.ConversationLLMCaller
+	caller := h.cfg.ConversationLLMCaller
 	if streamRequested && caller != nil {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
@@ -275,12 +265,12 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		flusher, _ := w.(http.Flusher)
 		sink := &sseSink{w: w, flusher: flusher}
 		var titleGen conversation.ConversationTitleGenerator
-		if s.cfg.Conv.ChatTitleGenerator != nil {
-			titleGen = &convTitleGen{s.cfg.Conv.ChatTitleGenerator}
+		if h.cfg.ChatTitleGenerator != nil {
+			titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
 		}
-		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.Conv.ConversationStore, s.cfg.Conv.ConversationMessageStore,
+		reply, err := conversation.RunLoopStream(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
 			caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
+			h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -293,12 +283,12 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	var titleGen conversation.ConversationTitleGenerator
-	if s.cfg.Conv.ChatTitleGenerator != nil {
-		titleGen = &convTitleGen{s.cfg.Conv.ChatTitleGenerator}
+	if h.cfg.ChatTitleGenerator != nil {
+		titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
 	}
-	reply, err := conversation.RunLoop(r.Context(), s.cfg.Conv.ConversationStore, s.cfg.Conv.ConversationMessageStore,
+	reply, err := conversation.RunLoop(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
 		caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-		s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
+		h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return
@@ -306,13 +296,11 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, addMessageResponse{Reply: reply})
 }
 
-// getConversationForWorkspace loads the conversation and verifies it belongs to the workspace.
-// Writes 404 if missing or wrong workspace. Returns (conv, true) on success.
-func (s *Server) getConversationForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, conversationID string) (*entity.Conversation, bool) {
-	if !s.requireStore(w, s.cfg.Conv.ConversationStore, "conversations not configured") {
+func (h *Handler) getConversationForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, conversationID string) (*entity.Conversation, bool) {
+	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return nil, false
 	}
-	conv, err := s.cfg.Conv.ConversationStore.GetConversation(r.Context(), conversationID)
+	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_conversation", "conversation_id", conversationID)
 		return nil, false
