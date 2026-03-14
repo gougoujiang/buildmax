@@ -2,15 +2,14 @@ import { useCallback, useEffect, useState } from "react"
 import type { Agent } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
+import { apiAgentToAgent, apiChatToChat } from "../lib/api"
+import { createChat } from "../features/chats"
 import {
   getAgents,
   createAgent,
   updateAgent,
   deleteAgent,
-  createChat,
-  apiAgentToAgent,
-  apiChatToChat,
-} from "../lib/api"
+} from "../features/agents"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { AgentAvatar } from "../components/UserAvatar"
 import { CreateAgentModal } from "../components/CreateAgentModal"
@@ -23,7 +22,7 @@ interface AgentListProps {
 }
 
 export function AgentList({ workspaceId, token }: AgentListProps) {
-  const { refetchWorkspaceChats, setPendingChat } = useWorkspace()
+  const { setPendingChat } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -110,7 +109,6 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         setNewChatAgent(null)
         setPendingChat({ chat: apiChatToChat(chat), initialInput: chat.input ?? "" })
         navigate({ name: "chat", workspaceId, chatId: chat.id })
-        refetchWorkspaceChats()
       })
       .catch((err) => {
         setError(getErrorMessage(err, "Failed to start chat"))

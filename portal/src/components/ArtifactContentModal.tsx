@@ -3,7 +3,7 @@ import { cn } from "../lib/cn"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { BaseModal } from "./BaseModal"
-import { getArtifactItems, getArtifactContent } from "../lib/api"
+import { getArtifactItems, getArtifactContent } from "../features/artifacts"
 import { useFetch } from "../hooks/useFetch"
 
 interface ArtifactContentModalProps {

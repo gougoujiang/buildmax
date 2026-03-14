@@ -1,13 +1,13 @@
 import type { ReactNode } from "react"
-import type { Conversation, Workspace } from "../lib/types"
+import type { Conversation, Route, Workspace } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
-import { useWorkspace } from "../contexts/WorkspaceContext"
 import { Sidebar } from "./Sidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
 import { ThemeToggle } from "../components/ThemeToggle"
 
 export interface LayoutProps {
+  route: Route
   currentWorkspace: Workspace
   workspaces: { id: string; name: string }[]
   onNewWorkspace?: () => void
@@ -18,6 +18,7 @@ export interface LayoutProps {
 }
 
 export function Layout({
+  route,
   currentWorkspace,
   workspaces,
   onNewWorkspace,
@@ -26,8 +27,6 @@ export function Layout({
   onLogout,
   children,
 }: LayoutProps) {
-  const { route } = useWorkspace()
-
   return (
     <div className="shell">
       <div className="shell__body">

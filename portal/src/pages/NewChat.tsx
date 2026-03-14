@@ -4,9 +4,8 @@ import remarkGfm from "remark-gfm"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
-import { createConversationStream } from "../lib/api"
+import { createConversationStream } from "../features/conversations"
 import { FilesPanel } from "../components/FilesPanel"
-import { useWorkspace } from "../contexts/WorkspaceContext"
 import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
 
 type NewChatTab = "conversations" | "artifacts" | "files"
@@ -28,7 +27,6 @@ export function NewChat({
   artifacts,
   onViewArtifact,
 }: NewChatProps) {
-  useWorkspace()
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)

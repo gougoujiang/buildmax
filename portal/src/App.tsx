@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { navigate } from "./router"
 import { getErrorMessage } from "./lib/errorMessage"
-import { createWorkspace } from "./lib/api"
+import { createWorkspace } from "./features/workspaces"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "./contexts/ThemeContext"
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext"
@@ -9,6 +9,7 @@ import { Layout } from "./layout/Layout"
 import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { ArtifactContentModal } from "./components/ArtifactContentModal"
 import { WorkspaceRouter } from "./components/WorkspaceRouter"
+import { useWorkspaceConversations } from "./hooks/useWorkspaceConversations"
 import { Login } from "./pages/Login"
 import { SignUp } from "./pages/SignUp"
 
@@ -17,10 +18,13 @@ function AppContent() {
   const {
     route,
     workspaces,
-    workspaceConversations,
     loadingWorkspaces,
     refetchWorkspaces,
   } = useWorkspace()
+  const {
+    data: workspaceConversations,
+    refetch: refetchWorkspaceConversations,
+  } = useWorkspaceConversations(route.workspaceId, token)
 
   const [showNewWorkspace, setShowNewWorkspace] = useState(false)
   const [viewArtifact, setViewArtifact] = useState<{ workspaceId: string; chatRunId: string } | null>(null)
@@ -77,6 +81,7 @@ function AppContent() {
   return (
     <>
       <Layout
+        route={route}
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
         onNewWorkspace={handleNewWorkspace}
@@ -84,7 +89,11 @@ function AppContent() {
         user={user!}
         onLogout={logout}
       >
-        <WorkspaceRouter onViewArtifact={setViewArtifact} />
+        <WorkspaceRouter
+          workspaceConversations={workspaceConversations}
+          onRefetchWorkspaceConversations={refetchWorkspaceConversations}
+          onViewArtifact={setViewArtifact}
+        />
       </Layout>
       <CreateWorkspaceModal
         open={showNewWorkspace}

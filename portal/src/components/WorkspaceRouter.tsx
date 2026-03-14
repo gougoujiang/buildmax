@@ -1,7 +1,9 @@
 import { useEffect } from "react"
-import type { ViewArtifactParams } from "../lib/types"
+import type { Conversation, ViewArtifactParams } from "../lib/types"
 import { getChatForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
+import { useArtifacts } from "../hooks/useArtifacts"
+import { useWorkspaceChats } from "../hooks/useWorkspaceTasks"
 import { Chats } from "../pages/Chats"
 import { AgentList } from "../pages/AgentList"
 import { ChatDetail } from "../pages/ChatDetail"
@@ -13,21 +15,32 @@ import { Explore } from "../pages/Explore"
 export type { ViewArtifactParams }
 
 export interface WorkspaceRouterProps {
+  workspaceConversations: Conversation[]
+  onRefetchWorkspaceConversations: () => Promise<void>
   onViewArtifact: (params: ViewArtifactParams) => void
 }
 
-export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
+export function WorkspaceRouter({
+  workspaceConversations,
+  onRefetchWorkspaceConversations,
+  onViewArtifact,
+}: WorkspaceRouterProps) {
   const {
     route,
-    workspaceChats,
-    workspaceConversations,
-    artifacts,
     token,
-    refetchWorkspaceChats,
-    refetchWorkspaceConversations,
     pendingChat,
     setPendingChat,
   } = useWorkspace()
+  const isWorkspaceHome = route.name === "workspace"
+  const isNewChat = route.name === "newChat"
+  const isChatDetail = route.name === "chat"
+  const {
+    data: artifacts,
+  } = useArtifacts(route.workspaceId, token, { enabled: isWorkspaceHome || isNewChat })
+  const {
+    data: workspaceChats,
+    refetch: refetchWorkspaceChats,
+  } = useWorkspaceChats(route.workspaceId, token, isChatDetail)
 
   const routeChatId = route.name === "chat" ? route.chatId : undefined
   // Clear pending chat only when navigating away from this chat, so initialInput stays visible until we leave.
@@ -49,13 +62,13 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
   if (route.name === "workspace") return fallbackHome
   if (route.name === "newChat") {
     return (
-      <NewChat
-        workspaceId={route.workspaceId}
-        token={token ?? undefined}
-        onRefetchWorkspaceConversations={refetchWorkspaceConversations}
-        workspaceConversations={workspaceConversations}
-        artifacts={artifacts}
-        onViewArtifact={onViewArtifact}
+        <NewChat
+          workspaceId={route.workspaceId}
+          token={token ?? undefined}
+          onRefetchWorkspaceConversations={onRefetchWorkspaceConversations}
+          workspaceConversations={workspaceConversations}
+          artifacts={artifacts}
+          onViewArtifact={onViewArtifact}
       />
     )
   }
@@ -95,12 +108,12 @@ export function WorkspaceRouter({ onViewArtifact }: WorkspaceRouterProps) {
 
   if (route.name === "conversation") {
     return (
-      <ConversationDetail
-        conversationId={route.conversationId}
-        workspaceId={route.workspaceId}
-        onRefetch={refetchWorkspaceConversations}
-      />
-    )
+        <ConversationDetail
+          conversationId={route.conversationId}
+          workspaceId={route.workspaceId}
+          onRefetch={onRefetchWorkspaceConversations}
+        />
+      )
   }
 
   return fallbackHome

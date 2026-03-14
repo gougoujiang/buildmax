@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { Artifact } from "../lib/types"
-import { getArtifacts, apiArtifactToArtifact } from "../lib/api"
+import { apiArtifactToArtifact } from "../lib/api"
+import { getArtifacts } from "../features/artifacts"
 
 export interface UseArtifactsOptions {
   chatId?: string
+  enabled?: boolean
 }
 
 export function useArtifacts(
@@ -14,14 +16,16 @@ export function useArtifacts(
   const optionsRef = useRef(options)
   optionsRef.current = options
   const [data, setData] = useState<Artifact[]>([])
+  const enabled = options?.enabled ?? true
 
   const runFetch = useCallback(
     (overrides?: UseArtifactsOptions) => {
-      if (!token || !workspaceId) {
+      const opts = overrides ?? optionsRef.current
+      const fetchEnabled = opts?.enabled ?? true
+      if (!fetchEnabled || !token || !workspaceId) {
         setData([])
         return
       }
-      const opts = overrides ?? optionsRef.current
       const query =
         opts?.chatId !== undefined ? { chatId: opts.chatId } : undefined
       getArtifacts(workspaceId, token, query)
@@ -32,12 +36,12 @@ export function useArtifacts(
   )
 
   useEffect(() => {
-    if (!token || !workspaceId) {
+    if (!enabled || !token || !workspaceId) {
       setData([])
       return
     }
     runFetch()
-  }, [token, workspaceId, options?.chatId, runFetch])
+  }, [enabled, token, workspaceId, options?.chatId, runFetch])
 
   const refetch = useCallback(
     (overrides?: UseArtifactsOptions) => {

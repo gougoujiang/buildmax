@@ -1,5 +1,6 @@
 import { getErrorMessage } from "../lib/errorMessage"
-import { getWorkspaces, type ApiWorkspace } from "../lib/api"
+import type { ApiWorkspace } from "../lib/api"
+import { getWorkspaces } from "../features/workspaces"
 import { useAsyncList } from "./useAsyncList"
 
 export function useWorkspaces(token: string | null): {

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ComponentType } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { getUsage, type ApiUsage } from "../lib/api"
+import type { ApiUsage } from "../lib/api"
+import { getUsage } from "../features/usage"
 import { BaseModal } from "./BaseModal"
 import { UserAvatar } from "./UserAvatar"
 import SettingsIcon from "../icons/settings.svg?react"

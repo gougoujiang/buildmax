@@ -5,11 +5,11 @@ import {
   useCallback,
   type ReactNode,
 } from "react"
-import type { Artifact, Route, Chat, Conversation } from "../lib/types"
+import type { Route, Chat } from "../lib/types"
 import type { ApiWorkspace } from "../lib/api"
 import { getWorkspaceScope, useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
-import { useWorkspaceData } from "../hooks/useWorkspaceData"
+import { useWorkspaces } from "../hooks/useWorkspaces"
 
 export interface PendingChat {
   chat: Chat
@@ -21,14 +21,8 @@ export interface WorkspaceContextValue {
   route: Route
   scope: ReturnType<typeof getWorkspaceScope>
   workspaces: ApiWorkspace[]
-  workspaceChats: Chat[]
-  workspaceConversations: Conversation[]
-  artifacts: Artifact[]
   loadingWorkspaces: boolean
   refetchWorkspaces: () => Promise<void>
-  refetchWorkspaceChats: () => Promise<void>
-  refetchWorkspaceConversations: () => Promise<void>
-  refetchArtifacts: (chatId?: string) => void
   /** Set when navigating from New Chat so ChatDetail can render immediately and show initial query. */
   pendingChat: PendingChat | null
   setPendingChat: (p: PendingChat | null) => void
@@ -39,8 +33,12 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth()
   const route = useHashRoute()
-  const data = useWorkspaceData(token, route)
   const scope = getWorkspaceScope(route)
+  const {
+    data: workspaces,
+    loading: loadingWorkspaces,
+    refetch: refetchWorkspaces,
+  } = useWorkspaces(token)
   const [pendingChat, setPendingChatState] = useState<PendingChat | null>(null)
   const setPendingChat = useCallback((p: PendingChat | null) => {
     setPendingChatState(p)
@@ -50,15 +48,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     token,
     route,
     scope,
-    workspaces: data.workspaces,
-    workspaceChats: data.workspaceChats,
-    workspaceConversations: data.workspaceConversations,
-    artifacts: data.artifacts,
-    loadingWorkspaces: data.loadingWorkspaces,
-    refetchWorkspaces: data.refetchWorkspaces,
-    refetchWorkspaceChats: data.refetchWorkspaceChats,
-    refetchWorkspaceConversations: data.refetchWorkspaceConversations,
-    refetchArtifacts: data.refetchArtifacts,
+    workspaces,
+    loadingWorkspaces,
+    refetchWorkspaces,
     pendingChat,
     setPendingChat,
   }

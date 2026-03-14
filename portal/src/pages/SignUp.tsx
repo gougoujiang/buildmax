@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
-import { requestOtp, login } from "../lib/api"
+import { requestOtp, login } from "../features/auth"
 import { useAuth } from "../contexts/AuthContext"
 
 export function SignUp() {
