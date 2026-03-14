@@ -7,13 +7,20 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="header">
-    <h1>BuildMax</h1>
-  </header>
-  <main class="main">
-    <section class="placeholder" aria-label="Chat placeholder">
-      <p>Chat / agent UI (coming soon)</p>
-    </section>
-  </main>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Chats</h2>
+      </div>
+      <ul class="thread-list" id="thread-list" role="list"></ul>
+    </aside>
+    <main class="main-panel">
+      <div class="chat-header" id="chat-header">
+        <span class="chat-title">Select a chat</span>
+      </div>
+      <div class="chat-history" id="chat-history" role="log" aria-live="polite"></div>
+    </main>
+  </div>
+  <script src="app.js"></script>
 </body>
 </html>
