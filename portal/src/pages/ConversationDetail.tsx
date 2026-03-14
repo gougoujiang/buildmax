@@ -12,7 +12,7 @@ export function ConversationDetail({
   workspaceId,
   onRefetch,
 }: ConversationDetailProps) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const conversationDetail = useConversationDetail({
     workspaceId,
     conversationId,
@@ -31,6 +31,7 @@ export function ConversationDetail({
       sending={conversationDetail.sending}
       sendError={conversationDetail.sendError}
       streamingContent={conversationDetail.streamingContent}
+      user={user}
       onSend={conversationDetail.handleSend}
     />
   )

@@ -191,7 +191,13 @@ export function ChatDetailView({
             className="page-chat__follow-up-input"
             value={followUpInput}
             onChange={(e) => setFollowUpInput(e.target.value)}
-            placeholder="Ask a follow-up question…"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                if (followUpInput.trim() && !followUpLoading) onSubmitFollowUp()
+              }
+            }}
+            placeholder="Ask a follow-up… (Enter to send, Shift+Enter for new line)"
             rows={2}
             disabled={followUpLoading}
             aria-label="Chat input"

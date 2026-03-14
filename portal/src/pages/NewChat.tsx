@@ -100,7 +100,13 @@ export function NewChat({
               setPrompt(e.target.value)
               setRunError(null)
             }}
-            placeholder="e.g. Help me analyze last month's sales data"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                if (prompt.trim() && !running) handleSend()
+              }
+            }}
+            placeholder="e.g. Help me analyze last month's sales data (Enter to send, Shift+Enter for new line)"
             rows={2}
             disabled={running}
             aria-label="What would you like to do?"
