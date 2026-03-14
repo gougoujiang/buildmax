@@ -230,7 +230,7 @@ func reportRunFailure(ctx context.Context, chatRunID string, err error, updater 
 	endTime := time.Now().Unix()
 	errMsg := fmt.Sprintf("%v", err)
 	_ = updater.UpdateRunStatus(ctx, chatRunID, &workerapi.PatchChatRunRequest{
-		Status:       workerapi.StatusFailed,
+		Status:       string(entity.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,
 	})
@@ -245,7 +245,7 @@ func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, art
 		relativePaths = []string{"result.md"}
 	}
 	req := &workerapi.PatchChatRunRequest{
-		Status:   workerapi.StatusSucceeded,
+		Status:   string(entity.RunStatusSucceeded),
 		EndedAt:  &result.EndTime,
 		Output:   &result.OutputStr,
 		Artifact: &workerapi.ArtifactPayload{RelativePaths: relativePaths},

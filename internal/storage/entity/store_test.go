@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"buildmax/internal/config"
-	"buildmax/internal/utils"
+	"buildmax/internal/util"
 )
 
 func TestCreateUser(t *testing.T) {
@@ -107,7 +107,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
 	}()
 	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
-	if err := s.UpdateRun(ctx, UpdateChatRunInput{ChatRunID: chatRunID, Status: RunStatusSucceeded, Output: utils.PtrString("out")}); err != nil {
+	if err := s.UpdateRun(ctx, UpdateChatRunInput{ChatRunID: chatRunID, Status: RunStatusSucceeded, Output: util.PtrString("out")}); err != nil {
 		t.Fatalf("UpdateRun: %v", err)
 	}
 	err = s.OnRunComplete(ctx, chatRunID, []string{"result.md", "extra.txt"})

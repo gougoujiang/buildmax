@@ -96,7 +96,7 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 
 // handlePatchRunning handles status RUNNING; returns true if it wrote a response (caller should return).
 func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, chatRunID string, req *workerapi.PatchChatRunRequest) bool {
-	if req.Status != workerapi.StatusRunning {
+	if req.Status != string(entity.RunStatusRunning) {
 		return false
 	}
 	updated, err := h.cfg.ChatRunStore.ClaimChatRun(r.Context(), entity.ClaimChatRunInput{
@@ -133,7 +133,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 		return false
 	}
-	if req.Status == workerapi.StatusSucceeded && req.Artifact != nil {
+	if req.Status == string(entity.RunStatusSucceeded) && req.Artifact != nil {
 		relativePaths := req.Artifact.RelativePaths
 		if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
 			relativePaths = []string{req.Artifact.RelativePath}
@@ -145,7 +145,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
 			return false
 		}
-	} else if req.Status == workerapi.StatusFailed {
+	} else if req.Status == string(entity.RunStatusFailed) {
 		if err := h.cfg.ChatRunStore.SyncChatFromRun(r.Context(), chatRunID); err != nil {
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
 			return false

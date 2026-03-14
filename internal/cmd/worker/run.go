@@ -11,6 +11,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/executor"
 	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 	"buildmax/internal/storage/setup"
 	"buildmax/internal/workerapi"
 
@@ -56,7 +57,7 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 		slog.Error("worker: run not found", "chat_run_id", chatRunID)
 		return fmt.Errorf("run not found")
 	}
-	if run.Status != workerapi.StatusScheduled {
+	if run.Status != string(entity.RunStatusScheduled) {
 		slog.Error("worker: run not in SCHEDULED status", "chat_run_id", chatRunID, "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
@@ -68,7 +69,7 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 	updater := &executor.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
 	if err := updater.UpdateRunStatus(ctx, run.ChatRunID, &workerapi.PatchChatRunRequest{
-		Status:    workerapi.StatusRunning,
+		Status:    string(entity.RunStatusRunning),
 		StartedAt: &now,
 		SessionID: &sessionID,
 	}); err != nil {

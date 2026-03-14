@@ -49,11 +49,5 @@ type StreamDeltaRequest struct {
 	Delta string `json:"delta"`
 }
 
-// Run status constants for the worker API.
-const (
-	StatusPending   = "PENDING"
-	StatusScheduled = "SCHEDULED"
-	StatusRunning   = "RUNNING"
-	StatusSucceeded = "SUCCEEDED"
-	StatusFailed    = "FAILED"
-)
+// Run status values match entity.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED).
+// Use entity.RunStatusPending, entity.RunStatusScheduled, etc. when building or comparing status.

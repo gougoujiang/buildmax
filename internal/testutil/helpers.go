@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/utils"
+	"buildmax/internal/util"
 	"buildmax/internal/storage/entity"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -15,7 +15,7 @@ import (
 
 // PtrString returns a pointer to s. Useful for filling optional *string fields in tests.
 func PtrString(s string) *string {
-	return utils.PtrString(s)
+	return util.PtrString(s)
 }
 
 // testJWTClaims is used by SignJWT for tests (matches JWT sub claim).
