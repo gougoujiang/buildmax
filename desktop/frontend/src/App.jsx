@@ -2,98 +2,316 @@ import { useState, useRef, useEffect } from 'react';
 import { ThemeProvider } from './ThemeContext';
 import { ThemeToggle } from './ThemeToggle';
 
-const MOCK_THREADS = [
-  { id: '1', title: 'Summarize project README', updatedAt: '2 min ago' },
-  { id: '2', title: 'Add unit tests for config', updatedAt: '1 hour ago' },
-  { id: '3', title: 'Refactor agent loop', updatedAt: 'Yesterday' },
-  { id: '4', title: 'Setup Wails desktop app', updatedAt: 'Mar 12' },
-];
-
-const MOCK_MESSAGES = {
-  '1': [
-    { role: 'user', content: 'Can you summarize the project README in three bullet points?' },
-    { role: 'assistant', content: '1. **BuildMax** is an AI Agent project for building a general-purpose agent.\n2. It supports **CLI/TUI** (Bubble Tea) and a **web Portal** (React + Vite).\n3. Core is **Go** with LLM integration, tool calling, and optional workspace AGENTS.md.' },
-  ],
-  '2': [
-    { role: 'user', content: 'Add unit tests for the config package.' },
-    { role: 'assistant', content: "I'll add tests for DataDir, LogsDir, and LogLevel with BUILDMAX_HOME and BUILDMAX_LOG_LEVEL set." },
-  ],
-  '3': [
-    { role: 'user', content: 'How should we refactor the agent loop?' },
-    { role: 'assistant', content: 'Consider extracting tool execution into a separate step and adding a max-iterations guard.' },
-  ],
-  '4': [
-    { role: 'user', content: 'Setup the basics of the Wails desktop app.' },
-    { role: 'assistant', content: 'Done. Added cmd/buildmax-desktop, internal/cmd/desktop, minimal window, and make run desktop.' },
-  ],
-};
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function getApp() {
+  if (typeof window === 'undefined') return null;
+  const go = window.go;
+  if (!go) return null;
+  // Wails generates bindings at window.go.<package>.<Struct>; App is in package desktop
+  return go.desktop?.App ?? go.main?.App ?? go.App ?? null;
 }
 
-function MessageContent({ text }) {
-  const html = escapeHtml(text).replace(/\n/g, '<br>');
-  return <div className="message-content" dangerouslySetInnerHTML={{ __html: html }} />;
+function formatSessionMeta(createdAt) {
+  if (!createdAt) return '';
+  try {
+    const d = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour ago`;
+    if (diffDays < 7) return `${diffDays} day ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
 }
 
 export default function App() {
-  const [selectedId, setSelectedId] = useState(MOCK_THREADS[0]?.id ?? null);
+  const [sessions, setSessions] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [recentCollapsed, setRecentCollapsed] = useState(false);
+  const [wailsReady, setWailsReady] = useState(false);
   const historyRef = useRef(null);
 
-  const thread = MOCK_THREADS.find((t) => t.id === selectedId);
-  const messages = selectedId ? MOCK_MESSAGES[selectedId] : null;
+  // Wails injects window.go after the page loads; wait a tick before deciding backend is missing
+  useEffect(() => {
+    if (getApp()) {
+      setWailsReady(true);
+      return;
+    }
+    const id = setTimeout(() => setWailsReady(true), 150);
+    return () => clearTimeout(id);
+  }, []);
+
+  const app = getApp();
+
+  function refreshSessions() {
+    if (!app) return;
+    app.ListSessions()
+      .then((list) => setSessions(list ?? []))
+      .catch((err) => setError(err?.message ?? String(err)));
+  }
 
   useEffect(() => {
-    if (historyRef.current) historyRef.current.scrollTop = historyRef.current.scrollHeight;
-  }, [selectedId]);
+    refreshSessions();
+  }, []);
+
+  useEffect(() => {
+    if (selectedId === null) {
+      setMessages([]);
+      setSessionTitle('New Chat');
+      return;
+    }
+    if (!app) return;
+    setError(null);
+    app.GetSession(selectedId)
+      .then((detail) => {
+        setMessages(detail?.messages ?? []);
+        setSessionTitle(detail?.title?.trim() || 'Chat');
+      })
+      .catch((err) => setError(err?.message ?? String(err)));
+  }, [selectedId, app]);
+
+  useEffect(() => {
+    if (historyRef.current) {
+      historyRef.current.scrollTop = historyRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  async function handleSend(prompt) {
+    if (!prompt?.trim() || loading || !app) return;
+    setLoading(true);
+    setError(null);
+    const sessionIdToUse = selectedId || '';
+    try {
+      const result = await app.SendMessage(sessionIdToUse, prompt.trim());
+      if (sessionIdToUse === '') {
+        const newId = result?.session_id ?? null;
+        setSelectedId(newId);
+        refreshSessions();
+        setMessages([
+          { role: 'user', content: prompt.trim() },
+          { role: 'assistant', content: result?.reply ?? '' },
+        ]);
+        if (newId) {
+          app.GetSession(newId).then((detail) => {
+            setSessionTitle(detail?.title?.trim() || 'Chat');
+          }).catch(() => {});
+        } else {
+          setSessionTitle('Chat');
+        }
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'user', content: prompt.trim() },
+          { role: 'assistant', content: result?.reply ?? '' },
+        ]);
+        refreshSessions();
+      }
+    } catch (err) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!wailsReady) {
+    return (
+      <ThemeProvider>
+        <div className="shell">
+          <div className="shell__body" style={{ padding: '2rem' }}>
+            <p className="page-chat__text page-chat__muted">Loading…</p>
+          </div>
+        </div>
+      </ThemeProvider>
+    );
+  }
+  if (!app) {
+    return (
+      <ThemeProvider>
+        <div className="shell">
+          <div className="shell__body" style={{ padding: '2rem' }}>
+            <p className="page-chat__text page-chat__muted">
+              Run this app with Wails to use chat (e.g. <code>wails dev</code> or <code>./make run desktop</code>).
+              If you already did, the backend may not be bound yet—try refreshing.
+            </p>
+          </div>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>
-      <div className="app">
-        <aside className="sidebar">
-          <div className="sidebar-header">
-            <h2 className="sidebar-title">Chats</h2>
-          </div>
-          <ul className="thread-list" role="list">
-            {MOCK_THREADS.map((t) => (
-              <li
-                key={t.id}
-                className={`thread-item ${t.id === selectedId ? 'active' : ''}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedId(t.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedId(t.id);
-                  }
-                }}
-              >
-                <span className="thread-title">{t.title}</span>
-                <span className="thread-meta">{t.updatedAt}</span>
-              </li>
-            ))}
-          </ul>
-        </aside>
-        <main className="main-panel">
-          <div className="chat-header">
-            <span className="chat-title">{thread ? thread.title : 'Select a chat'}</span>
-            <ThemeToggle />
-          </div>
-        <div className="chat-history" ref={historyRef} role="log" aria-live="polite">
-          {!messages && <p className="chat-empty">Select a chat from the list.</p>}
-          {messages?.map((m, i) => (
-            <div key={i} className={`message message--${m.role}`} role="listitem">
-              <div className="message-role">{m.role === 'user' ? 'You' : 'Assistant'}</div>
-              <MessageContent text={m.content} />
+      <div className="shell">
+        <div className="shell__body">
+          <aside className="sidebar" aria-label="Sidebar">
+            <div className="sidebar__header">
+              <h1 className="sidebar__logo-title">BuildMax</h1>
             </div>
-          ))}
+            <nav className="sidebar__nav" aria-label="Primary">
+              <div className="sidebar__section">
+                <button
+                  type="button"
+                  className={`sidebar__nav-item ${selectedId === null ? 'sidebar__nav-item--active' : ''}`}
+                  onClick={() => setSelectedId(null)}
+                >
+                  <span className="sidebar__nav-icon" aria-hidden>+</span>
+                  <span className="sidebar__nav-item-text">New Chat</span>
+                </button>
+                <div className="sidebar__chats">
+                  <button
+                    type="button"
+                    className="sidebar__chats-toggle"
+                    onClick={() => setRecentCollapsed((c) => !c)}
+                    aria-expanded={!recentCollapsed}
+                    aria-controls="sidebar-conversations-list"
+                  >
+                    <span className="sidebar__nav-icon" aria-hidden>⊙</span>
+                    <span className="sidebar__heading">Recent</span>
+                    <span className="sidebar__chats-chevron" aria-hidden>
+                      {recentCollapsed ? '▶' : '▼'}
+                    </span>
+                  </button>
+                  <div
+                    id="sidebar-conversations-list"
+                    className="sidebar__chats-list"
+                    hidden={recentCollapsed}
+                  >
+                    <ul className="sidebar__list">
+                      {[...sessions]
+                        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+                        .map((s) => (
+                          <li key={s.id} className="sidebar__item">
+                            <button
+                              type="button"
+                              className={`sidebar__link ${selectedId === s.id ? 'sidebar__link--active' : ''}`}
+                              onClick={() => setSelectedId(s.id)}
+                            >
+                              <span className="sidebar__chat-title">
+                                {s.title?.trim() || 'Chat'}
+                              </span>
+                              <span className="sidebar__chat-meta">
+                                {formatSessionMeta(s.created_at)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </nav>
+          </aside>
+          <main className="shell__main">
+            <div className="shell__top">
+              <span className="shell__title" style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
+                {sessionTitle}
+              </span>
+              <ThemeToggle />
+            </div>
+            <div className="shell__content">
+              <div className="page-chat">
+                <section
+                  ref={historyRef}
+                  className="page-chat__history"
+                  aria-label="Conversation history"
+                  role="log"
+                  aria-live="polite"
+                >
+                  {messages.length === 0 && selectedId !== null && (
+                    <p className="page-chat__text page-chat__muted">No messages yet.</p>
+                  )}
+                  {messages.length === 0 && selectedId === null && (
+                    <p className="page-chat__text page-chat__muted">
+                      Type a message below to start a new chat.
+                    </p>
+                  )}
+                  {messages.map((m, i) => (
+                    <div
+                      key={i}
+                      className={`page-chat__msg-row page-chat__msg-row--${m.role}`}
+                      role="article"
+                      aria-label={m.role === 'user' ? 'You' : m.role}
+                    >
+                      <span className="page-chat__msg-icon" aria-hidden>
+                        {m.role === 'user' ? 'U' : 'A'}
+                      </span>
+                      <div className={`page-chat__msg page-chat__msg--${m.role}`}>
+                        <div className="page-chat__msg-content">{m.content}</div>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+                <section className="page-chat__input" aria-label="Send a message">
+                  <ChatInput
+                    onSend={handleSend}
+                    loading={loading}
+                    error={error}
+                    onDismissError={() => setError(null)}
+                  />
+                </section>
+              </div>
+            </div>
+          </main>
         </div>
-        </main>
       </div>
     </ThemeProvider>
+  );
+}
+
+function ChatInput({ onSend, loading, error, onDismissError }) {
+  const [prompt, setPrompt] = useState('');
+
+  function handleSubmit() {
+    const value = prompt.trim();
+    if (!value || loading) return;
+    onSend(value);
+    setPrompt('');
+  }
+
+  return (
+    <>
+      <div className="page-chat__input-box">
+        <textarea
+          className="page-chat__follow-up-input"
+          value={prompt}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            onDismissError();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+          rows={2}
+          disabled={loading}
+          aria-label="Message"
+        />
+        <button
+          type="button"
+          className="page-chat__follow-up-btn"
+          onClick={handleSubmit}
+          disabled={loading || !prompt.trim()}
+        >
+          {loading ? 'Sending…' : 'Send'}
+        </button>
+      </div>
+      {error && (
+        <p className="page-chat__text page-chat__error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
