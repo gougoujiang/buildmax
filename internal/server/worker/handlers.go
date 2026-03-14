@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"buildmax/internal/storage/entity"
 	"buildmax/internal/workerapi"
 )
 
@@ -97,7 +98,13 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, cha
 	if req.Status != workerapi.StatusRunning {
 		return false
 	}
-	updated, err := h.cfg.ChatRunStore.UpdateChatRunStatusIf(r.Context(), chatRunID, workerapi.StatusScheduled, workerapi.StatusRunning, req.StartedAt, nil, nil, nil, req.SessionID)
+	updated, err := h.cfg.ChatRunStore.ClaimChatRun(r.Context(), entity.ClaimChatRunInput{
+		ChatRunID:      chatRunID,
+		ExpectedStatus: entity.RunStatusScheduled,
+		NewStatus:      entity.RunStatusRunning,
+		StartedAt:      req.StartedAt,
+		SessionID:      req.SessionID,
+	})
 	if err != nil {
 		writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 		return true
@@ -111,7 +118,17 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, cha
 
 // handlePatchTerminalStatus handles status other than RUNNING: update status, OnRunComplete/SyncChatFromRun, Hub.Done. Writes errors and does not write 200.
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, chatRunID string, req *workerapi.PatchChatRunRequest) bool {
-	if err := h.cfg.ChatRunStore.UpdateChatRunStatus(r.Context(), chatRunID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID, req.PromptTokens, req.CompletionTokens); err != nil {
+	if err := h.cfg.ChatRunStore.UpdateRun(r.Context(), entity.UpdateChatRunInput{
+		ChatRunID:        chatRunID,
+		Status:           entity.RunStatus(req.Status),
+		StartedAt:        req.StartedAt,
+		EndedAt:          req.EndedAt,
+		Output:           req.Output,
+		ErrorMessage:     req.ErrorMessage,
+		SessionID:        req.SessionID,
+		PromptTokens:     req.PromptTokens,
+		CompletionTokens: req.CompletionTokens,
+	}); err != nil {
 		writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 		return false
 	}

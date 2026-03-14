@@ -17,9 +17,9 @@ func runTUI(resumeID string, modelSelector string) error {
 		return err
 	}
 	opts := tui.TUIOpts{
-		Agent:       res.Agent,
-		LLMClient:   res.LLMClient,
-		Session:     res.Session,
+		Agent:       res.Runtime.Agent,
+		LLMClient:   res.Runtime.LLMClient,
+		Session:     res.Runtime.Session,
 		ModelName:   res.ModelName,
 		Workspace:   res.CWD,
 		Branch:      util.CurrentBranch(res.CWD),

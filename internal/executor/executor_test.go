@@ -41,8 +41,8 @@ func (testWorkspacePaths) RunOutputDir(workspaceID, chatID, chatRunID string) st
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
-	files        map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
-	chatGlobal   map[string][]byte            // "workspaceID/chatID/chatRunID/relPath" -> content
+	files      map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
+	chatGlobal map[string][]byte            // "workspaceID/chatID/chatRunID/relPath" -> content
 }
 
 func newFakePersistStorage() *fakePersistStorage {
@@ -199,22 +199,26 @@ type mockChatRunStore struct{}
 func (mockChatRunStore) CreateChatRun(_ context.Context, _, _, _ string) (*entity.ChatRun, error) {
 	return nil, nil
 }
-func (mockChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.ChatRun, error) { return nil, nil }
-func (mockChatRunStore) GetChatRun(_ context.Context, _ string) (*entity.ChatRun, error) { return nil, nil }
+func (mockChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.ChatRun, error) {
+	return nil, nil
+}
+func (mockChatRunStore) GetChatRun(_ context.Context, _ string) (*entity.ChatRun, error) {
+	return nil, nil
+}
 func (mockChatRunStore) GetChatRunWithChat(_ context.Context, _ string) (*entity.ChatRun, *entity.Chat, error) {
 	return nil, nil, nil
 }
-func (mockChatRunStore) UpdateChatRunStatusIf(_ context.Context, _, _, _ string, _, _ *int64, _, _, _ *string) (bool, error) {
+func (mockChatRunStore) ClaimChatRun(_ context.Context, in entity.ClaimChatRunInput) (bool, error) {
 	return false, nil
 }
-func (mockChatRunStore) UpdateChatRunStatus(_ context.Context, _, _ string, _, _ *int64, _, _, _ *string, _, _ *int) error {
+func (mockChatRunStore) UpdateRun(_ context.Context, in entity.UpdateChatRunInput) error {
 	return nil
 }
 func (mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
 	return nil
 }
 func (mockChatRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error { return nil }
-func (mockChatRunStore) SyncChatFromRun(_ context.Context, _ string) error      { return nil }
+func (mockChatRunStore) SyncChatFromRun(_ context.Context, _ string) error           { return nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {
 	runner := NewLocalRunner("buildmax-worker")

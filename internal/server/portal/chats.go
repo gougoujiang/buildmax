@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 
-	"buildmax/internal/conversation/adapter"
-	"buildmax/internal/model"
+	chatapp "buildmax/internal/app/chat"
+	convapp "buildmax/internal/app/conversation"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
@@ -37,15 +36,7 @@ type createChatRequest struct {
 	AgentID *string `json:"agent_id,omitempty"`
 }
 
-func buildChatInputFromAgent(agent *model.Agent, userInput string) string {
-	out := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
-	if userInput != "" {
-		out = out + "\n\n" + userInput
-	}
-	return out
-}
-
-func chatToResponse(c model.Chat) ChatResponse {
+func chatToResponse(c entity.Chat) ChatResponse {
 	return ChatResponse{
 		ID:             c.ChatID,
 		WorkspaceID:    c.WorkspaceID,
@@ -64,7 +55,7 @@ func chatToResponse(c model.Chat) ChatResponse {
 	}
 }
 
-func (h *Handler) getChatForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, chatID string) (*model.Chat, bool) {
+func (h *Handler) getChatForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, chatID string) (*entity.Chat, bool) {
 	if !h.requireStore(w, h.cfg.ChatStore, "chats not configured") {
 		return nil, false
 	}
@@ -126,56 +117,6 @@ func (h *Handler) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, out)
 }
 
-func truncateChatTitle(input string, maxRunes int) string {
-	runes := []rune(input)
-	if len(runes) <= maxRunes {
-		return input
-	}
-	return string(runes[:maxRunes]) + "…"
-}
-
-// resolveCreateChatInput resolves input and optional agentID from the create-chat request; writes errors and returns ok false on failure.
-func (h *Handler) resolveCreateChatInput(w http.ResponseWriter, r *http.Request, workspaceID string, req *createChatRequest) (input string, agentID *string, ok bool) {
-	if req.AgentID != nil && *req.AgentID != "" {
-		if h.cfg.AgentStore == nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "agents not configured")
-			return "", nil, false
-		}
-		agent, err := h.cfg.AgentStore.GetAgent(r.Context(), *req.AgentID)
-		if err != nil {
-			writeInternalError(w, err, "handler", "get_agent", "agent_id", *req.AgentID)
-			return "", nil, false
-		}
-		if agent == nil || agent.WorkspaceID != workspaceID {
-			writeJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
-			return "", nil, false
-		}
-		if req.Input != "" {
-			input = req.Input
-		} else {
-			input = buildChatInputFromAgent(agent, "")
-		}
-		return input, req.AgentID, true
-	}
-	if req.Input == "" {
-		writeJSONError(w, http.StatusBadRequest, "input required")
-		return "", nil, false
-	}
-	return req.Input, nil, true
-}
-
-// resolveTitleAndUsage returns a generated title and token usage from the generator, or ("", 0, 0) if generator is nil, errors, or returns empty.
-func resolveTitleAndUsage(ctx context.Context, gen ChatTitleGenerator, input string) (title string, promptTokens, completionTokens int) {
-	if gen == nil {
-		return "", 0, 0
-	}
-	t, usage, err := gen.GenerateChatTitle(ctx, input)
-	if err != nil || t == "" {
-		return "", 0, 0
-	}
-	return t, usage.PromptTokens, usage.CompletionTokens
-}
-
 func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Request) {
 	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -189,35 +130,16 @@ func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Requ
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	input, agentID, ok := h.resolveCreateChatInput(w, r, workspaceID, &req)
-	if !ok {
-		return
-	}
-	title := truncateChatTitle(input, 50)
-	titlePromptTokens, titleCompletionTokens := 0, 0
-	if h.cfg.ChatTitleGenerator != nil {
-		if genTitle, pt, ct := resolveTitleAndUsage(r.Context(), h.cfg.ChatTitleGenerator, input); genTitle != "" {
-			title, titlePromptTokens, titleCompletionTokens = genTitle, pt, ct
-		}
-	}
-	if h.cfg.QuotaChecker != nil {
-		allowed, reason := h.cfg.QuotaChecker.Check(r.Context(), userID, 1, titlePromptTokens+titleCompletionTokens)
-		if !allowed {
-			writeQuotaExceeded(w, reason)
-			return
-		}
-	}
-	chat, err := h.cfg.ChatStore.CreateChat(r.Context(), &entity.CreateChatInput{
-		WorkspaceID:           workspaceID,
-		Input:                 input,
-		Title:                 title,
-		CreatedBy:             userID,
-		TitlePromptTokens:     titlePromptTokens,
-		TitleCompletionTokens: titleCompletionTokens,
-		AgentID:               agentID,
-		ConversationID:        nil,
+	chat, err := h.chatService().CreateChat(r.Context(), chatapp.CreateChatCmd{
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Input:       req.Input,
+		AgentID:     req.AgentID,
 	})
 	if err != nil {
+		if h.writeChatServiceError(w, r, err, req.AgentID) {
+			return
+		}
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
 		return
 	}
@@ -230,22 +152,17 @@ type createChatRunRequest struct {
 
 // createChatRunViaConversation handles the Tier 1 conversation path; returns true if it wrote a response.
 func (h *Handler) createChatRunViaConversation(w http.ResponseWriter, r *http.Request, userID, workspaceID, chatID, input string) bool {
-	if h.cfg.ConversationEngine == nil || h.cfg.PortalAdapter == nil {
-		return false
-	}
-	turnInput := &adapter.PortalTurnInput{
+	result, err := h.conversationService().HandleTurn(r.Context(), convapp.HandleTurnCmd{
 		WorkspaceID: workspaceID,
-		ChatID:      chatID,
 		UserID:      userID,
+		Channel:     "portal",
 		Message:     input,
-	}
-	turn, err := h.cfg.PortalAdapter.Receive(r.Context(), turnInput)
+		ChatID:      chatID,
+	})
 	if err != nil {
-		writeInternalError(w, err, "handler", "receive_turn", "chat_id", chatID)
-		return true
-	}
-	result, err := h.cfg.ConversationEngine.Process(r.Context(), workspaceID, chatID, turn)
-	if err != nil {
+		if h.writeConversationServiceError(w, r, err, nil) {
+			return true
+		}
 		if errors.Is(err, entity.ErrRunInProgress) {
 			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
 			return true
@@ -263,8 +180,15 @@ func (h *Handler) createChatRunViaConversation(w http.ResponseWriter, r *http.Re
 
 // createChatRunLegacy creates a run via ChatRunStore and writes the response.
 func (h *Handler) createChatRunLegacy(w http.ResponseWriter, r *http.Request, userID, workspaceID, chatID, input string) {
-	run, err := h.cfg.ChatRunStore.CreateChatRun(r.Context(), chatID, input, userID)
+	run, err := h.chatService().CreateRun(r.Context(), chatapp.CreateRunCmd{
+		UserID: userID,
+		ChatID: chatID,
+		Input:  input,
+	})
 	if err != nil {
+		if h.writeChatServiceError(w, r, err, nil) {
+			return
+		}
 		if errors.Is(err, entity.ErrRunInProgress) {
 			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
 			return
@@ -300,23 +224,13 @@ func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
-	if h.cfg.QuotaChecker != nil {
-		allowed, reason := h.cfg.QuotaChecker.Check(r.Context(), userID, 1, 0)
-		if !allowed {
-			writeQuotaExceeded(w, reason)
-			return
-		}
-	}
-	if h.createChatRunViaConversation(w, r, userID, workspaceID, chatID, req.Input) {
-		return
-	}
-	h.createChatRunLegacy(w, r, userID, workspaceID, chatID, req.Input)
+	h.createChatRunViaConversation(w, r, userID, workspaceID, chatID, req.Input)
 }
 
 type SessionMessage struct {
-	Role       string           `json:"role"`
-	Content    string           `json:"content,omitempty"`
-	ToolCallID string           `json:"tool_call_id,omitempty"`
+	Role       string            `json:"role"`
+	Content    string            `json:"content,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
 	ToolCalls  []SessionToolCall `json:"tool_calls,omitempty"`
 }
 
@@ -374,7 +288,7 @@ func (h *Handler) getChatConversationHandler(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) loadChatConversationData(ctx context.Context, chat *model.Chat, lastRunID, sessionID string) ([]byte, error) {
+func (h *Handler) loadChatConversationData(ctx context.Context, chat *entity.Chat, lastRunID, sessionID string) ([]byte, error) {
 	relPath := "sessions/" + sessionID + ".json"
 	if h.cfg.PersistStorage != nil {
 		data, err := h.cfg.PersistStorage.GetChatGlobal(ctx, chat.WorkspaceID, chat.ChatID, lastRunID, relPath)

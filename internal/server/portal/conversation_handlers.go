@@ -1,24 +1,16 @@
 package portal
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
-	"buildmax/internal/conversation"
+	convapp "buildmax/internal/app/conversation"
 	"buildmax/internal/storage/entity"
 )
 
-type convTitleGen struct{ gen ChatTitleGenerator }
-
-func (c *convTitleGen) GenerateTitleFromInput(ctx context.Context, input string) (string, error) {
-	title, _, err := c.gen.GenerateChatTitle(ctx, input)
-	return title, err
-}
-
 type conversationListResponse struct {
 	Conversations []conversationResponse `json:"conversations"`
-	Total         int                   `json:"total"`
+	Total         int                    `json:"total"`
 }
 
 type conversationResponse struct {
@@ -31,8 +23,8 @@ type conversationResponse struct {
 }
 
 type createConversationRequest struct {
-	Channel  string `json:"channel"`
-	Message  string `json:"message"`
+	Channel string `json:"channel"`
+	Message string `json:"message"`
 }
 
 type createConversationResponse struct {
@@ -74,11 +66,13 @@ func (s *sseSink) OnDelta(delta string) {
 
 // runConversationTurn runs the conversation loop (stream or non-stream). When stream is true it sets SSE headers, optionally writes streamInitialPayload, runs RunLoopStream, and writes "done". When stream is false it runs RunLoop and returns (reply, err).
 func (h *Handler) runConversationTurn(r *http.Request, conversationID, message, channel, workspaceID, userID string, stream bool, w http.ResponseWriter, streamStatus int, streamInitialPayload string) (reply string, err error) {
-	var titleGen conversation.ConversationTitleGenerator
-	if h.cfg.ChatTitleGenerator != nil {
-		titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
+	cmd := convapp.HandleTurnCmd{
+		WorkspaceID:    workspaceID,
+		UserID:         userID,
+		Channel:        channel,
+		Message:        message,
+		ConversationID: conversationID,
 	}
-	runner := h.startChatRunner(workspaceID, userID, conversationID)
 	if stream {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
@@ -92,8 +86,8 @@ func (h *Handler) runConversationTurn(r *http.Request, conversationID, message, 
 		}
 		flusher, _ := w.(http.Flusher)
 		sink := &sseSink{w: w, flusher: flusher}
-		reply, err = conversation.RunLoopStream(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
-			h.cfg.ConversationLLMCaller, conversationID, message, channel, nil, workspaceID, userID, runner, titleGen, sink)
+		cmd.StreamSink = sink
+		_, err := h.conversationService().HandleTurn(r.Context(), cmd)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -104,8 +98,11 @@ func (h *Handler) runConversationTurn(r *http.Request, conversationID, message, 
 		}
 		return "", nil
 	}
-	return conversation.RunLoop(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
-		h.cfg.ConversationLLMCaller, conversationID, message, channel, nil, workspaceID, userID, runner, titleGen)
+	result, err := h.conversationService().HandleTurn(r.Context(), cmd)
+	if err != nil {
+		return "", err
+	}
+	return result.Reply, nil
 }
 
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +168,9 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	}
 	reply, err := h.runConversationTurn(r, conv.ConversationID, req.Message, req.Channel, workspaceID, userID, streamRequested, w, http.StatusCreated, initialPayload)
 	if err != nil {
+		if h.writeConversationServiceError(w, r, err, nil) {
+			return
+		}
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
 		return
 	}
@@ -253,6 +253,9 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	streamRequested := r.URL.Query().Get("stream") == "1"
 	reply, err := h.runConversationTurn(r, conversationID, req.Content, conv.Channel, workspaceID, userID, streamRequested, w, http.StatusOK, "")
 	if err != nil {
+		if h.writeConversationServiceError(w, r, err, nil) {
+			return
+		}
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return
 	}

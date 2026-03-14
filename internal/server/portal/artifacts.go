@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
@@ -18,7 +17,7 @@ type ArtifactResponse struct {
 	ChatInputSnippet string `json:"chat_input_snippet"`
 }
 
-func artifactWithChatToResponse(a model.ArtifactWithChat) ArtifactResponse {
+func artifactWithChatToResponse(a entity.ArtifactWithChat) ArtifactResponse {
 	return ArtifactResponse{
 		ChatRunID:        a.ArtifactID,
 		ChatID:           a.ChatID,

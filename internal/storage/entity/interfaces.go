@@ -72,9 +72,10 @@ type ChatRunStore interface {
 	GetChatRun(ctx context.Context, chatRunID string) (*ChatRun, error)
 	// GetChatRunWithChat returns the run and its chat, or (nil, nil, nil) if run not found.
 	GetChatRunWithChat(ctx context.Context, chatRunID string) (*ChatRun, *Chat, error)
-	// UpdateChatRunStatusIf atomically updates run status when current status equals expectedStatus. Returns updated.
-	UpdateChatRunStatusIf(ctx context.Context, chatRunID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error)
-	UpdateChatRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) error
+	// ClaimChatRun atomically updates a run when current status matches ExpectedStatus.
+	ClaimChatRun(ctx context.Context, in ClaimChatRunInput) (bool, error)
+	// UpdateRun updates a run's status and optional fields.
+	UpdateRun(ctx context.Context, in UpdateChatRunInput) error
 	UpdateChatRunWorkerInfo(ctx context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
 	// OnRunComplete creates chat_run_artifact rows (one per relativePath) and updates chat denormalized fields. Use for SUCCEEDED runs.
 	OnRunComplete(ctx context.Context, chatRunID string, relativePaths []string) error

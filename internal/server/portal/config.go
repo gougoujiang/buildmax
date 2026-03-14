@@ -3,12 +3,11 @@ package portal
 import (
 	"context"
 
-	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
-	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/streamhub"
 )
 
 // TokenUsage holds prompt and completion token counts for a single LLM call.
@@ -35,14 +34,12 @@ type Config struct {
 	AgentStore               entity.AgentStore
 	ChatStore                entity.ChatStore
 	ChatRunStore             entity.ChatRunStore
-	RunOutputLister         RunOutputLister
+	RunOutputLister          RunOutputLister
 	PersistStorage           blob.PersistStorage
 	ArtifactStorage          blob.ArtifactStorage
 	WorkspacesDir            string
 	QuotaChecker             *quota.Checker
 	ChatTitleGenerator       ChatTitleGenerator
-	ConversationEngine       conversation.ConversationEngine
-	PortalAdapter            conversation.ChannelAdapter
 	ConversationStore        entity.ConversationStore
 	ConversationMessageStore entity.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller

@@ -107,8 +107,8 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
 	}()
 	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
-	if err := s.UpdateChatRunStatus(ctx, chatRunID, "SUCCEEDED", nil, nil, ptr.PtrString("out"), nil, nil, nil, nil); err != nil {
-		t.Fatalf("UpdateChatRunStatus: %v", err)
+	if err := s.UpdateRun(ctx, UpdateChatRunInput{ChatRunID: chatRunID, Status: RunStatusSucceeded, Output: ptr.PtrString("out")}); err != nil {
+		t.Fatalf("UpdateRun: %v", err)
 	}
 	err = s.OnRunComplete(ctx, chatRunID, []string{"result.md", "extra.txt"})
 	if err != nil {

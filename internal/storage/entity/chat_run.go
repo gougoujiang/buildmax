@@ -20,11 +20,11 @@ func (s *Store) CreateChatRun(ctx context.Context, chatID, input, createdBy stri
 		return nil, ErrRunInProgress
 	}
 	run := &ChatRun{
-		ChatRunID:  util.NewPrefixedID(util.PrefixChatRun),
-		ChatID:     chatID,
-		Input:      input,
-		Status:     "PENDING",
-		CreatedAt:  time.Now().Unix(),
+		ChatRunID: util.NewPrefixedID(util.PrefixChatRun),
+		ChatID:    chatID,
+		Input:     input,
+		Status:    "PENDING",
+		CreatedAt: time.Now().Unix(),
 	}
 	if err := s.db.WithContext(ctx).Create(run).Error; err != nil {
 		return nil, err
@@ -71,65 +71,63 @@ func (s *Store) GetChatRunWithChat(ctx context.Context, chatRunID string) (*Chat
 	return run, chat, nil
 }
 
-// UpdateChatRunStatusIf atomically updates run status when current status equals expectedStatus. Returns updated.
-// When newStatus is SCHEDULED or RUNNING, the chat's denormalized status is synced to match.
-func (s *Store) UpdateChatRunStatusIf(ctx context.Context, chatRunID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
-	updates := map[string]interface{}{"status": newStatus}
-	if startedAt != nil {
-		updates["started_at"] = *startedAt
+// ClaimChatRun atomically updates a run when current status matches ExpectedStatus.
+func (s *Store) ClaimChatRun(ctx context.Context, in ClaimChatRunInput) (bool, error) {
+	updates := map[string]interface{}{"status": string(in.NewStatus)}
+	if in.StartedAt != nil {
+		updates["started_at"] = *in.StartedAt
 	}
-	if endedAt != nil {
-		updates["ended_at"] = *endedAt
+	if in.EndedAt != nil {
+		updates["ended_at"] = *in.EndedAt
 	}
-	if output != nil {
-		updates["output"] = *output
+	if in.Output != nil {
+		updates["output"] = *in.Output
 	}
-	if errorMessage != nil {
-		updates["error_message"] = *errorMessage
+	if in.ErrorMessage != nil {
+		updates["error_message"] = *in.ErrorMessage
 	}
-	if sessionID != nil {
-		updates["session_id"] = *sessionID
+	if in.SessionID != nil {
+		updates["session_id"] = *in.SessionID
 	}
-	result := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ? AND status = ?", chatRunID, expectedStatus).Updates(updates)
+	result := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ? AND status = ?", in.ChatRunID, string(in.ExpectedStatus)).Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}
-	if result.RowsAffected == 1 && (newStatus == "PENDING" || newStatus == "SCHEDULED" || newStatus == "RUNNING") {
-		_ = s.syncChatStatusFromRun(ctx, chatRunID, newStatus, startedAt, nil)
+	if result.RowsAffected == 1 && (in.NewStatus == RunStatusPending || in.NewStatus == RunStatusScheduled || in.NewStatus == RunStatusRunning) {
+		_ = s.syncChatStatusFromRun(ctx, in.ChatRunID, string(in.NewStatus), in.StartedAt, nil)
 	}
 	return result.RowsAffected == 1, nil
 }
 
-// UpdateChatRunStatus updates a run's status and optional fields.
-// When status is SCHEDULED or RUNNING, the chat's denormalized status is synced to match.
-func (s *Store) UpdateChatRunStatus(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) error {
-	updates := map[string]interface{}{"status": status}
-	if startedAt != nil {
-		updates["started_at"] = *startedAt
+// UpdateRun updates a run's status and optional fields.
+func (s *Store) UpdateRun(ctx context.Context, in UpdateChatRunInput) error {
+	updates := map[string]interface{}{"status": string(in.Status)}
+	if in.StartedAt != nil {
+		updates["started_at"] = *in.StartedAt
 	}
-	if endedAt != nil {
-		updates["ended_at"] = *endedAt
+	if in.EndedAt != nil {
+		updates["ended_at"] = *in.EndedAt
 	}
-	if output != nil {
-		updates["output"] = *output
+	if in.Output != nil {
+		updates["output"] = *in.Output
 	}
-	if errorMessage != nil {
-		updates["error_message"] = *errorMessage
+	if in.ErrorMessage != nil {
+		updates["error_message"] = *in.ErrorMessage
 	}
-	if sessionID != nil {
-		updates["session_id"] = *sessionID
+	if in.SessionID != nil {
+		updates["session_id"] = *in.SessionID
 	}
-	if promptTokens != nil {
-		updates["prompt_tokens"] = *promptTokens
+	if in.PromptTokens != nil {
+		updates["prompt_tokens"] = *in.PromptTokens
 	}
-	if completionTokens != nil {
-		updates["completion_tokens"] = *completionTokens
+	if in.CompletionTokens != nil {
+		updates["completion_tokens"] = *in.CompletionTokens
 	}
-	if err := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", chatRunID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", in.ChatRunID).Updates(updates).Error; err != nil {
 		return err
 	}
-	if status == "PENDING" || status == "SCHEDULED" || status == "RUNNING" {
-		_ = s.syncChatStatusFromRun(ctx, chatRunID, status, startedAt, endedAt)
+	if in.Status == RunStatusPending || in.Status == RunStatusScheduled || in.Status == RunStatusRunning {
+		_ = s.syncChatStatusFromRun(ctx, in.ChatRunID, string(in.Status), in.StartedAt, in.EndedAt)
 	}
 	return nil
 }

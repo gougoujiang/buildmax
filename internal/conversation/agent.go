@@ -1,4 +1,5 @@
-// Conversation agent loop: load messages, call LLM with tools, persist each turn.
+// Package conversation contains the low-level Tier 1 LLM loop used by app/conversation.
+// It owns message persistence, tool execution, and optional streaming for one turn.
 package conversation
 
 import (
@@ -8,9 +9,9 @@ import (
 	"log/slog"
 
 	"buildmax/internal/agent"
+	"buildmax/internal/core"
 	"buildmax/internal/llm"
 	"buildmax/internal/storage/entity"
-	"buildmax/internal/core"
 	"buildmax/internal/tools"
 )
 

@@ -10,15 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
 	"buildmax/internal/server/auth"
 	"buildmax/internal/server/portal"
 	"buildmax/internal/server/worker"
-	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/streamhub"
 )
 
 //go:embed static/openapi.json static/swagger.html
@@ -74,11 +73,9 @@ type WorkerConfig struct {
 	WorkerToken string // If set, required for /api/worker/*
 }
 
-// ConversationConfig holds Tier 1 conversation engine, adapter, stores, and LLM.
+// ConversationConfig holds Tier 1 conversation stores and LLM wiring.
 type ConversationConfig struct {
 	ChatTitleGenerator       ChatTitleGenerator
-	ConversationEngine       conversation.ConversationEngine
-	PortalAdapter            conversation.ChannelAdapter
 	ConversationStore        entity.ConversationStore
 	ConversationMessageStore entity.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller
@@ -126,8 +123,6 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
 		QuotaChecker:             cfg.Auth.QuotaChecker,
 		ChatTitleGenerator:       chatTitleGenAdapter{cfg.Conv.ChatTitleGenerator},
-		ConversationEngine:       cfg.Conv.ConversationEngine,
-		PortalAdapter:            cfg.Conv.PortalAdapter,
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,

@@ -65,17 +65,17 @@ func (s *spyChatRunStore) GetChatRunWithChat(_ context.Context, _ string) (*enti
 	return nil, nil, nil
 }
 
-func (s *spyChatRunStore) UpdateChatRunStatusIf(_ context.Context, chatRunID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+func (s *spyChatRunStore) ClaimChatRun(_ context.Context, in entity.ClaimChatRunInput) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.statusIfCalls++
-	if s.statusIfCalls == 1 && expectedStatus == "PENDING" && newStatus == "SCHEDULED" {
+	if s.statusIfCalls == 1 && in.ExpectedStatus == entity.RunStatusPending && in.NewStatus == entity.RunStatusScheduled {
 		return true, nil
 	}
 	return false, nil
 }
 
-func (s *spyChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) error {
+func (s *spyChatRunStore) UpdateRun(_ context.Context, in entity.UpdateChatRunInput) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastUpdateStatus = &struct {
@@ -83,7 +83,7 @@ func (s *spyChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, stat
 		status       string
 		endedAt      *int64
 		errorMessage *string
-	}{chatRunID, status, endedAt, errorMessage}
+	}{in.ChatRunID, string(in.Status), in.EndedAt, in.ErrorMessage}
 	return nil
 }
 

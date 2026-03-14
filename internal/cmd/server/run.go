@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"buildmax/internal/config"
-	"buildmax/internal/conversation/adapter"
 	"buildmax/internal/executor"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
@@ -87,9 +86,9 @@ func RunServer(ctx context.Context, port int) error {
 		Stores: httpserver.StoresConfig{
 			UserStore:       st,
 			WorkspaceStore:  st,
-			AgentStore:     st,
-			ChatStore:      st,
-			ChatRunStore:   st,
+			AgentStore:      st,
+			ChatStore:       st,
+			ChatRunStore:    st,
 			RunOutputLister: st,
 		},
 		Storage: httpserver.StorageConfig{
@@ -101,8 +100,6 @@ func RunServer(ctx context.Context, port int) error {
 			WorkerToken: config.WorkerToken(),
 		},
 		Conv: httpserver.ConversationConfig{
-			ConversationEngine:       adapter.NewPassThroughEngine(st),
-			PortalAdapter:            &adapter.PortalAdapter{},
 			ConversationStore:        st,
 			ConversationMessageStore: st,
 		},

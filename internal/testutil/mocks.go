@@ -196,45 +196,45 @@ func (m *MockChatRunStore) GetChatRunWithChat(_ context.Context, chatRunID strin
 	}
 	return run, chat, nil
 }
-func (m *MockChatRunStore) UpdateChatRunStatusIf(_ context.Context, chatRunID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+func (m *MockChatRunStore) ClaimChatRun(ctx context.Context, in entity.ClaimChatRunInput) (bool, error) {
 	for i := range m.Runs {
-		if m.Runs[i].ChatRunID == chatRunID && m.Runs[i].Status == expectedStatus {
-			m.Runs[i].Status = newStatus
-			if startedAt != nil {
-				m.Runs[i].StartedAt = startedAt
+		if m.Runs[i].ChatRunID == in.ChatRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
+			m.Runs[i].Status = string(in.NewStatus)
+			if in.StartedAt != nil {
+				m.Runs[i].StartedAt = in.StartedAt
 			}
-			if sessionID != nil {
-				m.Runs[i].SessionID = sessionID
+			if in.SessionID != nil {
+				m.Runs[i].SessionID = in.SessionID
 			}
 			return true, nil
 		}
 	}
 	return false, nil
 }
-func (m *MockChatRunStore) UpdateChatRunStatus(_ context.Context, chatRunID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) error {
+func (m *MockChatRunStore) UpdateRun(ctx context.Context, in entity.UpdateChatRunInput) error {
 	for i := range m.Runs {
-		if m.Runs[i].ChatRunID == chatRunID {
-			m.Runs[i].Status = status
-			if startedAt != nil {
-				m.Runs[i].StartedAt = startedAt
+		if m.Runs[i].ChatRunID == in.ChatRunID {
+			m.Runs[i].Status = string(in.Status)
+			if in.StartedAt != nil {
+				m.Runs[i].StartedAt = in.StartedAt
 			}
-			if endedAt != nil {
-				m.Runs[i].EndedAt = endedAt
+			if in.EndedAt != nil {
+				m.Runs[i].EndedAt = in.EndedAt
 			}
-			if output != nil {
-				m.Runs[i].Output = output
+			if in.Output != nil {
+				m.Runs[i].Output = in.Output
 			}
-			if errorMessage != nil {
-				m.Runs[i].ErrorMessage = errorMessage
+			if in.ErrorMessage != nil {
+				m.Runs[i].ErrorMessage = in.ErrorMessage
 			}
-			if sessionID != nil {
-				m.Runs[i].SessionID = sessionID
+			if in.SessionID != nil {
+				m.Runs[i].SessionID = in.SessionID
 			}
-			if promptTokens != nil {
-				m.Runs[i].PromptTokens = promptTokens
+			if in.PromptTokens != nil {
+				m.Runs[i].PromptTokens = in.PromptTokens
 			}
-			if completionTokens != nil {
-				m.Runs[i].CompletionTokens = completionTokens
+			if in.CompletionTokens != nil {
+				m.Runs[i].CompletionTokens = in.CompletionTokens
 			}
 			return nil
 		}

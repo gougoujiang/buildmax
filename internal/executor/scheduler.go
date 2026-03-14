@@ -84,7 +84,11 @@ func (s *Scheduler) loop() {
 			if run == nil {
 				continue
 			}
-			updated, err := s.chatRuns.UpdateChatRunStatusIf(ctx, run.ChatRunID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+			updated, err := s.chatRuns.ClaimChatRun(ctx, entity.ClaimChatRunInput{
+				ChatRunID:      run.ChatRunID,
+				ExpectedStatus: entity.RunStatusPending,
+				NewStatus:      entity.RunStatusScheduled,
+			})
 			if err != nil {
 				slog.Warn("scheduler: claim failed", "chat_run_id", run.ChatRunID, "err", err)
 				continue
@@ -100,7 +104,12 @@ func (s *Scheduler) loop() {
 					errorMsg = errorMsg[:maxErrorMessageLength]
 				}
 				endedAt := time.Now().Unix()
-				if updateErr := s.chatRuns.UpdateChatRunStatus(ctx, run.ChatRunID, "FAILED", nil, &endedAt, nil, &errorMsg, nil, nil, nil); updateErr != nil {
+				if updateErr := s.chatRuns.UpdateRun(ctx, entity.UpdateChatRunInput{
+					ChatRunID:    run.ChatRunID,
+					Status:       entity.RunStatusFailed,
+					EndedAt:      &endedAt,
+					ErrorMessage: &errorMsg,
+				}); updateErr != nil {
 					slog.Error("scheduler: failed to set run to FAILED", "chat_run_id", run.ChatRunID, "err", updateErr)
 					continue
 				}

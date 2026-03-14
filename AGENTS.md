@@ -62,7 +62,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 **Agent & tools**
 - **LLM integration**: OpenAI-compatible client in `internal/llm` (OpenRouter default); env-based config (`BUILDMAX_API_KEY`, `BUILDMAX_BASE_URL`, `BUILDMAX_MODEL`).
 - **Agent loop**: Single-turn flow with tool calling (LLM → tool_calls → execute tools → re-call LLM → reply) in `internal/agent`; default system prompt prepended in `Process`.
-- **Optional workspace AGENTS.md**: When running the CLI, if a file named `AGENTS.md` exists at the workspace root (current working directory), its contents are appended to the default system prompt so the agent receives project-specific instructions. See the [agents.md](https://agents.md/) convention. For remote runs, the worker prepares an `AGENTS.md` in the run directory (run directory layout plus optional workspace `AGENTS.md` from materialized home) so the same convention applies when `buildmax -p` runs with cwd = run dir.
+- **Optional workspace AGENTS.md**: When running the CLI, if a file named `AGENTS.md` exists at the workspace root (current working directory), its contents are appended to the default system prompt so the agent receives project-specific instructions. See the [agents.md](https://agents.md/) convention. For remote runs, the worker prepares an `AGENTS.md` in the run directory (run directory layout plus optional workspace `AGENTS.md` from materialized home) so the same convention applies when the shared agent runtime runs with cwd = run dir.
 - **Tools** (`internal/tools`): `read_file`, `writefile`, `editfile`, `bash`, `glob`, `grep` (with format), `webfetch`, `todowrite`, `skill`, `agentdef`, `task`; path under configurable root (e.g. CWD). Tool output is LLM-oriented (meaningful on success and failure).
 
 **Config & infra**
@@ -73,17 +73,18 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 **HTTP server & Portal backend**
 - **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
 - **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/workspaces`, `GET/POST /api/workspaces/{id}/chats`, `GET /api/workspaces/{id}/artifacts`, `GET .../artifacts/{chat_run_id}/items`, `GET .../artifacts/{chat_run_id}/content`; `POST /api/workspaces/{id}/upload`, `GET /api/workspaces/{id}/files`, `GET /api/workspaces/{id}/files/{path...}`; `GET /api/sessions/{session_id}`; **worker API** (chat-run-id only, worker token): `GET /api/worker/chat-runs/{chat_run_id}`, `PATCH /api/worker/chat-runs/{chat_run_id}`. JWT auth for user API; workspace-scoped access.
-- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — User, Workspace, Chat, ChatRun, Artifact, ArtifactItem. Blob storage in `internal/storage/blob` — PersistStorage (workspace uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Workspace on-disk layout**: workspace root has `home/` (uploads); each chat run uses `chats/<chatID>/<chatRunID>/` with `home/` (materialized workspace home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use segment `home` for workspace uploads and `chats/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
-- **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING chat runs, spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets chat run via `GET /api/worker/chat-runs/{chat_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md` (layout + optional workspace AGENTS.md), runs `buildmax -p` with BUILDMAX_HOME = run `global` and cwd = run dir (so agent sees run `home/`, `artifacts/`, `global/` and reads AGENTS.md), writes result to run `artifacts/result.md`, uploads run `global` to blob. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
+- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Workspace, Agent, Conversation, ConversationMessage, Chat, ChatRun, Artifact, ArtifactItem, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (workspace uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Workspace on-disk layout**: workspace root has `home/` (uploads); each chat run uses `chats/<chatID>/<chatRunID>/` with `home/` (materialized workspace home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use segment `home` for workspace uploads and `chats/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
+- **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING chat runs, claims them with the typed run lifecycle API, and spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets chat run via `GET /api/worker/chat-runs/{chat_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md` (layout + optional workspace AGENTS.md), runs the shared agent runtime in-process with BUILDMAX_HOME = run `global` and cwd = run dir, writes result to run `artifacts/result.md`, uploads run `global` to blob, and streams assistant reply deltas when enabled. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Portal (web)**
 - **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), WorkspaceHome, Activity, TaskDetail (chat detail); API client in `lib/api.ts`; AuthContext; AppShell, Sidebar, TopBar, modals (CreateWorkspace, ArtifactContent). Sidebar: New Chat, Workspace block (switcher), Agents, Chats list, Explore, Activity. Connects to Go backend for auth and workspace/chat/artifact/file APIs (no project; chats are workspace-scoped).
 
 ### 4.2 Tier 1 and Tier 2 architecture
 
-- **Tier 1 = Conversation agent (orchestrator).** The conversation agent (`internal/conversation`; API: workspaces → conversations → messages) receives the user query, owns the conversation, and decides what the user sees. It runs the LLM loop with tools and streams or posts the assistant reply. Tier 1 is the single voice to the user.
-- **Tier 2 = Chat + ChatRun (execution in the back).** A Chat with one or more ChatRuns is Tier 2: the worker runs `buildmax -p` in a run directory, produces artifacts, and can take a long time. Tier 2 is “tools in the back”—it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
-- **Tier 1 tools for Tier 2 (planned):** The conversation agent can use tools to (1) **create a Tier 2 task** — create a Chat and ChatRun so the worker executes; (2) **rerun / follow-up on an existing chat** — send a follow-up input to an existing Chat (like a user adding a follow-up), which creates a new run. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
+- **Tier 1 = Conversation application service (orchestrator).** The application-layer orchestrator lives in `internal/app/conversation`. It is the single entry point for portal turns: it receives the normalized request, decides whether to run a direct conversation turn or create a background chat run, and owns what the user sees. Tier 1 is the single voice to the user.
+- **Low-level Tier 1 loop = `internal/conversation`.** The `internal/conversation` package is now the low-level LLM loop used by the app-layer service. It owns message persistence, tool execution, and optional streaming for one turn, but it is not the server composition or transport boundary anymore.
+- **Tier 2 = Chat + ChatRun (execution in the back).** A Chat with one or more ChatRuns is Tier 2: the worker materializes a run directory, executes the shared agent runtime there, produces artifacts, and can take a long time. Tier 2 is “tools in the back” - it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
+- **Tier 1 tools for Tier 2 (implemented via app services):** Tier 1 can (1) **create a Tier 2 task** through `internal/app/chat` and the `StartChat` tool, which creates a Chat and ChatRun for the worker; and (2) **rerun / follow-up on an existing chat** by creating a new run for that chat. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
 
 ### 4.3 Planned / Not yet implemented
 
@@ -105,23 +106,27 @@ buildmax/
 │   └── buildmax-worker/       # Worker binary (runs one chat run via API + direct storage)
 │       └── main.go
 ├── internal/                  # Private packages (this project only)
+│   ├── app/                   # Application-layer orchestration services shared by transports/runtime
+│   │   ├── agentrun/          # Shared agent runtime used by CLI and worker
+│   │   ├── chat/              # Chat application service (create chat, create run, background chat)
+│   │   └── conversation/      # Tier 1 orchestration entry point for portal turns
 │   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
 │   ├── tui/                   # Bubble Tea TUI (models, views, program entry: banner, input, viewport, format)
 │   ├── agent/                 # Core Agent logic (Process, tools, system prompt, subagent runner)
+│   ├── conversation/          # Low-level Tier 1 LLM loop (message persistence, tool execution, streaming)
 │   ├── llm/                   # LLM client (OpenAI-compatible), types, ChatWithTools
 │   ├── config/                # Config: LoadLLM(), DataDir(), MySQLDSN(), server env, workspace paths, workspace storage (env_spec.go, workspace_storage.go)
 │   ├── log/                   # slog init, BUILDMAX_LOG_LEVEL, rotated file
 │   ├── session/               # Session (id, title, history), SaveToDir, LoadFromDir, list index (sessions.json)
 │   ├── tools/                 # Tool implementations (readfile, writefile, editfile, bash, glob, grep, webfetch, todowrite, skill, agentdef, task)
 │   ├── util/                  # ID generation (prefixed IDs: u_, w_, c_, r_, ar_, f_), workspace helpers, git, argparse
-│   ├── model/                 # Shared domain types (User, Workspace, Chat, ChatRun, Artifact, ArtifactItem, ArtifactWithChat)
 │   ├── storage/               # Persistence under one namespace
-│   │   ├── entity/            # MySQL (GORM): User, Workspace, Chat, ChatRun, Artifact; interfaces and Store
+│   │   ├── entity/            # MySQL (GORM): canonical backend models, typed lifecycle commands, interfaces and Store
 │   │   └── blob/              # Blob/file storage: PersistStorage (workspace home), ArtifactStorage; local FS and S3; keys use home, chats/.../global
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), workspaces, chats, artifacts, upload, files, sessions; static (openapi, swagger)
 │   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewScheduler, server.Run); used by cmd/buildmax-server
 │   ├── workercmd/             # Worker startup: RunWorker (env, get chat run via API, blob storage, executor.RunTask); used by cmd/buildmax-worker
-│   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask: run-scoped dirs (home, artifacts, global), materialize, buildmax -p, ChatRunUpdater (API)
+│   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask: run-scoped dirs (home, artifacts, global), materialize, shared runtime execution, ChatRunUpdater (API)
 ├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
 │   ├── package.json           # Scripts: dev, build, preview
 │   ├── vite.config.ts         # Vite config (build out: dist/)
@@ -145,8 +150,10 @@ buildmax/
 - **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and chat-run scheduler (spawns `buildmax-worker` per pending chat run); use `./make run server` to build and run it.
 - **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--chat-run-id`; calls `workercmd.RunWorker` (get chat run via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
 - **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, internal setup for agent/session. No server subcommand.
+- **internal/app**: Application services that own orchestration boundaries: shared agent runtime, chat workflows, and Tier 1 conversation handling.
 - **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
-- **internal/server**: HTTP API for the Portal; depends on `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
+- **internal/conversation**: Low-level conversation loop primitives used by `internal/app/conversation`; not the transport-layer orchestration entry point.
+- **internal/server**: HTTP API for the Portal; depends on `app/chat`, `app/conversation`, `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
 - **portal/**: Frontend app; run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
 - **design/**: Product and technical design docs; see section 6.
