@@ -15,15 +15,15 @@ type usageResponse struct {
 }
 
 func (s *Server) usageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	userID, ok := requireAuth(w, r, s.cfg.Auth.JWTSecret)
 	if !ok {
 		return
 	}
-	if s.cfg.QuotaChecker == nil {
+	if s.cfg.Auth.QuotaChecker == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "usage not available")
 		return
 	}
-	info, err := s.cfg.QuotaChecker.GetUsage(r.Context(), userID)
+	info, err := s.cfg.Auth.QuotaChecker.GetUsage(r.Context(), userID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "usage")
 		return

@@ -22,7 +22,7 @@ func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (stri
 // pathKey is the path variable name (e.g. "workspace_id"). Returns (userID, workspaceID, true) on success;
 // on failure writes the appropriate JSON error and returns ("", "", false).
 func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathKey string) (userID, workspaceID string, ok bool) {
-	userID, ok = requireAuth(w, r, s.cfg.JWTSecret)
+	userID, ok = requireAuth(w, r, s.cfg.Auth.JWTSecret)
 	if !ok {
 		return "", "", false
 	}
@@ -45,10 +45,10 @@ func (s *Server) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathK
 
 // userOwnsWorkspace returns whether the user owns the workspace. Returns (false, nil) if WorkspaceStore is nil.
 func (s *Server) userOwnsWorkspace(r *http.Request, userID, workspaceID string) (bool, error) {
-	if s.cfg.WorkspaceStore == nil {
+	if s.cfg.Stores.WorkspaceStore == nil {
 		return false, nil
 	}
-	return s.cfg.WorkspaceStore.WorkspaceBelongsToUser(r.Context(), workspaceID, userID)
+	return s.cfg.Stores.WorkspaceStore.WorkspaceBelongsToUser(r.Context(), workspaceID, userID)
 }
 
 // requireStore writes 503 with the given message and returns false if store is nil; otherwise returns true.

@@ -1,6 +1,6 @@
-// Tier 1 conversation implementations for the portal: adapter and pass-through engine.
+// Package adapter provides portal and conversation adapters for the HTTP server.
 // See design/007-two-tier-agent.md and .vibe/092-design.md.
-package server
+package adapter
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"buildmax/internal/conversation"
-	"buildmax/internal/storage/entity"
 )
 
 // PortalTurnInput is the request-shaped input for the portal adapter. The handler
@@ -48,29 +47,4 @@ func (PortalAdapter) Receive(ctx context.Context, raw any) (conversation.Convers
 // does not call Send; implementation is a no-op.
 func (PortalAdapter) Send(ctx context.Context, conversationID string, output string) error {
 	return nil
-}
-
-// PassThroughEngine implements conversation.ConversationEngine. It always creates
-// exactly one chat run with the turn message and returns its chat_run_id in TaskIDs.
-type PassThroughEngine struct {
-	chatRuns entity.ChatRunStore
-}
-
-// NewPassThroughEngine returns a pass-through conversation engine that uses the
-// given ChatRunStore to create runs.
-func NewPassThroughEngine(chatRuns entity.ChatRunStore) *PassThroughEngine {
-	return &PassThroughEngine{chatRuns: chatRuns}
-}
-
-// Process creates one chat run with turn.Message as input and returns its
-// chat_run_id in ConversationResult.TaskIDs. On error (e.g. ErrRunInProgress),
-// returns (zero result, err).
-func (e *PassThroughEngine) Process(ctx context.Context, workspaceID, chatID string, turn conversation.ConversationTurn) (conversation.ConversationResult, error) {
-	run, err := e.chatRuns.CreateChatRun(ctx, chatID, turn.Message, turn.UserID)
-	if err != nil {
-		return conversation.ConversationResult{}, err
-	}
-	return conversation.ConversationResult{
-		TaskIDs: []string{run.ChatRunID},
-	}, nil
 }

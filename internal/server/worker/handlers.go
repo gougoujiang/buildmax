@@ -1,4 +1,4 @@
-package server
+package worker
 
 import (
 	"encoding/json"
@@ -7,17 +7,34 @@ import (
 	"buildmax/internal/workerapi"
 )
 
-// getWorkerChatRunHandler handles GET /api/worker/chat-runs/{chat_run_id}. Returns run and chat for the worker.
-func (s *Server) getWorkerChatRunHandler(w http.ResponseWriter, r *http.Request) {
+// Handler serves the worker API (GET/PATCH /api/worker/chat-runs/{id}, POST .../stream).
+type Handler struct {
+	cfg Config
+}
+
+// NewHandler returns a handler that serves worker routes using the given config.
+func NewHandler(cfg Config) *Handler {
+	return &Handler{cfg: cfg}
+}
+
+// Register adds worker routes to mux. All routes require worker auth (Bearer or X-Worker-Token).
+func (h *Handler) Register(mux *http.ServeMux) {
+	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", h.authMiddleware(http.HandlerFunc(h.getChatRun)))
+	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", h.authMiddleware(http.HandlerFunc(h.patchChatRun)))
+	mux.Handle("POST /api/worker/chat-runs/{chat_run_id}/stream", h.authMiddleware(http.HandlerFunc(h.postStream)))
+}
+
+func (h *Handler) getChatRun(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
 		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
+	if h.cfg.ChatRunStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return
 	}
-	run, chat, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, chat, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_worker_chat_run", "chat_run_id", chatRunID)
 		return
@@ -43,21 +60,21 @@ func (s *Server) getWorkerChatRunHandler(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// postWorkerStreamHandler handles POST /api/worker/chat-runs/{chat_run_id}/stream. Appends delta to the chat's stream buffer (hub keyed by chat_id).
-func (s *Server) postWorkerStreamHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
 		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
+	if h.cfg.ChatRunStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return
 	}
-	if s.hub == nil {
+	if h.cfg.Hub == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "stream hub not configured")
 		return
 	}
-	run, _, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, _, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil || run == nil {
 		if err != nil {
 			writeInternalError(w, err, "handler", "post_worker_stream", "chat_run_id", chatRunID)
@@ -71,18 +88,18 @@ func (s *Server) postWorkerStreamHandler(w http.ResponseWriter, r *http.Request)
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	s.hub.Append(run.ChatID, req.Delta)
+	h.cfg.Hub.Append(run.ChatID, req.Delta)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// patchWorkerChatRunHandler handles PATCH /api/worker/chat-runs/{chat_run_id}. Updates run status; on SUCCEEDED with artifact calls OnRunComplete, on FAILED calls SyncChatFromRun.
-func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) patchChatRun(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
 		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
+	if h.cfg.ChatRunStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return
 	}
 	var req workerapi.PatchChatRunRequest
@@ -96,7 +113,7 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	if req.Status == workerapi.StatusRunning {
-		updated, err := s.cfg.ChatRunStore.UpdateChatRunStatusIf(r.Context(), chatRunID, workerapi.StatusScheduled, workerapi.StatusRunning, req.StartedAt, nil, nil, nil, req.SessionID)
+		updated, err := h.cfg.ChatRunStore.UpdateChatRunStatusIf(r.Context(), chatRunID, workerapi.StatusScheduled, workerapi.StatusRunning, req.StartedAt, nil, nil, nil, req.SessionID)
 		if err != nil {
 			writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 			return
@@ -106,7 +123,7 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	} else {
-		if err := s.cfg.ChatRunStore.UpdateChatRunStatus(r.Context(), chatRunID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID, req.PromptTokens, req.CompletionTokens); err != nil {
+		if err := h.cfg.ChatRunStore.UpdateChatRunStatus(r.Context(), chatRunID, req.Status, req.StartedAt, req.EndedAt, req.Output, req.ErrorMessage, req.SessionID, req.PromptTokens, req.CompletionTokens); err != nil {
 			writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 			return
 		}
@@ -118,21 +135,20 @@ func (s *Server) patchWorkerChatRunHandler(w http.ResponseWriter, r *http.Reques
 			if len(relativePaths) == 0 {
 				relativePaths = []string{"result.md"}
 			}
-			if err := s.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, relativePaths); err != nil {
+			if err := h.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, relativePaths); err != nil {
 				writeInternalError(w, err, "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
 				return
 			}
 		} else if req.Status == workerapi.StatusFailed {
-			if err := s.cfg.ChatRunStore.SyncChatFromRun(r.Context(), chatRunID); err != nil {
+			if err := h.cfg.ChatRunStore.SyncChatFromRun(r.Context(), chatRunID); err != nil {
 				writeInternalError(w, err, "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
 				return
 			}
 		}
-		// Release stream buffer for this chat (hub keyed by chat_id).
-		if s.hub != nil {
-			run, _, _ := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+		if h.cfg.Hub != nil {
+			run, _, _ := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 			if run != nil {
-				s.hub.Done(run.ChatID)
+				h.cfg.Hub.Done(run.ChatID)
 			}
 		}
 	}

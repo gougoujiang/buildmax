@@ -61,8 +61,8 @@ func TestWorkspacesHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(Config{
-				WorkspaceStore: tt.workspaceStore,
-				JWTSecret:      tt.jwtSecret,
+				Stores: StoresConfig{WorkspaceStore: tt.workspaceStore},
+				Auth:   AuthConfig{JWTSecret: tt.jwtSecret},
 			})
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces", nil)
 			if tt.authHeader != "" {
@@ -142,8 +142,8 @@ func TestCreateWorkspaceHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(Config{
-				WorkspaceStore: tt.workspaceStore,
-				JWTSecret:      secret,
+				Stores: StoresConfig{WorkspaceStore: tt.workspaceStore},
+				Auth:   AuthConfig{JWTSecret: secret},
 			})
 			req := httptest.NewRequest(http.MethodPost, "/api/workspaces", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")

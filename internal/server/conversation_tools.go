@@ -5,32 +5,17 @@ import (
 	"context"
 	"fmt"
 
+	"buildmax/internal/conversation/adapter"
 	"buildmax/internal/tools"
 )
-
-// serverStartChatRunner implements tools.StartChatRunner using server config (ChatStore, etc.).
-type serverStartChatRunner struct {
-	s              *Server
-	workspaceID    string
-	userID         string
-	conversationID string
-}
-
-func (r *serverStartChatRunner) StartChat(ctx context.Context, _, _, input string, agentID *string) (chatID, runID string, err error) {
-	var convID *string
-	if r.conversationID != "" {
-		convID = &r.conversationID
-	}
-	return r.s.doStartChat(ctx, r.workspaceID, r.userID, input, agentID, convID)
-}
 
 // startChatRunner returns a StartChatRunner when ChatStore is set; otherwise nil (StartChat tool is not added).
 // conversationID is the Tier 1 conversation id when the runner is used from the conversation flow; empty for other uses.
 func (s *Server) startChatRunner(workspaceID, userID, conversationID string) tools.StartChatRunner {
-	if s.cfg.ChatStore == nil {
+	if s.cfg.Stores.ChatStore == nil {
 		return nil
 	}
-	return &serverStartChatRunner{s: s, workspaceID: workspaceID, userID: userID, conversationID: conversationID}
+	return adapter.NewStartChatRunner(s.doStartChat, workspaceID, userID, conversationID)
 }
 
 // doStartChat creates a chat and its first run (same logic as POST .../chats). Used by start_chat tool.
@@ -38,10 +23,10 @@ func (s *Server) startChatRunner(workspaceID, userID, conversationID string) too
 func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal string, agentID *string, conversationID *string) (chatID, runID string, err error) {
 	var input string
 	if agentID != nil && *agentID != "" {
-		if s.cfg.AgentStore == nil {
+		if s.cfg.Stores.AgentStore == nil {
 			return "", "", fmt.Errorf("agents not configured")
 		}
-		agent, err := s.cfg.AgentStore.GetAgent(ctx, *agentID)
+		agent, err := s.cfg.Stores.AgentStore.GetAgent(ctx, *agentID)
 		if err != nil {
 			return "", "", err
 		}
@@ -58,20 +43,20 @@ func (s *Server) doStartChat(ctx context.Context, workspaceID, userID, inputVal 
 	}
 	title := truncateChatTitle(input, 50)
 	titlePromptTokens, titleCompletionTokens := 0, 0
-	if s.cfg.ChatTitleGenerator != nil {
-		if gen, usage, err := s.cfg.ChatTitleGenerator.GenerateChatTitle(ctx, input); err == nil && gen != "" {
+	if s.cfg.Conv.ChatTitleGenerator != nil {
+		if gen, usage, err := s.cfg.Conv.ChatTitleGenerator.GenerateChatTitle(ctx, input); err == nil && gen != "" {
 			title = gen
 			titlePromptTokens = usage.PromptTokens
 			titleCompletionTokens = usage.CompletionTokens
 		}
 	}
-	if s.cfg.QuotaChecker != nil {
-		allowed, reason := s.cfg.QuotaChecker.Check(ctx, userID, 1, titlePromptTokens+titleCompletionTokens)
+	if s.cfg.Auth.QuotaChecker != nil {
+		allowed, reason := s.cfg.Auth.QuotaChecker.Check(ctx, userID, 1, titlePromptTokens+titleCompletionTokens)
 		if !allowed {
 			return "", "", fmt.Errorf("quota exceeded: %s", reason)
 		}
 	}
-	chat, err := s.cfg.ChatStore.CreateChat(ctx, workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, conversationID)
+	chat, err := s.cfg.Stores.ChatStore.CreateChat(ctx, workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, conversationID)
 	if err != nil {
 		return "", "", err
 	}

@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"net/http"
 	"strings"
+
+	"buildmax/internal/streamhub"
 )
 
 // getChatStreamHandler handles GET /api/workspaces/{workspace_id}/chats/{chat_id}/stream.
@@ -51,7 +53,7 @@ func (s *Server) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if msg == StreamEventDone {
+			if msg == streamhub.StreamEventDone {
 				writeSSE(w, "done")
 				if flusher != nil {
 					flusher.Flush()

@@ -1,4 +1,3 @@
-// Package server provides the HTTP server for BuildMax (backend for portal).
 package server
 
 import (
@@ -14,6 +13,8 @@ import (
 	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
+	"buildmax/internal/server/worker"
+	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
@@ -41,43 +42,66 @@ type RunOutputLister interface {
 	GetChatRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.ChatRunArtifact, error)
 }
 
-// Config holds server configuration.
+// AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
+type AuthConfig struct {
+	JWTSecret        string         // Required for login when UserStore is set
+	CORSOrigin       string         // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	QuotaChecker     *quota.Checker // Optional; when set, create chat/run enforce quota and return 429 when exceeded
+	DefaultQuotaTier string         // Default quota tier for new users (e.g. signup); used when calling CreateUser
+}
+
+// StoresConfig holds entity store interfaces used by handlers.
+type StoresConfig struct {
+	UserStore       entity.UserStore
+	WorkspaceStore  entity.WorkspaceStore
+	AgentStore      entity.AgentStore
+	ChatStore       entity.ChatStore
+	ChatRunStore    entity.ChatRunStore
+	RunOutputLister RunOutputLister
+}
+
+// StorageConfig holds blob storage and workspace paths.
+type StorageConfig struct {
+	PersistStorage  blob.PersistStorage
+	ArtifactStorage blob.ArtifactStorage
+	WorkspacesDir   string // Overrides config.WorkspacesDir() for workspace file operations
+}
+
+// WorkerConfig holds worker-to-server auth.
+type WorkerConfig struct {
+	WorkerToken string // If set, required for /api/worker/*
+}
+
+// ConversationConfig holds Tier 1 conversation engine, adapter, stores, and LLM.
+type ConversationConfig struct {
+	ChatTitleGenerator       ChatTitleGenerator
+	ConversationEngine       conversation.ConversationEngine
+	PortalAdapter            conversation.ChannelAdapter
+	ConversationStore        entity.ConversationStore
+	ConversationMessageStore entity.ConversationMessageStore
+	ConversationLLMCaller    llm.LLMCaller
+}
+
+// Config holds server configuration. Grouped fields document what is required for auth, storage, worker, and conversation.
 type Config struct {
-	Addr               string                 // Listen address (e.g. ":5678")
-	UserStore          entity.UserStore       // Optional; required for login
-	WorkspaceStore     entity.WorkspaceStore  // Optional; required for GET /api/workspaces
-	AgentStore         entity.AgentStore      // Optional; required for GET/POST /api/workspaces/{id}/agents
-	ChatStore          entity.ChatStore       // Optional; required for chat list/create
-	ChatRunStore       entity.ChatRunStore    // Optional; required for POST runs and worker chat-runs API
-	RunOutputLister    RunOutputLister        // Optional; required for GET /api/workspaces/{id}/artifacts and artifact content
-	PersistStorage     blob.PersistStorage    // Optional; required for upload and Explore (files tree/content)
-	ArtifactStorage    blob.ArtifactStorage   // Optional; required for artifact content file read
-	WorkspacesDir      string                 // Optional; overrides config.WorkspacesDir() for workspace file operations
-	JWTSecret          string                 // Required for login when UserStore is set
-	CORSOrigin         string                 // If set, enable CORS with this origin (e.g. "http://localhost:5173")
-	WorkerToken        string                 // If set, required for /api/worker/* (worker-to-server auth)
-	ChatTitleGenerator ChatTitleGenerator     // Optional; when set, used to generate chat title from input at create time
-	QuotaChecker       *quota.Checker         // Optional; when set, create chat/run enforce quota and return 429 when exceeded
-	DefaultQuotaTier   string                 // Default quota tier for new users (e.g. signup); used when calling CreateUser
-	// Tier 1 conversation (optional). When set, create-run uses adapter + engine instead of direct CreateChatRun.
-	ConversationEngine conversation.ConversationEngine // Optional; when set, createChatRunHandler uses Tier 1
-	PortalAdapter      conversation.ChannelAdapter    // Optional; when ConversationEngine is set, used to build turn from request
-	// Tier 1 conversation entity API: conversations and messages. When set, handlers serve /api/workspaces/{id}/conversations.
-	ConversationStore        entity.ConversationStore        // Optional; required for conversation list/create
-	ConversationMessageStore  entity.ConversationMessageStore // Optional; required for conversation messages
-	ConversationLLMCaller     llm.LLMCaller                   // Optional; when set, run conversation LLM loop (stream and non-stream)
+	Addr    string // Listen address (e.g. ":5678")
+	Auth    AuthConfig
+	Stores  StoresConfig
+	Storage StorageConfig
+	Worker  WorkerConfig
+	Conv    ConversationConfig
 }
 
 // Server wraps the HTTP server and runs it.
 type Server struct {
 	srv *http.Server
 	cfg Config
-	hub StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
+	hub streamhub.StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
 // New builds an HTTP server with routes for /healthz, /openapi.json, /swagger/, and POST /api/login.
 func New(cfg Config) *Server {
-	s := &Server{cfg: cfg, hub: NewStreamHub()}
+	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
 	mux.HandleFunc("GET /openapi.json", openAPIHandler)
@@ -109,13 +133,15 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations", s.createConversationHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", s.getConversationMessagesHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", s.addConversationMessageHandler)
-	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.getWorkerChatRunHandler)))
-	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", s.workerAuthMiddleware(http.HandlerFunc(s.patchWorkerChatRunHandler)))
-	mux.Handle("POST /api/worker/chat-runs/{chat_run_id}/stream", s.workerAuthMiddleware(http.HandlerFunc(s.postWorkerStreamHandler)))
+	worker.NewHandler(worker.Config{
+		Token:        cfg.Worker.WorkerToken,
+		ChatRunStore: cfg.Stores.ChatRunStore,
+		Hub:          s.hub,
+	}).Register(mux)
 
 	handler := http.Handler(mux)
-	if cfg.CORSOrigin != "" {
-		handler = corsMiddleware(handler, cfg.CORSOrigin)
+	if cfg.Auth.CORSOrigin != "" {
+		handler = corsMiddleware(handler, cfg.Auth.CORSOrigin)
 	}
 	handler = requestLoggingMiddleware(handler)
 	s.srv = &http.Server{

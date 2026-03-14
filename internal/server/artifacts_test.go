@@ -63,9 +63,8 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				WorkspaceStore:  mockWS,
-				RunOutputLister: tt.runOutputLister,
-				JWTSecret:       secret,
+				Stores: StoresConfig{WorkspaceStore: mockWS, RunOutputLister: tt.runOutputLister},
+				Auth:   AuthConfig{JWTSecret: secret},
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts", nil)
@@ -115,10 +114,8 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	}
 
 	cfg := Config{
-		WorkspaceStore:  mockWS,
-		ChatRunStore:    mockChatRun,
-		RunOutputLister: mockLister,
-		JWTSecret:       secret,
+		Stores: StoresConfig{WorkspaceStore: mockWS, ChatRunStore: mockChatRun, RunOutputLister: mockLister},
+		Auth:   AuthConfig{JWTSecret: secret},
 	}
 	s := New(cfg)
 	req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts/"+chatRunID+"/items", nil)
@@ -191,11 +188,9 @@ func TestArtifactContentHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				WorkspaceStore:   mockWS,
-				ChatRunStore:     tt.chatRunStore,
-				RunOutputLister:  tt.runOutputLister,
-				ArtifactStorage:  artifactStorage,
-				JWTSecret:        secret,
+				Stores:  StoresConfig{WorkspaceStore: mockWS, ChatRunStore: tt.chatRunStore, RunOutputLister: tt.runOutputLister},
+				Storage: StorageConfig{ArtifactStorage: artifactStorage},
+				Auth:    AuthConfig{JWTSecret: secret},
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts/"+chatRunID+"/content", nil)

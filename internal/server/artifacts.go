@@ -35,14 +35,14 @@ func (s *Server) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.RunOutputLister, "artifacts not configured") {
+	if !s.requireStore(w, s.cfg.Stores.RunOutputLister, "artifacts not configured") {
 		return
 	}
 	var chatIDPtr *string
 	if cid := r.URL.Query().Get("chat_id"); cid != "" {
 		chatIDPtr = &cid
 	}
-	list, err := s.cfg.RunOutputLister.ListRunOutputsByWorkspace(r.Context(), workspaceID, chatIDPtr)
+	list, err := s.cfg.Stores.RunOutputLister.ListRunOutputsByWorkspace(r.Context(), workspaceID, chatIDPtr)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_artifacts", "workspace_id", workspaceID)
 		return
@@ -66,7 +66,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.RunOutputLister, "artifacts not configured") || !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
+	if !s.requireStore(w, s.cfg.Stores.RunOutputLister, "artifacts not configured") || !s.requireStore(w, s.cfg.Stores.ChatRunStore, "chat runs not configured") {
 		return
 	}
 	chatRunID := r.PathValue("chat_run_id")
@@ -74,7 +74,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	run, chat, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, chat, err := s.cfg.Stores.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "artifact_items", "artifact_id", chatRunID)
 		return
@@ -87,7 +87,7 @@ func (s *Server) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request
 		writeJSONError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
-	items, err := s.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
+	items, err := s.cfg.Stores.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "artifact_items", "artifact_id", chatRunID)
 		return
@@ -108,7 +108,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.RunOutputLister, "artifacts not configured") || !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") || !s.requireStore(w, s.cfg.ArtifactStorage, "artifact storage not configured") {
+	if !s.requireStore(w, s.cfg.Stores.RunOutputLister, "artifacts not configured") || !s.requireStore(w, s.cfg.Stores.ChatRunStore, "chat runs not configured") || !s.requireStore(w, s.cfg.Storage.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
 	chatRunID := r.PathValue("chat_run_id")
@@ -116,7 +116,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
-	run, chat, err := s.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, chat, err := s.cfg.Stores.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "artifact_content", "artifact_id", chatRunID)
 		return
@@ -141,7 +141,7 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	// Allow result.md or any path that appears in chat_run_artifact for this run
 	allowed := pathParam == artifactResultFilename
 	if !allowed {
-		items, listErr := s.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
+		items, listErr := s.cfg.Stores.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
 		if listErr != nil {
 			writeInternalError(w, listErr, "handler", "artifact_content", "artifact_id", chatRunID)
 			return
@@ -159,9 +159,9 @@ func (s *Server) artifactContentHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	var data []byte
 	if pathParam == artifactResultFilename {
-		data, err = s.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, chat.ChatID, chatRunID)
+		data, err = s.cfg.Storage.ArtifactStorage.GetResult(r.Context(), workspaceID, chat.ChatID, chatRunID)
 	} else {
-		data, err = s.cfg.ArtifactStorage.GetArtifactFile(r.Context(), workspaceID, chat.ChatID, chatRunID, pathParam)
+		data, err = s.cfg.Storage.ArtifactStorage.GetArtifactFile(r.Context(), workspaceID, chat.ChatID, chatRunID, pathParam)
 	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {

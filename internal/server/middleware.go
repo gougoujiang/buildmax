@@ -3,7 +3,6 @@ package server
 import (
 	"log/slog"
 	"net/http"
-	"strings"
 )
 
 // corsMiddleware wraps h and adds CORS headers. allowedOrigin is the value for Access-Control-Allow-Origin (e.g. "http://localhost:5173").
@@ -35,27 +34,5 @@ func requestLoggingMiddleware(h http.Handler) http.Handler {
 		}
 		slog.Info("request", attrs...)
 		h.ServeHTTP(w, r)
-	})
-}
-
-// workerAuthMiddleware wraps a handler and requires a valid worker token (Bearer or X-Worker-Token).
-// If WorkerToken is empty, all requests are rejected with 401 (worker auth not configured).
-func (s *Server) workerAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.WorkerToken == "" {
-			writeJSONError(w, http.StatusUnauthorized, "worker auth not configured")
-			return
-		}
-		token := ""
-		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			token = strings.TrimPrefix(h, "Bearer ")
-		} else if h := r.Header.Get("X-Worker-Token"); h != "" {
-			token = h
-		}
-		if token != s.cfg.WorkerToken {
-			writeJSONError(w, http.StatusUnauthorized, "invalid or missing worker token")
-			return
-		}
-		next.ServeHTTP(w, r)
 	})
 }

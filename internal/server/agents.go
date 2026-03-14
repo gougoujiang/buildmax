@@ -50,10 +50,10 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.AgentStore, "agents not configured") {
+	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
 		return
 	}
-	list, err := s.cfg.AgentStore.ListAgentsByWorkspace(r.Context(), workspaceID)
+	list, err := s.cfg.Stores.AgentStore.ListAgentsByWorkspace(r.Context(), workspaceID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_agents", "workspace_id", workspaceID)
 		return
@@ -71,7 +71,7 @@ func (s *Server) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.AgentStore, "agents not configured") {
+	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
 		return
 	}
 	var req createAgentRequest
@@ -83,7 +83,7 @@ func (s *Server) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
-	agent, err := s.cfg.AgentStore.CreateAgent(r.Context(), workspaceID, req.Name, req.Description, req.Instructions)
+	agent, err := s.cfg.Stores.AgentStore.CreateAgent(r.Context(), workspaceID, req.Name, req.Description, req.Instructions)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_agent", "workspace_id", workspaceID)
 		return
@@ -97,7 +97,7 @@ func (s *Server) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.AgentStore, "agents not configured") {
+	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
 		return
 	}
 	agentID := r.PathValue("agent_id")
@@ -105,7 +105,7 @@ func (s *Server) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
-	agent, err := s.cfg.AgentStore.GetAgent(r.Context(), agentID)
+	agent, err := s.cfg.Stores.AgentStore.GetAgent(r.Context(), agentID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_agent", "agent_id", agentID)
 		return
@@ -123,7 +123,7 @@ func (s *Server) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.AgentStore, "agents not configured") {
+	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
 		return
 	}
 	agentID := r.PathValue("agent_id")
@@ -141,7 +141,7 @@ func (s *Server) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
-	agent, err := s.cfg.AgentStore.UpdateAgent(r.Context(), agentID, workspaceID, req.Name, req.Description, req.Instructions)
+	agent, err := s.cfg.Stores.AgentStore.UpdateAgent(r.Context(), agentID, workspaceID, req.Name, req.Description, req.Instructions)
 	if err != nil {
 		writeInternalError(w, err, "handler", "patch_agent", "agent_id", agentID)
 		return
@@ -159,7 +159,7 @@ func (s *Server) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.AgentStore, "agents not configured") {
+	if !s.requireStore(w, s.cfg.Stores.AgentStore, "agents not configured") {
 		return
 	}
 	agentID := r.PathValue("agent_id")
@@ -167,7 +167,7 @@ func (s *Server) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
-	err := s.cfg.AgentStore.DeleteAgent(r.Context(), agentID, workspaceID)
+	err := s.cfg.Stores.AgentStore.DeleteAgent(r.Context(), agentID, workspaceID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			writeJSONError(w, http.StatusNotFound, "agent not found")

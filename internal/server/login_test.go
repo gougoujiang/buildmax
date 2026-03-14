@@ -81,8 +81,8 @@ func TestLoginHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(Config{
-				UserStore: tt.userStore,
-				JWTSecret: tt.jwtSecret,
+				Stores: StoresConfig{UserStore: tt.userStore},
+				Auth:   AuthConfig{JWTSecret: tt.jwtSecret},
 			})
 			req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")

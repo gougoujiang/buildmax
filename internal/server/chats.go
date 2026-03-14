@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"buildmax/internal/conversation/adapter"
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
@@ -70,10 +71,10 @@ func chatToResponse(c model.Chat) ChatResponse {
 // getChatForWorkspace loads the chat by chatID and verifies it belongs to workspaceID.
 // Writes 404 "chat not found" if the chat is missing or in another workspace. Returns (chat, true) on success.
 func (s *Server) getChatForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, chatID string) (*model.Chat, bool) {
-	if !s.requireStore(w, s.cfg.ChatStore, "chats not configured") {
+	if !s.requireStore(w, s.cfg.Stores.ChatStore, "chats not configured") {
 		return nil, false
 	}
-	chat, err := s.cfg.ChatStore.GetChat(r.Context(), chatID)
+	chat, err := s.cfg.Stores.ChatStore.GetChat(r.Context(), chatID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "get_chat", "chat_id", chatID)
 		return nil, false
@@ -99,7 +100,7 @@ func (s *Server) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.ChatStore, "chats not configured") {
+	if !s.requireStore(w, s.cfg.Stores.ChatStore, "chats not configured") {
 		return
 	}
 	q := r.URL.Query()
@@ -107,7 +108,7 @@ func (s *Server) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reques
 	if usePaginated {
 		limit, offset := parseLimitOffset(q, "limit", "offset", 50, 200)
 		executedOnly := q.Get("executed_only") == "true"
-		list, total, err := s.cfg.ChatStore.ListChatsByWorkspacePaginated(r.Context(), workspaceID, executedOnly, limit, offset)
+		list, total, err := s.cfg.Stores.ChatStore.ListChatsByWorkspacePaginated(r.Context(), workspaceID, executedOnly, limit, offset)
 		if err != nil {
 			writeInternalError(w, err, "handler", "list_chats", "workspace_id", workspaceID)
 			return
@@ -123,7 +124,7 @@ func (s *Server) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reques
 	if order != "asc" && order != "desc" {
 		order = "desc"
 	}
-	list, err := s.cfg.ChatStore.ListChatsByWorkspace(r.Context(), workspaceID, order)
+	list, err := s.cfg.Stores.ChatStore.ListChatsByWorkspace(r.Context(), workspaceID, order)
 	if err != nil {
 		writeInternalError(w, err, "handler", "list_chats", "workspace_id", workspaceID)
 		return
@@ -151,7 +152,7 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.ChatStore, "chats not configured") {
+	if !s.requireStore(w, s.cfg.Stores.ChatStore, "chats not configured") {
 		return
 	}
 	var req createChatRequest
@@ -162,11 +163,11 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 	var input string
 	var agentID *string
 	if req.AgentID != nil && *req.AgentID != "" {
-		if s.cfg.AgentStore == nil {
+		if s.cfg.Stores.AgentStore == nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "agents not configured")
 			return
 		}
-		agent, err := s.cfg.AgentStore.GetAgent(r.Context(), *req.AgentID)
+		agent, err := s.cfg.Stores.AgentStore.GetAgent(r.Context(), *req.AgentID)
 		if err != nil {
 			writeInternalError(w, err, "handler", "get_agent", "agent_id", *req.AgentID)
 			return
@@ -190,21 +191,21 @@ func (s *Server) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Reque
 	}
 	title := truncateChatTitle(input, 50)
 	var titlePromptTokens, titleCompletionTokens int
-	if s.cfg.ChatTitleGenerator != nil {
-		if gen, usage, err := s.cfg.ChatTitleGenerator.GenerateChatTitle(r.Context(), input); err == nil && gen != "" {
+	if s.cfg.Conv.ChatTitleGenerator != nil {
+		if gen, usage, err := s.cfg.Conv.ChatTitleGenerator.GenerateChatTitle(r.Context(), input); err == nil && gen != "" {
 			title = gen
 			titlePromptTokens = usage.PromptTokens
 			titleCompletionTokens = usage.CompletionTokens
 		}
 	}
-	if s.cfg.QuotaChecker != nil {
-		allowed, reason := s.cfg.QuotaChecker.Check(r.Context(), userID, 1, titlePromptTokens+titleCompletionTokens)
+	if s.cfg.Auth.QuotaChecker != nil {
+		allowed, reason := s.cfg.Auth.QuotaChecker.Check(r.Context(), userID, 1, titlePromptTokens+titleCompletionTokens)
 		if !allowed {
 			writeQuotaExceeded(w, reason)
 			return
 		}
 	}
-	chat, err := s.cfg.ChatStore.CreateChat(r.Context(), workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, nil)
+	chat, err := s.cfg.Stores.ChatStore.CreateChat(r.Context(), workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, nil)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
 		return
@@ -223,7 +224,7 @@ func (s *Server) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.ChatRunStore, "chat runs not configured") {
+	if !s.requireStore(w, s.cfg.Stores.ChatRunStore, "chat runs not configured") {
 		return
 	}
 	chatID := r.PathValue("chat_id")
@@ -244,26 +245,26 @@ func (s *Server) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
-	if s.cfg.QuotaChecker != nil {
-		allowed, reason := s.cfg.QuotaChecker.Check(r.Context(), userID, 1, 0)
+	if s.cfg.Auth.QuotaChecker != nil {
+		allowed, reason := s.cfg.Auth.QuotaChecker.Check(r.Context(), userID, 1, 0)
 		if !allowed {
 			writeQuotaExceeded(w, reason)
 			return
 		}
 	}
-	if s.cfg.ConversationEngine != nil && s.cfg.PortalAdapter != nil {
-		input := &PortalTurnInput{
+	if s.cfg.Conv.ConversationEngine != nil && s.cfg.Conv.PortalAdapter != nil {
+		input := &adapter.PortalTurnInput{
 			WorkspaceID: workspaceID,
 			ChatID:      chatID,
 			UserID:      userID,
 			Message:     req.Input,
 		}
-		turn, err := s.cfg.PortalAdapter.Receive(r.Context(), input)
+		turn, err := s.cfg.Conv.PortalAdapter.Receive(r.Context(), input)
 		if err != nil {
 			writeInternalError(w, err, "handler", "receive_turn", "chat_id", chatID)
 			return
 		}
-		result, err := s.cfg.ConversationEngine.Process(r.Context(), workspaceID, chatID, turn)
+		result, err := s.cfg.Conv.ConversationEngine.Process(r.Context(), workspaceID, chatID, turn)
 		if err != nil {
 			if errors.Is(err, entity.ErrRunInProgress) {
 				writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
@@ -279,7 +280,7 @@ func (s *Server) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": result.TaskIDs[0], "chat_id": chatID})
 		return
 	}
-	run, err := s.cfg.ChatRunStore.CreateChatRun(r.Context(), chatID, req.Input, userID)
+	run, err := s.cfg.Stores.ChatRunStore.CreateChatRun(r.Context(), chatID, req.Input, userID)
 	if err != nil {
 		if errors.Is(err, entity.ErrRunInProgress) {
 			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
@@ -359,8 +360,8 @@ func (s *Server) getChatConversationHandler(w http.ResponseWriter, r *http.Reque
 // loadChatConversationData returns the raw session JSON for the chat run. Tries PersistStorage first, then local path under server's workspaces dir.
 func (s *Server) loadChatConversationData(ctx context.Context, chat *model.Chat, lastRunID, sessionID string) ([]byte, error) {
 	relPath := "sessions/" + sessionID + ".json"
-	if s.cfg.PersistStorage != nil {
-		data, err := s.cfg.PersistStorage.GetChatGlobal(ctx, chat.WorkspaceID, chat.ChatID, lastRunID, relPath)
+	if s.cfg.Storage.PersistStorage != nil {
+		data, err := s.cfg.Storage.PersistStorage.GetChatGlobal(ctx, chat.WorkspaceID, chat.ChatID, lastRunID, relPath)
 		if err == nil {
 			return data, nil
 		}

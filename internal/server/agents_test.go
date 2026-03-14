@@ -69,9 +69,8 @@ func TestPatchAgentHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(Config{
-				AgentStore:     agentStore,
-				WorkspaceStore:  wsStore,
-				JWTSecret:       agentTestSecret,
+				Stores: StoresConfig{AgentStore: agentStore, WorkspaceStore: wsStore},
+				Auth:   AuthConfig{JWTSecret: agentTestSecret},
 			})
 			req := httptest.NewRequest(tt.method, tt.url, strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
@@ -143,9 +142,8 @@ func TestDeleteAgentHandler(t *testing.T) {
 				},
 			}
 			s := New(Config{
-				AgentStore:    store,
-				WorkspaceStore: wsStore,
-				JWTSecret:     agentTestSecret,
+				Stores: StoresConfig{AgentStore: store, WorkspaceStore: wsStore},
+				Auth:   AuthConfig{JWTSecret: agentTestSecret},
 			})
 			req := httptest.NewRequest(http.MethodDelete, tt.url, nil)
 			if tt.authHeader != "" {

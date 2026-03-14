@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"buildmax/internal/config"
+	"buildmax/internal/conversation/adapter"
 	"buildmax/internal/executor"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
@@ -76,30 +77,40 @@ func RunServer(ctx context.Context, port int) error {
 	defaultQuotaTier := config.DefaultQuotaTier()
 	quotaChecker := quota.NewChecker(st, st, st, defaultQuotaTier)
 	cfg := httpserver.Config{
-		Addr:               ":" + strconv.Itoa(port),
-		UserStore:         st,
-		WorkspaceStore:    st,
-		AgentStore:        st,
-		ChatStore:         st,
-		ChatRunStore:      st,
-		RunOutputLister:   st,
-		PersistStorage:    persistStorage,
-		ArtifactStorage:   artifactStorage,
-		WorkspacesDir:     workspacesDir,
-		JWTSecret:         serverEnv.JWTSecret,
-		CORSOrigin:        serverEnv.CORSOrigin,
-		WorkerToken:       config.WorkerToken(),
-		QuotaChecker:      quotaChecker,
-		DefaultQuotaTier:  defaultQuotaTier,
+		Addr: ":" + strconv.Itoa(port),
+		Auth: httpserver.AuthConfig{
+			JWTSecret:        serverEnv.JWTSecret,
+			CORSOrigin:       serverEnv.CORSOrigin,
+			QuotaChecker:     quotaChecker,
+			DefaultQuotaTier: defaultQuotaTier,
+		},
+		Stores: httpserver.StoresConfig{
+			UserStore:       st,
+			WorkspaceStore:  st,
+			AgentStore:     st,
+			ChatStore:      st,
+			ChatRunStore:   st,
+			RunOutputLister: st,
+		},
+		Storage: httpserver.StorageConfig{
+			PersistStorage:  persistStorage,
+			ArtifactStorage: artifactStorage,
+			WorkspacesDir:   workspacesDir,
+		},
+		Worker: httpserver.WorkerConfig{
+			WorkerToken: config.WorkerToken(),
+		},
+		Conv: httpserver.ConversationConfig{
+			ConversationEngine:       adapter.NewPassThroughEngine(st),
+			PortalAdapter:            &adapter.PortalAdapter{},
+			ConversationStore:        st,
+			ConversationMessageStore: st,
+		},
 	}
-	cfg.ConversationEngine = httpserver.NewPassThroughEngine(st)
-	cfg.PortalAdapter = &httpserver.PortalAdapter{}
-	cfg.ConversationStore = st
-	cfg.ConversationMessageStore = st
 	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
 		llmClient := llm.NewClient(llmCfg)
-		cfg.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
-		cfg.ConversationLLMCaller = llmClient
+		cfg.Conv.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
+		cfg.Conv.ConversationLLMCaller = llmClient
 	}
 	var runner executor.WorkerRunner
 	switch config.WorkerRunMode() {

@@ -117,8 +117,7 @@ func TestUsageHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(Config{
-				JWTSecret:     tt.jwtSecret,
-				QuotaChecker:  tt.checker,
+				Auth: AuthConfig{JWTSecret: tt.jwtSecret, QuotaChecker: tt.checker},
 			})
 			req := httptest.NewRequest(http.MethodGet, "/api/usage", nil)
 			if tt.authHeader != "" {

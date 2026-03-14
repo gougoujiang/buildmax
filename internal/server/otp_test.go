@@ -77,7 +77,7 @@ func TestOtpRequestHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{UserStore: tt.userStore})
+			s := New(Config{Stores: StoresConfig{UserStore: tt.userStore}})
 			req := httptest.NewRequest(http.MethodPost, "/api/otp/request", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()

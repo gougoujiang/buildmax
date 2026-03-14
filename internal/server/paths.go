@@ -7,8 +7,8 @@ import (
 )
 
 func (s *Server) workspacesDir() string {
-	if s.cfg.WorkspacesDir != "" {
-		return s.cfg.WorkspacesDir
+	if s.cfg.Storage.WorkspacesDir != "" {
+		return s.cfg.Storage.WorkspacesDir
 	}
 	return config.WorkspacesDir()
 }

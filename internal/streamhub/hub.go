@@ -1,5 +1,5 @@
-// Package server: stream hub for Phase 1 (worker pushes deltas) and Phase 2 (Subscribe for SSE).
-package server
+// Package streamhub provides chat-scoped stream buffers for worker-push and client subscribe (SSE).
+package streamhub
 
 import (
 	"sync"

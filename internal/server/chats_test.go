@@ -120,11 +120,8 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				WorkspaceStore: mockWS,
-				JWTSecret:      tt.jwtSecret,
-			}
-			if tt.chatStore != nil {
-				cfg.ChatStore = tt.chatStore
+				Stores: StoresConfig{WorkspaceStore: mockWS, ChatStore: tt.chatStore},
+				Auth:   AuthConfig{JWTSecret: tt.jwtSecret},
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
@@ -300,14 +297,13 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{
-				WorkspaceStore: mockWS,
-				ChatStore:      tt.chatStore,
-				AgentStore:     tt.agentStore,
-				JWTSecret:      tt.jwtSecret,
-			}
+			auth := AuthConfig{JWTSecret: tt.jwtSecret}
 			if tt.name == "quota exceeded returns 429" {
-				cfg.QuotaChecker = denyChecker
+				auth.QuotaChecker = denyChecker
+			}
+			cfg := Config{
+				Stores: StoresConfig{WorkspaceStore: mockWS, ChatStore: tt.chatStore, AgentStore: tt.agentStore},
+				Auth:   auth,
 			}
 			s := New(cfg)
 			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body))

@@ -29,19 +29,19 @@ func ensureWorkspaceDirs(root string, workspaceIDs []string) {
 }
 
 func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
-	if !s.requireStore(w, s.cfg.WorkspaceStore, "workspaces not configured") {
+	if !s.requireStore(w, s.cfg.Stores.WorkspaceStore, "workspaces not configured") {
 		return
 	}
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	userID, ok := requireAuth(w, r, s.cfg.Auth.JWTSecret)
 	if !ok {
 		return
 	}
 	ctx := r.Context()
-	if err := s.cfg.WorkspaceStore.EnsureDefaultWorkspaceForUser(ctx, userID); err != nil {
+	if err := s.cfg.Stores.WorkspaceStore.EnsureDefaultWorkspaceForUser(ctx, userID); err != nil {
 		writeInternalError(w, err, "handler", "workspaces", "op", "ensure_default")
 		return
 	}
-	list, err := s.cfg.WorkspaceStore.ListWorkspacesByOwner(ctx, userID)
+	list, err := s.cfg.Stores.WorkspaceStore.ListWorkspacesByOwner(ctx, userID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "workspaces", "op", "list")
 		return
@@ -64,10 +64,10 @@ func (s *Server) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) {
-	if !s.requireStore(w, s.cfg.WorkspaceStore, "workspaces not configured") {
+	if !s.requireStore(w, s.cfg.Stores.WorkspaceStore, "workspaces not configured") {
 		return
 	}
-	userID, ok := requireAuth(w, r, s.cfg.JWTSecret)
+	userID, ok := requireAuth(w, r, s.cfg.Auth.JWTSecret)
 	if !ok {
 		return
 	}
@@ -81,7 +81,7 @@ func (s *Server) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ctx := r.Context()
-	ws, err := s.cfg.WorkspaceStore.CreateWorkspace(ctx, userID, req.Name)
+	ws, err := s.cfg.Stores.WorkspaceStore.CreateWorkspace(ctx, userID, req.Name)
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_workspace")
 		return

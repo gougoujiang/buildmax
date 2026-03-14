@@ -20,7 +20,7 @@ type OtpRequestResponse struct {
 }
 
 func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.UserStore == nil {
+	if s.cfg.Stores.UserStore == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "otp not configured")
 		return
 	}
@@ -43,7 +43,7 @@ func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.cfg.UserStore.UserByEmail(r.Context(), req.Email)
+	user, err := s.cfg.Stores.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		return
@@ -64,7 +64,7 @@ func (s *Server) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.cfg.UserStore.CreateUser(r.Context(), req.Email, s.cfg.DefaultQuotaTier)
+	_, err = s.cfg.Stores.UserStore.CreateUser(r.Context(), req.Email, s.cfg.Auth.DefaultQuotaTier)
 	if err != nil {
 		if errors.Is(err, entity.ErrEmailExists) {
 			writeJSONError(w, http.StatusConflict, "email already registered")

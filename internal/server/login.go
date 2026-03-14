@@ -39,7 +39,7 @@ type jwtClaims struct {
 const jwtExpiry = 24 * time.Hour
 
 func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.UserStore == nil || s.cfg.JWTSecret == "" {
+	if s.cfg.Stores.UserStore == nil || s.cfg.Auth.JWTSecret == "" {
 		writeJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
@@ -62,7 +62,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.cfg.UserStore.UserByEmail(r.Context(), req.Email)
+	user, err := s.cfg.Stores.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
 		writeInternalError(w, err, "handler", "login", "email", req.Email)
 		return
@@ -80,7 +80,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Sub: user.UserID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(s.cfg.JWTSecret))
+	tokenStr, err := token.SignedString([]byte(s.cfg.Auth.JWTSecret))
 	if err != nil {
 		writeInternalError(w, err, "handler", "login", "sign_token")
 		return

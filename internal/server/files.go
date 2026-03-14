@@ -26,11 +26,11 @@ func (s *Server) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.PersistStorage, "persist storage not configured") {
+	if !s.requireStore(w, s.cfg.Storage.PersistStorage, "persist storage not configured") {
 		return
 	}
 	ctx := r.Context()
-	relPaths, err := s.cfg.PersistStorage.ListFiles(ctx, workspaceID)
+	relPaths, err := s.cfg.Storage.PersistStorage.ListFiles(ctx, workspaceID)
 	if err != nil {
 		writeInternalError(w, err, "handler", "files_tree", "workspace_id", workspaceID)
 		return
@@ -109,7 +109,7 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.PersistStorage, "persist storage not configured") {
+	if !s.requireStore(w, s.cfg.Storage.PersistStorage, "persist storage not configured") {
 		return
 	}
 	filePath := r.PathValue("path")
@@ -122,7 +122,7 @@ func (s *Server) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-	data, err := s.cfg.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
+	data, err := s.cfg.Storage.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "file not found")

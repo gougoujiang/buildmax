@@ -21,7 +21,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !s.requireStore(w, s.cfg.PersistStorage, "persist storage not configured") {
+	if !s.requireStore(w, s.cfg.Storage.PersistStorage, "persist storage not configured") {
 		return
 	}
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
@@ -81,7 +81,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			writeInternalError(w, err, "handler", "upload", "name", relPath)
 			return
 		}
-		if err := s.cfg.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
+		if err := s.cfg.Storage.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
 			src.Close()
 			writeInternalError(w, err, "handler", "upload", "path", cleanPath)
 			return
