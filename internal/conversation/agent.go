@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 
 	"buildmax/internal/agent"
 	"buildmax/internal/core"
@@ -40,6 +39,36 @@ func buildConversationTools(workspaceID, userID string, startChatRunner tools.St
 	return toolList
 }
 
+// conversationBuffer implements agent.MessageBuffer by persisting each Append to the message store.
+type conversationBuffer struct {
+	ctx             context.Context
+	conversationID  string
+	msgStore        entity.ConversationMessageStore
+	msgs            []llm.Message
+}
+
+func (b *conversationBuffer) Messages() []llm.Message {
+	return b.msgs
+}
+
+func (b *conversationBuffer) Append(m llm.Message) error {
+	b.msgs = append(b.msgs, m)
+	var toolCallID *string
+	if m.Role == "tool" && m.ToolCallID != "" {
+		toolCallID = &m.ToolCallID
+	}
+	var toolCallsJSON *string
+	if m.Role == "assistant" && len(m.ToolCalls) > 0 {
+		js, err := marshalToolCalls(m.ToolCalls)
+		if err != nil {
+			return fmt.Errorf("marshal tool calls: %w", err)
+		}
+		toolCallsJSON = js
+	}
+	_, err := b.msgStore.AppendMessage(b.ctx, b.conversationID, m.Role, m.Content, nil, toolCallID, toolCallsJSON)
+	return err
+}
+
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
 // If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
@@ -65,12 +94,10 @@ func RunLoop(
 		return "", fmt.Errorf("list messages: %w", err)
 	}
 	firstRound := len(msgs) == 0
-	// Append user message
 	channelPtr := &channel
 	if _, err := msgStore.AppendMessage(ctx, conversationID, "user", userContent, channelPtr, nil, nil); err != nil {
 		return "", fmt.Errorf("append user message: %w", err)
 	}
-	// Build LLM message list from stored messages + new user message
 	llmMsgs := make([]llm.Message, 0, len(msgs)+2)
 	for _, m := range msgs {
 		toolCallID := ""
@@ -97,50 +124,25 @@ func RunLoop(
 		toolsByName[t.Name()] = t
 	}
 
-	for i := 0; i < maxIterations; i++ {
-		slog.Debug("conversation iteration", "iter", i+1, "conversation_id", conversationID)
-		messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, llmMsgs...)
-		content, toolCalls, _, callErr := caller.ChatWithTools(ctx, messages, defs)
-		if callErr != nil {
-			return "", fmt.Errorf("llm call: %w", callErr)
-		}
-		if len(toolCalls) == 0 {
-			// Final reply
-			if _, err := msgStore.AppendMessage(ctx, conversationID, "assistant", content, nil, nil, nil); err != nil {
-				return "", fmt.Errorf("append assistant message: %w", err)
-			}
-			if firstRound && userContent != "" && titleGenerator != nil {
-				if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
-					_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
-				}
-			}
-			return content, nil
-		}
-		// Append assistant message with tool calls (persist id, name, arguments)
-		toolCallsJSON, err := marshalToolCalls(toolCalls)
-		if err != nil {
-			return "", fmt.Errorf("marshal tool calls: %w", err)
-		}
-		if _, err := msgStore.AppendMessage(ctx, conversationID, "assistant", content, nil, nil, toolCallsJSON); err != nil {
-			return "", fmt.Errorf("append assistant message: %w", err)
-		}
-		llmMsgs = append(llmMsgs, llm.Message{Role: "assistant", Content: content, ToolCalls: toolCalls})
-
-		for _, tc := range toolCalls {
-			var toolResult string
-			if tool, ok := toolsByName[tc.Name]; ok {
-				toolResult = agent.ExecuteTool(ctx, tool, tc)
-			} else {
-				toolResult = fmt.Sprintf("error: unknown tool %q", tc.Name)
-			}
-			tcID := tc.ID
-			if _, err := msgStore.AppendMessage(ctx, conversationID, "tool", toolResult, nil, &tcID, nil); err != nil {
-				return "", fmt.Errorf("append tool message: %w", err)
-			}
-			llmMsgs = append(llmMsgs, llm.Message{Role: "tool", Content: toolResult, ToolCallID: tc.ID})
+	buf := &conversationBuffer{ctx: ctx, conversationID: conversationID, msgStore: msgStore, msgs: llmMsgs}
+	reply, _, err = agent.RunLoop(ctx, agent.RunLoopOpts{
+		Caller:        caller,
+		SystemPrompt:  systemPrompt,
+		ToolDefs:      defs,
+		ToolsByName:   toolsByName,
+		MaxIter:       maxIterations,
+		Buffer:        buf,
+		StreamSink:    nil,
+	})
+	if err != nil {
+		return "", err
+	}
+	if firstRound && userContent != "" && titleGenerator != nil {
+		if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
+			_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
 		}
 	}
-	return "", fmt.Errorf("conversation: max iterations (%d) exceeded", maxIterations)
+	return reply, nil
 }
 
 // RunLoopStream is like RunLoop but streams assistant content deltas via sink.
@@ -199,54 +201,25 @@ func RunLoopStream(
 		toolsByName[t.Name()] = t
 	}
 
-	onDelta := func(delta string) {
-		if sink != nil && delta != "" {
-			sink.OnDelta(delta)
+	buf := &conversationBuffer{ctx: ctx, conversationID: conversationID, msgStore: msgStore, msgs: llmMsgs}
+	reply, _, err = agent.RunLoop(ctx, agent.RunLoopOpts{
+		Caller:        caller,
+		SystemPrompt:  systemPrompt,
+		ToolDefs:      defs,
+		ToolsByName:   toolsByName,
+		MaxIter:       maxIterations,
+		Buffer:        buf,
+		StreamSink:    sink,
+	})
+	if err != nil {
+		return "", err
+	}
+	if firstRound && userContent != "" && titleGenerator != nil {
+		if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
+			_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
 		}
 	}
-
-	for i := 0; i < maxIterations; i++ {
-		slog.Debug("conversation iteration", "iter", i+1, "conversation_id", conversationID)
-		messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, llmMsgs...)
-		content, toolCalls, _, callErr := caller.ChatWithToolsStream(ctx, messages, defs, onDelta)
-		if callErr != nil {
-			return "", fmt.Errorf("llm call: %w", callErr)
-		}
-		if len(toolCalls) == 0 {
-			if _, err := msgStore.AppendMessage(ctx, conversationID, "assistant", content, nil, nil, nil); err != nil {
-				return "", fmt.Errorf("append assistant message: %w", err)
-			}
-			if firstRound && userContent != "" && titleGenerator != nil {
-				if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
-					_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
-				}
-			}
-			return content, nil
-		}
-		toolCallsJSON, err := marshalToolCalls(toolCalls)
-		if err != nil {
-			return "", fmt.Errorf("marshal tool calls: %w", err)
-		}
-		if _, err := msgStore.AppendMessage(ctx, conversationID, "assistant", content, nil, nil, toolCallsJSON); err != nil {
-			return "", fmt.Errorf("append assistant message: %w", err)
-		}
-		llmMsgs = append(llmMsgs, llm.Message{Role: "assistant", Content: content, ToolCalls: toolCalls})
-
-		for _, tc := range toolCalls {
-			var toolResult string
-			if tool, ok := toolsByName[tc.Name]; ok {
-				toolResult = agent.ExecuteTool(ctx, tool, tc)
-			} else {
-				toolResult = fmt.Sprintf("error: unknown tool %q", tc.Name)
-			}
-			tcID := tc.ID
-			if _, err := msgStore.AppendMessage(ctx, conversationID, "tool", toolResult, nil, &tcID, nil); err != nil {
-				return "", fmt.Errorf("append tool message: %w", err)
-			}
-			llmMsgs = append(llmMsgs, llm.Message{Role: "tool", Content: toolResult, ToolCallID: tc.ID})
-		}
-	}
-	return "", fmt.Errorf("conversation: max iterations (%d) exceeded", maxIterations)
+	return reply, nil
 }
 
 // marshalToolCalls serializes tool calls to JSON for storage. Returns (nil, nil) for empty slice.
