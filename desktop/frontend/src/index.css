@@ -1,4 +1,5 @@
 @import '@buildmax/gui/theme.css';
+@import '@buildmax/gui/widgets.css';
 @import './css/layout.css';
 @import './css/sidebar.css';
 @import './css/chat-detail.css';
@@ -14,30 +15,4 @@ body {
   color: var(--color-text);
   min-height: 100vh;
   overflow: hidden;
-}
-
-.theme-toggle {
-  flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0.35rem;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s, background 0.15s;
-}
-
-.theme-toggle:hover {
-  color: var(--color-text);
-  background: var(--color-bg-hover);
-}
-
-.theme-toggle__icon {
-  width: 1.35rem;
-  height: 1.35rem;
 }

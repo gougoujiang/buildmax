@@ -1,6 +1,7 @@
 import { useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { ChatComposer } from "@buildmax/gui"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
@@ -92,39 +93,18 @@ export function NewChat({
         Start a new conversation. Describe what you want to accomplish and the agent will work on it.
       </p>
       <section className="page-chat__input">
-        <div className="page-chat__input-box">
-          <textarea
-            className="page-chat__follow-up-input"
-            value={prompt}
-            onChange={(e) => {
-              setPrompt(e.target.value)
-              setRunError(null)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                if (prompt.trim() && !running) handleSend()
-              }
-            }}
-            placeholder="e.g. Help me analyze last month's sales data (Enter to send, Shift+Enter for new line)"
-            rows={2}
-            disabled={running}
-            aria-label="What would you like to do?"
-          />
-          <button
-            type="button"
-            className="page-chat__follow-up-btn"
-            onClick={handleSend}
-            disabled={running || !prompt.trim()}
-          >
-            {running ? "Sending…" : "Send"}
-          </button>
-        </div>
-        {runError && (
-          <p className="page-chat__text page-chat__error" role="alert">
-            {runError}
-          </p>
-        )}
+        <ChatComposer
+          value={prompt}
+          onChange={(value) => {
+            setPrompt(value)
+            setRunError(null)
+          }}
+          onSubmit={handleSend}
+          loading={running}
+          error={runError}
+          placeholder="e.g. Help me analyze last month's sales data (Enter to send, Shift+Enter for new line)"
+          ariaLabel="What would you like to do?"
+        />
         {(streamingContent.length > 0 || (running && streamingConversationId)) && (
           <div className="page-chat__message page-chat__message--assistant" aria-live="polite">
             <span className="page-chat__message-role">assistant</span>

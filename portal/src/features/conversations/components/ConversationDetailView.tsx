@@ -1,5 +1,6 @@
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../../components/UserAvatar"
 import type { ApiConversationMessage, LoginUser } from "../../../lib/api"
 
@@ -30,105 +31,61 @@ export function ConversationDetailView({
   user,
   onSend,
 }: ConversationDetailViewProps) {
+  const items: ChatThreadItem[] = messages.map((msg) => {
+    const isUser = msg.role === "user"
+
+    return {
+      id: msg.id,
+      role: msg.role,
+      label: isUser ? "You" : msg.role,
+      avatar: isUser && user ? <UserAvatar user={user} size="sm" /> : <AgentAvatar size="sm" />,
+      body: msg.content ? (
+        <div className="page-chat__msg-content page-chat__markdown">
+          <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
+        </div>
+      ) : null,
+    }
+  })
+
+  if (streamingContent !== null) {
+    items.push({
+      id: "streaming-assistant",
+      role: "assistant",
+      label: "Assistant (streaming)",
+      avatar: <AgentAvatar size="sm" />,
+      body: (
+        <div className="page-chat__msg-content page-chat__markdown">
+          {streamingContent ? (
+            <Markdown remarkPlugins={[remarkGfm]}>{streamingContent}</Markdown>
+          ) : (
+            <p className="bm-chat-thread__text bm-chat-thread__text--muted">Thinking…</p>
+          )}
+        </div>
+      ),
+    })
+  }
+
   return (
     <div className="page-chat">
-      <section ref={historyRef} className="page-chat__history" aria-label="Conversation history">
-        {messagesLoading && (
-          <p className="page-chat__text page-chat__muted">Loading conversation…</p>
-        )}
-        {messagesError && (
-          <p className="page-chat__text page-chat__error" role="alert">
-            {messagesError}
-          </p>
-        )}
-        {!messagesLoading && !messagesError && (
-          <>
-            {messages.length === 0 && (
-              <p className="page-chat__text page-chat__muted">
-                No messages yet. Use the input below to start.
-              </p>
-            )}
-            {messages.map((msg) => {
-              const isUser = msg.role === "user"
-              return (
-                <div
-                  key={msg.id}
-                  className={`page-chat__msg-row page-chat__msg-row--${msg.role}`}
-                  role="article"
-                  aria-label={isUser ? "You" : msg.role}
-                >
-                  <span className="page-chat__msg-icon" aria-hidden>
-                    {isUser && user ? (
-                      <UserAvatar user={user} size="sm" />
-                    ) : (
-                      <AgentAvatar size="sm" />
-                    )}
-                  </span>
-                  <div className={`page-chat__msg page-chat__msg--${msg.role}`}>
-                    {msg.content ? (
-                      <div className="page-chat__msg-content page-chat__markdown">
-                        <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )
-            })}
-            {streamingContent !== null ? (
-              <div
-                className="page-chat__msg-row page-chat__msg-row--assistant"
-                role="article"
-                aria-label="Assistant (streaming)"
-              >
-                <span className="page-chat__msg-icon" aria-hidden>
-                  <AgentAvatar size="sm" />
-                </span>
-                <div className="page-chat__msg page-chat__msg--assistant">
-                  <div className="page-chat__msg-content page-chat__markdown">
-                    {streamingContent ? (
-                      <Markdown remarkPlugins={[remarkGfm]}>{streamingContent}</Markdown>
-                    ) : (
-                      <p className="page-chat__text page-chat__muted">Thinking…</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </>
-        )}
-      </section>
+      <ChatThread
+        historyRef={historyRef}
+        ariaLabel="Conversation history"
+        items={items}
+        loadingText={messagesLoading ? "Loading conversation…" : null}
+        errorText={messagesError}
+        emptyText="No messages yet. Use the input below to start."
+      />
 
       <section className="page-chat__input" aria-label="Send a message">
-        <div className="page-chat__input-box">
-          <textarea
-            className="page-chat__follow-up-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                if (input.trim() && !sending) onSend()
-              }
-            }}
-            placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
-            rows={2}
-            disabled={sending}
-            aria-label="Message"
-          />
-          <button
-            type="button"
-            className="page-chat__follow-up-btn"
-            onClick={onSend}
-            disabled={sending || !input.trim()}
-          >
-            {sending ? "Sending…" : "Send"}
-          </button>
-        </div>
-        {sendError && (
-          <p className="page-chat__text page-chat__error" role="alert">
-            {sendError}
-          </p>
-        )}
+        <ChatComposer
+          value={input}
+          onChange={setInput}
+          onSubmit={onSend}
+          loading={sending}
+          error={sendError}
+          placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+          ariaLabel="Message"
+        />
       </section>
     </div>
   )

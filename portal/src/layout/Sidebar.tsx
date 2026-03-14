@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { createPortal } from "react-dom"
+import { RecentList } from "@buildmax/gui"
 import { cn } from "../lib/cn"
 import type { Route, Conversation } from "../lib/types"
 import type { LoginUser } from "../lib/api"
@@ -161,33 +162,20 @@ export function Sidebar({
                 className="sidebar__chats-list"
                 hidden={conversationsCollapsed}
               >
-                <ul className="sidebar__list">
-                  {conversations.map((conv) => (
-                    <li key={conv.id} className="sidebar__item">
-                      <button
-                        type="button"
-                        className={cn("sidebar__link", isConversationActive(route, conv.id) && "sidebar__link--active")}
-                        onClick={() =>
-                          navigate({ name: "conversation", workspaceId, conversationId: conv.id })
-                        }
-                      >
-                        <span className="sidebar__chat-title">
-                          {conv.title?.trim() || "Conversation"}
-                        </span>
-                        <span className="sidebar__chat-meta">{conv.timeLabel}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {hasMoreConversations && (
-                  <button
-                    type="button"
-                    className="sidebar__chats-see-all"
-                    onClick={() => navigate({ name: "chats", workspaceId })}
-                  >
-                    See all
-                  </button>
-                )}
+                <RecentList
+                  items={conversations.map((conv) => ({
+                    id: conv.id,
+                    title: conv.title?.trim() || "Conversation",
+                    meta: conv.timeLabel,
+                  }))}
+                  activeId={route.name === "conversation" ? route.conversationId : null}
+                  onSelect={(conversationId) =>
+                    navigate({ name: "conversation", workspaceId, conversationId })
+                  }
+                  moreActionLabel={hasMoreConversations ? "See all" : undefined}
+                  onMoreAction={hasMoreConversations ? () => navigate({ name: "chats", workspaceId }) : undefined}
+                  moreActionClassName="sidebar__chats-see-all"
+                />
               </div>
             )}
           </div>
@@ -206,37 +194,24 @@ export function Sidebar({
                   zIndex: 1000,
                 }}
               >
-                <ul className="sidebar__list">
-                  {conversations.map((conv) => (
-                    <li key={conv.id} className="sidebar__item">
-                      <button
-                        type="button"
-                        className={cn("sidebar__link", isConversationActive(route, conv.id) && "sidebar__link--active")}
-                        onClick={() => {
-                          setConversationsPopupOpen(false)
-                          navigate({ name: "conversation", workspaceId, conversationId: conv.id })
-                        }}
-                      >
-                        <span className="sidebar__chat-title">
-                          {conv.title?.trim() || "Conversation"}
-                        </span>
-                        <span className="sidebar__chat-meta">{conv.timeLabel}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {hasMoreConversations && (
-                  <button
-                    type="button"
-                    className="sidebar__chats-see-all"
-                    onClick={() => {
-                      setConversationsPopupOpen(false)
-                      navigate({ name: "chats", workspaceId })
-                    }}
-                  >
-                    See all
-                  </button>
-                )}
+                <RecentList
+                  items={conversations.map((conv) => ({
+                    id: conv.id,
+                    title: conv.title?.trim() || "Conversation",
+                    meta: conv.timeLabel,
+                  }))}
+                  activeId={route.name === "conversation" ? route.conversationId : null}
+                  onSelect={(conversationId) => {
+                    setConversationsPopupOpen(false)
+                    navigate({ name: "conversation", workspaceId, conversationId })
+                  }}
+                  moreActionLabel={hasMoreConversations ? "See all" : undefined}
+                  onMoreAction={hasMoreConversations ? () => {
+                    setConversationsPopupOpen(false)
+                    navigate({ name: "chats", workspaceId })
+                  } : undefined}
+                  moreActionClassName="sidebar__chats-see-all"
+                />
               </div>,
               document.body
             )}
