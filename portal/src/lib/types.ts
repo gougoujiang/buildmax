@@ -29,6 +29,7 @@ export interface Artifact {
 export interface Conversation {
   id: string
   channel: string
+  title: string
   created_at: number
   timeLabel: string
 }

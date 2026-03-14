@@ -84,6 +84,7 @@ export function apiConversationToConversation(api: ApiConversation): Conversatio
   return {
     id: api.id,
     channel: api.channel,
+    title: api.title?.trim() ?? "",
     created_at: api.created_at,
     timeLabel: formatRelativeTime(api.created_at),
   }

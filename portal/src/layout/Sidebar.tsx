@@ -171,7 +171,9 @@ export function Sidebar({
                           navigate({ name: "conversation", workspaceId, conversationId: conv.id })
                         }
                       >
-                        <span className="sidebar__chat-title">Conversation</span>
+                        <span className="sidebar__chat-title">
+                          {conv.title?.trim() || "Conversation"}
+                        </span>
                         <span className="sidebar__chat-meta">{conv.timeLabel}</span>
                       </button>
                     </li>
@@ -215,7 +217,9 @@ export function Sidebar({
                           navigate({ name: "conversation", workspaceId, conversationId: conv.id })
                         }}
                       >
-                        <span className="sidebar__chat-title">Conversation</span>
+                        <span className="sidebar__chat-title">
+                          {conv.title?.trim() || "Conversation"}
+                        </span>
                         <span className="sidebar__chat-meta">{conv.timeLabel}</span>
                       </button>
                     </li>

@@ -114,6 +114,7 @@ export interface ApiConversation {
   id: string
   workspace_id: string
   channel: string
+  title?: string
   created_at: number
   created_by: string
 }

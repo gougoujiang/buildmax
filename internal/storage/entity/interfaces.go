@@ -90,6 +90,7 @@ type ConversationStore interface {
 	CreateConversation(ctx context.Context, workspaceID, channel, createdBy string) (*Conversation, error)
 	GetConversation(ctx context.Context, conversationID string) (*Conversation, error)
 	ListConversationsByWorkspace(ctx context.Context, workspaceID string, limit, offset int) ([]Conversation, int, error)
+	UpdateConversationTitle(ctx context.Context, conversationID, title string) error
 }
 
 // ConversationMessageStore provides Tier 1 conversation message persistence.

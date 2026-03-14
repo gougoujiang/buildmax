@@ -35,7 +35,9 @@ export function WorkspaceHome({
                     navigate({ name: "conversation", workspaceId, conversationId: conv.id })
                   }
                 >
-                  <span className="page-workspace__chat-name">Conversation</span>
+                  <span className="page-workspace__chat-name">
+                    {conv.title?.trim() || "Conversation"}
+                  </span>
                   <span className="page-workspace__chat-time">{conv.timeLabel}</span>
                 </button>
               </li>

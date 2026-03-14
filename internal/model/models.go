@@ -130,11 +130,13 @@ type ArtifactWithChat struct {
 }
 
 // Conversation is the Tier 1 conversation container (multi-turn from portal, cron, webhook, telegram). JSON uses snake_case.
+// Title is set after the first round of dialogue (generated from the first user message via LLM).
 type Conversation struct {
 	ID              uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	ConversationID  string `gorm:"type:varchar(64);uniqueIndex;not null" json:"conversation_id"`
 	WorkspaceID     string `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
 	Channel         string `gorm:"type:varchar(32);not null" json:"channel"`
+	Title           string `gorm:"type:varchar(256)" json:"title,omitempty"`
 	CreatedBy       string `gorm:"type:varchar(64);not null" json:"created_by"`
 	CreatedAt       int64  `gorm:"autoCreateTime" json:"created_at"`
 }

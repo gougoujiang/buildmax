@@ -52,3 +52,10 @@ func (s *Store) ListConversationsByWorkspace(ctx context.Context, workspaceID st
 		Find(&list).Error
 	return list, int(total), err
 }
+
+// UpdateConversationTitle sets the title for the conversation (e.g. after first-round LLM generation).
+func (s *Store) UpdateConversationTitle(ctx context.Context, conversationID, title string) error {
+	return s.db.WithContext(ctx).Model(&Conversation{}).
+		Where("conversation_id = ?", conversationID).
+		Update("title", title).Error
+}

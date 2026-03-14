@@ -2,12 +2,21 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"buildmax/internal/conversation"
 	"buildmax/internal/storage/entity"
 )
+
+// convTitleGen adapts ChatTitleGenerator to conversation.ConversationTitleGenerator (drops TokenUsage).
+type convTitleGen struct{ gen ChatTitleGenerator }
+
+func (c *convTitleGen) GenerateTitleFromInput(ctx context.Context, input string) (string, error) {
+	title, _, err := c.gen.GenerateChatTitle(ctx, input)
+	return title, err
+}
 
 // conversationListResponse is the response for GET .../conversations (snake_case).
 type conversationListResponse struct {
@@ -19,6 +28,7 @@ type conversationResponse struct {
 	ID             string `json:"id"`
 	WorkspaceID    string `json:"workspace_id"`
 	Channel        string `json:"channel"`
+	Title          string `json:"title,omitempty"`
 	CreatedAt      int64  `json:"created_at"`
 	CreatedBy      string `json:"created_by"`
 }
@@ -92,6 +102,7 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 			ID:          list[i].ConversationID,
 			WorkspaceID: list[i].WorkspaceID,
 			Channel:     list[i].Channel,
+			Title:       list[i].Title,
 			CreatedAt:   list[i].CreatedAt,
 			CreatedBy:   list[i].CreatedBy,
 		}
@@ -135,9 +146,13 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 			flusher.Flush()
 		}
 		sink := &sseSink{w: w, flusher: flusher}
+		var titleGen conversation.ConversationTitleGenerator
+		if s.cfg.ChatTitleGenerator != nil {
+			titleGen = &convTitleGen{s.cfg.ChatTitleGenerator}
+		}
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID, conv.ConversationID), sink)
+			s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -151,9 +166,13 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 	}
 	reply := ""
 	if req.Message != "" && s.cfg.ConversationLLMCaller != nil {
+		var titleGen conversation.ConversationTitleGenerator
+		if s.cfg.ChatTitleGenerator != nil {
+			titleGen = &convTitleGen{s.cfg.ChatTitleGenerator}
+		}
 		reply, err = conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 			s.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID, conv.ConversationID))
+			s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
 		if err != nil {
 			writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
 			return
@@ -255,9 +274,13 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
 		sink := &sseSink{w: w, flusher: flusher}
+		var titleGen conversation.ConversationTitleGenerator
+		if s.cfg.ChatTitleGenerator != nil {
+			titleGen = &convTitleGen{s.cfg.ChatTitleGenerator}
+		}
 		reply, err := conversation.RunLoopStream(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 			caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-			s.startChatRunner(workspaceID, userID, conv.ConversationID), sink)
+			s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
 		if err != nil {
 			errJSON, _ := json.Marshal(err.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
@@ -269,9 +292,13 @@ func (s *Server) addConversationMessageHandler(w http.ResponseWriter, r *http.Re
 		_ = reply
 		return
 	}
+	var titleGen conversation.ConversationTitleGenerator
+	if s.cfg.ChatTitleGenerator != nil {
+		titleGen = &convTitleGen{s.cfg.ChatTitleGenerator}
+	}
 	reply, err := conversation.RunLoop(r.Context(), s.cfg.ConversationStore, s.cfg.ConversationMessageStore,
 		caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-		s.startChatRunner(workspaceID, userID, conv.ConversationID))
+		s.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return

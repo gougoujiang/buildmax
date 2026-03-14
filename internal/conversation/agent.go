@@ -14,6 +14,11 @@ import (
 	"buildmax/internal/tools"
 )
 
+// ConversationTitleGenerator generates a short title from the first user message (e.g. via LLM). Optional for RunLoop/RunLoopStream.
+type ConversationTitleGenerator interface {
+	GenerateTitleFromInput(ctx context.Context, input string) (string, error)
+}
+
 const maxIterations = 10
 const systemPrompt = `You are a helpful assistant. You can call GetCurrentDate to get today's date. Reply concisely.
 
@@ -37,6 +42,7 @@ func buildConversationTools(workspaceID, userID string, startChatRunner tools.St
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
 // If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
+// If titleGenerator is non-nil and this is the first round (no messages before), a title is generated from userContent and saved.
 func RunLoop(
 	ctx context.Context,
 	convStore entity.ConversationStore,
@@ -48,6 +54,7 @@ func RunLoop(
 	toolsList []core.Tool,
 	workspaceID, userID string,
 	startChatRunner tools.StartChatRunner,
+	titleGenerator ConversationTitleGenerator,
 ) (reply string, err error) {
 	if caller == nil {
 		return "", fmt.Errorf("conversation LLM not configured")
@@ -56,6 +63,7 @@ func RunLoop(
 	if err != nil {
 		return "", fmt.Errorf("list messages: %w", err)
 	}
+	firstRound := len(msgs) == 0
 	// Append user message
 	channelPtr := &channel
 	if _, err := msgStore.AppendMessage(ctx, conversationID, "user", userContent, channelPtr, nil, nil); err != nil {
@@ -100,6 +108,11 @@ func RunLoop(
 			if _, err := msgStore.AppendMessage(ctx, conversationID, "assistant", content, nil, nil, nil); err != nil {
 				return "", fmt.Errorf("append assistant message: %w", err)
 			}
+			if firstRound && userContent != "" && titleGenerator != nil {
+				if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
+					_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
+				}
+			}
 			return content, nil
 		}
 		// Append assistant message with tool calls (persist id, name, arguments)
@@ -132,6 +145,7 @@ func RunLoop(
 // RunLoopStream is like RunLoop but streams assistant content deltas via sink.
 // When the model returns tool calls, those turns are not streamed; only the final (or intermediate) text content is streamed.
 // If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
+// If titleGenerator is non-nil and this is the first round, a title is generated from userContent and saved.
 func RunLoopStream(
 	ctx context.Context,
 	convStore entity.ConversationStore,
@@ -143,6 +157,7 @@ func RunLoopStream(
 	toolsList []core.Tool,
 	workspaceID, userID string,
 	startChatRunner tools.StartChatRunner,
+	titleGenerator ConversationTitleGenerator,
 	sink llm.StreamSink,
 ) (reply string, err error) {
 	if caller == nil {
@@ -152,6 +167,7 @@ func RunLoopStream(
 	if err != nil {
 		return "", fmt.Errorf("list messages: %w", err)
 	}
+	firstRound := len(msgs) == 0
 	channelPtr := &channel
 	if _, err := msgStore.AppendMessage(ctx, conversationID, "user", userContent, channelPtr, nil, nil); err != nil {
 		return "", fmt.Errorf("append user message: %w", err)
@@ -198,6 +214,11 @@ func RunLoopStream(
 		if len(toolCalls) == 0 {
 			if _, err := msgStore.AppendMessage(ctx, conversationID, "assistant", content, nil, nil, nil); err != nil {
 				return "", fmt.Errorf("append assistant message: %w", err)
+			}
+			if firstRound && userContent != "" && titleGenerator != nil {
+				if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
+					_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
+				}
 			}
 			return content, nil
 		}

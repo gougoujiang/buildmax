@@ -199,7 +199,9 @@ export function NewChat({
                         }
                       >
                         <span className="page-activity__content">
-                          <span className="page-activity__task-title">Conversation</span>
+                          <span className="page-activity__task-title">
+                            {conv.title?.trim() || "Conversation"}
+                          </span>
                           <span className="page-activity__meta">{conv.timeLabel}</span>
                         </span>
                       </button>

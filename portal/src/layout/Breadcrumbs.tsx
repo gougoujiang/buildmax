@@ -20,9 +20,9 @@ export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsP
     crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
   } else if (route.name === "conversation") {
     const conv = workspaceConversations.find((c) => c.id === route.conversationId)
-    const convLabel = conv ? conv.timeLabel : "Conversation"
+    const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
-      { label: "New Chat", route: { name: "newChat", workspaceId } },
+      { label: "Chats", route: { name: "chats", workspaceId } },
       { label: convLabel, route },
     ]
   } else if (route.name === "chat") {
