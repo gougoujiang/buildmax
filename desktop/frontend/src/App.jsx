@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ThemeProvider } from './ThemeContext';
-import { ThemeToggle } from './ThemeToggle';
+import { ThemeProvider, ThemeToggle } from '@buildmax/gui';
 import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 
 function getApp() {

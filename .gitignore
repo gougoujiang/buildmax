@@ -35,6 +35,7 @@ go.work.sum
 /buildmax
 /buildmax-server
 /buildmax-worker
+/buildmax-desktop
 
 testing-sandbox/
 testing-workspaces/
@@ -43,6 +44,11 @@ testing-workspaces/
 internal/server/**/testing-workspaces/
 internal/server/**/ws-1/
 internal/server/**/ws1/
+
+# Shared GUI package (React / Node)
+gui/node_modules/
+gui/dist/
+gui/*.tsbuildinfo
 
 # Portal (React / Node)
 portal/node_modules/

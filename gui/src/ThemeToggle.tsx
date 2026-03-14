@@ -1,6 +1,6 @@
-import { useTheme } from './ThemeContext';
+import { useTheme } from "./ThemeContext"
 
-function SunIcon({ className }) {
+function SunIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -23,10 +23,10 @@ function SunIcon({ className }) {
       <path d="m6.34 17.66-1.41 1.41" />
       <path d="m19.07 4.93-1.41 1.41" />
     </svg>
-  );
+  )
 }
 
-function MoonIcon({ className }) {
+function MoonIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -41,25 +41,25 @@ function MoonIcon({ className }) {
     >
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
     </svg>
-  );
+  )
 }
 
 export function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <button
       type="button"
       className="theme-toggle"
       onClick={toggleTheme}
-      aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-      title={theme === 'light' ? 'Dark mode' : 'Light mode'}
+      aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+      title={theme === "light" ? "Dark mode" : "Light mode"}
     >
-      {theme === 'light' ? (
+      {theme === "light" ? (
         <MoonIcon className="theme-toggle__icon" />
       ) : (
         <SunIcon className="theme-toggle__icon" />
       )}
     </button>
-  );
+  )
 }

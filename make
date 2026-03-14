@@ -15,8 +15,8 @@ usage() {
   echo "Usage: ./make <command>"
   echo ""
   echo "Commands:"
-  echo "  build         Build $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, and desktop app (output: $SCRIPT_DIR/; desktop: $DESKTOP_DIR/build/)"
-  echo "  clean         Remove binaries, $DESKTOP_DIR/build, portal and desktop frontend (node_modules, dist)"
+  echo "  build         Build $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, gui, desktop app; copy desktop binary to $SCRIPT_DIR/buildmax-desktop for local run"
+  echo "  clean         Remove binaries, $DESKTOP_DIR/build, gui/portal/desktop frontend (node_modules, dist)"
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
   echo "  run server    Build $SERVER_BINARY and start HTTP server (default port 5678)"
@@ -54,6 +54,10 @@ cmd_run_portal() {
     echo "Error: portal/ directory not found"
     return 1
   fi
+  if [[ -d "$SCRIPT_DIR/gui" ]] && [[ ! -f "$SCRIPT_DIR/gui/dist/index.js" ]]; then
+    echo "Building gui package (required by portal)..."
+    (cd "$SCRIPT_DIR/gui" && npm install && npm run build) || { echo "Error: gui build failed."; return 1; }
+  fi
   if [[ ! -d portal/node_modules ]]; then
     echo "Installing portal dependencies..."
     (cd portal && npm install)
@@ -77,6 +81,10 @@ cmd_run_desktop() {
     echo "Error: desktop/frontend/ directory not found"
     return 1
   fi
+  if [[ -d "$SCRIPT_DIR/gui" ]] && [[ ! -f "$SCRIPT_DIR/gui/dist/index.js" ]]; then
+    echo "Building gui package (required by desktop frontend)..."
+    (cd "$SCRIPT_DIR/gui" && npm install && npm run build) || { echo "Error: gui build failed."; return 1; }
+  fi
   if [[ ! -d "$frontend_dir/node_modules" ]]; then
     echo "Installing desktop frontend dependencies..."
     (cd "$frontend_dir" && npm install)
@@ -86,52 +94,82 @@ cmd_run_desktop() {
 }
 
 cmd_build() {
-  echo "Building CLI binary $CLI_BINARY..."
+  echo "[cli] Building $CLI_BINARY..."
   if go build -o "$CLI_BINARY" ./cmd/buildmax; then
-    echo "Built $CLI_BINARY at $SCRIPT_DIR/$CLI_BINARY"
+    echo "[cli] Built $CLI_BINARY"
   else
     return 1
   fi
-  echo "Building server binary $SERVER_BINARY..."
+  echo "[server] Building $SERVER_BINARY..."
   if go build -o "$SERVER_BINARY" ./cmd/buildmax-server; then
-    echo "Built $SERVER_BINARY at $SCRIPT_DIR/$SERVER_BINARY"
+    echo "[server] Built $SERVER_BINARY"
   else
     return 1
   fi
-  echo "Building worker binary $WORKER_BINARY..."
+  echo "[worker] Building $WORKER_BINARY..."
   if go build -o "$WORKER_BINARY" ./cmd/buildmax-worker; then
-    echo "Built $WORKER_BINARY at $SCRIPT_DIR/$WORKER_BINARY"
+    echo "[worker] Built $WORKER_BINARY"
   else
     return 1
   fi
-  echo "Building desktop app (Wails)..."
+  if [[ -d "$SCRIPT_DIR/gui" ]]; then
+    echo "[gui] Building @buildmax/gui package..."
+    if [[ ! -d "$SCRIPT_DIR/gui/node_modules" ]]; then
+      (cd "$SCRIPT_DIR/gui" && npm install) || { echo "[gui] Warning: npm install failed; skipping gui."; }
+    fi
+    if [[ -d "$SCRIPT_DIR/gui/node_modules" ]]; then
+      (cd "$SCRIPT_DIR/gui" && npm run build) || { echo "[gui] Warning: build failed; portal/desktop may fail."; }
+    fi
+  fi
+  echo "[desktop] Building desktop app (Wails)..."
   if ! command -v wails &>/dev/null; then
-    echo "Warning: wails CLI not found; skipping desktop app. Run ./make setup or: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
+    echo "[desktop] Warning: wails CLI not found; skipping. Run ./make setup or: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
   elif [[ ! -d "$SCRIPT_DIR/$DESKTOP_DIR" ]]; then
-    echo "Warning: $DESKTOP_DIR not found; skipping desktop app."
+    echo "[desktop] Warning: $DESKTOP_DIR not found; skipping."
+  elif [[ -d "$SCRIPT_DIR/gui" ]] && [[ ! -f "$SCRIPT_DIR/gui/dist/index.js" ]]; then
+    echo "[desktop] Warning: gui not built (missing gui/dist/index.js). Run: cd gui && npm install && npm run build"
   elif [[ ! -d "$SCRIPT_DIR/desktop/frontend" ]]; then
-    echo "Warning: desktop/frontend/ not found; skipping desktop app."
+    echo "[desktop] Warning: desktop/frontend/ not found; skipping."
   else
     local frontend_dir="$SCRIPT_DIR/desktop/frontend"
     if [[ ! -d "$frontend_dir/node_modules" ]]; then
-      echo "  Installing desktop frontend dependencies..."
-      (cd "$frontend_dir" && npm install) || { echo "Warning: desktop frontend npm install failed; skipping desktop app."; return 0; }
+      echo "[desktop] Installing frontend dependencies..."
+      (cd "$frontend_dir" && npm install) || { echo "[desktop] Warning: frontend npm install failed; skipping."; return 0; }
     fi
-    echo "  Building desktop frontend (React)..."
-    (cd "$frontend_dir" && npm run build) || { echo "Warning: desktop frontend build failed; skipping desktop app."; return 0; }
+    echo "[desktop] Building frontend (React)..."
+    (cd "$frontend_dir" && npm run build) || { echo "[desktop] Warning: frontend build failed; skipping."; return 0; }
+    echo "[desktop] Running wails build..."
     if (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails build); then
-      echo "Built desktop app at $SCRIPT_DIR/$DESKTOP_DIR/build/"
+      echo "[desktop] Built at $SCRIPT_DIR/$DESKTOP_DIR/build/"
+      # Copy desktop binary to workspace root for local testing (like buildmax-server)
+      local desktop_binary="buildmax-desktop"
+      local src_bin=""
+      if [[ "$(uname -s)" = Darwin ]] && [[ -f "$SCRIPT_DIR/$DESKTOP_DIR/build/bin/BuildMax.app/Contents/MacOS/$desktop_binary" ]]; then
+        src_bin="$SCRIPT_DIR/$DESKTOP_DIR/build/bin/BuildMax.app/Contents/MacOS/$desktop_binary"
+      elif [[ -f "$SCRIPT_DIR/$DESKTOP_DIR/build/bin/$desktop_binary" ]]; then
+        src_bin="$SCRIPT_DIR/$DESKTOP_DIR/build/bin/$desktop_binary"
+      fi
+      if [[ -n "$src_bin" ]]; then
+        cp -f "$src_bin" "$SCRIPT_DIR/$desktop_binary" && chmod +x "$SCRIPT_DIR/$desktop_binary" && echo "[desktop] Copied binary to $SCRIPT_DIR/$desktop_binary"
+      fi
     else
-      echo "Warning: desktop app (wails build) failed (see above)."
+      echo "[desktop] Warning: wails build failed (see above)."
     fi
   fi
 }
 
 cmd_clean() {
-  rm -f "$CLI_BINARY" "$SERVER_BINARY" "$WORKER_BINARY"
-  rm -rf "$DESKTOP_DIR/build" portal/node_modules portal/dist
+  echo "[clean] Removing binaries..."
+  rm -f "$CLI_BINARY" "$SERVER_BINARY" "$WORKER_BINARY" buildmax-desktop
+  echo "[clean] Removing desktop app build..."
+  rm -rf "$DESKTOP_DIR/build"
+  echo "[clean] Removing gui (node_modules, dist)..."
+  rm -rf gui/node_modules gui/dist
+  echo "[clean] Removing portal (node_modules, dist)..."
+  rm -rf portal/node_modules portal/dist
+  echo "[clean] Removing desktop frontend (node_modules, dist)..."
   rm -rf desktop/frontend/node_modules desktop/frontend/dist
-  echo "Cleaned: binaries, $DESKTOP_DIR/build, portal/node_modules, portal/dist, desktop/frontend/node_modules, desktop/frontend/dist"
+  echo "[clean] Done."
 }
 
 cmd_test() {

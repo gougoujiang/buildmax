@@ -4,7 +4,7 @@ import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { Sidebar } from "./Sidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
-import { ThemeToggle } from "../components/ThemeToggle"
+import { ThemeToggle } from "@buildmax/gui"
 
 export interface LayoutProps {
   route: Route

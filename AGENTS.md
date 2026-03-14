@@ -29,7 +29,9 @@ Rationale: A single language reduces maintenance cost, enables cross-compilation
   - Pure Go TUI framework, aligned with the project’s “all-Go stack”
   - Supports multiple components, message-driven flow, and keyboard/mouse interaction.
   - Users get a full Agent TUI experience in the terminal by running a single binary; no Node dependency for normal CLI use.
-- **Portal (web)**: A separate web-based entry point under `portal/` — a minimal React (Vite + TypeScript) app that builds and runs independently. It provides a "BuildMax Portal" landing as a frontend foundation; chat, sessions, and API integration are planned for later. See `portal/README.md` for install, build, and dev commands.
+- **Portal (web)**: A separate web-based entry point under `portal/` — React 19 + Vite + TypeScript; builds and runs independently. Depends on the shared **gui** package for theme and other reusable widgets. See `portal/README.md` for install, build, and dev commands.
+- **Desktop (Wails)**: Native desktop app under `desktop/` and `cmd/buildmax-desktop/` — Wails embeds a React 19 + Vite frontend in `desktop/frontend/`. Same shared **gui** package as portal so UI components are implemented once and used in both.
+- **Shared GUI package (`gui/`)**: An npm package at repo root (`@buildmax/gui`) that exports presentational React components and CSS (theme, and later e.g. settings UI, chat history rendering, input box). Portal and desktop have different inner logic (data, auth, routing); they share **widgets** from gui via props/callbacks. Both use React 19. Build with `cd gui && npm install && npm run build`; `./make build` and `./make run portal` / `./make run desktop` build or use gui as needed. See `gui/README.md`.
 
 ### 2.3 Portal product vision (design reference)
 
@@ -76,8 +78,10 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 - **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Workspace, Agent, Conversation, ConversationMessage, Chat, ChatRun, Artifact, ArtifactItem, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (workspace uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Workspace on-disk layout**: workspace root has `home/` (uploads); each chat run uses `chats/<chatID>/<chatRunID>/` with `home/` (materialized workspace home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use segment `home` for workspace uploads and `chats/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
 - **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING chat runs, claims them with the typed run lifecycle API, and spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets chat run via `GET /api/worker/chat-runs/{chat_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md` (layout + optional workspace AGENTS.md), runs the shared agent runtime in-process with BUILDMAX_HOME = run `global` and cwd = run dir, writes result to run `artifacts/result.md`, uploads run `global` to blob, and streams assistant reply deltas when enabled. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
-**Portal (web)**
-- **Portal** (`portal/`): React + Vite + TypeScript; builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore (files), WorkspaceHome, Activity, TaskDetail (chat detail); API client in `lib/api.ts`; AuthContext; AppShell, Sidebar, TopBar, modals (CreateWorkspace, ArtifactContent). Sidebar: New Chat, Workspace block (switcher), Agents, Chats list, Explore, Activity. Connects to Go backend for auth and workspace/chat/artifact/file APIs (no project; chats are workspace-scoped).
+**Shared GUI and frontends**
+- **GUI package** (`gui/`): Shared React 19 package at repo root; exports theme (ThemeProvider, useTheme, ThemeToggle, theme.css) and is the place for other shared widgets (e.g. settings, chat history rendering, input box). Consumed by portal and desktop via `"@buildmax/gui": "file:../gui"` (or `file:../../gui` from desktop/frontend). Build output in `gui/dist/`; `./make build` builds gui before desktop; `./make clean` removes `gui/node_modules` and `gui/dist`.
+- **Portal** (`portal/`): React 19 + Vite + TypeScript; depends on `@buildmax/gui` for theme and shared components. Builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Explore, WorkspaceHome, Activity, TaskDetail; API client, AuthContext; AppShell, Sidebar, TopBar, modals. Connects to Go backend for auth and workspace/chat/artifact/file APIs (no project; chats are workspace-scoped).
+- **Desktop app**: Wails app in `cmd/buildmax-desktop/` with frontend in `desktop/frontend/` (React 19 + Vite, JSX). Same `@buildmax/gui` dependency as portal; theme and future shared widgets come from gui. Desktop has its own data/runtime (Wails bindings, local session); only the presentational layer is shared with portal.
 
 ### 4.2 Tier 1 and Tier 2 architecture
 
@@ -98,13 +102,21 @@ Following common Golang project conventions, the current structure is:
 
 ```
 buildmax/
+├── gui/                       # Shared GUI package (React 19): theme, future widgets; consumed by portal & desktop
+│   ├── package.json           # @buildmax/gui; peerDependencies react ^19
+│   ├── src/                   # ThemeContext, ThemeToggle, theme.css, index.ts
+│   └── dist/                  # Build output (ESM, .d.ts, theme.css); not committed
 ├── cmd/
 │   ├── buildmax/              # CLI binary (TUI, -p, version)
 │   │   └── main.go
 │   ├── buildmax-server/       # Server binary (HTTP API + chat-run scheduler)
 │   │   └── main.go
-│   └── buildmax-worker/       # Worker binary (runs one chat run via API + direct storage)
+│   ├── buildmax-worker/       # Worker binary (runs one chat run via API + direct storage)
+│   │   └── main.go
+│   └── buildmax-desktop/       # Desktop app (Wails); embeds desktop/frontend
 │       └── main.go
+├── desktop/                   # Desktop frontend (React 19 + Vite); depends on gui
+│   └── frontend/              # Wails UI; package.json has "file:../../gui"
 ├── internal/                  # Private packages (this project only)
 │   ├── app/                   # Application-layer orchestration services shared by transports/runtime
 │   │   ├── agentrun/          # Shared agent runtime used by CLI and worker
@@ -127,12 +139,12 @@ buildmax/
 │   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewScheduler, server.Run); used by cmd/buildmax-server
 │   ├── workercmd/             # Worker startup: RunWorker (env, get chat run via API, blob storage, executor.RunTask); used by cmd/buildmax-worker
 │   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask: run-scoped dirs (home, artifacts, global), materialize, shared runtime execution, ChatRunUpdater (API)
-├── portal/                    # Web UI (React + Vite + TypeScript); independent of Go binary
-│   ├── package.json           # Scripts: dev, build, preview
+├── portal/                    # Web UI (React 19 + Vite + TypeScript); depends on gui
+│   ├── package.json           # Scripts: dev, build; dependency "@buildmax/gui": "file:../gui"
 │   ├── vite.config.ts         # Vite config (build out: dist/)
 │   ├── index.html             # Vite entry HTML
 │   ├── README.md              # Install, build, dev instructions
-│   └── src/                   # App, router; pages (Login, SignUp, Explore, WorkspaceHome, Activity, TaskDetail); components; lib (api, types); contexts (Auth)
+│   └── src/                   # App, router; pages; components; lib; contexts (Auth); theme from @buildmax/gui
 ├── design/                    # Design docs (001-about-portal, 002-env-config, 003-store-workspacestorage-reorg)
 ├── configs/                   # Config file examples
 ├── example/                   # Example files for tools (e.g. shakespeare.txt)
@@ -155,7 +167,9 @@ buildmax/
 - **internal/conversation**: Low-level conversation loop primitives used by `internal/app/conversation`; not the transport-layer orchestration entry point.
 - **internal/server**: HTTP API for the Portal; depends on `app/chat`, `app/conversation`, `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
-- **portal/**: Frontend app; run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
+- **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop. Implement shared widgets (theme, settings, chat history, input box) here so portal and desktop do not duplicate UI.
+- **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
+- **desktop/frontend/**: Desktop UI; depends on `@buildmax/gui`. Same React 19 and shared components as portal; app logic (Wails bindings, session) is desktop-specific.
 - **design/**: Product and technical design docs; see section 6.
 
 ## 6. Documentation and Repository
@@ -190,11 +204,13 @@ buildmax/
 
 **Primary (macOS/Unix):** Use the `./make` script (bash) at the repo root. It sources `./loadenv` if present.
 
-- **Build**: `./make build` — builds the CLI (`./buildmax`), server (`./buildmax-server`), and worker (`./buildmax-worker`) from `cmd/buildmax`, `cmd/buildmax-server`, and `cmd/buildmax-worker`. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
+- **Build**: `./make build` — builds the CLI (`./buildmax`), server (`./buildmax-server`), worker (`./buildmax-worker`), then the **gui** package (if `gui/` exists), then the desktop app (Wails). Portal is not built by default; run `cd portal && npm run build` for that. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
+- **Clean**: `./make clean` — removes binaries, desktop build dir, **gui** (`gui/node_modules`, `gui/dist`), portal, and desktop frontend (`node_modules`, `dist`).
 - **Test**: `./make test` — sets `BUILDMAX_HOME=./testing-sandbox` and runs `go test ./...`. Use this after code changes.
 - **Smoke**: `./make smoke` — builds the CLI, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
 - **Run server**: `./make run server` — builds and runs `buildmax-server` (default port 5678). The server spawns `buildmax-worker` for each task; ensure `buildmax-worker` is on PATH or in the same directory, and set `BUILDMAX_SERVER_URL` and `BUILDMAX_WORKER_TOKEN` (and storage env) when running the worker.
-- **Run portal**: `./make run portal` — starts the Portal dev server (Vite; installs npm deps if needed).
+- **Run portal**: `./make run portal` — builds gui if missing, then starts the Portal dev server (Vite; installs npm deps if needed).
+- **Run desktop**: `./make run desktop` — builds gui if missing, then starts the desktop app in Wails dev mode (installs frontend deps if needed).
 - **Bump version**: `./make bump [patch|minor|major]` — updates `Version` in `internal/cmd/root.go` (default: patch).
 - **Setup / Unsetup**: `./make setup` runs `setup/setup.sh` (one-click local dev: kind cluster, MinIO, MySQL, port-forwards, test job; idempotent). `./make unsetup` runs `setup/unsetup.sh` to tear down. Requires Homebrew (kind, helm, kubectl, awscli). Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.
 
