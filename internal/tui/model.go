@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	footerLines     = 1
 	carouselTick    = 400  // ms between carousel dot updates
 	scrollIdleDelay = 1500 // ms of no scroll before focus returns to input
 )
@@ -76,16 +75,16 @@ type scrollIdleMsg struct{ id int }
 
 // Model is the root Bubble Tea model: viewport (banner + chat), input, footer.
 type Model struct {
-	opts           TUIOpts
-	viewportBlock  ViewportBlock
-	inputBlock     InputBlock
-	busy           bool
-	err            string // last error to show
-	width          int
-	height         int
-	carouselDots   int  // 0, 1, 2 for ".", "..", "..."
-	focusInput     bool // true = input has focus; false = viewport has scroll focus
-	lastScrollID   int  // used to ignore stale scroll-idle timers when user scrolls again
+	opts            TUIOpts
+	viewportBlock   ViewportBlock
+	inputBlock      InputBlock
+	busy            bool
+	err             string // last error to show
+	width           int
+	height          int
+	carouselDots    int          // 0, 1, 2 for ".", "..", "..."
+	focusInput      bool         // true = input has focus; false = viewport has scroll focus
+	lastScrollID    int          // used to ignore stale scroll-idle timers when user scrolls again
 	streamingBuffer string       // current turn's assistant text while streaming
 	streamChannel   chan tea.Msg // receives streamDeltaMsg and agentDoneMsg; set when agent run starts
 }
@@ -222,18 +221,13 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.width = msg.Width
 	m.height = msg.Height
-	inputH := m.inputBlock.Height()
-	vpHeight := m.height - inputH - footerLines
-	if vpHeight < 1 {
-		vpHeight = 1
-	}
-	m.viewportBlock.SetSize(m.width, vpHeight)
 	inputW := m.width - 4
 	if inputW < 8 {
 		inputW = 8
 	}
 	m.inputBlock.SetWidth(inputW)
 	m.inputBlock.SyncHeight()
+	m.syncViewportSize()
 	return m, nil
 }
 
@@ -316,6 +310,18 @@ func handleStreamDelta(m *Model, msg streamDeltaMsg) (tea.Model, tea.Cmd) {
 }
 
 func handleMouseMsg(m *Model, msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action == tea.MouseActionPress && m.inputBlock.CanScroll() && m.focusInput {
+		delta := m.viewportBlock.MouseWheelDelta()
+		if delta <= 0 {
+			delta = 3
+		}
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			return m, m.inputBlock.ScrollUp(delta)
+		case tea.MouseButtonWheelDown:
+			return m, m.inputBlock.ScrollDown(delta)
+		}
+	}
 	if msg.Action == tea.MouseActionPress {
 		delta := m.viewportBlock.MouseWheelDelta()
 		if delta <= 0 {
@@ -350,6 +356,44 @@ func handleScrollIdle(m *Model, msg scrollIdleMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) renderInputView() string {
+	boxWidth := m.width - 2
+	if boxWidth < 10 {
+		boxWidth = 10
+	}
+	if m.busy {
+		return inputBoxStyle.Width(boxWidth).Render("Waiting for reply…")
+	}
+	return inputBoxStyle.Width(boxWidth).Render(m.inputBlock.View())
+}
+
+func (m *Model) renderFooterView() string {
+	workspacePart := "@" + m.opts.Workspace
+	if m.opts.Branch != "" {
+		workspacePart += " (|-" + m.opts.Branch + ")"
+	}
+	footer := footerModelStyle.Render("model: "+m.opts.ModelName) + " | " +
+		footerBranchStyle.Render(workspacePart) + " | ctrl+c: quit | esc: clear/focus input"
+	if m.err != "" {
+		footer += " | error: " + m.err
+	}
+	return footer
+}
+
+func (m *Model) syncViewportSize() {
+	wasAtBottom := m.viewportBlock.AtBottom()
+	inputHeight := lipgloss.Height(m.renderInputView())
+	footerHeight := lipgloss.Height(m.renderFooterView())
+	vpHeight := m.height - inputHeight - footerHeight
+	if vpHeight < 1 {
+		vpHeight = 1
+	}
+	m.viewportBlock.SetSize(m.width, vpHeight)
+	if wasAtBottom {
+		m.viewportBlock.GotoBottom()
+	}
+}
+
 // Update handles messages: keys (quit, submit, focus toggle, scroll), resize, agentDoneMsg, streamDeltaMsg.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -378,40 +422,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders viewport, input, and footer.
 func (m *Model) View() string {
-	var b strings.Builder
-
-	// Viewport (banner + chat)
-	vpHeight := m.height - m.inputBlock.Height() - footerLines
-	if vpHeight < 1 {
-		vpHeight = 1
-	}
-	m.viewportBlock.SetSize(m.width, vpHeight)
-	b.WriteString(m.viewportBlock.View())
-	b.WriteString("\n")
-
-	// Input in a wireframe box (width so box fits terminal)
-	boxWidth := m.width - 2
-	if boxWidth < 10 {
-		boxWidth = 10
-	}
-	if m.busy {
-		b.WriteString(inputBoxStyle.Width(boxWidth).Render("Waiting for reply…"))
-	} else {
-		b.WriteString(inputBoxStyle.Width(boxWidth).Render(m.inputBlock.View()))
-	}
-	b.WriteString("\n")
-
-	// Footer: workspace as @path or @path (branch); model=green, workspace/branch=sky blue
-	workspacePart := "@" + m.opts.Workspace
-	if m.opts.Branch != "" {
-		workspacePart += " (|-" + m.opts.Branch + ")"
-	}
-	footer := footerModelStyle.Render("model: "+m.opts.ModelName) + " | " +
-		footerBranchStyle.Render(workspacePart) + " | ctrl+c: quit | esc: clear/focus input"
-	if m.err != "" {
-		footer += " | error: " + m.err
-	}
-	b.WriteString(footer)
-
-	return b.String()
+	inputView := m.renderInputView()
+	footerView := m.renderFooterView()
+	m.syncViewportSize()
+	return strings.Join([]string{
+		m.viewportBlock.View(),
+		inputView,
+		footerView,
+	}, "\n")
 }

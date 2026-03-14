@@ -26,7 +26,7 @@ func runTUI(resumeID string, modelSelector string) error {
 		Version:     Version,
 		SessionsDir: res.SessionsDir,
 	}
-	p := tea.NewProgram(tui.NewModel(opts), tea.WithAltScreen())
+	p := tea.NewProgram(tui.NewModel(opts), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		slog.Error("TUI failed", "err", err)
 		return fmt.Errorf("TUI: %w", err)

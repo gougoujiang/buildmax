@@ -14,6 +14,13 @@ import (
 
 const maxArgsDisplayLen = 60
 
+// Viewport horizontal margins and prefix width for wrap calculation.
+const (
+	viewportLeftMargin  = 2
+	viewportRightMargin = 2
+	prefixWidth         = 2 // "• " or "> "
+)
+
 // messageBarStyle is the light sky blue vertical bar at the start of user/assistant lines.
 var messageBarStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)
 
@@ -121,6 +128,20 @@ func wrapLine(line string, width int) []string {
 	return out
 }
 
+// indentLines prefixes each line of s with spaces spaces and rejoins with newline.
+// Returns s unchanged if spaces <= 0.
+func indentLines(s string, spaces int) string {
+	if spaces <= 0 {
+		return s
+	}
+	prefix := strings.Repeat(" ", spaces)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
+}
+
 // ViewportContentOpts holds display options for building viewport content (version, width, busy state, carousel, streaming tail).
 type ViewportContentOpts struct {
 	Version      string
@@ -130,39 +151,55 @@ type ViewportContentOpts struct {
 	StreamingTail string
 }
 
-// buildViewportContent returns the full scrollable content: banner plus message lines (with bar for user/assistant, wrapped to width).
-// If opts.StreamingTail is non-empty, appends it as the current assistant line (same style as "• " + content).
-// If opts.Busy is true and opts.StreamingTail is empty, appends a carousel line "• ." / ".." / "..." based on opts.CarouselDots (0, 1, 2).
+// buildViewportContent returns the full scrollable content: banner plus message lines (with bar for user/assistant, wrapped to content width).
+// Wrapping uses plain text only (no ANSI) so line length matches visible width; left margin is applied to every line.
+// If opts.StreamingTail is non-empty, appends it as the current assistant line. If opts.Busy and no tail, appends carousel "• ." / ".." / "...".
 func buildViewportContent(sess *session.Session, opts ViewportContentOpts) string {
 	width := opts.Width
 	if width <= 0 {
 		width = 80
 	}
+	contentWidth := width - viewportLeftMargin - viewportRightMargin - prefixWidth
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	marginStr := strings.Repeat(" ", viewportLeftMargin)
+
 	var b strings.Builder
-	// Top margin so the banner is not clipped by the terminal title/tab bar.
 	b.WriteString("\n\n")
-	b.WriteString(bannerWithVersion(opts.Version))
+	b.WriteString(indentLines(bannerWithVersion(opts.Version), viewportLeftMargin))
 	b.WriteString("\n")
 	messages := sess.Messages()
 	if len(messages) > 0 {
-		b.WriteString("\n") // margin between banner and first message
+		b.WriteString("\n")
 	}
 	for i, m := range messages {
 		if i > 0 {
-			b.WriteString("\n") // margin between messages
+			b.WriteString("\n")
 		}
 		for _, line := range formatMessage(m) {
-			var prefix string
-			switch m.Role {
-			case "user":
-				prefix = messageBarStyle.Render("> ") + userMessageStyle.Render(line)
-			case "assistant":
-				prefix = messageBarStyle.Render("• ") + line
-			default:
-				prefix = "  " + line
-			}
-			for _, w := range wrapLine(prefix, width) {
-				b.WriteString(w)
+			segments := wrapLine(line, contentWidth)
+			for si, seg := range segments {
+				b.WriteString(marginStr)
+				if si == 0 {
+					switch m.Role {
+					case "user":
+						b.WriteString(messageBarStyle.Render("> ") + userMessageStyle.Render(seg))
+					case "assistant":
+						b.WriteString(messageBarStyle.Render("• ") + seg)
+					default:
+						b.WriteString("  " + seg)
+					}
+				} else {
+					switch m.Role {
+					case "user":
+						b.WriteString("  " + userMessageStyle.Render(seg))
+					case "assistant":
+						b.WriteString("  " + seg)
+					default:
+						b.WriteString("  " + seg)
+					}
+				}
 				b.WriteString("\n")
 			}
 		}
@@ -171,22 +208,25 @@ func buildViewportContent(sess *session.Session, opts ViewportContentOpts) strin
 		if len(messages) > 0 {
 			b.WriteString("\n")
 		}
-		line := messageBarStyle.Render("• ") + opts.StreamingTail
-		for _, w := range wrapLine(line, width) {
-			b.WriteString(w)
+		segments := wrapLine(opts.StreamingTail, contentWidth)
+		for si, seg := range segments {
+			b.WriteString(marginStr)
+			if si == 0 {
+				b.WriteString(messageBarStyle.Render("• ") + seg)
+			} else {
+				b.WriteString("  " + seg)
+			}
 			b.WriteString("\n")
 		}
 	} else if opts.Busy {
 		if len(messages) > 0 {
-			b.WriteString("\n") // margin before carousel, same as between messages
+			b.WriteString("\n")
 		}
 		dots := []string{".", "..", "..."}
 		idx := opts.CarouselDots % 3
-		line := messageBarStyle.Render("• ") + dots[idx]
-		for _, w := range wrapLine(line, width) {
-			b.WriteString(w)
-			b.WriteString("\n")
-		}
+		b.WriteString(marginStr)
+		b.WriteString(messageBarStyle.Render("• ") + dots[idx])
+		b.WriteString("\n")
 	}
 	return b.String()
 }

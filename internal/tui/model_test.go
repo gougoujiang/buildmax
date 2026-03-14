@@ -99,6 +99,50 @@ func TestBuildViewportContent(t *testing.T) {
 	}
 }
 
+func TestBuildViewportContent_Margin(t *testing.T) {
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "user", Content: "hi"})
+	sess.Append(llm.Message{Role: "assistant", Content: "Hello!"})
+	content := buildViewportContent(sess, ViewportContentOpts{Width: 80})
+	// After banner, message lines must start with left margin (two spaces) before ">" or "•".
+	lines := strings.Split(content, "\n")
+	var foundMargin bool
+	for _, line := range lines {
+		if strings.Contains(line, ">") || strings.Contains(line, "•") {
+			if strings.HasPrefix(line, "  ") {
+				foundMargin = true
+				break
+			}
+		}
+	}
+	if !foundMargin {
+		t.Errorf("buildViewportContent() should have message lines starting with two spaces (margin), got content (excerpt): %s", content[:min(200, len(content))])
+	}
+}
+
+func TestBuildViewportContent_WrapByContentWidth(t *testing.T) {
+	// Long plain line: with width 80 and margins, content width is 74. First line of assistant message should have many visible chars (no early ANSI wrap).
+	longLine := strings.Repeat("a", 100)
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "assistant", Content: longLine})
+	content := buildViewportContent(sess, ViewportContentOpts{Width: 80})
+	lines := strings.Split(content, "\n")
+	var firstBulletLine string
+	for _, line := range lines {
+		if strings.Contains(line, "•") && strings.Contains(line, "a") {
+			firstBulletLine = line
+			break
+		}
+	}
+	if firstBulletLine == "" {
+		t.Fatal("buildViewportContent() should contain a line with bullet and content")
+	}
+	// Line is margin (2) + ANSI + "• " + content. Rune count should be at least 74 (margin + prefix + 70 content).
+	if len([]rune(firstBulletLine)) < 74 {
+		t.Errorf("buildViewportContent() first assistant line should have at least 74 runes (wrap by content width), got %d: %q", len([]rune(firstBulletLine)), firstBulletLine)
+	}
+}
+
 func TestBuildViewportContent_BusyCarousel(t *testing.T) {
 	sess := session.NewSession("")
 	sess.Append(llm.Message{Role: "user", Content: "hi"})
@@ -145,6 +189,116 @@ func TestModelFocusToggle(t *testing.T) {
 	}
 	if !mod2.FocusInput() {
 		t.Error("after second Tab, focus should be on input again")
+	}
+}
+
+func TestViewKeepsFooterAtBottom(t *testing.T) {
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "assistant", Content: "short"})
+	m := NewModel(TUIOpts{
+		Session:   sess,
+		ModelName: "test-model",
+		Workspace: "/tmp/workspace",
+		Version:   "0.0.1",
+	})
+
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	mod, ok := m2.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m2)
+	}
+
+	lines := strings.Split(mod.View(), "\n")
+	if got := len(lines); got != 12 {
+		t.Fatalf("View() rendered %d lines, want terminal height 12", got)
+	}
+	last := lines[len(lines)-1]
+	if !strings.Contains(last, "model: test-model") {
+		t.Fatalf("footer should be on the last line, got %q", last)
+	}
+}
+
+func TestViewportScrollShowsOlderMessages(t *testing.T) {
+	sess := session.NewSession("")
+	for i := 0; i < 8; i++ {
+		sess.Append(llm.Message{Role: "assistant", Content: strings.Repeat(string(rune('A'+i)), 18)})
+	}
+	m := NewModel(TUIOpts{
+		Session: sess,
+		Version: "0.0.1",
+	})
+
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 10})
+	mod, ok := m2.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m2)
+	}
+	before := mod.View()
+	if !strings.Contains(before, "HHHHHHHHHHHHHHHHHH") {
+		t.Fatalf("initial view should show the latest message, got %q", before)
+	}
+
+	m3, _ := mod.Update(tea.KeyMsg{Type: tea.KeyUp})
+	scrolled, ok := m3.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m3)
+	}
+	after := scrolled.View()
+	if !strings.Contains(after, "GGGGGGGGGGGGGGGGGG") {
+		t.Fatalf("scrolled view should expose older messages, got %q", after)
+	}
+	if after == before {
+		t.Fatal("scrolling up should change the visible viewport content")
+	}
+}
+
+func TestMouseWheelOverInputScrollsTextareaInsteadOfChat(t *testing.T) {
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "assistant", Content: "chat-bottom"})
+
+	m := NewModel(TUIOpts{
+		Session: sess,
+		Version: "0.0.1",
+	})
+	m.inputBlock.SetValue(strings.Join([]string{
+		"input-1",
+		"input-2",
+		"input-3",
+		"input-4",
+		"input-5",
+		"input-6",
+	}, "\n"))
+	m.inputBlock.SyncHeight()
+
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 10})
+	mod, ok := m2.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m2)
+	}
+
+	before := mod.View()
+	if !strings.Contains(before, "input-1") {
+		t.Fatalf("initial input view should show the first input line, got %q", before)
+	}
+	if strings.Contains(before, "input-6") {
+		t.Fatalf("initial input view should not show the last input line yet, got %q", before)
+	}
+
+	m3, _ := mod.Update(tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonWheelDown,
+	})
+	scrolled, ok := m3.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m3)
+	}
+
+	after := scrolled.View()
+	if !strings.Contains(after, "input-6") {
+		t.Fatalf("mouse wheel over input should reveal lower input lines, got %q", after)
+	}
+	if !strings.Contains(after, "chat-bottom") {
+		t.Fatalf("mouse wheel over input should not hide chat viewport content, got %q", after)
 	}
 }
 

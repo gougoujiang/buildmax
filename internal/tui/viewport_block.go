@@ -34,6 +34,16 @@ func (vb *ViewportBlock) SetSize(width, height int) {
 	vb.viewport.Height = height
 }
 
+// AtBottom reports whether the viewport is currently anchored to the latest content.
+func (vb *ViewportBlock) AtBottom() bool {
+	return vb.viewport.AtBottom()
+}
+
+// GotoBottom scrolls the viewport to the latest content.
+func (vb *ViewportBlock) GotoBottom() {
+	vb.viewport.GotoBottom()
+}
+
 // Update forwards the message to the viewport and returns its command.
 func (vb *ViewportBlock) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd

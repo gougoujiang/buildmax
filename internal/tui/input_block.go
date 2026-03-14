@@ -33,6 +33,14 @@ func NewInputBlock() InputBlock {
 
 // desiredInputHeight returns how many lines the input should use (1 to inputMaxLines) based on wrapped content.
 func desiredInputHeight(value string, width int) int {
+	n := wrappedLineCount(value, width)
+	if n > inputMaxLines {
+		return inputMaxLines
+	}
+	return n
+}
+
+func wrappedLineCount(value string, width int) int {
 	if width <= 0 {
 		return inputMinLines
 	}
@@ -42,9 +50,6 @@ func desiredInputHeight(value string, width int) int {
 	}
 	if n == 0 {
 		return inputMinLines
-	}
-	if n > inputMaxLines {
-		return inputMaxLines
 	}
 	return n
 }
@@ -82,9 +87,19 @@ func (ib *InputBlock) Value() string {
 	return ib.input.Value()
 }
 
+// SetValue replaces the textarea content.
+func (ib *InputBlock) SetValue(v string) {
+	ib.input.SetValue(v)
+}
+
 // Height returns the textarea height in lines.
 func (ib *InputBlock) Height() int {
 	return ib.input.Height()
+}
+
+// CanScroll reports whether the textarea has hidden wrapped lines above or below.
+func (ib *InputBlock) CanScroll() bool {
+	return wrappedLineCount(ib.input.Value(), ib.input.Width()) > ib.input.Height()
 }
 
 // Update forwards the message to the textarea and returns its command.
@@ -92,6 +107,24 @@ func (ib *InputBlock) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	ib.input, cmd = ib.input.Update(msg)
 	return cmd
+}
+
+// ScrollUp moves the textarea viewport/cursor upward by the requested number of lines.
+func (ib *InputBlock) ScrollUp(lines int) tea.Cmd {
+	var cmds []tea.Cmd
+	for i := 0; i < lines; i++ {
+		cmds = append(cmds, ib.Update(tea.KeyMsg{Type: tea.KeyUp}))
+	}
+	return tea.Batch(cmds...)
+}
+
+// ScrollDown moves the textarea viewport/cursor downward by the requested number of lines.
+func (ib *InputBlock) ScrollDown(lines int) tea.Cmd {
+	var cmds []tea.Cmd
+	for i := 0; i < lines; i++ {
+		cmds = append(cmds, ib.Update(tea.KeyMsg{Type: tea.KeyDown}))
+	}
+	return tea.Batch(cmds...)
 }
 
 // View returns the textarea's rendered content.
