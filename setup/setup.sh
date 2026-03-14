@@ -26,6 +26,29 @@ ensure_brew() {
   done
 }
 
+# --- Wails CLI (for desktop app: cmd/buildmax-desktop) ---
+ensure_wails() {
+  if ! command -v go &>/dev/null; then
+    log "Go not found. Install Go (https://go.dev) and re-run setup."
+    exit 1
+  fi
+  if command -v wails &>/dev/null; then
+    log "wails already installed ($(wails version 2>/dev/null || echo 'in PATH'))"
+    return 0
+  fi
+  log "Installing Wails CLI (go install)..."
+  go install github.com/wailsapp/wails/v2/cmd/wails@latest
+  local gobin
+  gobin=$(go env GOPATH 2>/dev/null)/bin
+  if command -v wails &>/dev/null; then
+    log "Wails CLI ready. For desktop: cd cmd/buildmax-desktop && wails dev (or ./make run desktop)."
+  elif [[ -x "${gobin}/wails" ]]; then
+    log "Wails installed at ${gobin}/wails but not in PATH. Add to PATH: export PATH=\"${gobin}:\$PATH\""
+  else
+    log "Wails install may have failed. Ensure \$GOPATH/bin or \$HOME/go/bin is in PATH, then: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
+  fi
+}
+
 # --- Kind cluster ---
 ensure_kind_cluster() {
   if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
@@ -169,6 +192,7 @@ main() {
     (cd "$SCRIPT_DIR/../" && docker compose down 2>/dev/null) || true
   fi
   ensure_brew
+  ensure_wails
   ensure_kind_cluster
   kubectl get nodes
   ensure_ingress
