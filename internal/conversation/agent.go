@@ -19,22 +19,59 @@ type ConversationTitleGenerator interface {
 	GenerateTitleFromInput(ctx context.Context, input string) (string, error)
 }
 
-const maxIterations = 10
-const systemPrompt = `You are a helpful assistant. You can call GetCurrentDate to get today's date. Reply concisely.
+// ConversationToolRunners holds optional runners for Tier 1 chat tools. Nil means do not add that tool.
+type ConversationToolRunners struct {
+	StartChat    tools.StartChatRunner
+	ListChats    tools.ListChatsRunner
+	GetChat      tools.GetChatRunner
+	ContinueChat tools.ContinueChatRunner
+}
 
-You can manage background chat tasks: use the StartChat tool to create and schedule a long-running task (e.g. analysis, a multi-step job). When you start a background task, you must tell the user clearly that a background task was started, and give them the chat id (and optionally run id) so they can check progress or results later (e.g. in Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.`
+const maxIterations = 10
+const systemPrompt = `You are a coordinator between the user and background chat tasks. You can call GetCurrentDate to get today's date. Reply concisely.
+
+# Decision order
+First evaluate whether the user's request should continue an existing chat (use ContinueChat) rather than creating a new one (StartChat). When the user refers to an existing chat (e.g. "add to that chat", "try again for c_xyz", "what about the last run?"), prefer ContinueChat. Use the injected "Recent chats" context or ListChats/GetChat to decide.
+
+# Tools
+- GetCurrentDate: today's date when needed.
+- StartChat: create and schedule a new background chat task (long-running job, analysis). Always tell the user the chat_id and run_id and where to check progress (Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.
+- ListChats: list recent chats in the workspace (up to 10). Use when the user asks what chats they have or for recent activity.
+- GetChat: get detail for one chat by chat_id. Use when the user asks about a specific chat's status or result.
+- ContinueChat: add a follow-up message to an existing chat (new run). Use when the user wants to continue, retry, or add to an existing chat.
+
+When starting or continuing a task, always tell the user the chat id (and run id) so they can check progress or results later.`
+
+// effectiveSystemPrompt returns the base prompt; if recentChatsSnippet is non-empty, appends it.
+func effectiveSystemPrompt(basePrompt, recentChatsSnippet string) string {
+	if recentChatsSnippet == "" {
+		return basePrompt
+	}
+	return basePrompt + "\n\n" + recentChatsSnippet
+}
 
 // DefaultConversationTools returns the default tool set for the conversation loop (GetCurrentDate only).
-// Callers (e.g. server) may append more tools (e.g. StartChat) when building the list for RunLoop/RunLoopStream.
 func DefaultConversationTools() []core.Tool {
 	return []core.Tool{tools.GetCurrentDate{}}
 }
 
-// buildConversationTools returns default tools and, when startChatRunner is non-nil, the StartChat tool.
-func buildConversationTools(workspaceID, userID string, startChatRunner tools.StartChatRunner) []core.Tool {
+// buildConversationTools returns default tools plus any tools whose runner is set in runners.
+func buildConversationTools(workspaceID, userID string, runners *ConversationToolRunners) []core.Tool {
 	toolList := DefaultConversationTools()
-	if startChatRunner != nil {
-		toolList = append(toolList, tools.NewStartChatTool(workspaceID, userID, startChatRunner))
+	if runners == nil {
+		return toolList
+	}
+	if runners.StartChat != nil {
+		toolList = append(toolList, tools.NewStartChatTool(workspaceID, userID, runners.StartChat))
+	}
+	if runners.ListChats != nil {
+		toolList = append(toolList, tools.NewListChatsTool(workspaceID, runners.ListChats))
+	}
+	if runners.GetChat != nil {
+		toolList = append(toolList, tools.NewGetChatTool(workspaceID, runners.GetChat))
+	}
+	if runners.ContinueChat != nil {
+		toolList = append(toolList, tools.NewContinueChatTool(workspaceID, userID, runners.ContinueChat))
 	}
 	return toolList
 }
@@ -71,7 +108,8 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
-// If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
+// If toolsList is nil, the list is built from buildConversationTools(workspaceID, userID, runners).
+// recentChatsSnippet, when non-empty, is appended to the system prompt (e.g. latest 5 chats).
 // If titleGenerator is non-nil and this is the first round (no messages before), a title is generated from userContent and saved.
 func RunLoop(
 	ctx context.Context,
@@ -83,8 +121,9 @@ func RunLoop(
 	channel string,
 	toolsList []core.Tool,
 	workspaceID, userID string,
-	startChatRunner tools.StartChatRunner,
+	runners *ConversationToolRunners,
 	titleGenerator ConversationTitleGenerator,
+	recentChatsSnippet string,
 ) (reply string, err error) {
 	if caller == nil {
 		return "", fmt.Errorf("conversation LLM not configured")
@@ -116,7 +155,7 @@ func RunLoop(
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
 
 	if toolsList == nil {
-		toolsList = buildConversationTools(workspaceID, userID, startChatRunner)
+		toolsList = buildConversationTools(workspaceID, userID, runners)
 	}
 	defs := agent.ToolDefs(toolsList)
 	toolsByName := make(map[string]core.Tool, len(toolsList))
@@ -124,10 +163,11 @@ func RunLoop(
 		toolsByName[t.Name()] = t
 	}
 
+	effectivePrompt := effectiveSystemPrompt(systemPrompt, recentChatsSnippet)
 	buf := &conversationBuffer{ctx: ctx, conversationID: conversationID, msgStore: msgStore, msgs: llmMsgs}
 	reply, _, err = agent.RunLoop(ctx, agent.RunLoopOpts{
 		Caller:        caller,
-		SystemPrompt:  systemPrompt,
+		SystemPrompt:  effectivePrompt,
 		ToolDefs:      defs,
 		ToolsByName:   toolsByName,
 		MaxIter:       maxIterations,
@@ -147,7 +187,8 @@ func RunLoop(
 
 // RunLoopStream is like RunLoop but streams assistant content deltas via sink.
 // When the model returns tool calls, those turns are not streamed; only the final (or intermediate) text content is streamed.
-// If toolsList is nil, the list is built from DefaultConversationTools() and, when startChatRunner is non-nil, the StartChat tool.
+// If toolsList is nil, the list is built from buildConversationTools(workspaceID, userID, runners).
+// recentChatsSnippet, when non-empty, is appended to the system prompt.
 // If titleGenerator is non-nil and this is the first round, a title is generated from userContent and saved.
 func RunLoopStream(
 	ctx context.Context,
@@ -159,9 +200,10 @@ func RunLoopStream(
 	channel string,
 	toolsList []core.Tool,
 	workspaceID, userID string,
-	startChatRunner tools.StartChatRunner,
+	runners *ConversationToolRunners,
 	titleGenerator ConversationTitleGenerator,
 	sink llm.StreamSink,
+	recentChatsSnippet string,
 ) (reply string, err error) {
 	if caller == nil {
 		return "", fmt.Errorf("conversation stream LLM not configured")
@@ -193,7 +235,7 @@ func RunLoopStream(
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
 
 	if toolsList == nil {
-		toolsList = buildConversationTools(workspaceID, userID, startChatRunner)
+		toolsList = buildConversationTools(workspaceID, userID, runners)
 	}
 	defs := agent.ToolDefs(toolsList)
 	toolsByName := make(map[string]core.Tool, len(toolsList))
@@ -201,10 +243,11 @@ func RunLoopStream(
 		toolsByName[t.Name()] = t
 	}
 
+	effectivePrompt := effectiveSystemPrompt(systemPrompt, recentChatsSnippet)
 	buf := &conversationBuffer{ctx: ctx, conversationID: conversationID, msgStore: msgStore, msgs: llmMsgs}
 	reply, _, err = agent.RunLoop(ctx, agent.RunLoopOpts{
 		Caller:        caller,
-		SystemPrompt:  systemPrompt,
+		SystemPrompt:  effectivePrompt,
 		ToolDefs:      defs,
 		ToolsByName:   toolsByName,
 		MaxIter:       maxIterations,

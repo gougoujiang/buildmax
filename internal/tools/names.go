@@ -14,4 +14,7 @@ const (
 	ToolNameTask          = "Task"
 	ToolNameGetCurrentDate = "GetCurrentDate"
 	ToolNameStartChat      = "StartChat"
+	ToolNameListChats      = "ListChats"
+	ToolNameGetChat        = "GetChat"
+	ToolNameContinueChat   = "ContinueChat"
 )
