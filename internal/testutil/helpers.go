@@ -1,3 +1,5 @@
+// Package testutil provides test-only helpers for use from _test.go files:
+// ptr helpers (e.g. PtrString), JWT (SignJWT), and in-memory mocks for entity stores and quota (MockUserStore, MockChatStore, etc.).
 package testutil
 
 import (
@@ -5,10 +7,16 @@ import (
 	"fmt"
 	"time"
 
+	"buildmax/internal/ptr"
 	"buildmax/internal/storage/entity"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// PtrString returns a pointer to s. Useful for filling optional *string fields in tests.
+func PtrString(s string) *string {
+	return ptr.PtrString(s)
+}
 
 // testJWTClaims is used by SignJWT for tests (matches JWT sub claim).
 type testJWTClaims struct {
