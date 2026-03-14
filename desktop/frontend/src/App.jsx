@@ -37,15 +37,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [recentCollapsed, setRecentCollapsed] = useState(false);
-  const [recentVisibleCount, setRecentVisibleCount] = useState(10);
   const [wailsReady, setWailsReady] = useState(false);
 
-  const RECENT_PAGE_SIZE = 10;
+  const MAX_RECENT_CHATS = 5;
   const sortedSessions = [...sessions].sort((a, b) =>
     (b.created_at || '').localeCompare(a.created_at || '')
   );
-  const visibleSessions = sortedSessions.slice(0, recentVisibleCount);
-  const hasMoreRecent = sortedSessions.length > recentVisibleCount;
+  const visibleSessions = sortedSessions.slice(0, MAX_RECENT_CHATS);
   const historyRef = useRef(null);
   const streamingContentRef = useRef('');
 
@@ -261,9 +259,6 @@ export default function App() {
                       }))}
                       activeId={selectedId}
                       onSelect={setSelectedId}
-                      moreActionLabel={hasMoreRecent ? 'See More' : undefined}
-                      onMoreAction={hasMoreRecent ? () => setRecentVisibleCount((n) => n + RECENT_PAGE_SIZE) : undefined}
-                      moreActionClassName="sidebar__see-more-btn"
                     />
                   </div>
                 </div>
