@@ -1,6 +1,6 @@
 {
   "openapi": "3.0.3",
-  "info": { "title": "BuildMax API", "version": "0.0.5" },
+  "info": { "title": "BuildMax API", "version": "0.0.6" },
   "components": {
     "securitySchemes": {
       "bearerAuth": {
@@ -534,6 +534,7 @@
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
           "404": { "description": "Chat not found" },
+          "409": { "description": "A run is already in progress for this chat" },
           "429": { "description": "Quota exceeded (run or token limit)" },
           "503": { "description": "Chats not configured" }
         }
@@ -788,6 +789,177 @@
           "403": { "description": "Forbidden" },
           "404": { "description": "Agent not found" },
           "503": { "description": "Agents not configured" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/conversations": {
+      "get": {
+        "summary": "List conversations",
+        "description": "Returns workspace-scoped conversations (Tier 1). Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 50 }, "description": "Max items (default 50, max 100)" },
+          { "name": "offset", "in": "query", "required": false, "schema": { "type": "integer", "default": 0 }, "description": "Offset for pagination" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "workspace_id": { "type": "string" },
+                          "channel": { "type": "string" },
+                          "created_at": { "type": "integer" },
+                          "created_by": { "type": "string" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "503": { "description": "Conversations not configured" }
+        }
+      },
+      "post": {
+        "summary": "Create conversation",
+        "description": "Creates a Tier 1 conversation and optionally sends first message. With stream=1 and non-empty message, returns 201 and SSE stream (conversation_id then deltas then done). Without stream, returns 201 with conversation_id and reply. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "stream", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1"] }, "description": "If 1 and message set, response is SSE" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel": { "type": "string", "description": "Channel (default portal)" },
+                  "message": { "type": "string", "description": "Optional first user message" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversation_id": { "type": "string" },
+                    "reply": { "type": "string", "description": "Assistant reply when message was sent and not streaming" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid request body" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "503": { "description": "Conversations not configured" }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/conversations/{conversation_id}/messages": {
+      "get": {
+        "summary": "Get conversation messages",
+        "description": "Returns messages in the conversation. Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "conversation_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "role": { "type": "string" },
+                          "content": { "type": "string" },
+                          "channel": { "type": "string", "nullable": true },
+                          "created_at": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "conversation_id required" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Conversation not found" },
+          "503": { "description": "Conversations not configured" }
+        }
+      },
+      "post": {
+        "summary": "Add message to conversation",
+        "description": "Appends user message and runs Tier 1 loop; returns assistant reply. With stream=1 returns SSE (deltas then done). Caller must own the workspace. Requires Bearer JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "conversation_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "stream", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1"] }, "description": "If 1, response is SSE" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["content"],
+                "properties": {
+                  "content": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK (or SSE when stream=1)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reply": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "conversation_id or content required" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Conversation not found" },
+          "503": { "description": "Conversation LLM not configured" }
         }
       }
     },
