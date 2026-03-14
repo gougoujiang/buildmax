@@ -2,6 +2,8 @@ package portal
 
 import (
 	"net/http"
+
+	"buildmax/internal/server/httputil"
 )
 
 type usageResponse struct {
@@ -19,12 +21,12 @@ func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.cfg.QuotaChecker == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "usage not available")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "usage not available")
 		return
 	}
 	info, err := h.cfg.QuotaChecker.GetUsage(r.Context(), userID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "usage")
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "usage")
 		return
 	}
 	resp := usageResponse{
@@ -35,5 +37,5 @@ func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
 		MaxRunsPerPeriod:   info.MaxRunsPerPeriod,
 		MaxTokensPerPeriod: info.MaxTokensPerPeriod,
 	}
-	writeJSON(w, http.StatusOK, resp)
+	httputil.WriteJSON(w, http.StatusOK, resp)
 }

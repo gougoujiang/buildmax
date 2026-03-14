@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/blob"
 )
 
@@ -24,12 +25,12 @@ func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid multipart form")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}
 	fileHeaders := r.MultipartForm.File["files"]
 	if len(fileHeaders) == 0 {
-		writeJSONError(w, http.StatusBadRequest, "no files provided")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "no files provided")
 		return
 	}
 
@@ -38,16 +39,16 @@ func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	if dirMode {
 		if len(paths) != len(fileHeaders) {
-			writeJSONError(w, http.StatusBadRequest, "paths count must match files count")
+			httputil.WriteJSONError(w, http.StatusBadRequest, "paths count must match files count")
 			return
 		}
 		if len(fileHeaders) > maxUploadDirFiles {
-			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadDirFiles))
+			httputil.WriteJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadDirFiles))
 			return
 		}
 	} else {
 		if len(fileHeaders) > maxUploadFiles {
-			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadFiles))
+			httputil.WriteJSONError(w, http.StatusBadRequest, fmt.Sprintf("too many files (max %d)", maxUploadFiles))
 			return
 		}
 	}
@@ -60,7 +61,7 @@ func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		if dirMode {
 			relPath = paths[i]
 			if relPath == "" {
-				writeJSONError(w, http.StatusBadRequest, "empty path in paths field")
+				httputil.WriteJSONError(w, http.StatusBadRequest, "empty path in paths field")
 				return
 			}
 		} else {
@@ -71,23 +72,23 @@ func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		cleanPath, err := blob.CleanRelPath(relPath)
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid path: "+relPath)
+			httputil.WriteJSONError(w, http.StatusBadRequest, "invalid path: "+relPath)
 			return
 		}
 
 		src, err := fh.Open()
 		if err != nil {
-			writeInternalError(w, err, "handler", "upload", "name", relPath)
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "upload", "name", relPath)
 			return
 		}
 		if err := h.cfg.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
 			src.Close()
-			writeInternalError(w, err, "handler", "upload", "path", cleanPath)
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "upload", "path", cleanPath)
 			return
 		}
 		src.Close()
 		uploaded = append(uploaded, cleanPath)
 	}
 
-	writeJSON(w, http.StatusOK, uploadResponse{Uploaded: uploaded})
+	httputil.WriteJSON(w, http.StatusOK, uploadResponse{Uploaded: uploaded})
 }

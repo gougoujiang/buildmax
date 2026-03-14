@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/entity"
 	"gorm.io/gorm"
 )
@@ -51,14 +52,14 @@ func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := h.cfg.AgentStore.ListAgentsByWorkspace(r.Context(), workspaceID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "list_agents", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_agents", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]AgentResponse, len(list))
 	for i := range list {
 		out[i] = agentToResponse(list[i])
 	}
-	writeJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -71,19 +72,19 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var req createAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Name == "" {
-		writeJSONError(w, http.StatusBadRequest, "name required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
 	agent, err := h.cfg.AgentStore.CreateAgent(r.Context(), workspaceID, req.Name, req.Description, req.Instructions)
 	if err != nil {
-		writeInternalError(w, err, "handler", "create_agent", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_agent", "workspace_id", workspaceID)
 		return
 	}
-	writeJSON(w, http.StatusCreated, agentToResponse(*agent))
+	httputil.WriteJSON(w, http.StatusCreated, agentToResponse(*agent))
 }
 
 func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -96,19 +97,19 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	agentID := r.PathValue("agent_id")
 	if agentID == "" {
-		writeJSONError(w, http.StatusBadRequest, "agent_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
 	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), agentID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "get_agent", "agent_id", agentID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_agent", "agent_id", agentID)
 		return
 	}
 	if agent == nil || agent.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "agent not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, agentToResponse(*agent))
+	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*agent))
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -121,28 +122,28 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	agentID := r.PathValue("agent_id")
 	if agentID == "" {
-		writeJSONError(w, http.StatusBadRequest, "agent_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
 	var req patchAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Name == "" {
-		writeJSONError(w, http.StatusBadRequest, "name required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
 	agent, err := h.cfg.AgentStore.UpdateAgent(r.Context(), agentID, workspaceID, req.Name, req.Description, req.Instructions)
 	if err != nil {
-		writeInternalError(w, err, "handler", "patch_agent", "agent_id", agentID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "patch_agent", "agent_id", agentID)
 		return
 	}
 	if agent == nil {
-		writeJSONError(w, http.StatusNotFound, "agent not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, agentToResponse(*agent))
+	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*agent))
 }
 
 func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -155,16 +156,16 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	agentID := r.PathValue("agent_id")
 	if agentID == "" {
-		writeJSONError(w, http.StatusBadRequest, "agent_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "agent_id required")
 		return
 	}
 	err := h.cfg.AgentStore.DeleteAgent(r.Context(), agentID, workspaceID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			writeJSONError(w, http.StatusNotFound, "agent not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "delete_agent", "agent_id", agentID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "delete_agent", "agent_id", agentID)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

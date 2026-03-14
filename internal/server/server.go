@@ -13,6 +13,7 @@ import (
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
 	"buildmax/internal/server/auth"
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/server/portal"
 	"buildmax/internal/server/worker"
 	"buildmax/internal/storage/blob"
@@ -191,7 +192,7 @@ func (s *Server) Run() error {
 }
 
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // serveStatic reads path from staticFS and serves it with the given Content-Type. On read error, logs and writes 500.
@@ -199,7 +200,7 @@ func serveStatic(w http.ResponseWriter, path, contentType string) {
 	data, err := staticFS.ReadFile(path)
 	if err != nil {
 		slog.Error("static file read failed", "err", err, "path", path)
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	w.Header().Set("Content-Type", contentType)

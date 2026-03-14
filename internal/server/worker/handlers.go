@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/entity"
 	"buildmax/internal/workerapi"
 )
@@ -28,23 +29,23 @@ func (h *Handler) Register(mux *http.ServeMux) {
 func (h *Handler) getChatRun(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
 	if h.cfg.ChatRunStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return
 	}
 	run, chat, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "get_worker_chat_run", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "get_worker_chat_run", "chat_run_id", chatRunID)
 		return
 	}
 	if run == nil || chat == nil {
-		writeJSONError(w, http.StatusNotFound, "run not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, workerapi.GetChatRunResponse{
+	httputil.WriteJSON(w, http.StatusOK, workerapi.GetChatRunResponse{
 		Run: workerapi.ChatRunRun{
 			ChatRunID: run.ChatRunID,
 			ChatID:    run.ChatID,
@@ -64,33 +65,33 @@ func (h *Handler) getChatRun(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
 	if h.cfg.ChatRunStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return
 	}
 	if h.cfg.Hub == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "stream hub not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "stream hub not configured")
 		return
 	}
 	run, _, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil || run == nil {
 		if err != nil {
-			writeInternalError(w, err, "handler", "post_worker_stream", "chat_run_id", chatRunID)
+			httputil.WriteInternalError(w, err, "worker handler error", "handler", "post_worker_stream", "chat_run_id", chatRunID)
 		} else {
-			writeJSONError(w, http.StatusNotFound, "run not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		}
 		return
 	}
 	var req workerapi.StreamDeltaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	h.cfg.Hub.Append(run.ChatID, req.Delta)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // handlePatchRunning handles status RUNNING; returns true if it wrote a response (caller should return).
@@ -106,11 +107,11 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, cha
 		SessionID:      req.SessionID,
 	})
 	if err != nil {
-		writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 		return true
 	}
 	if !updated {
-		writeJSONError(w, http.StatusConflict, "run not scheduled or already running")
+		httputil.WriteJSONError(w, http.StatusConflict, "run not scheduled or already running")
 		return true
 	}
 	return true
@@ -129,7 +130,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		PromptTokens:     req.PromptTokens,
 		CompletionTokens: req.CompletionTokens,
 	}); err != nil {
-		writeInternalError(w, err, "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
 		return false
 	}
 	if req.Status == workerapi.StatusSucceeded && req.Artifact != nil {
@@ -141,12 +142,12 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 			relativePaths = []string{"result.md"}
 		}
 		if err := h.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, relativePaths); err != nil {
-			writeInternalError(w, err, "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
+			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
 			return false
 		}
 	} else if req.Status == workerapi.StatusFailed {
 		if err := h.cfg.ChatRunStore.SyncChatFromRun(r.Context(), chatRunID); err != nil {
-			writeInternalError(w, err, "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
+			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
 			return false
 		}
 	}
@@ -162,27 +163,27 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 func (h *Handler) patchChatRun(w http.ResponseWriter, r *http.Request) {
 	chatRunID := r.PathValue("chat_run_id")
 	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_run_id required")
 		return
 	}
 	if h.cfg.ChatRunStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return
 	}
 	var req workerapi.PatchChatRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	if req.Status == "" {
-		writeJSONError(w, http.StatusBadRequest, "status required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "status required")
 		return
 	}
 	if h.handlePatchRunning(w, r, chatRunID, &req) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 	if h.handlePatchTerminalStatus(w, r, chatRunID, &req) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }

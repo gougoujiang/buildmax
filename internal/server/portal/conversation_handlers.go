@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	convapp "buildmax/internal/app/conversation"
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -116,7 +117,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
 	list, total, err := h.cfg.ConversationStore.ListConversationsByWorkspace(r.Context(), workspaceID, limit, offset)
 	if err != nil {
-		writeInternalError(w, err, "handler", "list_conversations", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_conversations", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]conversationResponse, len(list))
@@ -130,7 +131,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 			CreatedBy:   list[i].CreatedBy,
 		}
 	}
-	writeJSON(w, http.StatusOK, conversationListResponse{Conversations: out, Total: total})
+	httputil.WriteJSON(w, http.StatusOK, conversationListResponse{Conversations: out, Total: total})
 }
 
 func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +147,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	}
 	var req createConversationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Channel == "" {
@@ -154,11 +155,11 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	}
 	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), workspaceID, req.Channel, userID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "create_conversation", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_conversation", "workspace_id", workspaceID)
 		return
 	}
 	if req.Message == "" || h.cfg.ConversationLLMCaller == nil {
-		writeJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: ""})
+		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: ""})
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
@@ -171,11 +172,11 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return
 		}
-		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "conversation_loop", "conversation_id", conv.ConversationID)
 		return
 	}
 	if !streamRequested {
-		writeJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: reply})
+		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: reply})
 	}
 }
 
@@ -196,16 +197,16 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 	}
 	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "get_conversation", "conversation_id", conversationID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return
 	}
 	if conv == nil || conv.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "conversation not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 	msgs, err := h.cfg.ConversationMessageStore.ListMessages(r.Context(), conversationID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "list_messages", "conversation_id", conversationID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_messages", "conversation_id", conversationID)
 		return
 	}
 	out := make([]conversationMessageResponse, len(msgs))
@@ -218,7 +219,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 			CreatedAt: msgs[i].CreatedAt,
 		}
 	}
-	writeJSON(w, http.StatusOK, messagesResponse{Messages: out})
+	httputil.WriteJSON(w, http.StatusOK, messagesResponse{Messages: out})
 }
 
 func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
@@ -238,16 +239,16 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	if h.cfg.ConversationLLMCaller == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}
 	var req addMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Content == "" {
-		writeJSONError(w, http.StatusBadRequest, "content required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "content required")
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
@@ -256,11 +257,11 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return
 		}
-		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "conversation_loop", "conversation_id", conversationID)
 		return
 	}
 	if !streamRequested {
-		writeJSON(w, http.StatusOK, addMessageResponse{Reply: reply})
+		httputil.WriteJSON(w, http.StatusOK, addMessageResponse{Reply: reply})
 	}
 }
 
@@ -270,11 +271,11 @@ func (h *Handler) getConversationForWorkspace(w http.ResponseWriter, r *http.Req
 	}
 	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "get_conversation", "conversation_id", conversationID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return nil, false
 	}
 	if conv == nil || conv.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "conversation not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return nil, false
 	}
 	return conv, true

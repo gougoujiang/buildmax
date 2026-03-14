@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/streamhub"
 )
 
@@ -15,7 +16,7 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	chatID := r.PathValue("chat_id")
 	if chatID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_id required")
 		return
 	}
 	_, ok = h.getChatForWorkspace(w, r, workspaceID, chatID)
@@ -23,7 +24,7 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.cfg.Hub == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "stream not available")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "stream not available")
 		return
 	}
 

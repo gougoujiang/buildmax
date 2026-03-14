@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"buildmax/internal/server/httputil"
 )
 
 // WorkspaceResponse is one workspace in the GET /api/workspaces response (snake_case).
@@ -35,12 +37,12 @@ func (h *Handler) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if err := h.cfg.WorkspaceStore.EnsureDefaultWorkspaceForUser(ctx, userID); err != nil {
-		writeInternalError(w, err, "handler", "workspaces", "op", "ensure_default")
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "workspaces", "op", "ensure_default")
 		return
 	}
 	list, err := h.cfg.WorkspaceStore.ListWorkspacesByOwner(ctx, userID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "workspaces", "op", "list")
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "workspaces", "op", "list")
 		return
 	}
 	ids := make([]string, len(list))
@@ -57,7 +59,7 @@ func (h *Handler) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   list[i].CreatedAt,
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) {
@@ -70,22 +72,22 @@ func (h *Handler) createWorkspaceHandler(w http.ResponseWriter, r *http.Request)
 	}
 	var req createWorkspaceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Name == "" {
-		writeJSONError(w, http.StatusBadRequest, "name required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
 	ctx := r.Context()
 	ws, err := h.cfg.WorkspaceStore.CreateWorkspace(ctx, userID, req.Name)
 	if err != nil {
-		writeInternalError(w, err, "handler", "create_workspace")
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_workspace")
 		return
 	}
 	destDir := h.persistentWorkspaceDir(ws.WorkspaceID)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
-		writeInternalError(w, err, "handler", "create_workspace", "mkdir", destDir)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_workspace", "mkdir", destDir)
 		return
 	}
 	out := WorkspaceResponse{
@@ -94,5 +96,5 @@ func (h *Handler) createWorkspaceHandler(w http.ResponseWriter, r *http.Request)
 		OwnerUserID: ws.OwnerUserID,
 		CreatedAt:   ws.CreatedAt,
 	}
-	writeJSON(w, http.StatusCreated, out)
+	httputil.WriteJSON(w, http.StatusCreated, out)
 }

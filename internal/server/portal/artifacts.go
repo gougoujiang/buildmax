@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
@@ -41,14 +42,14 @@ func (h *Handler) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.R
 	}
 	list, err := h.cfg.RunOutputLister.ListRunOutputsByWorkspace(r.Context(), workspaceID, chatIDPtr)
 	if err != nil {
-		writeInternalError(w, err, "handler", "list_artifacts", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_artifacts", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]ArtifactResponse, len(list))
 	for i := range list {
 		out[i] = artifactWithChatToResponse(list[i])
 	}
-	writeJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 type ArtifactItemResponse struct {
@@ -63,15 +64,15 @@ func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, 
 	var err error
 	run, chat, err = h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "artifact", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact", "chat_run_id", chatRunID)
 		return nil, nil, false
 	}
 	if run == nil || chat == nil {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
 	if chat.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
 	return run, chat, true
@@ -95,14 +96,14 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 	}
 	items, err := h.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "artifact_items", "artifact_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_items", "artifact_id", chatRunID)
 		return
 	}
 	out := make([]ArtifactItemResponse, len(items))
 	for i := range items {
 		out[i] = ArtifactItemResponse{RelativePath: items[i].RelativePath}
 	}
-	writeJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 const artifactResultFilename = "result.md"
@@ -116,14 +117,14 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ch
 	var err error
 	pathParam, err = blob.CleanRelPath(pathParam)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid path")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid path")
 		return "", false
 	}
 	allowed := pathParam == artifactResultFilename
 	if !allowed && h.cfg.RunOutputLister != nil {
 		items, listErr := h.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
 		if listErr != nil {
-			writeInternalError(w, listErr, "handler", "artifact_content", "chat_run_id", chatRunID)
+			httputil.WriteInternalError(w, listErr, "portal handler error", "handler", "artifact_content", "chat_run_id", chatRunID)
 			return "", false
 		}
 		for _, it := range items {
@@ -134,7 +135,7 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ch
 		}
 	}
 	if !allowed {
-		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
+		httputil.WriteJSONError(w, http.StatusNotFound, "file not found in artifact")
 		return "", false
 	}
 	return pathParam, true
@@ -169,10 +170,10 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
-			writeJSONError(w, http.StatusNotFound, "artifact content not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "artifact_content", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_content", "chat_run_id", chatRunID)
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

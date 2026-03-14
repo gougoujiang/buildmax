@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"buildmax/internal/server/httputil"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -15,7 +17,7 @@ type jwtClaims struct {
 func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (string, bool) {
 	userID, ok := userIDFromRequest(r, jwtSecret)
 	if !ok {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
 		return "", false
 	}
 	return userID, true
@@ -28,16 +30,16 @@ func (h *Handler) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, path
 	}
 	workspaceID = r.PathValue(pathKey)
 	if workspaceID == "" {
-		writeJSONError(w, http.StatusBadRequest, pathKey+" required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, pathKey+" required")
 		return "", "", false
 	}
 	owned, err := h.userOwnsWorkspace(r, userID, workspaceID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "with_workspace_auth", pathKey, workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "with_workspace_auth", pathKey, workspaceID)
 		return "", "", false
 	}
 	if !owned {
-		writeJSONError(w, http.StatusForbidden, "forbidden")
+		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", "", false
 	}
 	return userID, workspaceID, true
@@ -52,7 +54,7 @@ func (h *Handler) userOwnsWorkspace(r *http.Request, userID, workspaceID string)
 
 func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
 	if store == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
 		return false
 	}
 	return true
@@ -62,7 +64,7 @@ func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavail
 func pathValueRequired(w http.ResponseWriter, r *http.Request, key string) (value string, ok bool) {
 	value = r.PathValue(key)
 	if value == "" {
-		writeJSONError(w, http.StatusBadRequest, key+" required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, key+" required")
 		return "", false
 	}
 	return value, true

@@ -10,6 +10,7 @@ import (
 
 	chatapp "buildmax/internal/app/chat"
 	convapp "buildmax/internal/app/conversation"
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
@@ -61,11 +62,11 @@ func (h *Handler) getChatForWorkspace(w http.ResponseWriter, r *http.Request, wo
 	}
 	chat, err := h.cfg.ChatStore.GetChat(r.Context(), chatID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "get_chat", "chat_id", chatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_chat", "chat_id", chatID)
 		return nil, false
 	}
 	if chat == nil || chat.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "chat not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "chat not found")
 		return nil, false
 	}
 	return chat, true
@@ -91,14 +92,14 @@ func (h *Handler) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reque
 		executedOnly := q.Get("executed_only") == "true"
 		list, total, err := h.cfg.ChatStore.ListChatsByWorkspacePaginated(r.Context(), workspaceID, executedOnly, limit, offset)
 		if err != nil {
-			writeInternalError(w, err, "handler", "list_chats", "workspace_id", workspaceID)
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_chats", "workspace_id", workspaceID)
 			return
 		}
 		out := make([]ChatResponse, len(list))
 		for i := range list {
 			out[i] = chatToResponse(list[i])
 		}
-		writeJSON(w, http.StatusOK, chatsListResponse{Chats: out, Total: total})
+		httputil.WriteJSON(w, http.StatusOK, chatsListResponse{Chats: out, Total: total})
 		return
 	}
 	order := q.Get("order")
@@ -107,14 +108,14 @@ func (h *Handler) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reque
 	}
 	list, err := h.cfg.ChatStore.ListChatsByWorkspace(r.Context(), workspaceID, order)
 	if err != nil {
-		writeInternalError(w, err, "handler", "list_chats", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_chats", "workspace_id", workspaceID)
 		return
 	}
 	out := make([]ChatResponse, len(list))
 	for i := range list {
 		out[i] = chatToResponse(list[i])
 	}
-	writeJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +128,7 @@ func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Requ
 	}
 	var req createChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	chat, err := h.chatService().CreateChat(r.Context(), chatapp.CreateChatCmd{
@@ -140,10 +141,10 @@ func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Requ
 		if h.writeChatServiceError(w, r, err, req.AgentID) {
 			return
 		}
-		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_chat", "workspace_id", workspaceID)
 		return
 	}
-	writeJSON(w, http.StatusCreated, chatToResponse(*chat))
+	httputil.WriteJSON(w, http.StatusCreated, chatToResponse(*chat))
 }
 
 type createChatRunRequest struct {
@@ -164,17 +165,17 @@ func (h *Handler) createChatRunViaConversation(w http.ResponseWriter, r *http.Re
 			return true
 		}
 		if errors.Is(err, entity.ErrRunInProgress) {
-			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
+			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
 			return true
 		}
-		writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_run", "chat_id", chatID)
 		return true
 	}
 	if len(result.TaskIDs) == 0 {
-		writeJSONError(w, http.StatusInternalServerError, "no run created")
+		httputil.WriteJSONError(w, http.StatusInternalServerError, "no run created")
 		return true
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": result.TaskIDs[0], "chat_id": chatID})
+	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"chat_run_id": result.TaskIDs[0], "chat_id": chatID})
 	return true
 }
 
@@ -190,13 +191,13 @@ func (h *Handler) createChatRunLegacy(w http.ResponseWriter, r *http.Request, us
 			return
 		}
 		if errors.Is(err, entity.ErrRunInProgress) {
-			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
+			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
 			return
 		}
-		writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_run", "chat_id", chatID)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": run.ChatRunID, "chat_id": chatID})
+	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"chat_run_id": run.ChatRunID, "chat_id": chatID})
 }
 
 func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,11 +218,11 @@ func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var req createChatRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Input == "" {
-		writeJSONError(w, http.StatusBadRequest, "input required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
 	h.createChatRunViaConversation(w, r, userID, workspaceID, chatID, req.Input)
@@ -254,7 +255,7 @@ func (h *Handler) getChatConversationHandler(w http.ResponseWriter, r *http.Requ
 	}
 	chatID := r.PathValue("chat_id")
 	if chatID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_id required")
 		return
 	}
 	chat, ok := h.getChatForWorkspace(w, r, workspaceID, chatID)
@@ -262,11 +263,11 @@ func (h *Handler) getChatConversationHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if chat.SessionID == nil || *chat.SessionID == "" {
-		writeJSONError(w, http.StatusNotFound, "conversation not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 	if chat.LastRunID == nil || *chat.LastRunID == "" {
-		writeJSONError(w, http.StatusNotFound, "conversation not found")
+		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 	sessionID := *chat.SessionID
@@ -274,18 +275,18 @@ func (h *Handler) getChatConversationHandler(w http.ResponseWriter, r *http.Requ
 	data, err := h.loadChatConversationData(r.Context(), chat, lastRunID, sessionID)
 	if err != nil {
 		if os.IsNotExist(err) || errors.Is(err, blob.ErrNotFound) {
-			writeJSONError(w, http.StatusNotFound, "conversation file not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "conversation file not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "get_conversation", "chat_id", chat.ChatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "chat_id", chat.ChatID)
 		return
 	}
 	var out ConversationResponse
 	if err := json.Unmarshal(data, &out); err != nil {
-		writeInternalError(w, err, "handler", "get_conversation", "chat_id", chat.ChatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "chat_id", chat.ChatID)
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) loadChatConversationData(ctx context.Context, chat *entity.Chat, lastRunID, sessionID string) ([]byte, error) {

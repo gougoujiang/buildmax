@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	chatapp "buildmax/internal/app/chat"
+	"buildmax/internal/server/httputil"
 )
 
 type chatTitleGeneratorAdapter struct {
@@ -37,28 +38,28 @@ func (h *Handler) chatService() *chatapp.Service {
 func (h *Handler) writeChatServiceError(w http.ResponseWriter, r *http.Request, err error, agentID *string) bool {
 	switch {
 	case errors.Is(err, chatapp.ErrInputRequired):
-		writeJSONError(w, http.StatusBadRequest, "input required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
 		return true
 	case errors.Is(err, chatapp.ErrAgentsNotConfigured):
-		writeJSONError(w, http.StatusServiceUnavailable, "agents not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
 		return true
 	case errors.Is(err, chatapp.ErrChatsNotConfigured):
-		writeJSONError(w, http.StatusServiceUnavailable, "chats not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chats not configured")
 		return true
 	case errors.Is(err, chatapp.ErrChatRunsNotConfigured):
-		writeJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
 		return true
 	case errors.Is(err, chatapp.ErrAgentNotFound):
 		if agentID != nil && *agentID != "" {
-			writeJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
+			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
 		} else {
-			writeJSONError(w, http.StatusNotFound, "chat not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "chat not found")
 		}
 		return true
 	}
 	var quotaErr *chatapp.QuotaExceededError
 	if errors.As(err, &quotaErr) {
-		writeQuotaExceeded(w, quotaErr.Reason)
+		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
 		return true
 	}
 	return false

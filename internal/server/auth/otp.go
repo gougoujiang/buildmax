@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -21,17 +22,17 @@ type OtpRequestResponse struct {
 
 func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.UserStore == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "otp not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "otp not configured")
 		return
 	}
 
 	var req OtpRequestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Email == "" {
-		writeJSONError(w, http.StatusBadRequest, "email required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "email required")
 		return
 	}
 	intent := req.Intent
@@ -39,39 +40,39 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		intent = "signup"
 	}
 	if intent != "signup" && intent != "login" {
-		writeJSONError(w, http.StatusBadRequest, "intent must be signup or login")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "intent must be signup or login")
 		return
 	}
 
 	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	if intent == "login" {
 		if user == nil {
-			writeJSONError(w, http.StatusNotFound, "user not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "user not found")
 			return
 		}
-		writeJSON(w, http.StatusOK, OtpRequestResponse{Message: "otp_sent"})
+		httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "otp_sent"})
 		return
 	}
 
 	// intent == "signup"
 	if user != nil {
-		writeJSONError(w, http.StatusConflict, "email already registered")
+		httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 		return
 	}
 
 	_, err = h.cfg.UserStore.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
 	if err != nil {
 		if errors.Is(err, entity.ErrEmailExists) {
-			writeJSONError(w, http.StatusConflict, "email already registered")
+			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	writeJSON(w, http.StatusOK, OtpRequestResponse{Message: "otp_sent"})
+	httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "otp_sent"})
 }

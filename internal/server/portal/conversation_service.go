@@ -7,6 +7,7 @@ import (
 
 	chatapp "buildmax/internal/app/chat"
 	convapp "buildmax/internal/app/conversation"
+	"buildmax/internal/server/httputil"
 )
 
 type conversationTitleGeneratorAdapter struct {
@@ -37,15 +38,15 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 	}
 	switch {
 	case errors.Is(err, convapp.ErrInvalidTarget):
-		writeJSONError(w, http.StatusBadRequest, "invalid conversation target")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid conversation target")
 		return true
 	case errors.Is(err, convapp.ErrLLMRequired):
-		writeJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return true
 	}
 	var quotaErr *chatapp.QuotaExceededError
 	if errors.As(err, &quotaErr) {
-		writeQuotaExceeded(w, quotaErr.Reason)
+		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
 		return true
 	}
 	return false

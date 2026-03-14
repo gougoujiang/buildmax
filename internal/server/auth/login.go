@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"buildmax/internal/server/httputil"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -39,35 +41,35 @@ const jwtExpiry = 24 * time.Hour
 
 func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.UserStore == nil || h.cfg.JWTSecret == "" {
-		writeJSONError(w, http.StatusServiceUnavailable, "login not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Email == "" {
-		writeJSONError(w, http.StatusBadRequest, "email required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "email required")
 		return
 	}
 	if req.Otp == "" {
-		writeJSONError(w, http.StatusBadRequest, "otp required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "otp required")
 		return
 	}
 	if req.Otp != OtpCode {
-		writeJSONError(w, http.StatusUnauthorized, "invalid otp")
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return
 	}
 
 	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
 	if err != nil {
-		writeInternalError(w, err, "handler", "login", "email", req.Email)
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "email", req.Email)
 		return
 	}
 	if user == nil {
-		writeJSONError(w, http.StatusUnauthorized, "user not found")
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "user not found")
 		return
 	}
 	now := time.Now()
@@ -81,7 +83,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(h.cfg.JWTSecret))
 	if err != nil {
-		writeInternalError(w, err, "handler", "login", "sign_token")
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "sign_token")
 		return
 	}
 
@@ -93,5 +95,5 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 			Name:  user.Name,
 		},
 	}
-	writeJSON(w, http.StatusOK, resp)
+	httputil.WriteJSON(w, http.StatusOK, resp)
 }

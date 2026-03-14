@@ -39,6 +39,11 @@ go.work.sum
 testing-sandbox/
 testing-workspaces/
 
+# Server/portal workspace dirs created by tests or local runs when WorkspacesDir is unset
+internal/server/**/testing-workspaces/
+internal/server/**/ws-1/
+internal/server/**/ws1/
+
 # Portal (React / Node)
 portal/node_modules/
 portal/dist/

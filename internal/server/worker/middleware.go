@@ -3,6 +3,8 @@ package worker
 import (
 	"net/http"
 	"strings"
+
+	"buildmax/internal/server/httputil"
 )
 
 // authMiddleware returns a handler that requires Authorization: Bearer <token> or X-Worker-Token.
@@ -10,7 +12,7 @@ import (
 func (h *Handler) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if h.cfg.Token == "" {
-			writeJSONError(w, http.StatusUnauthorized, "worker auth not configured")
+			httputil.WriteJSONError(w, http.StatusUnauthorized, "worker auth not configured")
 			return
 		}
 		token := ""
@@ -20,7 +22,7 @@ func (h *Handler) authMiddleware(next http.Handler) http.Handler {
 			token = t
 		}
 		if token != h.cfg.Token {
-			writeJSONError(w, http.StatusUnauthorized, "invalid or missing worker token")
+			httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid or missing worker token")
 			return
 		}
 		next.ServeHTTP(w, r)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/blob"
 )
 
@@ -29,13 +30,13 @@ func (h *Handler) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	relPaths, err := h.cfg.PersistStorage.ListFiles(ctx, workspaceID)
 	if err != nil {
-		writeInternalError(w, err, "handler", "files_tree", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "files_tree", "workspace_id", workspaceID)
 		return
 	}
 	tree := buildTreeFromFileList(relPaths)
 	tree.ID = "."
 	tree.Name = "home"
-	writeJSON(w, http.StatusOK, tree)
+	httputil.WriteJSON(w, http.StatusOK, tree)
 }
 
 func buildTreeFromFileList(relPaths []string) *fileNode {
@@ -107,21 +108,21 @@ func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	filePath := r.PathValue("path")
 	if filePath == "" {
-		writeJSONError(w, http.StatusBadRequest, "file path required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "file path required")
 		return
 	}
 	cleanPath, err := blob.CleanRelPath(filePath)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid path")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
 	data, err := h.cfg.PersistStorage.Get(r.Context(), workspaceID, cleanPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
-			writeJSONError(w, http.StatusNotFound, "file not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "file not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "file_content", "path", cleanPath)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "file_content", "path", cleanPath)
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
