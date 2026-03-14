@@ -1,6 +1,6 @@
 import { useRef, useEffect, type ReactNode } from "react"
 
-interface BaseModalProps {
+export interface BaseModalProps {
   open: boolean
   title: string
   titleId: string

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { Agent } from "../lib/types"
-import { BaseModal } from "./BaseModal"
+import { BaseModal } from "@buildmax/gui"
 
 /** Builds the same preview format the backend uses for agent-based chat input. */
 export function buildAgentPreview(agent: Agent): string {

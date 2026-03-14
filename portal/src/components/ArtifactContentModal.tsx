@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { cn } from "../lib/cn"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { BaseModal } from "./BaseModal"
+import { BaseModal } from "@buildmax/gui"
 import { getArtifactItems, getArtifactContent } from "../features/artifacts"
 import { useFetch } from "../hooks/useFetch"
 

@@ -13,6 +13,7 @@ export default defineConfig({
     alias: {
       // Resolve CSS subpath so Vite does not pass the bare specifier to the file system (avoids ENOENT)
       '@buildmax/gui/theme.css': path.resolve(__dirname, 'node_modules/@buildmax/gui/dist/theme.css'),
+      '@buildmax/gui/modal.css': path.resolve(__dirname, 'node_modules/@buildmax/gui/dist/modal.css'),
     },
   },
   build: {

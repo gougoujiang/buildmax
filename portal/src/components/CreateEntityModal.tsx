@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { BaseModal } from "./BaseModal"
+import { BaseModal } from "@buildmax/gui"
 
 export interface CreateEntityFieldConfig {
   key: string
