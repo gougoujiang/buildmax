@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"buildmax/internal/app/agentrun"
 	"buildmax/internal/config"
 	"buildmax/internal/session"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // SessionDetail is the session payload returned to the frontend for display.
@@ -33,8 +36,28 @@ type SendMessageResult struct {
 	SessionID string `json:"session_id"`
 }
 
+// StreamDonePayload is emitted when streaming finishes successfully (event desktop/stream-done).
+type StreamDonePayload struct {
+	Reply     string `json:"reply"`
+	SessionID string `json:"session_id"`
+}
+
+// StreamErrorPayload is emitted when streaming fails (event desktop/stream-error).
+type StreamErrorPayload struct {
+	Message string `json:"message"`
+}
+
+const (
+	eventStreamDelta = "desktop/stream-delta"
+	eventStreamDone  = "desktop/stream-done"
+	eventStreamError = "desktop/stream-error"
+)
+
 // App holds desktop application state and implements Wails lifecycle hooks.
-type App struct{}
+type App struct {
+	ctx context.Context
+	mu  sync.Mutex
+}
 
 // NewApp returns a new App instance.
 func NewApp() *App {
@@ -45,6 +68,9 @@ func NewApp() *App {
 // application data directory is set (config.DataDir / BUILDMAX_HOME) so
 // future agent integration uses the same paths as the CLI.
 func (a *App) Startup(ctx context.Context) {
+	a.mu.Lock()
+	a.ctx = ctx
+	a.mu.Unlock()
 	_ = config.DataDir()
 }
 
@@ -115,4 +141,51 @@ func (a *App) SendMessage(sessionID string, prompt string) (SendMessageResult, e
 		Reply:     out.Reply,
 		SessionID: out.SessionID,
 	}, nil
+}
+
+// desktopStreamSink emits each delta to the frontend via Wails runtime events.
+type desktopStreamSink struct {
+	ctx context.Context
+}
+
+func (s *desktopStreamSink) OnDelta(delta string) {
+	runtime.EventsEmit(s.ctx, eventStreamDelta, delta)
+}
+
+// SendMessageStream runs one user prompt with streaming: it returns immediately and
+// emits desktop/stream-delta (string) for each content chunk, then desktop/stream-done
+// (StreamDonePayload) or desktop/stream-error (StreamErrorPayload). The frontend should
+// subscribe to these events before calling SendMessageStream.
+func (a *App) SendMessageStream(sessionID string, prompt string) error {
+	if prompt == "" {
+		return fmt.Errorf("prompt required")
+	}
+	workspace, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("workspace: %w", err)
+	}
+	a.mu.Lock()
+	ctx := a.ctx
+	a.mu.Unlock()
+	if ctx == nil {
+		return fmt.Errorf("app not ready")
+	}
+	rt, err := agentrun.Open(agentrun.OpenInput{
+		WorkspaceDir:  workspace,
+		SessionID:     sessionID,
+		ModelSelector: "",
+	})
+	if err != nil {
+		return fmt.Errorf("open runtime: %w", err)
+	}
+	sink := &desktopStreamSink{ctx: ctx}
+	go func() {
+		out, err := rt.RunPrompt(ctx, agentrun.RunInput{Prompt: prompt, Stream: sink})
+		if err != nil {
+			runtime.EventsEmit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
+			return
+		}
+		runtime.EventsEmit(ctx, eventStreamDone, &StreamDonePayload{Reply: out.Reply, SessionID: out.SessionID})
+	}()
+	return nil
 }

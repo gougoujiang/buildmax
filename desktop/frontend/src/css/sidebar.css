@@ -178,3 +178,24 @@
   font-size: 0.75rem;
   color: var(--color-text-subtle);
 }
+
+.sidebar__see-more {
+  margin-top: 0.25rem;
+  padding-left: 0.25rem;
+}
+
+.sidebar__see-more-btn {
+  padding: 0.4rem 0.75rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.sidebar__see-more-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}

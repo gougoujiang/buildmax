@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ThemeProvider } from './ThemeContext';
 import { ThemeToggle } from './ThemeToggle';
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 
 function getApp() {
   if (typeof window === 'undefined') return null;
@@ -37,8 +38,79 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [recentCollapsed, setRecentCollapsed] = useState(false);
+  const [recentVisibleCount, setRecentVisibleCount] = useState(10);
   const [wailsReady, setWailsReady] = useState(false);
+
+  const RECENT_PAGE_SIZE = 10;
+  const sortedSessions = [...sessions].sort((a, b) =>
+    (b.created_at || '').localeCompare(a.created_at || '')
+  );
+  const visibleSessions = sortedSessions.slice(0, recentVisibleCount);
+  const hasMoreRecent = sortedSessions.length > recentVisibleCount;
   const historyRef = useRef(null);
+  const streamingContentRef = useRef('');
+
+  // Stream event names (must match Go desktop package)
+  const EV_STREAM_DELTA = 'desktop/stream-delta';
+  const EV_STREAM_DONE = 'desktop/stream-done';
+  const EV_STREAM_ERROR = 'desktop/stream-error';
+
+  // Subscribe to stream events (one stream at a time; loading prevents overlapping)
+  useEffect(() => {
+    const unsubDelta = EventsOn(EV_STREAM_DELTA, (delta) => {
+      if (typeof delta !== 'string') return;
+      streamingContentRef.current += delta;
+      setMessages((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === 'assistant') {
+          next[next.length - 1] = { ...last, content: streamingContentRef.current };
+        }
+        return next;
+      });
+    });
+    const unsubDone = EventsOn(EV_STREAM_DONE, (payload) => {
+      const reply = payload?.reply ?? streamingContentRef.current;
+      const sessionId = payload?.session_id ?? '';
+      streamingContentRef.current = '';
+      setMessages((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === 'assistant') {
+          next[next.length - 1] = { ...last, content: reply };
+        }
+        return next;
+      });
+      setSelectedId(sessionId || null);
+      if (sessionId) {
+        setSessionTitle('Chat');
+        getApp()?.GetSession(sessionId).then((detail) => {
+          setSessionTitle(detail?.title?.trim() || 'Chat');
+        }).catch(() => {});
+      }
+      getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
+      setLoading(false);
+    });
+    const unsubError = EventsOn(EV_STREAM_ERROR, (payload) => {
+      const message = payload?.message ?? 'Stream error';
+      streamingContentRef.current = '';
+      setError(message);
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant' && last?.content === '') {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      setLoading(false);
+    });
+    return () => {
+      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR);
+      unsubDelta?.();
+      unsubDone?.();
+      unsubError?.();
+    };
+  }, []);
 
   // Wails injects window.go after the page loads; wait a tick before deciding backend is missing
   useEffect(() => {
@@ -89,35 +161,24 @@ export default function App() {
     if (!prompt?.trim() || loading || !app) return;
     setLoading(true);
     setError(null);
+    streamingContentRef.current = '';
     const sessionIdToUse = selectedId || '';
+    const trimmed = prompt.trim();
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: trimmed },
+      { role: 'assistant', content: '' },
+    ]);
     try {
-      const result = await app.SendMessage(sessionIdToUse, prompt.trim());
-      if (sessionIdToUse === '') {
-        const newId = result?.session_id ?? null;
-        setSelectedId(newId);
-        refreshSessions();
-        setMessages([
-          { role: 'user', content: prompt.trim() },
-          { role: 'assistant', content: result?.reply ?? '' },
-        ]);
-        if (newId) {
-          app.GetSession(newId).then((detail) => {
-            setSessionTitle(detail?.title?.trim() || 'Chat');
-          }).catch(() => {});
-        } else {
-          setSessionTitle('Chat');
-        }
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'user', content: prompt.trim() },
-          { role: 'assistant', content: result?.reply ?? '' },
-        ]);
-        refreshSessions();
-      }
+      await app.SendMessageStream(sessionIdToUse, trimmed);
+      // Result and list updates happen via desktop/stream-done or desktop/stream-error
     } catch (err) {
       setError(err?.message ?? String(err));
-    } finally {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant' && last?.content === '') return prev.slice(0, -1);
+        return prev;
+      });
       setLoading(false);
     }
   }
@@ -186,25 +247,34 @@ export default function App() {
                     hidden={recentCollapsed}
                   >
                     <ul className="sidebar__list">
-                      {[...sessions]
-                        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-                        .map((s) => (
-                          <li key={s.id} className="sidebar__item">
-                            <button
-                              type="button"
-                              className={`sidebar__link ${selectedId === s.id ? 'sidebar__link--active' : ''}`}
-                              onClick={() => setSelectedId(s.id)}
-                            >
-                              <span className="sidebar__chat-title">
-                                {s.title?.trim() || 'Chat'}
-                              </span>
-                              <span className="sidebar__chat-meta">
-                                {formatSessionMeta(s.created_at)}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
+                      {visibleSessions.map((s) => (
+                        <li key={s.id} className="sidebar__item">
+                          <button
+                            type="button"
+                            className={`sidebar__link ${selectedId === s.id ? 'sidebar__link--active' : ''}`}
+                            onClick={() => setSelectedId(s.id)}
+                          >
+                            <span className="sidebar__chat-title">
+                              {s.title?.trim() || 'Chat'}
+                            </span>
+                            <span className="sidebar__chat-meta">
+                              {formatSessionMeta(s.created_at)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
                     </ul>
+                    {hasMoreRecent && (
+                      <div className="sidebar__see-more">
+                        <button
+                          type="button"
+                          className="sidebar__see-more-btn"
+                          onClick={() => setRecentVisibleCount((n) => n + RECENT_PAGE_SIZE)}
+                        >
+                          See More
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
