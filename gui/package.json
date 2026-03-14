@@ -12,7 +12,8 @@
       "import": "./dist/index.js"
     },
     "./theme.css": "./dist/theme.css",
-    "./modal.css": "./dist/modal.css"
+    "./modal.css": "./dist/modal.css",
+    "./widgets.css": "./dist/widgets.css"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -26,7 +27,7 @@
     "vite": "^6.0.0"
   },
   "scripts": {
-    "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && npm run build:types",
+    "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && cp src/widgets.css dist/widgets.css && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist --rootDir src",
     "dev": "vite build --watch"
   },

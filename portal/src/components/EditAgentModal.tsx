@@ -1,5 +1,5 @@
 import type { Agent } from "../lib/types"
-import { CreateEntityModal } from "./CreateEntityModal"
+import { FormModal } from "@buildmax/gui"
 import { AGENT_FIELDS } from "./CreateAgentModal"
 
 interface EditAgentModalProps {
@@ -45,14 +45,14 @@ export function EditAgentModal({
   if (agent == null) return null
 
   return (
-    <CreateEntityModal
+    <FormModal
       open={open}
       title="Edit agent"
       titleId="edit-agent-title"
       fields={AGENT_FIELDS}
       hint="Agents are personas or task templates you can use in this workspace."
       initialValues={initialValues}
-      modalClassName="modal--large"
+      className="modal--large"
       dangerAction={{
         label: "Delete",
         onClick: handleDelete,

@@ -1,9 +1,6 @@
-import {
-  CreateEntityModal,
-  type CreateEntityFieldConfig,
-} from "./CreateEntityModal"
+import { FormModal, type FormModalFieldConfig } from "@buildmax/gui"
 
-export const AGENT_FIELDS: CreateEntityFieldConfig[] = [
+export const AGENT_FIELDS: FormModalFieldConfig[] = [
   {
     key: "name",
     label: "Name",
@@ -49,7 +46,7 @@ export function CreateAgentModal({
   onCreate,
 }: CreateAgentModalProps) {
   return (
-    <CreateEntityModal
+    <FormModal
       open={open}
       title="New Agent"
       titleId="create-agent-title"

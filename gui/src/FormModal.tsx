@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react"
-import { BaseModal } from "@buildmax/gui"
+import { useEffect, useState, type FormEvent } from "react"
+import { BaseModal } from "./BaseModal"
 
-export interface CreateEntityFieldConfig {
+export interface FormModalFieldConfig {
   key: string
   label: string
   type: "text" | "textarea"
@@ -11,26 +11,24 @@ export interface CreateEntityFieldConfig {
   rows?: number
 }
 
-export interface CreateEntityModalProps {
+export interface FormModalProps {
   open: boolean
   title: string
   titleId: string
-  fields: CreateEntityFieldConfig[]
+  fields: FormModalFieldConfig[]
   hint?: string
-  /** When provided and modal opens, form is prefilled with these values (key -> value per field). */
   initialValues?: Record<string, string>
-  /** Optional danger action (e.g. Delete) shown as a button in the actions row. */
   dangerAction?: { label: string; onClick: () => void; disabled?: boolean }
-  /** Optional class for the modal container (e.g. modal--large for edit dialogs). */
-  modalClassName?: string
-  loading: boolean
-  error: string | null
+  className?: string
+  loading?: boolean
+  error?: string | null
   submitLabel: string
+  cancelLabel?: string
   onClose: () => void
   onSubmit: (values: Record<string, string>) => void
 }
 
-export function CreateEntityModal({
+export function FormModal({
   open,
   title,
   titleId,
@@ -38,46 +36,45 @@ export function CreateEntityModal({
   hint,
   initialValues,
   dangerAction,
-  modalClassName,
-  loading,
+  className,
+  loading = false,
   error,
   submitLabel,
+  cancelLabel = "Cancel",
   onClose,
   onSubmit,
-}: CreateEntityModalProps) {
+}: FormModalProps) {
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(fields.map((f) => [f.key, ""]))
+    Object.fromEntries(fields.map((field) => [field.key, ""]))
   )
 
   useEffect(() => {
-    if (open) {
-      if (initialValues != null) {
-        setValues(
-          Object.fromEntries(
-            fields.map((f) => [f.key, initialValues[f.key] ?? ""])
-          )
-        )
-      } else {
-        setValues(Object.fromEntries(fields.map((f) => [f.key, ""])))
-      }
+    if (!open) return
+
+    if (initialValues != null) {
+      setValues(Object.fromEntries(fields.map((field) => [field.key, initialValues[field.key] ?? ""])))
+      return
     }
+
+    setValues(Object.fromEntries(fields.map((field) => [field.key, ""])))
   }, [open, fields, initialValues])
 
-  function handleSubmit(e: React.FormEvent) {
+  const hasMissingRequiredField = fields.some((field) => !field.optional && !values[field.key]?.trim())
+
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    const firstRequired = fields.find((f) => !f.optional)
-    if (firstRequired && !values[firstRequired.key]?.trim()) return
+    if (hasMissingRequiredField) return
     onSubmit(values)
   }
 
   return (
-    <BaseModal open={open} title={title} titleId={titleId} onClose={onClose} className={modalClassName}>
+    <BaseModal open={open} title={title} titleId={titleId} onClose={onClose} className={className}>
       <form onSubmit={handleSubmit} className="modal__body">
         {fields.map((field) => (
           <div key={field.key}>
             <label className="modal__label" htmlFor={field.key}>
               {field.label}
-              {field.optional && <span className="modal__optional"> (optional)</span>}
+              {field.optional ? <span className="modal__optional"> (optional)</span> : null}
             </label>
             {field.type === "textarea" ? (
               <textarea
@@ -85,7 +82,7 @@ export function CreateEntityModal({
                 className="modal__textarea"
                 placeholder={field.placeholder}
                 value={values[field.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 disabled={loading}
                 rows={field.rows ?? 3}
                 maxLength={field.maxLength}
@@ -97,7 +94,7 @@ export function CreateEntityModal({
                 className="modal__input"
                 placeholder={field.placeholder}
                 value={values[field.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 disabled={loading}
                 autoComplete="off"
                 maxLength={field.maxLength}
@@ -105,12 +102,12 @@ export function CreateEntityModal({
             )}
           </div>
         ))}
-        {hint && <p className="modal__hint">{hint}</p>}
-        {error && (
+        {hint ? <p className="modal__hint">{hint}</p> : null}
+        {error ? (
           <p className="modal__error" role="alert">
             {error}
           </p>
-        )}
+        ) : null}
         <div className="modal__actions">
           {dangerAction ? (
             <button
@@ -128,12 +125,12 @@ export function CreateEntityModal({
             onClick={onClose}
             disabled={loading}
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             type="submit"
             className="modal__btn modal__btn--secondary"
-            disabled={loading || fields.some((f) => !f.optional && !values[f.key]?.trim())}
+            disabled={loading || hasMissingRequiredField}
           >
             {loading ? `${submitLabel}…` : submitLabel}
           </button>

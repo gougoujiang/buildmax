@@ -1,9 +1,6 @@
-import {
-  CreateEntityModal,
-  type CreateEntityFieldConfig,
-} from "./CreateEntityModal"
+import { FormModal, type FormModalFieldConfig } from "@buildmax/gui"
 
-const WORKSPACE_FIELDS: CreateEntityFieldConfig[] = [
+const WORKSPACE_FIELDS: FormModalFieldConfig[] = [
   {
     key: "name",
     label: "Workspace name",
@@ -29,7 +26,7 @@ export function CreateWorkspaceModal({
   onCreate,
 }: CreateWorkspaceModalProps) {
   return (
-    <CreateEntityModal
+    <FormModal
       open={open}
       title="New Workspace"
       titleId="create-ws-title"

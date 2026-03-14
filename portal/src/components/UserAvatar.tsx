@@ -1,6 +1,5 @@
-import { cn } from "../lib/cn"
 import type { LoginUser } from "../lib/api"
-import { getUserInitials } from "../lib/getUserInitials"
+import { Avatar, getInitials } from "@buildmax/gui"
 
 interface UserAvatarProps {
   user: LoginUser
@@ -9,13 +8,14 @@ interface UserAvatarProps {
 }
 
 export function UserAvatar({ user, size = "md", className }: UserAvatarProps) {
+  const fallback = user.email.split("@")[0]
+
   return (
-    <span
-      className={cn("user-avatar", size && `user-avatar--${size}`, className)}
-      aria-hidden
-    >
-      {getUserInitials(user)}
-    </span>
+    <Avatar
+      label={getInitials(user.name, fallback)}
+      size={size}
+      className={className}
+    />
   )
 }
 
@@ -25,12 +25,5 @@ interface AgentAvatarProps {
 }
 
 export function AgentAvatar({ size = "sm", className }: AgentAvatarProps) {
-  return (
-    <span
-      className={cn("user-avatar", size && `user-avatar--${size}`, className)}
-      aria-hidden
-    >
-      A
-    </span>
-  )
+  return <Avatar label="A" size={size} className={className} />
 }

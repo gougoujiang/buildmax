@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { ThemeProvider, ThemeToggle } from '@buildmax/gui';
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+import { Avatar, ChatComposer, ChatThread, RecentList, ThemeProvider, ThemeToggle } from '@buildmax/gui';
+import { EventsOn, EventsOff } from './lib/wailsRuntime';
 
 function getApp() {
   if (typeof window === 'undefined') return null;
@@ -208,6 +208,14 @@ export default function App() {
     );
   }
 
+  const threadItems = messages.map((m, i) => ({
+    id: `message-${i}`,
+    role: m.role,
+    label: m.role === 'user' ? 'You' : m.role,
+    avatar: <Avatar label={m.role === 'user' ? 'U' : 'A'} size="sm" />,
+    body: <div className="page-chat__msg-content">{m.content}</div>,
+  }));
+
   return (
     <ThemeProvider>
       <div className="shell">
@@ -245,35 +253,18 @@ export default function App() {
                     className="sidebar__chats-list"
                     hidden={recentCollapsed}
                   >
-                    <ul className="sidebar__list">
-                      {visibleSessions.map((s) => (
-                        <li key={s.id} className="sidebar__item">
-                          <button
-                            type="button"
-                            className={`sidebar__link ${selectedId === s.id ? 'sidebar__link--active' : ''}`}
-                            onClick={() => setSelectedId(s.id)}
-                          >
-                            <span className="sidebar__chat-title">
-                              {s.title?.trim() || 'Chat'}
-                            </span>
-                            <span className="sidebar__chat-meta">
-                              {formatSessionMeta(s.created_at)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    {hasMoreRecent && (
-                      <div className="sidebar__see-more">
-                        <button
-                          type="button"
-                          className="sidebar__see-more-btn"
-                          onClick={() => setRecentVisibleCount((n) => n + RECENT_PAGE_SIZE)}
-                        >
-                          See More
-                        </button>
-                      </div>
-                    )}
+                    <RecentList
+                      items={visibleSessions.map((s) => ({
+                        id: s.id,
+                        title: s.title?.trim() || 'Chat',
+                        meta: formatSessionMeta(s.created_at),
+                      }))}
+                      activeId={selectedId}
+                      onSelect={setSelectedId}
+                      moreActionLabel={hasMoreRecent ? 'See More' : undefined}
+                      onMoreAction={hasMoreRecent ? () => setRecentVisibleCount((n) => n + RECENT_PAGE_SIZE) : undefined}
+                      moreActionClassName="sidebar__see-more-btn"
+                    />
                   </div>
                 </div>
               </div>
@@ -288,37 +279,16 @@ export default function App() {
             </div>
             <div className="shell__content">
               <div className="page-chat">
-                <section
-                  ref={historyRef}
-                  className="page-chat__history"
-                  aria-label="Conversation history"
-                  role="log"
-                  aria-live="polite"
-                >
-                  {messages.length === 0 && selectedId !== null && (
-                    <p className="page-chat__text page-chat__muted">No messages yet.</p>
-                  )}
-                  {messages.length === 0 && selectedId === null && (
-                    <p className="page-chat__text page-chat__muted">
-                      Type a message below to start a new chat.
-                    </p>
-                  )}
-                  {messages.map((m, i) => (
-                    <div
-                      key={i}
-                      className={`page-chat__msg-row page-chat__msg-row--${m.role}`}
-                      role="article"
-                      aria-label={m.role === 'user' ? 'You' : m.role}
-                    >
-                      <span className="page-chat__msg-icon" aria-hidden>
-                        {m.role === 'user' ? 'U' : 'A'}
-                      </span>
-                      <div className={`page-chat__msg page-chat__msg--${m.role}`}>
-                        <div className="page-chat__msg-content">{m.content}</div>
-                      </div>
-                    </div>
-                  ))}
-                </section>
+                <ChatThread
+                  historyRef={historyRef}
+                  ariaLabel="Conversation history"
+                  items={threadItems}
+                  emptyText={
+                    selectedId === null
+                      ? 'Type a message below to start a new chat.'
+                      : 'No messages yet.'
+                  }
+                />
                 <section className="page-chat__input" aria-label="Send a message">
                   <ChatInput
                     onSend={handleSend}
@@ -347,40 +317,17 @@ function ChatInput({ onSend, loading, error, onDismissError }) {
   }
 
   return (
-    <>
-      <div className="page-chat__input-box">
-        <textarea
-          className="page-chat__follow-up-input"
-          value={prompt}
-          onChange={(e) => {
-            setPrompt(e.target.value);
-            onDismissError();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-          placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
-          rows={2}
-          disabled={loading}
-          aria-label="Message"
-        />
-        <button
-          type="button"
-          className="page-chat__follow-up-btn"
-          onClick={handleSubmit}
-          disabled={loading || !prompt.trim()}
-        >
-          {loading ? 'Sending…' : 'Send'}
-        </button>
-      </div>
-      {error && (
-        <p className="page-chat__text page-chat__error" role="alert">
-          {error}
-        </p>
-      )}
-    </>
+    <ChatComposer
+      value={prompt}
+      onChange={(value) => {
+        setPrompt(value);
+        onDismissError();
+      }}
+      onSubmit={handleSubmit}
+      loading={loading}
+      error={error}
+      placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+      ariaLabel="Message"
+    />
   );
 }
