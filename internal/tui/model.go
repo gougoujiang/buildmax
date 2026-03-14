@@ -228,6 +228,11 @@ func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.inputBlock.SetWidth(inputW)
 	m.inputBlock.SyncHeight()
 	m.syncViewportSize()
+	// Rebuild viewport content with new width so text wraps to full width (fixes --continue narrow content).
+	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{
+		Version: m.opts.Version, Width: m.width,
+		Busy: m.busy, CarouselDots: m.carouselDots, StreamingTail: m.streamingBuffer,
+	})
 	return m, nil
 }
 
@@ -373,7 +378,7 @@ func (m *Model) renderFooterView() string {
 		workspacePart += " (|-" + m.opts.Branch + ")"
 	}
 	footer := footerModelStyle.Render("model: "+m.opts.ModelName) + " | " +
-		footerBranchStyle.Render(workspacePart) + " | ctrl+c: quit | esc: clear/focus input"
+		footerBranchStyle.Render(workspacePart) + " | ctrl+c: quit | esc: clear/focus input | opt+mouse: select text"
 	if m.err != "" {
 		footer += " | error: " + m.err
 	}
