@@ -134,6 +134,48 @@ func truncateChatTitle(input string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "…"
 }
 
+// resolveCreateChatInput resolves input and optional agentID from the create-chat request; writes errors and returns ok false on failure.
+func (h *Handler) resolveCreateChatInput(w http.ResponseWriter, r *http.Request, workspaceID string, req *createChatRequest) (input string, agentID *string, ok bool) {
+	if req.AgentID != nil && *req.AgentID != "" {
+		if h.cfg.AgentStore == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "agents not configured")
+			return "", nil, false
+		}
+		agent, err := h.cfg.AgentStore.GetAgent(r.Context(), *req.AgentID)
+		if err != nil {
+			writeInternalError(w, err, "handler", "get_agent", "agent_id", *req.AgentID)
+			return "", nil, false
+		}
+		if agent == nil || agent.WorkspaceID != workspaceID {
+			writeJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
+			return "", nil, false
+		}
+		if req.Input != "" {
+			input = req.Input
+		} else {
+			input = buildChatInputFromAgent(agent, "")
+		}
+		return input, req.AgentID, true
+	}
+	if req.Input == "" {
+		writeJSONError(w, http.StatusBadRequest, "input required")
+		return "", nil, false
+	}
+	return req.Input, nil, true
+}
+
+// resolveTitleAndUsage returns a generated title and token usage from the generator, or ("", 0, 0) if generator is nil, errors, or returns empty.
+func resolveTitleAndUsage(ctx context.Context, gen ChatTitleGenerator, input string) (title string, promptTokens, completionTokens int) {
+	if gen == nil {
+		return "", 0, 0
+	}
+	t, usage, err := gen.GenerateChatTitle(ctx, input)
+	if err != nil || t == "" {
+		return "", 0, 0
+	}
+	return t, usage.PromptTokens, usage.CompletionTokens
+}
+
 func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Request) {
 	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -147,42 +189,15 @@ func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Requ
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	var input string
-	var agentID *string
-	if req.AgentID != nil && *req.AgentID != "" {
-		if h.cfg.AgentStore == nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "agents not configured")
-			return
-		}
-		agent, err := h.cfg.AgentStore.GetAgent(r.Context(), *req.AgentID)
-		if err != nil {
-			writeInternalError(w, err, "handler", "get_agent", "agent_id", *req.AgentID)
-			return
-		}
-		if agent == nil || agent.WorkspaceID != workspaceID {
-			writeJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
-			return
-		}
-		if req.Input != "" {
-			input = req.Input
-		} else {
-			input = buildChatInputFromAgent(agent, "")
-		}
-		agentID = req.AgentID
-	} else {
-		if req.Input == "" {
-			writeJSONError(w, http.StatusBadRequest, "input required")
-			return
-		}
-		input = req.Input
+	input, agentID, ok := h.resolveCreateChatInput(w, r, workspaceID, &req)
+	if !ok {
+		return
 	}
 	title := truncateChatTitle(input, 50)
-	var titlePromptTokens, titleCompletionTokens int
+	titlePromptTokens, titleCompletionTokens := 0, 0
 	if h.cfg.ChatTitleGenerator != nil {
-		if gen, usage, err := h.cfg.ChatTitleGenerator.GenerateChatTitle(r.Context(), input); err == nil && gen != "" {
-			title = gen
-			titlePromptTokens = usage.PromptTokens
-			titleCompletionTokens = usage.CompletionTokens
+		if genTitle, pt, ct := resolveTitleAndUsage(r.Context(), h.cfg.ChatTitleGenerator, input); genTitle != "" {
+			title, titlePromptTokens, titleCompletionTokens = genTitle, pt, ct
 		}
 	}
 	if h.cfg.QuotaChecker != nil {
@@ -192,7 +207,16 @@ func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	chat, err := h.cfg.ChatStore.CreateChat(r.Context(), workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, nil)
+	chat, err := h.cfg.ChatStore.CreateChat(r.Context(), &entity.CreateChatInput{
+		WorkspaceID:           workspaceID,
+		Input:                 input,
+		Title:                 title,
+		CreatedBy:             userID,
+		TitlePromptTokens:     titlePromptTokens,
+		TitleCompletionTokens: titleCompletionTokens,
+		AgentID:               agentID,
+		ConversationID:        nil,
+	})
 	if err != nil {
 		writeInternalError(w, err, "handler", "create_chat", "workspace_id", workspaceID)
 		return
@@ -204,6 +228,53 @@ type createChatRunRequest struct {
 	Input string `json:"input"`
 }
 
+// createChatRunViaConversation handles the Tier 1 conversation path; returns true if it wrote a response.
+func (h *Handler) createChatRunViaConversation(w http.ResponseWriter, r *http.Request, userID, workspaceID, chatID, input string) bool {
+	if h.cfg.ConversationEngine == nil || h.cfg.PortalAdapter == nil {
+		return false
+	}
+	turnInput := &adapter.PortalTurnInput{
+		WorkspaceID: workspaceID,
+		ChatID:      chatID,
+		UserID:      userID,
+		Message:     input,
+	}
+	turn, err := h.cfg.PortalAdapter.Receive(r.Context(), turnInput)
+	if err != nil {
+		writeInternalError(w, err, "handler", "receive_turn", "chat_id", chatID)
+		return true
+	}
+	result, err := h.cfg.ConversationEngine.Process(r.Context(), workspaceID, chatID, turn)
+	if err != nil {
+		if errors.Is(err, entity.ErrRunInProgress) {
+			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
+			return true
+		}
+		writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
+		return true
+	}
+	if len(result.TaskIDs) == 0 {
+		writeJSONError(w, http.StatusInternalServerError, "no run created")
+		return true
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": result.TaskIDs[0], "chat_id": chatID})
+	return true
+}
+
+// createChatRunLegacy creates a run via ChatRunStore and writes the response.
+func (h *Handler) createChatRunLegacy(w http.ResponseWriter, r *http.Request, userID, workspaceID, chatID, input string) {
+	run, err := h.cfg.ChatRunStore.CreateChatRun(r.Context(), chatID, input, userID)
+	if err != nil {
+		if errors.Is(err, entity.ErrRunInProgress) {
+			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
+			return
+		}
+		writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": run.ChatRunID, "chat_id": chatID})
+}
+
 func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -212,9 +283,8 @@ func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.requireStore(w, h.cfg.ChatRunStore, "chat runs not configured") {
 		return
 	}
-	chatID := r.PathValue("chat_id")
-	if chatID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_id required")
+	chatID, ok := pathValueRequired(w, r, "chat_id")
+	if !ok {
 		return
 	}
 	_, ok = h.getChatForWorkspace(w, r, workspaceID, chatID)
@@ -237,44 +307,10 @@ func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if h.cfg.ConversationEngine != nil && h.cfg.PortalAdapter != nil {
-		input := &adapter.PortalTurnInput{
-			WorkspaceID: workspaceID,
-			ChatID:      chatID,
-			UserID:      userID,
-			Message:     req.Input,
-		}
-		turn, err := h.cfg.PortalAdapter.Receive(r.Context(), input)
-		if err != nil {
-			writeInternalError(w, err, "handler", "receive_turn", "chat_id", chatID)
-			return
-		}
-		result, err := h.cfg.ConversationEngine.Process(r.Context(), workspaceID, chatID, turn)
-		if err != nil {
-			if errors.Is(err, entity.ErrRunInProgress) {
-				writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
-				return
-			}
-			writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
-			return
-		}
-		if len(result.TaskIDs) == 0 {
-			writeJSONError(w, http.StatusInternalServerError, "no run created")
-			return
-		}
-		writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": result.TaskIDs[0], "chat_id": chatID})
+	if h.createChatRunViaConversation(w, r, userID, workspaceID, chatID, req.Input) {
 		return
 	}
-	run, err := h.cfg.ChatRunStore.CreateChatRun(r.Context(), chatID, req.Input, userID)
-	if err != nil {
-		if errors.Is(err, entity.ErrRunInProgress) {
-			writeJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
-			return
-		}
-		writeInternalError(w, err, "handler", "create_run", "chat_id", chatID)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]string{"chat_run_id": run.ChatRunID, "chat_id": chatID})
+	h.createChatRunLegacy(w, r, userID, workspaceID, chatID, req.Input)
 }
 
 type SessionMessage struct {

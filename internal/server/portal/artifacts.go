@@ -7,6 +7,7 @@ import (
 
 	"buildmax/internal/model"
 	"buildmax/internal/storage/blob"
+	"buildmax/internal/storage/entity"
 )
 
 type ArtifactResponse struct {
@@ -55,30 +56,42 @@ type ArtifactItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
+// getArtifactRunAndChat loads run and chat for chatRunID and verifies workspace; writes error and returns (nil, nil, false) on failure.
+func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, workspaceID, chatRunID string) (run *entity.ChatRun, chat *entity.Chat, ok bool) {
+	if !h.requireStore(w, h.cfg.ChatRunStore, "chat runs not configured") {
+		return nil, nil, false
+	}
+	var err error
+	run, chat, err = h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	if err != nil {
+		writeInternalError(w, err, "handler", "artifact", "chat_run_id", chatRunID)
+		return nil, nil, false
+	}
+	if run == nil || chat == nil {
+		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		return nil, nil, false
+	}
+	if chat.WorkspaceID != workspaceID {
+		writeJSONError(w, http.StatusNotFound, "artifact not found")
+		return nil, nil, false
+	}
+	return run, chat, true
+}
+
 func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !h.requireStore(w, h.cfg.ChatRunStore, "chat runs not configured") {
+	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") {
 		return
 	}
-	chatRunID := r.PathValue("chat_run_id")
-	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
+	chatRunID, ok := pathValueRequired(w, r, "chat_run_id")
+	if !ok {
 		return
 	}
-	run, chat, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "artifact_items", "artifact_id", chatRunID)
-		return
-	}
-	if run == nil || chat == nil {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
-		return
-	}
-	if chat.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
+	_, _, ok = h.getArtifactRunAndChat(w, r, workspaceID, chatRunID)
+	if !ok {
 		return
 	}
 	items, err := h.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
@@ -95,47 +108,24 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 
 const artifactResultFilename = "result.md"
 
-func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
-	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !h.requireStore(w, h.cfg.ChatRunStore, "chat runs not configured") || !h.requireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
-		return
-	}
-	chatRunID := r.PathValue("chat_run_id")
-	if chatRunID == "" {
-		writeJSONError(w, http.StatusBadRequest, "chat_run_id required")
-		return
-	}
-	run, chat, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "artifact_content", "artifact_id", chatRunID)
-		return
-	}
-	if run == nil || chat == nil {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
-		return
-	}
-	if chat.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "artifact not found")
-		return
-	}
-	pathParam := r.URL.Query().Get("path")
+// resolveArtifactPath returns the validated path parameter (default result.md) and whether it is allowed for this run; writes error and returns ("", false) on failure.
+func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, chatRunID string) (pathParam string, ok bool) {
+	pathParam = r.URL.Query().Get("path")
 	if pathParam == "" {
 		pathParam = artifactResultFilename
 	}
+	var err error
 	pathParam, err = blob.CleanRelPath(pathParam)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid path")
-		return
+		return "", false
 	}
 	allowed := pathParam == artifactResultFilename
-	if !allowed {
+	if !allowed && h.cfg.RunOutputLister != nil {
 		items, listErr := h.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
 		if listErr != nil {
-			writeInternalError(w, listErr, "handler", "artifact_content", "artifact_id", chatRunID)
-			return
+			writeInternalError(w, listErr, "handler", "artifact_content", "chat_run_id", chatRunID)
+			return "", false
 		}
 		for _, it := range items {
 			if it.RelativePath == pathParam {
@@ -146,9 +136,33 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if !allowed {
 		writeJSONError(w, http.StatusNotFound, "file not found in artifact")
+		return "", false
+	}
+	return pathParam, true
+}
+
+func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	if !ok {
+		return
+	}
+	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !h.requireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
+		return
+	}
+	chatRunID, ok := pathValueRequired(w, r, "chat_run_id")
+	if !ok {
+		return
+	}
+	_, chat, ok := h.getArtifactRunAndChat(w, r, workspaceID, chatRunID)
+	if !ok {
+		return
+	}
+	pathParam, ok := h.resolveArtifactPath(w, r, chatRunID)
+	if !ok {
 		return
 	}
 	var data []byte
+	var err error
 	if pathParam == artifactResultFilename {
 		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, chat.ChatID, chatRunID)
 	} else {
@@ -159,7 +173,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 			writeJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}
-		writeInternalError(w, err, "handler", "artifact_content", "artifact_id", chatRunID)
+		writeInternalError(w, err, "handler", "artifact_content", "chat_run_id", chatRunID)
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

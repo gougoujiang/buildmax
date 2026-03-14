@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"buildmax/internal/quota"
-	"buildmax/internal/server/testutil"
+	"buildmax/internal/testutil"
 	"buildmax/internal/storage/entity"
 )
 

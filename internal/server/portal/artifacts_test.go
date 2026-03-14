@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/server/testutil"
+	"buildmax/internal/testutil"
 	"buildmax/internal/storage/entity"
 )
 

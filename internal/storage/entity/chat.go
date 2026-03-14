@@ -71,34 +71,46 @@ func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat
 	return &c, nil
 }
 
+// CreateChatInput is the input for CreateChat.
+type CreateChatInput struct {
+	WorkspaceID           string
+	Input                 string
+	Title                 string
+	CreatedBy             string
+	TitlePromptTokens     int
+	TitleCompletionTokens int
+	AgentID               *string
+	ConversationID        *string
+}
+
 // CreateChat creates a new chat and its first ChatRun (PENDING) in one transaction. Returns the chat with last_run_id and session_id set.
-// titlePromptTokens and titleCompletionTokens record LLM usage for title generation (0 when title was truncated input).
-// agentID is optional; when set, the chat is associated with that workspace agent.
-// conversationID is optional; when set, the chat is associated with the Tier 1 conversation that started it.
-func (s *Store) CreateChat(ctx context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int, agentID *string, conversationID *string) (*Chat, error) {
+func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, error) {
+	if in == nil {
+		return nil, errors.New("CreateChatInput is required")
+	}
 	now := time.Now().Unix()
 	chatID := util.NewPrefixedID(util.PrefixChat)
 	chatRunID := util.NewPrefixedID(util.PrefixChatRun)
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
 	c := &Chat{
 		ChatID:                chatID,
-		WorkspaceID:            workspaceID,
+		WorkspaceID:            in.WorkspaceID,
 		Status:                 "PENDING",
-		Input:                  input,
-		Title:                  title,
-		TitlePromptTokens:      titlePromptTokens,
-		TitleCompletionTokens:  titleCompletionTokens,
-		CreatedBy:              createdBy,
+		Input:                  in.Input,
+		Title:                  in.Title,
+		TitlePromptTokens:      in.TitlePromptTokens,
+		TitleCompletionTokens:  in.TitleCompletionTokens,
+		CreatedBy:              in.CreatedBy,
 		CreatedAt:              now,
 		LastRunID:              &chatRunID,
 		SessionID:              &sessionID,
-		AgentID:                agentID,
-		ConversationID:         conversationID,
+		AgentID:                in.AgentID,
+		ConversationID:         in.ConversationID,
 	}
 	run := &ChatRun{
 		ChatRunID:  chatRunID,
 		ChatID:     chatID,
-		Input:      input,
+		Input:      in.Input,
 		Status:     "PENDING",
 		CreatedAt:  now,
 	}

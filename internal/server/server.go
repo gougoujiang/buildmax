@@ -112,21 +112,9 @@ func (a chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string
 	return title, portal.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
 }
 
-// New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and worker.
-func New(cfg Config) *Server {
-	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", healthzHandler)
-	mux.HandleFunc("GET /openapi.json", openAPIHandler)
-	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
-	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
-	mux.HandleFunc("GET /swagger", swaggerUIHandler)
-	auth.NewHandler(auth.Config{
-		UserStore:        cfg.Stores.UserStore,
-		JWTSecret:        cfg.Auth.JWTSecret,
-		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
-	}).Register(mux)
-	portal.NewHandler(portal.Config{
+// buildPortalConfig builds portal.Config from server config and the shared stream hub.
+func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
+	return portal.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		WorkspaceStore:           cfg.Stores.WorkspaceStore,
 		AgentStore:               cfg.Stores.AgentStore,
@@ -143,8 +131,25 @@ func New(cfg Config) *Server {
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,
-		Hub:                      s.hub,
+		Hub:                      hub,
+	}
+}
+
+// New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and worker.
+func New(cfg Config) *Server {
+	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", healthzHandler)
+	mux.HandleFunc("GET /openapi.json", openAPIHandler)
+	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
+	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
+	mux.HandleFunc("GET /swagger", swaggerUIHandler)
+	auth.NewHandler(auth.Config{
+		UserStore:        cfg.Stores.UserStore,
+		JWTSecret:        cfg.Auth.JWTSecret,
+		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
 	}).Register(mux)
+	portal.NewHandler(buildPortalConfig(cfg, s.hub)).Register(mux)
 	worker.NewHandler(worker.Config{
 		Token:        cfg.Worker.WorkerToken,
 		ChatRunStore: cfg.Stores.ChatRunStore,

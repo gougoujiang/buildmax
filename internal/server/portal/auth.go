@@ -58,6 +58,28 @@ func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavail
 	return true
 }
 
+// pathValueRequired returns the path parameter value for key, or writes 400 and returns ("", false) if missing.
+func pathValueRequired(w http.ResponseWriter, r *http.Request, key string) (value string, ok bool) {
+	value = r.PathValue(key)
+	if value == "" {
+		writeJSONError(w, http.StatusBadRequest, key+" required")
+		return "", false
+	}
+	return value, true
+}
+
+// withWorkspaceAndStore runs withWorkspaceAuth then requireStore; returns (userID, workspaceID, true) only when both succeed.
+func (h *Handler) withWorkspaceAndStore(w http.ResponseWriter, r *http.Request, pathKey string, store interface{}, unavailableMsg string) (userID, workspaceID string, ok bool) {
+	userID, workspaceID, ok = h.withWorkspaceAuth(w, r, pathKey)
+	if !ok {
+		return "", "", false
+	}
+	if !h.requireStore(w, store, unavailableMsg) {
+		return "", "", false
+	}
+	return userID, workspaceID, true
+}
+
 func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {
 	if jwtSecret == "" {
 		return "", false

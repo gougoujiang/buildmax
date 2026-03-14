@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/server/testutil"
+	"buildmax/internal/testutil"
 	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/entity"
 )

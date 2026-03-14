@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"buildmax/internal/config"
-	"buildmax/internal/testutil"
+	"buildmax/internal/ptr"
 )
 
 func TestCreateUser(t *testing.T) {
@@ -93,7 +93,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	workspaceID := wsList[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, workspaceID, "input", "", "run-output-user", 0, 0, nil, nil)
+	chat, err := s.CreateChat(ctx, &CreateChatInput{WorkspaceID: workspaceID, Input: "input", Title: "", CreatedBy: "run-output-user"})
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
 	}()
 	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
-	if err := s.UpdateChatRunStatus(ctx, chatRunID, "SUCCEEDED", nil, nil, testutil.PtrString("out"), nil, nil, nil, nil); err != nil {
+	if err := s.UpdateChatRunStatus(ctx, chatRunID, "SUCCEEDED", nil, nil, ptr.PtrString("out"), nil, nil, nil, nil); err != nil {
 		t.Fatalf("UpdateChatRunStatus: %v", err)
 	}
 	err = s.OnRunComplete(ctx, chatRunID, []string{"result.md", "extra.txt"})
@@ -173,7 +173,7 @@ func TestUpdateChatStatusIf(t *testing.T) {
 		t.Fatal("no workspace for user")
 	}
 	wsID := list[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, wsID, "input", "", "update-if-user", 0, 0, nil, nil)
+	chat, err := s.CreateChat(ctx, &CreateChatInput{WorkspaceID: wsID, Input: "input", Title: "", CreatedBy: "update-if-user"})
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}

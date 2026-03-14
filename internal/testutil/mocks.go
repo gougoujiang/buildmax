@@ -64,25 +64,26 @@ func (m *MockChatStore) ListChatsByWorkspacePaginated(_ context.Context, workspa
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockChatStore) CreateChat(_ context.Context, workspaceID, input, title, createdBy string, titlePromptTokens, titleCompletionTokens int, agentID *string, conversationID *string) (*entity.Chat, error) {
+func (m *MockChatStore) CreateChat(_ context.Context, in *entity.CreateChatInput) (*entity.Chat, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
 	if m.Create != nil {
 		return m.Create, nil
 	}
+	if in == nil {
+		return nil, nil
+	}
 	c := &entity.Chat{
 		ChatID:         "chat-uuid-1",
-		WorkspaceID:    workspaceID,
+		WorkspaceID:    in.WorkspaceID,
 		Status:         "PENDING",
-		Input:          input,
-		Title:          title,
-		CreatedBy:      createdBy,
+		Input:          in.Input,
+		Title:          in.Title,
+		CreatedBy:      in.CreatedBy,
 		CreatedAt:      12345,
-		ConversationID: conversationID,
-	}
-	if agentID != nil {
-		c.AgentID = agentID
+		ConversationID: in.ConversationID,
+		AgentID:        in.AgentID,
 	}
 	return c, nil
 }

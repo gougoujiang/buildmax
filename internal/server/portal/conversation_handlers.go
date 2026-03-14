@@ -72,6 +72,42 @@ func (s *sseSink) OnDelta(delta string) {
 	}
 }
 
+// runConversationTurn runs the conversation loop (stream or non-stream). When stream is true it sets SSE headers, optionally writes streamInitialPayload, runs RunLoopStream, and writes "done". When stream is false it runs RunLoop and returns (reply, err).
+func (h *Handler) runConversationTurn(r *http.Request, conversationID, message, channel, workspaceID, userID string, stream bool, w http.ResponseWriter, streamStatus int, streamInitialPayload string) (reply string, err error) {
+	var titleGen conversation.ConversationTitleGenerator
+	if h.cfg.ChatTitleGenerator != nil {
+		titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
+	}
+	runner := h.startChatRunner(workspaceID, userID, conversationID)
+	if stream {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(streamStatus)
+		if streamInitialPayload != "" {
+			writeSSE(w, streamInitialPayload)
+			if flusher, _ := w.(http.Flusher); flusher != nil {
+				flusher.Flush()
+			}
+		}
+		flusher, _ := w.(http.Flusher)
+		sink := &sseSink{w: w, flusher: flusher}
+		reply, err = conversation.RunLoopStream(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
+			h.cfg.ConversationLLMCaller, conversationID, message, channel, nil, workspaceID, userID, runner, titleGen, sink)
+		if err != nil {
+			errJSON, _ := json.Marshal(err.Error())
+			writeSSE(w, `{"error":`+string(errJSON)+`}`)
+		}
+		writeSSE(w, "done")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return "", nil
+	}
+	return conversation.RunLoop(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
+		h.cfg.ConversationLLMCaller, conversationID, message, channel, nil, workspaceID, userID, runner, titleGen)
+}
+
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
 	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
 	if !ok {
@@ -124,54 +160,23 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		writeInternalError(w, err, "handler", "create_conversation", "workspace_id", workspaceID)
 		return
 	}
-	streamRequested := r.URL.Query().Get("stream") == "1"
-	if streamRequested && req.Message != "" && h.cfg.ConversationLLMCaller != nil {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusCreated)
-		flusher, _ := w.(http.Flusher)
-		writeSSE(w, `{"conversation_id":"`+conv.ConversationID+`"}`)
-		if flusher != nil {
-			flusher.Flush()
-		}
-		sink := &sseSink{w: w, flusher: flusher}
-		var titleGen conversation.ConversationTitleGenerator
-		if h.cfg.ChatTitleGenerator != nil {
-			titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
-		}
-		reply, err := conversation.RunLoopStream(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
-			h.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
-		if err != nil {
-			errJSON, _ := json.Marshal(err.Error())
-			writeSSE(w, `{"error":`+string(errJSON)+`}`)
-		}
-		writeSSE(w, "done")
-		if flusher != nil {
-			flusher.Flush()
-		}
-		_ = reply
+	if req.Message == "" || h.cfg.ConversationLLMCaller == nil {
+		writeJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: ""})
 		return
 	}
-	reply := ""
-	if req.Message != "" && h.cfg.ConversationLLMCaller != nil {
-		var titleGen conversation.ConversationTitleGenerator
-		if h.cfg.ChatTitleGenerator != nil {
-			titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
-		}
-		reply, err = conversation.RunLoop(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
-			h.cfg.ConversationLLMCaller, conv.ConversationID, req.Message, req.Channel, nil, workspaceID, userID,
-			h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
-		if err != nil {
-			writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
-			return
-		}
+	streamRequested := r.URL.Query().Get("stream") == "1"
+	initialPayload := ""
+	if streamRequested {
+		initialPayload = `{"conversation_id":"` + conv.ConversationID + `"}`
 	}
-	writeJSON(w, http.StatusCreated, createConversationResponse{
-		ConversationID: conv.ConversationID,
-		Reply:          reply,
-	})
+	reply, err := h.runConversationTurn(r, conv.ConversationID, req.Message, req.Channel, workspaceID, userID, streamRequested, w, http.StatusCreated, initialPayload)
+	if err != nil {
+		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conv.ConversationID)
+		return
+	}
+	if !streamRequested {
+		writeJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: reply})
+	}
 }
 
 func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
@@ -179,9 +184,8 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	conversationID := r.PathValue("conversation_id")
-	if conversationID == "" {
-		writeJSONError(w, http.StatusBadRequest, "conversation_id required")
+	conversationID, ok := pathValueRequired(w, r, "conversation_id")
+	if !ok {
 		return
 	}
 	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
@@ -222,12 +226,12 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	conversationID := r.PathValue("conversation_id")
-	if conversationID == "" {
-		writeJSONError(w, http.StatusBadRequest, "conversation_id required")
+	conversationID, ok := pathValueRequired(w, r, "conversation_id")
+	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
+	conv, ok := h.getConversationForWorkspace(w, r, workspaceID, conversationID)
+	if !ok {
 		return
 	}
 	if !h.requireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
@@ -235,15 +239,6 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	}
 	if h.cfg.ConversationLLMCaller == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
-		return
-	}
-	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
-	if err != nil {
-		writeInternalError(w, err, "handler", "get_conversation", "conversation_id", conversationID)
-		return
-	}
-	if conv == nil || conv.WorkspaceID != workspaceID {
-		writeJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 	var req addMessageRequest
@@ -256,44 +251,14 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
-	caller := h.cfg.ConversationLLMCaller
-	if streamRequested && caller != nil {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusOK)
-		flusher, _ := w.(http.Flusher)
-		sink := &sseSink{w: w, flusher: flusher}
-		var titleGen conversation.ConversationTitleGenerator
-		if h.cfg.ChatTitleGenerator != nil {
-			titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
-		}
-		reply, err := conversation.RunLoopStream(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
-			caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-			h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen, sink)
-		if err != nil {
-			errJSON, _ := json.Marshal(err.Error())
-			writeSSE(w, `{"error":`+string(errJSON)+`}`)
-		}
-		writeSSE(w, "done")
-		if flusher != nil {
-			flusher.Flush()
-		}
-		_ = reply
-		return
-	}
-	var titleGen conversation.ConversationTitleGenerator
-	if h.cfg.ChatTitleGenerator != nil {
-		titleGen = &convTitleGen{h.cfg.ChatTitleGenerator}
-	}
-	reply, err := conversation.RunLoop(r.Context(), h.cfg.ConversationStore, h.cfg.ConversationMessageStore,
-		caller, conversationID, req.Content, conv.Channel, nil, workspaceID, userID,
-		h.startChatRunner(workspaceID, userID, conv.ConversationID), titleGen)
+	reply, err := h.runConversationTurn(r, conversationID, req.Content, conv.Channel, workspaceID, userID, streamRequested, w, http.StatusOK, "")
 	if err != nil {
 		writeInternalError(w, err, "handler", "conversation_loop", "conversation_id", conversationID)
 		return
 	}
-	writeJSON(w, http.StatusOK, addMessageResponse{Reply: reply})
+	if !streamRequested {
+		writeJSON(w, http.StatusOK, addMessageResponse{Reply: reply})
+	}
 }
 
 func (h *Handler) getConversationForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, conversationID string) (*entity.Conversation, bool) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"buildmax/internal/conversation/adapter"
+	"buildmax/internal/storage/entity"
 	"buildmax/internal/tools"
 )
 
@@ -51,7 +52,16 @@ func (h *Handler) doStartChat(ctx context.Context, workspaceID, userID, inputVal
 			return "", "", fmt.Errorf("quota exceeded: %s", reason)
 		}
 	}
-	chat, err := h.cfg.ChatStore.CreateChat(ctx, workspaceID, input, title, userID, titlePromptTokens, titleCompletionTokens, agentID, conversationID)
+	chat, err := h.cfg.ChatStore.CreateChat(ctx, &entity.CreateChatInput{
+		WorkspaceID:           workspaceID,
+		Input:                 input,
+		Title:                 title,
+		CreatedBy:             userID,
+		TitlePromptTokens:     titlePromptTokens,
+		TitleCompletionTokens: titleCompletionTokens,
+		AgentID:               agentID,
+		ConversationID:        conversationID,
+	})
 	if err != nil {
 		return "", "", err
 	}
