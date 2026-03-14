@@ -20,8 +20,8 @@ func NewLocalFSArtifactStorage(runOutputDir func(workspaceID, chatID, chatRunID 
 }
 
 // PutResult writes the run result file as result.md.
-func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
-	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
+func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, ref RunRef, data []byte) error {
+	dir := s.runOutputDir(ref.WorkspaceID, ref.ChatID, ref.ChatRunID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -29,18 +29,18 @@ func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, workspaceID, cha
 }
 
 // GetResult reads result.md. Returns os.ErrNotExist if not found.
-func (s *LocalFSArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
-	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
+func (s *LocalFSArtifactStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
+	dir := s.runOutputDir(ref.WorkspaceID, ref.ChatID, ref.ChatRunID)
 	return os.ReadFile(filepath.Join(dir, resultFilename))
 }
 
 // PutArtifactFile writes one file under the run output dir at relPath.
-func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
-	clean, err := CleanRelPath(relPath)
+func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error {
+	clean, err := CleanRelPath(ref.RelPath)
 	if err != nil {
 		return err
 	}
-	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
+	dir := s.runOutputDir(ref.WorkspaceID, ref.ChatID, ref.ChatRunID)
 	fullPath := filepath.Join(dir, filepath.FromSlash(clean))
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return err
@@ -55,12 +55,12 @@ func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, workspaceI
 }
 
 // GetArtifactFile reads one file under the run output dir. Returns ErrNotFound if not found.
-func (s *LocalFSArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
-	clean, err := CleanRelPath(relPath)
+func (s *LocalFSArtifactStorage) GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
+	clean, err := CleanRelPath(ref.RelPath)
 	if err != nil {
 		return nil, err
 	}
-	dir := s.runOutputDir(workspaceID, chatID, chatRunID)
+	dir := s.runOutputDir(ref.WorkspaceID, ref.ChatID, ref.ChatRunID)
 	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(clean)))
 	if err != nil {
 		if os.IsNotExist(err) {

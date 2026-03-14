@@ -1,6 +1,7 @@
 package portal
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -80,6 +81,25 @@ func (h *Handler) withWorkspaceAndStore(w http.ResponseWriter, r *http.Request, 
 		return "", "", false
 	}
 	return userID, workspaceID, true
+}
+
+func (h *Handler) withUserAndStore(w http.ResponseWriter, r *http.Request, store interface{}, unavailableMsg string) (userID string, ok bool) {
+	if !h.requireStore(w, store, unavailableMsg) {
+		return "", false
+	}
+	userID, ok = requireAuth(w, r, h.cfg.JWTSecret)
+	if !ok {
+		return "", false
+	}
+	return userID, true
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+		return false
+	}
+	return true
 }
 
 func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {

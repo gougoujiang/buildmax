@@ -155,7 +155,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	}
 }
 
-func TestUpdateChatStatusIf(t *testing.T) {
+func TestClaimChat(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -183,12 +183,12 @@ func TestUpdateChatStatusIf(t *testing.T) {
 	}()
 
 	// PENDING -> SCHEDULED: should update
-	updated, err := s.UpdateChatStatusIf(ctx, chat.ChatID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+	updated, err := s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
-		t.Fatalf("UpdateChatStatusIf PENDING->SCHEDULED: %v", err)
+		t.Fatalf("ClaimChat PENDING->SCHEDULED: %v", err)
 	}
 	if !updated {
-		t.Error("UpdateChatStatusIf PENDING->SCHEDULED: want updated true, got false")
+		t.Error("ClaimChat PENDING->SCHEDULED: want updated true, got false")
 	}
 	got, _ := s.GetChat(ctx, chat.ChatID)
 	if got == nil || got.Status != "SCHEDULED" {
@@ -196,12 +196,12 @@ func TestUpdateChatStatusIf(t *testing.T) {
 	}
 
 	// PENDING -> SCHEDULED again: no match, updated false
-	updated, err = s.UpdateChatStatusIf(ctx, chat.ChatID, "PENDING", "SCHEDULED", nil, nil, nil, nil, nil)
+	updated, err = s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
-		t.Fatalf("UpdateChatStatusIf PENDING->SCHEDULED (second): %v", err)
+		t.Fatalf("ClaimChat PENDING->SCHEDULED (second): %v", err)
 	}
 	if updated {
-		t.Error("UpdateChatStatusIf PENDING->SCHEDULED when already SCHEDULED: want updated false, got true")
+		t.Error("ClaimChat PENDING->SCHEDULED when already SCHEDULED: want updated false, got true")
 	}
 	got, _ = s.GetChat(ctx, chat.ChatID)
 	if got == nil || got.Status != "SCHEDULED" {
@@ -209,12 +209,12 @@ func TestUpdateChatStatusIf(t *testing.T) {
 	}
 
 	// SCHEDULED -> RUNNING: should update
-	updated, err = s.UpdateChatStatusIf(ctx, chat.ChatID, "SCHEDULED", "RUNNING", nil, nil, nil, nil, nil)
+	updated, err = s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
-		t.Fatalf("UpdateChatStatusIf SCHEDULED->RUNNING: %v", err)
+		t.Fatalf("ClaimChat SCHEDULED->RUNNING: %v", err)
 	}
 	if !updated {
-		t.Error("UpdateChatStatusIf SCHEDULED->RUNNING: want updated true, got false")
+		t.Error("ClaimChat SCHEDULED->RUNNING: want updated true, got false")
 	}
 	got, _ = s.GetChat(ctx, chat.ChatID)
 	if got == nil || got.Status != "RUNNING" {
@@ -222,12 +222,12 @@ func TestUpdateChatStatusIf(t *testing.T) {
 	}
 
 	// SCHEDULED -> RUNNING again: no match, updated false
-	updated, err = s.UpdateChatStatusIf(ctx, chat.ChatID, "SCHEDULED", "RUNNING", nil, nil, nil, nil, nil)
+	updated, err = s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
-		t.Fatalf("UpdateChatStatusIf SCHEDULED->RUNNING (second): %v", err)
+		t.Fatalf("ClaimChat SCHEDULED->RUNNING (second): %v", err)
 	}
 	if updated {
-		t.Error("UpdateChatStatusIf SCHEDULED->RUNNING when already RUNNING: want updated false, got true")
+		t.Error("ClaimChat SCHEDULED->RUNNING when already RUNNING: want updated false, got true")
 	}
 }
 

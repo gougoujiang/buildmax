@@ -23,6 +23,29 @@ type ClaimChatRunInput struct {
 	SessionID      *string
 }
 
+// UpdateChatInput updates a chat to the given status with optional fields.
+type UpdateChatInput struct {
+	ChatID       string
+	Status       string
+	StartedAt    *int64
+	EndedAt      *int64
+	Output       *string
+	ErrorMessage *string
+	SessionID    *string
+}
+
+// ClaimChatInput atomically transitions a chat from ExpectedStatus to NewStatus.
+type ClaimChatInput struct {
+	ChatID         string
+	ExpectedStatus string
+	NewStatus      string
+	StartedAt      *int64
+	EndedAt        *int64
+	Output         *string
+	ErrorMessage   *string
+	SessionID      *string
+}
+
 // UpdateChatRunInput updates a run to the given status with optional fields.
 type UpdateChatRunInput struct {
 	ChatRunID        string

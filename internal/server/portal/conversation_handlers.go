@@ -58,6 +58,17 @@ type sseSink struct {
 	flusher http.Flusher
 }
 
+type runConversationTurnInput struct {
+	conversationID       string
+	message              string
+	channel              string
+	workspaceID          string
+	userID               string
+	stream               bool
+	streamStatus         int
+	streamInitialPayload string
+}
+
 func (s *sseSink) OnDelta(delta string) {
 	writeSSE(s.w, delta)
 	if s.flusher != nil {
@@ -66,21 +77,21 @@ func (s *sseSink) OnDelta(delta string) {
 }
 
 // runConversationTurn runs the conversation loop (stream or non-stream). When stream is true it sets SSE headers, optionally writes streamInitialPayload, runs RunLoopStream, and writes "done". When stream is false it runs RunLoop and returns (reply, err).
-func (h *Handler) runConversationTurn(r *http.Request, conversationID, message, channel, workspaceID, userID string, stream bool, w http.ResponseWriter, streamStatus int, streamInitialPayload string) (reply string, err error) {
+func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in runConversationTurnInput) (reply string, err error) {
 	cmd := convapp.HandleTurnCmd{
-		WorkspaceID:    workspaceID,
-		UserID:         userID,
-		Channel:        channel,
-		Message:        message,
-		ConversationID: conversationID,
+		WorkspaceID:    in.workspaceID,
+		UserID:         in.userID,
+		Channel:        in.channel,
+		Message:        in.message,
+		ConversationID: in.conversationID,
 	}
-	if stream {
+	if in.stream {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(streamStatus)
-		if streamInitialPayload != "" {
-			writeSSE(w, streamInitialPayload)
+		w.WriteHeader(in.streamStatus)
+		if in.streamInitialPayload != "" {
+			writeSSE(w, in.streamInitialPayload)
 			if flusher, _ := w.(http.Flusher); flusher != nil {
 				flusher.Flush()
 			}
@@ -107,11 +118,8 @@ func (h *Handler) runConversationTurn(r *http.Request, conversationID, message, 
 }
 
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
@@ -135,19 +143,15 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
 	if !h.requireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
 	var req createConversationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.Channel == "" {
@@ -167,7 +171,16 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	if streamRequested {
 		initialPayload = `{"conversation_id":"` + conv.ConversationID + `"}`
 	}
-	reply, err := h.runConversationTurn(r, conv.ConversationID, req.Message, req.Channel, workspaceID, userID, streamRequested, w, http.StatusCreated, initialPayload)
+	reply, err := h.runConversationTurn(w, r, runConversationTurnInput{
+		conversationID:       conv.ConversationID,
+		message:              req.Message,
+		channel:              req.Channel,
+		workspaceID:          workspaceID,
+		userID:               userID,
+		stream:               streamRequested,
+		streamStatus:         http.StatusCreated,
+		streamInitialPayload: initialPayload,
+	})
 	if err != nil {
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return
@@ -243,8 +256,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	var req addMessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.Content == "" {
@@ -252,7 +264,15 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
-	reply, err := h.runConversationTurn(r, conversationID, req.Content, conv.Channel, workspaceID, userID, streamRequested, w, http.StatusOK, "")
+	reply, err := h.runConversationTurn(w, r, runConversationTurnInput{
+		conversationID: conversationID,
+		message:        req.Content,
+		channel:        conv.Channel,
+		workspaceID:    workspaceID,
+		userID:         userID,
+		stream:         streamRequested,
+		streamStatus:   http.StatusOK,
+	})
 	if err != nil {
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return

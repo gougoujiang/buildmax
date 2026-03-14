@@ -60,8 +60,8 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, workspaceID string) ([
 }
 
 // PutChatGlobal writes one file under the chat run global key space (prefix/workspaceID/chats/chatID/chatRunID/global/relPath).
-func (s *S3PersistStorage) PutChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
-	key, err := ChatRunGlobalObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+func (s *S3PersistStorage) PutChatGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
+	key, err := ChatRunGlobalObjectKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -69,8 +69,8 @@ func (s *S3PersistStorage) PutChatGlobal(ctx context.Context, workspaceID, chatI
 }
 
 // GetChatGlobal reads one file from the chat run global key space. Returns ErrNotFound if the object does not exist.
-func (s *S3PersistStorage) GetChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
-	key, err := ChatRunGlobalObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+func (s *S3PersistStorage) GetChatGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
+	key, err := ChatRunGlobalObjectKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func (s *S3PersistStorage) GetChatGlobal(ctx context.Context, workspaceID, chatI
 }
 
 // PutChatRunArtifacts writes one file under the chat run artifacts key space (prefix/.../chats/chatID/chatRunID/artifacts/relPath).
-func (s *S3PersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
-	key, err := ChatRunArtifactsObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+func (s *S3PersistStorage) PutChatRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
+	key, err := ChatRunArtifactsObjectKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -87,8 +87,8 @@ func (s *S3PersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID,
 }
 
 // GetChatRunArtifacts reads one file from the chat run artifacts key space. Returns ErrNotFound if the object does not exist.
-func (s *S3PersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
-	key, err := ChatRunArtifactsObjectKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+func (s *S3PersistStorage) GetChatRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
+	key, err := ChatRunArtifactsObjectKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}

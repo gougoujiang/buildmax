@@ -99,8 +99,8 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 	return nil
 }
 
-func (f *fakePersistStorage) PutChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+func (f *fakePersistStorage) PutChatGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.chatGlobal[key] = data
 	return nil
@@ -118,8 +118,8 @@ func (f *fakePersistStorage) chatGlobalRelPaths(workspaceID, chatID, chatRunID s
 	return out
 }
 
-func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
 	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -127,8 +127,8 @@ func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, workspaceID, cha
 	return data, nil
 }
 
-func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/artifacts/" + relPath
+func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	if f.chatGlobal == nil {
 		f.chatGlobal = make(map[string][]byte)
@@ -137,8 +137,8 @@ func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceI
 	return nil
 }
 
-func (f *fakePersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/artifacts/" + relPath
+func (f *fakePersistStorage) GetChatRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -156,14 +156,14 @@ func newFakeArtifactStorage() *fakeArtifactStorage {
 	return &fakeArtifactStorage{results: make(map[string][]byte)}
 }
 
-func (f *fakeArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
-	key := workspaceID + "/" + chatID + "/" + chatRunID
+func (f *fakeArtifactStorage) PutResult(ctx context.Context, ref blob.RunRef, data []byte) error {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
-	key := workspaceID + "/" + chatID + "/" + chatRunID
+func (f *fakeArtifactStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -171,21 +171,21 @@ func (f *fakeArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID
 	return data, nil
 }
 
-func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
 	if f.files == nil {
 		f.files = make(map[string][]byte)
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.files[key] = data
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
 	if f.files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
 	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound

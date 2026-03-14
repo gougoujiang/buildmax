@@ -1,7 +1,6 @@
 package portal
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,10 +27,7 @@ func ensureWorkspaceDirs(root string, workspaceIDs []string) {
 }
 
 func (h *Handler) workspacesHandler(w http.ResponseWriter, r *http.Request) {
-	if !h.requireStore(w, h.cfg.WorkspaceStore, "workspaces not configured") {
-		return
-	}
-	userID, ok := requireAuth(w, r, h.cfg.JWTSecret)
+	userID, ok := h.withUserAndStore(w, r, h.cfg.WorkspaceStore, "workspaces not configured")
 	if !ok {
 		return
 	}
@@ -63,16 +59,12 @@ func (h *Handler) workspacesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createWorkspaceHandler(w http.ResponseWriter, r *http.Request) {
-	if !h.requireStore(w, h.cfg.WorkspaceStore, "workspaces not configured") {
-		return
-	}
-	userID, ok := requireAuth(w, r, h.cfg.JWTSecret)
+	userID, ok := h.withUserAndStore(w, r, h.cfg.WorkspaceStore, "workspaces not configured")
 	if !ok {
 		return
 	}
 	var req createWorkspaceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.Name == "" {

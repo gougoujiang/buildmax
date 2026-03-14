@@ -56,8 +56,8 @@ type ChatStore interface {
 	GetChatBySessionID(ctx context.Context, sessionID string) (*Chat, error)
 	// CreateChat creates a new chat and its first ChatRun (input, title, PENDING). Returns the chat with last_run_id set.
 	CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, error)
-	UpdateChatStatus(ctx context.Context, chatID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error
-	UpdateChatStatusIf(ctx context.Context, chatID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (updated bool, err error)
+	UpdateChat(ctx context.Context, in UpdateChatInput) error
+	ClaimChat(ctx context.Context, in ClaimChatInput) (updated bool, err error)
 }
 
 // ErrRunInProgress is returned by CreateChatRun when the chat already has a run in PENDING, SCHEDULED, or RUNNING.

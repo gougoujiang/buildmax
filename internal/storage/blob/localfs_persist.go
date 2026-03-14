@@ -74,22 +74,22 @@ func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, workspaceID strin
 }
 
 // PutChatGlobal is a no-op for local FS (chat run global files already live on worker disk).
-func (s *LocalFSPersistStorage) PutChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+func (s *LocalFSPersistStorage) PutChatGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
 	return nil
 }
 
 // GetChatGlobal returns ErrNotFound; chat run global files are not in the persist root for local_fs (caller uses local path).
-func (s *LocalFSPersistStorage) GetChatGlobal(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+func (s *LocalFSPersistStorage) GetChatGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	return nil, ErrNotFound
 }
 
 // PutChatRunArtifacts is a no-op for local FS (run artifacts already live on worker disk).
-func (s *LocalFSPersistStorage) PutChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+func (s *LocalFSPersistStorage) PutChatRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
 	return nil
 }
 
 // GetChatRunArtifacts returns ErrNotFound; run artifacts are not in the persist root for local_fs (caller uses local path).
-func (s *LocalFSPersistStorage) GetChatRunArtifacts(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+func (s *LocalFSPersistStorage) GetChatRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	return nil, ErrNotFound
 }
 

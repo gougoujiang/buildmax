@@ -94,25 +94,25 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
 	c := &Chat{
 		ChatID:                chatID,
-		WorkspaceID:            in.WorkspaceID,
-		Status:                 "PENDING",
-		Input:                  in.Input,
-		Title:                  in.Title,
-		TitlePromptTokens:      in.TitlePromptTokens,
-		TitleCompletionTokens:  in.TitleCompletionTokens,
-		CreatedBy:              in.CreatedBy,
-		CreatedAt:              now,
-		LastRunID:              &chatRunID,
-		SessionID:              &sessionID,
-		AgentID:                in.AgentID,
-		ConversationID:         in.ConversationID,
+		WorkspaceID:           in.WorkspaceID,
+		Status:                "PENDING",
+		Input:                 in.Input,
+		Title:                 in.Title,
+		TitlePromptTokens:     in.TitlePromptTokens,
+		TitleCompletionTokens: in.TitleCompletionTokens,
+		CreatedBy:             in.CreatedBy,
+		CreatedAt:             now,
+		LastRunID:             &chatRunID,
+		SessionID:             &sessionID,
+		AgentID:               in.AgentID,
+		ConversationID:        in.ConversationID,
 	}
 	run := &ChatRun{
-		ChatRunID:  chatRunID,
-		ChatID:     chatID,
-		Input:      in.Input,
-		Status:     "PENDING",
-		CreatedAt:  now,
+		ChatRunID: chatRunID,
+		ChatID:    chatID,
+		Input:     in.Input,
+		Status:    "PENDING",
+		CreatedAt: now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(c).Error; err != nil {
@@ -126,9 +126,7 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 	return c, nil
 }
 
-// UpdateChatStatus updates a chat's status and optional fields.
-// Only non-nil pointer fields are written; status is always set.
-func (s *Store) UpdateChatStatus(ctx context.Context, chatID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+func buildChatUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) map[string]interface{} {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {
 		updates["started_at"] = *startedAt
@@ -145,29 +143,23 @@ func (s *Store) UpdateChatStatus(ctx context.Context, chatID, status string, sta
 	if sessionID != nil {
 		updates["session_id"] = *sessionID
 	}
-	return s.db.WithContext(ctx).Model(&Chat{}).Where("chat_id = ?", chatID).Updates(updates).Error
+	return updates
 }
 
-// UpdateChatStatusIf updates a chat's status and optional fields only when current status equals expectedStatus.
+// UpdateChat updates a chat's status and optional fields.
+// Only non-nil pointer fields are written; status is always set.
+func (s *Store) UpdateChat(ctx context.Context, in UpdateChatInput) error {
+	return s.db.WithContext(ctx).Model(&Chat{}).Where("chat_id = ?", in.ChatID).Updates(
+		buildChatUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
+	).Error
+}
+
+// ClaimChat updates a chat's status and optional fields only when current status equals expectedStatus.
 // Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
-func (s *Store) UpdateChatStatusIf(ctx context.Context, chatID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
-	updates := map[string]interface{}{"status": newStatus}
-	if startedAt != nil {
-		updates["started_at"] = *startedAt
-	}
-	if endedAt != nil {
-		updates["ended_at"] = *endedAt
-	}
-	if output != nil {
-		updates["output"] = *output
-	}
-	if errorMessage != nil {
-		updates["error_message"] = *errorMessage
-	}
-	if sessionID != nil {
-		updates["session_id"] = *sessionID
-	}
-	result := s.db.WithContext(ctx).Model(&Chat{}).Where("chat_id = ? AND status = ?", chatID, expectedStatus).Updates(updates)
+func (s *Store) ClaimChat(ctx context.Context, in ClaimChatInput) (bool, error) {
+	result := s.db.WithContext(ctx).Model(&Chat{}).Where("chat_id = ? AND status = ?", in.ChatID, in.ExpectedStatus).Updates(
+		buildChatUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
+	)
 	if result.Error != nil {
 		return false, result.Error
 	}

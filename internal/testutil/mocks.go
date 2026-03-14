@@ -97,24 +97,24 @@ func (m *MockChatStore) GetChatBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *MockChatStore) UpdateChatStatus(_ context.Context, chatID, status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) error {
+func (m *MockChatStore) UpdateChat(_ context.Context, in entity.UpdateChatInput) error {
 	for i := range m.List {
-		if m.List[i].ChatID == chatID {
-			m.List[i].Status = status
-			if startedAt != nil {
-				m.List[i].StartedAt = startedAt
+		if m.List[i].ChatID == in.ChatID {
+			m.List[i].Status = in.Status
+			if in.StartedAt != nil {
+				m.List[i].StartedAt = in.StartedAt
 			}
-			if endedAt != nil {
-				m.List[i].EndedAt = endedAt
+			if in.EndedAt != nil {
+				m.List[i].EndedAt = in.EndedAt
 			}
-			if output != nil {
-				m.List[i].Output = output
+			if in.Output != nil {
+				m.List[i].Output = in.Output
 			}
-			if errorMessage != nil {
-				m.List[i].ErrorMessage = errorMessage
+			if in.ErrorMessage != nil {
+				m.List[i].ErrorMessage = in.ErrorMessage
 			}
-			if sessionID != nil {
-				m.List[i].SessionID = sessionID
+			if in.SessionID != nil {
+				m.List[i].SessionID = in.SessionID
 			}
 			return nil
 		}
@@ -122,24 +122,24 @@ func (m *MockChatStore) UpdateChatStatus(_ context.Context, chatID, status strin
 	return nil
 }
 
-func (m *MockChatStore) UpdateChatStatusIf(_ context.Context, chatID, expectedStatus, newStatus string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) (bool, error) {
+func (m *MockChatStore) ClaimChat(_ context.Context, in entity.ClaimChatInput) (bool, error) {
 	for i := range m.List {
-		if m.List[i].ChatID == chatID && m.List[i].Status == expectedStatus {
-			m.List[i].Status = newStatus
-			if startedAt != nil {
-				m.List[i].StartedAt = startedAt
+		if m.List[i].ChatID == in.ChatID && m.List[i].Status == in.ExpectedStatus {
+			m.List[i].Status = in.NewStatus
+			if in.StartedAt != nil {
+				m.List[i].StartedAt = in.StartedAt
 			}
-			if endedAt != nil {
-				m.List[i].EndedAt = endedAt
+			if in.EndedAt != nil {
+				m.List[i].EndedAt = in.EndedAt
 			}
-			if output != nil {
-				m.List[i].Output = output
+			if in.Output != nil {
+				m.List[i].Output = in.Output
 			}
-			if errorMessage != nil {
-				m.List[i].ErrorMessage = errorMessage
+			if in.ErrorMessage != nil {
+				m.List[i].ErrorMessage = in.ErrorMessage
 			}
-			if sessionID != nil {
-				m.List[i].SessionID = sessionID
+			if in.SessionID != nil {
+				m.List[i].SessionID = in.SessionID
 			}
 			return true, nil
 		}
@@ -342,34 +342,34 @@ func NewMockArtifactStorage() *MockArtifactStorage {
 	return &MockArtifactStorage{Results: make(map[string][]byte)}
 }
 
-func (m *MockArtifactStorage) PutResult(_ context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
-	m.Results[workspaceID+"/"+chatID+"/"+chatRunID] = append([]byte(nil), data...)
+func (m *MockArtifactStorage) PutResult(_ context.Context, ref blob.RunRef, data []byte) error {
+	m.Results[ref.WorkspaceID+"/"+ref.ChatID+"/"+ref.ChatRunID] = append([]byte(nil), data...)
 	return nil
 }
 
-func (m *MockArtifactStorage) GetResult(_ context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
-	key := workspaceID + "/" + chatID + "/" + chatRunID
+func (m *MockArtifactStorage) GetResult(_ context.Context, ref blob.RunRef) ([]byte, error) {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID
 	if data, ok := m.Results[key]; ok {
 		return data, nil
 	}
 	return nil, blob.ErrNotFound
 }
 
-func (m *MockArtifactStorage) PutArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
+func (m *MockArtifactStorage) PutArtifactFile(_ context.Context, ref blob.RunObjectRef, r io.Reader) error {
 	if m.Files == nil {
 		m.Files = make(map[string][]byte)
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	m.Files[key] = data
 	return nil
 }
 
-func (m *MockArtifactStorage) GetArtifactFile(_ context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
+func (m *MockArtifactStorage) GetArtifactFile(_ context.Context, ref blob.RunObjectRef) ([]byte, error) {
 	if m.Files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := workspaceID + "/" + chatID + "/" + chatRunID + "/" + relPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
 	if data, ok := m.Files[key]; ok {
 		return data, nil
 	}

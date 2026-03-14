@@ -49,46 +49,73 @@ func NewClient(cfg config.LLM) *Client {
 	}
 }
 
-// ChatWithTools sends messages and tool definitions, returns assistant content, any tool calls, and usage.
-func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, usage Usage, err error) {
+func buildChatCompletionRequest(model string, messages []Message, tools []ToolDef) openai.ChatCompletionRequest {
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
-		msg := openai.ChatCompletionMessage{
-			Role:       m.Role,
-			Content:    m.Content,
-			ToolCallID: m.ToolCallID,
-		}
-		if len(m.ToolCalls) > 0 {
-			msg.ToolCalls = make([]openai.ToolCall, 0, len(m.ToolCalls))
-			for _, tc := range m.ToolCalls {
-				msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
-					ID:   tc.ID,
-					Type: openai.ToolTypeFunction,
-					Function: openai.FunctionCall{
-						Name:      tc.Name,
-						Arguments: tc.Arguments,
-					},
-				})
-			}
-		}
-		openaiMsgs = append(openaiMsgs, msg)
+		openaiMsgs = append(openaiMsgs, toOpenAIMessage(m))
 	}
 	openaiTools := make([]openai.Tool, 0, len(tools))
 	for _, t := range tools {
-		openaiTools = append(openaiTools, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.Parameters,
-			},
-		})
+		openaiTools = append(openaiTools, toOpenAITool(t))
 	}
-	req := openai.ChatCompletionRequest{
-		Model:    c.model,
+	return openai.ChatCompletionRequest{
+		Model:    model,
 		Messages: openaiMsgs,
 		Tools:    openaiTools,
 	}
+}
+
+func toOpenAIMessage(m Message) openai.ChatCompletionMessage {
+	msg := openai.ChatCompletionMessage{
+		Role:       m.Role,
+		Content:    m.Content,
+		ToolCallID: m.ToolCallID,
+	}
+	if len(m.ToolCalls) > 0 {
+		msg.ToolCalls = make([]openai.ToolCall, 0, len(m.ToolCalls))
+		for _, tc := range m.ToolCalls {
+			msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
+				ID:   tc.ID,
+				Type: openai.ToolTypeFunction,
+				Function: openai.FunctionCall{
+					Name:      tc.Name,
+					Arguments: tc.Arguments,
+				},
+			})
+		}
+	}
+	return msg
+}
+
+func toOpenAITool(t ToolDef) openai.Tool {
+	return openai.Tool{
+		Type: openai.ToolTypeFunction,
+		Function: &openai.FunctionDefinition{
+			Name:        t.Name,
+			Description: t.Description,
+			Parameters:  t.Parameters,
+		},
+	}
+}
+
+func toToolCalls(toolCalls []openai.ToolCall) []ToolCall {
+	if len(toolCalls) == 0 {
+		return nil
+	}
+	out := make([]ToolCall, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		out = append(out, ToolCall{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: tc.Function.Arguments,
+		})
+	}
+	return out
+}
+
+// ChatWithTools sends messages and tool definitions, returns assistant content, any tool calls, and usage.
+func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, usage Usage, err error) {
+	req := buildChatCompletionRequest(c.model, messages, tools)
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", nil, Usage{}, fmt.Errorf("chat completion: %w", err)
@@ -98,16 +125,7 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 	}
 	msg := resp.Choices[0].Message
 	content = msg.Content
-	if len(msg.ToolCalls) > 0 {
-		toolCalls = make([]ToolCall, 0, len(msg.ToolCalls))
-		for _, tc := range msg.ToolCalls {
-			toolCalls = append(toolCalls, ToolCall{
-				ID:        tc.ID,
-				Name:      tc.Function.Name,
-				Arguments: tc.Function.Arguments,
-			})
-		}
-	}
+	toolCalls = toToolCalls(msg.ToolCalls)
 	usage = Usage{
 		PromptTokens:     resp.Usage.PromptTokens,
 		CompletionTokens: resp.Usage.CompletionTokens,
@@ -119,44 +137,7 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 // ChatWithToolsStream sends messages and tool definitions, streams content deltas via onDelta,
 // and returns full content, any tool calls, and usage (when the provider sends it in a chunk). If onDelta is nil, it is not called.
 func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(delta string)) (content string, toolCalls []ToolCall, usage Usage, err error) {
-	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
-	for _, m := range messages {
-		msg := openai.ChatCompletionMessage{
-			Role:       m.Role,
-			Content:    m.Content,
-			ToolCallID: m.ToolCallID,
-		}
-		if len(m.ToolCalls) > 0 {
-			msg.ToolCalls = make([]openai.ToolCall, 0, len(m.ToolCalls))
-			for _, tc := range m.ToolCalls {
-				msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
-					ID:   tc.ID,
-					Type: openai.ToolTypeFunction,
-					Function: openai.FunctionCall{
-						Name:      tc.Name,
-						Arguments: tc.Arguments,
-					},
-				})
-			}
-		}
-		openaiMsgs = append(openaiMsgs, msg)
-	}
-	openaiTools := make([]openai.Tool, 0, len(tools))
-	for _, t := range tools {
-		openaiTools = append(openaiTools, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.Parameters,
-			},
-		})
-	}
-	req := openai.ChatCompletionRequest{
-		Model:    c.model,
-		Messages: openaiMsgs,
-		Tools:    openaiTools,
-	}
+	req := buildChatCompletionRequest(c.model, messages, tools)
 	var streamUsage Usage
 	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
 	stream, err := c.client.CreateChatCompletionStream(ctx, req)

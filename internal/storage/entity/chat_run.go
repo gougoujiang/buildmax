@@ -9,6 +9,32 @@ import (
 	"gorm.io/gorm"
 )
 
+func buildChatRunUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) map[string]interface{} {
+	updates := map[string]interface{}{"status": status}
+	if startedAt != nil {
+		updates["started_at"] = *startedAt
+	}
+	if endedAt != nil {
+		updates["ended_at"] = *endedAt
+	}
+	if output != nil {
+		updates["output"] = *output
+	}
+	if errorMessage != nil {
+		updates["error_message"] = *errorMessage
+	}
+	if sessionID != nil {
+		updates["session_id"] = *sessionID
+	}
+	if promptTokens != nil {
+		updates["prompt_tokens"] = *promptTokens
+	}
+	if completionTokens != nil {
+		updates["completion_tokens"] = *completionTokens
+	}
+	return updates
+}
+
 // CreateChatRun creates a new run (PENDING). Returns ErrRunInProgress if the chat has any run in PENDING, SCHEDULED, or RUNNING.
 func (s *Store) CreateChatRun(ctx context.Context, chatID, input, createdBy string) (*ChatRun, error) {
 	var inProgress int64
@@ -73,23 +99,9 @@ func (s *Store) GetChatRunWithChat(ctx context.Context, chatRunID string) (*Chat
 
 // ClaimChatRun atomically updates a run when current status matches ExpectedStatus.
 func (s *Store) ClaimChatRun(ctx context.Context, in ClaimChatRunInput) (bool, error) {
-	updates := map[string]interface{}{"status": string(in.NewStatus)}
-	if in.StartedAt != nil {
-		updates["started_at"] = *in.StartedAt
-	}
-	if in.EndedAt != nil {
-		updates["ended_at"] = *in.EndedAt
-	}
-	if in.Output != nil {
-		updates["output"] = *in.Output
-	}
-	if in.ErrorMessage != nil {
-		updates["error_message"] = *in.ErrorMessage
-	}
-	if in.SessionID != nil {
-		updates["session_id"] = *in.SessionID
-	}
-	result := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ? AND status = ?", in.ChatRunID, string(in.ExpectedStatus)).Updates(updates)
+	result := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ? AND status = ?", in.ChatRunID, string(in.ExpectedStatus)).Updates(
+		buildChatRunUpdates(string(in.NewStatus), in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID, nil, nil),
+	)
 	if result.Error != nil {
 		return false, result.Error
 	}
@@ -101,29 +113,9 @@ func (s *Store) ClaimChatRun(ctx context.Context, in ClaimChatRunInput) (bool, e
 
 // UpdateRun updates a run's status and optional fields.
 func (s *Store) UpdateRun(ctx context.Context, in UpdateChatRunInput) error {
-	updates := map[string]interface{}{"status": string(in.Status)}
-	if in.StartedAt != nil {
-		updates["started_at"] = *in.StartedAt
-	}
-	if in.EndedAt != nil {
-		updates["ended_at"] = *in.EndedAt
-	}
-	if in.Output != nil {
-		updates["output"] = *in.Output
-	}
-	if in.ErrorMessage != nil {
-		updates["error_message"] = *in.ErrorMessage
-	}
-	if in.SessionID != nil {
-		updates["session_id"] = *in.SessionID
-	}
-	if in.PromptTokens != nil {
-		updates["prompt_tokens"] = *in.PromptTokens
-	}
-	if in.CompletionTokens != nil {
-		updates["completion_tokens"] = *in.CompletionTokens
-	}
-	if err := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", in.ChatRunID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&ChatRun{}).Where("chat_run_id = ?", in.ChatRunID).Updates(
+		buildChatRunUpdates(string(in.Status), in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID, in.PromptTokens, in.CompletionTokens),
+	).Error; err != nil {
 		return err
 	}
 	if in.Status == RunStatusPending || in.Status == RunStatusScheduled || in.Status == RunStatusRunning {

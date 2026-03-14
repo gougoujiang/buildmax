@@ -27,6 +27,20 @@ type ConversationToolRunners struct {
 	ContinueChat tools.ContinueChatRunner
 }
 
+// RunInput configures one conversation turn execution.
+type RunInput struct {
+	ConversationID     string
+	UserContent        string
+	Channel            string
+	ToolsList          []core.Tool
+	WorkspaceID        string
+	UserID             string
+	Runners            *ConversationToolRunners
+	TitleGenerator     ConversationTitleGenerator
+	RecentChatsSnippet string
+	StreamSink         llm.StreamSink
+}
+
 const maxIterations = 10
 const systemPrompt = `You are a coordinator between the user and background chat tasks. You can call GetCurrentDate to get today's date. Reply concisely.
 
@@ -78,10 +92,10 @@ func buildConversationTools(workspaceID, userID string, runners *ConversationToo
 
 // conversationBuffer implements agent.MessageBuffer by persisting each Append to the message store.
 type conversationBuffer struct {
-	ctx             context.Context
-	conversationID  string
-	msgStore        entity.ConversationMessageStore
-	msgs            []llm.Message
+	ctx            context.Context
+	conversationID string
+	msgStore       entity.ConversationMessageStore
+	msgs           []llm.Message
 }
 
 func (b *conversationBuffer) Messages() []llm.Message {
@@ -106,6 +120,111 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 	return err
 }
 
+type preparedRun struct {
+	firstRound bool
+	buffer     *conversationBuffer
+	toolsList  []core.Tool
+}
+
+func prepareRun(ctx context.Context, msgStore entity.ConversationMessageStore, in RunInput) (*preparedRun, error) {
+	msgs, err := msgStore.ListMessages(ctx, in.ConversationID)
+	if err != nil {
+		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	firstRound := len(msgs) == 0
+	channelPtr := &in.Channel
+	if _, err := msgStore.AppendMessage(ctx, in.ConversationID, "user", in.UserContent, channelPtr, nil, nil); err != nil {
+		return nil, fmt.Errorf("append user message: %w", err)
+	}
+	llmMsgs := make([]llm.Message, 0, len(msgs)+2)
+	for _, m := range msgs {
+		toolCallID := ""
+		if m.ToolCallID != nil {
+			toolCallID = *m.ToolCallID
+		}
+		msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: toolCallID}
+		if m.ToolCallsJSON != nil && *m.ToolCallsJSON != "" {
+			var toolCalls []llm.ToolCall
+			if err := json.Unmarshal([]byte(*m.ToolCallsJSON), &toolCalls); err == nil {
+				msg.ToolCalls = toolCalls
+			}
+		}
+		llmMsgs = append(llmMsgs, msg)
+	}
+	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: in.UserContent})
+
+	toolsList := in.ToolsList
+	if toolsList == nil {
+		toolsList = buildConversationTools(in.WorkspaceID, in.UserID, in.Runners)
+	}
+
+	return &preparedRun{
+		firstRound: firstRound,
+		buffer: &conversationBuffer{
+			ctx:            ctx,
+			conversationID: in.ConversationID,
+			msgStore:       msgStore,
+			msgs:           llmMsgs,
+		},
+		toolsList: toolsList,
+	}, nil
+}
+
+func executeRun(ctx context.Context, caller llm.LLMCaller, in RunInput, prepared *preparedRun) (string, error) {
+	defs := agent.ToolDefs(prepared.toolsList)
+	toolsByName := make(map[string]core.Tool, len(prepared.toolsList))
+	for _, t := range prepared.toolsList {
+		toolsByName[t.Name()] = t
+	}
+
+	reply, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
+		Caller:       caller,
+		SystemPrompt: effectiveSystemPrompt(systemPrompt, in.RecentChatsSnippet),
+		ToolDefs:     defs,
+		ToolsByName:  toolsByName,
+		MaxIter:      maxIterations,
+		Buffer:       prepared.buffer,
+		StreamSink:   in.StreamSink,
+	})
+	if err != nil {
+		return "", err
+	}
+	return reply, nil
+}
+
+func maybeUpdateTitle(ctx context.Context, convStore entity.ConversationStore, in RunInput, prepared *preparedRun) {
+	if !prepared.firstRound || in.UserContent == "" || in.TitleGenerator == nil {
+		return
+	}
+	if title, err := in.TitleGenerator.GenerateTitleFromInput(ctx, in.UserContent); err == nil && title != "" {
+		_ = convStore.UpdateConversationTitle(ctx, in.ConversationID, title)
+	}
+}
+
+func runLoop(ctx context.Context, convStore entity.ConversationStore, msgStore entity.ConversationMessageStore, caller llm.LLMCaller, in RunInput) (string, error) {
+	prepared, err := prepareRun(ctx, msgStore, in)
+	if err != nil {
+		return "", err
+	}
+	reply, err := executeRun(ctx, caller, in, prepared)
+	if err != nil {
+		return "", err
+	}
+	maybeUpdateTitle(ctx, convStore, in, prepared)
+	return reply, nil
+}
+
+// Run executes one conversation turn. Streaming is enabled when in.StreamSink is non-nil.
+func Run(ctx context.Context, convStore entity.ConversationStore, msgStore entity.ConversationMessageStore, caller llm.LLMCaller, in RunInput) (string, error) {
+	if caller == nil {
+		if in.StreamSink != nil {
+			return "", fmt.Errorf("conversation stream LLM not configured")
+		}
+		return "", fmt.Errorf("conversation LLM not configured")
+	}
+	return runLoop(ctx, convStore, msgStore, caller, in)
+}
+
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
 // If toolsList is nil, the list is built from buildConversationTools(workspaceID, userID, runners).
@@ -125,64 +244,17 @@ func RunLoop(
 	titleGenerator ConversationTitleGenerator,
 	recentChatsSnippet string,
 ) (reply string, err error) {
-	if caller == nil {
-		return "", fmt.Errorf("conversation LLM not configured")
-	}
-	msgs, err := msgStore.ListMessages(ctx, conversationID)
-	if err != nil {
-		return "", fmt.Errorf("list messages: %w", err)
-	}
-	firstRound := len(msgs) == 0
-	channelPtr := &channel
-	if _, err := msgStore.AppendMessage(ctx, conversationID, "user", userContent, channelPtr, nil, nil); err != nil {
-		return "", fmt.Errorf("append user message: %w", err)
-	}
-	llmMsgs := make([]llm.Message, 0, len(msgs)+2)
-	for _, m := range msgs {
-		toolCallID := ""
-		if m.ToolCallID != nil {
-			toolCallID = *m.ToolCallID
-		}
-		msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: toolCallID}
-		if m.ToolCallsJSON != nil && *m.ToolCallsJSON != "" {
-			var toolCalls []llm.ToolCall
-			if err := json.Unmarshal([]byte(*m.ToolCallsJSON), &toolCalls); err == nil {
-				msg.ToolCalls = toolCalls
-			}
-		}
-		llmMsgs = append(llmMsgs, msg)
-	}
-	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
-
-	if toolsList == nil {
-		toolsList = buildConversationTools(workspaceID, userID, runners)
-	}
-	defs := agent.ToolDefs(toolsList)
-	toolsByName := make(map[string]core.Tool, len(toolsList))
-	for _, t := range toolsList {
-		toolsByName[t.Name()] = t
-	}
-
-	effectivePrompt := effectiveSystemPrompt(systemPrompt, recentChatsSnippet)
-	buf := &conversationBuffer{ctx: ctx, conversationID: conversationID, msgStore: msgStore, msgs: llmMsgs}
-	reply, _, err = agent.RunLoop(ctx, agent.RunLoopOpts{
-		Caller:        caller,
-		SystemPrompt:  effectivePrompt,
-		ToolDefs:      defs,
-		ToolsByName:   toolsByName,
-		MaxIter:       maxIterations,
-		Buffer:        buf,
-		StreamSink:    nil,
+	return Run(ctx, convStore, msgStore, caller, RunInput{
+		ConversationID:     conversationID,
+		UserContent:        userContent,
+		Channel:            channel,
+		ToolsList:          toolsList,
+		WorkspaceID:        workspaceID,
+		UserID:             userID,
+		Runners:            runners,
+		TitleGenerator:     titleGenerator,
+		RecentChatsSnippet: recentChatsSnippet,
 	})
-	if err != nil {
-		return "", err
-	}
-	if firstRound && userContent != "" && titleGenerator != nil {
-		if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
-			_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
-		}
-	}
-	return reply, nil
 }
 
 // RunLoopStream is like RunLoop but streams assistant content deltas via sink.
@@ -205,64 +277,18 @@ func RunLoopStream(
 	sink llm.StreamSink,
 	recentChatsSnippet string,
 ) (reply string, err error) {
-	if caller == nil {
-		return "", fmt.Errorf("conversation stream LLM not configured")
-	}
-	msgs, err := msgStore.ListMessages(ctx, conversationID)
-	if err != nil {
-		return "", fmt.Errorf("list messages: %w", err)
-	}
-	firstRound := len(msgs) == 0
-	channelPtr := &channel
-	if _, err := msgStore.AppendMessage(ctx, conversationID, "user", userContent, channelPtr, nil, nil); err != nil {
-		return "", fmt.Errorf("append user message: %w", err)
-	}
-	llmMsgs := make([]llm.Message, 0, len(msgs)+2)
-	for _, m := range msgs {
-		toolCallID := ""
-		if m.ToolCallID != nil {
-			toolCallID = *m.ToolCallID
-		}
-		msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: toolCallID}
-		if m.ToolCallsJSON != nil && *m.ToolCallsJSON != "" {
-			var toolCalls []llm.ToolCall
-			if err := json.Unmarshal([]byte(*m.ToolCallsJSON), &toolCalls); err == nil {
-				msg.ToolCalls = toolCalls
-			}
-		}
-		llmMsgs = append(llmMsgs, msg)
-	}
-	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: userContent})
-
-	if toolsList == nil {
-		toolsList = buildConversationTools(workspaceID, userID, runners)
-	}
-	defs := agent.ToolDefs(toolsList)
-	toolsByName := make(map[string]core.Tool, len(toolsList))
-	for _, t := range toolsList {
-		toolsByName[t.Name()] = t
-	}
-
-	effectivePrompt := effectiveSystemPrompt(systemPrompt, recentChatsSnippet)
-	buf := &conversationBuffer{ctx: ctx, conversationID: conversationID, msgStore: msgStore, msgs: llmMsgs}
-	reply, _, err = agent.RunLoop(ctx, agent.RunLoopOpts{
-		Caller:        caller,
-		SystemPrompt:  effectivePrompt,
-		ToolDefs:      defs,
-		ToolsByName:   toolsByName,
-		MaxIter:       maxIterations,
-		Buffer:        buf,
-		StreamSink:    sink,
+	return Run(ctx, convStore, msgStore, caller, RunInput{
+		ConversationID:     conversationID,
+		UserContent:        userContent,
+		Channel:            channel,
+		ToolsList:          toolsList,
+		WorkspaceID:        workspaceID,
+		UserID:             userID,
+		Runners:            runners,
+		TitleGenerator:     titleGenerator,
+		RecentChatsSnippet: recentChatsSnippet,
+		StreamSink:         sink,
 	})
-	if err != nil {
-		return "", err
-	}
-	if firstRound && userContent != "" && titleGenerator != nil {
-		if title, genErr := titleGenerator.GenerateTitleFromInput(ctx, userContent); genErr == nil && title != "" {
-			_ = convStore.UpdateConversationTitle(ctx, conversationID, title)
-		}
-	}
-	return reply, nil
 }
 
 // marshalToolCalls serializes tool calls to JSON for storage. Returns (nil, nil) for empty slice.

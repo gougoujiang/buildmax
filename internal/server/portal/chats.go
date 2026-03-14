@@ -78,11 +78,8 @@ type chatsListResponse struct {
 }
 
 func (h *Handler) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ChatStore, "chats not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.ChatStore, "chats not configured") {
 		return
 	}
 	q := r.URL.Query()
@@ -119,16 +116,12 @@ func (h *Handler) listWorkspaceChatsHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) createWorkspaceChatHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ChatStore, "chats not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.ChatStore, "chats not configured") {
-		return
-	}
 	var req createChatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	chat, err := h.chatService().CreateChat(r.Context(), chatapp.CreateChatCmd{
@@ -179,33 +172,9 @@ func (h *Handler) createChatRunViaConversation(w http.ResponseWriter, r *http.Re
 	return true
 }
 
-// createChatRunLegacy creates a run via ChatRunStore and writes the response.
-func (h *Handler) createChatRunLegacy(w http.ResponseWriter, r *http.Request, userID, workspaceID, chatID, input string) {
-	run, err := h.chatService().CreateRun(r.Context(), chatapp.CreateRunCmd{
-		UserID: userID,
-		ChatID: chatID,
-		Input:  input,
-	})
-	if err != nil {
-		if h.writeChatServiceError(w, r, err, nil) {
-			return
-		}
-		if errors.Is(err, entity.ErrRunInProgress) {
-			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this chat")
-			return
-		}
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_run", "chat_id", chatID)
-		return
-	}
-	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"chat_run_id": run.ChatRunID, "chat_id": chatID})
-}
-
 func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ChatRunStore, "chat runs not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.ChatRunStore, "chat runs not configured") {
 		return
 	}
 	chatID, ok := pathValueRequired(w, r, "chat_id")
@@ -217,8 +186,7 @@ func (h *Handler) createChatRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req createChatRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.Input == "" {
@@ -292,7 +260,12 @@ func (h *Handler) getChatConversationHandler(w http.ResponseWriter, r *http.Requ
 func (h *Handler) loadChatConversationData(ctx context.Context, chat *entity.Chat, lastRunID, sessionID string) ([]byte, error) {
 	relPath := "sessions/" + sessionID + ".json"
 	if h.cfg.PersistStorage != nil {
-		data, err := h.cfg.PersistStorage.GetChatGlobal(ctx, chat.WorkspaceID, chat.ChatID, lastRunID, relPath)
+		data, err := h.cfg.PersistStorage.GetChatGlobal(ctx, blob.RunObjectRef{
+			WorkspaceID: chat.WorkspaceID,
+			ChatID:      chat.ChatID,
+			ChatRunID:   lastRunID,
+			RelPath:     relPath,
+		})
 		if err == nil {
 			return data, nil
 		}

@@ -18,6 +18,15 @@ import (
 	"buildmax/internal/storage/setup"
 )
 
+type serverBootstrap struct {
+	workspacesDir   string
+	store           *entity.Store
+	persistStorage  blob.PersistStorage
+	artifactStorage blob.ArtifactStorage
+	serverConfig    httpserver.Config
+	runner          executor.WorkerRunner
+}
+
 // chatTitleGenAdapter implements httpserver.ChatTitleGenerator using session.GenerateTitleFromInput and an LLM client.
 type chatTitleGenAdapter struct {
 	client *llm.Client
@@ -39,40 +48,107 @@ func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input strin
 // creates and starts the task executor, then runs the HTTP server until shutdown.
 // The port argument should already be resolved (e.g. via config.ResolveServerPort).
 func RunServer(ctx context.Context, port int) error {
-	serverEnv, err := config.LoadServerEnv()
+	bootstrap, err := buildServerBootstrap(ctx, port)
 	if err != nil {
 		return err
 	}
+	scheduler, err := executor.NewScheduler(bootstrap.store, bootstrap.runner)
+	if err != nil {
+		return fmt.Errorf("executor: %w", err)
+	}
+	scheduler.Start()
+	defer scheduler.Stop()
+
+	s := httpserver.New(bootstrap.serverConfig)
+	slog.Info("server starting", "addr", bootstrap.serverConfig.Addr)
+	err = s.Run()
+	slog.Info("server stopped")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func buildServerBootstrap(ctx context.Context, port int) (*serverBootstrap, error) {
+	serverEnv, err := config.LoadServerEnv()
+	if err != nil {
+		return nil, err
+	}
+	workspacesDir, err := resolveWorkspacesDir()
+	if err != nil {
+		return nil, err
+	}
+	store, err := openStore(ctx)
+	if err != nil {
+		return nil, err
+	}
+	persistStorage, artifactStorage, err := buildBlobStorage(ctx)
+	if err != nil {
+		return nil, err
+	}
+	serverConfig := buildHTTPServerConfig(port, serverEnv, workspacesDir, store, persistStorage, artifactStorage)
+	runner, err := buildWorkerRunner()
+	if err != nil {
+		return nil, err
+	}
+	return &serverBootstrap{
+		workspacesDir:   workspacesDir,
+		store:           store,
+		persistStorage:  persistStorage,
+		artifactStorage: artifactStorage,
+		serverConfig:    serverConfig,
+		runner:          runner,
+	}, nil
+}
+
+func resolveWorkspacesDir() (string, error) {
 	workspacesDir := config.WorkspacesDir()
 	if workspacesDir == "" {
-		return fmt.Errorf("%s is required for server mode", config.EnvKeyBuildmaxWorkspacesDir)
+		return "", fmt.Errorf("%s is required for server mode", config.EnvKeyBuildmaxWorkspacesDir)
 	}
 	if abs, err := filepath.Abs(workspacesDir); err == nil {
 		workspacesDir = abs
 	}
-	dsn := config.MySQLDSN()
-	st, err := entity.New(ctx, dsn)
+	return workspacesDir, nil
+}
+
+func openStore(ctx context.Context) (*entity.Store, error) {
+	st, err := entity.New(ctx, config.MySQLDSN())
 	if err != nil {
-		return fmt.Errorf("database: %w", err)
+		return nil, fmt.Errorf("database: %w", err)
 	}
+	return st, nil
+}
+
+func buildBlobStorage(ctx context.Context) (blob.PersistStorage, blob.ArtifactStorage, error) {
 	wsCfg := config.LoadWorkspaceStorageConfig()
-	var s3Client blob.S3Client
-	if wsCfg.PersistProvider == config.ProviderMinIO || wsCfg.ArtifactProvider == config.ProviderMinIO {
-		var s3Err error
-		s3Client, s3Err = setup.BuildS3Client(ctx, wsCfg)
-		if s3Err != nil {
-			return fmt.Errorf("S3 client: %w", s3Err)
-		}
+	s3Client, err := buildOptionalS3Client(ctx, wsCfg)
+	if err != nil {
+		return nil, nil, err
 	}
 	persistStorage, err := setup.BuildPersistStorage(wsCfg, config.PersistentWorkspaceDir, s3Client)
 	if err != nil {
-		return fmt.Errorf("persist storage: %w", err)
+		return nil, nil, fmt.Errorf("persist storage: %w", err)
 	}
 	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.RunOutputDir, s3Client)
 	if err != nil {
-		return fmt.Errorf("artifact storage: %w", err)
+		return nil, nil, fmt.Errorf("artifact storage: %w", err)
 	}
+	return persistStorage, artifactStorage, nil
+}
 
+func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageConfig) (blob.S3Client, error) {
+	if wsCfg.PersistProvider != config.ProviderMinIO && wsCfg.ArtifactProvider != config.ProviderMinIO {
+		return nil, nil
+	}
+	s3Client, err := setup.BuildS3Client(ctx, wsCfg)
+	if err != nil {
+		return nil, fmt.Errorf("S3 client: %w", err)
+	}
+	return s3Client, nil
+}
+
+func buildHTTPServerConfig(port int, serverEnv config.ServerEnv, workspacesDir string, st *entity.Store, persistStorage blob.PersistStorage, artifactStorage blob.ArtifactStorage) httpserver.Config {
 	defaultQuotaTier := config.DefaultQuotaTier()
 	quotaChecker := quota.NewChecker(st, st, st, defaultQuotaTier)
 	cfg := httpserver.Config{
@@ -104,49 +180,43 @@ func RunServer(ctx context.Context, port int) error {
 			ConversationStore:        st,
 			ConversationMessageStore: st,
 		},
+		Webhook: httpserver.WebhookConfig{
+			MessagePath: config.WebhookMessagePath(),
+			UserID:      config.WebhookUserID(),
+		},
 	}
-	if llmCfg := config.LoadLLM(); llmCfg.APIKey != "" {
-		llmClient := llm.NewClient(llmCfg)
-		cfg.Conv.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
-		cfg.Conv.ConversationLLMCaller = llmClient
+	wireOptionalLLM(&cfg)
+	return cfg
+}
+
+func wireOptionalLLM(cfg *httpserver.Config) {
+	llmCfg := config.LoadLLM()
+	if llmCfg.APIKey == "" {
+		return
 	}
-	var runner executor.WorkerRunner
+	llmClient := llm.NewClient(llmCfg)
+	cfg.Conv.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
+	cfg.Conv.ConversationLLMCaller = llmClient
+}
+
+func buildWorkerRunner() (executor.WorkerRunner, error) {
 	switch config.WorkerRunMode() {
 	case "k8s_job":
 		jobClient, err := executor.BuildK8sJobCreator()
 		if err != nil {
-			return fmt.Errorf("k8s job creator: %w", err)
+			return nil, fmt.Errorf("k8s job creator: %w", err)
 		}
-		runner = executor.NewK8sJobRunner(
+		return executor.NewK8sJobRunner(
 			config.WorkerJobNamespace(),
 			config.WorkerImage(),
 			executor.WorkerEnvFromEnviron(),
 			jobClient,
-		)
+		), nil
 	default:
 		workerPath := config.WorkerBinaryPath()
 		if workerPath == "" {
-			return fmt.Errorf("%s is required for local_process mode", config.EnvKeyBuildmaxWorkerBinary)
+			return nil, fmt.Errorf("%s is required for local_process mode", config.EnvKeyBuildmaxWorkerBinary)
 		}
-		runner = executor.NewLocalRunner(workerPath)
+		return executor.NewLocalRunner(workerPath), nil
 	}
-	scheduler, err := executor.NewScheduler(st, runner)
-	if err != nil {
-		return fmt.Errorf("executor: %w", err)
-	}
-	scheduler.Start()
-	defer scheduler.Stop()
-
-	cfg.Webhook = httpserver.WebhookConfig{
-		MessagePath: config.WebhookMessagePath(),
-		UserID:      config.WebhookUserID(),
-	}
-	s := httpserver.New(cfg)
-	slog.Info("server starting", "addr", cfg.Addr)
-	err = s.Run()
-	slog.Info("server stopped")
-	if err != nil {
-		return err
-	}
-	return nil
 }

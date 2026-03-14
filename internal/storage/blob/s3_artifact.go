@@ -19,20 +19,20 @@ func NewS3ArtifactStorage(client S3Client, bucket, prefix string) *S3ArtifactSto
 }
 
 // PutResult writes the run result as result.md.
-func (s *S3ArtifactStorage) PutResult(ctx context.Context, workspaceID, chatID, chatRunID string, data []byte) error {
-	key := ArtifactResultKey(s.prefix, workspaceID, chatID, chatRunID)
+func (s *S3ArtifactStorage) PutResult(ctx context.Context, ref RunRef, data []byte) error {
+	key := ArtifactResultKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID)
 	return s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data))
 }
 
 // GetResult reads result.md for the run. Returns ErrNotFound if the object does not exist.
-func (s *S3ArtifactStorage) GetResult(ctx context.Context, workspaceID, chatID, chatRunID string) ([]byte, error) {
-	key := ArtifactResultKey(s.prefix, workspaceID, chatID, chatRunID)
+func (s *S3ArtifactStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
+	key := ArtifactResultKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID)
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
 // PutArtifactFile writes one file under the run output key path.
-func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string, r io.Reader) error {
-	key, err := ArtifactFileKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error {
+	key, err := ArtifactFileKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -40,8 +40,8 @@ func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, workspaceID, ch
 }
 
 // GetArtifactFile reads one file under the run output. Returns ErrNotFound if the object does not exist.
-func (s *S3ArtifactStorage) GetArtifactFile(ctx context.Context, workspaceID, chatID, chatRunID, relPath string) ([]byte, error) {
-	key, err := ArtifactFileKey(s.prefix, workspaceID, chatID, chatRunID, relPath)
+func (s *S3ArtifactStorage) GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
+	key, err := ArtifactFileKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.ChatRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}

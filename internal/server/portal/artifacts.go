@@ -164,9 +164,18 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	var data []byte
 	var err error
 	if pathParam == artifactResultFilename {
-		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), workspaceID, chat.ChatID, chatRunID)
+		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), blob.RunRef{
+			WorkspaceID: workspaceID,
+			ChatID:      chat.ChatID,
+			ChatRunID:   chatRunID,
+		})
 	} else {
-		data, err = h.cfg.ArtifactStorage.GetArtifactFile(r.Context(), workspaceID, chat.ChatID, chatRunID, pathParam)
+		data, err = h.cfg.ArtifactStorage.GetArtifactFile(r.Context(), blob.RunObjectRef{
+			WorkspaceID: workspaceID,
+			ChatID:      chat.ChatID,
+			ChatRunID:   chatRunID,
+			RelPath:     pathParam,
+		})
 	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {

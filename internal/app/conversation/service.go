@@ -86,44 +86,18 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		return HandleTurnResult{}, ErrLLMRequired
 	}
 
-	runners := s.conversationToolRunners(cmd.WorkspaceID, cmd.UserID, cmd.ConversationID)
-	recentSnippet := s.recentChatsSnippet(ctx, cmd.WorkspaceID)
-
-	if cmd.StreamSink != nil {
-		reply, err := coreconv.RunLoopStream(
-			ctx,
-			s.ConversationStore,
-			s.MessageStore,
-			s.LLMCaller,
-			cmd.ConversationID,
-			cmd.Message,
-			cmd.Channel,
-			nil,
-			cmd.WorkspaceID,
-			cmd.UserID,
-			runners,
-			titleGeneratorAdapter{s.TitleGenerator},
-			cmd.StreamSink,
-			recentSnippet,
-		)
-		return HandleTurnResult{Reply: reply}, err
+	runInput := coreconv.RunInput{
+		ConversationID:     cmd.ConversationID,
+		UserContent:        cmd.Message,
+		Channel:            cmd.Channel,
+		WorkspaceID:        cmd.WorkspaceID,
+		UserID:             cmd.UserID,
+		Runners:            s.conversationToolRunners(cmd.WorkspaceID, cmd.UserID, cmd.ConversationID),
+		TitleGenerator:     titleGeneratorAdapter{s.TitleGenerator},
+		RecentChatsSnippet: s.recentChatsSnippet(ctx, cmd.WorkspaceID),
+		StreamSink:         cmd.StreamSink,
 	}
-
-	reply, err := coreconv.RunLoop(
-		ctx,
-		s.ConversationStore,
-		s.MessageStore,
-		s.LLMCaller,
-		cmd.ConversationID,
-		cmd.Message,
-		cmd.Channel,
-		nil,
-		cmd.WorkspaceID,
-		cmd.UserID,
-		runners,
-		titleGeneratorAdapter{s.TitleGenerator},
-		recentSnippet,
-	)
+	reply, err := coreconv.Run(ctx, s.ConversationStore, s.MessageStore, s.LLMCaller, runInput)
 	return HandleTurnResult{Reply: reply}, err
 }
 
