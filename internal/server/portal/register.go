@@ -39,4 +39,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations", h.createConversationHandler)
 	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", h.getConversationMessagesHandler)
 	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", h.addConversationMessageHandler)
+	mux.HandleFunc("POST /api/workspaces/{workspace_id}/webhook-keys", h.createWebhookKeyHandler)
+	mux.HandleFunc("GET /api/workspaces/{workspace_id}/webhook-keys", h.listWebhookKeysHandler)
+	mux.HandleFunc("DELETE /api/workspaces/{workspace_id}/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
 }

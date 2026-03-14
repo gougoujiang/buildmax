@@ -97,3 +97,16 @@ type ConversationMessageStore interface {
 	AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*ConversationMessage, error)
 	ListMessages(ctx context.Context, conversationID string) ([]ConversationMessage, error)
 }
+
+// WorkspaceWebhookKeyStore provides per-workspace webhook API key persistence.
+// Keys are stored by hash; plaintext is returned only from CreateKey.
+type WorkspaceWebhookKeyStore interface {
+	// CreateKey creates a new webhook key for the workspace. Returns plaintext key (e.g. whsec_...) and key_id. Caller must store plaintext securely; it is not persisted.
+	CreateKey(ctx context.Context, workspaceID, name string) (plaintextKey, keyID string, err error)
+	// GetWorkspaceIDByKey looks up the workspace_id for the given plaintext key. Returns empty string if not found.
+	GetWorkspaceIDByKey(ctx context.Context, plaintextKey string) (workspaceID string, err error)
+	// ListKeys returns key metadata for the workspace (no plaintext).
+	ListKeys(ctx context.Context, workspaceID string) ([]WebhookKeyMeta, error)
+	// RevokeKey deletes the key by keyID if it belongs to the workspace.
+	RevokeKey(ctx context.Context, workspaceID, keyID string) error
+}

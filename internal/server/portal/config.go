@@ -44,4 +44,5 @@ type Config struct {
 	ConversationMessageStore entity.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller
 	Hub                      streamhub.StreamHub
+	WorkspaceWebhookKeyStore entity.WorkspaceWebhookKeyStore
 }

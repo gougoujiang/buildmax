@@ -155,6 +155,22 @@ func WorkerImage() string {
 	return "buildmax:local"
 }
 
+// WebhookMessagePath returns the JSON path for the message in webhook body (BUILDMAX_WEBHOOK_MESSAGE_PATH, default "message").
+func WebhookMessagePath() string {
+	if s := os.Getenv(EnvKeyBuildmaxWebhookMessagePath); s != "" {
+		return s
+	}
+	return "message"
+}
+
+// WebhookUserID returns the user ID used as CreatedBy for webhook-created runs (BUILDMAX_WEBHOOK_USER_ID, default "webhook").
+func WebhookUserID() string {
+	if s := os.Getenv(EnvKeyBuildmaxWebhookUserID); s != "" {
+		return s
+	}
+	return "webhook"
+}
+
 // ResolveServerPort returns the port to use: portFromFlag if > 0, else BUILDMAX_SERVER_PORT, else DefaultServerPort.
 // Returns an error if BUILDMAX_SERVER_PORT is set but not a valid positive number.
 func ResolveServerPort(portFromFlag int) (int, error) {

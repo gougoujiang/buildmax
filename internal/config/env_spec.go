@@ -42,6 +42,9 @@ const (
 	EnvKeyBuildmaxMinioPrefix     = "BUILDMAX_MINIO_PREFIX"
 	// Quota (per-user tier and limits; limits in DB, default tier name from env)
 	EnvKeyBuildmaxDefaultQuotaTier = "BUILDMAX_DEFAULT_QUOTA_TIER"
+	// Webhook (per-workspace API keys; message path and optional user ID for runs)
+	EnvKeyBuildmaxWebhookMessagePath = "BUILDMAX_WEBHOOK_MESSAGE_PATH"
+	EnvKeyBuildmaxWebhookUserID      = "BUILDMAX_WEBHOOK_USER_ID"
 	// Optional / scripts
 	EnvKeyBuildmaxKindCluster = "BUILDMAX_KIND_CLUSTER"
 	// Test only
@@ -94,6 +97,9 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxMinioPrefix, "workspaces", "MinIO/S3 key prefix"},
 	// Quota
 	{EnvKeyBuildmaxDefaultQuotaTier, "free_trial", "Default quota tier name for new users (tier limits in quota_tier table)"},
+	// Webhook
+	{EnvKeyBuildmaxWebhookMessagePath, "message", "JSON path for message in webhook body (e.g. message, body.text)"},
+	{EnvKeyBuildmaxWebhookUserID, "webhook", "User ID used as CreatedBy for webhook-created chat runs"},
 	// Optional / scripts
 	{EnvKeyBuildmaxKindCluster, "buildmaxdev", "Kind cluster name in setup scripts"},
 	// Test only

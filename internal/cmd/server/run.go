@@ -84,12 +84,13 @@ func RunServer(ctx context.Context, port int) error {
 			DefaultQuotaTier: defaultQuotaTier,
 		},
 		Stores: httpserver.StoresConfig{
-			UserStore:       st,
-			WorkspaceStore:  st,
-			AgentStore:      st,
-			ChatStore:       st,
-			ChatRunStore:    st,
-			RunOutputLister: st,
+			UserStore:                st,
+			WorkspaceStore:           st,
+			AgentStore:               st,
+			ChatStore:                st,
+			ChatRunStore:             st,
+			RunOutputLister:          st,
+			WorkspaceWebhookKeyStore: st,
 		},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:  persistStorage,
@@ -136,6 +137,10 @@ func RunServer(ctx context.Context, port int) error {
 	scheduler.Start()
 	defer scheduler.Stop()
 
+	cfg.Webhook = httpserver.WebhookConfig{
+		MessagePath: config.WebhookMessagePath(),
+		UserID:      config.WebhookUserID(),
+	}
 	s := httpserver.New(cfg)
 	slog.Info("server starting", "addr", cfg.Addr)
 	err = s.Run()
