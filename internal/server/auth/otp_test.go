@@ -1,4 +1,4 @@
-package server
+package auth
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -21,67 +22,68 @@ func TestOtpRequestHandler(t *testing.T) {
 	}{
 		{
 			name:        "signup new user returns 200",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			body:       `{"email":"new@example.com","intent":"signup"}`,
-			wantStatus:  http.StatusOK,
+			wantStatus: http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "signup existing email returns 409",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			body:       `{"email":"a@b.c","intent":"signup"}`,
-			wantStatus:  http.StatusConflict,
+			wantStatus: http.StatusConflict,
 			wantBodyHas: "email already registered",
 		},
 		{
 			name:        "login unknown email returns 404",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			body:       `{"email":"nobody@example.com","intent":"login"}`,
-			wantStatus:  http.StatusNotFound,
+			wantStatus: http.StatusNotFound,
 			wantBodyHas: "user not found",
 		},
 		{
 			name:        "login existing user returns 200",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			body:       `{"email":"a@b.c","intent":"login"}`,
-			wantStatus:  http.StatusOK,
+			wantStatus: http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "default intent signup creates user",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			body:       `{"email":"default@example.com"}`,
-			wantStatus:  http.StatusOK,
+			wantStatus: http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "empty email returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			body:       `{"email":"","intent":"signup"}`,
-			wantStatus:  http.StatusBadRequest,
+			wantStatus: http.StatusBadRequest,
 			wantBodyHas: "email required",
 		},
 		{
 			name:        "invalid body returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			body:       `{`,
-			wantStatus:  http.StatusBadRequest,
+			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "no UserStore returns 503",
 			userStore:  nil,
 			body:       `{"email":"a@b.c","intent":"login"}`,
-			wantStatus:  http.StatusServiceUnavailable,
+			wantStatus: http.StatusServiceUnavailable,
 			wantBodyHas: "otp not configured",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{Stores: StoresConfig{UserStore: tt.userStore}})
+			mux := http.NewServeMux()
+			NewHandler(Config{UserStore: tt.userStore, JWTSecret: "", DefaultQuotaTier: "free_trial"}).Register(mux)
 			req := httptest.NewRequest(http.MethodPost, "/api/otp/request", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}

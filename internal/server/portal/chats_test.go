@@ -1,8 +1,7 @@
-package server
+package portal
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,42 +9,16 @@ import (
 	"testing"
 
 	"buildmax/internal/quota"
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
-
-// denyQuotaUserStore is used by quota 429 test to supply a user with tier.
-type denyQuotaUserStore struct {
-	user *entity.User
-}
-
-func (d *denyQuotaUserStore) UserByEmail(_ context.Context, _ string) (*entity.User, error) { return nil, nil }
-func (d *denyQuotaUserStore) GetUser(_ context.Context, _ string) (*entity.User, error)     { return d.user, nil }
-func (d *denyQuotaUserStore) CreateUser(_ context.Context, _, _ string) (*entity.User, error) {
-	return nil, nil
-}
-
-type denyQuotaUsageReader struct {
-	runCount, totalTokens int
-}
-
-func (d *denyQuotaUsageReader) UserUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
-	return d.runCount, d.totalTokens, nil
-}
-
-type denyQuotaTierStore struct {
-	tier *entity.QuotaTier
-}
-
-func (d *denyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*entity.QuotaTier, error) {
-	return d.tier, nil
-}
 
 func TestListWorkspaceChatsHandler(t *testing.T) {
 	secret := "test-chats-secret"
 	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	mockWS := &mockWorkspaceStore{list: userWorkspaces}
+	mockWS := &testutil.MockWorkspaceStore{List: userWorkspaces}
 
 	chat1 := entity.Chat{
 		ChatID: "c1", WorkspaceID: "ws1", Status: "PENDING", Input: "Do something",
@@ -68,7 +41,7 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 	}{
 		{
 			name:         "no auth returns 401",
-			chatStore:    &mockChatStore{},
+			chatStore:    &testutil.MockChatStore{},
 			authHeader:   "",
 			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
@@ -78,8 +51,8 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 		},
 		{
 			name:         "workspace not owned returns 403",
-			chatStore:    &mockChatStore{},
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			chatStore:    &testutil.MockChatStore{},
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws-other/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusForbidden,
@@ -88,8 +61,8 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 		},
 		{
 			name:         "owned workspace empty list returns 200",
-			chatStore:    &mockChatStore{list: []entity.Chat{}},
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			chatStore:    &testutil.MockChatStore{List: []entity.Chat{}},
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusOK,
@@ -98,8 +71,8 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 		},
 		{
 			name:         "owned workspace with chats returns 200",
-			chatStore:    &mockChatStore{list: []entity.Chat{chat1, chat2}},
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			chatStore:    &testutil.MockChatStore{List: []entity.Chat{chat1, chat2}},
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusOK,
@@ -109,7 +82,7 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 		{
 			name:         "chat store nil returns 503",
 			chatStore:    nil,
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			jwtSecret:    secret,
 			wantStatus:   http.StatusServiceUnavailable,
@@ -119,17 +92,19 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{
-				Stores: StoresConfig{WorkspaceStore: mockWS, ChatStore: tt.chatStore},
-				Auth:   AuthConfig{JWTSecret: tt.jwtSecret},
-			}
-			s := New(cfg)
+			h := NewHandler(Config{
+				JWTSecret:      tt.jwtSecret,
+				WorkspaceStore: mockWS,
+				ChatStore:      tt.chatStore,
+			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
@@ -158,7 +133,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	userWorkspaces := []entity.Workspace{
 		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
 	}
-	mockWS := &mockWorkspaceStore{list: userWorkspaces}
+	mockWS := &testutil.MockWorkspaceStore{List: userWorkspaces}
 
 	tests := []struct {
 		name         string
@@ -174,7 +149,7 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	}{
 		{
 			name:        "no auth returns 401",
-			chatStore:   &mockChatStore{},
+			chatStore:   &testutil.MockChatStore{},
 			agentStore:  nil,
 			authHeader:  "",
 			path:        "/api/workspaces/ws1/chats",
@@ -185,9 +160,9 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		},
 		{
 			name:        "workspace not owned returns 403",
-			chatStore:   &mockChatStore{},
+			chatStore:   &testutil.MockChatStore{},
 			agentStore:  nil,
-			authHeader:  "Bearer " + signJWT("u1", secret),
+			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
 			path:        "/api/workspaces/ws-other/chats",
 			body:        `{"input":"Do X"}`,
 			jwtSecret:   secret,
@@ -196,9 +171,9 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		},
 		{
 			name:        "missing input returns 400",
-			chatStore:   &mockChatStore{},
+			chatStore:   &testutil.MockChatStore{},
 			agentStore:  nil,
-			authHeader:  "Bearer " + signJWT("u1", secret),
+			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
 			path:        "/api/workspaces/ws1/chats",
 			body:        `{}`,
 			jwtSecret:   secret,
@@ -207,9 +182,9 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		},
 		{
 			name:        "empty input returns 400",
-			chatStore:   &mockChatStore{},
+			chatStore:   &testutil.MockChatStore{},
 			agentStore:  nil,
-			authHeader:  "Bearer " + signJWT("u1", secret),
+			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
 			path:        "/api/workspaces/ws1/chats",
 			body:        `{"input":""}`,
 			jwtSecret:   secret,
@@ -218,14 +193,14 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		},
 		{
 			name: "valid body returns 201",
-			chatStore: &mockChatStore{
-				create: &entity.Chat{
+			chatStore: &testutil.MockChatStore{
+				Create: &entity.Chat{
 					ChatID: "new-chat-id", WorkspaceID: "ws1", Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
 			agentStore:   nil,
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			body:         `{"input":"Do X"}`,
 			jwtSecret:    secret,
@@ -235,29 +210,29 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		},
 		{
 			name: "create with agent_id composes input and returns 201",
-			chatStore: &mockChatStore{}, // returns default chat with input from CreateChat
-			agentStore: &mockAgentStore{
-				agents: []entity.Agent{
+			chatStore: &testutil.MockChatStore{},
+			agentStore: &testutil.MockAgentStore{
+				Agents: []entity.Agent{
 					{AgentID: "a_1", WorkspaceID: "ws1", Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			body:         `{"agent_id":"a_1"}`,
 			jwtSecret:    secret,
 			wantStatus:   http.StatusCreated,
-			wantBodyHas:  "TestAgent", // composed input contains agent name; JSON may escape < >
+			wantBodyHas:  "TestAgent",
 			checkCreated: true,
 		},
 		{
 			name: "create with agent_id and non-empty input uses input directly",
-			chatStore: &mockChatStore{},
-			agentStore: &mockAgentStore{
-				agents: []entity.Agent{
+			chatStore: &testutil.MockChatStore{},
+			agentStore: &testutil.MockAgentStore{
+				Agents: []entity.Agent{
 					{AgentID: "a_1", WorkspaceID: "ws1", Name: "TestAgent", Description: "D", Instructions: "I", CreatedAt: 100},
 				},
 			},
-			authHeader:   "Bearer " + signJWT("u1", secret),
+			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/workspaces/ws1/chats",
 			body:         `{"agent_id":"a_1","input":"My custom prompt for this run"}`,
 			jwtSecret:    secret,
@@ -266,11 +241,10 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 			checkCreated: true,
 		},
 	}
-	// Quota 429 test: use a checker that denies (user at run limit).
 	denyChecker := quota.NewChecker(
-		&denyQuotaUserStore{user: &entity.User{UserID: "u1", QuotaTier: "free_trial"}},
-		&denyQuotaUsageReader{runCount: 10, totalTokens: 0},
-		&denyQuotaTierStore{tier: &entity.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		&testutil.DenyQuotaUserStore{User: &entity.User{UserID: "u1", QuotaTier: "free_trial"}},
+		&testutil.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
+		&testutil.DenyQuotaTierStore{Tier: &entity.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		"free_trial",
 	)
 	tests = append(tests, struct {
@@ -286,9 +260,9 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		checkCreated bool
 	}{
 		name:        "quota exceeded returns 429",
-		chatStore:   &mockChatStore{},
+		chatStore:   &testutil.MockChatStore{},
 		agentStore:  nil,
-		authHeader:  "Bearer " + signJWT("u1", secret),
+		authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
 		path:        "/api/workspaces/ws1/chats",
 		body:        `{"input":"Do X"}`,
 		jwtSecret:   secret,
@@ -297,22 +271,25 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := AuthConfig{JWTSecret: tt.jwtSecret}
-			if tt.name == "quota exceeded returns 429" {
-				auth.QuotaChecker = denyChecker
-			}
 			cfg := Config{
-				Stores: StoresConfig{WorkspaceStore: mockWS, ChatStore: tt.chatStore, AgentStore: tt.agentStore},
-				Auth:   auth,
+				JWTSecret:      tt.jwtSecret,
+				WorkspaceStore: mockWS,
+				ChatStore:      tt.chatStore,
+				AgentStore:     tt.agentStore,
 			}
-			s := New(cfg)
+			if tt.name == "quota exceeded returns 429" {
+				cfg.QuotaChecker = denyChecker
+			}
+			h := NewHandler(cfg)
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
 			}

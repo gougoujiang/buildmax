@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -14,12 +15,12 @@ const agentTestSecret = "agent-test-secret"
 
 func TestPatchAgentHandler(t *testing.T) {
 	ws1 := entity.Workspace{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "WS1", CreatedAt: 123}
-	agentStore := &mockAgentStore{
-		agents: []entity.Agent{
+	agentStore := &testutil.MockAgentStore{
+		Agents: []entity.Agent{
 			{AgentID: "a_1", WorkspaceID: "ws1", Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
 	}
-	wsStore := &mockWorkspaceStore{list: []entity.Workspace{ws1}}
+	wsStore := &testutil.MockWorkspaceStore{List: []entity.Workspace{ws1}}
 
 	tests := []struct {
 		name        string
@@ -31,54 +32,57 @@ func TestPatchAgentHandler(t *testing.T) {
 		wantBodyHas string
 	}{
 		{
-			name:       "PATCH success",
-			method:     http.MethodPatch,
-			url:        "/api/workspaces/ws1/agents/a_1",
-			body:       `{"name":"Updated","description":"d2","instructions":"i2"}`,
-			authHeader: "Bearer " + signJWT("u1", agentTestSecret),
-			wantStatus: http.StatusOK,
+			name:        "PATCH success",
+			method:      http.MethodPatch,
+			url:         "/api/workspaces/ws1/agents/a_1",
+			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
+			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			wantStatus:  http.StatusOK,
 			wantBodyHas: "Updated",
 		},
 		{
-			name:       "PATCH empty name returns 400",
-			method:     http.MethodPatch,
-			url:        "/api/workspaces/ws1/agents/a_1",
-			body:       `{"name":""}`,
-			authHeader: "Bearer " + signJWT("u1", agentTestSecret),
-			wantStatus: http.StatusBadRequest,
+			name:        "PATCH empty name returns 400",
+			method:      http.MethodPatch,
+			url:         "/api/workspaces/ws1/agents/a_1",
+			body:        `{"name":""}`,
+			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "name required",
 		},
 		{
-			name:       "PATCH non-existent agent returns 404",
-			method:     http.MethodPatch,
-			url:        "/api/workspaces/ws1/agents/a_999",
-			body:       `{"name":"X","description":"","instructions":""}`,
-			authHeader: "Bearer " + signJWT("u1", agentTestSecret),
-			wantStatus: http.StatusNotFound,
+			name:        "PATCH non-existent agent returns 404",
+			method:      http.MethodPatch,
+			url:         "/api/workspaces/ws1/agents/a_999",
+			body:        `{"name":"X","description":"","instructions":""}`,
+			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
 		{
-			name:       "PATCH no auth returns 401",
-			method:     http.MethodPatch,
-			url:        "/api/workspaces/ws1/agents/a_1",
-			body:       `{"name":"X"}`,
-			authHeader: "",
-			wantStatus: http.StatusUnauthorized,
+			name:        "PATCH no auth returns 401",
+			method:      http.MethodPatch,
+			url:         "/api/workspaces/ws1/agents/a_1",
+			body:        `{"name":"X"}`,
+			authHeader:  "",
+			wantStatus:  http.StatusUnauthorized,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{
-				Stores: StoresConfig{AgentStore: agentStore, WorkspaceStore: wsStore},
-				Auth:   AuthConfig{JWTSecret: agentTestSecret},
+			h := NewHandler(Config{
+				JWTSecret:       agentTestSecret,
+				AgentStore:      agentStore,
+				WorkspaceStore:  wsStore,
 			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(tt.method, tt.url, strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
@@ -105,26 +109,26 @@ func TestPatchAgentHandler(t *testing.T) {
 
 func TestDeleteAgentHandler(t *testing.T) {
 	ws1 := entity.Workspace{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "WS1", CreatedAt: 123}
-	wsStore := &mockWorkspaceStore{list: []entity.Workspace{ws1}}
+	wsStore := &testutil.MockWorkspaceStore{List: []entity.Workspace{ws1}}
 
 	tests := []struct {
-		name       string
-		url        string
-		authHeader string
-		wantStatus int
+		name        string
+		url         string
+		authHeader  string
+		wantStatus  int
 		wantBodyHas string
 	}{
 		{
 			name:       "DELETE success returns 204",
 			url:        "/api/workspaces/ws1/agents/a_1",
-			authHeader: "Bearer " + signJWT("u1", agentTestSecret),
+			authHeader: "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus: http.StatusNoContent,
 		},
 		{
-			name:       "DELETE non-existent agent returns 404",
-			url:        "/api/workspaces/ws1/agents/a_999",
-			authHeader: "Bearer " + signJWT("u1", agentTestSecret),
-			wantStatus: http.StatusNotFound,
+			name:        "DELETE non-existent agent returns 404",
+			url:         "/api/workspaces/ws1/agents/a_999",
+			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
 		{
@@ -136,21 +140,24 @@ func TestDeleteAgentHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &mockAgentStore{
-				agents: []entity.Agent{
+			store := &testutil.MockAgentStore{
+				Agents: []entity.Agent{
 					{AgentID: "a_1", WorkspaceID: "ws1", Name: "ToDelete", CreatedAt: 100},
 				},
 			}
-			s := New(Config{
-				Stores: StoresConfig{AgentStore: store, WorkspaceStore: wsStore},
-				Auth:   AuthConfig{JWTSecret: agentTestSecret},
+			h := NewHandler(Config{
+				JWTSecret:      agentTestSecret,
+				AgentStore:     store,
+				WorkspaceStore: wsStore,
 			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodDelete, tt.url, nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}

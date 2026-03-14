@@ -1,4 +1,4 @@
-package server
+package auth
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -25,7 +26,7 @@ func TestLoginHandler(t *testing.T) {
 	}{
 		{
 			name:       "user found with valid otp returns 200 and token",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			jwtSecret:  secret,
 			body:       `{"email":"a@b.c","otp":"123456"}`,
 			wantStatus: http.StatusOK,
@@ -33,7 +34,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:       "user found but wrong otp returns 401",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			jwtSecret:  secret,
 			body:       `{"email":"a@b.c","otp":"000000"}`,
 			wantStatus: http.StatusUnauthorized,
@@ -41,7 +42,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:       "user found but missing otp returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{"a@b.c": userExists}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
 			jwtSecret:  secret,
 			body:       `{"email":"a@b.c"}`,
 			wantStatus: http.StatusBadRequest,
@@ -49,7 +50,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:       "user not found returns 401",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			jwtSecret:  secret,
 			body:       `{"email":"nobody@example.com","otp":"123456"}`,
 			wantStatus: http.StatusUnauthorized,
@@ -57,14 +58,14 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:       "invalid body returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			jwtSecret:  secret,
 			body:       `{`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "empty email returns 400",
-			userStore:  &mockUserStore{userByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
 			jwtSecret:  secret,
 			body:       `{"email":""}`,
 			wantStatus: http.StatusBadRequest,
@@ -80,14 +81,16 @@ func TestLoginHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{
-				Stores: StoresConfig{UserStore: tt.userStore},
-				Auth:   AuthConfig{JWTSecret: tt.jwtSecret},
-			})
+			mux := http.NewServeMux()
+			NewHandler(Config{
+				UserStore:        tt.userStore,
+				JWTSecret:        tt.jwtSecret,
+				DefaultQuotaTier: "",
+			}).Register(mux)
 			req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}

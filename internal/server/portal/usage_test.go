@@ -1,7 +1,6 @@
-package server
+package portal
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,35 +9,9 @@ import (
 	"time"
 
 	"buildmax/internal/quota"
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
-
-// mockUsageReader returns fixed run count and token total for UserUsageInWindow.
-type mockUsageReader struct {
-	runCount    int
-	totalTokens int
-	err         error
-}
-
-func (m *mockUsageReader) UserUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
-	if m.err != nil {
-		return 0, 0, m.err
-	}
-	return m.runCount, m.totalTokens, nil
-}
-
-// mockTierStore returns a fixed tier for GetQuotaTier.
-type mockTierStore struct {
-	tier *entity.QuotaTier
-	err  error
-}
-
-func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*entity.QuotaTier, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return m.tier, nil
-}
 
 func TestUsageHandler(t *testing.T) {
 	secret := "test-usage-secret"
@@ -49,12 +22,12 @@ func TestUsageHandler(t *testing.T) {
 		QuotaTier: "free_trial",
 		CreatedAt: time.Now().Unix(),
 	}
-	userStore := &mockUserStore{
-		userByID: map[string]*entity.User{userID: userWithTier},
+	userStore := &testutil.MockUserStore{
+		ByID: map[string]*entity.User{userID: userWithTier},
 	}
-	usageReader := &mockUsageReader{runCount: 2, totalTokens: 5000}
-	tierStore := &mockTierStore{
-		tier: &entity.QuotaTier{
+	usageReader := &testutil.MockUsageReader{RunCount: 2, TotalTokens: 5000}
+	tierStore := &testutil.MockTierStore{
+		Tier: &entity.QuotaTier{
 			TierName:           "free_trial",
 			MaxRunsPerPeriod:    10,
 			MaxTokensPerPeriod: 100_000,
@@ -82,7 +55,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:        "no QuotaChecker returns 503",
-			authHeader:  "Bearer " + signJWT(userID, secret),
+			authHeader:  "Bearer " + testutil.SignJWT(userID, secret),
 			checker:     nil,
 			jwtSecret:   secret,
 			wantStatus:  http.StatusServiceUnavailable,
@@ -90,14 +63,14 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:       "valid JWT returns 200 with usage and limits",
-			authHeader: "Bearer " + signJWT(userID, secret),
+			authHeader: "Bearer " + testutil.SignJWT(userID, secret),
 			checker:    checker,
 			jwtSecret:  secret,
 			wantStatus: http.StatusOK,
 			checkBody: func(t *testing.T, body []byte) {
 				var resp struct {
-					RunCount           int   `json:"run_count"`
-					TotalTokens        int   `json:"total_tokens"`
+					RunCount           int    `json:"run_count"`
+					TotalTokens        int    `json:"total_tokens"`
 					TierName           string `json:"tier"`
 					PeriodDays         int   `json:"period_days"`
 					MaxRunsPerPeriod   *int  `json:"max_runs_per_period,omitempty"`
@@ -123,15 +96,18 @@ func TestUsageHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{
-				Auth: AuthConfig{JWTSecret: tt.jwtSecret, QuotaChecker: tt.checker},
+			h := NewHandler(Config{
+				JWTSecret:    tt.jwtSecret,
+				QuotaChecker: tt.checker,
 			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodGet, "/api/usage", nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}

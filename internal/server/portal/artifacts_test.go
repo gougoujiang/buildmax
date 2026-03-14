@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"net/http"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -13,15 +14,15 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
 	workspaceID := "ws-1"
-	token := signJWT(userID, secret)
+	token := testutil.SignJWT(userID, secret)
 
-	mockWS := &mockWorkspaceStore{
-		list: []entity.Workspace{
+	mockWS := &testutil.MockWorkspaceStore{
+		List: []entity.Workspace{
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockLister := &mockRunOutputLister{
-		list: []entity.ArtifactWithChat{
+	mockLister := &testutil.MockRunOutputLister{
+		List: []entity.ArtifactWithChat{
 			{
 				ArtifactID:       "run-1",
 				ChatID:           "chat-1",
@@ -44,36 +45,37 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 			name:            "200 with auth and RunOutputLister",
 			runOutputLister: mockLister,
 			auth:            "Bearer " + token,
-			wantStatus:      http.StatusOK,
-			wantBodyArray:   true,
+			wantStatus:     http.StatusOK,
+			wantBodyArray:  true,
 		},
 		{
 			name:            "503 without RunOutputLister",
 			runOutputLister: nil,
 			auth:            "Bearer " + token,
-			wantStatus:      http.StatusServiceUnavailable,
+			wantStatus:     http.StatusServiceUnavailable,
 		},
 		{
 			name:            "401 without auth",
 			runOutputLister: mockLister,
 			auth:            "",
-			wantStatus:      http.StatusUnauthorized,
+			wantStatus:     http.StatusUnauthorized,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{
-				Stores: StoresConfig{WorkspaceStore: mockWS, RunOutputLister: tt.runOutputLister},
-				Auth:   AuthConfig{JWTSecret: secret},
-			}
-			s := New(cfg)
+			h := NewHandler(Config{
+				JWTSecret:       secret,
+				WorkspaceStore:  mockWS,
+				RunOutputLister: tt.runOutputLister,
+			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts", nil)
 			if tt.auth != "" {
 				req.Header.Set("Authorization", tt.auth)
 			}
-			req.SetPathValue("workspace_id", workspaceID)
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
@@ -96,34 +98,35 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	userID := "user-1"
 	workspaceID := "ws-1"
 	chatRunID := "run-1"
-	token := signJWT(userID, secret)
+	token := testutil.SignJWT(userID, secret)
 
-	mockWS := &mockWorkspaceStore{
-		list: []entity.Workspace{
+	mockWS := &testutil.MockWorkspaceStore{
+		List: []entity.Workspace{
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockChatRun := &mockChatRunStore{
-		runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: "chat-1", Status: "SUCCEEDED", CreatedAt: 1}},
-		chatList: []entity.Chat{{ChatID: "chat-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+	mockChatRun := &testutil.MockChatRunStore{
+		Runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: "chat-1", Status: "SUCCEEDED", CreatedAt: 1}},
+		ChatList: []entity.Chat{{ChatID: "chat-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
-	mockLister := &mockRunOutputLister{
-		outputFiles: map[string][]entity.ChatRunArtifact{
+	mockLister := &testutil.MockRunOutputLister{
+		OutputFiles: map[string][]entity.ChatRunArtifact{
 			chatRunID: {{ChatRunID: chatRunID, RelativePath: "result-chat1.md"}},
 		},
 	}
 
-	cfg := Config{
-		Stores: StoresConfig{WorkspaceStore: mockWS, ChatRunStore: mockChatRun, RunOutputLister: mockLister},
-		Auth:   AuthConfig{JWTSecret: secret},
-	}
-	s := New(cfg)
+	h := NewHandler(Config{
+		JWTSecret:       secret,
+		WorkspaceStore:  mockWS,
+		ChatRunStore:    mockChatRun,
+		RunOutputLister: mockLister,
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts/"+chatRunID+"/items", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.SetPathValue("workspace_id", workspaceID)
-	req.SetPathValue("chat_run_id", chatRunID)
 	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
@@ -139,20 +142,20 @@ func TestArtifactContentHandler(t *testing.T) {
 	workspaceID := "ws-1"
 	chatRunID := "run-1"
 	chatID := "chat-1"
-	token := signJWT(userID, secret)
+	token := testutil.SignJWT(userID, secret)
 
-	mockWS := &mockWorkspaceStore{
-		list: []entity.Workspace{
+	mockWS := &testutil.MockWorkspaceStore{
+		List: []entity.Workspace{
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockChatRunNotFound := &mockChatRunStore{runs: nil, chatList: nil}
-	mockChatRunFound := &mockChatRunStore{
-		runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID, Status: "SUCCEEDED", CreatedAt: 1}},
-		chatList: []entity.Chat{{ChatID: chatID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+	mockChatRunNotFound := &testutil.MockChatRunStore{Runs: nil, ChatList: nil}
+	mockChatRunFound := &testutil.MockChatRunStore{
+		Runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID, Status: "SUCCEEDED", CreatedAt: 1}},
+		ChatList: []entity.Chat{{ChatID: chatID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
-	mockListerFound := &mockRunOutputLister{
-		outputFiles: map[string][]entity.ChatRunArtifact{chatRunID: {{ChatRunID: chatRunID, RelativePath: "result.md"}}},
+	mockListerFound := &testutil.MockRunOutputLister{
+		OutputFiles: map[string][]entity.ChatRunArtifact{chatRunID: {{ChatRunID: chatRunID, RelativePath: "result.md"}}},
 	}
 
 	tests := []struct {
@@ -167,40 +170,41 @@ func TestArtifactContentHandler(t *testing.T) {
 			chatRunStore:    mockChatRunNotFound,
 			runOutputLister: mockListerFound,
 			auth:            "Bearer " + token,
-			wantStatus:      http.StatusNotFound,
+			wantStatus:     http.StatusNotFound,
 		},
 		{
 			name:            "503 without RunOutputLister",
 			chatRunStore:    mockChatRunFound,
 			runOutputLister: nil,
 			auth:            "Bearer " + token,
-			wantStatus:      http.StatusServiceUnavailable,
+			wantStatus:     http.StatusServiceUnavailable,
 		},
 		{
 			name:            "401 without auth",
 			chatRunStore:    mockChatRunFound,
 			runOutputLister: mockListerFound,
 			auth:            "",
-			wantStatus:      http.StatusUnauthorized,
+			wantStatus:     http.StatusUnauthorized,
 		},
 	}
-	artifactStorage := newMockArtifactStorage()
+	artifactStorage := testutil.NewMockArtifactStorage()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{
-				Stores:  StoresConfig{WorkspaceStore: mockWS, ChatRunStore: tt.chatRunStore, RunOutputLister: tt.runOutputLister},
-				Storage: StorageConfig{ArtifactStorage: artifactStorage},
-				Auth:    AuthConfig{JWTSecret: secret},
-			}
-			s := New(cfg)
+			h := NewHandler(Config{
+				JWTSecret:       secret,
+				WorkspaceStore:  mockWS,
+				ChatRunStore:    tt.chatRunStore,
+				RunOutputLister: tt.runOutputLister,
+				ArtifactStorage: artifactStorage,
+			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+workspaceID+"/artifacts/"+chatRunID+"/content", nil)
 			if tt.auth != "" {
 				req.Header.Set("Authorization", tt.auth)
 			}
-			req.SetPathValue("workspace_id", workspaceID)
-			req.SetPathValue("chat_run_id", chatRunID)
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}

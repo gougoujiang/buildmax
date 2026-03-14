@@ -1,4 +1,4 @@
-package server
+package worker
 
 import (
 	"bytes"
@@ -6,31 +6,39 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"buildmax/internal/server/testutil"
+	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/entity"
 )
 
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	chatRunID := "r_run1"
 	chatID := "c_chat1"
+	hub := streamhub.NewStreamHub()
 	cfg := Config{
-		Auth:   AuthConfig{JWTSecret: "secret"},
-		Worker: WorkerConfig{WorkerToken: "worker-tok"},
-		Stores: StoresConfig{ChatRunStore: &mockChatRunStore{runs: []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID}}, chatList: []entity.Chat{{ChatID: chatID}}}},
+		Token:        "worker-tok",
+		ChatRunStore: &testutil.MockChatRunStore{
+			Runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID}},
+			ChatList: []entity.Chat{{ChatID: chatID}},
+		},
+		Hub: hub,
 	}
-	s := New(cfg)
+	h := NewHandler(cfg)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
 	body := bytes.NewReader([]byte(`{"delta":"hello "}`))
 	req := httptest.NewRequest(http.MethodPost, "/api/worker/chat-runs/"+chatRunID+"/stream", body)
 	req.SetPathValue("chat_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer worker-tok")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	s.Handler().ServeHTTP(w, req)
+	mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("POST stream: got status %d, want 200", w.Code)
 	}
-	// Hub is keyed by chat_id, not run_id.
-	if got := s.hub.Buffer(chatID); got != "hello " {
+	if got := hub.Buffer(chatID); got != "hello " {
 		t.Errorf("hub buffer: got %q, want \"hello \"", got)
 	}
 
@@ -40,11 +48,11 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	req2.Header.Set("Authorization", "Bearer worker-tok")
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
-	s.Handler().ServeHTTP(w2, req2)
+	mux.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusOK {
 		t.Errorf("POST stream second: got status %d, want 200", w2.Code)
 	}
-	if got := s.hub.Buffer(chatID); got != "hello world" {
+	if got := hub.Buffer(chatID); got != "hello world" {
 		t.Errorf("hub buffer after second: got %q, want \"hello world\"", got)
 	}
 }

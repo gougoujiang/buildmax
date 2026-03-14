@@ -1,4 +1,4 @@
-package server
+package portal
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"buildmax/internal/server/testutil"
 	"buildmax/internal/storage/entity"
 )
 
@@ -17,59 +18,61 @@ func TestWorkspacesHandler(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
+		name           string
 		workspaceStore entity.WorkspaceStore
-		authHeader    string
-		jwtSecret     string
-		wantStatus    int
-		wantBodyHas   string
-		wantArrayLen  int
+		authHeader     string
+		jwtSecret      string
+		wantStatus     int
+		wantBodyHas    string
+		wantArrayLen   int
 	}{
 		{
-			name:          "no auth returns 401",
-			workspaceStore: &mockWorkspaceStore{list: oneWorkspace},
-			authHeader:    "",
-			jwtSecret:     secret,
-			wantStatus:    http.StatusUnauthorized,
-			wantBodyHas:   "unauthorized",
+			name:           "no auth returns 401",
+			workspaceStore: &testutil.MockWorkspaceStore{List: oneWorkspace},
+			authHeader:     "",
+			jwtSecret:      secret,
+			wantStatus:     http.StatusUnauthorized,
+			wantBodyHas:    "unauthorized",
 		},
 		{
-			name:          "invalid bearer returns 401",
-			workspaceStore: &mockWorkspaceStore{list: oneWorkspace},
-			authHeader:    "Bearer invalid-token",
-			jwtSecret:     secret,
-			wantStatus:    http.StatusUnauthorized,
+			name:           "invalid bearer returns 401",
+			workspaceStore: &testutil.MockWorkspaceStore{List: oneWorkspace},
+			authHeader:     "Bearer invalid-token",
+			jwtSecret:      secret,
+			wantStatus:     http.StatusUnauthorized,
 		},
 		{
-			name:          "valid JWT returns 200 and workspace list",
-			workspaceStore: &mockWorkspaceStore{list: oneWorkspace},
-			authHeader:    "Bearer " + signJWT("u1", secret),
-			jwtSecret:     secret,
-			wantStatus:    http.StatusOK,
-			wantBodyHas:   "Default",
-			wantArrayLen:  1,
+			name:           "valid JWT returns 200 and workspace list",
+			workspaceStore: &testutil.MockWorkspaceStore{List: oneWorkspace},
+			authHeader:     "Bearer " + testutil.SignJWT("u1", secret),
+			jwtSecret:      secret,
+			wantStatus:     http.StatusOK,
+			wantBodyHas:    "Default",
+			wantArrayLen:   1,
 		},
 		{
-			name:          "no WorkspaceStore returns 503",
+			name:           "no WorkspaceStore returns 503",
 			workspaceStore: nil,
-			authHeader:    "Bearer " + signJWT("u1", secret),
-			jwtSecret:     secret,
-			wantStatus:    http.StatusServiceUnavailable,
-			wantBodyHas:   "not configured",
+			authHeader:     "Bearer " + testutil.SignJWT("u1", secret),
+			jwtSecret:      secret,
+			wantStatus:     http.StatusServiceUnavailable,
+			wantBodyHas:    "not configured",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{
-				Stores: StoresConfig{WorkspaceStore: tt.workspaceStore},
-				Auth:   AuthConfig{JWTSecret: tt.jwtSecret},
+			h := NewHandler(Config{
+				JWTSecret:      tt.jwtSecret,
+				WorkspaceStore: tt.workspaceStore,
 			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodGet, "/api/workspaces", nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
@@ -108,7 +111,7 @@ func TestCreateWorkspaceHandler(t *testing.T) {
 	}{
 		{
 			name:           "no auth returns 401",
-			workspaceStore: &mockWorkspaceStore{list: nil},
+			workspaceStore: &testutil.MockWorkspaceStore{List: nil},
 			authHeader:     "",
 			body:           `{"name":"My workspace"}`,
 			wantStatus:     http.StatusUnauthorized,
@@ -116,16 +119,16 @@ func TestCreateWorkspaceHandler(t *testing.T) {
 		},
 		{
 			name:           "empty name returns 400",
-			workspaceStore: &mockWorkspaceStore{list: nil},
-			authHeader:     "Bearer " + signJWT("u1", secret),
+			workspaceStore: &testutil.MockWorkspaceStore{List: nil},
+			authHeader:     "Bearer " + testutil.SignJWT("u1", secret),
 			body:           `{"name":""}`,
 			wantStatus:     http.StatusBadRequest,
 			wantBodyHas:    "name required",
 		},
 		{
 			name:           "valid request returns 201 and workspace",
-			workspaceStore: &mockWorkspaceStore{list: nil},
-			authHeader:     "Bearer " + signJWT("u1", secret),
+			workspaceStore: &testutil.MockWorkspaceStore{List: nil},
+			authHeader:     "Bearer " + testutil.SignJWT("u1", secret),
 			body:           `{"name":"My workspace"}`,
 			wantStatus:     http.StatusCreated,
 			wantBodyHas:    "My workspace",
@@ -133,7 +136,7 @@ func TestCreateWorkspaceHandler(t *testing.T) {
 		{
 			name:           "no WorkspaceStore returns 503",
 			workspaceStore: nil,
-			authHeader:     "Bearer " + signJWT("u1", secret),
+			authHeader:     "Bearer " + testutil.SignJWT("u1", secret),
 			body:           `{"name":"x"}`,
 			wantStatus:     http.StatusServiceUnavailable,
 			wantBodyHas:    "not configured",
@@ -141,17 +144,19 @@ func TestCreateWorkspaceHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(Config{
-				Stores: StoresConfig{WorkspaceStore: tt.workspaceStore},
-				Auth:   AuthConfig{JWTSecret: secret},
+			h := NewHandler(Config{
+				JWTSecret:      secret,
+				WorkspaceStore: tt.workspaceStore,
 			})
+			mux := http.NewServeMux()
+			h.Register(mux)
 			req := httptest.NewRequest(http.MethodPost, "/api/workspaces", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
 			rec := httptest.NewRecorder()
-			s.Handler().ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
