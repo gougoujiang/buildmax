@@ -2,7 +2,7 @@ import type { Chat } from "../lib/types"
 import { useAuth } from "../contexts/AuthContext"
 import { ChatDetailView, useChatDetail } from "../features/chats"
 
-interface ChatDetailProps {
+interface TaskDetailProps {
   chat: Chat
   workspaceId: string
   onRefetch?: () => void
@@ -10,7 +10,7 @@ interface ChatDetailProps {
   initialInput?: string
 }
 
-export function ChatDetail({ chat, workspaceId, onRefetch, initialInput }: ChatDetailProps) {
+export function TaskDetail({ chat, workspaceId, onRefetch, initialInput }: TaskDetailProps) {
   const { token, user } = useAuth()
   const chatDetail = useChatDetail({
     workspaceId,

@@ -9,9 +9,9 @@ import { createConversationStream } from "../features/conversations"
 import { FilesPanel } from "../components/FilesPanel"
 import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
 
-type NewChatTab = "conversations" | "artifacts" | "files"
+type NewConversationTab = "conversations" | "artifacts" | "files"
 
-interface NewChatProps {
+interface NewConversationProps {
   workspaceId: string
   token?: string
   onRefetchWorkspaceConversations?: () => void
@@ -20,18 +20,18 @@ interface NewChatProps {
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
-export function NewChat({
+export function NewConversation({
   workspaceId,
   token,
   onRefetchWorkspaceConversations,
   workspaceConversations,
   artifacts,
   onViewArtifact,
-}: NewChatProps) {
+}: NewConversationProps) {
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<NewChatTab>("conversations")
+  const [activeTab, setActiveTab] = useState<NewConversationTab>("conversations")
   const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null)
   const [streamingContent, setStreamingContent] = useState("")
   const conversationIdRef = useRef<string | null>(null)

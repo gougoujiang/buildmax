@@ -1,15 +1,15 @@
 import type { Conversation } from "../lib/types"
 import { navigate } from "../router"
 
-interface ChatsProps {
+interface TasksProps {
   workspaceId: string
   conversations: Conversation[]
 }
 
-export function Chats({
+export function Tasks({
   workspaceId,
   conversations,
-}: ChatsProps) {
+}: TasksProps) {
   return (
     <div className="page-activity">
       <h1 className="page-activity__title">Conversations</h1>

@@ -4,12 +4,12 @@ import { getChatForDetail } from "../lib/workspace"
 import { useWorkspace } from "../contexts/WorkspaceContext"
 import { useArtifacts } from "../hooks/useArtifacts"
 import { useWorkspaceChats } from "../hooks/useWorkspaceTasks"
-import { Chats } from "../pages/Chats"
+import { Tasks } from "../pages/Tasks"
 import { AgentList } from "../pages/AgentList"
-import { ChatDetail } from "../pages/ChatDetail"
+import { TaskDetail } from "../pages/TaskDetail"
 import { ConversationDetail } from "../pages/ConversationDetail"
 import { WorkspaceHome } from "../pages/WorkspaceHome"
-import { NewChat } from "../pages/NewChat"
+import { NewConversation } from "../pages/NewConversation"
 import { Explore } from "../pages/Explore"
 
 export type { ViewArtifactParams }
@@ -62,7 +62,7 @@ export function WorkspaceRouter({
   if (route.name === "workspace") return fallbackHome
   if (route.name === "newChat") {
     return (
-        <NewChat
+        <NewConversation
           workspaceId={route.workspaceId}
           token={token ?? undefined}
           onRefetchWorkspaceConversations={onRefetchWorkspaceConversations}
@@ -74,7 +74,7 @@ export function WorkspaceRouter({
   }
   if (route.name === "chats") {
     return (
-      <Chats
+      <Tasks
         workspaceId={route.workspaceId}
         conversations={workspaceConversations}
       />
@@ -97,7 +97,7 @@ export function WorkspaceRouter({
     if (!chat) return fallbackHome
     const initialInput = pendingChat?.chat.id === route.chatId ? pendingChat.initialInput : undefined
     return (
-      <ChatDetail
+      <TaskDetail
         chat={chat}
         workspaceId={route.workspaceId}
         onRefetch={() => refetchWorkspaceChats()}
