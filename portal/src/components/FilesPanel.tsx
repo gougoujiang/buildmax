@@ -1,10 +1,10 @@
 import { FilesExplorer } from "../features/files"
 
 interface FilesPanelProps {
-  workspaceId: string
+  profileId: string
   className?: string
 }
 
-export function FilesPanel({ workspaceId, className }: FilesPanelProps) {
-  return <FilesExplorer workspaceId={workspaceId} className={className} />
+export function FilesPanel({ profileId, className }: FilesPanelProps) {
+  return <FilesExplorer profileId={profileId} className={className} />
 }

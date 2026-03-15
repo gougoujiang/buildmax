@@ -11,7 +11,7 @@ import (
 
 type AgentResponse struct {
 	ID           string `json:"id"`
-	WorkspaceID  string `json:"workspace_id"`
+	UserID       string `json:"user_id"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
@@ -33,7 +33,7 @@ type patchAgentRequest struct {
 func agentToResponse(a entity.Agent) AgentResponse {
 	return AgentResponse{
 		ID:           a.AgentID,
-		WorkspaceID:  a.WorkspaceID,
+		UserID:       a.UserID,
 		Name:         a.Name,
 		Description:  a.Description,
 		Instructions: a.Instructions,
@@ -42,13 +42,13 @@ func agentToResponse(a entity.Agent) AgentResponse {
 }
 
 func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.AgentStore, "agents not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	list, err := h.cfg.AgentStore.ListAgentsByWorkspace(r.Context(), workspaceID)
+	list, err := h.cfg.AgentStore.ListAgentsByUser(r.Context(), userID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_agents", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_agents", "user_id", userID)
 		return
 	}
 	out := make([]AgentResponse, len(list))
@@ -59,7 +59,7 @@ func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.AgentStore, "agents not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
@@ -71,16 +71,16 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
-	agent, err := h.cfg.AgentStore.CreateAgent(r.Context(), workspaceID, req.Name, req.Description, req.Instructions)
+	agent, err := h.cfg.AgentStore.CreateAgent(r.Context(), userID, req.Name, req.Description, req.Instructions)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_agent", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_agent", "user_id", userID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, agentToResponse(*agent))
 }
 
 func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.AgentStore, "agents not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
@@ -93,7 +93,7 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_agent", "agent_id", agentID)
 		return
 	}
-	if agent == nil || agent.WorkspaceID != workspaceID {
+	if agent == nil || agent.UserID != userID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 		return
 	}
@@ -101,7 +101,7 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.AgentStore, "agents not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
@@ -117,7 +117,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
 		return
 	}
-	agent, err := h.cfg.AgentStore.UpdateAgent(r.Context(), agentID, workspaceID, req.Name, req.Description, req.Instructions)
+	agent, err := h.cfg.AgentStore.UpdateAgent(r.Context(), agentID, userID, req.Name, req.Description, req.Instructions)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "patch_agent", "agent_id", agentID)
 		return
@@ -130,7 +130,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.AgentStore, "agents not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
@@ -138,7 +138,7 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := h.cfg.AgentStore.DeleteAgent(r.Context(), agentID, workspaceID)
+	err := h.cfg.AgentStore.DeleteAgent(r.Context(), agentID, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")

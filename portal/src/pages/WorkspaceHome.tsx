@@ -2,7 +2,7 @@ import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
 import { navigate } from "../router"
 
 interface WorkspaceHomeProps {
-  workspaceId: string
+  profileId: string
   workspaceConversations: Conversation[]
   artifacts: Artifact[]
   onViewArtifact?: (params: ViewArtifactParams) => void
@@ -11,7 +11,7 @@ interface WorkspaceHomeProps {
 const RECENT_CONVERSATIONS = 5
 
 export function WorkspaceHome({
-  workspaceId,
+  profileId,
   workspaceConversations,
   artifacts,
   onViewArtifact,
@@ -32,7 +32,7 @@ export function WorkspaceHome({
                   type="button"
                   className="page-workspace__chat-link"
                   onClick={() =>
-                    navigate({ name: "conversation", workspaceId, conversationId: conv.id })
+                    navigate({ name: "conversation", profileId, conversationId: conv.id })
                   }
                 >
                   <span className="page-workspace__chat-name">
@@ -62,7 +62,7 @@ export function WorkspaceHome({
                   <button
                     type="button"
                     className="page-workspace__artifact-view"
-                    onClick={() => onViewArtifact({ workspaceId, chatRunId: a.id })}
+                    onClick={() => onViewArtifact({ chatRunId: a.id })}
                   >
                     View
                   </button>

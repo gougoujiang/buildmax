@@ -9,10 +9,9 @@ func TestWebhookAdapter_Receive(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewWebhookAdapter("message", "webhook")
 
-	t.Run("valid body and workspace", func(t *testing.T) {
+	t.Run("valid body", func(t *testing.T) {
 		req := &WebhookRequest{
-			Body:        []byte(`{"message":"hello world"}`),
-			WorkspaceID: "w_abc123",
+			Body: []byte(`{"message":"hello world"}`),
 		}
 		turn, err := adapter.Receive(ctx, req)
 		if err != nil {
@@ -20,9 +19,6 @@ func TestWebhookAdapter_Receive(t *testing.T) {
 		}
 		if turn.Channel != ChannelWebhook {
 			t.Errorf("channel = %q, want webhook", turn.Channel)
-		}
-		if turn.WorkspaceID != "w_abc123" {
-			t.Errorf("workspace_id = %q, want w_abc123", turn.WorkspaceID)
 		}
 		if turn.Message != "hello world" {
 			t.Errorf("message = %q, want hello world", turn.Message)
@@ -35,8 +31,7 @@ func TestWebhookAdapter_Receive(t *testing.T) {
 	t.Run("custom path body.text", func(t *testing.T) {
 		a := NewWebhookAdapter("body.text", "")
 		req := &WebhookRequest{
-			Body:        []byte(`{"body":{"text":"nested"}}`),
-			WorkspaceID: "w_xyz",
+			Body: []byte(`{"body":{"text":"nested"}}`),
 		}
 		turn, err := a.Receive(ctx, req)
 		if err != nil {
@@ -47,21 +42,9 @@ func TestWebhookAdapter_Receive(t *testing.T) {
 		}
 	})
 
-	t.Run("missing workspace_id", func(t *testing.T) {
-		req := &WebhookRequest{
-			Body:        []byte(`{"message":"hi"}`),
-			WorkspaceID: "",
-		}
-		_, err := adapter.Receive(ctx, req)
-		if err == nil {
-			t.Fatal("expected error for missing workspace_id")
-		}
-	})
-
 	t.Run("missing message at path", func(t *testing.T) {
 		req := &WebhookRequest{
-			Body:        []byte(`{"other":"value"}`),
-			WorkspaceID: "w_abc",
+			Body: []byte(`{"other":"value"}`),
 		}
 		_, err := adapter.Receive(ctx, req)
 		if err == nil {
@@ -81,8 +64,7 @@ func TestWebhookAdapter_Receive_callbackUrl(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewWebhookAdapter("message", "")
 	req := &WebhookRequest{
-		Body:        []byte(`{"message":"run","callback_url":"https://example.com/cb"}`),
-		WorkspaceID: "w_1",
+		Body: []byte(`{"message":"run","callback_url":"https://example.com/cb"}`),
 	}
 	turn, err := adapter.Receive(ctx, req)
 	if err != nil {

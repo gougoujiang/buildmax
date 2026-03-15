@@ -8,7 +8,7 @@ import {
 } from "../api"
 
 interface UseChatDetailOptions {
-  workspaceId: string
+  profileId: string
   chatId: string
   token: string | null
   initialInput?: string
@@ -16,7 +16,7 @@ interface UseChatDetailOptions {
 }
 
 export function useChatDetail({
-  workspaceId,
+  profileId,
   chatId,
   token,
   initialInput,
@@ -31,10 +31,10 @@ export function useChatDetail({
     error: sessionError,
     refetch: refetchSession,
   } = useFetch(
-    () => getChatConversation(workspaceId, chatId, token!),
-    [workspaceId, chatId, token],
+    () => getChatConversation(profileId, chatId, token!),
+    [profileId, chatId, token],
     {
-      enabled: !!(token && workspaceId && chatId),
+      enabled: !!(token && profileId && chatId),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load session"),
     }
   )
@@ -65,8 +65,8 @@ export function useChatDetail({
   }, [])
 
   useEffect(() => {
-    if (!token || !workspaceId || !chatId) return
-    const cleanup = subscribeChatStream(workspaceId, chatId, token, {
+    if (!token || !profileId || !chatId) return
+    const cleanup = subscribeChatStream(profileId, chatId, token, {
       onDelta: (text) => setStreamingContent((prev) => prev + text),
       onDone: () => {
         setStreamingContent("")
@@ -85,7 +85,7 @@ export function useChatDetail({
       cleanup()
       streamCleanupRef.current = null
     }
-  }, [workspaceId, chatId, token, refetchSession, onRunComplete])
+  }, [profileId, chatId, token, refetchSession, onRunComplete])
 
   useEffect(() => {
     if (!initialInput || session !== null || sessionLoading || sessionError) return
@@ -111,7 +111,7 @@ export function useChatDetail({
     setLastSentMessage(input)
     setFollowUpInput("")
     try {
-      await createTaskRun(workspaceId, chatId, { input }, token)
+      await createTaskRun(profileId, chatId, { input }, token)
     } catch (err) {
       setFollowUpError(getErrorMessage(err, "Failed to start run"))
       setFollowUpLoading(false)

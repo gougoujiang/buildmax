@@ -14,7 +14,7 @@ import (
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	chatRunID := "run-1"
 	run := entity.TaskRun{TaskRunID: chatRunID, ChatID: "chat-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	chat := entity.Chat{ChatID: "chat-1", WorkspaceID: "ws1", CreatedBy: "u1"}
+	chat := entity.Chat{ChatID: "chat-1", ConversationID: "conv-1", CreatedBy: "u1"}
 	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, ChatList: []entity.Chat{chat}}
 	cfg := Config{
 		Token:        "worker-token-123",
@@ -69,7 +69,7 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	chatRunID := "run-scheduled"
 	run := entity.TaskRun{TaskRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	chat := entity.Chat{ChatID: "chat1", WorkspaceID: "ws1"}
+	chat := entity.Chat{ChatID: "chat1", ConversationID: "conv-1"}
 	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, ChatList: []entity.Chat{chat}}
 	cfg := Config{
 		Token:        "token",
@@ -99,7 +99,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	chatRunID := "run-pending"
 	run := entity.TaskRun{TaskRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "PENDING", CreatedAt: 1}
-	chat := entity.Chat{ChatID: "chat1", WorkspaceID: "ws1"}
+	chat := entity.Chat{ChatID: "chat1", ConversationID: "conv-1"}
 	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, ChatList: []entity.Chat{chat}}
 	cfg := Config{
 		Token:        "token",

@@ -36,7 +36,6 @@ type Service struct {
 
 // HandleTurnCmd describes one normalized portal turn.
 type HandleTurnCmd struct {
-	WorkspaceID    string
 	UserID         string
 	Channel        string
 	Message        string
@@ -90,33 +89,32 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		ConversationID:     cmd.ConversationID,
 		UserContent:        cmd.Message,
 		Channel:            cmd.Channel,
-		WorkspaceID:        cmd.WorkspaceID,
+		ScopeID:            cmd.ConversationID,
 		UserID:             cmd.UserID,
-		Runners:            s.conversationToolRunners(cmd.WorkspaceID, cmd.UserID, cmd.ConversationID),
+		Runners:            s.conversationToolRunners(cmd.ConversationID, cmd.UserID),
 		TitleGenerator:     titleGeneratorAdapter{s.TitleGenerator},
-		RecentChatsSnippet: s.recentTasksSnippet(ctx, cmd.WorkspaceID),
+		RecentChatsSnippet: s.recentTasksSnippet(ctx, cmd.ConversationID),
 		StreamSink:         cmd.StreamSink,
 	}
 	reply, err := coreconv.Run(ctx, s.ConversationStore, s.MessageStore, s.LLMCaller, runInput)
 	return HandleTurnResult{Reply: reply}, err
 }
 
-func (s *Service) conversationToolRunners(workspaceID, userID, conversationID string) *coreconv.ConversationToolRunners {
+func (s *Service) conversationToolRunners(conversationID, userID string) *coreconv.ConversationToolRunners {
 	return &coreconv.ConversationToolRunners{
-		StartTask:    s.startTaskRunner(workspaceID, userID, conversationID),
+		StartTask:    s.startTaskRunner(conversationID, userID),
 		ListTasks:    s.listTasksRunner(),
 		GetTask:      s.getTaskRunner(),
 		ContinueTask: s.continueTaskRunner(),
 	}
 }
 
-func (s *Service) startTaskRunner(workspaceID, userID, conversationID string) tools.StartTaskRunner {
+func (s *Service) startTaskRunner(conversationID, userID string) tools.StartTaskRunner {
 	if s.ChatService == nil {
 		return nil
 	}
 	return &startTaskRunner{
 		chatService:    s.ChatService,
-		workspaceID:    workspaceID,
 		userID:         userID,
 		conversationID: conversationID,
 	}
@@ -124,22 +122,16 @@ func (s *Service) startTaskRunner(workspaceID, userID, conversationID string) to
 
 type startTaskRunner struct {
 	chatService    *chatapp.Service
-	workspaceID    string
 	userID         string
 	conversationID string
 }
 
 func (r *startTaskRunner) StartTask(ctx context.Context, _, _, input string, agentID *string) (taskID, runID string, err error) {
-	var conversationID *string
-	if r.conversationID != "" {
-		conversationID = &r.conversationID
-	}
 	result, err := r.chatService.StartBackgroundChat(ctx, chatapp.CreateChatCmd{
-		WorkspaceID:    r.workspaceID,
+		ConversationID: r.conversationID,
 		UserID:         r.userID,
 		Input:          input,
 		AgentID:        agentID,
-		ConversationID: conversationID,
 	})
 	if err != nil {
 		return "", "", err
@@ -158,13 +150,13 @@ type listChatsRunner struct {
 	chats entity.TaskStore
 }
 
-func (r *listChatsRunner) ListTasks(ctx context.Context, workspaceID string) (string, error) {
-	list, _, err := r.chats.ListChatsByWorkspacePaginated(ctx, workspaceID, false, 10, 0)
+func (r *listChatsRunner) ListTasks(ctx context.Context, conversationID string) (string, error) {
+	list, _, err := r.chats.ListChatsByConversationPaginated(ctx, conversationID, false, 10, 0)
 	if err != nil {
 		return "", err
 	}
 	if len(list) == 0 {
-		return "No recent tasks in this workspace.", nil
+		return "No recent tasks in this conversation.", nil
 	}
 	var lines []string
 	for i, c := range list {
@@ -186,16 +178,16 @@ type getTaskRunner struct {
 	chats entity.TaskStore
 }
 
-func (r *getTaskRunner) GetTask(ctx context.Context, workspaceID, chatID string) (string, error) {
+func (r *getTaskRunner) GetTask(ctx context.Context, conversationID, chatID string) (string, error) {
 	chat, err := r.chats.GetChat(ctx, chatID)
 	if err != nil {
 		return "", err
 	}
 	if chat == nil {
-		return "", fmt.Errorf("task not found or not in this workspace")
+		return "", fmt.Errorf("task not found or not in this conversation")
 	}
-	if chat.WorkspaceID != workspaceID {
-		return "", fmt.Errorf("task not found or not in this workspace")
+	if chat.ConversationID != conversationID {
+		return "", fmt.Errorf("task not found or not in this conversation")
 	}
 	inputTrunc := truncateRunes(chat.Input, 500)
 	outputLine := ""
@@ -221,7 +213,7 @@ type continueTaskRunner struct {
 	chatService *chatapp.Service
 }
 
-func (r *continueTaskRunner) ContinueTask(ctx context.Context, workspaceID, userID, chatID, input string) (runID string, err error) {
+func (r *continueTaskRunner) ContinueTask(ctx context.Context, conversationID, userID, chatID, input string) (runID string, err error) {
 	if r.chatService.Chats == nil {
 		return "", fmt.Errorf("tasks not configured")
 	}
@@ -229,8 +221,8 @@ func (r *continueTaskRunner) ContinueTask(ctx context.Context, workspaceID, user
 	if err != nil {
 		return "", err
 	}
-	if chat == nil || chat.WorkspaceID != workspaceID {
-		return "", fmt.Errorf("task not found or not in this workspace")
+	if chat == nil || chat.ConversationID != conversationID {
+		return "", fmt.Errorf("task not found or not in this conversation")
 	}
 	run, err := r.chatService.CreateRun(ctx, chatapp.CreateRunCmd{
 		UserID: userID,
@@ -243,20 +235,20 @@ func (r *continueTaskRunner) ContinueTask(ctx context.Context, workspaceID, user
 	return run.TaskRunID, nil
 }
 
-func (s *Service) recentTasksSnippet(ctx context.Context, workspaceID string) string {
+func (s *Service) recentTasksSnippet(ctx context.Context, conversationID string) string {
 	if s.ChatService == nil || s.ChatService.Chats == nil {
 		return ""
 	}
-	list, _, err := s.ChatService.Chats.ListChatsByWorkspacePaginated(ctx, workspaceID, false, 5, 0)
+	list, _, err := s.ChatService.Chats.ListChatsByConversationPaginated(ctx, conversationID, false, 5, 0)
 	if err != nil || len(list) == 0 {
-		return "Recent tasks in this workspace (latest 5): No recent tasks."
+		return "Recent tasks in this conversation (latest 5): No recent tasks."
 	}
 	var lines []string
 	for _, c := range list {
 		snippet := chatTitleOrSnippet(&c, 60)
 		lines = append(lines, fmt.Sprintf("%s | %s | %s | %s", c.ChatID, snippet, c.Status, formatCreatedAt(c.CreatedAt)))
 	}
-	return "Recent tasks in this workspace (latest 5):\n" + strings.Join(lines, "\n")
+	return "Recent tasks in this conversation (latest 5):\n" + strings.Join(lines, "\n")
 }
 
 func chatTitleOrSnippet(c *entity.Chat, maxRunes int) string {

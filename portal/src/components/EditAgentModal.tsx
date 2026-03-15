@@ -50,7 +50,7 @@ export function EditAgentModal({
       title="Edit agent"
       titleId="edit-agent-title"
       fields={AGENT_FIELDS}
-      hint="Agents are personas or task templates you can use in this workspace."
+      hint="Agents are personas or task templates you can use across your account."
       initialValues={initialValues}
       className="modal--large"
       dangerAction={{

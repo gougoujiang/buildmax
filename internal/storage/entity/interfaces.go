@@ -26,32 +26,22 @@ type UsageInWindowReader interface {
 	UserUsageInWindow(ctx context.Context, userID string, sinceUnix, untilUnix int64) (runCount, totalTokens int, err error)
 }
 
-// WorkspaceStore provides workspace persistence.
-type WorkspaceStore interface {
-	EnsureDefaultWorkspaceForUser(ctx context.Context, userID string) error
-	ListWorkspacesByOwner(ctx context.Context, userID string) ([]Workspace, error)
-	// WorkspaceBelongsToUser returns true if the workspace is owned by the user.
-	WorkspaceBelongsToUser(ctx context.Context, workspaceID, userID string) (bool, error)
-	// CreateWorkspace creates a new workspace for the user and returns it.
-	CreateWorkspace(ctx context.Context, userID, name string) (*Workspace, error)
-}
-
-// AgentStore provides agent persistence. Agents are workspace-scoped.
+// AgentStore provides agent persistence. Agents are user-scoped.
 type AgentStore interface {
-	ListAgentsByWorkspace(ctx context.Context, workspaceID string) ([]Agent, error)
+	ListAgentsByUser(ctx context.Context, userID string) ([]Agent, error)
 	GetAgent(ctx context.Context, agentID string) (*Agent, error)
-	CreateAgent(ctx context.Context, workspaceID, name, description, instructions string) (*Agent, error)
-	UpdateAgent(ctx context.Context, agentID, workspaceID, name, description, instructions string) (*Agent, error)
-	DeleteAgent(ctx context.Context, agentID, workspaceID string) error
+	CreateAgent(ctx context.Context, userID, name, description, instructions string) (*Agent, error)
+	UpdateAgent(ctx context.Context, agentID, userID, name, description, instructions string) (*Agent, error)
+	DeleteAgent(ctx context.Context, agentID, userID string) error
 }
 
-// TaskStore provides task persistence. Tasks belong to a workspace.
+// TaskStore provides task persistence. Tasks belong to a conversation.
 // CreateChat creates a task plus its first TaskRun (both in one transaction).
 type TaskStore interface {
-	// ListChatsByWorkspace returns tasks in the workspace. order is "asc" (oldest first) or "desc" (latest first); default "desc".
-	ListChatsByWorkspace(ctx context.Context, workspaceID string, order string) ([]Chat, error)
-	// ListChatsByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
-	ListChatsByWorkspacePaginated(ctx context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]Chat, int, error)
+	// ListChatsByConversation returns tasks in the conversation. order is "asc" (oldest first) or "desc" (latest first); default "desc".
+	ListChatsByConversation(ctx context.Context, conversationID string, order string) ([]Chat, error)
+	// ListChatsByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
+	ListChatsByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Chat, int, error)
 	GetChat(ctx context.Context, chatID string) (*Chat, error)
 	GetChatBySessionID(ctx context.Context, sessionID string) (*Chat, error)
 	// CreateChat creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.
@@ -83,11 +73,11 @@ type TaskRunStore interface {
 	SyncTaskFromRun(ctx context.Context, chatRunID string) error
 }
 
-// ConversationStore provides Tier 1 conversation persistence. Conversations are workspace-scoped.
+// ConversationStore provides Tier 1 conversation persistence. Conversations are user-scoped.
 type ConversationStore interface {
-	CreateConversation(ctx context.Context, workspaceID, channel, createdBy string) (*Conversation, error)
+	CreateConversation(ctx context.Context, userID, channel, createdBy string) (*Conversation, error)
 	GetConversation(ctx context.Context, conversationID string) (*Conversation, error)
-	ListConversationsByWorkspace(ctx context.Context, workspaceID string, limit, offset int) ([]Conversation, int, error)
+	ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]Conversation, int, error)
 	UpdateConversationTitle(ctx context.Context, conversationID, title string) error
 }
 
@@ -98,15 +88,15 @@ type ConversationMessageStore interface {
 	ListMessages(ctx context.Context, conversationID string) ([]ConversationMessage, error)
 }
 
-// WorkspaceWebhookKeyStore provides per-workspace webhook API key persistence.
+// UserWebhookKeyStore provides per-user webhook API key persistence.
 // Keys are stored by hash; plaintext is returned only from CreateKey.
-type WorkspaceWebhookKeyStore interface {
-	// CreateKey creates a new webhook key for the workspace. Returns plaintext key (e.g. whsec_...) and key_id. Caller must store plaintext securely; it is not persisted.
-	CreateKey(ctx context.Context, workspaceID, name string) (plaintextKey, keyID string, err error)
-	// GetWorkspaceIDByKey looks up the workspace_id for the given plaintext key. Returns empty string if not found.
-	GetWorkspaceIDByKey(ctx context.Context, plaintextKey string) (workspaceID string, err error)
-	// ListKeys returns key metadata for the workspace (no plaintext).
-	ListKeys(ctx context.Context, workspaceID string) ([]WebhookKeyMeta, error)
-	// RevokeKey deletes the key by keyID if it belongs to the workspace.
-	RevokeKey(ctx context.Context, workspaceID, keyID string) error
+type UserWebhookKeyStore interface {
+	// CreateKey creates a new webhook key for the user. Returns plaintext key (e.g. whsec_...) and key_id. Caller must store plaintext securely; it is not persisted.
+	CreateKey(ctx context.Context, userID, name string) (plaintextKey, keyID string, err error)
+	// GetUserIDByKey looks up the user_id for the given plaintext key. Returns empty string if not found.
+	GetUserIDByKey(ctx context.Context, plaintextKey string) (userID string, err error)
+	// ListKeys returns key metadata for the user (no plaintext).
+	ListKeys(ctx context.Context, userID string) ([]WebhookKeyMeta, error)
+	// RevokeKey deletes the key by keyID if it belongs to the user.
+	RevokeKey(ctx context.Context, userID, keyID string) error
 }

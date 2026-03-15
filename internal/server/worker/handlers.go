@@ -54,10 +54,11 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: run.CreatedAt,
 		},
 		Task: workerapi.TaskRunTask{
-			ChatID:      chat.ChatID,
-			WorkspaceID: chat.WorkspaceID,
-			SessionID:   chat.SessionID,
-			LastRunID:   chat.LastRunID,
+			ChatID:         chat.ChatID,
+			ConversationID: chat.ConversationID,
+			UserID:         chat.CreatedBy,
+			SessionID:      chat.SessionID,
+			LastRunID:      chat.LastRunID,
 		},
 	})
 }

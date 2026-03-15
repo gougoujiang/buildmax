@@ -34,7 +34,6 @@ export {
 
 export { requestOtp, login } from "../../features/auth"
 export { getUsage } from "../../features/usage"
-export { createWorkspace, getWorkspaces } from "../../features/workspaces"
 export { getAgents, createAgent, updateAgent, deleteAgent } from "../../features/agents"
 export {
   getChats,

@@ -42,9 +42,9 @@ type TokenUsage struct {
 	CompletionTokens int
 }
 
-// RunOutputLister lists run outputs (artifacts) by workspace and gets output files for a run.
+// RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, chatID *string) ([]entity.ArtifactWithChat, error)
 	GetTaskRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.TaskRunArtifact, error)
 }
 
@@ -58,13 +58,12 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore              entity.UserStore
-	WorkspaceStore         entity.WorkspaceStore
-	AgentStore             entity.AgentStore
-	TaskStore              entity.TaskStore
-	TaskRunStore           entity.TaskRunStore
-	RunOutputLister        RunOutputLister
-	WorkspaceWebhookKeyStore entity.WorkspaceWebhookKeyStore
+	UserStore                entity.UserStore
+	AgentStore               entity.AgentStore
+	TaskStore                entity.TaskStore
+	TaskRunStore             entity.TaskRunStore
+	RunOutputLister          RunOutputLister
+	UserWebhookKeyStore      entity.UserWebhookKeyStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -126,7 +125,6 @@ func (a chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string
 func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 	return portal.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
-		WorkspaceStore:           cfg.Stores.WorkspaceStore,
 		AgentStore:               cfg.Stores.AgentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
@@ -140,7 +138,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,
 		Hub:                      hub,
-		WorkspaceWebhookKeyStore: cfg.Stores.WorkspaceWebhookKeyStore,
+		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
 	}
 }
 
@@ -164,7 +162,7 @@ func New(cfg Config) *Server {
 		TaskRunStore: cfg.Stores.TaskRunStore,
 		Hub:          s.hub,
 	}).Register(mux)
-	if cfg.Stores.WorkspaceWebhookKeyStore != nil {
+	if cfg.Stores.UserWebhookKeyStore != nil {
 		msgPath := cfg.Webhook.MessagePath
 		if msgPath == "" {
 			msgPath = "message"
@@ -181,11 +179,11 @@ func New(cfg Config) *Server {
 			TitleGenerator: nil,
 		}
 		webhookHandler := webhook.NewHandler(webhook.Config{
-			Adapter:         conversation.NewWebhookAdapter(msgPath, userID),
-			Engine:          &convapp.RuleBasedEngine{Chat: chatSvc},
-			WorkspaceStore:  cfg.Stores.WorkspaceStore,
-			KeyStore:        cfg.Stores.WorkspaceWebhookKeyStore,
-			MessagePath:     msgPath,
+			Adapter:           conversation.NewWebhookAdapter(msgPath, userID),
+			Engine:            &convapp.RuleBasedEngine{Chat: chatSvc},
+			ConversationStore: cfg.Conv.ConversationStore,
+			KeyStore:          cfg.Stores.UserWebhookKeyStore,
+			MessagePath:       msgPath,
 		})
 		webhookHandler.Register(mux)
 	}

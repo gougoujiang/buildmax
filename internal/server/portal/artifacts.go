@@ -13,7 +13,8 @@ import (
 type ArtifactResponse struct {
 	TaskRunID        string `json:"task_run_id"`
 	ChatID           string `json:"task_id"`
-	WorkspaceID      string `json:"workspace_id"`
+	ConversationID   string `json:"conversation_id"`
+	UserID           string `json:"user_id"`
 	CreatedAt        int64  `json:"created_at"`
 	ChatInputSnippet string `json:"task_input_snippet"`
 }
@@ -22,27 +23,32 @@ func artifactWithChatToResponse(a entity.ArtifactWithChat) ArtifactResponse {
 	return ArtifactResponse{
 		TaskRunID:        a.ArtifactID,
 		ChatID:           a.ChatID,
-		WorkspaceID:      a.WorkspaceID,
+		ConversationID:   a.ConversationID,
+		UserID:           a.UserID,
 		CreatedAt:        a.CreatedAt,
 		ChatInputSnippet: a.ChatInputSnippet,
 	}
 }
 
-func (h *Handler) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.withUserAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") {
+	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
 		return
 	}
-	var chatIDPtr *string
-	if cid := r.URL.Query().Get("task_id"); cid != "" {
-		chatIDPtr = &cid
+	chatID, ok := pathValueRequired(w, r, "task_id")
+	if !ok {
+		return
 	}
-	list, err := h.cfg.RunOutputLister.ListRunOutputsByWorkspace(r.Context(), workspaceID, chatIDPtr)
+	chat, _, ok := h.getChatForUser(w, r, userID, chatID)
+	if !ok {
+		return
+	}
+	list, err := h.cfg.RunOutputLister.ListRunOutputsByConversation(r.Context(), chat.ConversationID, &chat.ChatID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_artifacts", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_artifacts", "task_id", chatID)
 		return
 	}
 	out := make([]ArtifactResponse, len(list))
@@ -56,8 +62,7 @@ type ArtifactItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
-// getArtifactRunAndChat loads run and chat for chatRunID and verifies workspace; writes error and returns (nil, nil, false) on failure.
-func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, workspaceID, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool) {
+func (h *Handler) getArtifactRunAndChatAny(w http.ResponseWriter, r *http.Request, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool) {
 	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
 		return nil, nil, false
 	}
@@ -71,7 +76,15 @@ func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, 
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
-	if chat.WorkspaceID != workspaceID {
+	return run, chat, true
+}
+
+func (h *Handler) getArtifactRunAndChatForUser(w http.ResponseWriter, r *http.Request, userID, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool) {
+	run, chat, ok = h.getArtifactRunAndChatAny(w, r, chatRunID)
+	if !ok {
+		return nil, nil, false
+	}
+	if _, ok = h.getConversationForUser(w, r, userID, chat.ConversationID); !ok {
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
@@ -79,18 +92,15 @@ func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") {
 		return
 	}
 	chatRunID, ok := pathValueRequired(w, r, "task_run_id")
 	if !ok {
 		return
 	}
-	_, _, ok = h.getArtifactRunAndChat(w, r, workspaceID, chatRunID)
+	_, _, ok = h.getArtifactRunAndChatForUser(w, r, userID, chatRunID)
 	if !ok {
 		return
 	}
@@ -142,7 +152,7 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ch
 }
 
 func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -153,7 +163,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	_, chat, ok := h.getArtifactRunAndChat(w, r, workspaceID, chatRunID)
+	_, chat, ok := h.getArtifactRunAndChatForUser(w, r, userID, chatRunID)
 	if !ok {
 		return
 	}
@@ -165,16 +175,18 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	var err error
 	if pathParam == artifactResultFilename {
 		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), blob.RunRef{
-			WorkspaceID: workspaceID,
-			ChatID:      chat.ChatID,
-			TaskRunID:   chatRunID,
+			UserID:         chat.CreatedBy,
+			ConversationID: chat.ConversationID,
+			ChatID:         chat.ChatID,
+			TaskRunID:      chatRunID,
 		})
 	} else {
 		data, err = h.cfg.ArtifactStorage.GetArtifactFile(r.Context(), blob.RunObjectRef{
-			WorkspaceID: workspaceID,
-			ChatID:      chat.ChatID,
-			TaskRunID:   chatRunID,
-			RelPath:     pathParam,
+			UserID:         chat.CreatedBy,
+			ConversationID: chat.ConversationID,
+			ChatID:         chat.ChatID,
+			TaskRunID:      chatRunID,
+			RelPath:        pathParam,
 		})
 	}
 	if err != nil {

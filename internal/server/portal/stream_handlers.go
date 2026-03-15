@@ -10,7 +10,7 @@ import (
 )
 
 func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -19,7 +19,7 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-	_, ok = h.getChatForWorkspace(w, r, workspaceID, chatID)
+	_, _, ok = h.getChatForUser(w, r, userID, chatID)
 	if !ok {
 		return
 	}

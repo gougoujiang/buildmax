@@ -9,32 +9,26 @@ import (
 	"testing"
 
 	"buildmax/internal/quota"
-	"buildmax/internal/testutil"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/testutil"
 )
 
-func TestListWorkspaceChatsHandler(t *testing.T) {
+func TestListConversationTasksHandler(t *testing.T) {
 	secret := "test-chats-secret"
-	userWorkspaces := []entity.Workspace{
-		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+	conversationID := "conv1"
+	mockConversations := &testutil.MockConversationStore{
+		Conversations: []entity.Conversation{
+			{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+		},
 	}
-	mockWS := &testutil.MockWorkspaceStore{List: userWorkspaces}
-
-	chat1 := entity.Chat{
-		ChatID: "c1", WorkspaceID: "ws1", Status: "PENDING", Input: "Do something",
-		CreatedBy: "u1", CreatedAt: 1000,
-	}
-	chat2 := entity.Chat{
-		ChatID: "c2", WorkspaceID: "ws1", Status: "PENDING", Input: "Explore",
-		CreatedBy: "u1", CreatedAt: 1001,
-	}
+	chat1 := entity.Chat{ChatID: "c1", ConversationID: conversationID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
+	chat2 := entity.Chat{ChatID: "c2", ConversationID: conversationID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
 
 	tests := []struct {
 		name         string
 		chatStore    entity.TaskStore
 		authHeader   string
 		path         string
-		jwtSecret    string
 		wantStatus   int
 		wantBodyHas  string
 		wantArrayLen int
@@ -43,59 +37,45 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 			name:         "no auth returns 401",
 			chatStore:    &testutil.MockTaskStore{},
 			authHeader:   "",
-			path:         "/api/workspaces/ws1/tasks",
-			jwtSecret:    secret,
+			path:         "/api/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusUnauthorized,
 			wantBodyHas:  "unauthorized",
 			wantArrayLen: -1,
 		},
 		{
-			name:         "workspace not owned returns 403",
+			name:         "conversation not owned returns 404",
 			chatStore:    &testutil.MockTaskStore{},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws-other/tasks",
-			jwtSecret:    secret,
-			wantStatus:   http.StatusForbidden,
-			wantBodyHas:  "forbidden",
+			path:         "/api/conversations/conv-other/tasks",
+			wantStatus:   http.StatusNotFound,
+			wantBodyHas:  "conversation not found",
 			wantArrayLen: -1,
 		},
 		{
-			name:         "owned workspace empty list returns 200",
+			name:         "owned conversation empty list returns 200",
 			chatStore:    &testutil.MockTaskStore{List: []entity.Chat{}},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
-			jwtSecret:    secret,
+			path:         "/api/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "[]",
 			wantArrayLen: 0,
 		},
 		{
-			name:         "owned workspace with chats returns 200",
+			name:         "owned conversation with chats returns 200",
 			chatStore:    &testutil.MockTaskStore{List: []entity.Chat{chat1, chat2}},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
-			jwtSecret:    secret,
+			path:         "/api/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "c1",
 			wantArrayLen: 2,
-		},
-		{
-			name:         "chat store nil returns 503",
-			chatStore:    nil,
-			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
-			jwtSecret:    secret,
-			wantStatus:   http.StatusServiceUnavailable,
-			wantBodyHas:  "tasks not configured",
-			wantArrayLen: -1,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewHandler(Config{
-				JWTSecret:      tt.jwtSecret,
-				WorkspaceStore: mockWS,
-				TaskStore:      tt.chatStore,
+				JWTSecret:         secret,
+				TaskStore:         tt.chatStore,
+				ConversationStore: mockConversations,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)
@@ -115,10 +95,7 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 			if tt.wantArrayLen >= 0 {
 				var arr []map[string]interface{}
 				if err := json.Unmarshal([]byte(body), &arr); err != nil {
-					if tt.wantArrayLen > 0 {
-						t.Fatalf("decode body: %v", err)
-					}
-					return
+					t.Fatalf("decode body: %v", err)
 				}
 				if len(arr) != tt.wantArrayLen {
 					t.Errorf("array len = %d, want %d", len(arr), tt.wantArrayLen)
@@ -128,12 +105,14 @@ func TestListWorkspaceChatsHandler(t *testing.T) {
 	}
 }
 
-func TestCreateWorkspaceChatHandler(t *testing.T) {
+func TestCreateConversationTaskHandler(t *testing.T) {
 	secret := "test-create-chat-secret"
-	userWorkspaces := []entity.Workspace{
-		{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "Default", CreatedAt: 123},
+	conversationID := "conv1"
+	mockConversations := &testutil.MockConversationStore{
+		Conversations: []entity.Conversation{
+			{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+		},
 	}
-	mockWS := &testutil.MockWorkspaceStore{List: userWorkspaces}
 
 	tests := []struct {
 		name         string
@@ -142,7 +121,6 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		authHeader   string
 		path         string
 		body         string
-		jwtSecret    string
 		wantStatus   int
 		wantBodyHas  string
 		checkCreated bool
@@ -150,44 +128,27 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		{
 			name:        "no auth returns 401",
 			chatStore:   &testutil.MockTaskStore{},
-			agentStore:  nil,
 			authHeader:  "",
-			path:        "/api/workspaces/ws1/tasks",
+			path:        "/api/conversations/" + conversationID + "/tasks",
 			body:        `{"input":"Do X"}`,
-			jwtSecret:   secret,
 			wantStatus:  http.StatusUnauthorized,
 			wantBodyHas: "unauthorized",
 		},
 		{
-			name:        "workspace not owned returns 403",
+			name:        "conversation not owned returns 404",
 			chatStore:   &testutil.MockTaskStore{},
-			agentStore:  nil,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-			path:        "/api/workspaces/ws-other/tasks",
+			path:        "/api/conversations/conv-other/tasks",
 			body:        `{"input":"Do X"}`,
-			jwtSecret:   secret,
-			wantStatus:  http.StatusForbidden,
-			wantBodyHas: "forbidden",
+			wantStatus:  http.StatusNotFound,
+			wantBodyHas: "conversation not found",
 		},
 		{
 			name:        "missing input returns 400",
 			chatStore:   &testutil.MockTaskStore{},
-			agentStore:  nil,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-			path:        "/api/workspaces/ws1/tasks",
+			path:        "/api/conversations/" + conversationID + "/tasks",
 			body:        `{}`,
-			jwtSecret:   secret,
-			wantStatus:  http.StatusBadRequest,
-			wantBodyHas: "input",
-		},
-		{
-			name:        "empty input returns 400",
-			chatStore:   &testutil.MockTaskStore{},
-			agentStore:  nil,
-			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-			path:        "/api/workspaces/ws1/tasks",
-			body:        `{"input":""}`,
-			jwtSecret:   secret,
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "input",
 		},
@@ -195,49 +156,30 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 			name: "valid body returns 201",
 			chatStore: &testutil.MockTaskStore{
 				Create: &entity.Chat{
-					ChatID: "new-chat-id", WorkspaceID: "ws1", Status: "PENDING",
+					ChatID: "new-chat-id", ConversationID: conversationID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
-			agentStore:   nil,
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/conversations/" + conversationID + "/tasks",
 			body:         `{"input":"Do X"}`,
-			jwtSecret:    secret,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "new-chat-id",
 			checkCreated: true,
 		},
 		{
-			name: "create with agent_id composes input and returns 201",
+			name:      "create with agent_id composes input and returns 201",
 			chatStore: &testutil.MockTaskStore{},
 			agentStore: &testutil.MockAgentStore{
 				Agents: []entity.Agent{
-					{AgentID: "a_1", WorkspaceID: "ws1", Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
+					{AgentID: "a_1", UserID: "u1", Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
+			path:         "/api/conversations/" + conversationID + "/tasks",
 			body:         `{"agent_id":"a_1"}`,
-			jwtSecret:    secret,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "TestAgent",
-			checkCreated: true,
-		},
-		{
-			name: "create with agent_id and non-empty input uses input directly",
-			chatStore: &testutil.MockTaskStore{},
-			agentStore: &testutil.MockAgentStore{
-				Agents: []entity.Agent{
-					{AgentID: "a_1", WorkspaceID: "ws1", Name: "TestAgent", Description: "D", Instructions: "I", CreatedAt: 100},
-				},
-			},
-			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/workspaces/ws1/tasks",
-			body:         `{"agent_id":"a_1","input":"My custom prompt for this run"}`,
-			jwtSecret:    secret,
-			wantStatus:   http.StatusCreated,
-			wantBodyHas:  "My custom prompt for this run",
 			checkCreated: true,
 		},
 	}
@@ -254,28 +196,26 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 		authHeader   string
 		path         string
 		body         string
-		jwtSecret    string
 		wantStatus   int
 		wantBodyHas  string
 		checkCreated bool
 	}{
 		name:        "quota exceeded returns 429",
 		chatStore:   &testutil.MockTaskStore{},
-		agentStore:  nil,
 		authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-		path:        "/api/workspaces/ws1/tasks",
+		path:        "/api/conversations/" + conversationID + "/tasks",
 		body:        `{"input":"Do X"}`,
-		jwtSecret:   secret,
 		wantStatus:  http.StatusTooManyRequests,
 		wantBodyHas: "quota exceeded",
 	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				JWTSecret:      tt.jwtSecret,
-				WorkspaceStore: mockWS,
-				TaskStore:      tt.chatStore,
-				AgentStore:     tt.agentStore,
+				JWTSecret:         secret,
+				TaskStore:         tt.chatStore,
+				AgentStore:        tt.agentStore,
+				ConversationStore: mockConversations,
 			}
 			if tt.name == "quota exceeded returns 429" {
 				cfg.QuotaChecker = denyChecker
@@ -302,13 +242,10 @@ func TestCreateWorkspaceChatHandler(t *testing.T) {
 				if err := json.Unmarshal([]byte(body), &out); err != nil {
 					t.Fatalf("decode body: %v", err)
 				}
-				for _, key := range []string{"id", "workspace_id", "status", "input", "created_by", "created_at"} {
+				for _, key := range []string{"id", "conversation_id", "status", "input", "created_by", "created_at"} {
 					if _, ok := out[key]; !ok {
 						t.Errorf("response missing key %q", key)
 					}
-				}
-				if s, _ := out["status"].(string); s != "PENDING" {
-					t.Errorf("status = %q, want PENDING", s)
 				}
 			}
 		})

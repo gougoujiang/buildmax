@@ -12,31 +12,29 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	"buildmax/internal/config"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
 )
 
-// testWorkspacePaths implements WorkspacePaths using config.
-type testWorkspacePaths struct{}
+type testWorkspacePaths struct{ root string }
 
-func (testWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
-	return config.PersistentWorkspaceDir(workspaceID)
+func (p testWorkspacePaths) PersistentUserDir(userID string) string {
+	return filepath.Join(p.root, userID, "home")
 }
-func (testWorkspacePaths) RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeTaskRunDir(workspaceID, chatID, chatRunID)
+func (p testWorkspacePaths) RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, userID, "conversations", conversationID, "tasks", chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID)
+func (p testWorkspacePaths) RuntimeTaskRunHomeDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "home")
 }
-func (testWorkspacePaths) RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID)
+func (p testWorkspacePaths) RuntimeTaskRunArtifactsDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "artifacts")
 }
-func (testWorkspacePaths) RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID)
+func (p testWorkspacePaths) RuntimeTaskRunGlobalDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "global")
 }
-func (testWorkspacePaths) RunOutputDir(workspaceID, chatID, chatRunID string) string {
-	return config.RunOutputDir(workspaceID, chatID, chatRunID)
+func (p testWorkspacePaths) RunOutputDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, userID, "artifacts", conversationID, chatID, chatRunID)
 }
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
@@ -100,15 +98,15 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 }
 
 func (f *fakePersistStorage) PutChatGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.chatGlobal[key] = data
 	return nil
 }
 
-// chatGlobalRelPaths returns the set of relPaths uploaded for the given workspaceID/chatID/chatRunID.
-func (f *fakePersistStorage) chatGlobalRelPaths(workspaceID, chatID, chatRunID string) []string {
-	prefix := workspaceID + "/" + chatID + "/" + chatRunID + "/"
+// chatGlobalRelPaths returns the set of relPaths uploaded for the given userID/conversationID/chatID/chatRunID.
+func (f *fakePersistStorage) chatGlobalRelPaths(userID, conversationID, chatID, chatRunID string) []string {
+	prefix := userID + "/" + conversationID + "/" + chatID + "/" + chatRunID + "/"
 	var out []string
 	for k := range f.chatGlobal {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
@@ -119,7 +117,7 @@ func (f *fakePersistStorage) chatGlobalRelPaths(workspaceID, chatID, chatRunID s
 }
 
 func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -128,7 +126,7 @@ func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObje
 }
 
 func (f *fakePersistStorage) PutTaskRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	if f.chatGlobal == nil {
 		f.chatGlobal = make(map[string][]byte)
@@ -138,7 +136,7 @@ func (f *fakePersistStorage) PutTaskRunArtifacts(ctx context.Context, ref blob.R
 }
 
 func (f *fakePersistStorage) GetTaskRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -148,8 +146,8 @@ func (f *fakePersistStorage) GetTaskRunArtifacts(ctx context.Context, ref blob.R
 
 // fakeArtifactStorage is an in-memory ArtifactStorage for tests (run output keyed by chatRunID only).
 type fakeArtifactStorage struct {
-	results map[string][]byte // "workspaceID/chatID/chatRunID" -> content (PutResult)
-	files   map[string][]byte // "workspaceID/chatID/chatRunID/relPath" -> content (PutArtifactFile)
+	results map[string][]byte // "userID/conversationID/chatID/chatRunID" -> content (PutResult)
+	files   map[string][]byte // "userID/conversationID/chatID/chatRunID/relPath" -> content (PutArtifactFile)
 }
 
 func newFakeArtifactStorage() *fakeArtifactStorage {
@@ -157,13 +155,13 @@ func newFakeArtifactStorage() *fakeArtifactStorage {
 }
 
 func (f *fakeArtifactStorage) PutResult(ctx context.Context, ref blob.RunRef, data []byte) error {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
 func (f *fakeArtifactStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -175,7 +173,7 @@ func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunO
 	if f.files == nil {
 		f.files = make(map[string][]byte)
 	}
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.files[key] = data
 	return nil
@@ -185,7 +183,7 @@ func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunO
 	if f.files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -334,9 +332,9 @@ func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", TaskRunID: "run1"}, fake)
+	uploadChatGlobal(ctx, globalDir, RunScope{UserID: "u1", ConversationID: "conv1", ChatID: "chat1", TaskRunID: "run1"}, fake)
 
-	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
+	got := fake.chatGlobalRelPaths("u1", "conv1", "chat1", "run1")
 	if len(got) != 3 {
 		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
 	}
@@ -347,7 +345,7 @@ func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 		}
 	}
 	// Content sanity
-	key := "ws1/chat1/run1/settings.json"
+	key := "u1/conv1/chat1/run1/settings.json"
 	if string(fake.chatGlobal[key]) != "{}" {
 		t.Errorf("settings.json content mismatch")
 	}
@@ -358,8 +356,8 @@ func TestUploadChatGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", TaskRunID: "run1"}, fake)
-	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
+	uploadChatGlobal(ctx, globalDir, RunScope{UserID: "u1", ConversationID: "conv1", ChatID: "chat1", TaskRunID: "run1"}, fake)
+	got := fake.chatGlobalRelPaths("u1", "conv1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}

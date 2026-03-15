@@ -7,31 +7,31 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsProps) {
-  const workspaceId = route.workspaceId
+  const profileId = route.profileId
   let crumbs: { label: string; route: Route }[] = []
 
   if (route.name === "newChat") {
-    crumbs = [{ label: "New Conversation", route: { name: "newChat", workspaceId } }]
+    crumbs = [{ label: "New Conversation", route: { name: "newChat", profileId } }]
   } else if (route.name === "chats") {
-    crumbs = [{ label: "Conversations", route: { name: "chats", workspaceId } }]
+    crumbs = [{ label: "Conversations", route: { name: "chats", profileId } }]
   } else if (route.name === "explore") {
-    crumbs = [{ label: "Files", route: { name: "explore", workspaceId } }]
+    crumbs = [{ label: "Files", route: { name: "explore", profileId } }]
   } else if (route.name === "agents") {
-    crumbs = [{ label: "Agents", route: { name: "agents", workspaceId } }]
+    crumbs = [{ label: "Agents", route: { name: "agents", profileId } }]
   } else if (route.name === "conversation") {
     const conv = workspaceConversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
-      { label: "Conversations", route: { name: "chats", workspaceId } },
+      { label: "Conversations", route: { name: "chats", profileId } },
       { label: convLabel, route },
     ]
   } else if (route.name === "chat") {
     crumbs = [
-      { label: "Conversations", route: { name: "chats", workspaceId } },
+      { label: "Conversations", route: { name: "chats", profileId } },
       { label: "Task", route },
     ]
   } else {
-    crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]
+    crumbs = [{ label: "Home", route: { name: "home", profileId } }]
   }
 
   return (

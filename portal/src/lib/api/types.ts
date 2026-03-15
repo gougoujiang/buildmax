@@ -18,7 +18,7 @@ export interface OtpRequestResponse {
   message: string
 }
 
-/** Workspace as returned by GET /api/workspaces */
+/** Synthetic shell/profile record derived from the signed-in user. */
 export interface ApiWorkspace {
   id: string
   name: string
@@ -26,10 +26,10 @@ export interface ApiWorkspace {
   created_at?: number
 }
 
-/** Agent as returned by GET/POST /api/workspaces/{id}/agents */
+/** Agent as returned by GET/POST /api/agents */
 export interface ApiAgent {
   id: string
-  workspace_id: string
+  user_id: string
   name: string
   description: string
   instructions: string
@@ -42,10 +42,10 @@ export interface ApiChatsListResponse {
   total: number
 }
 
-/** Task as returned by GET/POST /api/workspaces/{id}/tasks */
+/** Task as returned by task endpoints */
 export interface ApiChat {
   id: string
-  workspace_id: string
+  conversation_id: string
   session_id: string | null
   status: string
   input: string
@@ -59,7 +59,7 @@ export interface ApiChat {
   agent_id?: string | null
 }
 
-/** Conversation as returned by GET /api/workspaces/{id}/tasks/{id}/conversation */
+/** Conversation as returned by GET /api/tasks/{id}/conversation */
 export interface ApiSession {
   id: string
   title: string
@@ -74,27 +74,28 @@ export interface ApiSessionMessage {
   tool_calls?: { id: string; name: string; arguments?: string }[]
 }
 
-/** Response from POST /api/workspaces/{id}/tasks/{task_id}/runs */
+/** Response from POST /api/tasks/{task_id}/runs */
 export interface CreateTaskRunResponse {
   task_run_id: string
   task_id: string
 }
 
-/** Run output (artifact) as returned by GET /api/workspaces/{id}/artifacts */
+/** Run output (artifact) as returned by task/run artifact endpoints */
 export interface ApiArtifact {
   task_run_id: string
   task_id: string
-  workspace_id: string
+  conversation_id: string
+  user_id: string
   created_at: number
   task_input_snippet: string
 }
 
-/** Artifact item as returned by GET /api/workspaces/{id}/artifacts/{task_run_id}/items */
+/** Artifact item as returned by GET /api/task-runs/{task_run_id}/artifacts/items */
 export interface ApiArtifactItem {
   relative_path: string
 }
 
-/** Upload response from POST /api/workspaces/{id}/upload */
+/** Upload response from POST /api/upload */
 export interface UploadResponse {
   uploaded: string[]
 }
@@ -109,29 +110,29 @@ export interface ApiUsage {
   max_tokens_per_period?: number
 }
 
-/** Tier 1 conversation as returned by GET /api/workspaces/{id}/conversations */
+/** Tier 1 conversation as returned by GET /api/conversations */
 export interface ApiConversation {
   id: string
-  workspace_id: string
+  user_id: string
   channel: string
   title?: string
   created_at: number
   created_by: string
 }
 
-/** Response from GET /api/workspaces/{id}/conversations */
+/** Response from GET /api/conversations */
 export interface ApiConversationsListResponse {
   conversations: ApiConversation[]
   total: number
 }
 
-/** Response from POST /api/workspaces/{id}/conversations */
+/** Response from POST /api/conversations */
 export interface CreateConversationResponse {
   conversation_id: string
   reply?: string
 }
 
-/** Message as returned by GET /api/workspaces/{id}/conversations/{id}/messages */
+/** Message as returned by GET /api/conversations/{id}/messages */
 export interface ApiConversationMessage {
   id: string
   role: string
@@ -140,12 +141,12 @@ export interface ApiConversationMessage {
   created_at: number
 }
 
-/** Response from GET /api/workspaces/{id}/conversations/{id}/messages */
+/** Response from GET /api/conversations/{id}/messages */
 export interface ApiConversationMessagesResponse {
   messages: ApiConversationMessage[]
 }
 
-/** Response from POST /api/workspaces/{id}/conversations/{id}/messages */
+/** Response from POST /api/conversations/{id}/messages */
 export interface AddConversationMessageResponse {
   reply: string
 }

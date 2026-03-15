@@ -30,7 +30,7 @@ interface SettingsModalProps {
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTabId>("general")
   const { token, user } = useAuth()
-  const { token: workspaceToken, workspaces } = useWorkspace()
+  const { token: workspaceToken } = useWorkspace()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [usage, setUsage] = useState<ApiUsage | null>(null)
@@ -195,7 +195,6 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             hidden={activeTab !== "webhook"}
           >
             <WebhookKeysSection
-              workspaces={workspaces}
               token={workspaceToken}
             />
           </div>

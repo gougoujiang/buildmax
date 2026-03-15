@@ -2,47 +2,47 @@ package executor
 
 import "path/filepath"
 
-// WorkspacePaths provides filesystem layout for workspaces, tasks, runs, and artifacts.
+// RuntimePaths provides filesystem layout for user files, tasks, runs, and artifacts.
 // It is injected for testability and to avoid hard dependency on internal/config.
-type WorkspacePaths interface {
-	PersistentWorkspaceDir(workspaceID string) string
-	RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string
-	RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string
-	RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string
-	RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string
-	RunOutputDir(workspaceID, chatID, chatRunID string) string
+type RuntimePaths interface {
+	PersistentUserDir(userID string) string
+	RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID string) string
+	RuntimeTaskRunHomeDir(userID, conversationID, chatID, chatRunID string) string
+	RuntimeTaskRunArtifactsDir(userID, conversationID, chatID, chatRunID string) string
+	RuntimeTaskRunGlobalDir(userID, conversationID, chatID, chatRunID string) string
+	RunOutputDir(userID, conversationID, chatID, chatRunID string) string
 }
 
-// workspacePathsRoot implements WorkspacePaths with a single root directory (e.g. WorkspacesDir).
-type workspacePathsRoot struct {
+// runtimePathsRoot implements RuntimePaths with a single root directory.
+type runtimePathsRoot struct {
 	root string
 }
 
-// NewWorkspacePathsFromRoot returns a WorkspacePaths that uses root as the parent of all workspace dirs.
-func NewWorkspacePathsFromRoot(root string) WorkspacePaths {
-	return &workspacePathsRoot{root: root}
+// NewRuntimePathsFromRoot returns a RuntimePaths that uses root as the parent of all user dirs.
+func NewRuntimePathsFromRoot(root string) RuntimePaths {
+	return &runtimePathsRoot{root: root}
 }
 
-func (p *workspacePathsRoot) PersistentWorkspaceDir(workspaceID string) string {
-	return filepath.Join(p.root, workspaceID, "home")
+func (p *runtimePathsRoot) PersistentUserDir(userID string) string {
+	return filepath.Join(p.root, userID, "home")
 }
 
-func (p *workspacePathsRoot) RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.root, workspaceID, "tasks", chatID, chatRunID)
+func (p *runtimePathsRoot) RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, userID, "conversations", conversationID, "tasks", chatID, chatRunID)
 }
 
-func (p *workspacePathsRoot) RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "home")
+func (p *runtimePathsRoot) RuntimeTaskRunHomeDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "home")
 }
 
-func (p *workspacePathsRoot) RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "artifacts")
+func (p *runtimePathsRoot) RuntimeTaskRunArtifactsDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "artifacts")
 }
 
-func (p *workspacePathsRoot) RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "global")
+func (p *runtimePathsRoot) RuntimeTaskRunGlobalDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "global")
 }
 
-func (p *workspacePathsRoot) RunOutputDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.root, workspaceID, "artifacts", chatID, chatRunID)
+func (p *runtimePathsRoot) RunOutputDir(userID, conversationID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, userID, "artifacts", conversationID, chatID, chatRunID)
 }

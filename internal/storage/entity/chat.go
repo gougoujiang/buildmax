@@ -10,11 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// ListChatsByWorkspace returns tasks in the workspace, ordered by created_at.
+// ListChatsByConversation returns tasks in the conversation, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
-func (s *Store) ListChatsByWorkspace(ctx context.Context, workspaceID string, order string) ([]Chat, error) {
+func (s *Store) ListChatsByConversation(ctx context.Context, conversationID string, order string) ([]Chat, error) {
 	var list []Chat
-	q := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	q := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
 	if order == "asc" {
 		q = q.Order("created_at ASC")
 	} else {
@@ -24,11 +24,11 @@ func (s *Store) ListChatsByWorkspace(ctx context.Context, workspaceID string, or
 	return list, err
 }
 
-// ListChatsByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
+// ListChatsByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
 // executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
 // total is the total number of matching chats (ignoring limit/offset).
-func (s *Store) ListChatsByWorkspacePaginated(ctx context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]Chat, int, error) {
-	q := s.db.WithContext(ctx).Model(&Chat{}).Where("workspace_id = ?", workspaceID)
+func (s *Store) ListChatsByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Chat, int, error) {
+	q := s.db.WithContext(ctx).Model(&Chat{}).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
@@ -37,7 +37,7 @@ func (s *Store) ListChatsByWorkspacePaginated(ctx context.Context, workspaceID s
 		return nil, 0, err
 	}
 	var list []Chat
-	q = s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	q = s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
@@ -73,14 +73,13 @@ func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat
 
 // CreateChatInput is the input for CreateChat.
 type CreateChatInput struct {
-	WorkspaceID           string
+	ConversationID        string
 	Input                 string
 	Title                 string
 	CreatedBy             string
 	TitlePromptTokens     int
 	TitleCompletionTokens int
 	AgentID               *string
-	ConversationID        *string
 }
 
 // CreateChat creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
@@ -94,7 +93,7 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
 	c := &Chat{
 		ChatID:                chatID,
-		WorkspaceID:           in.WorkspaceID,
+		ConversationID:        in.ConversationID,
 		Status:                "PENDING",
 		Input:                 in.Input,
 		Title:                 in.Title,
@@ -105,7 +104,6 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 		LastRunID:             &chatRunID,
 		SessionID:             &sessionID,
 		AgentID:               in.AgentID,
-		ConversationID:        in.ConversationID,
 	}
 	run := &TaskRun{
 		TaskRunID: chatRunID,

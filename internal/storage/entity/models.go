@@ -14,26 +14,13 @@ type User struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (User) TableName() string { return "user" }
 
-// Workspace is the workspace model. JSON uses snake_case per project convention.
-// Internal DB numeric id is intentionally not exposed; API uses workspace_id.
-type Workspace struct {
-	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	WorkspaceID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"workspace_id"`
-	OwnerUserID string `gorm:"type:varchar(64);not null;index" json:"owner_user_id"`
-	Name        string `gorm:"type:varchar(255);not null" json:"name"`
-	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
-}
-
-// TableName returns the table name for GORM (singular per project convention).
-func (Workspace) TableName() string { return "workspace" }
-
 // Chat is the task model. JSON uses snake_case per project convention.
 // API exposes task_id as "id". Chat holds denormalized "last run" state (status, output, etc.)
 // and LastRunID for conversation/artifact lookup. Input is the initial (first run) prompt.
 type Chat struct {
 	ID                    uint    `gorm:"primaryKey;autoIncrement" json:"-"`
 	ChatID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null" json:"task_id"`
-	WorkspaceID           string  `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	ConversationID        string  `gorm:"type:varchar(64);not null;index" json:"conversation_id"`
 	Status                string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input                 string  `gorm:"type:text;not null" json:"input"`
 	Title                 string  `gorm:"type:varchar(256)" json:"title,omitempty"`
@@ -48,7 +35,6 @@ type Chat struct {
 	SessionID             *string `gorm:"type:varchar(36)" json:"session_id,omitempty"`
 	LastRunID             *string `gorm:"type:varchar(64);index" json:"last_run_id,omitempty"`
 	AgentID               *string `gorm:"type:varchar(64);index" json:"agent_id,omitempty"`
-	ConversationID        *string `gorm:"type:varchar(64);index" json:"conversation_id,omitempty"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).
@@ -87,12 +73,12 @@ type TaskRunArtifact struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (TaskRunArtifact) TableName() string { return "task_run_artifact" }
 
-// Agent is the agent model (workspace-scoped persona). JSON uses snake_case.
+// Agent is the agent model (user-scoped persona). JSON uses snake_case.
 // Internal DB numeric id is not exposed; API uses agent_id.
 type Agent struct {
 	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	AgentID      string `gorm:"type:varchar(64);uniqueIndex;not null" json:"agent_id"`
-	WorkspaceID  string `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	UserID       string `gorm:"type:varchar(64);not null;index" json:"user_id"`
 	Name         string `gorm:"type:varchar(255);not null" json:"name"`
 	Description  string `gorm:"type:text" json:"description"`
 	Instructions string `gorm:"type:text" json:"instructions"`
@@ -118,7 +104,8 @@ type ArtifactWithChat struct {
 	ArtifactID       string `json:"artifact_id"`
 	ChatID           string `json:"task_id"`
 	TaskRunID        string `json:"task_run_id"`
-	WorkspaceID      string `json:"workspace_id"`
+	ConversationID   string `json:"conversation_id"`
+	UserID           string `json:"user_id"`
 	CreatedAt        int64  `json:"created_at"`
 	ChatInputSnippet string `json:"task_input_snippet"`
 }
@@ -127,7 +114,7 @@ type ArtifactWithChat struct {
 type Conversation struct {
 	ID             uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	ConversationID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"conversation_id"`
-	WorkspaceID    string `gorm:"type:varchar(64);not null;index" json:"workspace_id"`
+	UserID         string `gorm:"type:varchar(64);not null;index" json:"user_id"`
 	Channel        string `gorm:"type:varchar(32);not null" json:"channel"`
 	Title          string `gorm:"type:varchar(256)" json:"title,omitempty"`
 	CreatedBy      string `gorm:"type:varchar(64);not null" json:"created_by"`

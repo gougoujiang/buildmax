@@ -33,7 +33,7 @@ type RunInput struct {
 	UserContent        string
 	Channel            string
 	ToolsList          []core.Tool
-	WorkspaceID        string
+	ScopeID            string
 	UserID             string
 	Runners            *ConversationToolRunners
 	TitleGenerator     ConversationTitleGenerator
@@ -50,7 +50,7 @@ First evaluate whether the user's request should continue an existing task (use 
 # Tools
 - GetCurrentDate: today's date when needed.
 - StartTask: create and schedule a new background task (long-running job, analysis). Always tell the user the task_id and run_id and where to check progress (Activity or task detail). Do not claim the work is done immediately—the task runs in the background.
-- ListTasks: list recent tasks in the workspace (up to 10). Use when the user asks what tasks they have or for recent activity.
+- ListTasks: list recent tasks in the current conversation (up to 10). Use when the user asks what tasks they have or for recent activity.
 - GetTask: get detail for one task by task_id. Use when the user asks about a specific task's status or result.
 - ContinueTask: add a follow-up message to an existing task (new run). Use when the user wants to continue, retry, or add to an existing task.
 
@@ -70,22 +70,22 @@ func DefaultConversationTools() []core.Tool {
 }
 
 // buildConversationTools returns default tools plus any tools whose runner is set in runners.
-func buildConversationTools(workspaceID, userID string, runners *ConversationToolRunners) []core.Tool {
+func buildConversationTools(scopeID, userID string, runners *ConversationToolRunners) []core.Tool {
 	toolList := DefaultConversationTools()
 	if runners == nil {
 		return toolList
 	}
 	if runners.StartTask != nil {
-		toolList = append(toolList, tools.NewStartTaskTool(workspaceID, userID, runners.StartTask))
+		toolList = append(toolList, tools.NewStartTaskTool(scopeID, userID, runners.StartTask))
 	}
 	if runners.ListTasks != nil {
-		toolList = append(toolList, tools.NewListTasksTool(workspaceID, runners.ListTasks))
+		toolList = append(toolList, tools.NewListTasksTool(scopeID, runners.ListTasks))
 	}
 	if runners.GetTask != nil {
-		toolList = append(toolList, tools.NewGetTaskTool(workspaceID, runners.GetTask))
+		toolList = append(toolList, tools.NewGetTaskTool(scopeID, runners.GetTask))
 	}
 	if runners.ContinueTask != nil {
-		toolList = append(toolList, tools.NewContinueTaskTool(workspaceID, userID, runners.ContinueTask))
+		toolList = append(toolList, tools.NewContinueTaskTool(scopeID, userID, runners.ContinueTask))
 	}
 	return toolList
 }
@@ -155,7 +155,7 @@ func prepareRun(ctx context.Context, msgStore entity.ConversationMessageStore, i
 
 	toolsList := in.ToolsList
 	if toolsList == nil {
-		toolsList = buildConversationTools(in.WorkspaceID, in.UserID, in.Runners)
+		toolsList = buildConversationTools(in.ScopeID, in.UserID, in.Runners)
 	}
 
 	return &preparedRun{
@@ -227,7 +227,7 @@ func Run(ctx context.Context, convStore entity.ConversationStore, msgStore entit
 
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
 // tools, and persists every assistant and tool message to the store. Returns the final assistant text reply.
-// If toolsList is nil, the list is built from buildConversationTools(workspaceID, userID, runners).
+// If toolsList is nil, the list is built from buildConversationTools(scopeID, userID, runners).
 // recentChatsSnippet, when non-empty, is appended to the system prompt (e.g. latest 5 chats).
 // If titleGenerator is non-nil and this is the first round (no messages before), a title is generated from userContent and saved.
 func RunLoop(
@@ -239,7 +239,7 @@ func RunLoop(
 	userContent string,
 	channel string,
 	toolsList []core.Tool,
-	workspaceID, userID string,
+	scopeID, userID string,
 	runners *ConversationToolRunners,
 	titleGenerator ConversationTitleGenerator,
 	recentChatsSnippet string,
@@ -249,7 +249,7 @@ func RunLoop(
 		UserContent:        userContent,
 		Channel:            channel,
 		ToolsList:          toolsList,
-		WorkspaceID:        workspaceID,
+		ScopeID:            scopeID,
 		UserID:             userID,
 		Runners:            runners,
 		TitleGenerator:     titleGenerator,
@@ -259,7 +259,7 @@ func RunLoop(
 
 // RunLoopStream is like RunLoop but streams assistant content deltas via sink.
 // When the model returns tool calls, those turns are not streamed; only the final (or intermediate) text content is streamed.
-// If toolsList is nil, the list is built from buildConversationTools(workspaceID, userID, runners).
+// If toolsList is nil, the list is built from buildConversationTools(scopeID, userID, runners).
 // recentChatsSnippet, when non-empty, is appended to the system prompt.
 // If titleGenerator is non-nil and this is the first round, a title is generated from userContent and saved.
 func RunLoopStream(
@@ -271,7 +271,7 @@ func RunLoopStream(
 	userContent string,
 	channel string,
 	toolsList []core.Tool,
-	workspaceID, userID string,
+	scopeID, userID string,
 	runners *ConversationToolRunners,
 	titleGenerator ConversationTitleGenerator,
 	sink llm.StreamSink,
@@ -282,7 +282,7 @@ func RunLoopStream(
 		UserContent:        userContent,
 		Channel:            channel,
 		ToolsList:          toolsList,
-		WorkspaceID:        workspaceID,
+		ScopeID:            scopeID,
 		UserID:             userID,
 		Runners:            runners,
 		TitleGenerator:     titleGenerator,

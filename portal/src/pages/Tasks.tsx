@@ -2,19 +2,19 @@ import type { Conversation } from "../lib/types"
 import { navigate } from "../router"
 
 interface TasksProps {
-  workspaceId: string
+  profileId: string
   conversations: Conversation[]
 }
 
 export function Tasks({
-  workspaceId,
+  profileId,
   conversations,
 }: TasksProps) {
   return (
     <div className="page-activity">
       <h1 className="page-activity__title">Conversations</h1>
       <p className="page-activity__subtitle">
-        All conversations in this workspace.
+        All conversations for this view.
       </p>
       {conversations.length === 0 ? (
         <p className="page-activity__empty">No conversations yet.</p>
@@ -28,7 +28,7 @@ export function Tasks({
                 onClick={() =>
                   navigate({
                     name: "conversation",
-                    workspaceId,
+                    profileId,
                     conversationId: conv.id,
                   })
                 }

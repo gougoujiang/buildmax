@@ -8,7 +8,6 @@ import { useFetch } from "../hooks/useFetch"
 
 interface ArtifactContentModalProps {
   open: boolean
-  workspaceId: string
   chatRunId: string
   token: string
   onClose: () => void
@@ -16,21 +15,20 @@ interface ArtifactContentModalProps {
 
 export function ArtifactContentModal({
   open,
-  workspaceId,
   chatRunId,
   token,
   onClose,
 }: ArtifactContentModalProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
 
-  const itemsEnabled = !!(open && workspaceId && chatRunId && token)
+  const itemsEnabled = !!(open && chatRunId && token)
   const {
     data: itemsData,
     loading: itemsLoading,
     error: itemsError,
   } = useFetch(
-    () => getArtifactItems(workspaceId, chatRunId, token),
-    [open, workspaceId, chatRunId, token],
+    () => getArtifactItems(chatRunId, token),
+    [open, chatRunId, token],
     {
       enabled: itemsEnabled,
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load run output files"),
@@ -56,8 +54,8 @@ export function ArtifactContentModal({
     loading: contentLoading,
     error: contentError,
   } = useFetch(
-    () => getArtifactContent(workspaceId, chatRunId, token, selectedPath!),
-    [open, workspaceId, chatRunId, token, selectedPath],
+    () => getArtifactContent(chatRunId, token, selectedPath!),
+    [open, chatRunId, token, selectedPath],
     {
       enabled: contentEnabled,
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load file content"),

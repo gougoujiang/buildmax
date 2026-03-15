@@ -31,16 +31,16 @@ export function WorkspaceRouter({
     pendingChat,
     setPendingChat,
   } = useWorkspace()
-  const isWorkspaceHome = route.name === "workspace"
+  const isWorkspaceHome = route.name === "home"
   const isNewChat = route.name === "newChat"
   const isChatDetail = route.name === "chat"
   const {
     data: artifacts,
-  } = useArtifacts(route.workspaceId, token, { enabled: isWorkspaceHome || isNewChat })
+  } = useArtifacts(route.profileId, token, { enabled: isWorkspaceHome || isNewChat })
   const {
     data: workspaceChats,
     refetch: refetchWorkspaceChats,
-  } = useWorkspaceChats(route.workspaceId, token, isChatDetail)
+  } = useWorkspaceChats(route.profileId, token, route.name === "chat" ? route.chatId : undefined, isChatDetail)
 
   const routeChatId = route.name === "chat" ? route.chatId : undefined
   // Clear pending chat only when navigating away from this chat, so initialInput stays visible until we leave.
@@ -52,18 +52,18 @@ export function WorkspaceRouter({
 
   const fallbackHome = (
     <WorkspaceHome
-      workspaceId={route.workspaceId}
+      profileId={route.profileId}
       workspaceConversations={workspaceConversations}
       artifacts={artifacts}
       onViewArtifact={onViewArtifact}
     />
   )
 
-  if (route.name === "workspace") return fallbackHome
+  if (route.name === "home") return fallbackHome
   if (route.name === "newChat") {
     return (
         <NewConversation
-          workspaceId={route.workspaceId}
+          profileId={route.profileId}
           token={token ?? undefined}
           onRefetchWorkspaceConversations={onRefetchWorkspaceConversations}
           workspaceConversations={workspaceConversations}
@@ -75,17 +75,17 @@ export function WorkspaceRouter({
   if (route.name === "chats") {
     return (
       <Tasks
-        workspaceId={route.workspaceId}
+        profileId={route.profileId}
         conversations={workspaceConversations}
       />
     )
   }
-  if (route.name === "explore") return <Explore workspaceId={route.workspaceId} />
+  if (route.name === "explore") return <Explore profileId={route.profileId} />
 
   if (route.name === "agents") {
     return (
       <AgentList
-        workspaceId={route.workspaceId}
+        profileId={route.profileId}
         token={token ?? null}
       />
     )
@@ -99,7 +99,7 @@ export function WorkspaceRouter({
     return (
       <TaskDetail
         chat={chat}
-        workspaceId={route.workspaceId}
+        profileId={route.profileId}
         onRefetch={() => refetchWorkspaceChats()}
         initialInput={initialInput}
       />
@@ -110,7 +110,7 @@ export function WorkspaceRouter({
     return (
         <ConversationDetail
           conversationId={route.conversationId}
-          workspaceId={route.workspaceId}
+          profileId={route.profileId}
           onRefetch={onRefetchWorkspaceConversations}
         />
       )

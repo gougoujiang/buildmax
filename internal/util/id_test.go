@@ -9,7 +9,7 @@ func TestNewPrefixedID(t *testing.T) {
 	const bodyLen = 20
 	const allowedChars = "0123456789abcdefghijklmnopqrstuvwxyz"
 
-	for _, prefix := range []string{PrefixUser, PrefixWorkspace, "ar"} {
+	for _, prefix := range []string{PrefixUser, PrefixAgent, "ar"} {
 		t.Run("prefix_"+prefix, func(t *testing.T) {
 			seen := make(map[string]bool)
 			for i := 0; i < 100; i++ {

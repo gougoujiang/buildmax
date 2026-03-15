@@ -16,15 +16,15 @@ type RuleBasedEngine struct {
 }
 
 // Process creates exactly one TaskRun for webhook turns. Rejects other channels.
-func (e *RuleBasedEngine) Process(ctx context.Context, workspaceID, chatID string, turn coreconv.ConversationTurn) (coreconv.ConversationResult, error) {
+func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, chatID string, turn coreconv.ConversationTurn) (coreconv.ConversationResult, error) {
 	if turn.Channel != coreconv.ChannelWebhook {
 		return coreconv.ConversationResult{}, ErrChannelNotWebhook
 	}
 	if e.Chat == nil {
 		return coreconv.ConversationResult{}, chatapp.ErrTaskRunsNotConfigured
 	}
-	if workspaceID == "" {
-		return coreconv.ConversationResult{}, errors.New("workspace_id required")
+	if conversationID == "" {
+		return coreconv.ConversationResult{}, errors.New("conversation_id required")
 	}
 	if turn.Message == "" {
 		return coreconv.ConversationResult{}, errors.New("message required")
@@ -35,11 +35,10 @@ func (e *RuleBasedEngine) Process(ctx context.Context, workspaceID, chatID strin
 	}
 	if chatID == "" {
 		result, err := e.Chat.StartBackgroundChat(ctx, chatapp.CreateChatCmd{
-			WorkspaceID: workspaceID,
-			UserID:     userID,
-			Input:      turn.Message,
-			AgentID:    nil,
-			ConversationID: nil,
+			ConversationID: conversationID,
+			UserID:         userID,
+			Input:          turn.Message,
+			AgentID:        nil,
 		})
 		if err != nil {
 			return coreconv.ConversationResult{}, err

@@ -13,6 +13,7 @@ import type {
   ApiSession,
   CreateTaskRunResponse,
 } from "../../lib/api/types"
+import { createConversation } from "../conversations"
 
 export interface GetChatsPaginatedOptions {
   limit?: number
@@ -32,17 +33,17 @@ export interface RunStreamCallbacks {
 }
 
 export async function getChats(
-  workspaceId: string,
+  conversationId: string,
   token: string
 ): Promise<ApiChat[]> {
   return requestJson<ApiChat[]>(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks`,
+    `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/tasks`,
     { headers: authHeaders(token) }
   )
 }
 
 export async function getChatsPaginated(
-  workspaceId: string,
+  conversationId: string,
   token: string,
   options?: GetChatsPaginatedOptions
 ): Promise<ApiChatsListResponse> {
@@ -51,17 +52,23 @@ export async function getChatsPaginated(
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks${q ? `?${q}` : ""}`
+  const url = `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/tasks${q ? `?${q}` : ""}`
   return requestJson<ApiChatsListResponse>(url, { headers: authHeaders(token) })
 }
 
+export async function getChat(chatId: string, token: string): Promise<ApiChat> {
+  return requestJson<ApiChat>(`${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}`, {
+    headers: authHeaders(token),
+  })
+}
+
 export async function getChatConversation(
-  workspaceId: string,
+  _profileId: string,
   chatId: string,
   token: string
 ): Promise<ApiSession | null> {
   const res = await fetch(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(chatId)}/conversation`,
+    `${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}/conversation`,
     { headers: authHeaders(token) }
   )
   checkUnauthorized(res)
@@ -71,11 +78,12 @@ export async function getChatConversation(
 }
 
 export async function createChat(
-  workspaceId: string,
+  profileId: string,
   body: CreateChatBody,
   token: string
 ): Promise<ApiChat> {
-  return requestJson<ApiChat>(`${getApiBase()}/api/workspaces/${workspaceId}/tasks`, {
+  const conv = await createConversation(profileId, { channel: "portal" }, token)
+  return requestJson<ApiChat>(`${getApiBase()}/api/conversations/${encodeURIComponent(conv.conversation_id)}/tasks`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -83,13 +91,13 @@ export async function createChat(
 }
 
 export async function createTaskRun(
-  workspaceId: string,
+  _profileId: string,
   chatId: string,
   body: { input: string },
   token: string
 ): Promise<CreateTaskRunResponse> {
   const res = await fetch(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(chatId)}/runs`,
+    `${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}/runs`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -106,12 +114,12 @@ export async function createTaskRun(
 }
 
 export function subscribeChatStream(
-  workspaceId: string,
+  _profileId: string,
   chatId: string,
   token: string,
   callbacks: RunStreamCallbacks
 ): () => void {
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(chatId)}/stream`
+  const url = `${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}/stream`
   const controller = new AbortController()
 
   fetch(url, { headers: authHeaders(token), signal: controller.signal })

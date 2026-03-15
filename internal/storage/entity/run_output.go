@@ -6,20 +6,21 @@ import (
 
 const chatInputSnippetMaxLen = 200
 
-// ListRunOutputsByWorkspace returns run outputs (artifacts) in the workspace, optionally filtered by task_id.
+// ListRunOutputsByConversation returns run outputs (artifacts) in the conversation, optionally filtered by task_id.
 // Order: run created_at DESC. ArtifactID in the result is task_run_id for API compatibility.
-func (s *Store) ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]ArtifactWithChat, error) {
-	q := `SELECT r.task_run_id AS artifact_id, r.task_id, r.task_run_id, c.workspace_id, r.created_at, LEFT(r.input, ?) AS task_input_snippet
+func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID string, chatID *string) ([]ArtifactWithChat, error) {
+	q := `SELECT r.task_run_id AS artifact_id, r.task_id, r.task_run_id, c.conversation_id, v.user_id, r.created_at, LEFT(r.input, ?) AS task_input_snippet
 		FROM task_run_artifact o
 		JOIN task_run r ON o.task_run_id = r.task_run_id
 		JOIN task c ON r.task_id = c.task_id
-		WHERE c.workspace_id = ? AND r.status = 'SUCCEEDED'`
-	args := []interface{}{chatInputSnippetMaxLen, workspaceID}
+		JOIN conversation v ON c.conversation_id = v.conversation_id
+		WHERE c.conversation_id = ? AND r.status = 'SUCCEEDED'`
+	args := []interface{}{chatInputSnippetMaxLen, conversationID}
 	if chatID != nil {
 		q += ` AND c.task_id = ?`
 		args = append(args, *chatID)
 	}
-	q += ` GROUP BY r.task_run_id, r.task_id, c.workspace_id, r.created_at, r.input ORDER BY r.created_at DESC`
+	q += ` GROUP BY r.task_run_id, r.task_id, c.conversation_id, v.user_id, r.created_at, r.input ORDER BY r.created_at DESC`
 	var out []ArtifactWithChat
 	err := s.db.WithContext(ctx).Raw(q, args...).Scan(&out).Error
 	return out, err

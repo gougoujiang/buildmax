@@ -28,11 +28,12 @@ type TaskRunUpdater interface {
 	UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchTaskRunRequest) error
 }
 
-// RunScope identifies a task run by workspace, task, and run IDs. Used to group (workspaceID, chatID, chatRunID) in executor helpers.
+// RunScope identifies a task run by user, conversation, task, and run IDs.
 type RunScope struct {
-	WorkspaceID string
-	ChatID      string
-	TaskRunID   string
+	UserID         string
+	ConversationID string
+	ChatID         string
+	TaskRunID      string
 }
 
 // RunResult holds the outcome of a successful run (output and paths) for reportRunSuccess.
@@ -59,7 +60,7 @@ type RunTaskInput struct {
 	Chat            *entity.Chat
 	Run             *entity.TaskRun
 	SessionID       string
-	Paths           WorkspacePaths
+	Paths           RuntimePaths
 	Persist         blob.PersistStorage
 	ArtifactStorage blob.ArtifactStorage
 	Updater         TaskRunUpdater
@@ -77,7 +78,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return errors.New("executor: paths, persist, artifactStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, chat, run)
-	scope := RunScope{WorkspaceID: chat.WorkspaceID, ChatID: chat.ChatID, TaskRunID: run.TaskRunID}
+	scope := RunScope{UserID: chat.CreatedBy, ConversationID: chat.ConversationID, ChatID: chat.ChatID, TaskRunID: run.TaskRunID}
 
 	if err := prepareRunWorkspace(ctx, input.Persist, chat, run, dirs); err != nil {
 		reportRunFailure(ctx, run.TaskRunID, err, input.Updater)
@@ -99,12 +100,12 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	return nil
 }
 
-func resolveRunDirs(paths WorkspacePaths, chat *entity.Chat, run *entity.TaskRun) runDirs {
+func resolveRunDirs(paths RuntimePaths, chat *entity.Chat, run *entity.TaskRun) runDirs {
 	return runDirs{
-		runDir:       paths.RuntimeTaskRunDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
-		runHome:      paths.RuntimeTaskRunHomeDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
-		runArtifacts: paths.RuntimeTaskRunArtifactsDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
-		runGlobal:    paths.RuntimeTaskRunGlobalDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
+		runDir:       paths.RuntimeTaskRunDir(chat.CreatedBy, chat.ConversationID, chat.ChatID, run.TaskRunID),
+		runHome:      paths.RuntimeTaskRunHomeDir(chat.CreatedBy, chat.ConversationID, chat.ChatID, run.TaskRunID),
+		runArtifacts: paths.RuntimeTaskRunArtifactsDir(chat.CreatedBy, chat.ConversationID, chat.ChatID, run.TaskRunID),
+		runGlobal:    paths.RuntimeTaskRunGlobalDir(chat.CreatedBy, chat.ConversationID, chat.ChatID, run.TaskRunID),
 	}
 }
 
@@ -113,8 +114,8 @@ func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, chat 
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, chat, run, dirs.runGlobal, persist)
-	if err := persist.MaterializeToDir(ctx, chat.WorkspaceID, dirs.runHome); err != nil {
-		slog.Error("executor: failed to materialize workspace", "task_run_id", run.TaskRunID, "workspace_id", chat.WorkspaceID, "err", err)
+	if err := persist.MaterializeToDir(ctx, chat.CreatedBy, dirs.runHome); err != nil {
+		slog.Error("executor: failed to materialize user files", "task_run_id", run.TaskRunID, "user_id", chat.CreatedBy, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
@@ -169,10 +170,11 @@ func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *
 	}
 	relPath := "sessions/" + *chat.SessionID + ".json"
 	data, err := persist.GetChatGlobal(ctx, blob.RunObjectRef{
-		WorkspaceID: chat.WorkspaceID,
-		ChatID:      chat.ChatID,
-		TaskRunID:   *chat.LastRunID,
-		RelPath:     relPath,
+		UserID:         chat.CreatedBy,
+		ConversationID: chat.ConversationID,
+		ChatID:         chat.ChatID,
+		TaskRunID:      *chat.LastRunID,
+		RelPath:        relPath,
 	})
 	if err != nil {
 		return
@@ -334,10 +336,11 @@ func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunS
 		"executor: upload run artifacts open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return persist.PutTaskRunArtifacts(ctx, blob.RunObjectRef{
-				WorkspaceID: scope.WorkspaceID,
-				ChatID:      scope.ChatID,
-				TaskRunID:   scope.TaskRunID,
-				RelPath:     relPath,
+				UserID:         scope.UserID,
+				ConversationID: scope.ConversationID,
+				ChatID:         scope.ChatID,
+				TaskRunID:      scope.TaskRunID,
+				RelPath:        relPath,
 			}, f)
 		},
 		slog.Warn,
@@ -354,10 +357,11 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 		"executor: artifact file open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return artifactStorage.PutArtifactFile(ctx, blob.RunObjectRef{
-				WorkspaceID: scope.WorkspaceID,
-				ChatID:      scope.ChatID,
-				TaskRunID:   scope.TaskRunID,
-				RelPath:     relPath,
+				UserID:         scope.UserID,
+				ConversationID: scope.ConversationID,
+				ChatID:         scope.ChatID,
+				TaskRunID:      scope.TaskRunID,
+				RelPath:        relPath,
 			}, f)
 		},
 		slog.Warn,
@@ -390,10 +394,11 @@ func uploadChatGlobal(ctx context.Context, globalDir string, scope RunScope, per
 			continue
 		}
 		putErr := persist.PutChatGlobal(ctx, blob.RunObjectRef{
-			WorkspaceID: scope.WorkspaceID,
-			ChatID:      scope.ChatID,
-			TaskRunID:   scope.TaskRunID,
-			RelPath:     filepath.ToSlash(relPath),
+			UserID:         scope.UserID,
+			ConversationID: scope.ConversationID,
+			ChatID:         scope.ChatID,
+			TaskRunID:      scope.TaskRunID,
+			RelPath:        filepath.ToSlash(relPath),
 		}, f)
 		f.Close()
 		if putErr != nil {

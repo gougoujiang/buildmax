@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Conversation, Route, Workspace } from "../lib/types"
+import type { Conversation, Profile, Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { Sidebar } from "./Sidebar"
@@ -8,10 +8,9 @@ import { ThemeToggle } from "@buildmax/gui"
 
 export interface LayoutProps {
   route: Route
-  currentWorkspace: Workspace
-  workspaces: { id: string; name: string }[]
-  onNewWorkspace?: () => void
-  workspaceConversations: Conversation[]
+  currentProfile: Profile
+  profiles: { id: string; name: string }[]
+  profileConversations: Conversation[]
   user: LoginUser
   onLogout: () => void
   children: ReactNode
@@ -19,10 +18,9 @@ export interface LayoutProps {
 
 export function Layout({
   route,
-  currentWorkspace,
-  workspaces,
-  onNewWorkspace,
-  workspaceConversations,
+  currentProfile,
+  profiles,
+  profileConversations,
   user,
   onLogout,
   children,
@@ -31,19 +29,18 @@ export function Layout({
     <div className="shell">
       <div className="shell__body">
         <Sidebar
-          workspaceId={route.workspaceId}
+          profileId={route.profileId}
           route={route}
-          currentWorkspace={currentWorkspace}
-          workspaces={workspaces}
-          onWorkspaceChange={(workspaceId) => navigate({ name: "workspace", workspaceId })}
-          onNewWorkspace={onNewWorkspace}
-          workspaceConversations={workspaceConversations}
+          currentProfile={currentProfile}
+          profiles={profiles}
+          onProfileChange={(profileId) => navigate({ name: "home", profileId })}
+          workspaceConversations={profileConversations}
           user={user}
           onLogout={onLogout}
         />
         <main className="shell__main">
           <div className="shell__top">
-            <Breadcrumbs route={route} workspaceConversations={workspaceConversations} />
+            <Breadcrumbs route={route} workspaceConversations={profileConversations} />
             <ThemeToggle />
           </div>
           <div className="shell__content">{children}</div>

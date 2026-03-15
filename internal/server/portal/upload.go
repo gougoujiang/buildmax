@@ -17,11 +17,8 @@ type uploadResponse struct {
 }
 
 func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.PersistStorage, "persist storage not configured") {
 		return
 	}
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
@@ -81,7 +78,7 @@ func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			httputil.WriteInternalError(w, err, "portal handler error", "handler", "upload", "name", relPath)
 			return
 		}
-		if err := h.cfg.PersistStorage.Put(ctx, workspaceID, cleanPath, src); err != nil {
+		if err := h.cfg.PersistStorage.Put(ctx, userID, cleanPath, src); err != nil {
 			src.Close()
 			httputil.WriteInternalError(w, err, "portal handler error", "handler", "upload", "path", cleanPath)
 			return

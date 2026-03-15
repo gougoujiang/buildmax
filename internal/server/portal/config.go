@@ -21,16 +21,15 @@ type ChatTitleGenerator interface {
 	GenerateChatTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
 }
 
-// RunOutputLister lists run outputs by workspace and gets output files for a run.
+// RunOutputLister lists run outputs by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, chatID *string) ([]entity.ArtifactWithChat, error)
 	GetTaskRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.TaskRunArtifact, error)
 }
 
 // Config holds dependencies for authenticated portal endpoints.
 type Config struct {
 	JWTSecret                string
-	WorkspaceStore           entity.WorkspaceStore
 	AgentStore               entity.AgentStore
 	TaskStore                entity.TaskStore
 	TaskRunStore             entity.TaskRunStore
@@ -44,5 +43,5 @@ type Config struct {
 	ConversationMessageStore entity.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller
 	Hub                      streamhub.StreamHub
-	WorkspaceWebhookKeyStore entity.WorkspaceWebhookKeyStore
+	UserWebhookKeyStore      entity.UserWebhookKeyStore
 }

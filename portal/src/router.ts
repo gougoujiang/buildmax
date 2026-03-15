@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react"
-import type { Route, WorkspaceScope } from "./lib/types"
+import type { ProfileScope, Route } from "./lib/types"
 
-/** Derive workspace scope from route (for data fetching and display). */
-export function getWorkspaceScope(route: Route): WorkspaceScope {
+/** Derive current profile scope from route (for data fetching and display). */
+export function getWorkspaceScope(route: Route): ProfileScope {
   return {
-    workspaceId: route.workspaceId,
+    profileId: route.profileId,
     chatId: "chatId" in route ? route.chatId : undefined,
     conversationId: "conversationId" in route ? route.conversationId : undefined,
   }
@@ -25,53 +25,53 @@ export const SEGMENT = {
 
 /**
  * Parse window.location.hash into a typed Route.
- * Hash format: #<workspaceId> | #<workspaceId>/task/<taskId> | #<workspaceId>/conversations | ...
- * First segment = workspaceId (use as-is; if missing, "").
+ * Hash format: #<profileId> | #<profileId>/task/<taskId> | #<profileId>/conversations | ...
+ * First segment = profileId (use as-is; if missing, "").
  */
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#\/?/, "")
   const parts = raw.split("/").filter(Boolean)
 
-  const workspaceId = parts[0] ?? ""
+  const profileId = parts[0] ?? ""
 
   if (parts[1] === SEGMENT.new) {
-    return { name: "newChat", workspaceId }
+    return { name: "newChat", profileId }
   }
   if (parts[1] === SEGMENT.conversations) {
-    return { name: "chats", workspaceId }
+    return { name: "chats", profileId }
   }
   if (parts[1] === SEGMENT.explore) {
-    return { name: "explore", workspaceId }
+    return { name: "explore", profileId }
   }
   if (parts[1] === SEGMENT.agents) {
-    return { name: "agents", workspaceId }
+    return { name: "agents", profileId }
   }
   if (parts[1] === SEGMENT.task && parts[2]) {
-    return { name: "chat", workspaceId, chatId: parts[2] }
+    return { name: "chat", profileId, chatId: parts[2] }
   }
   if (parts[1] === SEGMENT.conversation && parts[2]) {
-    return { name: "conversation", workspaceId, conversationId: parts[2] }
+    return { name: "conversation", profileId, conversationId: parts[2] }
   }
-  return { name: "workspace", workspaceId }
+  return { name: "home", profileId }
 }
 
 /** Convert a Route into a canonical hash string (includes leading #). */
 export function buildHash(route: Route): string {
   switch (route.name) {
-    case "workspace":
-      return `#${route.workspaceId}`
+    case "home":
+      return `#${route.profileId}`
     case "newChat":
-      return `#${route.workspaceId}/${SEGMENT.new}`
+      return `#${route.profileId}/${SEGMENT.new}`
     case "chat":
-      return `#${route.workspaceId}/${SEGMENT.task}/${route.chatId}`
+      return `#${route.profileId}/${SEGMENT.task}/${route.chatId}`
     case "conversation":
-      return `#${route.workspaceId}/${SEGMENT.conversation}/${route.conversationId}`
+      return `#${route.profileId}/${SEGMENT.conversation}/${route.conversationId}`
     case "chats":
-      return `#${route.workspaceId}/${SEGMENT.conversations}`
+      return `#${route.profileId}/${SEGMENT.conversations}`
     case "explore":
-      return `#${route.workspaceId}/${SEGMENT.explore}`
+      return `#${route.profileId}/${SEGMENT.explore}`
     case "agents":
-      return `#${route.workspaceId}/${SEGMENT.agents}`
+      return `#${route.profileId}/${SEGMENT.agents}`
   }
 }
 

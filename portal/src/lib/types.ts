@@ -1,6 +1,6 @@
 // --- Entity types ---
 
-export interface Workspace {
+export interface Profile {
   id: string
   name: string
 }
@@ -20,7 +20,6 @@ export interface Artifact {
   id: string
   chatId: string
   chatRunId?: string
-  workspaceId: string
   timeLabel: string
   title: string
 }
@@ -34,12 +33,12 @@ export interface Conversation {
   timeLabel: string
 }
 
-// --- Workspace scope (derived from route) ---
-// Scope = what is in context for the current view (workspaceId; chatId when on chat).
+// --- Profile scope (derived from route) ---
+// Scope = what is in context for the current view (profileId; chatId when on chat).
 // Route = URL state; scope = derived context for data and display.
 
-export interface WorkspaceScope {
-  workspaceId: string
+export interface ProfileScope {
+  profileId: string
   chatId?: string
   conversationId?: string
 }
@@ -48,26 +47,24 @@ export interface WorkspaceScope {
 // Portal uses chat/chats; one chat = backend chat.
 
 export type Route =
-  | { name: "workspace"; workspaceId: string }
-  | { name: "newChat"; workspaceId: string }
-  | { name: "chat"; workspaceId: string; chatId: string }
-  | { name: "conversation"; workspaceId: string; conversationId: string }
-  | { name: "chats"; workspaceId: string }
-  | { name: "explore"; workspaceId: string }
-  | { name: "agents"; workspaceId: string }
+  | { name: "home"; profileId: string }
+  | { name: "newChat"; profileId: string }
+  | { name: "chat"; profileId: string; chatId: string }
+  | { name: "conversation"; profileId: string; conversationId: string }
+  | { name: "chats"; profileId: string }
+  | { name: "explore"; profileId: string }
+  | { name: "agents"; profileId: string }
 
 // --- View run output (artifact modal) ---
 
 export interface ViewArtifactParams {
-  workspaceId: string
   chatRunId: string
 }
 
-// --- Agent (workspace-scoped persona) ---
+// --- Agent (user-owned persona) ---
 
 export interface Agent {
   id: string
-  workspaceId: string
   name: string
   description?: string
   instructions?: string

@@ -9,20 +9,20 @@ import (
 )
 
 // GetTaskRunner is the interface used by the GetTask tool. Callers implement this
-// using TaskStore; must return workspace-scoped results only.
+// using TaskStore; results must be scoped to the current conversation context.
 type GetTaskRunner interface {
-	GetTask(ctx context.Context, workspaceID, taskID string) (detail string, err error)
+	GetTask(ctx context.Context, scopeID, taskID string) (detail string, err error)
 }
 
 type getTaskTool struct {
-	workspaceID string
-	runner      GetTaskRunner
+	scopeID string
+	runner  GetTaskRunner
 }
 
 func (t *getTaskTool) Name() string { return ToolNameGetTask }
 
 func (t *getTaskTool) Description() string {
-	return "Get detail for one task by task_id. Use this when the user asks about a specific task's status, result, or content. Returns task_id, title, input, status, created_at, last_run_id, and optional output snippet. Fails with a clear error if the task is not in the current workspace."
+	return "Get detail for one task by task_id. Use this when the user asks about a specific task's status, result, or content. Returns task_id, title, input, status, created_at, last_run_id, and optional output snippet. Fails with a clear error if the task is not in the current conversation."
 }
 
 func (t *getTaskTool) Parameters() any {
@@ -46,7 +46,7 @@ func (t *getTaskTool) Execute(ctx context.Context, args map[string]any) (string,
 	if taskID == "" {
 		return "", fmt.Errorf("task_id is required")
 	}
-	detail, err := t.runner.GetTask(ctx, t.workspaceID, taskID)
+	detail, err := t.runner.GetTask(ctx, t.scopeID, taskID)
 	if err != nil {
 		return "", err
 	}
@@ -54,6 +54,6 @@ func (t *getTaskTool) Execute(ctx context.Context, args map[string]any) (string,
 }
 
 // NewGetTaskTool returns a core.Tool that gets one task's detail. If runner is nil, Execute returns "not configured".
-func NewGetTaskTool(workspaceID string, runner GetTaskRunner) core.Tool {
-	return &getTaskTool{workspaceID: workspaceID, runner: runner}
+func NewGetTaskTool(scopeID string, runner GetTaskRunner) core.Tool {
+	return &getTaskTool{scopeID: scopeID, runner: runner}
 }

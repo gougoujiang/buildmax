@@ -8,22 +8,19 @@ import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import type { ApiAgent } from "../../lib/api/types"
 
 export async function getAgents(
-  workspaceId: string,
+  _profileId: string,
   token: string
 ): Promise<ApiAgent[]> {
-  return requestJson<ApiAgent[]>(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
-    { headers: authHeaders(token) }
-  )
+  return requestJson<ApiAgent[]>(`${getApiBase()}/api/agents`, { headers: authHeaders(token) })
 }
 
 export async function createAgent(
-  workspaceId: string,
+  _profileId: string,
   body: { name: string; description?: string; instructions?: string },
   token: string
 ): Promise<ApiAgent> {
   return requestJson<ApiAgent>(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
+    `${getApiBase()}/api/agents`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -33,13 +30,13 @@ export async function createAgent(
 }
 
 export async function updateAgent(
-  workspaceId: string,
+  _profileId: string,
   agentId: string,
   body: { name: string; description?: string; instructions?: string },
   token: string
 ): Promise<ApiAgent> {
   return requestJson<ApiAgent>(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}`,
+    `${getApiBase()}/api/agents/${encodeURIComponent(agentId)}`,
     {
       method: "PATCH",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -49,11 +46,11 @@ export async function updateAgent(
 }
 
 export async function deleteAgent(
-  workspaceId: string,
+  _profileId: string,
   agentId: string,
   token: string
 ): Promise<void> {
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}`
+  const url = `${getApiBase()}/api/agents/${encodeURIComponent(agentId)}`
   const res = await fetch(url, { method: "DELETE", headers: authHeaders(token) })
   checkUnauthorized(res)
   await throwIfNotOk(res)

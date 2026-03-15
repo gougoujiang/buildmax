@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-// Handler serves authenticated portal API (workspaces, tasks, agents, artifacts, conversations, stream, files, upload, usage).
+// Handler serves authenticated portal API (tasks, agents, artifacts, conversations, stream, files, upload, usage).
 type Handler struct {
 	cfg Config
 }
@@ -17,29 +17,28 @@ func NewHandler(cfg Config) *Handler {
 // Register adds all portal routes to mux.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/usage", h.usageHandler)
-	mux.HandleFunc("GET /api/workspaces", h.workspacesHandler)
-	mux.HandleFunc("POST /api/workspaces", h.createWorkspaceHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents", h.listAgentsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/agents", h.createAgentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/agents/{agent_id}", h.getAgentHandler)
-	mux.HandleFunc("PATCH /api/workspaces/{workspace_id}/agents/{agent_id}", h.patchAgentHandler)
-	mux.HandleFunc("DELETE /api/workspaces/{workspace_id}/agents/{agent_id}", h.deleteAgentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks", h.listWorkspaceChatsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks", h.createWorkspaceChatHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/tasks/{task_id}/runs", h.createTaskRunHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts", h.listWorkspaceArtifactsHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{task_run_id}/items", h.listArtifactItemsHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/artifacts/{task_run_id}/content", h.artifactContentHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/upload", h.uploadHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files", h.filesTreeHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/files/{path...}", h.fileContentHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/conversation", h.getChatConversationHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/tasks/{task_id}/stream", h.getChatStreamHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations", h.listConversationsHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations", h.createConversationHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", h.getConversationMessagesHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/conversations/{conversation_id}/messages", h.addConversationMessageHandler)
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/webhook-keys", h.createWebhookKeyHandler)
-	mux.HandleFunc("GET /api/workspaces/{workspace_id}/webhook-keys", h.listWebhookKeysHandler)
-	mux.HandleFunc("DELETE /api/workspaces/{workspace_id}/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
+	mux.HandleFunc("GET /api/agents", h.listAgentsHandler)
+	mux.HandleFunc("POST /api/agents", h.createAgentHandler)
+	mux.HandleFunc("GET /api/agents/{agent_id}", h.getAgentHandler)
+	mux.HandleFunc("PATCH /api/agents/{agent_id}", h.patchAgentHandler)
+	mux.HandleFunc("DELETE /api/agents/{agent_id}", h.deleteAgentHandler)
+	mux.HandleFunc("POST /api/upload", h.uploadHandler)
+	mux.HandleFunc("GET /api/files", h.filesTreeHandler)
+	mux.HandleFunc("GET /api/files/{path...}", h.fileContentHandler)
+	mux.HandleFunc("POST /api/webhook-keys", h.createWebhookKeyHandler)
+	mux.HandleFunc("GET /api/webhook-keys", h.listWebhookKeysHandler)
+	mux.HandleFunc("DELETE /api/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
+	mux.HandleFunc("GET /api/conversations", h.listConversationsHandler)
+	mux.HandleFunc("POST /api/conversations", h.createConversationHandler)
+	mux.HandleFunc("GET /api/conversations/{conversation_id}/messages", h.getConversationMessagesHandler)
+	mux.HandleFunc("POST /api/conversations/{conversation_id}/messages", h.addConversationMessageHandler)
+	mux.HandleFunc("GET /api/conversations/{conversation_id}/tasks", h.listConversationTasksHandler)
+	mux.HandleFunc("POST /api/conversations/{conversation_id}/tasks", h.createConversationTaskHandler)
+	mux.HandleFunc("GET /api/tasks/{task_id}", h.getTaskHandler)
+	mux.HandleFunc("POST /api/tasks/{task_id}/runs", h.createTaskRunHandler)
+	mux.HandleFunc("GET /api/tasks/{task_id}/conversation", h.getChatConversationHandler)
+	mux.HandleFunc("GET /api/tasks/{task_id}/stream", h.getChatStreamHandler)
+	mux.HandleFunc("GET /api/tasks/{task_id}/artifacts", h.listTaskArtifactsHandler)
+	mux.HandleFunc("GET /api/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
+	mux.HandleFunc("GET /api/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
 }

@@ -7,20 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/testutil"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/testutil"
 )
 
 const agentTestSecret = "agent-test-secret"
 
 func TestPatchAgentHandler(t *testing.T) {
-	ws1 := entity.Workspace{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "WS1", CreatedAt: 123}
 	agentStore := &testutil.MockAgentStore{
 		Agents: []entity.Agent{
-			{AgentID: "a_1", WorkspaceID: "ws1", Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
+			{AgentID: "a_1", UserID: "u1", Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
 	}
-	wsStore := &testutil.MockWorkspaceStore{List: []entity.Workspace{ws1}}
 
 	tests := []struct {
 		name        string
@@ -34,7 +32,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:        "PATCH success",
 			method:      http.MethodPatch,
-			url:         "/api/workspaces/ws1/agents/a_1",
+			url:         "/api/agents/a_1",
 			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusOK,
@@ -43,7 +41,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:        "PATCH empty name returns 400",
 			method:      http.MethodPatch,
-			url:         "/api/workspaces/ws1/agents/a_1",
+			url:         "/api/agents/a_1",
 			body:        `{"name":""}`,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusBadRequest,
@@ -52,27 +50,26 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:        "PATCH non-existent agent returns 404",
 			method:      http.MethodPatch,
-			url:         "/api/workspaces/ws1/agents/a_999",
+			url:         "/api/agents/a_999",
 			body:        `{"name":"X","description":"","instructions":""}`,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
 		{
-			name:        "PATCH no auth returns 401",
-			method:      http.MethodPatch,
-			url:         "/api/workspaces/ws1/agents/a_1",
-			body:        `{"name":"X"}`,
-			authHeader:  "",
-			wantStatus:  http.StatusUnauthorized,
+			name:       "PATCH no auth returns 401",
+			method:     http.MethodPatch,
+			url:        "/api/agents/a_1",
+			body:       `{"name":"X"}`,
+			authHeader: "",
+			wantStatus: http.StatusUnauthorized,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewHandler(Config{
-				JWTSecret:       agentTestSecret,
-				AgentStore:      agentStore,
-				WorkspaceStore:  wsStore,
+				JWTSecret:  agentTestSecret,
+				AgentStore: agentStore,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)
@@ -89,7 +86,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			if tt.wantBodyHas != "" && !strings.Contains(rec.Body.String(), tt.wantBodyHas) {
 				t.Errorf("body %q does not contain %q", rec.Body.String(), tt.wantBodyHas)
 			}
-			if tt.wantStatus == http.StatusOK && tt.name == "PATCH success" {
+			if tt.wantStatus == http.StatusOK {
 				var out struct {
 					ID           string `json:"id"`
 					Name         string `json:"name"`
@@ -108,9 +105,6 @@ func TestPatchAgentHandler(t *testing.T) {
 }
 
 func TestDeleteAgentHandler(t *testing.T) {
-	ws1 := entity.Workspace{WorkspaceID: "ws1", OwnerUserID: "u1", Name: "WS1", CreatedAt: 123}
-	wsStore := &testutil.MockWorkspaceStore{List: []entity.Workspace{ws1}}
-
 	tests := []struct {
 		name        string
 		url         string
@@ -120,20 +114,20 @@ func TestDeleteAgentHandler(t *testing.T) {
 	}{
 		{
 			name:       "DELETE success returns 204",
-			url:        "/api/workspaces/ws1/agents/a_1",
+			url:        "/api/agents/a_1",
 			authHeader: "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:        "DELETE non-existent agent returns 404",
-			url:         "/api/workspaces/ws1/agents/a_999",
+			url:         "/api/agents/a_999",
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
 		{
 			name:       "DELETE no auth returns 401",
-			url:        "/api/workspaces/ws1/agents/a_1",
+			url:        "/api/agents/a_1",
 			authHeader: "",
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -142,13 +136,12 @@ func TestDeleteAgentHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &testutil.MockAgentStore{
 				Agents: []entity.Agent{
-					{AgentID: "a_1", WorkspaceID: "ws1", Name: "ToDelete", CreatedAt: 100},
+					{AgentID: "a_1", UserID: "u1", Name: "ToDelete", CreatedAt: 100},
 				},
 			}
 			h := NewHandler(Config{
-				JWTSecret:      agentTestSecret,
-				AgentStore:     store,
-				WorkspaceStore: wsStore,
+				JWTSecret:  agentTestSecret,
+				AgentStore: store,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)
@@ -164,11 +157,8 @@ func TestDeleteAgentHandler(t *testing.T) {
 			if tt.wantBodyHas != "" && !strings.Contains(rec.Body.String(), tt.wantBodyHas) {
 				t.Errorf("body %q does not contain %q", rec.Body.String(), tt.wantBodyHas)
 			}
-			if tt.wantStatus == http.StatusNoContent && tt.name == "DELETE success returns 204" {
-				list, _ := store.ListAgentsByWorkspace(nil, "ws1")
-				if len(list) != 0 {
-					t.Errorf("after DELETE, list has %d agents, want 0", len(list))
-				}
+			if tt.wantStatus == http.StatusNoContent && len(store.Agents) != 0 {
+				t.Errorf("after DELETE, list has %d agents, want 0", len(store.Agents))
 			}
 		})
 	}

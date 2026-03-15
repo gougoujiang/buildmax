@@ -20,9 +20,9 @@ export interface WorkspaceContextValue {
   token: string | null
   route: Route
   scope: ReturnType<typeof getWorkspaceScope>
-  workspaces: ApiWorkspace[]
-  loadingWorkspaces: boolean
-  refetchWorkspaces: () => Promise<void>
+  profiles: ApiWorkspace[]
+  loadingProfiles: boolean
+  refetchProfiles: () => Promise<void>
   /** Set when navigating from New Conversation so TaskDetail can render immediately and show the initial query. */
   pendingChat: PendingChat | null
   setPendingChat: (p: PendingChat | null) => void
@@ -31,14 +31,14 @@ export interface WorkspaceContextValue {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const route = useHashRoute()
   const scope = getWorkspaceScope(route)
   const {
-    data: workspaces,
-    loading: loadingWorkspaces,
-    refetch: refetchWorkspaces,
-  } = useWorkspaces(token)
+    data: profiles,
+    loading: loadingProfiles,
+    refetch: refetchProfiles,
+  } = useWorkspaces(token, user)
   const [pendingChat, setPendingChatState] = useState<PendingChat | null>(null)
   const setPendingChat = useCallback((p: PendingChat | null) => {
     setPendingChatState(p)
@@ -48,9 +48,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     token,
     route,
     scope,
-    workspaces,
-    loadingWorkspaces,
-    refetchWorkspaces,
+    profiles,
+    loadingProfiles,
+    refetchProfiles,
     pendingChat,
     setPendingChat,
   }

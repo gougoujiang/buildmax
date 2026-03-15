@@ -1,20 +1,26 @@
-import { getErrorMessage } from "../lib/errorMessage"
 import type { ApiWorkspace } from "../lib/api"
-import { getWorkspaces } from "../features/workspaces"
-import { useAsyncList } from "./useAsyncList"
+import type { LoginUser } from "../lib/api"
 
-export function useWorkspaces(token: string | null): {
+export function useWorkspaces(token: string | null, user: LoginUser | null): {
   data: ApiWorkspace[]
   loading: boolean
   error: string | null
   refetch: () => Promise<void>
 } {
-  const { data, loading, error, refetch } = useAsyncList(
-    () => getWorkspaces(token!),
-    (x) => x,
-    [token],
-    !!token,
-    { errorMessage: (e) => getErrorMessage(e, "Failed to load workspaces") }
-  )
-  return { data, loading, error, refetch }
+  const data =
+    token && user
+      ? [
+          {
+            id: user.id,
+            name: user.name?.trim() || user.email || "Personal",
+            owner_user_id: user.id,
+          },
+        ]
+      : []
+  return {
+    data,
+    loading: false,
+    error: null,
+    refetch: async () => {},
+  }
 }

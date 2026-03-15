@@ -7,14 +7,14 @@ import {
 } from "../api"
 
 interface UseConversationDetailOptions {
-  workspaceId: string
+  profileId: string
   conversationId: string
   token: string | null
   onMessageSent?: () => void
 }
 
 export function useConversationDetail({
-  workspaceId,
+  profileId,
   conversationId,
   token,
   onMessageSent,
@@ -26,10 +26,10 @@ export function useConversationDetail({
     error: messagesError,
     refetch: refetchMessages,
   } = useFetch(
-    () => getConversationMessages(workspaceId, conversationId, token!),
-    [workspaceId, conversationId, token],
+    () => getConversationMessages(profileId, conversationId, token!),
+    [profileId, conversationId, token],
     {
-      enabled: !!(token && workspaceId && conversationId),
+      enabled: !!(token && profileId && conversationId),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load messages"),
     }
   )
@@ -53,7 +53,7 @@ export function useConversationDetail({
     setStreamingContent("")
     try {
       await addConversationMessageStream(
-        workspaceId,
+        profileId,
         conversationId,
         { content },
         token,

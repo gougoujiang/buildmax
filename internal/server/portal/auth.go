@@ -24,35 +24,6 @@ func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (stri
 	return userID, true
 }
 
-func (h *Handler) withWorkspaceAuth(w http.ResponseWriter, r *http.Request, pathKey string) (userID, workspaceID string, ok bool) {
-	userID, ok = requireAuth(w, r, h.cfg.JWTSecret)
-	if !ok {
-		return "", "", false
-	}
-	workspaceID = r.PathValue(pathKey)
-	if workspaceID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, pathKey+" required")
-		return "", "", false
-	}
-	owned, err := h.userOwnsWorkspace(r, userID, workspaceID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "with_workspace_auth", pathKey, workspaceID)
-		return "", "", false
-	}
-	if !owned {
-		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
-		return "", "", false
-	}
-	return userID, workspaceID, true
-}
-
-func (h *Handler) userOwnsWorkspace(r *http.Request, userID, workspaceID string) (bool, error) {
-	if h.cfg.WorkspaceStore == nil {
-		return false, nil
-	}
-	return h.cfg.WorkspaceStore.WorkspaceBelongsToUser(r.Context(), workspaceID, userID)
-}
-
 func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
 	if store == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
@@ -69,18 +40,6 @@ func pathValueRequired(w http.ResponseWriter, r *http.Request, key string) (valu
 		return "", false
 	}
 	return value, true
-}
-
-// withWorkspaceAndStore runs withWorkspaceAuth then requireStore; returns (userID, workspaceID, true) only when both succeed.
-func (h *Handler) withWorkspaceAndStore(w http.ResponseWriter, r *http.Request, pathKey string, store interface{}, unavailableMsg string) (userID, workspaceID string, ok bool) {
-	userID, workspaceID, ok = h.withWorkspaceAuth(w, r, pathKey)
-	if !ok {
-		return "", "", false
-	}
-	if !h.requireStore(w, store, unavailableMsg) {
-		return "", "", false
-	}
-	return userID, workspaceID, true
 }
 
 func (h *Handler) withUserAndStore(w http.ResponseWriter, r *http.Request, store interface{}, unavailableMsg string) (userID string, ok bool) {

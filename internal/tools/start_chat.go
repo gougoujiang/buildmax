@@ -12,14 +12,14 @@ import (
 // Callers (e.g. server) implement this from their config; the conversation layer passes the runner
 // into RunLoop/RunLoopStream and the agent builds the StartTask tool from it.
 type StartTaskRunner interface {
-	StartTask(ctx context.Context, workspaceID, userID, input string, agentID *string) (taskID, runID string, err error)
+	StartTask(ctx context.Context, scopeID, userID, input string, agentID *string) (taskID, runID string, err error)
 }
 
 // StartTaskFunc creates a background task (Tier 2) and schedules it to run.
 // Used as a convenience; wrap with FuncStartTaskRunner to implement StartTaskRunner.
 type StartTaskFunc func(ctx context.Context, input string, agentID *string) (taskID, runID string, err error)
 
-// FuncStartTaskRunner adapts a StartTaskFunc to StartTaskRunner (ignores workspaceID/userID in the call).
+// FuncStartTaskRunner adapts a StartTaskFunc to StartTaskRunner (ignores scopeID/userID in the call).
 func FuncStartTaskRunner(fn StartTaskFunc) StartTaskRunner {
 	if fn == nil {
 		return nil
@@ -35,9 +35,9 @@ func (f *funcStartTaskRunner) StartTask(ctx context.Context, _, _, input string,
 
 // startTaskTool implements Tool for StartTask; it delegates to StartTaskRunner.
 type startTaskTool struct {
-	workspaceID string
-	userID      string
-	runner      StartTaskRunner
+	scopeID string
+	userID  string
+	runner  StartTaskRunner
 }
 
 func (t *startTaskTool) Name() string { return ToolNameStartTask }
@@ -56,7 +56,7 @@ func (t *startTaskTool) Parameters() any {
 			},
 			"agent_id": map[string]any{
 				"type":        "string",
-				"description": "Optional workspace agent id to run the task with.",
+				"description": "Optional agent id to run the task with.",
 			},
 		},
 		"required": []any{"input"},
@@ -75,7 +75,7 @@ func (t *startTaskTool) Execute(ctx context.Context, args map[string]any) (strin
 	if aid, ok := args["agent_id"].(string); ok && aid != "" {
 		agentID = &aid
 	}
-	taskID, runID, err := t.runner.StartTask(ctx, t.workspaceID, t.userID, inputVal, agentID)
+	taskID, runID, err := t.runner.StartTask(ctx, t.scopeID, t.userID, inputVal, agentID)
 	if err != nil {
 		return "", err
 	}
@@ -83,6 +83,6 @@ func (t *startTaskTool) Execute(ctx context.Context, args map[string]any) (strin
 }
 
 // NewStartTaskTool returns a core.Tool that uses runner to create a task. If runner is nil, Execute returns "not configured".
-func NewStartTaskTool(workspaceID, userID string, runner StartTaskRunner) core.Tool {
-	return &startTaskTool{workspaceID: workspaceID, userID: userID, runner: runner}
+func NewStartTaskTool(scopeID, userID string, runner StartTaskRunner) core.Tool {
+	return &startTaskTool{scopeID: scopeID, userID: userID, runner: runner}
 }

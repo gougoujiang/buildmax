@@ -85,15 +85,14 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := s.EnsureDefaultWorkspaceForUser(ctx, "run-output-user"); err != nil {
-		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
+	conv, err := s.CreateConversation(ctx, "run-output-user", "portal", "run-output-user")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
 	}
-	wsList, _ := s.ListWorkspacesByOwner(ctx, "run-output-user")
-	if len(wsList) == 0 {
-		t.Fatal("no workspace for user")
-	}
-	workspaceID := wsList[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, &CreateChatInput{WorkspaceID: workspaceID, Input: "input", Title: "", CreatedBy: "run-output-user"})
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&Conversation{}, "conversation_id = ?", conv.ConversationID)
+	}()
+	chat, err := s.CreateChat(ctx, &CreateChatInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "run-output-user"})
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}
@@ -123,18 +122,18 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	}
 
 	// ListRunOutputsByWorkspace
-	artList, err := s.ListRunOutputsByWorkspace(ctx, workspaceID, nil)
+	artList, err := s.ListRunOutputsByConversation(ctx, conv.ConversationID, nil)
 	if err != nil {
-		t.Fatalf("ListRunOutputsByWorkspace: %v", err)
+		t.Fatalf("ListRunOutputsByConversation: %v", err)
 	}
 	if len(artList) != 1 {
-		t.Fatalf("ListRunOutputsByWorkspace: got %d items, want 1", len(artList))
+		t.Fatalf("ListRunOutputsByConversation: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != chatRunID || artList[0].ChatID != chat.ChatID || artList[0].TaskRunID != chatRunID || artList[0].WorkspaceID != workspaceID {
-		t.Errorf("ListRunOutputsByWorkspace: got artifact_id=%q chat_id=%q task_run_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].TaskRunID, artList[0].WorkspaceID)
+	if artList[0].ArtifactID != chatRunID || artList[0].ChatID != chat.ChatID || artList[0].TaskRunID != chatRunID || artList[0].ConversationID != conv.ConversationID || artList[0].UserID != "run-output-user" {
+		t.Errorf("ListRunOutputsByConversation: got artifact_id=%q chat_id=%q task_run_id=%q conversation_id=%q user_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].TaskRunID, artList[0].ConversationID, artList[0].UserID)
 	}
 	if artList[0].ChatInputSnippet != "input" {
-		t.Errorf("ListRunOutputsByWorkspace: chat_input_snippet = %q, want input", artList[0].ChatInputSnippet)
+		t.Errorf("ListRunOutputsByConversation: chat_input_snippet = %q, want input", artList[0].ChatInputSnippet)
 	}
 
 	// GetTaskRunOutputFiles
@@ -165,15 +164,14 @@ func TestClaimChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := s.EnsureDefaultWorkspaceForUser(ctx, "update-if-user"); err != nil {
-		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
+	conv, err := s.CreateConversation(ctx, "update-if-user", "portal", "update-if-user")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
 	}
-	list, _ := s.ListWorkspacesByOwner(ctx, "update-if-user")
-	if len(list) == 0 {
-		t.Fatal("no workspace for user")
-	}
-	wsID := list[0].WorkspaceID
-	chat, err := s.CreateChat(ctx, &CreateChatInput{WorkspaceID: wsID, Input: "input", Title: "", CreatedBy: "update-if-user"})
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&Conversation{}, "conversation_id = ?", conv.ConversationID)
+	}()
+	chat, err := s.CreateChat(ctx, &CreateChatInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "update-if-user"})
 	if err != nil {
 		t.Fatalf("CreateChat: %v", err)
 	}
@@ -241,16 +239,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := s.EnsureDefaultWorkspaceForUser(ctx, "conv-test-user"); err != nil {
-		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
-	}
-	list, _ := s.ListWorkspacesByOwner(ctx, "conv-test-user")
-	if len(list) == 0 {
-		t.Fatal("no workspace for user")
-	}
-	workspaceID := list[0].WorkspaceID
-
-	conv, err := s.CreateConversation(ctx, workspaceID, "portal", "conv-test-user")
+	conv, err := s.CreateConversation(ctx, "conv-test-user", "portal", "conv-test-user")
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
@@ -258,7 +247,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&ConversationMessage{})
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&Conversation{})
 	}()
-	if conv.ConversationID == "" || conv.WorkspaceID != workspaceID || conv.Channel != "portal" {
+	if conv.ConversationID == "" || conv.UserID != "conv-test-user" || conv.Channel != "portal" {
 		t.Errorf("CreateConversation: got %+v", conv)
 	}
 
@@ -306,7 +295,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 }
 
-func TestListConversationsByWorkspace(t *testing.T) {
+func TestListConversationsByUser(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -316,16 +305,7 @@ func TestListConversationsByWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := s.EnsureDefaultWorkspaceForUser(ctx, "conv-list-user"); err != nil {
-		t.Fatalf("EnsureDefaultWorkspaceForUser: %v", err)
-	}
-	list, _ := s.ListWorkspacesByOwner(ctx, "conv-list-user")
-	if len(list) == 0 {
-		t.Fatal("no workspace for user")
-	}
-	workspaceID := list[0].WorkspaceID
-
-	conv, err := s.CreateConversation(ctx, workspaceID, "portal", "conv-list-user")
+	conv, err := s.CreateConversation(ctx, "conv-list-user", "portal", "conv-list-user")
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
@@ -333,12 +313,12 @@ func TestListConversationsByWorkspace(t *testing.T) {
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&Conversation{})
 	}()
 
-	convs, total, err := s.ListConversationsByWorkspace(ctx, workspaceID, 10, 0)
+	convs, total, err := s.ListConversationsByUser(ctx, "conv-list-user", 10, 0)
 	if err != nil {
-		t.Fatalf("ListConversationsByWorkspace: %v", err)
+		t.Fatalf("ListConversationsByUser: %v", err)
 	}
 	if total < 1 || len(convs) < 1 {
-		t.Fatalf("ListConversationsByWorkspace: got %d items, total %d", len(convs), total)
+		t.Fatalf("ListConversationsByUser: got %d items, total %d", len(convs), total)
 	}
 	found := false
 	for _, c := range convs {
@@ -348,6 +328,6 @@ func TestListConversationsByWorkspace(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("ListConversationsByWorkspace: did not find created conversation")
+		t.Error("ListConversationsByUser: did not find created conversation")
 	}
 }

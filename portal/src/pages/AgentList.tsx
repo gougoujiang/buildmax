@@ -17,11 +17,11 @@ import { EditAgentModal } from "../components/EditAgentModal"
 import { NewChatFromAgentModal } from "../components/NewChatFromAgentModal"
 
 interface AgentListProps {
-  workspaceId: string
+  profileId: string
   token: string | null
 }
 
-export function AgentList({ workspaceId, token }: AgentListProps) {
+export function AgentList({ profileId, token }: AgentListProps) {
   const { setPendingChat } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,10 +37,10 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
   const fetchAgents = useCallback(() => {
     if (!token) return
     setLoading(true)
-    getAgents(workspaceId, token)
+    getAgents(profileId, token)
       .then((list) => setAgents(list.map(apiAgentToAgent)))
       .finally(() => setLoading(false))
-  }, [workspaceId, token])
+  }, [profileId, token])
 
   useEffect(() => {
     fetchAgents()
@@ -54,7 +54,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
     if (!token) return
     setError(null)
     setCreating(true)
-    createAgent(workspaceId, values, token)
+    createAgent(profileId, values, token)
       .then((created) => {
         setAgents((prev) => [...prev, apiAgentToAgent(created)])
         setModalOpen(false)
@@ -71,7 +71,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
     if (!token || editingAgent == null) return
     setError(null)
     setSaving(true)
-    updateAgent(workspaceId, editingAgent.id, values, token)
+    updateAgent(profileId, editingAgent.id, values, token)
       .then((updated) => {
         setAgents((prev) =>
           prev.map((a) => (a.id === editingAgent.id ? apiAgentToAgent(updated) : a))
@@ -86,7 +86,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
     if (!token || editingAgent == null) return
     setError(null)
     setDeleting(true)
-    deleteAgent(workspaceId, editingAgent.id, token)
+    deleteAgent(profileId, editingAgent.id, token)
       .then(() => {
         setAgents((prev) => prev.filter((a) => a.id !== editingAgent.id))
         setEditingAgent(null)
@@ -104,11 +104,11 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
     if (!token || !newChatAgent) return
     setError(null)
     setStartingChatAgentId(newChatAgent.id)
-    createChat(workspaceId, { agent_id: newChatAgent.id, input: editedInput }, token)
+    createChat(profileId, { agent_id: newChatAgent.id, input: editedInput }, token)
       .then((chat) => {
         setNewChatAgent(null)
         setPendingChat({ chat: apiChatToChat(chat), initialInput: chat.input ?? "" })
-        navigate({ name: "chat", workspaceId, chatId: chat.id })
+        navigate({ name: "chat", profileId, chatId: chat.id })
       })
       .catch((err) => {
         setError(getErrorMessage(err, "Failed to start chat"))
@@ -122,7 +122,7 @@ export function AgentList({ workspaceId, token }: AgentListProps) {
         <div>
           <h1 className="page-activity__title">Agents</h1>
           <p className="page-activity__subtitle">
-            Create and manage workspace agents (personas / task templates).
+            Create and manage personal agents (personas / task templates).
           </p>
         </div>
         <div className="page-activity__actions">

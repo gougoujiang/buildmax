@@ -51,7 +51,7 @@ func (h *Handler) writeChatServiceError(w http.ResponseWriter, r *http.Request, 
 		return true
 	case errors.Is(err, chatapp.ErrAgentNotFound):
 		if agentID != nil && *agentID != "" {
-			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
+			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
 		} else {
 			httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		}

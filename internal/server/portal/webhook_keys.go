@@ -12,7 +12,7 @@ type createWebhookKeyRequest struct {
 }
 
 type createWebhookKeyResponse struct {
-	Key  string `json:"key"`
+	Key   string `json:"key"`
 	KeyID string `json:"key_id"`
 }
 
@@ -27,11 +27,8 @@ type webhookKeyMetaResponse struct {
 }
 
 func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
 	if !ok {
-		return
-	}
-	if !h.requireStore(w, h.cfg.WorkspaceWebhookKeyStore, "webhook keys not configured") {
 		return
 	}
 	var req createWebhookKeyRequest
@@ -39,25 +36,22 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	plaintextKey, keyID, err := h.cfg.WorkspaceWebhookKeyStore.CreateKey(r.Context(), workspaceID, req.Name)
+	plaintextKey, keyID, err := h.cfg.UserWebhookKeyStore.CreateKey(r.Context(), userID, req.Name)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_webhook_key", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_webhook_key", "user_id", userID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, createWebhookKeyResponse{Key: plaintextKey, KeyID: keyID})
 }
 
 func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.WorkspaceWebhookKeyStore, "webhook keys not configured") {
-		return
-	}
-	list, err := h.cfg.WorkspaceWebhookKeyStore.ListKeys(r.Context(), workspaceID)
+	list, err := h.cfg.UserWebhookKeyStore.ListKeys(r.Context(), userID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_webhook_keys", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_webhook_keys", "user_id", userID)
 		return
 	}
 	out := make([]webhookKeyMetaResponse, len(list))
@@ -68,7 +62,7 @@ func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) revokeWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
 	if !ok {
 		return
 	}
@@ -77,12 +71,9 @@ func (h *Handler) revokeWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteJSONError(w, http.StatusBadRequest, "key_id required")
 		return
 	}
-	if !h.requireStore(w, h.cfg.WorkspaceWebhookKeyStore, "webhook keys not configured") {
-		return
-	}
-	err := h.cfg.WorkspaceWebhookKeyStore.RevokeKey(r.Context(), workspaceID, keyID)
+	err := h.cfg.UserWebhookKeyStore.RevokeKey(r.Context(), userID, keyID)
 	if err != nil {
-		httputil.WriteJSONError(w, http.StatusNotFound, "webhook key not found or not in workspace")
+		httputil.WriteJSONError(w, http.StatusNotFound, "webhook key not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

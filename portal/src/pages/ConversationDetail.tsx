@@ -3,18 +3,18 @@ import { ConversationDetailView, useConversationDetail } from "../features/conve
 
 interface ConversationDetailProps {
   conversationId: string
-  workspaceId: string
+  profileId: string
   onRefetch?: () => void
 }
 
 export function ConversationDetail({
   conversationId,
-  workspaceId,
+  profileId,
   onRefetch,
 }: ConversationDetailProps) {
   const { token, user } = useAuth()
   const conversationDetail = useConversationDetail({
-    workspaceId,
+    profileId,
     conversationId,
     token,
     onMessageSent: onRefetch,

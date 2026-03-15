@@ -22,18 +22,18 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*Agent, error) {
 	return &a, nil
 }
 
-// ListAgentsByWorkspace returns all agents for the given workspace_id, ordered by created_at ASC.
-func (s *Store) ListAgentsByWorkspace(ctx context.Context, workspaceID string) ([]Agent, error) {
+// ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
+func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]Agent, error) {
 	var list []Agent
-	err := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Order("created_at ASC").Find(&list).Error
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&list).Error
 	return list, err
 }
 
 // CreateAgent inserts a new agent and returns it.
-func (s *Store) CreateAgent(ctx context.Context, workspaceID, name, description, instructions string) (*Agent, error) {
+func (s *Store) CreateAgent(ctx context.Context, userID, name, description, instructions string) (*Agent, error) {
 	a := &Agent{
 		AgentID:      util.NewPrefixedID(util.PrefixAgent),
-		WorkspaceID:  workspaceID,
+		UserID:       userID,
 		Name:         name,
 		Description:  description,
 		Instructions: instructions,
@@ -45,13 +45,13 @@ func (s *Store) CreateAgent(ctx context.Context, workspaceID, name, description,
 	return a, nil
 }
 
-// UpdateAgent updates name, description, and instructions for the agent. Returns the updated agent, or (nil, nil) if not found or workspace does not match.
-func (s *Store) UpdateAgent(ctx context.Context, agentID, workspaceID, name, description, instructions string) (*Agent, error) {
+// UpdateAgent updates name, description, and instructions for the agent. Returns the updated agent, or (nil, nil) if not found or user does not match.
+func (s *Store) UpdateAgent(ctx context.Context, agentID, userID, name, description, instructions string) (*Agent, error) {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil || a == nil {
 		return nil, err
 	}
-	if a.WorkspaceID != workspaceID {
+	if a.UserID != userID {
 		return nil, nil
 	}
 	a.Name = name
@@ -63,13 +63,13 @@ func (s *Store) UpdateAgent(ctx context.Context, agentID, workspaceID, name, des
 	return a, nil
 }
 
-// DeleteAgent deletes the agent if it exists and belongs to the workspace. Returns nil on success, or error if not found / wrong workspace.
-func (s *Store) DeleteAgent(ctx context.Context, agentID, workspaceID string) error {
+// DeleteAgent deletes the agent if it exists and belongs to the user. Returns nil on success, or error if not found / wrong user.
+func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil {
 		return err
 	}
-	if a == nil || a.WorkspaceID != workspaceID {
+	if a == nil || a.UserID != userID {
 		return gorm.ErrRecordNotFound
 	}
 	return s.db.WithContext(ctx).Delete(a).Error

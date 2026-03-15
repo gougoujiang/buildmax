@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/util"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/util"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -86,42 +86,4 @@ func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuota
 	m.ByEmail[email] = u
 	m.ByID[u.UserID] = u
 	return u, nil
-}
-
-// MockWorkspaceStore is an in-memory WorkspaceStore for tests.
-type MockWorkspaceStore struct {
-	EnsureErr error
-	List      []entity.Workspace
-	ListErr   error
-}
-
-func (m *MockWorkspaceStore) EnsureDefaultWorkspaceForUser(_ context.Context, _ string) error {
-	return m.EnsureErr
-}
-
-func (m *MockWorkspaceStore) ListWorkspacesByOwner(_ context.Context, _ string) ([]entity.Workspace, error) {
-	if m.ListErr != nil {
-		return nil, m.ListErr
-	}
-	return m.List, nil
-}
-
-func (m *MockWorkspaceStore) WorkspaceBelongsToUser(_ context.Context, workspaceID, userID string) (bool, error) {
-	for _, w := range m.List {
-		if w.WorkspaceID == workspaceID && w.OwnerUserID == userID {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (m *MockWorkspaceStore) CreateWorkspace(_ context.Context, userID, name string) (*entity.Workspace, error) {
-	w := entity.Workspace{
-		WorkspaceID: fmt.Sprintf("ws-%d", len(m.List)+1),
-		OwnerUserID: userID,
-		Name:        name,
-		CreatedAt:   time.Now().Unix(),
-	}
-	m.List = append(m.List, w)
-	return &w, nil
 }

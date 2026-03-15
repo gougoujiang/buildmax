@@ -4,16 +4,16 @@ import { ChatDetailView, useChatDetail } from "../features/chats"
 
 interface TaskDetailProps {
   chat: Chat
-  workspaceId: string
+  profileId: string
   onRefetch?: () => void
   /** First user query when navigating from New Conversation before the task has messages. */
   initialInput?: string
 }
 
-export function TaskDetail({ chat, workspaceId, onRefetch, initialInput }: TaskDetailProps) {
+export function TaskDetail({ chat, profileId, onRefetch, initialInput }: TaskDetailProps) {
   const { token, user } = useAuth()
   const chatDetail = useChatDetail({
-    workspaceId,
+    profileId,
     chatId: chat.id,
     token,
     initialInput,

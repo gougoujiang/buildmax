@@ -9,7 +9,7 @@ export interface UseArtifactsOptions {
 }
 
 export function useArtifacts(
-  workspaceId: string,
+  profileId: string,
   token: string | null,
   options?: UseArtifactsOptions
 ): { data: Artifact[]; refetch: (overrides?: UseArtifactsOptions) => void } {
@@ -22,26 +22,26 @@ export function useArtifacts(
     (overrides?: UseArtifactsOptions) => {
       const opts = overrides ?? optionsRef.current
       const fetchEnabled = opts?.enabled ?? true
-      if (!fetchEnabled || !token || !workspaceId) {
+      if (!fetchEnabled || !token || !profileId) {
         setData([])
         return
       }
       const query =
         opts?.chatId !== undefined ? { chatId: opts.chatId } : undefined
-      getArtifacts(workspaceId, token, query)
+      getArtifacts(profileId, token, query)
         .then((list) => setData(list.map(apiArtifactToArtifact)))
         .catch(() => setData([]))
     },
-    [workspaceId, token]
+    [profileId, token]
   )
 
   useEffect(() => {
-    if (!enabled || !token || !workspaceId) {
+    if (!enabled || !token || !profileId) {
       setData([])
       return
     }
     runFetch()
-  }, [enabled, token, workspaceId, options?.chatId, runFetch])
+  }, [enabled, token, profileId, options?.chatId, runFetch])
 
   const refetch = useCallback(
     (overrides?: UseArtifactsOptions) => {

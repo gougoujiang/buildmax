@@ -6,8 +6,6 @@ package conversation
 // ConversationTurn is the normalized input from any channel. Adapters produce
 // it from channel-specific raw input; the conversation engine consumes it.
 type ConversationTurn struct {
-	// WorkspaceID is the workspace this turn belongs to.
-	WorkspaceID string
 	// Channel is which channel the input came from (e.g. ChannelPortal, ChannelTelegram).
 	Channel string
 	// ConversationID is the channel-specific conversation or thread id (e.g. chat_id for portal).

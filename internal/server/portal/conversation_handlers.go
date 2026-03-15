@@ -15,12 +15,12 @@ type conversationListResponse struct {
 }
 
 type conversationResponse struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	Title       string `json:"title,omitempty"`
-	CreatedAt   int64  `json:"created_at"`
-	CreatedBy   string `json:"created_by"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	Channel   string `json:"channel"`
+	Title     string `json:"title,omitempty"`
+	CreatedAt int64  `json:"created_at"`
+	CreatedBy string `json:"created_by"`
 }
 
 type createConversationRequest struct {
@@ -62,7 +62,6 @@ type runConversationTurnInput struct {
 	conversationID       string
 	message              string
 	channel              string
-	workspaceID          string
 	userID               string
 	stream               bool
 	streamStatus         int
@@ -79,7 +78,6 @@ func (s *sseSink) OnDelta(delta string) {
 // runConversationTurn runs the conversation loop (stream or non-stream). When stream is true it sets SSE headers, optionally writes streamInitialPayload, runs RunLoopStream, and writes "done". When stream is false it runs RunLoop and returns (reply, err).
 func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in runConversationTurnInput) (reply string, err error) {
 	cmd := convapp.HandleTurnCmd{
-		WorkspaceID:    in.workspaceID,
 		UserID:         in.userID,
 		Channel:        in.channel,
 		Message:        in.message,
@@ -118,32 +116,32 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 }
 
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ConversationStore, "conversations not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
-	list, total, err := h.cfg.ConversationStore.ListConversationsByWorkspace(r.Context(), workspaceID, limit, offset)
+	list, total, err := h.cfg.ConversationStore.ListConversationsByUser(r.Context(), userID, limit, offset)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_conversations", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_conversations", "user_id", userID)
 		return
 	}
 	out := make([]conversationResponse, len(list))
 	for i := range list {
 		out[i] = conversationResponse{
-			ID:          list[i].ConversationID,
-			WorkspaceID: list[i].WorkspaceID,
-			Channel:     list[i].Channel,
-			Title:       list[i].Title,
-			CreatedAt:   list[i].CreatedAt,
-			CreatedBy:   list[i].CreatedBy,
+			ID:        list[i].ConversationID,
+			UserID:    list[i].UserID,
+			Channel:   list[i].Channel,
+			Title:     list[i].Title,
+			CreatedAt: list[i].CreatedAt,
+			CreatedBy: list[i].CreatedBy,
 		}
 	}
 	httputil.WriteJSON(w, http.StatusOK, conversationListResponse{Conversations: out, Total: total})
 }
 
 func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := h.withWorkspaceAndStore(w, r, "workspace_id", h.cfg.ConversationStore, "conversations not configured")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -157,9 +155,9 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	if req.Channel == "" {
 		req.Channel = "portal"
 	}
-	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), workspaceID, req.Channel, userID)
+	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), userID, req.Channel, userID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_conversation", "workspace_id", workspaceID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_conversation", "user_id", userID)
 		return
 	}
 	if req.Message == "" || h.cfg.ConversationLLMCaller == nil {
@@ -175,7 +173,6 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		conversationID:       conv.ConversationID,
 		message:              req.Message,
 		channel:              req.Channel,
-		workspaceID:          workspaceID,
 		userID:               userID,
 		stream:               streamRequested,
 		streamStatus:         http.StatusCreated,
@@ -194,7 +191,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	_, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -213,7 +210,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return
 	}
-	if conv == nil || conv.WorkspaceID != workspaceID {
+	if conv == nil || conv.UserID != userID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
@@ -236,7 +233,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, workspaceID, ok := h.withWorkspaceAuth(w, r, "workspace_id")
+	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -244,7 +241,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	conv, ok := h.getConversationForWorkspace(w, r, workspaceID, conversationID)
+	conv, ok := h.getConversationForUser(w, r, userID, conversationID)
 	if !ok {
 		return
 	}
@@ -268,7 +265,6 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 		conversationID: conversationID,
 		message:        req.Content,
 		channel:        conv.Channel,
-		workspaceID:    workspaceID,
 		userID:         userID,
 		stream:         streamRequested,
 		streamStatus:   http.StatusOK,
@@ -285,7 +281,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (h *Handler) getConversationForWorkspace(w http.ResponseWriter, r *http.Request, workspaceID, conversationID string) (*entity.Conversation, bool) {
+func (h *Handler) getConversationForUser(w http.ResponseWriter, r *http.Request, userID, conversationID string) (*entity.Conversation, bool) {
 	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return nil, false
 	}
@@ -294,7 +290,7 @@ func (h *Handler) getConversationForWorkspace(w http.ResponseWriter, r *http.Req
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return nil, false
 	}
-	if conv == nil || conv.WorkspaceID != workspaceID {
+	if conv == nil || conv.UserID != userID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return nil, false
 	}

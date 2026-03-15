@@ -9,21 +9,21 @@ import (
 )
 
 // ContinueTaskRunner is the interface used by the ContinueTask tool. Callers implement this
-// using TaskService.CreateRun; must verify task belongs to workspace before creating run.
+// using TaskService.CreateRun; must verify task belongs to the current conversation before creating run.
 type ContinueTaskRunner interface {
-	ContinueTask(ctx context.Context, workspaceID, userID, taskID, input string) (runID string, err error)
+	ContinueTask(ctx context.Context, scopeID, userID, taskID, input string) (runID string, err error)
 }
 
 type continueTaskTool struct {
-	workspaceID string
-	userID      string
-	runner      ContinueTaskRunner
+	scopeID string
+	userID  string
+	runner  ContinueTaskRunner
 }
 
 func (t *continueTaskTool) Name() string { return ToolNameContinueTask }
 
 func (t *continueTaskTool) Description() string {
-	return "Continue an existing task with a follow-up message. Use this when the user wants to add to a task, try again with different input, or follow up on a previous result. Creates a new run for that task. Tell the user the task_id and run_id when done. Fails if the task is not in the current workspace."
+	return "Continue an existing task with a follow-up message. Use this when the user wants to add to a task, try again with different input, or follow up on a previous result. Creates a new run for that task. Tell the user the task_id and run_id when done. Fails if the task is not in the current conversation."
 }
 
 func (t *continueTaskTool) Parameters() any {
@@ -55,7 +55,7 @@ func (t *continueTaskTool) Execute(ctx context.Context, args map[string]any) (st
 	if inputVal == "" {
 		return "", fmt.Errorf("input is required")
 	}
-	runID, err := t.runner.ContinueTask(ctx, t.workspaceID, t.userID, taskID, inputVal)
+	runID, err := t.runner.ContinueTask(ctx, t.scopeID, t.userID, taskID, inputVal)
 	if err != nil {
 		return "", err
 	}
@@ -63,6 +63,6 @@ func (t *continueTaskTool) Execute(ctx context.Context, args map[string]any) (st
 }
 
 // NewContinueTaskTool returns a core.Tool that continues a task with a follow-up. If runner is nil, Execute returns "not configured".
-func NewContinueTaskTool(workspaceID, userID string, runner ContinueTaskRunner) core.Tool {
-	return &continueTaskTool{workspaceID: workspaceID, userID: userID, runner: runner}
+func NewContinueTaskTool(scopeID, userID string, runner ContinueTaskRunner) core.Tool {
+	return &continueTaskTool{scopeID: scopeID, userID: userID, runner: runner}
 }

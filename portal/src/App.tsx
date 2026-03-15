@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react"
 import { navigate } from "./router"
-import { getErrorMessage } from "./lib/errorMessage"
-import { createWorkspace } from "./features/workspaces"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext"
 import { Layout } from "./layout/Layout"
-import { CreateWorkspaceModal } from "./components/CreateWorkspaceModal"
 import { ArtifactContentModal } from "./components/ArtifactContentModal"
 import { WorkspaceRouter } from "./components/WorkspaceRouter"
 import { useWorkspaceConversations } from "./hooks/useWorkspaceConversations"
@@ -17,29 +14,25 @@ function AppContent() {
   const { token, user, logout } = useAuth()
   const {
     route,
-    workspaces,
-    loadingWorkspaces,
-    refetchWorkspaces,
+    profiles,
+    loadingProfiles,
   } = useWorkspace()
   const {
-    data: workspaceConversations,
-    refetch: refetchWorkspaceConversations,
-  } = useWorkspaceConversations(route.workspaceId, token)
+    data: profileConversations,
+    refetch: refetchProfileConversations,
+  } = useWorkspaceConversations(route.profileId, token)
 
-  const [showNewWorkspace, setShowNewWorkspace] = useState(false)
-  const [viewArtifact, setViewArtifact] = useState<{ workspaceId: string; chatRunId: string } | null>(null)
-  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
-  const [createWsError, setCreateWsError] = useState<string | null>(null)
+  const [viewArtifact, setViewArtifact] = useState<{ chatRunId: string } | null>(null)
 
-  const defaultWorkspaceId = workspaces[0]?.id ?? ""
-  const currentWorkspaceFromRoute = workspaces.find((w) => w.id === route.workspaceId)
-  const needsRedirect = !route.workspaceId || !currentWorkspaceFromRoute
+  const defaultProfileId = profiles[0]?.id ?? ""
+  const currentProfileFromRoute = profiles.find((profile) => profile.id === route.profileId)
+  const needsRedirect = !route.profileId || !currentProfileFromRoute
 
   useEffect(() => {
-    if (needsRedirect && defaultWorkspaceId) {
-      navigate({ name: "workspace", workspaceId: defaultWorkspaceId })
+    if (needsRedirect && defaultProfileId) {
+      navigate({ name: "home", profileId: defaultProfileId })
     }
-  }, [needsRedirect, defaultWorkspaceId])
+  }, [needsRedirect, defaultProfileId])
 
   if (!token) {
     const authHash = window.location.hash.replace(/^#\/?/, "").toLowerCase()
@@ -47,7 +40,7 @@ function AppContent() {
     return <Login />
   }
 
-  if (loadingWorkspaces) {
+  if (loadingProfiles) {
     return null
   }
 
@@ -55,57 +48,27 @@ function AppContent() {
     return null
   }
 
-  const currentWorkspace = { id: currentWorkspaceFromRoute!.id, name: currentWorkspaceFromRoute!.name }
-
-  function handleNewWorkspace() {
-    setCreateWsError(null)
-    setShowNewWorkspace(true)
-  }
-
-  async function handleCreateWorkspace(name: string) {
-    if (!token) return
-    setCreatingWorkspace(true)
-    setCreateWsError(null)
-    try {
-      const ws = await createWorkspace({ name }, token)
-      await refetchWorkspaces()
-      setShowNewWorkspace(false)
-      navigate({ name: "workspace", workspaceId: ws.id })
-    } catch (err) {
-      setCreateWsError(getErrorMessage(err, "Failed to create workspace"))
-    } finally {
-      setCreatingWorkspace(false)
-    }
-  }
+  const currentProfile = { id: currentProfileFromRoute!.id, name: currentProfileFromRoute!.name }
 
   return (
     <>
       <Layout
         route={route}
-        currentWorkspace={currentWorkspace}
-        workspaces={workspaces}
-        onNewWorkspace={handleNewWorkspace}
-        workspaceConversations={workspaceConversations}
+        currentProfile={currentProfile}
+        profiles={profiles}
+        profileConversations={profileConversations}
         user={user!}
         onLogout={logout}
       >
         <WorkspaceRouter
-          workspaceConversations={workspaceConversations}
-          onRefetchWorkspaceConversations={refetchWorkspaceConversations}
+          workspaceConversations={profileConversations}
+          onRefetchWorkspaceConversations={refetchProfileConversations}
           onViewArtifact={setViewArtifact}
         />
       </Layout>
-      <CreateWorkspaceModal
-        open={showNewWorkspace}
-        loading={creatingWorkspace}
-        error={createWsError}
-        onClose={() => setShowNewWorkspace(false)}
-        onCreate={handleCreateWorkspace}
-      />
       {viewArtifact && token && (
         <ArtifactContentModal
           open={true}
-          workspaceId={viewArtifact.workspaceId}
           chatRunId={viewArtifact.chatRunId}
           token={token}
           onClose={() => setViewArtifact(null)}

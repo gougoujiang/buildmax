@@ -51,7 +51,7 @@ export function CreateAgentModal({
       title="New Agent"
       titleId="create-agent-title"
       fields={AGENT_FIELDS}
-      hint="Agents are personas or task templates you can use in this workspace."
+      hint="Agents are personas or task templates you can use across your account."
       loading={loading}
       error={error}
       submitLabel="Create agent"

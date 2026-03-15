@@ -12,7 +12,7 @@ import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
 type NewConversationTab = "conversations" | "artifacts" | "files"
 
 interface NewConversationProps {
-  workspaceId: string
+  profileId: string
   token?: string
   onRefetchWorkspaceConversations?: () => void
   workspaceConversations: Conversation[]
@@ -21,7 +21,7 @@ interface NewConversationProps {
 }
 
 export function NewConversation({
-  workspaceId,
+  profileId,
   token,
   onRefetchWorkspaceConversations,
   workspaceConversations,
@@ -48,7 +48,7 @@ export function NewConversation({
     streamHadErrorRef.current = false
     try {
       await createConversationStream(
-        workspaceId,
+        profileId,
         { channel: "portal", message: input },
         token,
         {
@@ -65,7 +65,7 @@ export function NewConversation({
             if (!streamHadErrorRef.current) {
               const id = conversationIdRef.current
               if (id) {
-                navigate({ name: "conversation", workspaceId, conversationId: id })
+                navigate({ name: "conversation", profileId, conversationId: id })
                 onRefetchWorkspaceConversations?.()
               }
             }
@@ -177,7 +177,7 @@ export function NewConversation({
                         onClick={() =>
                           navigate({
                             name: "conversation",
-                            workspaceId,
+                            profileId,
                             conversationId: conv.id,
                           })
                         }
@@ -222,7 +222,7 @@ export function NewConversation({
                         <button
                           type="button"
                           className="page-activity__artifact-view"
-                          onClick={() => onViewArtifact({ workspaceId, chatRunId: a.id })}
+                          onClick={() => onViewArtifact({ chatRunId: a.id })}
                         >
                           View
                         </button>
@@ -243,7 +243,7 @@ export function NewConversation({
           className="page-new-chat__tabpanel page-new-chat__tabpanel--files"
         >
           {activeTab === "files" && (
-            <FilesPanel workspaceId={workspaceId} className="page-new-chat__files-panel" />
+            <FilesPanel profileId={profileId} className="page-new-chat__files-panel" />
           )}
         </div>
       </div>

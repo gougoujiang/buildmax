@@ -130,7 +130,9 @@ func buildBlobStorage(ctx context.Context) (blob.PersistStorage, blob.ArtifactSt
 	if err != nil {
 		return nil, nil, fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, config.RunOutputDir, s3Client)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, func(userID, conversationID, chatID, chatRunID string) string {
+		return filepath.Join(config.WorkspacesDir(), userID, "artifacts", conversationID, chatID, chatRunID)
+	}, s3Client)
 	if err != nil {
 		return nil, nil, fmt.Errorf("artifact storage: %w", err)
 	}
@@ -161,12 +163,11 @@ func buildHTTPServerConfig(port int, serverEnv config.ServerEnv, workspacesDir s
 		},
 		Stores: httpserver.StoresConfig{
 			UserStore:                st,
-			WorkspaceStore:           st,
 			AgentStore:               st,
 			TaskStore:                st,
 			TaskRunStore:             st,
 			RunOutputLister:          st,
-			WorkspaceWebhookKeyStore: st,
+			UserWebhookKeyStore:      st,
 		},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:  persistStorage,

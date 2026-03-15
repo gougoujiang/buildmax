@@ -20,8 +20,8 @@ type MockTaskStore struct {
 	CreateErr error
 }
 
-func (m *MockTaskStore) ListChatsByWorkspace(_ context.Context, workspaceID string, order string) ([]entity.Chat, error) {
-	list, _, err := m.ListChatsByWorkspacePaginated(context.Background(), workspaceID, false, 0, 0)
+func (m *MockTaskStore) ListChatsByConversation(_ context.Context, conversationID string, order string) ([]entity.Chat, error) {
+	list, _, err := m.ListChatsByConversationPaginated(context.Background(), conversationID, false, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -33,13 +33,13 @@ func (m *MockTaskStore) ListChatsByWorkspace(_ context.Context, workspaceID stri
 	return list, nil
 }
 
-func (m *MockTaskStore) ListChatsByWorkspacePaginated(_ context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]entity.Chat, int, error) {
+func (m *MockTaskStore) ListChatsByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]entity.Chat, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
 	var filtered []entity.Chat
 	for _, c := range m.List {
-		if c.WorkspaceID != workspaceID {
+		if c.ConversationID != conversationID {
 			continue
 		}
 		if executedOnly && (c.LastRunID == nil || *c.LastRunID == "") {
@@ -76,13 +76,12 @@ func (m *MockTaskStore) CreateChat(_ context.Context, in *entity.CreateChatInput
 	}
 	c := &entity.Chat{
 		ChatID:         "chat-uuid-1",
-		WorkspaceID:    in.WorkspaceID,
+		ConversationID: in.ConversationID,
 		Status:         "PENDING",
 		Input:          in.Input,
 		Title:          in.Title,
 		CreatedBy:      in.CreatedBy,
 		CreatedAt:      12345,
-		ConversationID: in.ConversationID,
 		AgentID:        in.AgentID,
 	}
 	return c, nil
@@ -258,7 +257,7 @@ type MockRunOutputLister struct {
 	OutputFiles map[string][]entity.TaskRunArtifact
 }
 
-func (m *MockRunOutputLister) ListRunOutputsByWorkspace(_ context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error) {
+func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, conversationID string, chatID *string) ([]entity.ArtifactWithChat, error) {
 	if m.ListErr != nil {
 		return nil, m.ListErr
 	}
@@ -277,10 +276,10 @@ type MockAgentStore struct {
 	Agents []entity.Agent
 }
 
-func (m *MockAgentStore) ListAgentsByWorkspace(_ context.Context, workspaceID string) ([]entity.Agent, error) {
+func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]entity.Agent, error) {
 	var out []entity.Agent
 	for _, a := range m.Agents {
-		if a.WorkspaceID == workspaceID {
+		if a.UserID == userID {
 			out = append(out, a)
 		}
 	}
@@ -296,10 +295,10 @@ func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*entity.Ag
 	return nil, nil
 }
 
-func (m *MockAgentStore) CreateAgent(_ context.Context, workspaceID, name, description, instructions string) (*entity.Agent, error) {
+func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*entity.Agent, error) {
 	a := entity.Agent{
 		AgentID:      fmt.Sprintf("a_%d", len(m.Agents)+1),
-		WorkspaceID:  workspaceID,
+		UserID:       userID,
 		Name:         name,
 		Description:  description,
 		Instructions: instructions,
@@ -309,9 +308,9 @@ func (m *MockAgentStore) CreateAgent(_ context.Context, workspaceID, name, descr
 	return &m.Agents[len(m.Agents)-1], nil
 }
 
-func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, workspaceID, name, description, instructions string) (*entity.Agent, error) {
+func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*entity.Agent, error) {
 	for i := range m.Agents {
-		if m.Agents[i].AgentID == agentID && m.Agents[i].WorkspaceID == workspaceID {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
 			m.Agents[i].Name = name
 			m.Agents[i].Description = description
 			m.Agents[i].Instructions = instructions
@@ -321,14 +320,67 @@ func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, workspaceID, na
 	return nil, nil
 }
 
-func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, workspaceID string) error {
+func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) error {
 	for i := range m.Agents {
-		if m.Agents[i].AgentID == agentID && m.Agents[i].WorkspaceID == workspaceID {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
 			m.Agents = append(m.Agents[:i], m.Agents[i+1:]...)
 			return nil
 		}
 	}
 	return gorm.ErrRecordNotFound
+}
+
+// MockConversationStore is an in-memory ConversationStore for tests.
+type MockConversationStore struct {
+	Conversations []entity.Conversation
+}
+
+func (m *MockConversationStore) CreateConversation(_ context.Context, userID, channel, createdBy string) (*entity.Conversation, error) {
+	conv := entity.Conversation{
+		ConversationID: fmt.Sprintf("v_%d", len(m.Conversations)+1),
+		UserID:         userID,
+		Channel:        channel,
+		CreatedBy:      createdBy,
+		CreatedAt:      time.Now().Unix(),
+	}
+	m.Conversations = append(m.Conversations, conv)
+	return &m.Conversations[len(m.Conversations)-1], nil
+}
+
+func (m *MockConversationStore) GetConversation(_ context.Context, conversationID string) (*entity.Conversation, error) {
+	for i := range m.Conversations {
+		if m.Conversations[i].ConversationID == conversationID {
+			return &m.Conversations[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userID string, limit, offset int) ([]entity.Conversation, int, error) {
+	var out []entity.Conversation
+	for _, conv := range m.Conversations {
+		if conv.UserID == userID {
+			out = append(out, conv)
+		}
+	}
+	total := len(out)
+	if offset > total {
+		return []entity.Conversation{}, total, nil
+	}
+	if limit <= 0 || offset+limit > total {
+		limit = total - offset
+	}
+	return out[offset : offset+limit], total, nil
+}
+
+func (m *MockConversationStore) UpdateConversationTitle(_ context.Context, conversationID, title string) error {
+	for i := range m.Conversations {
+		if m.Conversations[i].ConversationID == conversationID {
+			m.Conversations[i].Title = title
+			return nil
+		}
+	}
+	return nil
 }
 
 // MockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
@@ -343,12 +395,12 @@ func NewMockArtifactStorage() *MockArtifactStorage {
 }
 
 func (m *MockArtifactStorage) PutResult(_ context.Context, ref blob.RunRef, data []byte) error {
-	m.Results[ref.WorkspaceID+"/"+ref.ChatID+"/"+ref.TaskRunID] = append([]byte(nil), data...)
+	m.Results[ref.UserID+"/"+ref.ConversationID+"/"+ref.ChatID+"/"+ref.TaskRunID] = append([]byte(nil), data...)
 	return nil
 }
 
 func (m *MockArtifactStorage) GetResult(_ context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID
 	if data, ok := m.Results[key]; ok {
 		return data, nil
 	}
@@ -359,7 +411,7 @@ func (m *MockArtifactStorage) PutArtifactFile(_ context.Context, ref blob.RunObj
 	if m.Files == nil {
 		m.Files = make(map[string][]byte)
 	}
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	m.Files[key] = data
 	return nil
@@ -369,7 +421,7 @@ func (m *MockArtifactStorage) GetArtifactFile(_ context.Context, ref blob.RunObj
 	if m.Files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	if data, ok := m.Files[key]; ok {
 		return data, nil
 	}

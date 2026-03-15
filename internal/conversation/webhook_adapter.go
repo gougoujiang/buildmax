@@ -16,9 +16,8 @@ const (
 
 // WebhookRequest holds parsed webhook HTTP input for the adapter. Use this so Receive can be tested without *http.Request.
 type WebhookRequest struct {
-	Body        []byte
-	Header      http.Header
-	WorkspaceID string
+	Body   []byte
+	Header http.Header
 }
 
 // WebhookAdapter implements ChannelAdapter for the webhook channel.
@@ -47,9 +46,6 @@ func (a *WebhookAdapter) Receive(ctx context.Context, raw any) (ConversationTurn
 	if !ok {
 		return ConversationTurn{}, fmt.Errorf("webhook: raw must be *WebhookRequest, got %T", raw)
 	}
-	if req.WorkspaceID == "" {
-		return ConversationTurn{}, fmt.Errorf("webhook: workspace_id required")
-	}
 	message, err := getJSONPathString(req.Body, a.MessagePath)
 	if err != nil {
 		return ConversationTurn{}, err
@@ -69,12 +65,11 @@ func (a *WebhookAdapter) Receive(ctx context.Context, raw any) (ConversationTurn
 		rawMap["callback_url"] = callbackURL
 	}
 	return ConversationTurn{
-		WorkspaceID:     req.WorkspaceID,
-		Channel:         ChannelWebhook,
-		ConversationID:  "",
-		UserID:          a.UserID,
-		Message:         message,
-		Raw:             rawMap,
+		Channel:        ChannelWebhook,
+		ConversationID: "",
+		UserID:         a.UserID,
+		Message:        message,
+		Raw:            rawMap,
 	}, nil
 }
 

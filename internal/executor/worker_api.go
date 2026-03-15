@@ -88,10 +88,11 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID 
 		CreatedAt: got.Run.CreatedAt,
 	}
 	chat := &entity.Chat{
-		ChatID:      got.Task.ChatID,
-		WorkspaceID: got.Task.WorkspaceID,
-		SessionID:   got.Task.SessionID,
-		LastRunID:   got.Task.LastRunID,
+		ChatID:         got.Task.ChatID,
+		ConversationID: got.Task.ConversationID,
+		CreatedBy:      got.Task.UserID,
+		SessionID:      got.Task.SessionID,
+		LastRunID:      got.Task.LastRunID,
 	}
 	return run, chat, nil
 }

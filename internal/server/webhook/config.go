@@ -7,9 +7,9 @@ import (
 
 // Config holds dependencies for the webhook HTTP handler.
 type Config struct {
-	Adapter     conversation.ChannelAdapter
-	Engine      conversation.ConversationEngine
-	WorkspaceStore entity.WorkspaceStore
-	KeyStore    entity.WorkspaceWebhookKeyStore
-	MessagePath string
+	Adapter           conversation.ChannelAdapter
+	Engine            conversation.ConversationEngine
+	ConversationStore entity.ConversationStore
+	KeyStore          entity.UserWebhookKeyStore
+	MessagePath       string
 }

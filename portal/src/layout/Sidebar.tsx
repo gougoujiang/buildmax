@@ -30,12 +30,11 @@ import RecentIcon from "../icons/recent.svg?react"
 const CHATS_LIMIT = 5
 
 interface SidebarProps {
-  workspaceId: string
+  profileId: string
   route: Route
-  currentWorkspace: { id: string; name: string }
-  workspaces: { id: string; name: string }[]
-  onWorkspaceChange: (workspaceId: string) => void
-  onNewWorkspace?: () => void
+  currentProfile: { id: string; name: string }
+  profiles: { id: string; name: string }[]
+  onProfileChange: (profileId: string) => void
   workspaceConversations: Conversation[]
   user: LoginUser
   onLogout: () => void
@@ -46,12 +45,11 @@ function isAgentsActive(route: Route): boolean {
 }
 
 export function Sidebar({
-  workspaceId,
+  profileId,
   route,
-  currentWorkspace,
-  workspaces,
-  onWorkspaceChange,
-  onNewWorkspace,
+  currentProfile,
+  profiles,
+  onProfileChange,
   workspaceConversations,
   user,
   onLogout,
@@ -128,7 +126,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", route.name === "newChat" && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "newChat", workspaceId })}
+            onClick={() => navigate({ name: "newChat", profileId })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">New Conversation</span>
@@ -166,10 +164,10 @@ export function Sidebar({
                   }))}
                   activeId={route.name === "conversation" ? route.conversationId : null}
                   onSelect={(conversationId) =>
-                    navigate({ name: "conversation", workspaceId, conversationId })
+                    navigate({ name: "conversation", profileId, conversationId })
                   }
                   moreActionLabel={hasMoreConversations ? "See all" : undefined}
-                  onMoreAction={hasMoreConversations ? () => navigate({ name: "chats", workspaceId }) : undefined}
+                  onMoreAction={hasMoreConversations ? () => navigate({ name: "chats", profileId }) : undefined}
                   moreActionClassName="sidebar__chats-see-all"
                 />
               </div>
@@ -199,12 +197,12 @@ export function Sidebar({
                   activeId={route.name === "conversation" ? route.conversationId : null}
                   onSelect={(conversationId) => {
                     setConversationsPopupOpen(false)
-                    navigate({ name: "conversation", workspaceId, conversationId })
+                    navigate({ name: "conversation", profileId, conversationId })
                   }}
                   moreActionLabel={hasMoreConversations ? "See all" : undefined}
                   onMoreAction={hasMoreConversations ? () => {
                     setConversationsPopupOpen(false)
-                    navigate({ name: "chats", workspaceId })
+                    navigate({ name: "chats", profileId })
                   } : undefined}
                   moreActionClassName="sidebar__chats-see-all"
                 />
@@ -214,7 +212,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "agents", workspaceId })}
+            onClick={() => navigate({ name: "agents", profileId })}
           >
             <AgentAvatar size="sm" />
             <span className="sidebar__nav-item-text">Agents</span>
@@ -223,26 +221,15 @@ export function Sidebar({
       </nav>
       <div className="sidebar__workspace-wrap">
         <div className="sidebar__workspace">
-          <span className="sidebar__workspace-label" title="Workspace">
-            Workspace
+          <span className="sidebar__workspace-label" title="Profile">
+            Profile
           </span>
           <WorkspaceSelect
-            value={currentWorkspace.id}
-            options={workspaces}
-            onChange={onWorkspaceChange}
-            ariaLabel="Select workspace"
+            value={currentProfile.id}
+            options={profiles}
+            onChange={onProfileChange}
+            ariaLabel="Select profile"
           />
-          {onNewWorkspace && (
-            <button
-              type="button"
-              className="sidebar__workspace-new"
-              onClick={onNewWorkspace}
-              aria-label="New workspace"
-              title="New workspace"
-            >
-              +
-            </button>
-          )}
         </div>
       </div>
       <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>

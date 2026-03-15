@@ -45,7 +45,7 @@ func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob
 }
 
 // BuildPersistStorage returns the configured persist storage implementation.
-func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(workspaceID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
+func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(userID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
 	switch cfg.PersistProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {
@@ -58,8 +58,8 @@ func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(wor
 }
 
 // BuildArtifactStorage returns the configured artifact storage implementation.
-// runOutputDir is (workspaceID, chatID, chatRunID) -> path for run output files.
-func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(workspaceID, chatID, chatRunID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
+// runOutputDir is (userID, conversationID, chatID, chatRunID) -> path for run output files.
+func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(userID, conversationID, chatID, chatRunID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
 	switch cfg.ArtifactProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {

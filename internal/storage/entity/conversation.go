@@ -10,14 +10,14 @@ import (
 )
 
 // CreateConversation creates a new Tier 1 conversation. Returns the conversation with conversation_id set.
-func (s *Store) CreateConversation(ctx context.Context, workspaceID, channel, createdBy string) (*Conversation, error) {
+func (s *Store) CreateConversation(ctx context.Context, userID, channel, createdBy string) (*Conversation, error) {
 	now := time.Now().Unix()
 	conv := &Conversation{
 		ConversationID: util.NewPrefixedID(util.PrefixConversation),
-		WorkspaceID:    workspaceID,
-		Channel:       channel,
-		CreatedBy:     createdBy,
-		CreatedAt:     now,
+		UserID:         userID,
+		Channel:        channel,
+		CreatedBy:      createdBy,
+		CreatedAt:      now,
 	}
 	if err := s.db.WithContext(ctx).Create(conv).Error; err != nil {
 		return nil, err
@@ -38,15 +38,15 @@ func (s *Store) GetConversation(ctx context.Context, conversationID string) (*Co
 	return &c, nil
 }
 
-// ListConversationsByWorkspace returns conversations in the workspace ordered by created_at DESC.
+// ListConversationsByUser returns conversations for the user ordered by created_at DESC.
 // total is the total count of matching conversations (ignoring limit/offset).
-func (s *Store) ListConversationsByWorkspace(ctx context.Context, workspaceID string, limit, offset int) ([]Conversation, int, error) {
+func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]Conversation, int, error) {
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&Conversation{}).Where("workspace_id = ?", workspaceID).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&Conversation{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []Conversation
-	err := s.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error

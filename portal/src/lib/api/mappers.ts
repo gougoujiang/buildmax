@@ -40,7 +40,6 @@ function chatStatusToUI(status: string): Chat["status"] {
 export function apiAgentToAgent(api: ApiAgent): Agent {
   return {
     id: api.id,
-    workspaceId: api.workspace_id,
     name: api.name,
     description: api.description,
     instructions: api.instructions,
@@ -53,7 +52,6 @@ export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
     id: api.task_run_id,
     chatId: api.task_id,
     chatRunId: api.task_run_id,
-    workspaceId: api.workspace_id,
     timeLabel: formatRelativeTime(api.created_at),
     title: api.task_input_snippet || `Run output ${api.task_run_id}`,
   }

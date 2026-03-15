@@ -15,7 +15,7 @@ var (
 	ErrAgentsNotConfigured   = errors.New("agents not configured")
 	ErrChatsNotConfigured    = errors.New("chats not configured")
 	ErrTaskRunsNotConfigured = errors.New("task runs not configured")
-	ErrAgentNotFound         = errors.New("agent not found or not in workspace")
+	ErrAgentNotFound         = errors.New("agent not found or not owned by user")
 )
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
@@ -48,11 +48,10 @@ type Service struct {
 
 // CreateChatCmd creates a new task and its first run.
 type CreateChatCmd struct {
-	WorkspaceID    string
+	ConversationID string
 	UserID         string
 	Input          string
 	AgentID        *string
-	ConversationID *string
 }
 
 // CreateRunCmd creates a new run on an existing task.
@@ -73,7 +72,7 @@ func (s *Service) CreateChat(ctx context.Context, cmd CreateChatCmd) (*entity.Ch
 	if s.Chats == nil {
 		return nil, ErrChatsNotConfigured
 	}
-	input, agentID, err := s.resolveInput(ctx, cmd.WorkspaceID, cmd.Input, cmd.AgentID)
+	input, agentID, err := s.resolveInput(ctx, cmd.UserID, cmd.Input, cmd.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,14 +81,13 @@ func (s *Service) CreateChat(ctx context.Context, cmd CreateChatCmd) (*entity.Ch
 		return nil, err
 	}
 	return s.Chats.CreateChat(ctx, &entity.CreateChatInput{
-		WorkspaceID:           cmd.WorkspaceID,
+		ConversationID:        cmd.ConversationID,
 		Input:                 input,
 		Title:                 title,
 		CreatedBy:             cmd.UserID,
 		TitlePromptTokens:     promptTokens,
 		TitleCompletionTokens: completionTokens,
 		AgentID:               agentID,
-		ConversationID:        cmd.ConversationID,
 	})
 }
 
@@ -123,7 +121,7 @@ func (s *Service) StartBackgroundChat(ctx context.Context, cmd CreateChatCmd) (*
 	}, nil
 }
 
-func (s *Service) resolveInput(ctx context.Context, workspaceID, input string, agentID *string) (string, *string, error) {
+func (s *Service) resolveInput(ctx context.Context, userID, input string, agentID *string) (string, *string, error) {
 	if agentID == nil || *agentID == "" {
 		if input == "" {
 			return "", nil, ErrInputRequired
@@ -137,7 +135,7 @@ func (s *Service) resolveInput(ctx context.Context, workspaceID, input string, a
 	if err != nil {
 		return "", nil, err
 	}
-	if agent == nil || agent.WorkspaceID != workspaceID {
+	if agent == nil || agent.UserID != userID {
 		return "", nil, ErrAgentNotFound
 	}
 	if input != "" {

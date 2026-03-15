@@ -20,19 +20,19 @@ func NewS3ArtifactStorage(client S3Client, bucket, prefix string) *S3ArtifactSto
 
 // PutResult writes the run result as result.md.
 func (s *S3ArtifactStorage) PutResult(ctx context.Context, ref RunRef, data []byte) error {
-	key := ArtifactResultKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.TaskRunID)
+	key := ArtifactResultKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID)
 	return s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data))
 }
 
 // GetResult reads result.md for the run. Returns ErrNotFound if the object does not exist.
 func (s *S3ArtifactStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
-	key := ArtifactResultKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.TaskRunID)
+	key := ArtifactResultKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID)
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
 // PutArtifactFile writes one file under the run output key path.
 func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := ArtifactFileKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.TaskRunID, ref.RelPath)
+	key, err := ArtifactFileKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, ref RunObjectRe
 
 // GetArtifactFile reads one file under the run output. Returns ErrNotFound if the object does not exist.
 func (s *S3ArtifactStorage) GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := ArtifactFileKey(s.prefix, ref.WorkspaceID, ref.ChatID, ref.TaskRunID, ref.RelPath)
+	key, err := ArtifactFileKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}

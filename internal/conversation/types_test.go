@@ -7,15 +7,14 @@ import (
 func TestConversationTurn_fields(t *testing.T) {
 	raw := map[string]any{"key": "val"}
 	turn := ConversationTurn{
-		WorkspaceID:     "w_abc",
 		Channel:        ChannelPortal,
 		ConversationID:  "c_xyz",
 		UserID:          "u_123",
 		Message:         "hello",
 		Raw:             raw,
 	}
-	if turn.WorkspaceID != "w_abc" || turn.Channel != ChannelPortal || turn.ConversationID != "c_xyz" {
-		t.Errorf("WorkspaceID/Channel/ConversationID: got %q %q %q", turn.WorkspaceID, turn.Channel, turn.ConversationID)
+	if turn.Channel != ChannelPortal || turn.ConversationID != "c_xyz" {
+		t.Errorf("Channel/ConversationID: got %q %q", turn.Channel, turn.ConversationID)
 	}
 	if turn.UserID != "u_123" || turn.Message != "hello" {
 		t.Errorf("UserID/Message: got %q %q", turn.UserID, turn.Message)

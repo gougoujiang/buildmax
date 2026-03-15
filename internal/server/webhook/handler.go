@@ -11,9 +11,9 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// Register adds the webhook route to mux: POST /api/workspaces/{workspace_id}/webhook.
+// Register adds the webhook route to mux: POST /api/webhook.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/workspaces/{workspace_id}/webhook", h.serveWebhook)
+	mux.HandleFunc("POST /api/webhook", h.serveWebhook)
 }
 
 // Handler handles webhook HTTP requests.
@@ -27,11 +27,6 @@ func NewHandler(cfg Config) *Handler {
 }
 
 func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
-	workspaceID := r.PathValue("workspace_id")
-	if workspaceID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workspace_id required")
-		return
-	}
 	key := h.extractKey(r)
 	if key == "" {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "missing webhook key (Authorization: Bearer <key> or X-Webhook-Key)")
@@ -41,17 +36,13 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "webhook keys not configured")
 		return
 	}
-	resolvedWorkspaceID, err := h.cfg.KeyStore.GetWorkspaceIDByKey(r.Context(), key)
+	resolvedUserID, err := h.cfg.KeyStore.GetUserIDByKey(r.Context(), key)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "webhook handler", "handler", "get_workspace_by_key")
+		httputil.WriteInternalError(w, err, "webhook handler", "handler", "get_user_by_key")
 		return
 	}
-	if resolvedWorkspaceID == "" {
+	if resolvedUserID == "" {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid webhook key")
-		return
-	}
-	if resolvedWorkspaceID != workspaceID {
-		httputil.WriteJSONError(w, http.StatusForbidden, "webhook key does not match workspace")
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -60,16 +51,27 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := &conversation.WebhookRequest{
-		Body:        body,
-		Header:      r.Header.Clone(),
-		WorkspaceID: workspaceID,
+		Body:   body,
+		Header: r.Header.Clone(),
 	}
 	turn, err := h.cfg.Adapter.Receive(r.Context(), req)
 	if err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	result, err := h.cfg.Engine.Process(r.Context(), workspaceID, "", turn)
+	if turn.UserID == "" {
+		turn.UserID = resolvedUserID
+	}
+	if h.cfg.ConversationStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversations not configured")
+		return
+	}
+	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), resolvedUserID, conversation.ChannelWebhook, turn.UserID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "webhook handler", "handler", "create_conversation")
+		return
+	}
+	result, err := h.cfg.Engine.Process(r.Context(), conv.ConversationID, "", turn)
 	if err != nil {
 		if errors.Is(err, entity.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "chat has a run already in progress")

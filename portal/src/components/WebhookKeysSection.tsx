@@ -9,18 +9,11 @@ import {
 } from "../features/webhookKeys/api"
 import { cn } from "../lib/cn"
 
-interface WorkspaceOption {
-  id: string
-  name: string
-}
-
 interface WebhookKeysSectionProps {
-  workspaces: WorkspaceOption[]
   token: string | null
 }
 
-export function WebhookKeysSection({ workspaces, token }: WebhookKeysSectionProps) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("")
+export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
   const [keys, setKeys] = useState<WebhookKeyMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -31,24 +24,24 @@ export function WebhookKeysSection({ workspaces, token }: WebhookKeysSectionProp
   const [copied, setCopied] = useState(false)
 
   const fetchKeys = useCallback(() => {
-    if (!token || !selectedWorkspaceId) return
+    if (!token) return
     setLoading(true)
-    listWebhookKeys(selectedWorkspaceId, token)
+    listWebhookKeys(token)
       .then((res) => setKeys(res.keys))
       .catch((err) => setError(getErrorMessage(err, "Failed to load keys")))
       .finally(() => setLoading(false))
-  }, [selectedWorkspaceId, token])
+  }, [token])
 
   useEffect(() => {
     fetchKeys()
   }, [fetchKeys])
 
   function handleCreateKey() {
-    if (!token || !selectedWorkspaceId) return
+    if (!token) return
     setError(null)
     setNewKey(null)
     setCreating(true)
-    createWebhookKey(selectedWorkspaceId, { name: keyName || undefined }, token)
+    createWebhookKey({ name: keyName || undefined }, token)
       .then((res) => {
         setNewKey(res)
         setKeyName("")
@@ -71,51 +64,23 @@ export function WebhookKeysSection({ workspaces, token }: WebhookKeysSectionProp
   }
 
   function handleRevoke(keyId: string) {
-    if (!token || !selectedWorkspaceId) return
+    if (!token) return
     setError(null)
     setRevokingId(keyId)
-    revokeWebhookKey(selectedWorkspaceId, keyId, token)
+    revokeWebhookKey(keyId, token)
       .then(() => fetchKeys())
       .catch((err) => setError(getErrorMessage(err, "Failed to revoke key")))
       .finally(() => setRevokingId(null))
   }
 
-  const noWorkspaceSelected = !selectedWorkspaceId
-
   return (
     <section className="settings-section settings-webhook">
       <h2 className="settings-panel__heading">Webhook API keys</h2>
       <div className="settings-panel__heading-divider" role="separator" />
-      <div className="settings-webhook__workspace-row">
-        <label htmlFor="webhook-workspace-select" className="settings-webhook__label">
-          Workspace
-        </label>
-        <select
-          id="webhook-workspace-select"
-          className="settings-webhook__select"
-          value={selectedWorkspaceId}
-          onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-          aria-label="Choose workspace for webhook keys"
-        >
-          <option value="">Choose a workspace…</option>
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name || w.id}
-            </option>
-          ))}
-        </select>
-      </div>
-      {noWorkspaceSelected && (
-        <p className="settings-section__muted">
-          Choose a workspace above to create and manage webhook API keys for it.
-        </p>
-      )}
-      {!noWorkspaceSelected && (
-        <>
       <p className="settings-webhook__description">
-        Use these keys to trigger runs from external systems (e.g. CI, scripts). Send the key in{" "}
+        Use these keys to trigger runs from external systems (e.g. CI, scripts) for your account. Send the key in{" "}
         <code>Authorization: Bearer &lt;key&gt;</code> or <code>X-Webhook-Key</code> when calling{" "}
-        <code>POST /api/workspaces/{selectedWorkspaceId}/webhook</code>.
+        <code>POST /api/webhook</code>.
       </p>
 
       {error && (
@@ -194,8 +159,6 @@ export function WebhookKeysSection({ workspaces, token }: WebhookKeysSectionProp
             </li>
           ))}
         </ul>
-      )}
-        </>
       )}
     </section>
   )

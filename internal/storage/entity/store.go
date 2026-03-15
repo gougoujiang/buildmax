@@ -1,4 +1,4 @@
-// Package entity provides user and workspace persistence (MySQL via GORM).
+// Package entity provides persistence for BuildMax backend entities (MySQL via GORM).
 package entity
 
 import (
@@ -12,12 +12,12 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// Store implements UserStore, WorkspaceStore, TaskStore, and TaskRunStore with a MySQL backend.
+// Store implements the backend store interfaces with a MySQL backend.
 type Store struct {
 	db *gorm.DB
 }
 
-// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Workspace, Agent, Chat, TaskRun, TaskRunArtifact, QuotaTier, Conversation, ConversationMessage, and WorkspaceWebhookKey.
+// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Agent, Chat, TaskRun, TaskRunArtifact, QuotaTier, Conversation, ConversationMessage, and UserWebhookKey.
 // If the legacy artifact table exists, migrates data to task_run_artifact and drops artifact/artifact_item and task columns.
 // If the old task_run_output_file table exists, migrates its data to task_run_artifact and drops it.
 // GORM logger is configured to ignore ErrRecordNotFound so expected "not found" lookups (e.g. GetNextPendingTaskRun when idle) do not spam the console.
@@ -29,7 +29,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Workspace{}, &Agent{}, &Chat{}, &TaskRun{}, &TaskRunArtifact{}, &QuotaTier{}, &Conversation{}, &ConversationMessage{}, &WorkspaceWebhookKey{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Agent{}, &Chat{}, &TaskRun{}, &TaskRunArtifact{}, &QuotaTier{}, &Conversation{}, &ConversationMessage{}, &UserWebhookKey{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {

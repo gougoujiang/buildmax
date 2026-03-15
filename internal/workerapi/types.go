@@ -19,10 +19,11 @@ type TaskRunRun struct {
 
 // TaskRunTask is the task portion of the GET response.
 type TaskRunTask struct {
-	ChatID      string  `json:"task_id"`
-	WorkspaceID string  `json:"workspace_id"`
-	SessionID   *string `json:"session_id,omitempty"`
-	LastRunID   *string `json:"last_run_id,omitempty"`
+	ChatID         string  `json:"task_id"`
+	ConversationID string  `json:"conversation_id"`
+	UserID         string  `json:"user_id"`
+	SessionID      *string `json:"session_id,omitempty"`
+	LastRunID      *string `json:"last_run_id,omitempty"`
 }
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).
