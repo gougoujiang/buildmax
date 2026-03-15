@@ -11,22 +11,22 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-func TestGetWorkerChatRunHandler_RequiresWorkerAuth(t *testing.T) {
+func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	chatRunID := "run-1"
-	run := entity.ChatRun{ChatRunID: chatRunID, ChatID: "chat-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	run := entity.TaskRun{TaskRunID: chatRunID, ChatID: "chat-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
 	chat := entity.Chat{ChatID: "chat-1", WorkspaceID: "ws1", CreatedBy: "u1"}
-	mockRun := &testutil.MockChatRunStore{Runs: []entity.ChatRun{run}, ChatList: []entity.Chat{chat}}
+	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, ChatList: []entity.Chat{chat}}
 	cfg := Config{
 		Token:        "worker-token-123",
-		ChatRunStore: mockRun,
+		TaskRunStore: mockRun,
 	}
 	h := NewHandler(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	// Without token: 401
-	req := httptest.NewRequest(http.MethodGet, "/api/worker/chat-runs/"+chatRunID, nil)
-	req.SetPathValue("chat_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+chatRunID, nil)
+	req.SetPathValue("task_run_id", chatRunID)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -34,8 +34,8 @@ func TestGetWorkerChatRunHandler_RequiresWorkerAuth(t *testing.T) {
 	}
 
 	// With correct token: 200 and run+chat body
-	req = httptest.NewRequest(http.MethodGet, "/api/worker/chat-runs/"+chatRunID, nil)
-	req.SetPathValue("chat_run_id", chatRunID)
+	req = httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+chatRunID, nil)
+	req.SetPathValue("task_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer worker-token-123")
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -47,17 +47,17 @@ func TestGetWorkerChatRunHandler_RequiresWorkerAuth(t *testing.T) {
 	}
 }
 
-func TestGetWorkerChatRunHandler_NotFound(t *testing.T) {
+func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
 		Token:        "token",
-		ChatRunStore: &testutil.MockChatRunStore{Runs: []entity.ChatRun{}},
+		TaskRunStore: &testutil.MockTaskRunStore{Runs: []entity.TaskRun{}},
 	}
 	h := NewHandler(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/worker/chat-runs/nonexistent", nil)
-	req.SetPathValue("chat_run_id", "nonexistent")
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/nonexistent", nil)
+	req.SetPathValue("task_run_id", "nonexistent")
 	req.Header.Set("Authorization", "Bearer token")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -66,14 +66,14 @@ func TestGetWorkerChatRunHandler_NotFound(t *testing.T) {
 	}
 }
 
-func TestPatchWorkerChatRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
+func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	chatRunID := "run-scheduled"
-	run := entity.ChatRun{ChatRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	run := entity.TaskRun{TaskRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
 	chat := entity.Chat{ChatID: "chat1", WorkspaceID: "ws1"}
-	mockRun := &testutil.MockChatRunStore{Runs: []entity.ChatRun{run}, ChatList: []entity.Chat{chat}}
+	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, ChatList: []entity.Chat{chat}}
 	cfg := Config{
 		Token:        "token",
-		ChatRunStore: mockRun,
+		TaskRunStore: mockRun,
 	}
 	h := NewHandler(cfg)
 	mux := http.NewServeMux()
@@ -81,8 +81,8 @@ func TestPatchWorkerChatRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 
 	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1", "started_at": int64(123)}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/chat-runs/"+chatRunID, bytes.NewReader(raw))
-	req.SetPathValue("chat_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+chatRunID, bytes.NewReader(raw))
+	req.SetPathValue("task_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -96,14 +96,14 @@ func TestPatchWorkerChatRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	}
 }
 
-func TestPatchWorkerChatRun_RUNNING_WhenPending_Returns409(t *testing.T) {
+func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	chatRunID := "run-pending"
-	run := entity.ChatRun{ChatRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "PENDING", CreatedAt: 1}
+	run := entity.TaskRun{TaskRunID: chatRunID, ChatID: "chat1", Input: "input", Status: "PENDING", CreatedAt: 1}
 	chat := entity.Chat{ChatID: "chat1", WorkspaceID: "ws1"}
-	mockRun := &testutil.MockChatRunStore{Runs: []entity.ChatRun{run}, ChatList: []entity.Chat{chat}}
+	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, ChatList: []entity.Chat{chat}}
 	cfg := Config{
 		Token:        "token",
-		ChatRunStore: mockRun,
+		TaskRunStore: mockRun,
 	}
 	h := NewHandler(cfg)
 	mux := http.NewServeMux()
@@ -111,8 +111,8 @@ func TestPatchWorkerChatRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 
 	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1"}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/chat-runs/"+chatRunID, bytes.NewReader(raw))
-	req.SetPathValue("chat_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+chatRunID, bytes.NewReader(raw))
+	req.SetPathValue("task_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

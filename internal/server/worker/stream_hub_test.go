@@ -17,8 +17,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	hub := streamhub.NewStreamHub()
 	cfg := Config{
 		Token:        "worker-tok",
-		ChatRunStore: &testutil.MockChatRunStore{
-			Runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID}},
+		TaskRunStore: &testutil.MockTaskRunStore{
+			Runs:     []entity.TaskRun{{TaskRunID: chatRunID, ChatID: chatID}},
 			ChatList: []entity.Chat{{ChatID: chatID}},
 		},
 		Hub: hub,
@@ -28,8 +28,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	h.Register(mux)
 
 	body := bytes.NewReader([]byte(`{"delta":"hello "}`))
-	req := httptest.NewRequest(http.MethodPost, "/api/worker/chat-runs/"+chatRunID+"/stream", body)
-	req.SetPathValue("chat_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+chatRunID+"/stream", body)
+	req.SetPathValue("task_run_id", chatRunID)
 	req.Header.Set("Authorization", "Bearer worker-tok")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -43,8 +43,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	}
 
 	body2 := bytes.NewReader([]byte(`{"delta":"world"}`))
-	req2 := httptest.NewRequest(http.MethodPost, "/api/worker/chat-runs/"+chatRunID+"/stream", body2)
-	req2.SetPathValue("chat_run_id", chatRunID)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+chatRunID+"/stream", body2)
+	req2.SetPathValue("task_run_id", chatRunID)
 	req2.Header.Set("Authorization", "Bearer worker-tok")
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()

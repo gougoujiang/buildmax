@@ -11,16 +11,16 @@ import (
 )
 
 type ArtifactResponse struct {
-	ChatRunID        string `json:"chat_run_id"`
-	ChatID           string `json:"chat_id"`
+	TaskRunID        string `json:"task_run_id"`
+	ChatID           string `json:"task_id"`
 	WorkspaceID      string `json:"workspace_id"`
 	CreatedAt        int64  `json:"created_at"`
-	ChatInputSnippet string `json:"chat_input_snippet"`
+	ChatInputSnippet string `json:"task_input_snippet"`
 }
 
 func artifactWithChatToResponse(a entity.ArtifactWithChat) ArtifactResponse {
 	return ArtifactResponse{
-		ChatRunID:        a.ArtifactID,
+		TaskRunID:        a.ArtifactID,
 		ChatID:           a.ChatID,
 		WorkspaceID:      a.WorkspaceID,
 		CreatedAt:        a.CreatedAt,
@@ -37,7 +37,7 @@ func (h *Handler) listWorkspaceArtifactsHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	var chatIDPtr *string
-	if cid := r.URL.Query().Get("chat_id"); cid != "" {
+	if cid := r.URL.Query().Get("task_id"); cid != "" {
 		chatIDPtr = &cid
 	}
 	list, err := h.cfg.RunOutputLister.ListRunOutputsByWorkspace(r.Context(), workspaceID, chatIDPtr)
@@ -57,14 +57,14 @@ type ArtifactItemResponse struct {
 }
 
 // getArtifactRunAndChat loads run and chat for chatRunID and verifies workspace; writes error and returns (nil, nil, false) on failure.
-func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, workspaceID, chatRunID string) (run *entity.ChatRun, chat *entity.Chat, ok bool) {
-	if !h.requireStore(w, h.cfg.ChatRunStore, "chat runs not configured") {
+func (h *Handler) getArtifactRunAndChat(w http.ResponseWriter, r *http.Request, workspaceID, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool) {
+	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
 		return nil, nil, false
 	}
 	var err error
-	run, chat, err = h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, chat, err = h.cfg.TaskRunStore.GetTaskRunWithChat(r.Context(), chatRunID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact", "task_run_id", chatRunID)
 		return nil, nil, false
 	}
 	if run == nil || chat == nil {
@@ -86,7 +86,7 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") {
 		return
 	}
-	chatRunID, ok := pathValueRequired(w, r, "chat_run_id")
+	chatRunID, ok := pathValueRequired(w, r, "task_run_id")
 	if !ok {
 		return
 	}
@@ -94,7 +94,7 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	items, err := h.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
+	items, err := h.cfg.RunOutputLister.GetTaskRunOutputFiles(r.Context(), chatRunID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_items", "artifact_id", chatRunID)
 		return
@@ -122,9 +122,9 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ch
 	}
 	allowed := pathParam == artifactResultFilename
 	if !allowed && h.cfg.RunOutputLister != nil {
-		items, listErr := h.cfg.RunOutputLister.GetChatRunOutputFiles(r.Context(), chatRunID)
+		items, listErr := h.cfg.RunOutputLister.GetTaskRunOutputFiles(r.Context(), chatRunID)
 		if listErr != nil {
-			httputil.WriteInternalError(w, listErr, "portal handler error", "handler", "artifact_content", "chat_run_id", chatRunID)
+			httputil.WriteInternalError(w, listErr, "portal handler error", "handler", "artifact_content", "task_run_id", chatRunID)
 			return "", false
 		}
 		for _, it := range items {
@@ -149,7 +149,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !h.requireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
-	chatRunID, ok := pathValueRequired(w, r, "chat_run_id")
+	chatRunID, ok := pathValueRequired(w, r, "task_run_id")
 	if !ok {
 		return
 	}
@@ -167,13 +167,13 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), blob.RunRef{
 			WorkspaceID: workspaceID,
 			ChatID:      chat.ChatID,
-			ChatRunID:   chatRunID,
+			TaskRunID:   chatRunID,
 		})
 	} else {
 		data, err = h.cfg.ArtifactStorage.GetArtifactFile(r.Context(), blob.RunObjectRef{
 			WorkspaceID: workspaceID,
 			ChatID:      chat.ChatID,
-			ChatRunID:   chatRunID,
+			TaskRunID:   chatRunID,
 			RelPath:     pathParam,
 		})
 	}
@@ -182,7 +182,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 			httputil.WriteJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_content", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_content", "task_run_id", chatRunID)
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

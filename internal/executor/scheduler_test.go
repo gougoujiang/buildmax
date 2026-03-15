@@ -10,15 +10,15 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// spyChatRunStore records UpdateChatRunStatus and SyncChatFromRun calls for tests.
-type spyChatRunStore struct {
+// spyTaskRunStore records UpdateTaskRunStatus and SyncTaskFromRun calls for tests.
+type spyTaskRunStore struct {
 	mu sync.Mutex
 
-	// GetNextPendingChatRun: return one run on first call, nil thereafter
-	pendingRun   *entity.ChatRun
+	// GetNextPendingTaskRun: return one run on first call, nil thereafter
+	pendingRun   *entity.TaskRun
 	pendingCalls int
 
-	// UpdateChatRunStatusIf: return true for first claim (PENDING→SCHEDULED)
+	// UpdateTaskRunStatusIf: return true for first claim (PENDING→SCHEDULED)
 	statusIfCalls int
 
 	// Recorded calls
@@ -31,10 +31,10 @@ type spyChatRunStore struct {
 	syncChatFromRunCalls []string
 }
 
-func newSpyChatRunStore(chatRunID string) *spyChatRunStore {
-	return &spyChatRunStore{
-		pendingRun: &entity.ChatRun{
-			ChatRunID: chatRunID,
+func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
+	return &spyTaskRunStore{
+		pendingRun: &entity.TaskRun{
+			TaskRunID: chatRunID,
 			ChatID:    "c_test",
 			Input:     "input",
 			Status:    "PENDING",
@@ -43,11 +43,11 @@ func newSpyChatRunStore(chatRunID string) *spyChatRunStore {
 	}
 }
 
-func (s *spyChatRunStore) CreateChatRun(_ context.Context, _, _, _ string) (*entity.ChatRun, error) {
+func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
 
-func (s *spyChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.ChatRun, error) {
+func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pendingCalls++
@@ -57,15 +57,15 @@ func (s *spyChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.Chat
 	return nil, nil
 }
 
-func (s *spyChatRunStore) GetChatRun(_ context.Context, _ string) (*entity.ChatRun, error) {
+func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
 
-func (s *spyChatRunStore) GetChatRunWithChat(_ context.Context, _ string) (*entity.ChatRun, *entity.Chat, error) {
+func (s *spyTaskRunStore) GetTaskRunWithChat(_ context.Context, _ string) (*entity.TaskRun, *entity.Chat, error) {
 	return nil, nil, nil
 }
 
-func (s *spyChatRunStore) ClaimChatRun(_ context.Context, in entity.ClaimChatRunInput) (bool, error) {
+func (s *spyTaskRunStore) ClaimTaskRun(_ context.Context, in entity.ClaimTaskRunInput) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.statusIfCalls++
@@ -75,7 +75,7 @@ func (s *spyChatRunStore) ClaimChatRun(_ context.Context, in entity.ClaimChatRun
 	return false, nil
 }
 
-func (s *spyChatRunStore) UpdateRun(_ context.Context, in entity.UpdateChatRunInput) error {
+func (s *spyTaskRunStore) UpdateRun(_ context.Context, in entity.UpdateTaskRunInput) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastUpdateStatus = &struct {
@@ -83,19 +83,19 @@ func (s *spyChatRunStore) UpdateRun(_ context.Context, in entity.UpdateChatRunIn
 		status       string
 		endedAt      *int64
 		errorMessage *string
-	}{in.ChatRunID, string(in.Status), in.EndedAt, in.ErrorMessage}
+	}{in.TaskRunID, string(in.Status), in.EndedAt, in.ErrorMessage}
 	return nil
 }
 
-func (s *spyChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+func (s *spyTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
 	return nil
 }
 
-func (s *spyChatRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error {
+func (s *spyTaskRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error {
 	return nil
 }
 
-func (s *spyChatRunStore) SyncChatFromRun(_ context.Context, chatRunID string) error {
+func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, chatRunID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.syncChatFromRunCalls = append(s.syncChatFromRunCalls, chatRunID)
@@ -105,7 +105,7 @@ func (s *spyChatRunStore) SyncChatFromRun(_ context.Context, chatRunID string) e
 // failingRunner implements WorkerRunner and always returns an error.
 type failingRunner struct{ err error }
 
-func (f *failingRunner) Run(_ context.Context, _ entity.ChatRun) (string, *string, *int64, error) {
+func (f *failingRunner) Run(_ context.Context, _ entity.TaskRun) (string, *string, *int64, error) {
 	if f.err != nil {
 		return "", nil, nil, f.err
 	}
@@ -116,7 +116,7 @@ var errSpawnFailed = errors.New("spawn failed for test")
 
 func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 	chatRunID := "r_spy123456789012345678"
-	spy := newSpyChatRunStore(chatRunID)
+	spy := newSpyTaskRunStore(chatRunID)
 	runner := &failingRunner{err: errSpawnFailed}
 
 	s, err := NewSchedulerWithPollInterval(spy, runner, 10*time.Millisecond)
@@ -131,28 +131,28 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 	spy.mu.Lock()
 	defer spy.mu.Unlock()
 
-	// UpdateChatRunStatus must have been called with FAILED, not PENDING
+	// UpdateTaskRunStatus must have been called with FAILED, not PENDING
 	if spy.lastUpdateStatus == nil {
-		t.Fatal("UpdateChatRunStatus was not called")
+		t.Fatal("UpdateTaskRunStatus was not called")
 	}
 	if spy.lastUpdateStatus.status != "FAILED" {
-		t.Errorf("UpdateChatRunStatus status = %q, want FAILED", spy.lastUpdateStatus.status)
+		t.Errorf("UpdateTaskRunStatus status = %q, want FAILED", spy.lastUpdateStatus.status)
 	}
 	if spy.lastUpdateStatus.chatRunID != chatRunID {
-		t.Errorf("UpdateChatRunStatus chatRunID = %q, want %q", spy.lastUpdateStatus.chatRunID, chatRunID)
+		t.Errorf("UpdateTaskRunStatus chatRunID = %q, want %q", spy.lastUpdateStatus.chatRunID, chatRunID)
 	}
 	if spy.lastUpdateStatus.endedAt == nil {
-		t.Error("UpdateChatRunStatus endedAt is nil, want set")
+		t.Error("UpdateTaskRunStatus endedAt is nil, want set")
 	}
 	if spy.lastUpdateStatus.errorMessage == nil || *spy.lastUpdateStatus.errorMessage == "" {
-		t.Error("UpdateChatRunStatus errorMessage is nil or empty, want non-empty")
+		t.Error("UpdateTaskRunStatus errorMessage is nil or empty, want non-empty")
 	}
 
-	// SyncChatFromRun must have been called with the same chatRunID
+	// SyncTaskFromRun must have been called with the same chatRunID
 	if len(spy.syncChatFromRunCalls) == 0 {
-		t.Fatal("SyncChatFromRun was not called")
+		t.Fatal("SyncTaskFromRun was not called")
 	}
 	if spy.syncChatFromRunCalls[0] != chatRunID {
-		t.Errorf("SyncChatFromRun chatRunID = %q, want %q", spy.syncChatFromRunCalls[0], chatRunID)
+		t.Errorf("SyncTaskFromRun chatRunID = %q, want %q", spy.syncChatFromRunCalls[0], chatRunID)
 	}
 }

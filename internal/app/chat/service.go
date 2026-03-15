@@ -14,21 +14,21 @@ var (
 	ErrInputRequired         = errors.New("input required")
 	ErrAgentsNotConfigured   = errors.New("agents not configured")
 	ErrChatsNotConfigured    = errors.New("chats not configured")
-	ErrChatRunsNotConfigured = errors.New("chat runs not configured")
+	ErrTaskRunsNotConfigured = errors.New("task runs not configured")
 	ErrAgentNotFound         = errors.New("agent not found or not in workspace")
 )
 
-// QuotaChecker is the narrow quota surface needed by chat workflows.
+// QuotaChecker is the narrow quota surface needed by task workflows.
 type QuotaChecker interface {
 	Check(ctx context.Context, userID string, runsToAdd, tokensToAdd int) (allowed bool, reason string)
 }
 
-// TitleGenerator generates a title and token usage for a chat input.
+// TitleGenerator generates a title and token usage for a task input.
 type TitleGenerator interface {
 	GenerateTitle(ctx context.Context, input string) (title string, promptTokens, completionTokens int, err error)
 }
 
-// QuotaExceededError is returned when quota blocks a chat operation.
+// QuotaExceededError is returned when quota blocks a task operation.
 type QuotaExceededError struct {
 	Reason string
 }
@@ -37,16 +37,16 @@ func (e *QuotaExceededError) Error() string {
 	return "quota exceeded: " + e.Reason
 }
 
-// Service owns chat-related application workflows.
+// Service owns task-related application workflows.
 type Service struct {
 	Agents         entity.AgentStore
-	Chats          entity.ChatStore
-	ChatRuns       entity.ChatRunStore
+	Chats          entity.TaskStore
+	TaskRuns       entity.TaskRunStore
 	QuotaChecker   QuotaChecker
 	TitleGenerator TitleGenerator
 }
 
-// CreateChatCmd creates a new chat and its first run.
+// CreateChatCmd creates a new task and its first run.
 type CreateChatCmd struct {
 	WorkspaceID    string
 	UserID         string
@@ -55,20 +55,20 @@ type CreateChatCmd struct {
 	ConversationID *string
 }
 
-// CreateRunCmd creates a new run on an existing chat.
+// CreateRunCmd creates a new run on an existing task.
 type CreateRunCmd struct {
 	UserID string
 	ChatID string
 	Input  string
 }
 
-// StartBackgroundChatResult is returned when a background chat is created.
+// StartBackgroundChatResult is returned when a background task is created.
 type StartBackgroundChatResult struct {
 	ChatID string
 	RunID  string
 }
 
-// CreateChat resolves input, applies title/quota rules, and persists a new chat.
+// CreateChat resolves input, applies title/quota rules, and persists a new task.
 func (s *Service) CreateChat(ctx context.Context, cmd CreateChatCmd) (*entity.Chat, error) {
 	if s.Chats == nil {
 		return nil, ErrChatsNotConfigured
@@ -93,10 +93,10 @@ func (s *Service) CreateChat(ctx context.Context, cmd CreateChatCmd) (*entity.Ch
 	})
 }
 
-// CreateRun enforces basic run creation rules and delegates to ChatRunStore.
-func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*entity.ChatRun, error) {
-	if s.ChatRuns == nil {
-		return nil, ErrChatRunsNotConfigured
+// CreateRun enforces basic run creation rules and delegates to TaskRunStore.
+func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*entity.TaskRun, error) {
+	if s.TaskRuns == nil {
+		return nil, ErrTaskRunsNotConfigured
 	}
 	if cmd.Input == "" {
 		return nil, ErrInputRequired
@@ -104,10 +104,10 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*entity.Chat
 	if err := s.checkQuota(ctx, cmd.UserID, 0); err != nil {
 		return nil, err
 	}
-	return s.ChatRuns.CreateChatRun(ctx, cmd.ChatID, cmd.Input, cmd.UserID)
+	return s.TaskRuns.CreateTaskRun(ctx, cmd.ChatID, cmd.Input, cmd.UserID)
 }
 
-// StartBackgroundChat creates a chat and returns its chat/run ids.
+// StartBackgroundChat creates a task and returns its task/run ids.
 func (s *Service) StartBackgroundChat(ctx context.Context, cmd CreateChatCmd) (*StartBackgroundChatResult, error) {
 	chat, err := s.CreateChat(ctx, cmd)
 	if err != nil {

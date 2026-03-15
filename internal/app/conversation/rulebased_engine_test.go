@@ -40,7 +40,7 @@ func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when Chat is nil")
 	}
-	if !errors.Is(err, chatapp.ErrChatRunsNotConfigured) {
+	if !errors.Is(err, chatapp.ErrTaskRunsNotConfigured) {
 		t.Errorf("err = %v", err)
 	}
 }

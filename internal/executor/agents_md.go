@@ -1,4 +1,4 @@
-// Package executor provides chat run scheduling and execution.
+// Package executor provides task run scheduling and execution.
 //
 // agents_md.go: prepare AGENTS.md in the run directory so the CLI (buildmax -p)
 // reads it from cwd and the agent gets run context (directory layout + optional workspace AGENTS.md).

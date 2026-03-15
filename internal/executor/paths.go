@@ -2,14 +2,14 @@ package executor
 
 import "path/filepath"
 
-// WorkspacePaths provides filesystem layout for workspaces, chats, runs, and artifacts.
+// WorkspacePaths provides filesystem layout for workspaces, tasks, runs, and artifacts.
 // It is injected for testability and to avoid hard dependency on internal/config.
 type WorkspacePaths interface {
 	PersistentWorkspaceDir(workspaceID string) string
-	RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string
-	RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string
-	RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string
-	RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string
+	RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string
+	RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string
+	RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string
+	RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string
 	RunOutputDir(workspaceID, chatID, chatRunID string) string
 }
 
@@ -27,20 +27,20 @@ func (p *workspacePathsRoot) PersistentWorkspaceDir(workspaceID string) string {
 	return filepath.Join(p.root, workspaceID, "home")
 }
 
-func (p *workspacePathsRoot) RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.root, workspaceID, "chats", chatID, chatRunID)
+func (p *workspacePathsRoot) RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.root, workspaceID, "tasks", chatID, chatRunID)
 }
 
-func (p *workspacePathsRoot) RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "home")
+func (p *workspacePathsRoot) RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "home")
 }
 
-func (p *workspacePathsRoot) RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "artifacts")
+func (p *workspacePathsRoot) RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "artifacts")
 }
 
-func (p *workspacePathsRoot) RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeChatRunDir(workspaceID, chatID, chatRunID), "global")
+func (p *workspacePathsRoot) RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "global")
 }
 
 func (p *workspacePathsRoot) RunOutputDir(workspaceID, chatID, chatRunID string) string {

@@ -11,7 +11,7 @@ import type {
   ApiChat,
   ApiChatsListResponse,
   ApiSession,
-  CreateChatRunResponse,
+  CreateTaskRunResponse,
 } from "../../lib/api/types"
 
 export interface GetChatsPaginatedOptions {
@@ -36,7 +36,7 @@ export async function getChats(
   token: string
 ): Promise<ApiChat[]> {
   return requestJson<ApiChat[]>(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats`,
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks`,
     { headers: authHeaders(token) }
   )
 }
@@ -51,7 +51,7 @@ export async function getChatsPaginated(
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats${q ? `?${q}` : ""}`
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks${q ? `?${q}` : ""}`
   return requestJson<ApiChatsListResponse>(url, { headers: authHeaders(token) })
 }
 
@@ -61,7 +61,7 @@ export async function getChatConversation(
   token: string
 ): Promise<ApiSession | null> {
   const res = await fetch(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/conversation`,
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(chatId)}/conversation`,
     { headers: authHeaders(token) }
   )
   checkUnauthorized(res)
@@ -75,21 +75,21 @@ export async function createChat(
   body: CreateChatBody,
   token: string
 ): Promise<ApiChat> {
-  return requestJson<ApiChat>(`${getApiBase()}/api/workspaces/${workspaceId}/chats`, {
+  return requestJson<ApiChat>(`${getApiBase()}/api/workspaces/${workspaceId}/tasks`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
   })
 }
 
-export async function createChatRun(
+export async function createTaskRun(
   workspaceId: string,
   chatId: string,
   body: { input: string },
   token: string
-): Promise<CreateChatRunResponse> {
+): Promise<CreateTaskRunResponse> {
   const res = await fetch(
-    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/runs`,
+    `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(chatId)}/runs`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -98,11 +98,11 @@ export async function createChatRun(
   )
   checkUnauthorized(res)
   if (res.status === 409) {
-    const msg = await parseErrorResponse(res, "A run is already in progress for this chat")
+    const msg = await parseErrorResponse(res, "A run is already in progress for this task")
     throw new Error(msg)
   }
   await throwIfNotOk(res)
-  return res.json() as Promise<CreateChatRunResponse>
+  return res.json() as Promise<CreateTaskRunResponse>
 }
 
 export function subscribeChatStream(
@@ -111,7 +111,7 @@ export function subscribeChatStream(
   token: string,
   callbacks: RunStreamCallbacks
 ): () => void {
-  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/chats/${encodeURIComponent(chatId)}/stream`
+  const url = `${getApiBase()}/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(chatId)}/stream`
   const controller = new AbortController()
 
   fetch(url, { headers: authHeaders(token), signal: controller.signal })

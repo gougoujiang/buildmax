@@ -14,7 +14,7 @@ export type {
   ApiSession,
   ApiSessionMessage,
   ApiUsage,
-  CreateChatRunResponse,
+  CreateTaskRunResponse,
   ApiArtifact,
   ApiArtifactItem,
   UploadResponse,
@@ -41,7 +41,7 @@ export {
   getChatsPaginated,
   getChatConversation,
   createChat,
-  createChatRun,
+  createTaskRun,
   subscribeChatStream,
 } from "../../features/chats"
 export type {

@@ -45,42 +45,42 @@ type AgentStore interface {
 	DeleteAgent(ctx context.Context, agentID, workspaceID string) error
 }
 
-// ChatStore provides chat persistence. Chats belong to a workspace.
-// CreateChat creates chat + first ChatRun (both in one transaction).
-type ChatStore interface {
-	// ListChatsByWorkspace returns chats in the workspace. order is "asc" (oldest first) or "desc" (latest first); default "desc".
+// TaskStore provides task persistence. Tasks belong to a workspace.
+// CreateChat creates a task plus its first TaskRun (both in one transaction).
+type TaskStore interface {
+	// ListChatsByWorkspace returns tasks in the workspace. order is "asc" (oldest first) or "desc" (latest first); default "desc".
 	ListChatsByWorkspace(ctx context.Context, workspaceID string, order string) ([]Chat, error)
-	// ListChatsByWorkspacePaginated returns chats with optional executed_only filter, ordered by created_at DESC. total is total matching count.
+	// ListChatsByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
 	ListChatsByWorkspacePaginated(ctx context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]Chat, int, error)
 	GetChat(ctx context.Context, chatID string) (*Chat, error)
 	GetChatBySessionID(ctx context.Context, sessionID string) (*Chat, error)
-	// CreateChat creates a new chat and its first ChatRun (input, title, PENDING). Returns the chat with last_run_id set.
+	// CreateChat creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.
 	CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, error)
 	UpdateChat(ctx context.Context, in UpdateChatInput) error
 	ClaimChat(ctx context.Context, in ClaimChatInput) (updated bool, err error)
 }
 
-// ErrRunInProgress is returned by CreateChatRun when the chat already has a run in PENDING, SCHEDULED, or RUNNING.
-var ErrRunInProgress = errors.New("chat has a run already in progress")
+// ErrRunInProgress is returned by CreateTaskRun when the task already has a run in PENDING, SCHEDULED, or RUNNING.
+var ErrRunInProgress = errors.New("task has a run already in progress")
 
-// ChatRunStore provides chat run persistence.
-type ChatRunStore interface {
-	// CreateChatRun creates a new run (PENDING). Returns ErrRunInProgress if chat has any run in PENDING/SCHEDULED/RUNNING.
-	CreateChatRun(ctx context.Context, chatID, input, createdBy string) (*ChatRun, error)
-	// GetNextPendingChatRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
-	GetNextPendingChatRun(ctx context.Context) (*ChatRun, error)
-	GetChatRun(ctx context.Context, chatRunID string) (*ChatRun, error)
-	// GetChatRunWithChat returns the run and its chat, or (nil, nil, nil) if run not found.
-	GetChatRunWithChat(ctx context.Context, chatRunID string) (*ChatRun, *Chat, error)
-	// ClaimChatRun atomically updates a run when current status matches ExpectedStatus.
-	ClaimChatRun(ctx context.Context, in ClaimChatRunInput) (bool, error)
+// TaskRunStore provides task run persistence.
+type TaskRunStore interface {
+	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING/SCHEDULED/RUNNING.
+	CreateTaskRun(ctx context.Context, chatID, input, createdBy string) (*TaskRun, error)
+	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
+	GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error)
+	GetTaskRun(ctx context.Context, chatRunID string) (*TaskRun, error)
+	// GetTaskRunWithChat returns the run and its task, or (nil, nil, nil) if run not found.
+	GetTaskRunWithChat(ctx context.Context, chatRunID string) (*TaskRun, *Chat, error)
+	// ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
+	ClaimTaskRun(ctx context.Context, in ClaimTaskRunInput) (bool, error)
 	// UpdateRun updates a run's status and optional fields.
-	UpdateRun(ctx context.Context, in UpdateChatRunInput) error
-	UpdateChatRunWorkerInfo(ctx context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
-	// OnRunComplete creates chat_run_artifact rows (one per relativePath) and updates chat denormalized fields. Use for SUCCEEDED runs.
+	UpdateRun(ctx context.Context, in UpdateTaskRunInput) error
+	UpdateTaskRunWorkerInfo(ctx context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
+	// OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields. Use for SUCCEEDED runs.
 	OnRunComplete(ctx context.Context, chatRunID string, relativePaths []string) error
-	// SyncChatFromRun updates chat denormalized fields and last_run_id from the run (no output). Use for FAILED runs.
-	SyncChatFromRun(ctx context.Context, chatRunID string) error
+	// SyncTaskFromRun updates task denormalized fields and last_run_id from the run (no output). Use for FAILED runs.
+	SyncTaskFromRun(ctx context.Context, chatRunID string) error
 }
 
 // ConversationStore provides Tier 1 conversation persistence. Conversations are workspace-scoped.

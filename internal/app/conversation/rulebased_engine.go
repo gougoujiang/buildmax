@@ -10,18 +10,18 @@ import (
 
 var ErrChannelNotWebhook = errors.New("rule-based engine only accepts webhook channel")
 
-// RuleBasedEngine implements coreconv.ConversationEngine for webhook turns: no LLM, create one ChatRun.
+// RuleBasedEngine implements coreconv.ConversationEngine for webhook turns: no LLM, create one TaskRun.
 type RuleBasedEngine struct {
 	Chat *chatapp.Service
 }
 
-// Process creates exactly one ChatRun for webhook turns. Rejects other channels.
+// Process creates exactly one TaskRun for webhook turns. Rejects other channels.
 func (e *RuleBasedEngine) Process(ctx context.Context, workspaceID, chatID string, turn coreconv.ConversationTurn) (coreconv.ConversationResult, error) {
 	if turn.Channel != coreconv.ChannelWebhook {
 		return coreconv.ConversationResult{}, ErrChannelNotWebhook
 	}
 	if e.Chat == nil {
-		return coreconv.ConversationResult{}, chatapp.ErrChatRunsNotConfigured
+		return coreconv.ConversationResult{}, chatapp.ErrTaskRunsNotConfigured
 	}
 	if workspaceID == "" {
 		return coreconv.ConversationResult{}, errors.New("workspace_id required")
@@ -54,5 +54,5 @@ func (e *RuleBasedEngine) Process(ctx context.Context, workspaceID, chatID strin
 	if err != nil {
 		return coreconv.ConversationResult{}, err
 	}
-	return coreconv.ConversationResult{TaskIDs: []string{run.ChatRunID}}, nil
+	return coreconv.ConversationResult{TaskIDs: []string{run.TaskRunID}}, nil
 }

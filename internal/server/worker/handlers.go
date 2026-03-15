@@ -9,7 +9,7 @@ import (
 	"buildmax/internal/workerapi"
 )
 
-// Handler serves the worker API (GET/PATCH /api/worker/chat-runs/{id}, POST .../stream).
+// Handler serves the worker API (GET/PATCH /api/worker/task-runs/{id}, POST .../stream).
 type Handler struct {
 	cfg Config
 }
@@ -21,39 +21,39 @@ func NewHandler(cfg Config) *Handler {
 
 // Register adds worker routes to mux. All routes require worker auth (Bearer or X-Worker-Token).
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.Handle("GET /api/worker/chat-runs/{chat_run_id}", h.authMiddleware(http.HandlerFunc(h.getChatRun)))
-	mux.Handle("PATCH /api/worker/chat-runs/{chat_run_id}", h.authMiddleware(http.HandlerFunc(h.patchChatRun)))
-	mux.Handle("POST /api/worker/chat-runs/{chat_run_id}/stream", h.authMiddleware(http.HandlerFunc(h.postStream)))
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.authMiddleware(http.HandlerFunc(h.getTaskRun)))
+	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.authMiddleware(http.HandlerFunc(h.patchTaskRun)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.authMiddleware(http.HandlerFunc(h.postStream)))
 }
 
-func (h *Handler) getChatRun(w http.ResponseWriter, r *http.Request) {
-	chatRunID := r.PathValue("chat_run_id")
+func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
+	chatRunID := r.PathValue("task_run_id")
 	if chatRunID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "task_run_id required")
 		return
 	}
-	if h.cfg.ChatRunStore == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+	if h.cfg.TaskRunStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return
 	}
-	run, chat, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, chat, err := h.cfg.TaskRunStore.GetTaskRunWithChat(r.Context(), chatRunID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "worker handler error", "handler", "get_worker_chat_run", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "get_worker_task_run", "task_run_id", chatRunID)
 		return
 	}
 	if run == nil || chat == nil {
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, workerapi.GetChatRunResponse{
-		Run: workerapi.ChatRunRun{
-			ChatRunID: run.ChatRunID,
+	httputil.WriteJSON(w, http.StatusOK, workerapi.GetTaskRunResponse{
+		Run: workerapi.TaskRunRun{
+			TaskRunID: run.TaskRunID,
 			ChatID:    run.ChatID,
 			Input:     run.Input,
 			Status:    run.Status,
 			CreatedAt: run.CreatedAt,
 		},
-		Chat: workerapi.ChatRunChat{
+		Task: workerapi.TaskRunTask{
 			ChatID:      chat.ChatID,
 			WorkspaceID: chat.WorkspaceID,
 			SessionID:   chat.SessionID,
@@ -63,23 +63,23 @@ func (h *Handler) getChatRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
-	chatRunID := r.PathValue("chat_run_id")
+	chatRunID := r.PathValue("task_run_id")
 	if chatRunID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "task_run_id required")
 		return
 	}
-	if h.cfg.ChatRunStore == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+	if h.cfg.TaskRunStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return
 	}
 	if h.cfg.Hub == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "stream hub not configured")
 		return
 	}
-	run, _, err := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+	run, _, err := h.cfg.TaskRunStore.GetTaskRunWithChat(r.Context(), chatRunID)
 	if err != nil || run == nil {
 		if err != nil {
-			httputil.WriteInternalError(w, err, "worker handler error", "handler", "post_worker_stream", "chat_run_id", chatRunID)
+			httputil.WriteInternalError(w, err, "worker handler error", "handler", "post_worker_stream", "task_run_id", chatRunID)
 		} else {
 			httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		}
@@ -95,19 +95,19 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePatchRunning handles status RUNNING; returns true if it wrote a response (caller should return).
-func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, chatRunID string, req *workerapi.PatchChatRunRequest) bool {
+func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, chatRunID string, req *workerapi.PatchTaskRunRequest) bool {
 	if req.Status != string(entity.RunStatusRunning) {
 		return false
 	}
-	updated, err := h.cfg.ChatRunStore.ClaimChatRun(r.Context(), entity.ClaimChatRunInput{
-		ChatRunID:      chatRunID,
+	updated, err := h.cfg.TaskRunStore.ClaimTaskRun(r.Context(), entity.ClaimTaskRunInput{
+		TaskRunID:      chatRunID,
 		ExpectedStatus: entity.RunStatusScheduled,
 		NewStatus:      entity.RunStatusRunning,
 		StartedAt:      req.StartedAt,
 		SessionID:      req.SessionID,
 	})
 	if err != nil {
-		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", chatRunID)
 		return true
 	}
 	if !updated {
@@ -117,10 +117,10 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, cha
 	return true
 }
 
-// handlePatchTerminalStatus handles status other than RUNNING: update status, OnRunComplete/SyncChatFromRun, Hub.Done. Writes errors and does not write 200.
-func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, chatRunID string, req *workerapi.PatchChatRunRequest) bool {
-	if err := h.cfg.ChatRunStore.UpdateRun(r.Context(), entity.UpdateChatRunInput{
-		ChatRunID:        chatRunID,
+// handlePatchTerminalStatus handles status other than RUNNING: update status, OnRunComplete/SyncTaskFromRun, Hub.Done. Writes errors and does not write 200.
+func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, chatRunID string, req *workerapi.PatchTaskRunRequest) bool {
+	if err := h.cfg.TaskRunStore.UpdateRun(r.Context(), entity.UpdateTaskRunInput{
+		TaskRunID:        chatRunID,
 		Status:           entity.RunStatus(req.Status),
 		StartedAt:        req.StartedAt,
 		EndedAt:          req.EndedAt,
@@ -130,7 +130,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		PromptTokens:     req.PromptTokens,
 		CompletionTokens: req.CompletionTokens,
 	}); err != nil {
-		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run", "chat_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", chatRunID)
 		return false
 	}
 	if req.Status == string(entity.RunStatusSucceeded) && req.Artifact != nil {
@@ -141,18 +141,18 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		if len(relativePaths) == 0 {
 			relativePaths = []string{"result.md"}
 		}
-		if err := h.cfg.ChatRunStore.OnRunComplete(r.Context(), chatRunID, relativePaths); err != nil {
-			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run_on_complete", "chat_run_id", chatRunID)
+		if err := h.cfg.TaskRunStore.OnRunComplete(r.Context(), chatRunID, relativePaths); err != nil {
+			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_on_complete", "task_run_id", chatRunID)
 			return false
 		}
 	} else if req.Status == string(entity.RunStatusFailed) {
-		if err := h.cfg.ChatRunStore.SyncChatFromRun(r.Context(), chatRunID); err != nil {
-			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_chat_run_sync", "chat_run_id", chatRunID)
+		if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), chatRunID); err != nil {
+			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_sync", "task_run_id", chatRunID)
 			return false
 		}
 	}
 	if h.cfg.Hub != nil {
-		run, _, _ := h.cfg.ChatRunStore.GetChatRunWithChat(r.Context(), chatRunID)
+		run, _, _ := h.cfg.TaskRunStore.GetTaskRunWithChat(r.Context(), chatRunID)
 		if run != nil {
 			h.cfg.Hub.Done(run.ChatID)
 		}
@@ -160,17 +160,17 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 	return true
 }
 
-func (h *Handler) patchChatRun(w http.ResponseWriter, r *http.Request) {
-	chatRunID := r.PathValue("chat_run_id")
+func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
+	chatRunID := r.PathValue("task_run_id")
 	if chatRunID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_run_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "task_run_id required")
 		return
 	}
-	if h.cfg.ChatRunStore == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+	if h.cfg.TaskRunStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return
 	}
-	var req workerapi.PatchChatRunRequest
+	var req workerapi.PatchTaskRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return

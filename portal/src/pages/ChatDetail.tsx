@@ -6,7 +6,7 @@ interface ChatDetailProps {
   chat: Chat
   workspaceId: string
   onRefetch?: () => void
-  /** First user query when navigating from New Chat before session has messages */
+  /** First user query when navigating from New Conversation before the task has messages. */
   initialInput?: string
 }
 

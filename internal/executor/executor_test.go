@@ -23,17 +23,17 @@ type testWorkspacePaths struct{}
 func (testWorkspacePaths) PersistentWorkspaceDir(workspaceID string) string {
 	return config.PersistentWorkspaceDir(workspaceID)
 }
-func (testWorkspacePaths) RuntimeChatRunDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeChatRunDir(workspaceID, chatID, chatRunID)
+func (testWorkspacePaths) RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeTaskRunDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeChatRunHomeDir(workspaceID, chatID, chatRunID)
+func (testWorkspacePaths) RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeChatRunArtifactsDir(workspaceID, chatID, chatRunID)
+func (testWorkspacePaths) RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID)
 }
-func (testWorkspacePaths) RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID string) string {
-	return config.RuntimeChatRunGlobalDir(workspaceID, chatID, chatRunID)
+func (testWorkspacePaths) RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string {
+	return config.RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID)
 }
 func (testWorkspacePaths) RunOutputDir(workspaceID, chatID, chatRunID string) string {
 	return config.RunOutputDir(workspaceID, chatID, chatRunID)
@@ -100,7 +100,7 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 }
 
 func (f *fakePersistStorage) PutChatGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.chatGlobal[key] = data
 	return nil
@@ -119,7 +119,7 @@ func (f *fakePersistStorage) chatGlobalRelPaths(workspaceID, chatID, chatRunID s
 }
 
 func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -127,8 +127,8 @@ func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObje
 	return data, nil
 }
 
-func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/artifacts/" + ref.RelPath
+func (f *fakePersistStorage) PutTaskRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	if f.chatGlobal == nil {
 		f.chatGlobal = make(map[string][]byte)
@@ -137,8 +137,8 @@ func (f *fakePersistStorage) PutChatRunArtifacts(ctx context.Context, ref blob.R
 	return nil
 }
 
-func (f *fakePersistStorage) GetChatRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/artifacts/" + ref.RelPath
+func (f *fakePersistStorage) GetTaskRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.chatGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -157,13 +157,13 @@ func newFakeArtifactStorage() *fakeArtifactStorage {
 }
 
 func (f *fakeArtifactStorage) PutResult(ctx context.Context, ref blob.RunRef, data []byte) error {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
 func (f *fakeArtifactStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -175,7 +175,7 @@ func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunO
 	if f.files == nil {
 		f.files = make(map[string][]byte)
 	}
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.files[key] = data
 	return nil
@@ -185,7 +185,7 @@ func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunO
 	if f.files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.ChatRunID + "/" + ref.RelPath
+	key := ref.WorkspaceID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -193,32 +193,32 @@ func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunO
 	return data, nil
 }
 
-// mockChatRunStore is a minimal ChatRunStore for Scheduler constructor tests.
-type mockChatRunStore struct{}
+// mockTaskRunStore is a minimal TaskRunStore for Scheduler constructor tests.
+type mockTaskRunStore struct{}
 
-func (mockChatRunStore) CreateChatRun(_ context.Context, _, _, _ string) (*entity.ChatRun, error) {
+func (mockTaskRunStore) CreateTaskRun(_ context.Context, _, _, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
-func (mockChatRunStore) GetNextPendingChatRun(_ context.Context) (*entity.ChatRun, error) {
+func (mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) {
 	return nil, nil
 }
-func (mockChatRunStore) GetChatRun(_ context.Context, _ string) (*entity.ChatRun, error) {
+func (mockTaskRunStore) GetTaskRun(_ context.Context, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
-func (mockChatRunStore) GetChatRunWithChat(_ context.Context, _ string) (*entity.ChatRun, *entity.Chat, error) {
+func (mockTaskRunStore) GetTaskRunWithChat(_ context.Context, _ string) (*entity.TaskRun, *entity.Chat, error) {
 	return nil, nil, nil
 }
-func (mockChatRunStore) ClaimChatRun(_ context.Context, in entity.ClaimChatRunInput) (bool, error) {
+func (mockTaskRunStore) ClaimTaskRun(_ context.Context, in entity.ClaimTaskRunInput) (bool, error) {
 	return false, nil
 }
-func (mockChatRunStore) UpdateRun(_ context.Context, in entity.UpdateChatRunInput) error {
+func (mockTaskRunStore) UpdateRun(_ context.Context, in entity.UpdateTaskRunInput) error {
 	return nil
 }
-func (mockChatRunStore) UpdateChatRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+func (mockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
 	return nil
 }
-func (mockChatRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error { return nil }
-func (mockChatRunStore) SyncChatFromRun(_ context.Context, _ string) error           { return nil }
+func (mockTaskRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error { return nil }
+func (mockTaskRunStore) SyncTaskFromRun(_ context.Context, _ string) error           { return nil }
 
 func TestNewScheduler_ValidatesInputs(t *testing.T) {
 	runner := NewLocalRunner("buildmax-worker")
@@ -231,7 +231,7 @@ func TestNewScheduler_ValidatesInputs(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Nil runner should error.
-	_, err = NewScheduler(mockChatRunStore{}, nil)
+	_, err = NewScheduler(mockTaskRunStore{}, nil)
 	if err == nil {
 		t.Fatal("NewScheduler with nil runner should error")
 	}
@@ -239,7 +239,7 @@ func TestNewScheduler_ValidatesInputs(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	// Valid args should succeed.
-	s, err := NewScheduler(mockChatRunStore{}, runner)
+	s, err := NewScheduler(mockTaskRunStore{}, runner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, fake)
-	run := entity.ChatRun{ChatRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", ChatID: "chat1", Status: "SCHEDULED"}
+	run := entity.TaskRun{TaskRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", ChatID: "chat1", Status: "SCHEDULED"}
 
 	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run)
 	if err != nil {
@@ -334,7 +334,7 @@ func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", ChatRunID: "run1"}, fake)
+	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", TaskRunID: "run1"}, fake)
 
 	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
 	if len(got) != 3 {
@@ -358,7 +358,7 @@ func TestUploadChatGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", ChatRunID: "run1"}, fake)
+	uploadChatGlobal(ctx, globalDir, RunScope{WorkspaceID: "ws1", ChatID: "chat1", TaskRunID: "run1"}, fake)
 	got := fake.chatGlobalRelPaths("ws1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)

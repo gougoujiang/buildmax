@@ -161,7 +161,7 @@ export function ChatDetailView({
     <div className="page-chat">
       <ChatThread
         historyRef={historyRef}
-        ariaLabel="Chat history"
+        ariaLabel="Task conversation history"
         items={items}
         loadingText={sessionLoading ? "Loading conversation…" : null}
         errorText={sessionError}
@@ -176,7 +176,7 @@ export function ChatDetailView({
           loading={followUpLoading}
           error={followUpError}
           placeholder="Ask a follow-up… (Enter to send, Shift+Enter for new line)"
-          ariaLabel="Chat input"
+          ariaLabel="Task follow-up input"
         />
       </section>
     </div>

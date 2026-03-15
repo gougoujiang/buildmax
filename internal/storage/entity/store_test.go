@@ -102,20 +102,20 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	}
 	chatRunID := *chat.LastRunID
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&ChatRunArtifact{}, "chat_run_id = ?", chatRunID)
-		_ = s.db.WithContext(ctx).Delete(&ChatRun{}, "chat_id = ?", chat.ChatID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRunArtifact{}, "task_run_id = ?", chatRunID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "chat_id = ?", chat.ChatID)
 		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
 	}()
 	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
-	if err := s.UpdateRun(ctx, UpdateChatRunInput{ChatRunID: chatRunID, Status: RunStatusSucceeded, Output: util.PtrString("out")}); err != nil {
+	if err := s.UpdateRun(ctx, UpdateTaskRunInput{TaskRunID: chatRunID, Status: RunStatusSucceeded, Output: util.PtrString("out")}); err != nil {
 		t.Fatalf("UpdateRun: %v", err)
 	}
 	err = s.OnRunComplete(ctx, chatRunID, []string{"result.md", "extra.txt"})
 	if err != nil {
 		t.Fatalf("OnRunComplete: %v", err)
 	}
-	var files []ChatRunArtifact
-	if err := s.db.WithContext(ctx).Where("chat_run_id = ?", chatRunID).Find(&files).Error; err != nil {
+	var files []TaskRunArtifact
+	if err := s.db.WithContext(ctx).Where("task_run_id = ?", chatRunID).Find(&files).Error; err != nil {
 		t.Fatalf("find output files: %v", err)
 	}
 	if len(files) != 2 {
@@ -130,28 +130,28 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if len(artList) != 1 {
 		t.Fatalf("ListRunOutputsByWorkspace: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != chatRunID || artList[0].ChatID != chat.ChatID || artList[0].ChatRunID != chatRunID || artList[0].WorkspaceID != workspaceID {
-		t.Errorf("ListRunOutputsByWorkspace: got artifact_id=%q chat_id=%q chat_run_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].ChatRunID, artList[0].WorkspaceID)
+	if artList[0].ArtifactID != chatRunID || artList[0].ChatID != chat.ChatID || artList[0].TaskRunID != chatRunID || artList[0].WorkspaceID != workspaceID {
+		t.Errorf("ListRunOutputsByWorkspace: got artifact_id=%q chat_id=%q task_run_id=%q workspace_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].TaskRunID, artList[0].WorkspaceID)
 	}
 	if artList[0].ChatInputSnippet != "input" {
 		t.Errorf("ListRunOutputsByWorkspace: chat_input_snippet = %q, want input", artList[0].ChatInputSnippet)
 	}
 
-	// GetChatRunOutputFiles
-	items, err := s.GetChatRunOutputFiles(ctx, chatRunID)
+	// GetTaskRunOutputFiles
+	items, err := s.GetTaskRunOutputFiles(ctx, chatRunID)
 	if err != nil {
-		t.Fatalf("GetChatRunOutputFiles: %v", err)
+		t.Fatalf("GetTaskRunOutputFiles: %v", err)
 	}
 	if len(items) != 2 {
-		t.Fatalf("GetChatRunOutputFiles: got %d items, want 2", len(items))
+		t.Fatalf("GetTaskRunOutputFiles: got %d items, want 2", len(items))
 	}
 	paths := []string{items[0].RelativePath, items[1].RelativePath}
 	if (paths[0] != "result.md" || paths[1] != "extra.txt") && (paths[0] != "extra.txt" || paths[1] != "result.md") {
-		t.Errorf("GetChatRunOutputFiles: got %v", paths)
+		t.Errorf("GetTaskRunOutputFiles: got %v", paths)
 	}
-	itemsEmpty, _ := s.GetChatRunOutputFiles(ctx, "nonexistent-run")
+	itemsEmpty, _ := s.GetTaskRunOutputFiles(ctx, "nonexistent-run")
 	if len(itemsEmpty) != 0 {
-		t.Errorf("GetChatRunOutputFiles(nonexistent): got %d, want 0", len(itemsEmpty))
+		t.Errorf("GetTaskRunOutputFiles(nonexistent): got %d, want 0", len(itemsEmpty))
 	}
 }
 
@@ -178,7 +178,7 @@ func TestClaimChat(t *testing.T) {
 		t.Fatalf("CreateChat: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&ChatRun{}, "chat_id = ?", chat.ChatID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "chat_id = ?", chat.ChatID)
 		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
 	}()
 

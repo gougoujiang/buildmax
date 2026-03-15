@@ -19,12 +19,12 @@ type ConversationTitleGenerator interface {
 	GenerateTitleFromInput(ctx context.Context, input string) (string, error)
 }
 
-// ConversationToolRunners holds optional runners for Tier 1 chat tools. Nil means do not add that tool.
+// ConversationToolRunners holds optional runners for Tier 1 task tools. Nil means do not add that tool.
 type ConversationToolRunners struct {
-	StartChat    tools.StartChatRunner
-	ListChats    tools.ListChatsRunner
-	GetChat      tools.GetChatRunner
-	ContinueChat tools.ContinueChatRunner
+	StartTask    tools.StartTaskRunner
+	ListTasks    tools.ListTasksRunner
+	GetTask      tools.GetTaskRunner
+	ContinueTask tools.ContinueTaskRunner
 }
 
 // RunInput configures one conversation turn execution.
@@ -42,19 +42,19 @@ type RunInput struct {
 }
 
 const maxIterations = 10
-const systemPrompt = `You are a coordinator between the user and background chat tasks. You can call GetCurrentDate to get today's date. Reply concisely.
+const systemPrompt = `You are a coordinator between the user and background tasks. You can call GetCurrentDate to get today's date. Reply concisely.
 
 # Decision order
-First evaluate whether the user's request should continue an existing chat (use ContinueChat) rather than creating a new one (StartChat). When the user refers to an existing chat (e.g. "add to that chat", "try again for c_xyz", "what about the last run?"), prefer ContinueChat. Use the injected "Recent chats" context or ListChats/GetChat to decide.
+First evaluate whether the user's request should continue an existing task (use ContinueTask) rather than creating a new one (StartTask). When the user refers to an existing task (e.g. "add to that task", "try again for c_xyz", "what about the last run?"), prefer ContinueTask. Use the injected "Recent tasks" context or ListTasks/GetTask to decide.
 
 # Tools
 - GetCurrentDate: today's date when needed.
-- StartChat: create and schedule a new background chat task (long-running job, analysis). Always tell the user the chat_id and run_id and where to check progress (Activity or chat detail). Do not claim the work is done immediately—the task runs in the background.
-- ListChats: list recent chats in the workspace (up to 10). Use when the user asks what chats they have or for recent activity.
-- GetChat: get detail for one chat by chat_id. Use when the user asks about a specific chat's status or result.
-- ContinueChat: add a follow-up message to an existing chat (new run). Use when the user wants to continue, retry, or add to an existing chat.
+- StartTask: create and schedule a new background task (long-running job, analysis). Always tell the user the task_id and run_id and where to check progress (Activity or task detail). Do not claim the work is done immediately—the task runs in the background.
+- ListTasks: list recent tasks in the workspace (up to 10). Use when the user asks what tasks they have or for recent activity.
+- GetTask: get detail for one task by task_id. Use when the user asks about a specific task's status or result.
+- ContinueTask: add a follow-up message to an existing task (new run). Use when the user wants to continue, retry, or add to an existing task.
 
-When starting or continuing a task, always tell the user the chat id (and run id) so they can check progress or results later.`
+When starting or continuing a task, always tell the user the task id (and run id) so they can check progress or results later.`
 
 // effectiveSystemPrompt returns the base prompt; if recentChatsSnippet is non-empty, appends it.
 func effectiveSystemPrompt(basePrompt, recentChatsSnippet string) string {
@@ -75,17 +75,17 @@ func buildConversationTools(workspaceID, userID string, runners *ConversationToo
 	if runners == nil {
 		return toolList
 	}
-	if runners.StartChat != nil {
-		toolList = append(toolList, tools.NewStartChatTool(workspaceID, userID, runners.StartChat))
+	if runners.StartTask != nil {
+		toolList = append(toolList, tools.NewStartTaskTool(workspaceID, userID, runners.StartTask))
 	}
-	if runners.ListChats != nil {
-		toolList = append(toolList, tools.NewListChatsTool(workspaceID, runners.ListChats))
+	if runners.ListTasks != nil {
+		toolList = append(toolList, tools.NewListTasksTool(workspaceID, runners.ListTasks))
 	}
-	if runners.GetChat != nil {
-		toolList = append(toolList, tools.NewGetChatTool(workspaceID, runners.GetChat))
+	if runners.GetTask != nil {
+		toolList = append(toolList, tools.NewGetTaskTool(workspaceID, runners.GetTask))
 	}
-	if runners.ContinueChat != nil {
-		toolList = append(toolList, tools.NewContinueChatTool(workspaceID, userID, runners.ContinueChat))
+	if runners.ContinueTask != nil {
+		toolList = append(toolList, tools.NewContinueTaskTool(workspaceID, userID, runners.ContinueTask))
 	}
 	return toolList
 }

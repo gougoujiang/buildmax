@@ -5,7 +5,7 @@
 //   - server/auth — unauthenticated entry: POST /api/otp/request, POST /api/login.
 //   - server/portal — authenticated user API: workspaces, chats, agents, artifacts,
 //     conversations, stream, files, upload, usage. Uses JWT and workspace-scoped auth.
-//   - server/worker — worker API: GET/PATCH /api/worker/chat-runs/{id}, POST .../stream.
+//   - server/worker — worker API: GET/PATCH /api/worker/task-runs/{id}, POST .../stream.
 //     Uses Bearer or X-Worker-Token auth.
 //
 // This package wires the three above (auth.Register, portal.Register, worker.Register),

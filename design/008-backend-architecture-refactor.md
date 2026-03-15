@@ -31,7 +31,7 @@ Portal handlers currently do more than transport concerns:
 - title generation
 - quota checks
 - chat creation
-- background chat creation
+- background task creation
 - branching between new and legacy flows
 
 This makes handlers large and duplicates logic across files.
@@ -46,7 +46,7 @@ The worker shells out to `buildmax -p`, then reads files written by CLI-side log
 
 ### 5. Lifecycle/state transitions are stringly typed
 
-Run and chat status are updated through wide repository methods with many optional pointer arguments. Status transitions are spread across handlers, scheduler, worker, and repositories.
+Run and task status are updated through wide repository methods with many optional pointer arguments. Status transitions are spread across handlers, scheduler, worker, and repositories.
 
 ### 6. One concrete store is injected everywhere
 
@@ -98,14 +98,14 @@ This is not strict clean architecture for its own sake. The main objective is to
 internal/
   app/
     agentrun/          # shared agent execution runtime used by CLI and worker
-    chat/              # create chat, create run, start background chat
+    chat/              # create chat, create run, start background task
     conversation/      # single HandleTurn orchestration for Tier 1
     workspace/         # file browsing/materialization use cases if needed
     auth/              # signup/login application logic if server grows
   domain/
     chat/
-      types.go         # Chat, ChatRun, commands, events
-      status.go        # typed run/chat statuses
+      types.go         # Chat, TaskRun, commands, events
+      status.go        # typed run/task statuses
       repository.go    # ChatRepository, RunRepository
     conversation/
       types.go         # Conversation, Message, Turn, Result
@@ -202,7 +202,7 @@ Responsibilities:
 - check quota
 - create chat
 - create run
-- start background chat
+- start background task
 
 Suggested public methods:
 
@@ -278,7 +278,7 @@ type CompleteRunCmd struct {
 Key change:
 
 - repository methods become command-oriented
-- no more wide `UpdateChatRunStatus(... many pointers ...)`
+- no more wide `UpdateTaskRunStatus(... many pointers ...)`
 
 ### `infra/db/*`
 
@@ -377,7 +377,7 @@ There should be one way to process a user turn.
 
 - direct calls to `conversation.RunLoop`
 - direct calls to `conversation.RunLoopStream`
-- separate `ConversationEngine.Process` path for portal chat runs
+- separate `ConversationEngine.Process` path for portal task runs
 
 ### With
 
@@ -409,7 +409,7 @@ Today the store API leaks persistence concerns upward and makes transitions hard
 ### Replace patterns like
 
 ```go
-UpdateChatRunStatus(ctx, id, status, startedAt, endedAt, output, errorMessage, sessionID, promptTokens, completionTokens)
+UpdateTaskRunStatus(ctx, id, status, startedAt, endedAt, output, errorMessage, sessionID, promptTokens, completionTokens)
 ```
 
 ### With
@@ -471,7 +471,7 @@ Scope:
 
 - add `app/chat.Service`
 - refactor portal chat handlers to use it
-- refactor background chat creation tool path to use it
+- refactor background task creation tool path to use it
 
 Benefits:
 
@@ -535,7 +535,7 @@ Benefits:
 - move `buildChatInputFromAgent`
 - move title generation helper
 - move quota + create-chat logic
-- move background chat creation logic
+- move background task creation logic
 
 ### Third move set
 

@@ -9,7 +9,7 @@ export async function getArtifacts(
 ): Promise<ApiArtifact[]> {
   let url = `${getApiBase()}/api/workspaces/${workspaceId}/artifacts`
   if (options?.chatId) {
-    url += `?chat_id=${encodeURIComponent(options.chatId)}`
+    url += `?task_id=${encodeURIComponent(options.chatId)}`
   }
   return requestJson<ApiArtifact[]>(url, { headers: authHeaders(token) })
 }

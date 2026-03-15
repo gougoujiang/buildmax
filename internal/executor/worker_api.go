@@ -22,8 +22,8 @@ type StreamSender interface {
 	Flush(ctx context.Context, chatRunID string) error
 }
 
-// ErrChatRunAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (run not SCHEDULED or already RUNNING).
-var ErrChatRunAlreadyClaimed = errors.New("chat run already claimed or not scheduled")
+// ErrTaskRunAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (run not SCHEDULED or already RUNNING).
+var ErrTaskRunAlreadyClaimed = errors.New("task run already claimed or not scheduled")
 
 // WorkerAPIClientConfig holds base URL, token, and HTTP client for worker API calls.
 type WorkerAPIClientConfig struct {
@@ -62,9 +62,9 @@ func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix
 	return resp, nil
 }
 
-// GetWorkerChatRun fetches run and chat from the server (GET /api/worker/chat-runs/{chat_run_id}). Returns nil, nil, nil if not found.
-func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID string) (*entity.ChatRun, *entity.Chat, error) {
-	pathSuffix := "/api/worker/chat-runs/" + chatRunID
+// GetWorkerTaskRun fetches run and task from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil, nil if not found.
+func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID string) (*entity.TaskRun, *entity.Chat, error) {
+	pathSuffix := "/api/worker/task-runs/" + chatRunID
 	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
 	if err != nil {
 		return nil, nil, err
@@ -76,27 +76,27 @@ func GetWorkerChatRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, nil, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
 	}
-	var got workerapi.GetChatRunResponse
+	var got workerapi.GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		return nil, nil, err
 	}
-	run := &entity.ChatRun{
-		ChatRunID: got.Run.ChatRunID,
+	run := &entity.TaskRun{
+		TaskRunID: got.Run.TaskRunID,
 		ChatID:    got.Run.ChatID,
 		Input:     got.Run.Input,
 		Status:    got.Run.Status,
 		CreatedAt: got.Run.CreatedAt,
 	}
 	chat := &entity.Chat{
-		ChatID:      got.Chat.ChatID,
-		WorkspaceID: got.Chat.WorkspaceID,
-		SessionID:   got.Chat.SessionID,
-		LastRunID:   got.Chat.LastRunID,
+		ChatID:      got.Task.ChatID,
+		WorkspaceID: got.Task.WorkspaceID,
+		SessionID:   got.Task.SessionID,
+		LastRunID:   got.Task.LastRunID,
 	}
 	return run, chat, nil
 }
 
-// WorkerHTTPUpdater implements ChatRunUpdater by calling the server's worker API (PATCH /api/worker/chat-runs/{chat_run_id}).
+// WorkerHTTPUpdater implements TaskRunUpdater by calling the server's worker API (PATCH /api/worker/task-runs/{task_run_id}).
 type WorkerHTTPUpdater struct {
 	BaseURL string
 	Token   string
@@ -104,23 +104,23 @@ type WorkerHTTPUpdater struct {
 }
 
 // UpdateRunStatus sends PATCH to the server to update run status and optional fields.
-func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchChatRunRequest) error {
+func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchTaskRunRequest) error {
 	if req == nil {
-		req = &workerapi.PatchChatRunRequest{}
+		req = &workerapi.PatchTaskRunRequest{}
 	}
 	raw, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
 	cfg := WorkerAPIClientConfig{BaseURL: u.BaseURL, Token: u.Token, Client: u.Client}
-	pathSuffix := "/api/worker/chat-runs/" + chatRunID
+	pathSuffix := "/api/worker/task-runs/" + chatRunID
 	resp, err := workerDo(ctx, cfg, http.MethodPatch, pathSuffix, raw)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusConflict {
-		return ErrChatRunAlreadyClaimed
+		return ErrTaskRunAlreadyClaimed
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("worker API PATCH %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
@@ -135,7 +135,7 @@ type WorkerHTTPStreamSender struct {
 	Client  *http.Client
 }
 
-// SendDelta POSTs the delta to POST /api/worker/chat-runs/{chat_run_id}/stream.
+// SendDelta POSTs the delta to POST /api/worker/task-runs/{task_run_id}/stream.
 func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta string) error {
 	if chatRunID == "" {
 		return nil
@@ -146,7 +146,7 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta
 		return err
 	}
 	cfg := WorkerAPIClientConfig{BaseURL: u.BaseURL, Token: u.Token, Client: u.Client}
-	pathSuffix := "/api/worker/chat-runs/" + chatRunID + "/stream"
+	pathSuffix := "/api/worker/task-runs/" + chatRunID + "/stream"
 	resp, err := workerDo(ctx, cfg, http.MethodPost, pathSuffix, raw)
 	if err != nil {
 		return err
@@ -176,10 +176,10 @@ type DebouncedStreamSender struct {
 	IntervalMs int // override default when > 0
 	MaxBytes   int // override default when > 0
 
-	mu              sync.Mutex
-	buf             strings.Builder
-	currentChatRunID string
-	timer           *time.Timer
+	mu               sync.Mutex
+	buf              strings.Builder
+	currentTaskRunID string
+	timer            *time.Timer
 }
 
 func (d *DebouncedStreamSender) SendDelta(ctx context.Context, chatRunID, delta string) error {
@@ -212,7 +212,7 @@ func (d *DebouncedStreamSender) sendOrFlush(ctx context.Context, chatRunID, delt
 		return nil
 	}
 	if d.buf.Len() == 0 {
-		d.currentChatRunID = chatRunID
+		d.currentTaskRunID = chatRunID
 	}
 	d.buf.WriteString(delta)
 
@@ -243,7 +243,7 @@ func (d *DebouncedStreamSender) flushLocked(ctx context.Context) {
 		return
 	}
 	payload := d.buf.String()
-	runID := d.currentChatRunID
+	runID := d.currentTaskRunID
 	d.buf.Reset()
 	d.mu.Unlock()
 	defer d.mu.Lock()

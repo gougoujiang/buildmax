@@ -6,20 +6,20 @@ import (
 	"testing"
 )
 
-func TestNewListChatsTool_nilRunner(t *testing.T) {
-	tool := NewListChatsTool("w_1", nil)
+func TestNewListTasksTool_nilRunner(t *testing.T) {
+	tool := NewListTasksTool("w_1", nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{})
 	if err == nil {
 		t.Fatal("Execute: expected error when runner is nil")
 	}
-	if err.Error() != "ListChats not configured" {
-		t.Errorf("Execute error = %q, want ListChats not configured", err.Error())
+	if err.Error() != "ListTasks not configured" {
+		t.Errorf("Execute error = %q, want ListTasks not configured", err.Error())
 	}
 }
 
-func TestNewListChatsTool_success(t *testing.T) {
-	tool := NewListChatsTool("w_1", ListChatsRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
+func TestNewListTasksTool_success(t *testing.T) {
+	tool := NewListTasksTool("w_1", ListTasksRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
 		if workspaceID != "w_1" {
 			return "", errors.New("wrong workspace")
 		}
@@ -35,8 +35,8 @@ func TestNewListChatsTool_success(t *testing.T) {
 	}
 }
 
-func TestNewListChatsTool_runnerError(t *testing.T) {
-	tool := NewListChatsTool("w_1", ListChatsRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
+func TestNewListTasksTool_runnerError(t *testing.T) {
+	tool := NewListTasksTool("w_1", ListTasksRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
 		return "", errors.New("db error")
 	}))
 	ctx := context.Background()
@@ -46,9 +46,9 @@ func TestNewListChatsTool_runnerError(t *testing.T) {
 	}
 }
 
-// ListChatsRunnerFunc adapts a function to ListChatsRunner.
-type ListChatsRunnerFunc func(ctx context.Context, workspaceID string) (string, error)
+// ListTasksRunnerFunc adapts a function to ListTasksRunner.
+type ListTasksRunnerFunc func(ctx context.Context, workspaceID string) (string, error)
 
-func (f ListChatsRunnerFunc) ListChats(ctx context.Context, workspaceID string) (string, error) {
+func (f ListTasksRunnerFunc) ListTasks(ctx context.Context, workspaceID string) (string, error) {
 	return f(ctx, workspaceID)
 }

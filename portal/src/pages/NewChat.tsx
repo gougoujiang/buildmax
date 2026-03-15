@@ -215,7 +215,7 @@ export function NewChat({
                       <span className="page-activity__content">
                         <span className="page-activity__task-title">{a.title}</span>
                         <span className="page-activity__meta">
-                          {a.timeLabel} · chat: {a.chatId} · artifact: {a.id}
+                          {a.timeLabel} · task: {a.chatId} · artifact: {a.id}
                         </span>
                       </span>
                       {onViewArtifact && (

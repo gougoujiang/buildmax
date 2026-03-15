@@ -1,5 +1,5 @@
 // Package testutil provides test-only helpers for use from _test.go files:
-// ptr helpers (e.g. PtrString), JWT (SignJWT), and in-memory mocks for entity stores and quota (MockUserStore, MockChatStore, etc.).
+// ptr helpers (e.g. PtrString), JWT (SignJWT), and in-memory mocks for entity stores and quota (MockUserStore, MockTaskStore, etc.).
 package testutil
 
 import (

@@ -1,6 +1,6 @@
 package entity
 
-// RunStatus is the canonical lifecycle status for chat runs.
+// RunStatus is the canonical lifecycle status for task runs.
 type RunStatus string
 
 const (
@@ -11,9 +11,9 @@ const (
 	RunStatusFailed    RunStatus = "FAILED"
 )
 
-// ClaimChatRunInput atomically transitions a run from ExpectedStatus to NewStatus.
-type ClaimChatRunInput struct {
-	ChatRunID      string
+// ClaimTaskRunInput atomically transitions a run from ExpectedStatus to NewStatus.
+type ClaimTaskRunInput struct {
+	TaskRunID      string
 	ExpectedStatus RunStatus
 	NewStatus      RunStatus
 	StartedAt      *int64
@@ -23,7 +23,7 @@ type ClaimChatRunInput struct {
 	SessionID      *string
 }
 
-// UpdateChatInput updates a chat to the given status with optional fields.
+// UpdateChatInput updates a task to the given status with optional fields.
 type UpdateChatInput struct {
 	ChatID       string
 	Status       string
@@ -34,7 +34,7 @@ type UpdateChatInput struct {
 	SessionID    *string
 }
 
-// ClaimChatInput atomically transitions a chat from ExpectedStatus to NewStatus.
+// ClaimChatInput atomically transitions a task from ExpectedStatus to NewStatus.
 type ClaimChatInput struct {
 	ChatID         string
 	ExpectedStatus string
@@ -46,9 +46,9 @@ type ClaimChatInput struct {
 	SessionID      *string
 }
 
-// UpdateChatRunInput updates a run to the given status with optional fields.
-type UpdateChatRunInput struct {
-	ChatRunID        string
+// UpdateTaskRunInput updates a run to the given status with optional fields.
+type UpdateTaskRunInput struct {
+	TaskRunID        string
 	Status           RunStatus
 	StartedAt        *int64
 	EndedAt          *int64

@@ -210,10 +210,10 @@
         }
       }
     },
-    "/api/workspaces/{workspace_id}/chats": {
+    "/api/workspaces/{workspace_id}/tasks": {
       "get": {
-        "summary": "List chats",
-        "description": "Returns chats in the workspace. Caller must own the workspace. Requires Bearer JWT.",
+        "summary": "List tasks",
+        "description": "Returns tasks in the workspace. Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -253,7 +253,7 @@
       },
       "post": {
         "summary": "Create chat",
-        "description": "Creates a chat in the workspace. Caller must own the workspace. Requires Bearer JWT. When agent_id is provided, input is optional and the stored input is composed from the agent (name, description, instructions); when agent_id is absent, input is required.",
+        "description": "Creates a task in the workspace. Caller must own the workspace. Requires Bearer JWT. When agent_id is provided, input is optional and the stored input is composed from the agent (name, description, instructions); when agent_id is absent, input is required.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -307,11 +307,11 @@
     "/api/workspaces/{workspace_id}/artifacts": {
       "get": {
         "summary": "List artifacts",
-        "description": "Returns artifacts in the workspace. Optional query param chat_id filters results. Caller must own the workspace. Requires Bearer JWT.",
+        "description": "Returns artifacts in the workspace. Optional query param task_id filters results. Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter by chat" }
+          { "name": "task_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter by task" }
         ],
         "responses": {
           "200": {
@@ -323,11 +323,11 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "chat_run_id": { "type": "string" },
-                      "chat_id": { "type": "string" },
+                      "task_run_id": { "type": "string" },
+                      "task_id": { "type": "string" },
                       "workspace_id": { "type": "string" },
                       "created_at": { "type": "integer" },
-                      "chat_input_snippet": { "type": "string" }
+                      "task_input_snippet": { "type": "string" }
                     }
                   }
                 }
@@ -339,14 +339,14 @@
         }
       }
     },
-    "/api/workspaces/{workspace_id}/artifacts/{chat_run_id}/items": {
+    "/api/workspaces/{workspace_id}/artifacts/{task_run_id}/items": {
       "get": {
         "summary": "List run output items",
-        "description": "Returns the list of output files for a chat run. Caller must own the workspace. Requires Bearer JWT.",
+        "description": "Returns the list of output files for a task run. Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id (run output id)" }
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id (run output id)" }
         ],
         "responses": {
           "200": {
@@ -365,21 +365,21 @@
               }
             }
           },
-          "400": { "description": "chat_run_id required" },
+          "400": { "description": "task_run_id required" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
           "404": { "description": "Run output not found" }
         }
       }
     },
-    "/api/workspaces/{workspace_id}/artifacts/{chat_run_id}/content": {
+    "/api/workspaces/{workspace_id}/artifacts/{task_run_id}/content": {
       "get": {
         "summary": "Get run output content",
-        "description": "Returns raw file content for a chat run output. Optional query param path (default result.md). Caller must own the workspace. Requires Bearer JWT.",
+        "description": "Returns raw file content for a task run output. Optional query param path (default result.md). Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id (run output id)" },
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Chat run id (run output id)" },
           { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "File path relative to run output (default result.md)" }
         ],
         "responses": {
@@ -493,14 +493,14 @@
         }
       }
     },
-    "/api/workspaces/{workspace_id}/chats/{chat_id}/runs": {
+    "/api/workspaces/{workspace_id}/tasks/{task_id}/runs": {
       "post": {
-        "summary": "Create chat run",
-        "description": "Starts a run for the chat. Returns chat_run_id and chat_id. Caller must own the workspace. Requires Bearer JWT.",
+        "summary": "Create task run",
+        "description": "Starts a run for the task. Returns task_run_id and task_id. Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
           "content": {
@@ -523,31 +523,31 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "chat_run_id": { "type": "string" },
-                    "chat_id": { "type": "string" }
+                    "task_run_id": { "type": "string" },
+                    "task_id": { "type": "string" }
                   }
                 }
               }
             }
           },
-          "400": { "description": "Bad request (input or chat_id missing)" },
+          "400": { "description": "Bad request (input or task_id missing)" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
-          "404": { "description": "Chat not found" },
+          "404": { "description": "Task not found" },
           "409": { "description": "A run is already in progress for this chat" },
           "429": { "description": "Quota exceeded (run or token limit)" },
           "503": { "description": "Chats not configured" }
         }
       }
     },
-    "/api/workspaces/{workspace_id}/chats/{chat_id}/stream": {
+    "/api/workspaces/{workspace_id}/tasks/{task_id}/stream": {
       "get": {
-        "summary": "Stream chat output",
+        "summary": "Stream task output",
         "description": "Server-Sent Events stream of the chat's current run assistant output (user-facing; no run_id). Returns existing buffer (if any), then live deltas, then a \"done\" event when the run completes. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -556,22 +556,22 @@
               "text/event-stream": { "schema": { "type": "string" } }
             }
           },
-          "400": { "description": "chat_id required" },
+          "400": { "description": "task_id required" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
-          "404": { "description": "Chat not found" },
+          "404": { "description": "Task not found" },
           "503": { "description": "Stream not available" }
         }
       }
     },
-    "/api/workspaces/{workspace_id}/chats/{chat_id}/conversation": {
+    "/api/workspaces/{workspace_id}/tasks/{task_id}/conversation": {
       "get": {
-        "summary": "Get chat conversation",
+        "summary": "Get task conversation",
         "description": "Returns the agent conversation for the chat. Session is an implementation detail; the chat stores session_id when run. Caller must own the workspace. Requires Bearer JWT.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "chat_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -601,10 +601,10 @@
               }
             }
           },
-          "400": { "description": "chat_id required" },
+          "400": { "description": "task_id required" },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" },
-          "404": { "description": "Chat or conversation not found" }
+          "404": { "description": "Task or conversation not found" }
         }
       }
     },
@@ -963,13 +963,13 @@
         }
       }
     },
-    "/api/worker/chat-runs/{chat_run_id}": {
+    "/api/worker/task-runs/{task_run_id}": {
       "get": {
-        "summary": "Get chat run (worker)",
-        "description": "Returns the chat run and chat for the worker. Requires worker Bearer token (BUILDMAX_WORKER_TOKEN).",
+        "summary": "Get task run (worker)",
+        "description": "Returns the task run and task for the worker. Requires worker Bearer token (BUILDMAX_WORKER_TOKEN).",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -982,17 +982,17 @@
                     "run": {
                       "type": "object",
                       "properties": {
-                        "chat_run_id": { "type": "string" },
-                        "chat_id": { "type": "string" },
+                        "task_run_id": { "type": "string" },
+                        "task_id": { "type": "string" },
                         "input": { "type": "string" },
                         "status": { "type": "string" },
                         "created_at": { "type": "integer" }
                       }
                     },
-                    "chat": {
+                    "task": {
                       "type": "object",
                       "properties": {
-                        "chat_id": { "type": "string" },
+                        "task_id": { "type": "string" },
                         "workspace_id": { "type": "string" },
                         "session_id": { "type": "string", "nullable": true },
                         "last_run_id": { "type": "string", "nullable": true }
@@ -1003,18 +1003,18 @@
               }
             }
           },
-          "400": { "description": "chat_run_id required" },
+          "400": { "description": "task_run_id required" },
           "401": { "description": "Unauthorized" },
           "404": { "description": "Run not found" },
-          "503": { "description": "Chat runs not configured" }
+          "503": { "description": "Task runs not configured" }
         }
       },
       "patch": {
-        "summary": "Update chat run (worker)",
-        "description": "Updates run status; on SUCCEEDED with artifact reports output files; on FAILED syncs chat from run. Requires worker Bearer token.",
+        "summary": "Update task run (worker)",
+        "description": "Updates run status; on SUCCEEDED with artifact reports output files; on FAILED syncs task from run. Requires worker Bearer token.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
           "content": {
@@ -1063,13 +1063,13 @@
         }
       }
     },
-    "/api/worker/chat-runs/{chat_run_id}/stream": {
+    "/api/worker/task-runs/{task_run_id}/stream": {
       "post": {
         "summary": "Append stream delta (worker)",
         "description": "Appends a text delta to the run's stream buffer. Used by the worker to push assistant output. Requires worker Bearer token.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
-          { "name": "chat_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
           "content": {
@@ -1095,7 +1095,7 @@
               }
             }
           },
-          "400": { "description": "chat_run_id required or invalid JSON" },
+          "400": { "description": "task_run_id required or invalid JSON" },
           "401": { "description": "Unauthorized" },
           "503": { "description": "Stream hub not configured" }
         }

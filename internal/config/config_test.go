@@ -465,7 +465,7 @@ func TestRuntimeWorkspaceDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := RuntimeWorkspaceDir("ws-1", "chat-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456")
 	if got != want {
 		t.Errorf("RuntimeWorkspaceDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
 	}
@@ -475,7 +475,7 @@ func TestRuntimeChatBuildmaxDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := RuntimeChatBuildmaxDir("ws-1", "chat-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "buildmax")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "buildmax")
 	if got != want {
 		t.Errorf("RuntimeChatBuildmaxDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
 	}
@@ -485,39 +485,39 @@ func TestRuntimeChatWSDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
 	got := RuntimeChatWSDir("ws-1", "chat-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "ws")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "ws")
 	if got != want {
 		t.Errorf("RuntimeChatWSDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
 	}
 }
 
-func TestRuntimeChatRunHomeDir(t *testing.T) {
+func TestRuntimeTaskRunHomeDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeChatRunHomeDir("ws-1", "chat-456", "run-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "run-789", "home")
+	got := RuntimeTaskRunHomeDir("ws-1", "chat-456", "run-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "run-789", "home")
 	if got != want {
-		t.Errorf("RuntimeChatRunHomeDir(...) = %q, want %q", got, want)
+		t.Errorf("RuntimeTaskRunHomeDir(...) = %q, want %q", got, want)
 	}
 }
 
-func TestRuntimeChatRunArtifactsDir(t *testing.T) {
+func TestRuntimeTaskRunArtifactsDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeChatRunArtifactsDir("ws-1", "chat-456", "run-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "run-789", "artifacts")
+	got := RuntimeTaskRunArtifactsDir("ws-1", "chat-456", "run-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "run-789", "artifacts")
 	if got != want {
-		t.Errorf("RuntimeChatRunArtifactsDir(...) = %q, want %q", got, want)
+		t.Errorf("RuntimeTaskRunArtifactsDir(...) = %q, want %q", got, want)
 	}
 }
 
-func TestRuntimeChatRunGlobalDir(t *testing.T) {
+func TestRuntimeTaskRunGlobalDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeChatRunGlobalDir("ws-1", "chat-456", "run-789")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "chats", "chat-456", "run-789", "global")
+	got := RuntimeTaskRunGlobalDir("ws-1", "chat-456", "run-789")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "run-789", "global")
 	if got != want {
-		t.Errorf("RuntimeChatRunGlobalDir(...) = %q, want %q", got, want)
+		t.Errorf("RuntimeTaskRunGlobalDir(...) = %q, want %q", got, want)
 	}
 }
 
@@ -533,11 +533,11 @@ func TestRunOutputDir(t *testing.T) {
 
 func TestResolveServerPort(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		portFromFlag int
-		env         string // BUILDMAX_SERVER_PORT, empty means unset
-		wantPort    int
-		wantErr     bool
+		env          string // BUILDMAX_SERVER_PORT, empty means unset
+		wantPort     int
+		wantErr      bool
 	}{
 		{"flag overrides env", 9999, "8888", 9999, false},
 		{"env when flag zero", 0, "8888", 8888, false},

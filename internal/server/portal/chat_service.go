@@ -28,8 +28,8 @@ func (h *Handler) chatService() *chatapp.Service {
 	}
 	return &chatapp.Service{
 		Agents:         h.cfg.AgentStore,
-		Chats:          h.cfg.ChatStore,
-		ChatRuns:       h.cfg.ChatRunStore,
+		Chats:          h.cfg.TaskStore,
+		TaskRuns:       h.cfg.TaskRunStore,
 		QuotaChecker:   quotaChecker,
 		TitleGenerator: chatTitleGeneratorAdapter{gen: h.cfg.ChatTitleGenerator},
 	}
@@ -44,16 +44,16 @@ func (h *Handler) writeChatServiceError(w http.ResponseWriter, r *http.Request, 
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
 		return true
 	case errors.Is(err, chatapp.ErrChatsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chats not configured")
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
 		return true
-	case errors.Is(err, chatapp.ErrChatRunsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "chat runs not configured")
+	case errors.Is(err, chatapp.ErrTaskRunsNotConfigured):
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return true
 	case errors.Is(err, chatapp.ErrAgentNotFound):
 		if agentID != nil && *agentID != "" {
 			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found or not in workspace")
 		} else {
-			httputil.WriteJSONError(w, http.StatusNotFound, "chat not found")
+			httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		}
 		return true
 	}

@@ -1,4 +1,4 @@
-// ContinueChat is a Tier 1 conversation tool that adds a follow-up run to an existing chat.
+// ContinueTask is a Tier 1 conversation tool that adds a follow-up run to an existing task.
 package tools
 
 import (
@@ -8,61 +8,61 @@ import (
 	"buildmax/internal/core"
 )
 
-// ContinueChatRunner is the interface used by the ContinueChat tool. Callers implement this
-// using ChatService.CreateRun; must verify chat belongs to workspace before creating run.
-type ContinueChatRunner interface {
-	ContinueChat(ctx context.Context, workspaceID, userID, chatID, input string) (runID string, err error)
+// ContinueTaskRunner is the interface used by the ContinueTask tool. Callers implement this
+// using TaskService.CreateRun; must verify task belongs to workspace before creating run.
+type ContinueTaskRunner interface {
+	ContinueTask(ctx context.Context, workspaceID, userID, taskID, input string) (runID string, err error)
 }
 
-type continueChatTool struct {
+type continueTaskTool struct {
 	workspaceID string
 	userID      string
-	runner      ContinueChatRunner
+	runner      ContinueTaskRunner
 }
 
-func (t *continueChatTool) Name() string { return ToolNameContinueChat }
+func (t *continueTaskTool) Name() string { return ToolNameContinueTask }
 
-func (t *continueChatTool) Description() string {
-	return "Continue an existing chat with a follow-up message. Use this when the user wants to add to a chat, try again with different input, or follow up on a previous result (e.g. 'add this to chat c_xyz', 'run again with ...'). Creates a new run for that chat. Tell the user the chat_id and run_id when done. Fails if the chat is not in the current workspace."
+func (t *continueTaskTool) Description() string {
+	return "Continue an existing task with a follow-up message. Use this when the user wants to add to a task, try again with different input, or follow up on a previous result. Creates a new run for that task. Tell the user the task_id and run_id when done. Fails if the task is not in the current workspace."
 }
 
-func (t *continueChatTool) Parameters() any {
+func (t *continueTaskTool) Parameters() any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"chat_id": map[string]any{
+			"task_id": map[string]any{
 				"type":        "string",
-				"description": "The chat id to continue (required).",
+				"description": "The task id to continue (required).",
 			},
 			"input": map[string]any{
 				"type":        "string",
 				"description": "The follow-up message or instruction (required).",
 			},
 		},
-		"required": []any{"chat_id", "input"},
+		"required": []any{"task_id", "input"},
 	}
 }
 
-func (t *continueChatTool) Execute(ctx context.Context, args map[string]any) (string, error) {
+func (t *continueTaskTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	if t.runner == nil {
-		return "", fmt.Errorf("%s not configured", ToolNameContinueChat)
+		return "", fmt.Errorf("%s not configured", ToolNameContinueTask)
 	}
-	chatID, _ := args["chat_id"].(string)
-	if chatID == "" {
-		return "", fmt.Errorf("chat_id is required")
+	taskID, _ := args["task_id"].(string)
+	if taskID == "" {
+		return "", fmt.Errorf("task_id is required")
 	}
 	inputVal, _ := args["input"].(string)
 	if inputVal == "" {
 		return "", fmt.Errorf("input is required")
 	}
-	runID, err := t.runner.ContinueChat(ctx, t.workspaceID, t.userID, chatID, inputVal)
+	runID, err := t.runner.ContinueTask(ctx, t.workspaceID, t.userID, taskID, inputVal)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Follow-up scheduled. chat_id: %s, run_id: %s. The new run will execute in the background; the user can check progress in Activity or chat detail.", chatID, runID), nil
+	return fmt.Sprintf("Follow-up scheduled. task_id: %s, run_id: %s. The new run will execute in the background; the user can check progress in Activity or task detail.", taskID, runID), nil
 }
 
-// NewContinueChatTool returns a core.Tool that continues a chat with a follow-up. If runner is nil, Execute returns "not configured".
-func NewContinueChatTool(workspaceID, userID string, runner ContinueChatRunner) core.Tool {
-	return &continueChatTool{workspaceID: workspaceID, userID: userID, runner: runner}
+// NewContinueTaskTool returns a core.Tool that continues a task with a follow-up. If runner is nil, Execute returns "not configured".
+func NewContinueTaskTool(workspaceID, userID string, runner ContinueTaskRunner) core.Tool {
+	return &continueTaskTool{workspaceID: workspaceID, userID: userID, runner: runner}
 }

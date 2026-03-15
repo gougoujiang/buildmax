@@ -9,12 +9,12 @@ Accurate user/workspace metering for billing: every LLM call (including title ge
 
 | LLM call            | Attributed to     | Storage                                                                |
 | ------------------- | ----------------- | ---------------------------------------------------------------------- |
-| Main agent run      | ChatRun / Session | Existing: `chat_run.prompt_tokens` / `completion_tokens`, session file |
+| Main agent run      | TaskRun / Session | Existing: `task_run.prompt_tokens` / `completion_tokens`, session file |
 | Session title (CLI) | Session           | Session file via `AddUsage` after title gen                            |
 | Chat title (server) | Chat              | `chat.title_prompt_tokens`, `chat.title_completion_tokens`             |
 
 
-Billing can sum: run usage (per chat_run) + chat title usage (per chat) + session usage (CLI session files).
+Billing can sum: run usage (per task_run) + chat title usage (per chat) + session usage (CLI session files).
 
 ## Changes (implemented)
 

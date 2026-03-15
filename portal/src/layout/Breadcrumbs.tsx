@@ -11,7 +11,7 @@ export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsP
   let crumbs: { label: string; route: Route }[] = []
 
   if (route.name === "newChat") {
-    crumbs = [{ label: "New Chat", route: { name: "newChat", workspaceId } }]
+    crumbs = [{ label: "New Conversation", route: { name: "newChat", workspaceId } }]
   } else if (route.name === "chats") {
     crumbs = [{ label: "Conversations", route: { name: "chats", workspaceId } }]
   } else if (route.name === "explore") {
@@ -22,13 +22,13 @@ export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsP
     const conv = workspaceConversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
-      { label: "Chats", route: { name: "chats", workspaceId } },
+      { label: "Conversations", route: { name: "chats", workspaceId } },
       { label: convLabel, route },
     ]
   } else if (route.name === "chat") {
     crumbs = [
       { label: "Conversations", route: { name: "chats", workspaceId } },
-      { label: "Chat", route },
+      { label: "Task", route },
     ]
   } else {
     crumbs = [{ label: "Home", route: { name: "workspace", workspaceId } }]

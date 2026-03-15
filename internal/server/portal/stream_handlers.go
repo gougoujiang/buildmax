@@ -14,9 +14,9 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	chatID := r.PathValue("chat_id")
+	chatID := r.PathValue("task_id")
 	if chatID == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "chat_id required")
+		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
 	_, ok = h.getChatForWorkspace(w, r, workspaceID, chatID)

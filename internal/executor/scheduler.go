@@ -1,4 +1,4 @@
-// Scheduler polls for pending chat runs and runs the worker via a WorkerRunner (local process or k8s Job).
+// Scheduler polls for pending task runs and runs the worker via a WorkerRunner (local process or k8s Job).
 // It does not perform run execution; the worker process calls executor.RunTask.
 package executor
 
@@ -16,22 +16,22 @@ const (
 	maxErrorMessageLength = 500
 )
 
-// Scheduler polls the chat run store for PENDING runs and runs the worker via the configured runner.
+// Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	chatRuns     entity.ChatRunStore
+	chatRuns     entity.TaskRunStore
 	runner       WorkerRunner
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 }
 
-// NewScheduler creates a Scheduler that polls for pending chat runs and runs the worker via the given runner. Call Start() to begin polling.
-func NewScheduler(chatRunStore entity.ChatRunStore, runner WorkerRunner) (*Scheduler, error) {
+// NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
+func NewScheduler(chatRunStore entity.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
 	return NewSchedulerWithPollInterval(chatRunStore, runner, defaultPollInterval)
 }
 
 // NewSchedulerWithPollInterval is like NewScheduler but allows setting the poll interval (e.g. for tests). Use 0 for default.
-func NewSchedulerWithPollInterval(chatRunStore entity.ChatRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
+func NewSchedulerWithPollInterval(chatRunStore entity.TaskRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
 	if chatRunStore == nil {
 		return nil, errors.New("executor: chatRunStore must not be nil")
 	}
@@ -76,7 +76,7 @@ func (s *Scheduler) loop() {
 			return
 		case <-ticker.C:
 			ctx := context.Background()
-			run, err := s.chatRuns.GetNextPendingChatRun(ctx)
+			run, err := s.chatRuns.GetNextPendingTaskRun(ctx)
 			if err != nil {
 				slog.Warn("scheduler: poll failed", "err", err)
 				continue
@@ -84,13 +84,13 @@ func (s *Scheduler) loop() {
 			if run == nil {
 				continue
 			}
-			updated, err := s.chatRuns.ClaimChatRun(ctx, entity.ClaimChatRunInput{
-				ChatRunID:      run.ChatRunID,
+			updated, err := s.chatRuns.ClaimTaskRun(ctx, entity.ClaimTaskRunInput{
+				TaskRunID:      run.TaskRunID,
 				ExpectedStatus: entity.RunStatusPending,
 				NewStatus:      entity.RunStatusScheduled,
 			})
 			if err != nil {
-				slog.Warn("scheduler: claim failed", "chat_run_id", run.ChatRunID, "err", err)
+				slog.Warn("scheduler: claim failed", "task_run_id", run.TaskRunID, "err", err)
 				continue
 			}
 			if !updated {
@@ -98,28 +98,28 @@ func (s *Scheduler) loop() {
 			}
 			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run)
 			if err != nil {
-				slog.Warn("scheduler: worker spawn failed, marking run as FAILED", "chat_run_id", run.ChatRunID, "err", err)
+				slog.Warn("scheduler: worker spawn failed, marking run as FAILED", "task_run_id", run.TaskRunID, "err", err)
 				errorMsg := err.Error()
 				if len(errorMsg) > maxErrorMessageLength {
 					errorMsg = errorMsg[:maxErrorMessageLength]
 				}
 				endedAt := time.Now().Unix()
-				if updateErr := s.chatRuns.UpdateRun(ctx, entity.UpdateChatRunInput{
-					ChatRunID:    run.ChatRunID,
+				if updateErr := s.chatRuns.UpdateRun(ctx, entity.UpdateTaskRunInput{
+					TaskRunID:    run.TaskRunID,
 					Status:       entity.RunStatusFailed,
 					EndedAt:      &endedAt,
 					ErrorMessage: &errorMsg,
 				}); updateErr != nil {
-					slog.Error("scheduler: failed to set run to FAILED", "chat_run_id", run.ChatRunID, "err", updateErr)
+					slog.Error("scheduler: failed to set run to FAILED", "task_run_id", run.TaskRunID, "err", updateErr)
 					continue
 				}
-				if syncErr := s.chatRuns.SyncChatFromRun(ctx, run.ChatRunID); syncErr != nil {
-					slog.Warn("scheduler: failed to sync chat from run", "chat_run_id", run.ChatRunID, "err", syncErr)
+				if syncErr := s.chatRuns.SyncTaskFromRun(ctx, run.TaskRunID); syncErr != nil {
+					slog.Warn("scheduler: failed to sync chat from run", "task_run_id", run.TaskRunID, "err", syncErr)
 				}
 				continue
 			}
-			if err := s.chatRuns.UpdateChatRunWorkerInfo(ctx, run.ChatRunID, workerType, k8sName, k8sAt); err != nil {
-				slog.Warn("scheduler: failed to persist worker info", "chat_run_id", run.ChatRunID, "err", err)
+			if err := s.chatRuns.UpdateTaskRunWorkerInfo(ctx, run.TaskRunID, workerType, k8sName, k8sAt); err != nil {
+				slog.Warn("scheduler: failed to persist worker info", "task_run_id", run.TaskRunID, "err", err)
 			}
 		}
 	}

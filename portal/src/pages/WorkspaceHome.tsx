@@ -23,7 +23,7 @@ export function WorkspaceHome({
       <section className="page-workspace__chats">
         <h2 className="page-workspace__heading">Recent conversations</h2>
         {recentConversations.length === 0 ? (
-          <p className="page-workspace__empty">No conversations yet. Use New Chat in the sidebar to start one.</p>
+          <p className="page-workspace__empty">No conversations yet. Use New Conversation in the sidebar to start one.</p>
         ) : (
           <ul className="page-workspace__list">
             {recentConversations.map((conv) => (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { getErrorMessage } from "../../../lib/errorMessage"
 import { useFetch } from "../../../hooks/useFetch"
 import {
-  createChatRun,
+  createTaskRun,
   getChatConversation,
   subscribeChatStream,
 } from "../api"
@@ -111,7 +111,7 @@ export function useChatDetail({
     setLastSentMessage(input)
     setFollowUpInput("")
     try {
-      await createChatRun(workspaceId, chatId, { input }, token)
+      await createTaskRun(workspaceId, chatId, { input }, token)
     } catch (err) {
       setFollowUpError(getErrorMessage(err, "Failed to start run"))
       setFollowUpLoading(false)

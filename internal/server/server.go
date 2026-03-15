@@ -45,7 +45,7 @@ type TokenUsage struct {
 // RunOutputLister lists run outputs (artifacts) by workspace and gets output files for a run.
 type RunOutputLister interface {
 	ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error)
-	GetChatRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.ChatRunArtifact, error)
+	GetTaskRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.TaskRunArtifact, error)
 }
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
@@ -61,8 +61,8 @@ type StoresConfig struct {
 	UserStore              entity.UserStore
 	WorkspaceStore         entity.WorkspaceStore
 	AgentStore             entity.AgentStore
-	ChatStore              entity.ChatStore
-	ChatRunStore           entity.ChatRunStore
+	TaskStore              entity.TaskStore
+	TaskRunStore           entity.TaskRunStore
 	RunOutputLister        RunOutputLister
 	WorkspaceWebhookKeyStore entity.WorkspaceWebhookKeyStore
 }
@@ -128,8 +128,8 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 		JWTSecret:                cfg.Auth.JWTSecret,
 		WorkspaceStore:           cfg.Stores.WorkspaceStore,
 		AgentStore:               cfg.Stores.AgentStore,
-		ChatStore:                cfg.Stores.ChatStore,
-		ChatRunStore:             cfg.Stores.ChatRunStore,
+		TaskStore:                cfg.Stores.TaskStore,
+		TaskRunStore:             cfg.Stores.TaskRunStore,
 		RunOutputLister:          cfg.Stores.RunOutputLister,
 		PersistStorage:           cfg.Storage.PersistStorage,
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
@@ -161,7 +161,7 @@ func New(cfg Config) *Server {
 	portal.NewHandler(buildPortalConfig(cfg, s.hub)).Register(mux)
 	worker.NewHandler(worker.Config{
 		Token:        cfg.Worker.WorkerToken,
-		ChatRunStore: cfg.Stores.ChatRunStore,
+		TaskRunStore: cfg.Stores.TaskRunStore,
 		Hub:          s.hub,
 	}).Register(mux)
 	if cfg.Stores.WorkspaceWebhookKeyStore != nil {
@@ -175,8 +175,8 @@ func New(cfg Config) *Server {
 		}
 		chatSvc := &chatapp.Service{
 			Agents:         cfg.Stores.AgentStore,
-			Chats:          cfg.Stores.ChatStore,
-			ChatRuns:       cfg.Stores.ChatRunStore,
+			Chats:          cfg.Stores.TaskStore,
+			TaskRuns:       cfg.Stores.TaskRunStore,
 			QuotaChecker:   cfg.Auth.QuotaChecker,
 			TitleGenerator: nil,
 		}

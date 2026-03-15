@@ -24,7 +24,7 @@ type ChatTitleGenerator interface {
 // RunOutputLister lists run outputs by workspace and gets output files for a run.
 type RunOutputLister interface {
 	ListRunOutputsByWorkspace(ctx context.Context, workspaceID string, chatID *string) ([]entity.ArtifactWithChat, error)
-	GetChatRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.ChatRunArtifact, error)
+	GetTaskRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.TaskRunArtifact, error)
 }
 
 // Config holds dependencies for authenticated portal endpoints.
@@ -32,8 +32,8 @@ type Config struct {
 	JWTSecret                string
 	WorkspaceStore           entity.WorkspaceStore
 	AgentStore               entity.AgentStore
-	ChatStore                entity.ChatStore
-	ChatRunStore             entity.ChatRunStore
+	TaskStore                entity.TaskStore
+	TaskRunStore             entity.TaskRunStore
 	RunOutputLister          RunOutputLister
 	PersistStorage           blob.PersistStorage
 	ArtifactStorage          blob.ArtifactStorage

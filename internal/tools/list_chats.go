@@ -1,4 +1,4 @@
-// ListChats is a Tier 1 conversation tool that lists recent chats in the workspace.
+// ListTasks is a Tier 1 conversation tool that lists recent tasks in the workspace.
 package tools
 
 import (
@@ -8,24 +8,24 @@ import (
 	"buildmax/internal/core"
 )
 
-// ListChatsRunner is the interface used by the ListChats tool. Callers implement this
-// using ChatStore; the conversation layer passes the runner when building tools.
-type ListChatsRunner interface {
-	ListChats(ctx context.Context, workspaceID string) (summary string, err error)
+// ListTasksRunner is the interface used by the ListTasks tool. Callers implement this
+// using TaskStore; the conversation layer passes the runner when building tools.
+type ListTasksRunner interface {
+	ListTasks(ctx context.Context, workspaceID string) (summary string, err error)
 }
 
-type listChatsTool struct {
+type listTasksTool struct {
 	workspaceID string
-	runner      ListChatsRunner
+	runner      ListTasksRunner
 }
 
-func (t *listChatsTool) Name() string { return ToolNameListChats }
+func (t *listTasksTool) Name() string { return ToolNameListTasks }
 
-func (t *listChatsTool) Description() string {
-	return "List recent chats in the current workspace (at most 10, most recent first). Use this when the user asks what chats they have, what background tasks exist, or to see recent activity. Returns chat_id, title/snippet, status, created_at per chat."
+func (t *listTasksTool) Description() string {
+	return "List recent tasks in the current workspace (at most 10, most recent first). Use this when the user asks what tasks they have, what background tasks exist, or to see recent activity. Returns task_id, title/snippet, status, created_at per task."
 }
 
-func (t *listChatsTool) Parameters() any {
+func (t *listTasksTool) Parameters() any {
 	return map[string]any{
 		"type":       "object",
 		"properties": map[string]any{},
@@ -33,18 +33,18 @@ func (t *listChatsTool) Parameters() any {
 	}
 }
 
-func (t *listChatsTool) Execute(ctx context.Context, args map[string]any) (string, error) {
+func (t *listTasksTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	if t.runner == nil {
-		return "", fmt.Errorf("%s not configured", ToolNameListChats)
+		return "", fmt.Errorf("%s not configured", ToolNameListTasks)
 	}
-	summary, err := t.runner.ListChats(ctx, t.workspaceID)
+	summary, err := t.runner.ListTasks(ctx, t.workspaceID)
 	if err != nil {
 		return "", err
 	}
 	return summary, nil
 }
 
-// NewListChatsTool returns a core.Tool that lists recent chats. If runner is nil, Execute returns "not configured".
-func NewListChatsTool(workspaceID string, runner ListChatsRunner) core.Tool {
-	return &listChatsTool{workspaceID: workspaceID, runner: runner}
+// NewListTasksTool returns a core.Tool that lists recent tasks. If runner is nil, Execute returns "not configured".
+func NewListTasksTool(workspaceID string, runner ListTasksRunner) core.Tool {
+	return &listTasksTool{workspaceID: workspaceID, runner: runner}
 }

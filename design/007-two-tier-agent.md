@@ -12,7 +12,7 @@ BuildMax introduces a **two-tier agent architecture** so that all external inter
 | Tier | Role | Scope |
 |------|------|--------|
 | **Tier 1** | Conversation / gateway | External conversations: portal chat, cron, webhook, instant messaging (e.g. Telegram) |
-| **Tier 2** | Task execution | Current chat/chat_run model; invoked by Tier 1 when work is needed |
+| **Tier 2** | Task execution | Current chat/task_run model; invoked by Tier 1 when work is needed |
 
 **Goals:**
 
@@ -56,23 +56,23 @@ Making Tier 1 an LLM call for cron/webhook would add cost and latency with littl
 
 ## 3. Tier 2: Task Execution
 
-Tier 2 is the **current chat/chat_run model**, used as the task execution level:
+Tier 2 is the **current chat/task_run model**, used as the task execution level:
 
 - **Chat** (evolved) = conversation container; can hold Tier 1 conversation state.
-- **ChatRun** = one task execution: PENDING → SCHEDULED → RUNNING → SUCCEEDED | FAILED.
+- **TaskRun** = one task execution: PENDING → SCHEDULED → RUNNING → SUCCEEDED | FAILED.
 - Scheduler picks PENDING runs → spawns worker → worker runs `buildmax -p` (agent loop with tools, workspace, artifacts).
 
 No change to the execution pipeline; Tier 1 *invokes* Tier 2 by creating/updating chats and runs.
 
 ### 3.1 Relationship to `internal/agent`
 
-The **`internal/agent`** package was originally developed for the BuildMax CLI/TUI and is also used as the **agent engine** when the worker handles chat runs (Tier 2). We can reuse its key mechanism (LLM loop, tool calling) when implementing a Tier 1 **conversation manager**, but the two usages must be kept distinct:
+The **`internal/agent`** package was originally developed for the BuildMax CLI/TUI and is also used as the **agent engine** when the worker handles task runs (Tier 2). We can reuse its key mechanism (LLM loop, tool calling) when implementing a Tier 1 **conversation manager**, but the two usages must be kept distinct:
 
 | Aspect | Tier 2 (current agent) | Tier 1 (conversation manager) |
 |--------|------------------------|------------------------------|
-| **Tools** | Workspace-oriented: read_file, writefile, editfile, bash, glob, grep, etc. | Different set: no direct workspace file access; e.g. delegate to Tier 2 (create chat run), maybe lightweight tools (reply, ask_clarification). |
+| **Tools** | Workspace-oriented: read_file, writefile, editfile, bash, glob, grep, etc. | Different set: no direct workspace file access; e.g. delegate to Tier 2 (create task run), maybe lightweight tools (reply, ask_clarification). |
 | **System prompt** | Task execution: “help with software engineering tasks”, use tools, follow conventions, etc. | Conversation: understand intent, clarify, decide when to spawn a task; do not perform workspace work. |
-| **Workspace** | Heavy use: CWD = run dir, tools operate on workspace files, AGENTS.md, artifacts. | **No heavy reliance.** Tier 1 does not operate on the workspace directly. All workspace-related work is achieved by **creating chat/chat runs** and letting Tier 2 execute. |
+| **Workspace** | Heavy use: CWD = run dir, tools operate on workspace files, AGENTS.md, artifacts. | **No heavy reliance.** Tier 1 does not operate on the workspace directly. All workspace-related work is achieved by **creating chat/task runs** and letting Tier 2 execute. |
 
 **Implication:** When adding an LLM-based Tier 1 engine (Phase 3), either use a separate agent instance with a different system prompt and tool list, or factor `internal/agent` so that system prompt, tools, and workspace binding are configurable — and Tier 1 is configured with conversation-oriented prompt and tools (e.g. “spawn_task” instead of read_file/writefile). Tier 1 must not be given the same workspace-scoped tools as Tier 2.
 
@@ -101,7 +101,7 @@ The **`internal/agent`** package was originally developed for the BuildMax CLI/T
                     │         Tier 2              │
                     │   "Task Execution"           │
                     │                              │
-                    │  ChatRun → Scheduler → Worker│
+                    │  TaskRun → Scheduler → Worker│
                     │  → Agent loop (tools, LLM)  │
                     │  → Artifacts                 │
                     └─────────────────────────────┘
@@ -145,7 +145,7 @@ Decides what to do with a turn: respond only, or spawn Tier 2 task(s).
 // ConversationResult is what Tier 1 returns after processing a turn.
 type ConversationResult struct {
     Reply   string   // direct reply to user (if any)
-    TaskIDs []string // chat_run_ids spawned (if any)
+    TaskIDs []string // task_run_ids spawned (if any)
 }
 
 // ConversationEngine processes one turn; may respond and/or spawn Tier 2 tasks.
@@ -156,8 +156,8 @@ type ConversationEngine interface {
 
 ### 5.3 Usage
 
-- **Portal**: HTTP handler receives message → adapter builds `ConversationTurn` (channel=portal) → engine `Process` → if `TaskIDs` non-empty, create chat run(s); stream or return `Reply` and run status.
-- **Cron**: Cron trigger → adapter builds `ConversationTurn` (channel=cron, message from config) → rule-based engine maps to one task → create chat run; optionally `Send` summary when run completes.
+- **Portal**: HTTP handler receives message → adapter builds `ConversationTurn` (channel=portal) → engine `Process` → if `TaskIDs` non-empty, create task run(s); stream or return `Reply` and run status.
+- **Cron**: Cron trigger → adapter builds `ConversationTurn` (channel=cron, message from config) → rule-based engine maps to one task → create task run; optionally `Send` summary when run completes.
 - **Webhook**: Incoming request → adapter parses payload → same as cron.
 - **Telegram**: Bot receives message → adapter builds `ConversationTurn` (channel=telegram) → LLM engine `Process` → `Send` reply and/or run result to chat.
 
@@ -172,13 +172,13 @@ Two options; **Option A** is recommended for less disruption.
 - **Chat** = Tier 1 conversation container. Already has workspace, agent, status, last run. Add:
   - `channel` (portal, telegram, cron, webhook).
   - Tier 1 conversation history (new store or column): multi-turn messages for the conversation engine, separate from the Tier 2 agent session.
-- **ChatRun** = Tier 2 task execution. No change.
+- **TaskRun** = Tier 2 task execution. No change.
 - **Agent** (workspace persona) = Tier 1 configuration. Its `instructions` (and name/description) define Tier 1 behavior for that conversation.
 
 ### 6.2 Option B: New Entity Layer
 
 - New **Conversation** entity: channel, state, history.
-- **Chat** + **ChatRun** remain purely Tier 2 (task-scoped).
+- **Chat** + **TaskRun** remain purely Tier 2 (task-scoped).
 - One Conversation can spawn multiple Chats/Runs.
 
 Option B is cleaner conceptually but adds migration and more concepts; Option A reuses Chat as the conversation handle and keeps the current API shape.
@@ -201,13 +201,13 @@ Option B is cleaner conceptually but adds migration and more concepts; Option A 
 2. **Phase 2**: Implement portal as first `ChannelAdapter`; conversation engine is pass-through (every message spawns one Tier 2 run). No new LLM call yet.
 3. **Phase 3**: Add Tier 1 LLM conversation for portal (and later IM): maintain conversation history, allow clarification and deferred task spawn.
 4. **Phase 4**: Add cron and webhook adapters with rule-based engine (no LLM).
-5. **Phase 5** (optional): Task decomposition — Tier 1 breaks one request into multiple ChatRuns.
+5. **Phase 5** (optional): Task decomposition — Tier 1 breaks one request into multiple TaskRuns.
 
 ---
 
 ## 9. References
 
 - Current agent loop: `internal/agent/agent.go`
-- Chat/ChatRun model: `internal/model/models.go`, `internal/storage/entity`
+- Chat/TaskRun model: `internal/model/models.go`, `internal/storage/entity`
 - Scheduler/worker: `internal/executor/scheduler.go`, worker binary and RunTask
 - Portal product vision: [design/001-about-portal.md](001-about-portal.md)

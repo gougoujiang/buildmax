@@ -23,7 +23,7 @@ export interface WorkspaceContextValue {
   workspaces: ApiWorkspace[]
   loadingWorkspaces: boolean
   refetchWorkspaces: () => Promise<void>
-  /** Set when navigating from New Chat so ChatDetail can render immediately and show initial query. */
+  /** Set when navigating from New Conversation so TaskDetail can render immediately and show the initial query. */
   pendingChat: PendingChat | null
   setPendingChat: (p: PendingChat | null) => void
 }

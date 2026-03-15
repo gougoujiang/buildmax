@@ -26,7 +26,7 @@ func TestListWorkspaceArtifactsHandler(t *testing.T) {
 			{
 				ArtifactID:       "run-1",
 				ChatID:           "chat-1",
-				ChatRunID:        "run-1",
+				TaskRunID:        "run-1",
 				WorkspaceID:      workspaceID,
 				CreatedAt:        100,
 				ChatInputSnippet: "input snippet",
@@ -105,20 +105,20 @@ func TestListArtifactItemsHandler(t *testing.T) {
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockChatRun := &testutil.MockChatRunStore{
-		Runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: "chat-1", Status: "SUCCEEDED", CreatedAt: 1}},
+	mockTaskRun := &testutil.MockTaskRunStore{
+		Runs:     []entity.TaskRun{{TaskRunID: chatRunID, ChatID: "chat-1", Status: "SUCCEEDED", CreatedAt: 1}},
 		ChatList: []entity.Chat{{ChatID: "chat-1", WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &testutil.MockRunOutputLister{
-		OutputFiles: map[string][]entity.ChatRunArtifact{
-			chatRunID: {{ChatRunID: chatRunID, RelativePath: "result-chat1.md"}},
+		OutputFiles: map[string][]entity.TaskRunArtifact{
+			chatRunID: {{TaskRunID: chatRunID, RelativePath: "result-chat1.md"}},
 		},
 	}
 
 	h := NewHandler(Config{
 		JWTSecret:       secret,
 		WorkspaceStore:  mockWS,
-		ChatRunStore:    mockChatRun,
+		TaskRunStore:    mockTaskRun,
 		RunOutputLister: mockLister,
 	})
 	mux := http.NewServeMux()
@@ -149,39 +149,39 @@ func TestArtifactContentHandler(t *testing.T) {
 			{WorkspaceID: workspaceID, OwnerUserID: userID, Name: "Default", CreatedAt: 1},
 		},
 	}
-	mockChatRunNotFound := &testutil.MockChatRunStore{Runs: nil, ChatList: nil}
-	mockChatRunFound := &testutil.MockChatRunStore{
-		Runs:     []entity.ChatRun{{ChatRunID: chatRunID, ChatID: chatID, Status: "SUCCEEDED", CreatedAt: 1}},
+	mockTaskRunNotFound := &testutil.MockTaskRunStore{Runs: nil, ChatList: nil}
+	mockTaskRunFound := &testutil.MockTaskRunStore{
+		Runs:     []entity.TaskRun{{TaskRunID: chatRunID, ChatID: chatID, Status: "SUCCEEDED", CreatedAt: 1}},
 		ChatList: []entity.Chat{{ChatID: chatID, WorkspaceID: workspaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockListerFound := &testutil.MockRunOutputLister{
-		OutputFiles: map[string][]entity.ChatRunArtifact{chatRunID: {{ChatRunID: chatRunID, RelativePath: "result.md"}}},
+		OutputFiles: map[string][]entity.TaskRunArtifact{chatRunID: {{TaskRunID: chatRunID, RelativePath: "result.md"}}},
 	}
 
 	tests := []struct {
 		name            string
-		chatRunStore    entity.ChatRunStore
+		chatRunStore    entity.TaskRunStore
 		runOutputLister RunOutputLister
 		auth            string
 		wantStatus      int
 	}{
 		{
 			name:            "404 when run not found",
-			chatRunStore:    mockChatRunNotFound,
+			chatRunStore:    mockTaskRunNotFound,
 			runOutputLister: mockListerFound,
 			auth:            "Bearer " + token,
 			wantStatus:     http.StatusNotFound,
 		},
 		{
 			name:            "503 without RunOutputLister",
-			chatRunStore:    mockChatRunFound,
+			chatRunStore:    mockTaskRunFound,
 			runOutputLister: nil,
 			auth:            "Bearer " + token,
 			wantStatus:     http.StatusServiceUnavailable,
 		},
 		{
 			name:            "401 without auth",
-			chatRunStore:    mockChatRunFound,
+			chatRunStore:    mockTaskRunFound,
 			runOutputLister: mockListerFound,
 			auth:            "",
 			wantStatus:     http.StatusUnauthorized,
@@ -193,7 +193,7 @@ func TestArtifactContentHandler(t *testing.T) {
 			h := NewHandler(Config{
 				JWTSecret:       secret,
 				WorkspaceStore:  mockWS,
-				ChatRunStore:    tt.chatRunStore,
+				TaskRunStore:    tt.chatRunStore,
 				RunOutputLister: tt.runOutputLister,
 				ArtifactStorage: artifactStorage,
 			})

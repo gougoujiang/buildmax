@@ -13,10 +13,10 @@ Scanned `internal/server` (and `internal/storage/entity` where server calls have
 | `entity.ChatStore` | `CreateChat(ctx, workspaceID, input, title, createdBy, titlePromptTokens, titleCompletionTokens, agentID, conversationID)` | **10 arguments**. Call sites: `portal/chats.go` (createWorkspaceChatHandler), `portal/conversation_tools.go` (doStartChat). |
 | `entity.ChatStore` | `UpdateChatStatus(ctx, chatID, status, startedAt, endedAt, output, errorMessage, sessionID)` | **8 args**; many optional `*int64`/`*string`. |
 | `entity.ChatStore` | `UpdateChatStatusIf(ctx, chatID, expectedStatus, newStatus, startedAt, endedAt, output, errorMessage, sessionID)` | **9 args**. |
-| `entity.ChatRunStore` | `UpdateChatRunStatus(ctx, chatRunID, status, startedAt, endedAt, output, errorMessage, sessionID, promptTokens, completionTokens)` | **10 args**. Called from `worker/handlers.go` patchChatRun with a long line. |
-| `entity.ChatRunStore` | `UpdateChatRunStatusIf(ctx, chatRunID, expectedStatus, newStatus, startedAt, endedAt, output, errorMessage, sessionID)` | **9 args**. |
+| `entity.TaskRunStore` | `UpdateTaskRunStatus(ctx, chatRunID, status, startedAt, endedAt, output, errorMessage, sessionID, promptTokens, completionTokens)` | **10 args**. Called from `worker/handlers.go` patchTaskRun with a long line. |
+| `entity.TaskRunStore` | `UpdateTaskRunStatusIf(ctx, chatRunID, expectedStatus, newStatus, startedAt, endedAt, output, errorMessage, sessionID)` | **9 args**. |
 
-**Refactor idea (entity layer):** Introduce small structs for “update” and “create” operations, e.g. `CreateChatInput`, `UpdateChatRunStatusInput`, so that call sites in server pass a single struct and entity signatures stay stable. Optional: do the same for status-if variants.
+**Refactor idea (entity layer):** Introduce small structs for “update” and “create” operations, e.g. `CreateChatInput`, `UpdateTaskRunStatusInput`, so that call sites in server pass a single struct and entity signatures stay stable. Optional: do the same for status-if variants.
 
 **Refactor idea (server-only):** In portal/chats and portal/conversation_tools, build a local struct and pass its fields to `CreateChat` to avoid 10-argument call sites and improve readability.
 
@@ -32,9 +32,9 @@ Scanned `internal/server` (and `internal/storage/entity` where server calls have
 
 ### 1.3 Conversation engine call sites (long parameter lists)
 
-**Location:** `internal/server/portal/conversation_handlers.go` — `conversation.RunLoop` and `conversation.RunLoopStream` are called with many arguments (stores, caller, conversationID, message, channel, workspaceID, userID, startChatRunner, titleGen, and for stream: sink).
+**Location:** `internal/server/portal/conversation_handlers.go` — `conversation.RunLoop` and `conversation.RunLoopStream` are called with many arguments (stores, caller, conversationID, message, channel, workspaceID, userID, startTaskRunner, titleGen, and for stream: sink).
 
-**Refactor idea:** If the conversation package allows, introduce an options struct or a “context” struct that holds stores, caller, workspaceID, userID, startChatRunner, titleGen so that handler code passes fewer arguments. Alternatively, add a small helper in portal that captures these and exposes `Run(ctx, conversationID, message, channel, stream bool, w ...)` to avoid repeating the long list in both createConversationHandler and addConversationMessageHandler.
+**Refactor idea:** If the conversation package allows, introduce an options struct or a “context” struct that holds stores, caller, workspaceID, userID, startTaskRunner, titleGen so that handler code passes fewer arguments. Alternatively, add a small helper in portal that captures these and exposes `Run(ctx, conversationID, message, channel, stream bool, w ...)` to avoid repeating the long list in both createConversationHandler and addConversationMessageHandler.
 
 ---
 
@@ -52,25 +52,25 @@ Scanned `internal/server` (and `internal/storage/entity` where server calls have
 
 ---
 
-### 2.2 `portal.createChatRunHandler` (~65 lines)
+### 2.2 `portal.createTaskRunHandler` (~65 lines)
 
-**Flow:** withWorkspaceAuth → requireStore(ChatRunStore) → chat_id → getChatForWorkspace → decode → quota → **branch**: conversation path (PortalAdapter + ConversationEngine) vs legacy CreateChatRun.
+**Flow:** withWorkspaceAuth → requireStore(TaskRunStore) → task_id → getChatForWorkspace → decode → quota → **branch**: conversation path (PortalAdapter + ConversationEngine) vs legacy CreateTaskRun.
 
 **Refactor ideas:**
 
-- Extract **conversation path**: e.g. `(h *Handler) createChatRunViaConversation(w, r, userID, workspaceID, chatID, input) (handled bool)` that returns true if it wrote a response (so caller can skip legacy path).
-- Extract **legacy path**: e.g. `(h *Handler) createChatRunLegacy(w, r, userID, workspaceID, chatID, input)`.
-- createChatRunHandler becomes: auth → store → chatID → getChat → decode → quota → createChatRunViaConversation; if !handled then createChatRunLegacy. This keeps the method short and the two behaviors clearly separated.
+- Extract **conversation path**: e.g. `(h *Handler) createTaskRunViaConversation(w, r, userID, workspaceID, chatID, input) (handled bool)` that returns true if it wrote a response (so caller can skip legacy path).
+- Extract **legacy path**: e.g. `(h *Handler) createTaskRunLegacy(w, r, userID, workspaceID, chatID, input)`.
+- createTaskRunHandler becomes: auth → store → chatID → getChat → decode → quota → createTaskRunViaConversation; if !handled then createTaskRunLegacy. This keeps the method short and the two behaviors clearly separated.
 
 ---
 
 ### 2.3 `portal.artifactContentHandler` (~65 lines)
 
-**Flow:** withWorkspaceAuth → requireStore x3 (RunOutputLister, ChatRunStore, ArtifactStorage) → chat_run_id → GetChatRunWithChat → nil/workspace check → path param + clean → allow result.md or file in output list → GetResult or GetArtifactFile → write body.
+**Flow:** withWorkspaceAuth → requireStore x3 (RunOutputLister, TaskRunStore, ArtifactStorage) → task_run_id → GetTaskRunWithChat → nil/workspace check → path param + clean → allow result.md or file in output list → GetResult or GetArtifactFile → write body.
 
 **Refactor ideas:**
 
-- Extract **get run+chat and validate workspace**: e.g. `(h *Handler) getArtifactRunAndChat(w, r, workspaceID, chatRunID) (run *entity.ChatRun, chat *entity.Chat, ok bool)` — same pattern is repeated in listArtifactItemsHandler and artifactContentHandler (get run/chat, nil check, workspace check). Reuse in both handlers.
+- Extract **get run+chat and validate workspace**: e.g. `(h *Handler) getArtifactRunAndChat(w, r, workspaceID, chatRunID) (run *entity.TaskRun, chat *entity.Chat, ok bool)` — same pattern is repeated in listArtifactItemsHandler and artifactContentHandler (get run/chat, nil check, workspace check). Reuse in both handlers.
 - Extract **path validation**: e.g. `resolveArtifactPath(w, r, h, workspaceID, chatRunID, run, chat) (pathParam string, ok bool)` that handles default "result.md", CleanRelPath, and “file in artifact list” check.
 - Handler then: auth → require stores → getArtifactRunAndChat → resolveArtifactPath → read content (result vs file) → write. Shorter and easier to follow.
 
@@ -90,14 +90,14 @@ Scanned `internal/server` (and `internal/storage/entity` where server calls have
 
 ---
 
-### 2.5 `worker.patchChatRun` (~60 lines)
+### 2.5 `worker.patchTaskRun` (~60 lines)
 
-**Flow:** path + body validation → if status RUNNING: UpdateChatRunStatusIf (with many nil args) → else: UpdateChatRunStatus (long arg list) + OnRunComplete or SyncChatFromRun + Hub.Done.
+**Flow:** path + body validation → if status RUNNING: UpdateTaskRunStatusIf (with many nil args) → else: UpdateTaskRunStatus (long arg list) + OnRunComplete or SyncChatFromRun + Hub.Done.
 
 **Refactor ideas:**
 
 - Extract **RUNNING** branch: e.g. `(h *Handler) handlePatchRunning(w, r, chatRunID, req) bool` that returns true if it wrote a response (so caller can skip the rest).
-- Extract **terminal status** (SUCCEEDED/FAILED etc.): e.g. `(h *Handler) handlePatchTerminalStatus(ctx, chatRunID, req)` that does UpdateChatRunStatus, OnRunComplete/SyncChatFromRun, and Hub.Done. Then patchChatRun becomes: validate → handlePatchRunning; if !written then handlePatchTerminalStatus → write 200.
+- Extract **terminal status** (SUCCEEDED/FAILED etc.): e.g. `(h *Handler) handlePatchTerminalStatus(ctx, chatRunID, req)` that does UpdateTaskRunStatus, OnRunComplete/SyncChatFromRun, and Hub.Done. Then patchTaskRun becomes: validate → handlePatchRunning; if !written then handlePatchTerminalStatus → write 200.
 - Optionally, pass a small struct for the PATCH body (status, startedAt, endedAt, output, errorMessage, sessionID, artifact, tokens) so the method signatures inside worker are shorter.
 
 ---
@@ -134,7 +134,7 @@ if id == "" {
 }
 ```
 
-**Refactor idea:** In portal (and optionally worker), add a small helper: `pathValueRequired(w, r, key string) (value string, ok bool)`. Use it for `workspace_id`, `chat_id`, `agent_id`, `chat_run_id`, `conversation_id` where “missing = 400”. Reduces duplication and keeps the “required param” rule in one place.
+**Refactor idea:** In portal (and optionally worker), add a small helper: `pathValueRequired(w, r, key string) (value string, ok bool)`. Use it for `workspace_id`, `task_id`, `agent_id`, `task_run_id`, `conversation_id` where “missing = 400”. Reduces duplication and keeps the “required param” rule in one place.
 
 ---
 
@@ -143,11 +143,11 @@ if id == "" {
 **Pattern:** In `listArtifactItemsHandler` and `artifactContentHandler` the same block appears:
 
 - Get chatRunID from path.
-- `GetChatRunWithChat(ctx, chatRunID)`.
+- `GetTaskRunWithChat(ctx, chatRunID)`.
 - if run == nil || chat == nil → 404.
 - if chat.WorkspaceID != workspaceID → 404.
 
-**Refactor idea:** Extract `(h *Handler) getArtifactRunAndChat(w, r, workspaceID, chatRunID string) (run *entity.ChatRun, chat *entity.Chat, ok bool)` that performs the store call and these checks and writes the appropriate error. Both artifact handlers then use this and proceed with their specific logic (list items vs content). See also §2.3.
+**Refactor idea:** Extract `(h *Handler) getArtifactRunAndChat(w, r, workspaceID, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool)` that performs the store call and these checks and writes the appropriate error. Both artifact handlers then use this and proceed with their specific logic (list items vs content). See also §2.3.
 
 ---
 
@@ -162,7 +162,7 @@ if id == "" {
 - Call conversation.RunLoopStream(..., titleGen, sink).
 - Write SSE error if any, then write "done", flush.
 
-**Refactor idea:** Extract a helper that takes (w, r, h.cfg, conversationID, message, channel, workspaceID, userID, startChatRunner) and a callback or struct that knows how to call RunLoopStream (to avoid pulling conversation package into a generic “SSE runner”). Alternatively, a `conversationStreamRunner` struct in portal that holds stores, caller, titleGen and has `Run(ctx, convID, message, ...) (reply, err)` and `RunStream(ctx, convID, message, ..., w)` so the handlers only set headers and call Run/RunStream. This overlaps with §2.4.
+**Refactor idea:** Extract a helper that takes (w, r, h.cfg, conversationID, message, channel, workspaceID, userID, startTaskRunner) and a callback or struct that knows how to call RunLoopStream (to avoid pulling conversation package into a generic “SSE runner”). Alternatively, a `conversationStreamRunner` struct in portal that holds stores, caller, titleGen and has `Run(ctx, convID, message, ...) (reply, err)` and `RunStream(ctx, convID, message, ..., w)` so the handlers only set headers and call Run/RunStream. This overlaps with §2.4.
 
 ---
 
@@ -185,14 +185,14 @@ if id == "" {
 
 | Category              | Location / pattern                                      | Refactor idea (short) |
 |-----------------------|---------------------------------------------------------|------------------------|
-| Long arg list         | entity CreateChat / UpdateChatRunStatus / Update*If     | Structs for create/update params (entity or server-side). |
+| Long arg list         | entity CreateChat / UpdateTaskRunStatus / Update*If     | Structs for create/update params (entity or server-side). |
 | Long arg list         | server.New portal.Config build                          | BuildPortalConfig(cfg, s) helper. |
 | Long arg list         | conversation.RunLoop / RunLoopStream in portal          | Options/context struct or portal helper to shorten call sites. |
 | Long method           | portal createWorkspaceChatHandler                       | Extract resolveCreateChatInput, resolveTitleAndUsage. |
-| Long method           | portal createChatRunHandler                             | Extract createChatRunViaConversation, createChatRunLegacy. |
+| Long method           | portal createTaskRunHandler                             | Extract createTaskRunViaConversation, createTaskRunLegacy. |
 | Long method           | portal artifactContentHandler                           | Extract getArtifactRunAndChat, resolveArtifactPath. |
 | Long method           | portal createConversationHandler, addConversationMessageHandler | Shared runConversationTurn(stream bool) helper. |
-| Long method           | worker patchChatRun                                     | Extract handlePatchRunning, handlePatchTerminalStatus. |
+| Long method           | worker patchTaskRun                                     | Extract handlePatchRunning, handlePatchTerminalStatus. |
 | Repetition            | Portal workspace auth + requireStore                    | Optional withWorkspaceAndStore helper. |
 | Repetition            | Path param required                                     | pathValueRequired(w, r, key). |
 | Repetition            | Artifact get run+chat + workspace check                 | getArtifactRunAndChat. |
@@ -207,4 +207,4 @@ if id == "" {
 
 ## Implementation log
 
-- **2025-03-14**: Implemented shared `internal/server/httputil` (WriteJSON, WriteJSONError, WriteQuotaExceeded, WriteInternalError); portal pathValueRequired, withWorkspaceAndStore, getArtifactRunAndChat, resolveArtifactPath; resolveCreateChatInput, resolveTitleAndUsage; createChatRunViaConversation, createChatRunLegacy; runConversationTurn; worker handlePatchRunning, handlePatchTerminalStatus; server buildPortalConfig; entity CreateChatInput and CreateChat(ctx, in *CreateChatInput). UpdateChatRunStatusInput / UpdateChatRunStatusIfInput left as optional (same pattern can be applied later).
+- **2025-03-14**: Implemented shared `internal/server/httputil` (WriteJSON, WriteJSONError, WriteQuotaExceeded, WriteInternalError); portal pathValueRequired, withWorkspaceAndStore, getArtifactRunAndChat, resolveArtifactPath; resolveCreateChatInput, resolveTitleAndUsage; createTaskRunViaConversation, createTaskRunLegacy; runConversationTurn; worker handlePatchRunning, handlePatchTerminalStatus; server buildPortalConfig; entity CreateChatInput and CreateChat(ctx, in *CreateChatInput). UpdateTaskRunStatusInput / UpdateTaskRunStatusIfInput left as optional (same pattern can be applied later).

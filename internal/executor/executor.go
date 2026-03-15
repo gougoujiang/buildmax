@@ -1,7 +1,7 @@
-// Package executor provides chat run scheduling and execution.
+// Package executor provides task run scheduling and execution.
 //
-//   - Scheduler: polls for PENDING chat runs, spawns worker with --chat-run-id.
-//   - RunTask: runs a single run (materialize workspace, optionally restore session, run buildmax -p, update run via ChatRunUpdater).
+//   - Scheduler: polls for PENDING task runs, spawns worker with --task-run-id.
+//   - RunTask: runs a single run (materialize workspace, optionally restore session, run buildmax -p, update run via TaskRunUpdater).
 package executor
 
 import (
@@ -21,18 +21,18 @@ import (
 	"buildmax/internal/workerapi"
 )
 
-// ChatRunUpdater is used by the worker to update run status and register artifacts via HTTP.
-// When status is SUCCEEDED with artifact, server creates artifact and syncs chat denormalized fields.
-// When status is FAILED, server syncs chat denormalized from run.
-type ChatRunUpdater interface {
-	UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchChatRunRequest) error
+// TaskRunUpdater is used by the worker to update run status and register artifacts via HTTP.
+// When status is SUCCEEDED with artifact, server creates artifact and syncs task denormalized fields.
+// When status is FAILED, server syncs task denormalized from run.
+type TaskRunUpdater interface {
+	UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchTaskRunRequest) error
 }
 
-// RunScope identifies a chat run by workspace, chat, and run IDs. Used to group (workspaceID, chatID, chatRunID) in executor helpers.
+// RunScope identifies a task run by workspace, task, and run IDs. Used to group (workspaceID, chatID, chatRunID) in executor helpers.
 type RunScope struct {
 	WorkspaceID string
 	ChatID      string
-	ChatRunID   string
+	TaskRunID   string
 }
 
 // RunResult holds the outcome of a successful run (output and paths) for reportRunSuccess.
@@ -57,16 +57,16 @@ type runDirs struct {
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
 type RunTaskInput struct {
 	Chat            *entity.Chat
-	Run             *entity.ChatRun
+	Run             *entity.TaskRun
 	SessionID       string
 	Paths           WorkspacePaths
 	Persist         blob.PersistStorage
 	ArtifactStorage blob.ArtifactStorage
-	Updater         ChatRunUpdater
+	Updater         TaskRunUpdater
 	StreamSender    StreamSender
 }
 
-// RunTask runs a single chat run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload run global to blob, update run and chat via updater.
+// RunTask runs a single task run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload run global to blob, update run and task via updater.
 // If input.StreamSender is non-nil, stdout is streamed to the server as deltas; full output is still accumulated for persist and PATCH.
 func RunTask(ctx context.Context, input RunTaskInput) error {
 	chat, run := input.Chat, input.Run
@@ -77,17 +77,17 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return errors.New("executor: paths, persist, artifactStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, chat, run)
-	scope := RunScope{WorkspaceID: chat.WorkspaceID, ChatID: chat.ChatID, ChatRunID: run.ChatRunID}
+	scope := RunScope{WorkspaceID: chat.WorkspaceID, ChatID: chat.ChatID, TaskRunID: run.TaskRunID}
 
 	if err := prepareRunWorkspace(ctx, input.Persist, chat, run, dirs); err != nil {
-		reportRunFailure(ctx, run.ChatRunID, err, input.Updater)
+		reportRunFailure(ctx, run.TaskRunID, err, input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, chat, run, dirs)
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-		slog.Error("executor: run failed", "chat_run_id", run.ChatRunID, "err", err, "output_len", len(result.OutputStr))
-		reportRunFailure(ctx, run.ChatRunID, err, input.Updater)
+		slog.Error("executor: run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
+		reportRunFailure(ctx, run.TaskRunID, err, input.Updater)
 		return err
 	}
 
@@ -95,36 +95,36 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if err := reportRunSuccess(ctx, scope, result, input.ArtifactStorage, input.Updater); err != nil {
 		return err
 	}
-	slog.Info("executor: run succeeded", "chat_run_id", run.ChatRunID)
+	slog.Info("executor: run succeeded", "task_run_id", run.TaskRunID)
 	return nil
 }
 
-func resolveRunDirs(paths WorkspacePaths, chat *entity.Chat, run *entity.ChatRun) runDirs {
+func resolveRunDirs(paths WorkspacePaths, chat *entity.Chat, run *entity.TaskRun) runDirs {
 	return runDirs{
-		runDir:       paths.RuntimeChatRunDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID),
-		runHome:      paths.RuntimeChatRunHomeDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID),
-		runArtifacts: paths.RuntimeChatRunArtifactsDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID),
-		runGlobal:    paths.RuntimeChatRunGlobalDir(chat.WorkspaceID, chat.ChatID, run.ChatRunID),
+		runDir:       paths.RuntimeTaskRunDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
+		runHome:      paths.RuntimeTaskRunHomeDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
+		runArtifacts: paths.RuntimeTaskRunArtifactsDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
+		runGlobal:    paths.RuntimeTaskRunGlobalDir(chat.WorkspaceID, chat.ChatID, run.TaskRunID),
 	}
 }
 
-func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, chat *entity.Chat, run *entity.ChatRun, dirs runDirs) error {
+func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, chat *entity.Chat, run *entity.TaskRun, dirs runDirs) error {
 	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal); err != nil {
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, chat, run, dirs.runGlobal, persist)
 	if err := persist.MaterializeToDir(ctx, chat.WorkspaceID, dirs.runHome); err != nil {
-		slog.Error("executor: failed to materialize workspace", "chat_run_id", run.ChatRunID, "workspace_id", chat.WorkspaceID, "err", err)
+		slog.Error("executor: failed to materialize workspace", "task_run_id", run.TaskRunID, "workspace_id", chat.WorkspaceID, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
-		slog.Error("executor: failed to prepare run AGENTS.md", "chat_run_id", run.ChatRunID, "err", err)
+		slog.Error("executor: failed to prepare run AGENTS.md", "task_run_id", run.TaskRunID, "err", err)
 		return err
 	}
 	return nil
 }
 
-func executeRunTask(ctx context.Context, input RunTaskInput, chat *entity.Chat, run *entity.ChatRun, dirs runDirs) (RunResult, error) {
+func executeRunTask(ctx context.Context, input RunTaskInput, chat *entity.Chat, run *entity.TaskRun, dirs runDirs) (RunResult, error) {
 	effectiveSessionID := input.SessionID
 	if chat.SessionID != nil {
 		effectiveSessionID = *chat.SessionID
@@ -147,7 +147,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, chat *entity.Chat, 
 func reportPersistedRunState(ctx context.Context, persist blob.PersistStorage, scope RunScope, dirs runDirs, result RunResult) {
 	persistRunResult(dirs.runArtifacts, result.Output)
 	uploadChatGlobal(ctx, dirs.runGlobal, scope, persist)
-	uploadChatRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
+	uploadTaskRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
 }
 
 func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
@@ -163,15 +163,15 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 	return nil
 }
 
-func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *entity.ChatRun, runGlobalDir string, persist blob.PersistStorage) {
-	if chat.SessionID == nil || chat.LastRunID == nil || *chat.LastRunID == run.ChatRunID {
+func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *entity.TaskRun, runGlobalDir string, persist blob.PersistStorage) {
+	if chat.SessionID == nil || chat.LastRunID == nil || *chat.LastRunID == run.TaskRunID {
 		return
 	}
 	relPath := "sessions/" + *chat.SessionID + ".json"
 	data, err := persist.GetChatGlobal(ctx, blob.RunObjectRef{
 		WorkspaceID: chat.WorkspaceID,
 		ChatID:      chat.ChatID,
-		ChatRunID:   *chat.LastRunID,
+		TaskRunID:   *chat.LastRunID,
 		RelPath:     relPath,
 	})
 	if err != nil {
@@ -184,10 +184,10 @@ func restoreSessionFromPreviousRun(ctx context.Context, chat *entity.Chat, run *
 	_ = os.WriteFile(filepath.Join(sessionsDir, *chat.SessionID+".json"), data, 0644)
 }
 
-func runAgentTask(ctx context.Context, run *entity.ChatRun, runDir, runGlobalDir, sessionID string, streamSender StreamSender) ([]byte, *int, *int, error) {
+func runAgentTask(ctx context.Context, run *entity.TaskRun, runDir, runGlobalDir, sessionID string, streamSender StreamSender) ([]byte, *int, *int, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
-		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, chatRunID: run.ChatRunID}
+		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, chatRunID: run.TaskRunID}
 	}
 
 	var (
@@ -209,8 +209,8 @@ func runAgentTask(ctx context.Context, run *entity.ChatRun, runDir, runGlobalDir
 		return openErr
 	})
 	if streamSender != nil {
-		if flushErr := streamSender.Flush(ctx, run.ChatRunID); flushErr != nil {
-			slog.Warn("executor: stream flush failed", "chat_run_id", run.ChatRunID, "err", flushErr)
+		if flushErr := streamSender.Flush(ctx, run.TaskRunID); flushErr != nil {
+			slog.Warn("executor: stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
 		}
 	}
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *streamSinkAdapter) OnDelta(delta string) {
 		return
 	}
 	if err := s.streamSender.SendDelta(s.ctx, s.chatRunID, delta); err != nil {
-		slog.Warn("executor: stream send delta failed", "chat_run_id", s.chatRunID, "err", err)
+		slog.Warn("executor: stream send delta failed", "task_run_id", s.chatRunID, "err", err)
 	}
 }
 
@@ -259,25 +259,25 @@ func persistRunResult(runArtifactsDir string, output []byte) {
 	}
 }
 
-func reportRunFailure(ctx context.Context, chatRunID string, err error, updater ChatRunUpdater) {
+func reportRunFailure(ctx context.Context, chatRunID string, err error, updater TaskRunUpdater) {
 	endTime := time.Now().Unix()
 	errMsg := fmt.Sprintf("%v", err)
-	_ = updater.UpdateRunStatus(ctx, chatRunID, &workerapi.PatchChatRunRequest{
+	_ = updater.UpdateRunStatus(ctx, chatRunID, &workerapi.PatchTaskRunRequest{
 		Status:       string(entity.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,
 	})
 }
 
-func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, artifactStorage blob.ArtifactStorage, updater ChatRunUpdater) error {
+func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
 	if putErr := artifactStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
-		slog.Error("executor: failed to write result to artifact storage", "chat_run_id", scope.ChatRunID, "err", putErr)
+		slog.Error("executor: failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}
 	relativePaths := uploadRunArtifactsToStorage(ctx, result.RunArtifactsDir, scope, artifactStorage)
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
-	req := &workerapi.PatchChatRunRequest{
+	req := &workerapi.PatchTaskRunRequest{
 		Status:   string(entity.RunStatusSucceeded),
 		EndedAt:  &result.EndTime,
 		Output:   &result.OutputStr,
@@ -289,7 +289,7 @@ func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, art
 	if result.CompletionTokens != nil {
 		req.CompletionTokens = result.CompletionTokens
 	}
-	return updater.UpdateRunStatus(ctx, scope.ChatRunID, req)
+	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
 }
 
 func walkAndUploadFiles(ctx context.Context, rootDir string, scope RunScope, openLogMsg string, upload func(context.Context, RunScope, string, *os.File) error, warn func(string, ...any), errorLog func(string, ...any)) []string {
@@ -308,35 +308,35 @@ func walkAndUploadFiles(ctx context.Context, rootDir string, scope RunScope, ope
 		relPath = filepath.ToSlash(relPath)
 		f, err := os.Open(path)
 		if err != nil {
-			warn(openLogMsg, "chat_run_id", scope.ChatRunID, "rel_path", relPath, "err", err)
+			warn(openLogMsg, "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
 			return nil
 		}
 		uploadErr := upload(ctx, scope, relPath, f)
 		_ = f.Close()
 		if uploadErr != nil {
-			warn("executor: upload file failed", "chat_run_id", scope.ChatRunID, "rel_path", relPath, "err", uploadErr)
+			warn("executor: upload file failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", uploadErr)
 			return nil
 		}
 		relativePaths = append(relativePaths, relPath)
 		return nil
 	}); err != nil {
-		errorLog("executor: walk upload source failed", "chat_run_id", scope.ChatRunID, "root", rootDir, "err", err)
+		errorLog("executor: walk upload source failed", "task_run_id", scope.TaskRunID, "root", rootDir, "err", err)
 	}
 	return relativePaths
 }
 
-// uploadChatRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).
-func uploadChatRunArtifacts(ctx context.Context, artifactsDir string, scope RunScope, persist blob.PersistStorage) {
+// uploadTaskRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).
+func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunScope, persist blob.PersistStorage) {
 	walkAndUploadFiles(
 		ctx,
 		artifactsDir,
 		scope,
 		"executor: upload run artifacts open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
-			return persist.PutChatRunArtifacts(ctx, blob.RunObjectRef{
+			return persist.PutTaskRunArtifacts(ctx, blob.RunObjectRef{
 				WorkspaceID: scope.WorkspaceID,
 				ChatID:      scope.ChatID,
-				ChatRunID:   scope.ChatRunID,
+				TaskRunID:   scope.TaskRunID,
 				RelPath:     relPath,
 			}, f)
 		},
@@ -356,7 +356,7 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 			return artifactStorage.PutArtifactFile(ctx, blob.RunObjectRef{
 				WorkspaceID: scope.WorkspaceID,
 				ChatID:      scope.ChatID,
-				ChatRunID:   scope.ChatRunID,
+				TaskRunID:   scope.TaskRunID,
 				RelPath:     relPath,
 			}, f)
 		},
@@ -386,18 +386,18 @@ func uploadChatGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		}
 		f, err := os.Open(fullPath)
 		if err != nil {
-			slog.Warn("executor: upload run global open failed", "chat_run_id", scope.ChatRunID, "rel_path", relPath, "err", err)
+			slog.Warn("executor: upload run global open failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
 			continue
 		}
 		putErr := persist.PutChatGlobal(ctx, blob.RunObjectRef{
 			WorkspaceID: scope.WorkspaceID,
 			ChatID:      scope.ChatID,
-			ChatRunID:   scope.ChatRunID,
+			TaskRunID:   scope.TaskRunID,
 			RelPath:     filepath.ToSlash(relPath),
 		}, f)
 		f.Close()
 		if putErr != nil {
-			slog.Warn("executor: upload run global put failed", "chat_run_id", scope.ChatRunID, "rel_path", relPath, "err", putErr)
+			slog.Warn("executor: upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
 		}
 	}
 }

@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"os"
 
+	"buildmax/internal/cmd/worker"
 	"buildmax/internal/config"
 	log "buildmax/internal/log"
-	"buildmax/internal/cmd/worker"
 )
 
 func main() {
@@ -21,11 +21,11 @@ func main() {
 		level = "debug"
 	}
 	log.Init(log.LogConfig{LogsDir: config.LogsDir(), Level: level, Filename: "buildmax-worker.log", AlsoStdout: true})
-	chatRunID := flag.String("chat-run-id", "", "chat run ID to run (required)")
+	chatRunID := flag.String("task-run-id", "", "task run ID to run (required)")
 	flag.Parse()
 	if *chatRunID == "" {
-		slog.Error("worker: --chat-run-id is required")
-		fmt.Fprintf(os.Stderr, "error: --chat-run-id is required\n")
+		slog.Error("worker: --task-run-id is required")
+		fmt.Fprintf(os.Stderr, "error: --task-run-id is required\n")
 		os.Exit(1)
 	}
 	ctx := context.Background()
@@ -33,7 +33,7 @@ func main() {
 		if errors.Is(err, worker.ErrAlreadyClaimed) {
 			os.Exit(2) // run not executed (already claimed by another worker)
 		}
-		slog.Error("worker run failed", "chat_run_id", *chatRunID, "err", err)
+		slog.Error("worker run failed", "task_run_id", *chatRunID, "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

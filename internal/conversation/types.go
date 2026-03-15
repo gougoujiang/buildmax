@@ -21,11 +21,11 @@ type ConversationTurn struct {
 }
 
 // ConversationResult is the output of processing one turn. The engine may return
-// a direct reply and/or one or more chat_run_ids (TaskIDs) that were spawned.
+// a direct reply and/or one or more task_run_ids (TaskIDs) that were spawned.
 type ConversationResult struct {
 	// Reply is an optional direct reply to the user (e.g. clarification or acknowledgment).
 	Reply string
-	// TaskIDs are chat_run_ids of Tier 2 runs spawned for this turn (if any).
+	// TaskIDs are task_run_ids of Tier 2 runs spawned for this turn (if any).
 	TaskIDs []string
 }
 

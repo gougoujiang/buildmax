@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ListChatsByWorkspace returns chats in the workspace, ordered by created_at.
+// ListChatsByWorkspace returns tasks in the workspace, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
 func (s *Store) ListChatsByWorkspace(ctx context.Context, workspaceID string, order string) ([]Chat, error) {
 	var list []Chat
@@ -24,8 +24,8 @@ func (s *Store) ListChatsByWorkspace(ctx context.Context, workspaceID string, or
 	return list, err
 }
 
-// ListChatsByWorkspacePaginated returns chats with optional executed_only filter, ordered by created_at DESC.
-// executedOnly: when true, only chats that have been run (last_run_id IS NOT NULL) are returned.
+// ListChatsByWorkspacePaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
+// executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
 // total is the total number of matching chats (ignoring limit/offset).
 func (s *Store) ListChatsByWorkspacePaginated(ctx context.Context, workspaceID string, executedOnly bool, limit, offset int) ([]Chat, int, error) {
 	q := s.db.WithContext(ctx).Model(&Chat{}).Where("workspace_id = ?", workspaceID)
@@ -45,10 +45,10 @@ func (s *Store) ListChatsByWorkspacePaginated(ctx context.Context, workspaceID s
 	return list, int(total), err
 }
 
-// GetChat returns the chat by chat_id, or (nil, nil) if not found.
+// GetChat returns the task by task_id, or (nil, nil) if not found.
 func (s *Store) GetChat(ctx context.Context, chatID string) (*Chat, error) {
 	var c Chat
-	err := s.db.WithContext(ctx).Where("chat_id = ?", chatID).First(&c).Error
+	err := s.db.WithContext(ctx).Where("task_id = ?", chatID).First(&c).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -58,7 +58,7 @@ func (s *Store) GetChat(ctx context.Context, chatID string) (*Chat, error) {
 	return &c, nil
 }
 
-// GetChatBySessionID returns the chat with the given session_id, or (nil, nil) if not found.
+// GetChatBySessionID returns the task with the given session_id, or (nil, nil) if not found.
 func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat, error) {
 	var c Chat
 	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).First(&c).Error
@@ -83,14 +83,14 @@ type CreateChatInput struct {
 	ConversationID        *string
 }
 
-// CreateChat creates a new chat and its first ChatRun (PENDING) in one transaction. Returns the chat with last_run_id and session_id set.
+// CreateChat creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
 func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, error) {
 	if in == nil {
 		return nil, errors.New("CreateChatInput is required")
 	}
 	now := time.Now().Unix()
 	chatID := util.NewPrefixedID(util.PrefixChat)
-	chatRunID := util.NewPrefixedID(util.PrefixChatRun)
+	chatRunID := util.NewPrefixedID(util.PrefixTaskRun)
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
 	c := &Chat{
 		ChatID:                chatID,
@@ -107,8 +107,8 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 		AgentID:               in.AgentID,
 		ConversationID:        in.ConversationID,
 	}
-	run := &ChatRun{
-		ChatRunID: chatRunID,
+	run := &TaskRun{
+		TaskRunID: chatRunID,
 		ChatID:    chatID,
 		Input:     in.Input,
 		Status:    "PENDING",
@@ -146,18 +146,18 @@ func buildChatUpdates(status string, startedAt, endedAt *int64, output, errorMes
 	return updates
 }
 
-// UpdateChat updates a chat's status and optional fields.
+// UpdateChat updates a task's status and optional fields.
 // Only non-nil pointer fields are written; status is always set.
 func (s *Store) UpdateChat(ctx context.Context, in UpdateChatInput) error {
-	return s.db.WithContext(ctx).Model(&Chat{}).Where("chat_id = ?", in.ChatID).Updates(
+	return s.db.WithContext(ctx).Model(&Chat{}).Where("task_id = ?", in.ChatID).Updates(
 		buildChatUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	).Error
 }
 
-// ClaimChat updates a chat's status and optional fields only when current status equals expectedStatus.
+// ClaimChat updates a task's status and optional fields only when current status equals expectedStatus.
 // Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
 func (s *Store) ClaimChat(ctx context.Context, in ClaimChatInput) (bool, error) {
-	result := s.db.WithContext(ctx).Model(&Chat{}).Where("chat_id = ? AND status = ?", in.ChatID, in.ExpectedStatus).Updates(
+	result := s.db.WithContext(ctx).Model(&Chat{}).Where("task_id = ? AND status = ?", in.ChatID, in.ExpectedStatus).Updates(
 		buildChatUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	)
 	if result.Error != nil {

@@ -19,12 +19,12 @@ const (
 	EnvKeyBuildmaxJWTSecret  = "BUILDMAX_JWT_SECRET"
 	EnvKeyBuildmaxCorsOrigin = "BUILDMAX_CORS_ORIGIN"
 	// Worker (buildmax-worker binary and worker-to-server auth)
-	EnvKeyBuildmaxWorkerBinary    = "BUILDMAX_WORKER_BINARY"
-	EnvKeyBuildmaxServerURL       = "BUILDMAX_SERVER_URL"
-	EnvKeyBuildmaxWorkerToken     = "BUILDMAX_WORKER_TOKEN"
-	EnvKeyBuildmaxWorkerRunMode   = "BUILDMAX_WORKER_RUN_MODE"
-	EnvKeyBuildmaxWorkerJobNs     = "BUILDMAX_WORKER_JOB_NAMESPACE"
-	EnvKeyBuildmaxWorkerImage     = "BUILDMAX_WORKER_IMAGE"
+	EnvKeyBuildmaxWorkerBinary  = "BUILDMAX_WORKER_BINARY"
+	EnvKeyBuildmaxServerURL     = "BUILDMAX_SERVER_URL"
+	EnvKeyBuildmaxWorkerToken   = "BUILDMAX_WORKER_TOKEN"
+	EnvKeyBuildmaxWorkerRunMode = "BUILDMAX_WORKER_RUN_MODE"
+	EnvKeyBuildmaxWorkerJobNs   = "BUILDMAX_WORKER_JOB_NAMESPACE"
+	EnvKeyBuildmaxWorkerImage   = "BUILDMAX_WORKER_IMAGE"
 	// Database (MySQL)
 	EnvKeyBuildmaxDBHost     = "BUILDMAX_DB_HOST"
 	EnvKeyBuildmaxDBPort     = "BUILDMAX_DB_PORT"
@@ -99,7 +99,7 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxDefaultQuotaTier, "free_trial", "Default quota tier name for new users (tier limits in quota_tier table)"},
 	// Webhook
 	{EnvKeyBuildmaxWebhookMessagePath, "message", "JSON path for message in webhook body (e.g. message, body.text)"},
-	{EnvKeyBuildmaxWebhookUserID, "webhook", "User ID used as CreatedBy for webhook-created chat runs"},
+	{EnvKeyBuildmaxWebhookUserID, "webhook", "User ID used as CreatedBy for webhook-created task runs"},
 	// Optional / scripts
 	{EnvKeyBuildmaxKindCluster, "buildmaxdev", "Kind cluster name in setup scripts"},
 	// Test only

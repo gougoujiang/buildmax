@@ -1,6 +1,6 @@
 export {
   createChat,
-  createChatRun,
+  createTaskRun,
   getChatConversation,
   getChats,
   getChatsPaginated,

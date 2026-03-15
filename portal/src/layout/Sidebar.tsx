@@ -45,10 +45,6 @@ function isAgentsActive(route: Route): boolean {
   return route.name === "agents"
 }
 
-function isConversationActive(route: Route, conversationId: string): boolean {
-  return route.name === "conversation" && route.conversationId === conversationId
-}
-
 export function Sidebar({
   workspaceId,
   route,
@@ -135,7 +131,7 @@ export function Sidebar({
             onClick={() => navigate({ name: "newChat", workspaceId })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">New Chat</span>
+            <span className="sidebar__nav-item-text">New Conversation</span>
           </button>
           <div
             className="sidebar__chats"

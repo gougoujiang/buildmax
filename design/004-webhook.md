@@ -1,6 +1,6 @@
 # Webhook configuration
 
-Webhook allows external systems to trigger a Tier 2 run (one ChatRun) by sending an HTTP POST. No LLM is used at Tier 1 for webhook; the request is mapped directly to a new chat run.
+Webhook allows external systems to trigger a Tier 2 run (one TaskRun) by sending an HTTP POST. No LLM is used at Tier 1 for webhook; the request is mapped directly to a new task run.
 
 ## Auth: per-workspace API keys
 
@@ -23,12 +23,12 @@ Webhook allows external systems to trigger a Tier 2 run (one ChatRun) by sending
   ```json
   { "message": "Run tests", "callback_url": "https://your-server.com/callback" }
   ```
-- **Response**: `202 Accepted` with `{ "task_id": "<chat_run_id>" }`. Use the task_id to poll run status or to correlate with run-complete callbacks.
+- **Response**: `202 Accepted` with `{ "task_id": "<task_run_id>" }`. Use the task_id to poll run status or to correlate with run-complete callbacks.
 
 ## Callback (optional)
 
 - If the body includes `"callback_url": "https://..."`, it may be stored and invoked when the run completes (implementation may defer POST to a follow-up).
-- **Callback payload** (documented shape): `{ "chat_run_id": "...", "status": "SUCCEEDED" | "FAILED", "reply_summary": "..." }`.
+- **Callback payload** (documented shape): `{ "task_run_id": "...", "status": "SUCCEEDED" | "FAILED", "reply_summary": "..." }`.
 
 ## Env (optional)
 
