@@ -24,7 +24,7 @@ func (a conversationTitleGeneratorAdapter) GenerateTitle(ctx context.Context, in
 
 func (h *Handler) conversationService() *convapp.Service {
 	return &convapp.Service{
-		ChatService:       h.chatService(),
+		ChatService:       h.taskService(),
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,
 		LLMCaller:         h.cfg.ConversationLLMCaller,
@@ -33,7 +33,7 @@ func (h *Handler) conversationService() *convapp.Service {
 }
 
 func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.Request, err error, agentID *string) bool {
-	if h.writeChatServiceError(w, r, err, agentID) {
+	if h.writeTaskServiceError(w, r, err, agentID) {
 		return true
 	}
 	switch {

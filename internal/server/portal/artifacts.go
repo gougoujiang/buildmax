@@ -38,17 +38,17 @@ func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Reques
 	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
 		return
 	}
-	chatID, ok := pathValueRequired(w, r, "task_id")
+	taskID, ok := pathValueRequired(w, r, "task_id")
 	if !ok {
 		return
 	}
-	chat, _, ok := h.getChatForUser(w, r, userID, chatID)
+	task, _, ok := h.getTaskForUser(w, r, userID, taskID)
 	if !ok {
 		return
 	}
-	list, err := h.cfg.RunOutputLister.ListRunOutputsByConversation(r.Context(), chat.ConversationID, &chat.ChatID)
+	list, err := h.cfg.RunOutputLister.ListRunOutputsByConversation(r.Context(), task.ConversationID, &task.ChatID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_artifacts", "task_id", chatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_artifacts", "task_id", taskID)
 		return
 	}
 	out := make([]ArtifactResponse, len(list))

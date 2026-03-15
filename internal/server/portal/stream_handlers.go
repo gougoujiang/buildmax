@@ -14,12 +14,12 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	chatID := r.PathValue("task_id")
-	if chatID == "" {
+	taskID := r.PathValue("task_id")
+	if taskID == "" {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-	_, _, ok = h.getChatForUser(w, r, userID, chatID)
+	_, _, ok = h.getTaskForUser(w, r, userID, taskID)
 	if !ok {
 		return
 	}
@@ -34,10 +34,10 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 
-	events, unsub := h.cfg.Hub.Subscribe(chatID)
+	events, unsub := h.cfg.Hub.Subscribe(taskID)
 	defer unsub()
 
-	if buf := h.cfg.Hub.Buffer(chatID); buf != "" {
+	if buf := h.cfg.Hub.Buffer(taskID); buf != "" {
 		writeSSE(w, buf)
 		if flusher != nil {
 			flusher.Flush()

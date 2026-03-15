@@ -21,7 +21,7 @@ func (a chatTitleGeneratorAdapter) GenerateTitle(ctx context.Context, input stri
 	return title, usage.PromptTokens, usage.CompletionTokens, err
 }
 
-func (h *Handler) chatService() *chatapp.Service {
+func (h *Handler) taskService() *chatapp.Service {
 	var quotaChecker chatapp.QuotaChecker
 	if h.cfg.QuotaChecker != nil {
 		quotaChecker = h.cfg.QuotaChecker
@@ -35,7 +35,7 @@ func (h *Handler) chatService() *chatapp.Service {
 	}
 }
 
-func (h *Handler) writeChatServiceError(w http.ResponseWriter, r *http.Request, err error, agentID *string) bool {
+func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, err error, agentID *string) bool {
 	switch {
 	case errors.Is(err, chatapp.ErrInputRequired):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
