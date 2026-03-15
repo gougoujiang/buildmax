@@ -1,6 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { useWorkspace } from "../contexts/WorkspaceContext"
 import type { ApiUsage } from "../lib/api"
 import { getUsage } from "../features/usage"
 import { BaseModal } from "@buildmax/gui"
@@ -30,7 +29,6 @@ interface SettingsModalProps {
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTabId>("general")
   const { token, user } = useAuth()
-  const { token: workspaceToken } = useWorkspace()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [usage, setUsage] = useState<ApiUsage | null>(null)
@@ -195,7 +193,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             hidden={activeTab !== "webhook"}
           >
             <WebhookKeysSection
-              token={workspaceToken}
+              token={token}
             />
           </div>
         </div>

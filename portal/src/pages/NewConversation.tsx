@@ -14,8 +14,8 @@ type NewConversationTab = "conversations" | "artifacts" | "files"
 interface NewConversationProps {
   profileId: string
   token?: string
-  onRefetchWorkspaceConversations?: () => void
-  workspaceConversations: Conversation[]
+  onRefetchConversations?: () => void
+  conversations: Conversation[]
   artifacts: Artifact[]
   onViewArtifact?: (params: ViewArtifactParams) => void
 }
@@ -23,8 +23,8 @@ interface NewConversationProps {
 export function NewConversation({
   profileId,
   token,
-  onRefetchWorkspaceConversations,
-  workspaceConversations,
+  onRefetchConversations,
+  conversations,
   artifacts,
   onViewArtifact,
 }: NewConversationProps) {
@@ -66,7 +66,7 @@ export function NewConversation({
               const id = conversationIdRef.current
               if (id) {
                 navigate({ name: "conversation", profileId, conversationId: id })
-                onRefetchWorkspaceConversations?.()
+                onRefetchConversations?.()
               }
             }
           },
@@ -165,11 +165,11 @@ export function NewConversation({
         >
           {activeTab === "conversations" && (
             <div className="page-new-chat__chats">
-              {workspaceConversations.length === 0 ? (
+              {conversations.length === 0 ? (
                 <p className="page-activity__empty">No conversations yet.</p>
               ) : (
                 <ul className="page-activity__list">
-                  {workspaceConversations.map((conv) => (
+                  {conversations.map((conv) => (
                     <li key={conv.id} className="page-activity__item">
                       <button
                         type="button"
@@ -215,14 +215,14 @@ export function NewConversation({
                       <span className="page-activity__content">
                         <span className="page-activity__task-title">{a.title}</span>
                         <span className="page-activity__meta">
-                          {a.timeLabel} · task: {a.chatId} · artifact: {a.id}
+                          {a.timeLabel} · task: {a.taskId} · artifact: {a.id}
                         </span>
                       </span>
                       {onViewArtifact && (
                         <button
                           type="button"
                           className="page-activity__artifact-view"
-                          onClick={() => onViewArtifact({ chatRunId: a.id })}
+                          onClick={() => onViewArtifact({ taskRunId: a.id })}
                         >
                           View
                         </button>

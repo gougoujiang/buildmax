@@ -13,7 +13,6 @@ import SettingsIcon from "../icons/settings.svg?react"
 import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
-import { WorkspaceSelect } from "../components/WorkspaceSelect"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -32,10 +31,7 @@ const CHATS_LIMIT = 5
 interface SidebarProps {
   profileId: string
   route: Route
-  currentProfile: { id: string; name: string }
-  profiles: { id: string; name: string }[]
-  onProfileChange: (profileId: string) => void
-  workspaceConversations: Conversation[]
+  conversations: Conversation[]
   user: LoginUser
   onLogout: () => void
 }
@@ -47,10 +43,7 @@ function isAgentsActive(route: Route): boolean {
 export function Sidebar({
   profileId,
   route,
-  currentProfile,
-  profiles,
-  onProfileChange,
-  workspaceConversations,
+  conversations: conversationsList,
   user,
   onLogout,
 }: SidebarProps) {
@@ -62,8 +55,8 @@ export function Sidebar({
   const userMenuRef = useRef<HTMLDivElement>(null)
   const conversationsTriggerRef = useRef<HTMLDivElement>(null)
   const conversationsCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const conversations = workspaceConversations.slice(0, CHATS_LIMIT)
-  const hasMoreConversations = workspaceConversations.length > CHATS_LIMIT
+  const conversations = conversationsList.slice(0, CHATS_LIMIT)
+  const hasMoreConversations = conversationsList.length > CHATS_LIMIT
 
   function openConversationsPopup() {
     if (conversationsCloseTimeoutRef.current) {
@@ -219,19 +212,6 @@ export function Sidebar({
           </button>
         </div>
       </nav>
-      <div className="sidebar__workspace-wrap">
-        <div className="sidebar__workspace">
-          <span className="sidebar__workspace-label" title="Profile">
-            Profile
-          </span>
-          <WorkspaceSelect
-            value={currentProfile.id}
-            options={profiles}
-            onChange={onProfileChange}
-            ariaLabel="Select profile"
-          />
-        </div>
-      </div>
       <div className="sidebar__footer" aria-label="User" ref={userMenuRef}>
         <button
           type="button"

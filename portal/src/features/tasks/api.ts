@@ -8,20 +8,20 @@ import {
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { readSSEStream } from "../../lib/api/sse"
 import type {
-  ApiChat,
-  ApiChatsListResponse,
+  ApiTask,
+  ApiTasksListResponse,
   ApiSession,
   CreateTaskRunResponse,
 } from "../../lib/api/types"
 import { createConversation } from "../conversations"
 
-export interface GetChatsPaginatedOptions {
+export interface GetTasksPaginatedOptions {
   limit?: number
   offset?: number
   executedOnly?: boolean
 }
 
-export interface CreateChatBody {
+export interface CreateTaskBody {
   input?: string
   agent_id?: string
 }
@@ -32,43 +32,43 @@ export interface RunStreamCallbacks {
   onError: (err: Error) => void
 }
 
-export async function getChats(
+export async function getTasks(
   conversationId: string,
   token: string
-): Promise<ApiChat[]> {
-  return requestJson<ApiChat[]>(
+): Promise<ApiTask[]> {
+  return requestJson<ApiTask[]>(
     `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/tasks`,
     { headers: authHeaders(token) }
   )
 }
 
-export async function getChatsPaginated(
+export async function getTasksPaginated(
   conversationId: string,
   token: string,
-  options?: GetChatsPaginatedOptions
-): Promise<ApiChatsListResponse> {
+  options?: GetTasksPaginatedOptions
+): Promise<ApiTasksListResponse> {
   const params = new URLSearchParams()
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
   const url = `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/tasks${q ? `?${q}` : ""}`
-  return requestJson<ApiChatsListResponse>(url, { headers: authHeaders(token) })
+  return requestJson<ApiTasksListResponse>(url, { headers: authHeaders(token) })
 }
 
-export async function getChat(chatId: string, token: string): Promise<ApiChat> {
-  return requestJson<ApiChat>(`${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}`, {
+export async function getTask(taskId: string, token: string): Promise<ApiTask> {
+  return requestJson<ApiTask>(`${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}`, {
     headers: authHeaders(token),
   })
 }
 
-export async function getChatConversation(
+export async function getTaskConversation(
   _profileId: string,
-  chatId: string,
+  taskId: string,
   token: string
 ): Promise<ApiSession | null> {
   const res = await fetch(
-    `${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}/conversation`,
+    `${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}/conversation`,
     { headers: authHeaders(token) }
   )
   checkUnauthorized(res)
@@ -77,13 +77,13 @@ export async function getChatConversation(
   return res.json() as Promise<ApiSession>
 }
 
-export async function createChat(
+export async function createTask(
   profileId: string,
-  body: CreateChatBody,
+  body: CreateTaskBody,
   token: string
-): Promise<ApiChat> {
+): Promise<ApiTask> {
   const conv = await createConversation(profileId, { channel: "portal" }, token)
-  return requestJson<ApiChat>(`${getApiBase()}/api/conversations/${encodeURIComponent(conv.conversation_id)}/tasks`, {
+  return requestJson<ApiTask>(`${getApiBase()}/api/conversations/${encodeURIComponent(conv.conversation_id)}/tasks`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -92,12 +92,12 @@ export async function createChat(
 
 export async function createTaskRun(
   _profileId: string,
-  chatId: string,
+  taskId: string,
   body: { input: string },
   token: string
 ): Promise<CreateTaskRunResponse> {
   const res = await fetch(
-    `${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}/runs`,
+    `${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}/runs`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -113,16 +113,16 @@ export async function createTaskRun(
   return res.json() as Promise<CreateTaskRunResponse>
 }
 
-export function subscribeChatStream(
+export function subscribeTaskStream(
   _profileId: string,
-  chatId: string,
+  taskId: string,
   token: string,
   callbacks: RunStreamCallbacks
 ): () => void {
-  const url = `${getApiBase()}/api/tasks/${encodeURIComponent(chatId)}/stream`
+  const url = `${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}/stream`
   const controller = new AbortController()
 
-  fetch(url, { headers: authHeaders(token), signal: controller.signal })
+  void fetch(url, { headers: authHeaders(token), signal: controller.signal })
     .then(async (res) => {
       checkUnauthorized(res)
       if (!res.ok) {

@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react"
 import type { ProfileScope, Route } from "./lib/types"
 
-/** Derive current profile scope from route (for data fetching and display). */
-export function getWorkspaceScope(route: Route): ProfileScope {
+/** Derive current scope from route (for data fetching and display). User is the top-level owner; profileId is the user id. */
+export function getScope(route: Route): ProfileScope {
   return {
     profileId: route.profileId,
-    chatId: "chatId" in route ? route.chatId : undefined,
+    taskId: "taskId" in route ? route.taskId : undefined,
     conversationId: "conversationId" in route ? route.conversationId : undefined,
   }
 }
@@ -47,7 +47,7 @@ export function parseHash(hash: string): Route {
     return { name: "agents", profileId }
   }
   if (parts[1] === SEGMENT.task && parts[2]) {
-    return { name: "chat", profileId, chatId: parts[2] }
+    return { name: "task", profileId, taskId: parts[2] }
   }
   if (parts[1] === SEGMENT.conversation && parts[2]) {
     return { name: "conversation", profileId, conversationId: parts[2] }
@@ -62,8 +62,8 @@ export function buildHash(route: Route): string {
       return `#${route.profileId}`
     case "newChat":
       return `#${route.profileId}/${SEGMENT.new}`
-    case "chat":
-      return `#${route.profileId}/${SEGMENT.task}/${route.chatId}`
+    case "task":
+      return `#${route.profileId}/${SEGMENT.task}/${route.taskId}`
     case "conversation":
       return `#${route.profileId}/${SEGMENT.conversation}/${route.conversationId}`
     case "chats":

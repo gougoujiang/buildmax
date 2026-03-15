@@ -1,6 +1,6 @@
-/* Page: Workspace Home */
+/* Page: Home (user home) */
 
-.page-workspace__heading-row {
+.page-home__heading-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8,14 +8,14 @@
   margin: 0 0 0.75rem;
 }
 
-.page-workspace__heading {
+.page-home__heading {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-text);
 }
 
-.page-workspace__error {
+.page-home__error {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
   color: #c00;
@@ -126,7 +126,7 @@
   border-radius: 0;
 }
 
-.page-workspace__new-project {
+.page-home__new-project {
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--color-primary);
   border-radius: 6px;
@@ -136,27 +136,27 @@
   cursor: pointer;
 }
 
-.page-workspace__new-project:hover:not(:disabled) {
+.page-home__new-project:hover:not(:disabled) {
   opacity: 0.9;
   filter: brightness(1.05);
 }
 
-.page-workspace__new-project:disabled {
+.page-home__new-project:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
 
-.page-workspace__list {
+.page-home__list {
   list-style: none;
   margin: 0 0 2rem;
   padding: 0;
 }
 
-.page-workspace__chat-card {
+.page-home__chat-card {
   margin-bottom: 0.5rem;
 }
 
-.page-workspace__chat-link {
+.page-home__chat-link {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -172,33 +172,33 @@
   text-align: left;
 }
 
-.page-workspace__chat-link:hover {
+.page-home__chat-link:hover {
   border-color: var(--color-text-muted);
   background: var(--color-bg-muted);
 }
 
-.page-workspace__chat-name {
+.page-home__chat-name {
   flex: 1;
   font-weight: 500;
 }
 
-.page-workspace__chat-status {
+.page-home__chat-status {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
 
-.page-workspace__chat-time {
+.page-home__chat-time {
   font-size: 0.8rem;
   color: var(--color-text-subtle);
 }
 
-.page-workspace__action-grid {
+.page-home__action-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.page-workspace__action-btn {
+.page-home__action-btn {
   padding: 0.5rem 1rem;
   border: 1px solid var(--color-input-border);
   border-radius: 6px;
@@ -209,22 +209,22 @@
   cursor: pointer;
 }
 
-.page-workspace__action-btn:hover {
+.page-home__action-btn:hover {
   border-color: var(--color-text-muted);
   background: var(--color-bg-muted);
 }
 
-.page-workspace__artifacts {
+.page-home__artifacts {
   margin-top: 2rem;
 }
 
-.page-workspace__artifact-list {
+.page-home__artifact-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.page-workspace__artifact-card {
+.page-home__artifact-card {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -233,14 +233,14 @@
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.page-workspace__artifact-main {
+.page-home__artifact-main {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
 }
 
-.page-workspace__artifact-title {
+.page-home__artifact-title {
   font-weight: 500;
   color: var(--color-text);
   overflow: hidden;
@@ -248,13 +248,13 @@
   white-space: nowrap;
 }
 
-.page-workspace__artifact-time {
+.page-home__artifact-time {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
-.page-workspace__artifact-ids {
+.page-home__artifact-ids {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -263,13 +263,13 @@
   font-family: ui-monospace, monospace;
 }
 
-.page-workspace__artifact-ids span {
+.page-home__artifact-ids span {
   max-width: 8em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.page-workspace__artifact-view {
+.page-home__artifact-view {
   margin-left: auto;
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
@@ -280,12 +280,12 @@
   cursor: pointer;
 }
 
-.page-workspace__artifact-view:hover {
+.page-home__artifact-view:hover {
   border-color: var(--color-text);
   background: var(--color-bg-muted);
 }
 
-.page-workspace__empty {
+.page-home__empty {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.95rem;

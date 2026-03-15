@@ -156,7 +156,7 @@
   border-top: 1px solid var(--color-border);
 }
 
-.agent-card__new-chat-btn {
+.agent-card__new-task-btn {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--color-text);
@@ -168,12 +168,12 @@
   transition: background 0.2s, color 0.2s;
 }
 
-.agent-card__new-chat-btn:hover:not(:disabled) {
+.agent-card__new-task-btn:hover:not(:disabled) {
   background: var(--color-bg-hover);
   border-color: var(--color-text-muted);
 }
 
-.agent-card__new-chat-btn:disabled {
+.agent-card__new-task-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

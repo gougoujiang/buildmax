@@ -5,21 +5,22 @@ export interface Profile {
   name: string
 }
 
-export interface Chat {
+/** Background task (Tier 2) created from a conversation. Backend: Task. */
+export interface Task {
   id: string
   sessionId?: string
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
   timeLabel: string
   summary: string
-  /** Set when the chat was started from an agent. */
+  /** Set when the task was started from an agent. */
   agentId?: string
 }
 
 export interface Artifact {
   id: string
-  chatId: string
-  chatRunId?: string
+  taskId: string
+  taskRunId?: string
   timeLabel: string
   title: string
 }
@@ -34,22 +35,22 @@ export interface Conversation {
 }
 
 // --- Profile scope (derived from route) ---
-// Scope = what is in context for the current view (profileId; chatId when on chat).
+// Scope = what is in context for the current view (profileId; taskId when on task).
 // Route = URL state; scope = derived context for data and display.
 
 export interface ProfileScope {
   profileId: string
-  chatId?: string
+  taskId?: string
   conversationId?: string
 }
 
 // --- Route types ---
-// Portal uses chat/chats; one chat = backend chat.
+// Conversation = Tier 1 dialogue. Task = Tier 2 background task (backend Task).
 
 export type Route =
   | { name: "home"; profileId: string }
   | { name: "newChat"; profileId: string }
-  | { name: "chat"; profileId: string; chatId: string }
+  | { name: "task"; profileId: string; taskId: string }
   | { name: "conversation"; profileId: string; conversationId: string }
   | { name: "chats"; profileId: string }
   | { name: "explore"; profileId: string }
@@ -58,7 +59,7 @@ export type Route =
 // --- View run output (artifact modal) ---
 
 export interface ViewArtifactParams {
-  chatRunId: string
+  taskRunId: string
 }
 
 // --- Agent (user-owned persona) ---
@@ -71,7 +72,7 @@ export interface Agent {
   createdAt: number
 }
 
-// --- Explore (workspace directory structure) ---
+// --- Explore (user file structure) ---
 
 export type ExploreNode =
   | { id: string; name: string; type: "folder"; children: ExploreNode[] }

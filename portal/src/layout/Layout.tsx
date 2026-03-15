@@ -1,16 +1,13 @@
 import type { ReactNode } from "react"
-import type { Conversation, Profile, Route } from "../lib/types"
+import type { Conversation, Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
-import { navigate } from "../router"
 import { Sidebar } from "./Sidebar"
 import { Breadcrumbs } from "./Breadcrumbs"
 import { ThemeToggle } from "@buildmax/gui"
 
 export interface LayoutProps {
   route: Route
-  currentProfile: Profile
-  profiles: { id: string; name: string }[]
-  profileConversations: Conversation[]
+  conversations: Conversation[]
   user: LoginUser
   onLogout: () => void
   children: ReactNode
@@ -18,9 +15,7 @@ export interface LayoutProps {
 
 export function Layout({
   route,
-  currentProfile,
-  profiles,
-  profileConversations,
+  conversations,
   user,
   onLogout,
   children,
@@ -31,16 +26,13 @@ export function Layout({
         <Sidebar
           profileId={route.profileId}
           route={route}
-          currentProfile={currentProfile}
-          profiles={profiles}
-          onProfileChange={(profileId) => navigate({ name: "home", profileId })}
-          workspaceConversations={profileConversations}
+          conversations={conversations}
           user={user}
           onLogout={onLogout}
         />
         <main className="shell__main">
           <div className="shell__top">
-            <Breadcrumbs route={route} workspaceConversations={profileConversations} />
+            <Breadcrumbs route={route} conversations={conversations} />
             <ThemeToggle />
           </div>
           <div className="shell__content">{children}</div>

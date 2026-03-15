@@ -8,12 +8,12 @@
 @import './css/sidebar.css';
 @import './css/breadcrumbs.css';
 @import './css/prompt-area.css';
-@import './css/pages/workspace-home.css';
+@import './css/pages/home.css';
 @import './css/pages/activity.css';
 @import './css/pages/agent-list.css';
 @import './css/pages/explore.css';
 @import './css/pages/project.css';
-@import './css/pages/chat-detail.css';
+@import './css/pages/task-detail.css';
 @import './css/pages/artifact.css';
 @import './css/modal.css';
 @import './css/responsive.css';

@@ -3,10 +3,10 @@ import { navigate } from "../router"
 
 interface BreadcrumbsProps {
   route: Route
-  workspaceConversations?: Conversation[]
+  conversations?: Conversation[]
 }
 
-export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsProps) {
+export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   const profileId = route.profileId
   let crumbs: { label: string; route: Route }[] = []
 
@@ -19,13 +19,13 @@ export function Breadcrumbs({ route, workspaceConversations = [] }: BreadcrumbsP
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents", profileId } }]
   } else if (route.name === "conversation") {
-    const conv = workspaceConversations.find((c) => c.id === route.conversationId)
+    const conv = conversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
       { label: "Conversations", route: { name: "chats", profileId } },
       { label: convLabel, route },
     ]
-  } else if (route.name === "chat") {
+  } else if (route.name === "task") {
     crumbs = [
       { label: "Conversations", route: { name: "chats", profileId } },
       { label: "Task", route },

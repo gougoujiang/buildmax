@@ -3,8 +3,8 @@
  * Imports API types from ./types and UI types from ../types.
  */
 
-import type { ApiAgent, ApiArtifact, ApiChat, ApiConversation } from "./types"
-import type { Agent, Artifact, Chat, Conversation } from "../types"
+import type { ApiAgent, ApiArtifact, ApiTask, ApiConversation } from "./types"
+import type { Agent, Artifact, Task, Conversation } from "../types"
 
 /** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
 function formatRelativeTime(secondsSinceEpoch: number): string {
@@ -21,7 +21,7 @@ function formatRelativeTime(secondsSinceEpoch: number): string {
   return d.toLocaleString()
 }
 
-function chatStatusToUI(status: string): Chat["status"] {
+function taskStatusToUI(status: string): Task["status"] {
   switch (status) {
     case "SUCCEEDED":
       return "success"
@@ -50,14 +50,14 @@ export function apiAgentToAgent(api: ApiAgent): Agent {
 export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
   return {
     id: api.task_run_id,
-    chatId: api.task_id,
-    chatRunId: api.task_run_id,
+    taskId: api.task_id,
+    taskRunId: api.task_run_id,
     timeLabel: formatRelativeTime(api.created_at),
     title: api.task_input_snippet || `Run output ${api.task_run_id}`,
   }
 }
 
-export function apiChatToChat(api: ApiChat): Chat {
+export function apiTaskToTask(api: ApiTask): Task {
   const title =
     api.title && api.title.trim() !== ""
       ? api.title
@@ -71,7 +71,7 @@ export function apiChatToChat(api: ApiChat): Chat {
     id: api.id,
     sessionId: api.session_id ?? undefined,
     title,
-    status: chatStatusToUI(api.status),
+    status: taskStatusToUI(api.status),
     timeLabel: formatRelativeTime(ts),
     summary,
     agentId: api.agent_id ?? undefined,

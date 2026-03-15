@@ -4,7 +4,7 @@ import { apiArtifactToArtifact } from "../lib/api"
 import { getArtifacts } from "../features/artifacts"
 
 export interface UseArtifactsOptions {
-  chatId?: string
+  taskId?: string
   enabled?: boolean
 }
 
@@ -27,7 +27,7 @@ export function useArtifacts(
         return
       }
       const query =
-        opts?.chatId !== undefined ? { chatId: opts.chatId } : undefined
+        opts?.taskId !== undefined ? { taskId: opts.taskId } : undefined
       getArtifacts(profileId, token, query)
         .then((list) => setData(list.map(apiArtifactToArtifact)))
         .catch(() => setData([]))
@@ -41,7 +41,7 @@ export function useArtifacts(
       return
     }
     runFetch()
-  }, [enabled, token, profileId, options?.chatId, runFetch])
+  }, [enabled, token, profileId, options?.taskId, runFetch])
 
   const refetch = useCallback(
     (overrides?: UseArtifactsOptions) => {

@@ -5,7 +5,7 @@ import { AgentAvatar, UserAvatar } from "../../../components/UserAvatar"
 import type { LoginUser } from "../../../lib/api"
 import type { ApiSession } from "../../../lib/api"
 
-interface ChatDetailViewProps {
+interface TaskDetailViewProps {
   historyRef: React.RefObject<HTMLElement | null>
   session: ApiSession | null
   sessionLoading: boolean
@@ -24,7 +24,7 @@ interface ChatDetailViewProps {
   onSubmitFollowUp: () => void
 }
 
-export function ChatDetailView({
+export function TaskDetailView({
   historyRef,
   session,
   sessionLoading,
@@ -41,7 +41,7 @@ export function ChatDetailView({
   expandedToolIndices,
   toggleToolExpand,
   onSubmitFollowUp,
-}: ChatDetailViewProps) {
+}: TaskDetailViewProps) {
   const items: ChatThreadItem[] = []
 
   if (showInitialInput && initialInput) {

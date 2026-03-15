@@ -9,8 +9,8 @@ export type {
   LoginResponse,
   ApiWorkspace,
   ApiAgent,
-  ApiChat,
-  ApiChatsListResponse,
+  ApiTask,
+  ApiTasksListResponse,
   ApiSession,
   ApiSessionMessage,
   ApiUsage,
@@ -28,7 +28,7 @@ export type {
 export {
   apiAgentToAgent,
   apiArtifactToArtifact,
-  apiChatToChat,
+  apiTaskToTask,
   apiConversationToConversation,
 } from "./mappers"
 
@@ -36,18 +36,18 @@ export { requestOtp, login } from "../../features/auth"
 export { getUsage } from "../../features/usage"
 export { getAgents, createAgent, updateAgent, deleteAgent } from "../../features/agents"
 export {
-  getChats,
-  getChatsPaginated,
-  getChatConversation,
-  createChat,
+  getTasks,
+  getTasksPaginated,
+  getTaskConversation,
+  createTask,
   createTaskRun,
-  subscribeChatStream,
-} from "../../features/chats"
+  subscribeTaskStream,
+} from "../../features/tasks"
 export type {
-  CreateChatBody,
-  GetChatsPaginatedOptions,
+  CreateTaskBody,
+  GetTasksPaginatedOptions,
   RunStreamCallbacks,
-} from "../../features/chats"
+} from "../../features/tasks"
 export {
   getConversations,
   createConversation,

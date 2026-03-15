@@ -18,7 +18,7 @@ export interface OtpRequestResponse {
   message: string
 }
 
-/** Synthetic shell/profile record derived from the signed-in user. */
+/** Legacy: user is the top-level owner. Kept for API compatibility. */
 export interface ApiWorkspace {
   id: string
   name: string
@@ -37,13 +37,13 @@ export interface ApiAgent {
 }
 
 /** Paginated tasks response when using limit/offset/executed_only (if backend supports it). */
-export interface ApiChatsListResponse {
-  tasks: ApiChat[]
+export interface ApiTasksListResponse {
+  tasks: ApiTask[]
   total: number
 }
 
-/** Task as returned by task endpoints */
-export interface ApiChat {
+/** Task as returned by task endpoints (GET /api/tasks/{id}, POST /api/conversations/{id}/tasks). */
+export interface ApiTask {
   id: string
   conversation_id: string
   session_id: string | null

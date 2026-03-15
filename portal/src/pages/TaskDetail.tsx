@@ -1,43 +1,43 @@
-import type { Chat } from "../lib/types"
+import type { Task } from "../lib/types"
 import { useAuth } from "../contexts/AuthContext"
-import { ChatDetailView, useChatDetail } from "../features/chats"
+import { TaskDetailView, useTaskDetail } from "../features/tasks"
 
 interface TaskDetailProps {
-  chat: Chat
+  task: Task
   profileId: string
   onRefetch?: () => void
-  /** First user query when navigating from New Conversation before the task has messages. */
+  /** First user query when navigating before the task has messages. */
   initialInput?: string
 }
 
-export function TaskDetail({ chat, profileId, onRefetch, initialInput }: TaskDetailProps) {
+export function TaskDetail({ task, profileId, onRefetch, initialInput }: TaskDetailProps) {
   const { token, user } = useAuth()
-  const chatDetail = useChatDetail({
+  const taskDetail = useTaskDetail({
     profileId,
-    chatId: chat.id,
+    taskId: task.id,
     token,
     initialInput,
     onRunComplete: onRefetch,
   })
 
   return (
-    <ChatDetailView
-      historyRef={chatDetail.historyRef}
-      session={chatDetail.session}
-      sessionLoading={chatDetail.sessionLoading}
-      sessionError={chatDetail.sessionError}
-      followUpInput={chatDetail.followUpInput}
-      setFollowUpInput={chatDetail.setFollowUpInput}
-      followUpLoading={chatDetail.followUpLoading}
-      followUpError={chatDetail.followUpError}
-      streamingContent={chatDetail.streamingContent}
-      lastSentMessage={chatDetail.lastSentMessage}
+    <TaskDetailView
+      historyRef={taskDetail.historyRef}
+      session={taskDetail.session}
+      sessionLoading={taskDetail.sessionLoading}
+      sessionError={taskDetail.sessionError}
+      followUpInput={taskDetail.followUpInput}
+      setFollowUpInput={taskDetail.setFollowUpInput}
+      followUpLoading={taskDetail.followUpLoading}
+      followUpError={taskDetail.followUpError}
+      streamingContent={taskDetail.streamingContent}
+      lastSentMessage={taskDetail.lastSentMessage}
       user={user}
       initialInput={initialInput}
-      showInitialInput={chatDetail.showInitialInput}
-      expandedToolIndices={chatDetail.expandedToolIndices}
-      toggleToolExpand={chatDetail.toggleToolExpand}
-      onSubmitFollowUp={chatDetail.submitFollowUp}
+      showInitialInput={taskDetail.showInitialInput}
+      expandedToolIndices={taskDetail.expandedToolIndices}
+      toggleToolExpand={taskDetail.toggleToolExpand}
+      onSubmitFollowUp={taskDetail.submitFollowUp}
     />
   )
 }

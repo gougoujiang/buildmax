@@ -6,7 +6,7 @@ import { useAsyncList } from "./useAsyncList"
 
 const CONVERSATIONS_LIMIT = 100
 
-export function useWorkspaceConversations(
+export function useConversations(
   profileId: string,
   token: string | null,
   enabled = true

@@ -3,25 +3,25 @@ import { getErrorMessage } from "../../../lib/errorMessage"
 import { useFetch } from "../../../hooks/useFetch"
 import {
   createTaskRun,
-  getChatConversation,
-  subscribeChatStream,
+  getTaskConversation,
+  subscribeTaskStream,
 } from "../api"
 
-interface UseChatDetailOptions {
+interface UseTaskDetailOptions {
   profileId: string
-  chatId: string
+  taskId: string
   token: string | null
   initialInput?: string
   onRunComplete?: () => void
 }
 
-export function useChatDetail({
+export function useTaskDetail({
   profileId,
-  chatId,
+  taskId,
   token,
   initialInput,
   onRunComplete,
-}: UseChatDetailOptions) {
+}: UseTaskDetailOptions) {
   const streamCleanupRef = useRef<(() => void) | null>(null)
   const historyRef = useRef<HTMLElement | null>(null)
 
@@ -31,10 +31,10 @@ export function useChatDetail({
     error: sessionError,
     refetch: refetchSession,
   } = useFetch(
-    () => getChatConversation(profileId, chatId, token!),
-    [profileId, chatId, token],
+    () => getTaskConversation(profileId, taskId, token!),
+    [profileId, taskId, token],
     {
-      enabled: !!(token && profileId && chatId),
+      enabled: !!(token && profileId && taskId),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load session"),
     }
   )
@@ -65,8 +65,8 @@ export function useChatDetail({
   }, [])
 
   useEffect(() => {
-    if (!token || !profileId || !chatId) return
-    const cleanup = subscribeChatStream(profileId, chatId, token, {
+    if (!token || !profileId || !taskId) return
+    const cleanup = subscribeTaskStream(profileId, taskId, token, {
       onDelta: (text) => setStreamingContent((prev) => prev + text),
       onDone: () => {
         setStreamingContent("")
@@ -85,7 +85,7 @@ export function useChatDetail({
       cleanup()
       streamCleanupRef.current = null
     }
-  }, [profileId, chatId, token, refetchSession, onRunComplete])
+  }, [profileId, taskId, token, refetchSession, onRunComplete])
 
   useEffect(() => {
     if (!initialInput || session !== null || sessionLoading || sessionError) return
@@ -111,7 +111,7 @@ export function useChatDetail({
     setLastSentMessage(input)
     setFollowUpInput("")
     try {
-      await createTaskRun(profileId, chatId, { input }, token)
+      await createTaskRun(profileId, taskId, { input }, token)
     } catch (err) {
       setFollowUpError(getErrorMessage(err, "Failed to start run"))
       setFollowUpLoading(false)

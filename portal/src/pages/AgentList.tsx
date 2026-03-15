@@ -2,19 +2,19 @@ import { useCallback, useEffect, useState } from "react"
 import type { Agent } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
-import { apiAgentToAgent, apiChatToChat } from "../lib/api"
-import { createChat } from "../features/chats"
+import { apiAgentToAgent, apiTaskToTask } from "../lib/api"
+import { createTask } from "../features/tasks"
 import {
   getAgents,
   createAgent,
   updateAgent,
   deleteAgent,
 } from "../features/agents"
-import { useWorkspace } from "../contexts/WorkspaceContext"
+import { useApp } from "../contexts/AppContext"
 import { AgentAvatar } from "../components/UserAvatar"
 import { CreateAgentModal } from "../components/CreateAgentModal"
 import { EditAgentModal } from "../components/EditAgentModal"
-import { NewChatFromAgentModal } from "../components/NewChatFromAgentModal"
+import { NewTaskFromAgentModal } from "../components/NewTaskFromAgentModal"
 
 interface AgentListProps {
   profileId: string
@@ -22,7 +22,7 @@ interface AgentListProps {
 }
 
 export function AgentList({ profileId, token }: AgentListProps) {
-  const { setPendingChat } = useWorkspace()
+  const { setPendingTask } = useApp()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -30,8 +30,8 @@ export function AgentList({ profileId, token }: AgentListProps) {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [newChatAgent, setNewChatAgent] = useState<Agent | null>(null)
-  const [startingChatAgentId, setStartingChatAgentId] = useState<string | null>(null)
+  const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
+  const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(() => {
@@ -95,25 +95,25 @@ export function AgentList({ profileId, token }: AgentListProps) {
       .finally(() => setDeleting(false))
   }
 
-  function handleOpenNewChatModal(agent: Agent) {
+  function handleOpenNewTaskModal(agent: Agent) {
     setError(null)
-    setNewChatAgent(agent)
+    setNewTaskAgent(agent)
   }
 
-  function handleStartChatFromAgent(editedInput: string) {
-    if (!token || !newChatAgent) return
+  function handleStartTaskFromAgent(editedInput: string) {
+    if (!token || !newTaskAgent) return
     setError(null)
-    setStartingChatAgentId(newChatAgent.id)
-    createChat(profileId, { agent_id: newChatAgent.id, input: editedInput }, token)
-      .then((chat) => {
-        setNewChatAgent(null)
-        setPendingChat({ chat: apiChatToChat(chat), initialInput: chat.input ?? "" })
-        navigate({ name: "chat", profileId, chatId: chat.id })
+    setStartingTaskAgentId(newTaskAgent.id)
+    createTask(profileId, { agent_id: newTaskAgent.id, input: editedInput }, token)
+      .then((task) => {
+        setNewTaskAgent(null)
+        setPendingTask({ task: apiTaskToTask(task), initialInput: task.input ?? "" })
+        navigate({ name: "task", profileId, taskId: task.id })
       })
       .catch((err) => {
-        setError(getErrorMessage(err, "Failed to start chat"))
+        setError(getErrorMessage(err, "Failed to start task"))
       })
-      .finally(() => setStartingChatAgentId(null))
+      .finally(() => setStartingTaskAgentId(null))
   }
 
   return (
@@ -189,15 +189,15 @@ export function AgentList({ profileId, token }: AgentListProps) {
                 <div className="agent-card__actions">
                   <button
                     type="button"
-                    className="agent-card__new-chat-btn"
+                    className="agent-card__new-task-btn"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleOpenNewChatModal(a)
+                      handleOpenNewTaskModal(a)
                     }}
                     disabled={!token}
-                    aria-label={`New chat with ${a.name}`}
+                    aria-label={`New task with ${a.name}`}
                   >
-                    New chat
+                    New task
                   </button>
                 </div>
               </article>
@@ -231,16 +231,16 @@ export function AgentList({ profileId, token }: AgentListProps) {
         onDelete={handleDeleteAgent}
       />
 
-      <NewChatFromAgentModal
-        open={newChatAgent != null}
-        agent={newChatAgent}
-        loading={startingChatAgentId !== null}
-        error={newChatAgent != null ? error : null}
+      <NewTaskFromAgentModal
+        open={newTaskAgent != null}
+        agent={newTaskAgent}
+        loading={startingTaskAgentId !== null}
+        error={newTaskAgent != null ? error : null}
         onClose={() => {
-          setNewChatAgent(null)
-          if (newChatAgent) setError(null)
+          setNewTaskAgent(null)
+          if (newTaskAgent) setError(null)
         }}
-        onStartChat={handleStartChatFromAgent}
+        onStartTask={handleStartTaskFromAgent}
       />
     </div>
   )
