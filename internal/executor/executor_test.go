@@ -21,32 +21,32 @@ type testWorkspacePaths struct{ root string }
 func (p testWorkspacePaths) PersistentUserDir(userID string) string {
 	return filepath.Join(p.root, userID, "home")
 }
-func (p testWorkspacePaths) RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID string) string {
-	return filepath.Join(p.root, userID, "conversations", conversationID, "tasks", chatID, chatRunID)
+func (p testWorkspacePaths) RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID string) string {
+	return filepath.Join(p.root, userID, "conversations", conversationID, "tasks", taskID, taskRunID)
 }
-func (p testWorkspacePaths) RuntimeTaskRunHomeDir(userID, conversationID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "home")
+func (p testWorkspacePaths) RuntimeTaskRunHomeDir(userID, conversationID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "home")
 }
-func (p testWorkspacePaths) RuntimeTaskRunArtifactsDir(userID, conversationID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "artifacts")
+func (p testWorkspacePaths) RuntimeTaskRunArtifactsDir(userID, conversationID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "artifacts")
 }
-func (p testWorkspacePaths) RuntimeTaskRunGlobalDir(userID, conversationID, chatID, chatRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, chatID, chatRunID), "global")
+func (p testWorkspacePaths) RuntimeTaskRunGlobalDir(userID, conversationID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "global")
 }
-func (p testWorkspacePaths) RunOutputDir(userID, conversationID, chatID, chatRunID string) string {
-	return filepath.Join(p.root, userID, "artifacts", conversationID, chatID, chatRunID)
+func (p testWorkspacePaths) RunOutputDir(userID, conversationID, taskID, taskRunID string) string {
+	return filepath.Join(p.root, userID, "artifacts", conversationID, taskID, taskRunID)
 }
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
 	files      map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
-	chatGlobal map[string][]byte            // "workspaceID/chatID/chatRunID/relPath" -> content
+	taskGlobal map[string][]byte            // "workspaceID/taskID/taskRunID/relPath" -> content
 }
 
 func newFakePersistStorage() *fakePersistStorage {
 	return &fakePersistStorage{
 		files:      make(map[string]map[string][]byte),
-		chatGlobal: make(map[string][]byte),
+		taskGlobal: make(map[string][]byte),
 	}
 }
 
@@ -97,18 +97,18 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 	return nil
 }
 
-func (f *fakePersistStorage) PutChatGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+func (f *fakePersistStorage) PutTaskGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
-	f.chatGlobal[key] = data
+	f.taskGlobal[key] = data
 	return nil
 }
 
-// chatGlobalRelPaths returns the set of relPaths uploaded for the given userID/conversationID/chatID/chatRunID.
-func (f *fakePersistStorage) chatGlobalRelPaths(userID, conversationID, chatID, chatRunID string) []string {
-	prefix := userID + "/" + conversationID + "/" + chatID + "/" + chatRunID + "/"
+// taskGlobalRelPaths returns the set of relPaths uploaded for the given userID/conversationID/taskID/taskRunID.
+func (f *fakePersistStorage) taskGlobalRelPaths(userID, conversationID, taskID, taskRunID string) []string {
+	prefix := userID + "/" + conversationID + "/" + taskID + "/" + taskRunID + "/"
 	var out []string
-	for k := range f.chatGlobal {
+	for k := range f.taskGlobal {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
 			out = append(out, k[len(prefix):])
 		}
@@ -116,9 +116,9 @@ func (f *fakePersistStorage) chatGlobalRelPaths(userID, conversationID, chatID, 
 	return out
 }
 
-func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
-	data, ok := f.chatGlobal[key]
+func (f *fakePersistStorage) GetTaskGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	data, ok := f.taskGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
@@ -126,28 +126,28 @@ func (f *fakePersistStorage) GetChatGlobal(ctx context.Context, ref blob.RunObje
 }
 
 func (f *fakePersistStorage) PutTaskRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)
-	if f.chatGlobal == nil {
-		f.chatGlobal = make(map[string][]byte)
+	if f.taskGlobal == nil {
+		f.taskGlobal = make(map[string][]byte)
 	}
-	f.chatGlobal[key] = data
+	f.taskGlobal[key] = data
 	return nil
 }
 
 func (f *fakePersistStorage) GetTaskRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
-	data, ok := f.chatGlobal[key]
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	data, ok := f.taskGlobal[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}
 	return data, nil
 }
 
-// fakeArtifactStorage is an in-memory ArtifactStorage for tests (run output keyed by chatRunID only).
+// fakeArtifactStorage is an in-memory ArtifactStorage for tests (run output keyed by taskRunID only).
 type fakeArtifactStorage struct {
-	results map[string][]byte // "userID/conversationID/chatID/chatRunID" -> content (PutResult)
-	files   map[string][]byte // "userID/conversationID/chatID/chatRunID/relPath" -> content (PutArtifactFile)
+	results map[string][]byte // "userID/conversationID/taskID/taskRunID" -> content (PutResult)
+	files   map[string][]byte // "userID/conversationID/taskID/taskRunID/relPath" -> content (PutArtifactFile)
 }
 
 func newFakeArtifactStorage() *fakeArtifactStorage {
@@ -155,13 +155,13 @@ func newFakeArtifactStorage() *fakeArtifactStorage {
 }
 
 func (f *fakeArtifactStorage) PutResult(ctx context.Context, ref blob.RunRef, data []byte) error {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID
 	f.results[key] = append([]byte(nil), data...)
 	return nil
 }
 
 func (f *fakeArtifactStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID
 	data, ok := f.results[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -173,7 +173,7 @@ func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunO
 	if f.files == nil {
 		f.files = make(map[string][]byte)
 	}
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.files[key] = data
 	return nil
@@ -183,7 +183,7 @@ func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunO
 	if f.files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound
@@ -203,7 +203,7 @@ func (mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRu
 func (mockTaskRunStore) GetTaskRun(_ context.Context, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
-func (mockTaskRunStore) GetTaskRunWithChat(_ context.Context, _ string) (*entity.TaskRun, *entity.Chat, error) {
+func (mockTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*entity.TaskRun, *entity.Task, error) {
 	return nil, nil, nil
 }
 func (mockTaskRunStore) ClaimTaskRun(_ context.Context, in entity.ClaimTaskRunInput) (bool, error) {
@@ -259,7 +259,7 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, fake)
-	run := entity.TaskRun{TaskRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", ChatID: "chat1", Status: "SCHEDULED"}
+	run := entity.TaskRun{TaskRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
 
 	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run)
 	if err != nil {
@@ -314,7 +314,7 @@ func TestFakePersistStorage_MaterializeToDir(t *testing.T) {
 	}
 }
 
-func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
+func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	ctx := context.Background()
 	globalDir := t.TempDir()
 	// Create a subset of global dir files (no log; sessions dir with two files)
@@ -332,9 +332,9 @@ func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, RunScope{UserID: "u1", ConversationID: "conv1", ChatID: "chat1", TaskRunID: "run1"}, fake)
+	uploadTaskGlobal(ctx, globalDir, RunScope{UserID: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake)
 
-	got := fake.chatGlobalRelPaths("u1", "conv1", "chat1", "run1")
+	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
 	if len(got) != 3 {
 		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
 	}
@@ -346,18 +346,18 @@ func TestUploadChatGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 	// Content sanity
 	key := "u1/conv1/chat1/run1/settings.json"
-	if string(fake.chatGlobal[key]) != "{}" {
+	if string(fake.taskGlobal[key]) != "{}" {
 		t.Errorf("settings.json content mismatch")
 	}
 }
 
-func TestUploadChatGlobal_SkipsMissingFiles(t *testing.T) {
+func TestUploadTaskGlobal_SkipsMissingFiles(t *testing.T) {
 	ctx := context.Background()
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadChatGlobal(ctx, globalDir, RunScope{UserID: "u1", ConversationID: "conv1", ChatID: "chat1", TaskRunID: "run1"}, fake)
-	got := fake.chatGlobalRelPaths("u1", "conv1", "chat1", "run1")
+	uploadTaskGlobal(ctx, globalDir, RunScope{UserID: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake)
+	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}

@@ -33,7 +33,7 @@ func NewLocalRunner(workerPath string) *LocalRunner {
 
 // Run executes the worker process; on success returns ("local_process", nil, nil, nil). On failure returns error.
 func (r *LocalRunner) Run(ctx context.Context, run entity.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
-	slog.Info("scheduler: spawning worker", "task_run_id", run.TaskRunID, "chat_id", run.ChatID)
+	slog.Info("scheduler: spawning worker", "task_run_id", run.TaskRunID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.TaskRunID)
 	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {

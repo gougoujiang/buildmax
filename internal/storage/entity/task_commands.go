@@ -23,9 +23,9 @@ type ClaimTaskRunInput struct {
 	SessionID      *string
 }
 
-// UpdateChatInput updates a task to the given status with optional fields.
-type UpdateChatInput struct {
-	ChatID       string
+// UpdateTaskInput updates a task to the given status with optional fields.
+type UpdateTaskInput struct {
+	TaskID       string
 	Status       string
 	StartedAt    *int64
 	EndedAt      *int64
@@ -34,9 +34,9 @@ type UpdateChatInput struct {
 	SessionID    *string
 }
 
-// ClaimChatInput atomically transitions a task from ExpectedStatus to NewStatus.
-type ClaimChatInput struct {
-	ChatID         string
+// ClaimTaskInput atomically transitions a task from ExpectedStatus to NewStatus.
+type ClaimTaskInput struct {
+	TaskID         string
 	ExpectedStatus string
 	NewStatus      string
 	StartedAt      *int64

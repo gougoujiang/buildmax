@@ -32,7 +32,7 @@ func (s *Store) UserUsageInWindow(ctx context.Context, userID string, sinceUnix,
 
 	// Task title tokens: sum (title_prompt_tokens + title_completion_tokens) for tasks created by user in window
 	var titleTokens int
-	err = s.db.WithContext(ctx).Model(&Chat{}).
+	err = s.db.WithContext(ctx).Model(&Task{}).
 		Select("COALESCE(SUM(title_prompt_tokens + title_completion_tokens), 0)").
 		Where("created_by = ? AND created_at >= ? AND created_at <= ?", userID, sinceUnix, untilUnix).
 		Scan(&titleTokens).Error

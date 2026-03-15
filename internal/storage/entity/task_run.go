@@ -36,9 +36,9 @@ func buildTaskRunUpdates(status string, startedAt, endedAt *int64, output, error
 }
 
 // CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
-func (s *Store) CreateTaskRun(ctx context.Context, chatID, input, createdBy string) (*TaskRun, error) {
+func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy string) (*TaskRun, error) {
 	var inProgress int64
-	err := s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_id = ? AND status IN ?", chatID, []string{"PENDING", "SCHEDULED", "RUNNING"}).Count(&inProgress).Error
+	err := s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_id = ? AND status IN ?", taskID, []string{"PENDING", "SCHEDULED", "RUNNING"}).Count(&inProgress).Error
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, chatID, input, createdBy stri
 	}
 	run := &TaskRun{
 		TaskRunID: util.NewPrefixedID(util.PrefixTaskRun),
-		ChatID:    chatID,
+		TaskID:    taskID,
 		Input:     input,
 		Status:    "PENDING",
 		CreatedAt: time.Now().Unix(),
@@ -72,9 +72,9 @@ func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error) {
 }
 
 // GetTaskRun returns the run by task_run_id, or (nil, nil) if not found.
-func (s *Store) GetTaskRun(ctx context.Context, chatRunID string) (*TaskRun, error) {
+func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error) {
 	var r TaskRun
-	err := s.db.WithContext(ctx).Where("task_run_id = ?", chatRunID).First(&r).Error
+	err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).First(&r).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -84,17 +84,17 @@ func (s *Store) GetTaskRun(ctx context.Context, chatRunID string) (*TaskRun, err
 	return &r, nil
 }
 
-// GetTaskRunWithChat returns the run and its task, or (nil, nil, nil) if run not found.
-func (s *Store) GetTaskRunWithChat(ctx context.Context, chatRunID string) (*TaskRun, *Chat, error) {
-	run, err := s.GetTaskRun(ctx, chatRunID)
+// GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
+func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*TaskRun, *Task, error) {
+	run, err := s.GetTaskRun(ctx, taskRunID)
 	if err != nil || run == nil {
 		return nil, nil, err
 	}
-	chat, err := s.GetChat(ctx, run.ChatID)
-	if err != nil || chat == nil {
+	task, err := s.GetTask(ctx, run.TaskID)
+	if err != nil || task == nil {
 		return run, nil, err
 	}
-	return run, chat, nil
+	return run, task, nil
 }
 
 // ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
@@ -125,28 +125,28 @@ func (s *Store) UpdateRun(ctx context.Context, in UpdateTaskRunInput) error {
 }
 
 // syncTaskStatusFromRun updates the task row (denormalized status) for the run's task_id to match the run's status.
-func (s *Store) syncTaskStatusFromRun(ctx context.Context, chatRunID, status string, startedAt, endedAt *int64) error {
+func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status string, startedAt, endedAt *int64) error {
 	var run TaskRun
-	if err := s.db.WithContext(ctx).Where("task_run_id = ?", chatRunID).Select("task_id").First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Select("task_id").First(&run).Error; err != nil {
 		return err
 	}
-	chatUpdates := map[string]interface{}{"status": status}
+	taskUpdates := map[string]interface{}{"status": status}
 	if status == "PENDING" {
-		chatUpdates["started_at"] = nil
-		chatUpdates["ended_at"] = nil
+		taskUpdates["started_at"] = nil
+		taskUpdates["ended_at"] = nil
 	} else {
 		if startedAt != nil {
-			chatUpdates["started_at"] = *startedAt
+			taskUpdates["started_at"] = *startedAt
 		}
 		if endedAt != nil {
-			chatUpdates["ended_at"] = *endedAt
+			taskUpdates["ended_at"] = *endedAt
 		}
 	}
-	return s.db.WithContext(ctx).Model(&Chat{}).Where("task_id = ?", run.ChatID).Updates(chatUpdates).Error
+	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(taskUpdates).Error
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.
-func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
 	updates := map[string]interface{}{"worker_type": workerType}
 	if k8sJobName != nil {
 		updates["k8s_job_name"] = *k8sJobName
@@ -154,26 +154,26 @@ func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, chatRunID, workerTy
 	if k8sJobCreatedAt != nil {
 		updates["k8s_job_created_at"] = *k8sJobCreatedAt
 	}
-	return s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_run_id = ?", chatRunID).Updates(updates).Error
+	return s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_run_id = ?", taskRunID).Updates(updates).Error
 }
 
 // OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields.
-func (s *Store) OnRunComplete(ctx context.Context, chatRunID string, relativePaths []string) error {
+func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error {
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var run TaskRun
-		if err := tx.Where("task_run_id = ?", chatRunID).First(&run).Error; err != nil {
+		if err := tx.Where("task_run_id = ?", taskRunID).First(&run).Error; err != nil {
 			return err
 		}
 		for _, relPath := range relativePaths {
-			if err := tx.Create(&TaskRunArtifact{TaskRunID: chatRunID, RelativePath: relPath}).Error; err != nil {
+			if err := tx.Create(&TaskRunArtifact{TaskRunID: taskRunID, RelativePath: relPath}).Error; err != nil {
 				return err
 			}
 		}
 		updates := map[string]interface{}{
-			"last_run_id":   chatRunID,
+			"last_run_id":   taskRunID,
 			"status":        run.Status,
 			"output":        run.Output,
 			"started_at":    run.StartedAt,
@@ -183,18 +183,18 @@ func (s *Store) OnRunComplete(ctx context.Context, chatRunID string, relativePat
 		if run.SessionID != nil {
 			updates["session_id"] = *run.SessionID
 		}
-		return tx.Model(&Chat{}).Where("task_id = ?", run.ChatID).Updates(updates).Error
+		return tx.Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
 	})
 }
 
 // SyncTaskFromRun updates task denormalized fields and last_run_id from the run. Use when run ends with FAILED (no artifact).
-func (s *Store) SyncTaskFromRun(ctx context.Context, chatRunID string) error {
+func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
 	var run TaskRun
-	if err := s.db.WithContext(ctx).Where("task_run_id = ?", chatRunID).First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).First(&run).Error; err != nil {
 		return err
 	}
 	updates := map[string]interface{}{
-		"last_run_id":   chatRunID,
+		"last_run_id":   taskRunID,
 		"status":        run.Status,
 		"output":        run.Output,
 		"started_at":    run.StartedAt,
@@ -204,5 +204,5 @@ func (s *Store) SyncTaskFromRun(ctx context.Context, chatRunID string) error {
 	if run.SessionID != nil {
 		updates["session_id"] = *run.SessionID
 	}
-	return s.db.WithContext(ctx).Model(&Chat{}).Where("task_id = ?", run.ChatID).Updates(updates).Error
+	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
 }

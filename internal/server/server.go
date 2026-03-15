@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	chatapp "buildmax/internal/app/chat"
 	convapp "buildmax/internal/app/conversation"
+	taskapp "buildmax/internal/app/task"
 	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
@@ -44,8 +44,8 @@ type TokenUsage struct {
 
 // RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, chatID *string) ([]entity.ArtifactWithChat, error)
-	GetTaskRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.TaskRunArtifact, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]entity.ArtifactWithTask, error)
+	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]entity.TaskRunArtifact, error)
 }
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
@@ -58,12 +58,12 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore                entity.UserStore
-	AgentStore               entity.AgentStore
-	TaskStore                entity.TaskStore
-	TaskRunStore             entity.TaskRunStore
-	RunOutputLister          RunOutputLister
-	UserWebhookKeyStore      entity.UserWebhookKeyStore
+	UserStore           entity.UserStore
+	AgentStore          entity.AgentStore
+	TaskStore           entity.TaskStore
+	TaskRunStore        entity.TaskRunStore
+	RunOutputLister     RunOutputLister
+	UserWebhookKeyStore entity.UserWebhookKeyStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -171,16 +171,16 @@ func New(cfg Config) *Server {
 		if userID == "" {
 			userID = conversation.DefaultWebhookUserID
 		}
-		chatSvc := &chatapp.Service{
+		taskSvc := &taskapp.Service{
 			Agents:         cfg.Stores.AgentStore,
-			Chats:          cfg.Stores.TaskStore,
+			Tasks:          cfg.Stores.TaskStore,
 			TaskRuns:       cfg.Stores.TaskRunStore,
 			QuotaChecker:   cfg.Auth.QuotaChecker,
 			TitleGenerator: nil,
 		}
 		webhookHandler := webhook.NewHandler(webhook.Config{
 			Adapter:           conversation.NewWebhookAdapter(msgPath, userID),
-			Engine:            &convapp.RuleBasedEngine{Chat: chatSvc},
+			Engine:            &convapp.RuleBasedEngine{Task: taskSvc},
 			ConversationStore: cfg.Conv.ConversationStore,
 			KeyStore:          cfg.Stores.UserWebhookKeyStore,
 			MessagePath:       msgPath,

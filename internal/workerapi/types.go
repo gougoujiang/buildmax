@@ -11,7 +11,7 @@ type GetTaskRunResponse struct {
 // TaskRunRun is the run portion of the GET response.
 type TaskRunRun struct {
 	TaskRunID string `json:"task_run_id"`
-	ChatID    string `json:"task_id"`
+	TaskID    string `json:"task_id"`
 	Input     string `json:"input"`
 	Status    string `json:"status"`
 	CreatedAt int64  `json:"created_at"`
@@ -19,7 +19,7 @@ type TaskRunRun struct {
 
 // TaskRunTask is the task portion of the GET response.
 type TaskRunTask struct {
-	ChatID         string  `json:"task_id"`
+	TaskID         string  `json:"task_id"`
 	ConversationID string  `json:"conversation_id"`
 	UserID         string  `json:"user_id"`
 	SessionID      *string `json:"session_id,omitempty"`

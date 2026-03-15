@@ -9,7 +9,7 @@ import (
 type RunObjectRef struct {
 	UserID         string
 	ConversationID string
-	ChatID         string
+	TaskID         string
 	TaskRunID      string
 	RelPath        string
 }
@@ -17,20 +17,20 @@ type RunObjectRef struct {
 type RunRef struct {
 	UserID         string
 	ConversationID string
-	ChatID         string
+	TaskID         string
 	TaskRunID      string
 }
 
 // PersistStorage reads/writes persistent user files and can materialize them to a local dir.
-// PutChatGlobal/GetChatGlobal use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/global/.
+// PutTaskGlobal/GetTaskGlobal use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/global/.
 // PutTaskRunArtifacts/GetTaskRunArtifacts use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/artifacts/.
 type PersistStorage interface {
 	Put(ctx context.Context, userID string, relPath string, r io.Reader) error
 	Get(ctx context.Context, userID string, relPath string) ([]byte, error)
 	ListFiles(ctx context.Context, userID string) ([]string, error)
 	MaterializeToDir(ctx context.Context, userID string, dstDir string) error
-	PutChatGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
-	GetChatGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
+	PutTaskGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
+	GetTaskGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
 	PutTaskRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetTaskRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error)
 }

@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	chatapp "buildmax/internal/app/chat"
 	convapp "buildmax/internal/app/conversation"
+	taskapp "buildmax/internal/app/task"
 	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/blob"
 	"buildmax/internal/storage/entity"
@@ -36,9 +36,9 @@ type createTaskRequest struct {
 	AgentID *string `json:"agent_id,omitempty"`
 }
 
-func taskToResponse(task entity.Chat) TaskResponse {
+func taskToResponse(task entity.Task) TaskResponse {
 	return TaskResponse{
-		ID:             task.ChatID,
+		ID:             task.TaskID,
 		ConversationID: task.ConversationID,
 		SessionID:      task.SessionID,
 		Status:         task.Status,
@@ -54,11 +54,11 @@ func taskToResponse(task entity.Chat) TaskResponse {
 	}
 }
 
-func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request, conversationID, taskID string) (*entity.Chat, bool) {
+func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request, conversationID, taskID string) (*entity.Task, bool) {
 	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
 		return nil, false
 	}
-	task, err := h.cfg.TaskStore.GetChat(r.Context(), taskID)
+	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_task", "task_id", taskID)
 		return nil, false
@@ -70,8 +70,8 @@ func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request,
 	return task, true
 }
 
-func (h *Handler) getTaskForUser(w http.ResponseWriter, r *http.Request, userID, taskID string) (*entity.Chat, *entity.Conversation, bool) {
-	task, err := h.cfg.TaskStore.GetChat(r.Context(), taskID)
+func (h *Handler) getTaskForUser(w http.ResponseWriter, r *http.Request, userID, taskID string) (*entity.Task, *entity.Conversation, bool) {
+	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_task", "task_id", taskID)
 		return nil, nil, false
@@ -109,7 +109,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	if usePaginated {
 		limit, offset := parseLimitOffset(q, "limit", "offset", 50, 200)
 		executedOnly := q.Get("executed_only") == "true"
-		list, total, err := h.cfg.TaskStore.ListChatsByConversationPaginated(r.Context(), conversationID, executedOnly, limit, offset)
+		list, total, err := h.cfg.TaskStore.ListTasksByConversationPaginated(r.Context(), conversationID, executedOnly, limit, offset)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_tasks", "conversation_id", conversationID)
 			return
@@ -125,7 +125,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	if order != "asc" && order != "desc" {
 		order = "desc"
 	}
-	list, err := h.cfg.TaskStore.ListChatsByConversation(r.Context(), conversationID, order)
+	list, err := h.cfg.TaskStore.ListTasksByConversation(r.Context(), conversationID, order)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_tasks", "conversation_id", conversationID)
 		return
@@ -153,7 +153,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	task, err := h.taskService().CreateChat(r.Context(), chatapp.CreateChatCmd{
+	task, err := h.taskService().CreateTask(r.Context(), taskapp.CreateTaskCmd{
 		ConversationID: conversationID,
 		UserID:         userID,
 		Input:          req.Input,
@@ -195,7 +195,7 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 		UserID:  userID,
 		Channel: "portal",
 		Message: input,
-		ChatID:  taskID,
+		TaskID:  taskID,
 	})
 	if err != nil {
 		if h.writeConversationServiceError(w, r, err, nil) {
@@ -237,7 +237,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
-	h.createTaskRunViaConversation(w, r, userID, conv.ConversationID, task.ChatID, req.Input)
+	h.createTaskRunViaConversation(w, r, userID, conv.ConversationID, task.TaskID, req.Input)
 }
 
 type SessionMessage struct {
@@ -290,24 +290,24 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 			httputil.WriteJSONError(w, http.StatusNotFound, "conversation file not found")
 			return
 		}
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "task_id", task.ChatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "task_id", task.TaskID)
 		return
 	}
 	var out ConversationResponse
 	if err := json.Unmarshal(data, &out); err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "task_id", task.ChatID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "task_id", task.TaskID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) loadTaskConversationData(ctx context.Context, task *entity.Chat, lastRunID, sessionID string) ([]byte, error) {
+func (h *Handler) loadTaskConversationData(ctx context.Context, task *entity.Task, lastRunID, sessionID string) ([]byte, error) {
 	relPath := "sessions/" + sessionID + ".json"
 	if h.cfg.PersistStorage != nil {
-		data, err := h.cfg.PersistStorage.GetChatGlobal(ctx, blob.RunObjectRef{
+		data, err := h.cfg.PersistStorage.GetTaskGlobal(ctx, blob.RunObjectRef{
 			UserID:         task.CreatedBy,
 			ConversationID: task.ConversationID,
-			ChatID:         task.ChatID,
+			TaskID:         task.TaskID,
 			TaskRunID:      lastRunID,
 			RelPath:        relPath,
 		})
@@ -318,6 +318,6 @@ func (h *Handler) loadTaskConversationData(ctx context.Context, task *entity.Cha
 			return nil, err
 		}
 	}
-	localPath := filepath.Join(h.workspacesDir(), task.CreatedBy, "conversations", task.ConversationID, "tasks", task.ChatID, lastRunID, "global", "sessions", sessionID+".json")
+	localPath := filepath.Join(h.workspacesDir(), task.CreatedBy, "conversations", task.ConversationID, "tasks", task.TaskID, lastRunID, "global", "sessions", sessionID+".json")
 	return os.ReadFile(localPath)
 }

@@ -59,18 +59,18 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, userID string) ([]stri
 	return out, nil
 }
 
-// PutChatGlobal writes one file under the task run global key space.
-func (s *S3PersistStorage) PutChatGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := TaskRunGlobalObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID, ref.RelPath)
+// PutTaskGlobal writes one file under the task run global key space.
+func (s *S3PersistStorage) PutTaskGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
+	key, err := TaskRunGlobalObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetChatGlobal reads one file from the task run global key space. Returns ErrNotFound if the object does not exist.
-func (s *S3PersistStorage) GetChatGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := TaskRunGlobalObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID, ref.RelPath)
+// GetTaskGlobal reads one file from the task run global key space. Returns ErrNotFound if the object does not exist.
+func (s *S3PersistStorage) GetTaskGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
+	key, err := TaskRunGlobalObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *S3PersistStorage) GetChatGlobal(ctx context.Context, ref RunObjectRef) 
 
 // PutTaskRunArtifacts writes one file under the task run artifacts key space (prefix/.../tasks/taskID/taskRunID/artifacts/relPath).
 func (s *S3PersistStorage) PutTaskRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := TaskRunArtifactsObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID, ref.RelPath)
+	key, err := TaskRunArtifactsObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (s *S3PersistStorage) PutTaskRunArtifacts(ctx context.Context, ref RunObjec
 
 // GetTaskRunArtifacts reads one file from the task run artifacts key space. Returns ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetTaskRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := TaskRunArtifactsObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.ChatID, ref.TaskRunID, ref.RelPath)
+	key, err := TaskRunArtifactsObjectKey(s.prefix, ref.UserID, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}

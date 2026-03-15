@@ -1,4 +1,4 @@
-package chat
+package task
 
 import (
 	"context"
@@ -13,7 +13,7 @@ const defaultTitleRunes = 50
 var (
 	ErrInputRequired         = errors.New("input required")
 	ErrAgentsNotConfigured   = errors.New("agents not configured")
-	ErrChatsNotConfigured    = errors.New("chats not configured")
+	ErrTasksNotConfigured    = errors.New("tasks not configured")
 	ErrTaskRunsNotConfigured = errors.New("task runs not configured")
 	ErrAgentNotFound         = errors.New("agent not found or not owned by user")
 )
@@ -40,14 +40,14 @@ func (e *QuotaExceededError) Error() string {
 // Service owns task-related application workflows.
 type Service struct {
 	Agents         entity.AgentStore
-	Chats          entity.TaskStore
+	Tasks          entity.TaskStore
 	TaskRuns       entity.TaskRunStore
 	QuotaChecker   QuotaChecker
 	TitleGenerator TitleGenerator
 }
 
-// CreateChatCmd creates a new task and its first run.
-type CreateChatCmd struct {
+// CreateTaskCmd creates a new task and its first run.
+type CreateTaskCmd struct {
 	ConversationID string
 	UserID         string
 	Input          string
@@ -57,20 +57,20 @@ type CreateChatCmd struct {
 // CreateRunCmd creates a new run on an existing task.
 type CreateRunCmd struct {
 	UserID string
-	ChatID string
+	TaskID string
 	Input  string
 }
 
-// StartBackgroundChatResult is returned when a background task is created.
-type StartBackgroundChatResult struct {
-	ChatID string
+// StartBackgroundTaskResult is returned when a background task is created.
+type StartBackgroundTaskResult struct {
+	TaskID string
 	RunID  string
 }
 
-// CreateChat resolves input, applies title/quota rules, and persists a new task.
-func (s *Service) CreateChat(ctx context.Context, cmd CreateChatCmd) (*entity.Chat, error) {
-	if s.Chats == nil {
-		return nil, ErrChatsNotConfigured
+// CreateTask resolves input, applies title/quota rules, and persists a new task.
+func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*entity.Task, error) {
+	if s.Tasks == nil {
+		return nil, ErrTasksNotConfigured
 	}
 	input, agentID, err := s.resolveInput(ctx, cmd.UserID, cmd.Input, cmd.AgentID)
 	if err != nil {
@@ -80,7 +80,7 @@ func (s *Service) CreateChat(ctx context.Context, cmd CreateChatCmd) (*entity.Ch
 	if err := s.checkQuota(ctx, cmd.UserID, promptTokens+completionTokens); err != nil {
 		return nil, err
 	}
-	return s.Chats.CreateChat(ctx, &entity.CreateChatInput{
+	return s.Tasks.CreateTask(ctx, &entity.CreateTaskInput{
 		ConversationID:        cmd.ConversationID,
 		Input:                 input,
 		Title:                 title,
@@ -102,21 +102,21 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*entity.Task
 	if err := s.checkQuota(ctx, cmd.UserID, 0); err != nil {
 		return nil, err
 	}
-	return s.TaskRuns.CreateTaskRun(ctx, cmd.ChatID, cmd.Input, cmd.UserID)
+	return s.TaskRuns.CreateTaskRun(ctx, cmd.TaskID, cmd.Input, cmd.UserID)
 }
 
-// StartBackgroundChat creates a task and returns its task/run ids.
-func (s *Service) StartBackgroundChat(ctx context.Context, cmd CreateChatCmd) (*StartBackgroundChatResult, error) {
-	chat, err := s.CreateChat(ctx, cmd)
+// StartBackgroundTask creates a task and returns its task/run ids.
+func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*StartBackgroundTaskResult, error) {
+	task, err := s.CreateTask(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
 	runID := ""
-	if chat.LastRunID != nil {
-		runID = *chat.LastRunID
+	if task.LastRunID != nil {
+		runID = *task.LastRunID
 	}
-	return &StartBackgroundChatResult{
-		ChatID: chat.ChatID,
+	return &StartBackgroundTaskResult{
+		TaskID: task.TaskID,
 		RunID:  runID,
 	}, nil
 }
@@ -141,11 +141,11 @@ func (s *Service) resolveInput(ctx context.Context, userID, input string, agentI
 	if input != "" {
 		return input, agentID, nil
 	}
-	return buildChatInputFromAgent(agent, ""), agentID, nil
+	return buildTaskInputFromAgent(agent, ""), agentID, nil
 }
 
 func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, int) {
-	title := truncateChatTitle(input, defaultTitleRunes)
+	title := truncateTaskTitle(input, defaultTitleRunes)
 	if s.TitleGenerator == nil {
 		return title, 0, 0
 	}
@@ -167,7 +167,7 @@ func (s *Service) checkQuota(ctx context.Context, userID string, tokens int) err
 	return &QuotaExceededError{Reason: reason}
 }
 
-func buildChatInputFromAgent(agent *entity.Agent, userInput string) string {
+func buildTaskInputFromAgent(agent *entity.Agent, userInput string) string {
 	out := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
 	if userInput != "" {
 		out = out + "\n\n" + userInput
@@ -175,7 +175,7 @@ func buildChatInputFromAgent(agent *entity.Agent, userInput string) string {
 	return out
 }
 
-func truncateChatTitle(input string, maxRunes int) string {
+func truncateTaskTitle(input string, maxRunes int) string {
 	runes := []rune(input)
 	if len(runes) <= maxRunes {
 		return input

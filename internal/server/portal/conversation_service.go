@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	chatapp "buildmax/internal/app/chat"
+	taskapp "buildmax/internal/app/task"
 	convapp "buildmax/internal/app/conversation"
 	"buildmax/internal/server/httputil"
 )
@@ -24,7 +24,7 @@ func (a conversationTitleGeneratorAdapter) GenerateTitle(ctx context.Context, in
 
 func (h *Handler) conversationService() *convapp.Service {
 	return &convapp.Service{
-		ChatService:       h.taskService(),
+		TaskService:       h.taskService(),
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,
 		LLMCaller:         h.cfg.ConversationLLMCaller,
@@ -44,7 +44,7 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return true
 	}
-	var quotaErr *chatapp.QuotaExceededError
+	var quotaErr *taskapp.QuotaExceededError
 	if errors.As(err, &quotaErr) {
 		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
 		return true

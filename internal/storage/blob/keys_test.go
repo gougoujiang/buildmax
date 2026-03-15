@@ -23,7 +23,7 @@ func TestArtifactResultKey(t *testing.T) {
 	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
 		t.Errorf("got %q", key)
 	}
-	key = ArtifactResultKeyScope(ObjectKeyScope{Prefix: "workspaces", UserID: "u1", ConversationID: "conv1", ChatID: "chat1", TaskRunID: "run1"})
+	key = ArtifactResultKeyScope(ObjectKeyScope{Prefix: "workspaces", UserID: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"})
 	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
 		t.Errorf("ArtifactResultKeyScope got %q", key)
 	}
@@ -53,9 +53,9 @@ func TestPersistPrefix(t *testing.T) {
 	}
 }
 
-func TestChatBuildmaxObjectKey(t *testing.T) {
-	// ChatBuildmaxObjectKey delegates to TaskRunGlobalObjectKey (segment "global").
-	key, err := ChatBuildmaxObjectKey("workspaces", "u1", "conv1", "chat1", "run1", "logs/buildmax.log")
+func TestTaskBuildmaxObjectKey(t *testing.T) {
+	// TaskBuildmaxObjectKey delegates to TaskRunGlobalObjectKey (segment "global").
+	key, err := TaskBuildmaxObjectKey("workspaces", "u1", "conv1", "chat1", "run1", "logs/buildmax.log")
 	if err != nil {
 		t.Fatal(err)
 	}

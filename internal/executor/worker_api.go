@@ -63,8 +63,8 @@ func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix
 }
 
 // GetWorkerTaskRun fetches run and task from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil, nil if not found.
-func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID string) (*entity.TaskRun, *entity.Chat, error) {
-	pathSuffix := "/api/worker/task-runs/" + chatRunID
+func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*entity.TaskRun, *entity.Task, error) {
+	pathSuffix := "/api/worker/task-runs/" + taskRunID
 	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
 	if err != nil {
 		return nil, nil, err
@@ -82,19 +82,19 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, chatRunID 
 	}
 	run := &entity.TaskRun{
 		TaskRunID: got.Run.TaskRunID,
-		ChatID:    got.Run.ChatID,
+		TaskID:    got.Run.TaskID,
 		Input:     got.Run.Input,
 		Status:    got.Run.Status,
 		CreatedAt: got.Run.CreatedAt,
 	}
-	chat := &entity.Chat{
-		ChatID:         got.Task.ChatID,
+	task := &entity.Task{
+		TaskID:         got.Task.TaskID,
 		ConversationID: got.Task.ConversationID,
 		CreatedBy:      got.Task.UserID,
 		SessionID:      got.Task.SessionID,
 		LastRunID:      got.Task.LastRunID,
 	}
-	return run, chat, nil
+	return run, task, nil
 }
 
 // WorkerHTTPUpdater implements TaskRunUpdater by calling the server's worker API (PATCH /api/worker/task-runs/{task_run_id}).

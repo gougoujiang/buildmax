@@ -48,12 +48,12 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 		workspacesDir = abs
 	}
 
-	run, chat, err := executor.GetWorkerTaskRun(ctx, executor.WorkerAPIClientConfig{BaseURL: baseURL, Token: token}, chatRunID)
+	run, task, err := executor.GetWorkerTaskRun(ctx, executor.WorkerAPIClientConfig{BaseURL: baseURL, Token: token}, chatRunID)
 	if err != nil {
 		slog.Error("worker: get run failed", "task_run_id", chatRunID, "err", err)
 		return fmt.Errorf("get run: %w", err)
 	}
-	if run == nil || chat == nil {
+	if run == nil || task == nil {
 		slog.Error("worker: run not found", "task_run_id", chatRunID)
 		return fmt.Errorf("run not found")
 	}
@@ -63,8 +63,8 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 	}
 
 	sessionID := uuid.New().String()
-	if chat.SessionID != nil {
-		sessionID = *chat.SessionID
+	if task.SessionID != nil {
+		sessionID = *task.SessionID
 	}
 	updater := &executor.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
@@ -96,8 +96,8 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 		slog.Error("worker: failed to build persist storage", "task_run_id", chatRunID, "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, func(userID, conversationID, chatID, chatRunID string) string {
-		return filepath.Join(workspacesDir, userID, "artifacts", conversationID, chatID, chatRunID)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, func(userID, conversationID, taskID, taskRunID string) string {
+		return filepath.Join(workspacesDir, userID, "artifacts", conversationID, taskID, taskRunID)
 	}, s3Client)
 	if err != nil {
 		slog.Error("worker: failed to build artifact storage", "task_run_id", chatRunID, "err", err)
@@ -108,7 +108,7 @@ func RunWorker(ctx context.Context, chatRunID string) error {
 	httpSender := &executor.WorkerHTTPStreamSender{BaseURL: baseURL, Token: token}
 	streamSender := &executor.DebouncedStreamSender{Inner: httpSender}
 	err = executor.RunTask(ctx, executor.RunTaskInput{
-		Chat:            chat,
+		Task:            task,
 		Run:             run,
 		SessionID:       sessionID,
 		Paths:           paths,

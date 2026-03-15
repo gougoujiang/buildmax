@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	chatapp "buildmax/internal/app/chat"
+	taskapp "buildmax/internal/app/task"
 	coreconv "buildmax/internal/conversation"
 )
 
@@ -12,16 +12,16 @@ var ErrChannelNotWebhook = errors.New("rule-based engine only accepts webhook ch
 
 // RuleBasedEngine implements coreconv.ConversationEngine for webhook turns: no LLM, create one TaskRun.
 type RuleBasedEngine struct {
-	Chat *chatapp.Service
+	Task *taskapp.Service
 }
 
 // Process creates exactly one TaskRun for webhook turns. Rejects other channels.
-func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, chatID string, turn coreconv.ConversationTurn) (coreconv.ConversationResult, error) {
+func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID string, turn coreconv.ConversationTurn) (coreconv.ConversationResult, error) {
 	if turn.Channel != coreconv.ChannelWebhook {
 		return coreconv.ConversationResult{}, ErrChannelNotWebhook
 	}
-	if e.Chat == nil {
-		return coreconv.ConversationResult{}, chatapp.ErrTaskRunsNotConfigured
+	if e.Task == nil {
+		return coreconv.ConversationResult{}, taskapp.ErrTaskRunsNotConfigured
 	}
 	if conversationID == "" {
 		return coreconv.ConversationResult{}, errors.New("conversation_id required")
@@ -33,8 +33,8 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, chatID st
 	if userID == "" {
 		userID = coreconv.DefaultWebhookUserID
 	}
-	if chatID == "" {
-		result, err := e.Chat.StartBackgroundChat(ctx, chatapp.CreateChatCmd{
+	if taskID == "" {
+		result, err := e.Task.StartBackgroundTask(ctx, taskapp.CreateTaskCmd{
 			ConversationID: conversationID,
 			UserID:         userID,
 			Input:          turn.Message,
@@ -45,9 +45,9 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, chatID st
 		}
 		return coreconv.ConversationResult{TaskIDs: []string{result.RunID}}, nil
 	}
-	run, err := e.Chat.CreateRun(ctx, chatapp.CreateRunCmd{
+	run, err := e.Task.CreateRun(ctx, taskapp.CreateRunCmd{
 		UserID: userID,
-		ChatID: chatID,
+		TaskID: taskID,
 		Input:  turn.Message,
 	})
 	if err != nil {

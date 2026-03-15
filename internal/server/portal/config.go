@@ -23,8 +23,8 @@ type ChatTitleGenerator interface {
 
 // RunOutputLister lists run outputs by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, chatID *string) ([]entity.ArtifactWithChat, error)
-	GetTaskRunOutputFiles(ctx context.Context, chatRunID string) ([]entity.TaskRunArtifact, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]entity.ArtifactWithTask, error)
+	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]entity.TaskRunArtifact, error)
 }
 
 // Config holds dependencies for authenticated portal endpoints.

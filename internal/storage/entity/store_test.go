@@ -92,29 +92,29 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&Conversation{}, "conversation_id = ?", conv.ConversationID)
 	}()
-	chat, err := s.CreateChat(ctx, &CreateChatInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "run-output-user"})
+	task, err := s.CreateTask(ctx, &CreateTaskInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "run-output-user"})
 	if err != nil {
-		t.Fatalf("CreateChat: %v", err)
+		t.Fatalf("CreateTask: %v", err)
 	}
-	if chat.LastRunID == nil {
-		t.Fatal("CreateChat should set LastRunID")
+	if task.LastRunID == nil {
+		t.Fatal("CreateTask should set LastRunID")
 	}
-	chatRunID := *chat.LastRunID
+	taskRunID := *task.LastRunID
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&TaskRunArtifact{}, "task_run_id = ?", chatRunID)
-		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "chat_id = ?", chat.ChatID)
-		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRunArtifact{}, "task_run_id = ?", taskRunID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
 	}()
 	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
-	if err := s.UpdateRun(ctx, UpdateTaskRunInput{TaskRunID: chatRunID, Status: RunStatusSucceeded, Output: util.PtrString("out")}); err != nil {
+	if err := s.UpdateRun(ctx, UpdateTaskRunInput{TaskRunID: taskRunID, Status: RunStatusSucceeded, Output: util.PtrString("out")}); err != nil {
 		t.Fatalf("UpdateRun: %v", err)
 	}
-	err = s.OnRunComplete(ctx, chatRunID, []string{"result.md", "extra.txt"})
+	err = s.OnRunComplete(ctx, taskRunID, []string{"result.md", "extra.txt"})
 	if err != nil {
 		t.Fatalf("OnRunComplete: %v", err)
 	}
 	var files []TaskRunArtifact
-	if err := s.db.WithContext(ctx).Where("task_run_id = ?", chatRunID).Find(&files).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Find(&files).Error; err != nil {
 		t.Fatalf("find output files: %v", err)
 	}
 	if len(files) != 2 {
@@ -129,15 +129,15 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if len(artList) != 1 {
 		t.Fatalf("ListRunOutputsByConversation: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != chatRunID || artList[0].ChatID != chat.ChatID || artList[0].TaskRunID != chatRunID || artList[0].ConversationID != conv.ConversationID || artList[0].UserID != "run-output-user" {
-		t.Errorf("ListRunOutputsByConversation: got artifact_id=%q chat_id=%q task_run_id=%q conversation_id=%q user_id=%q", artList[0].ArtifactID, artList[0].ChatID, artList[0].TaskRunID, artList[0].ConversationID, artList[0].UserID)
+	if artList[0].ArtifactID != taskRunID || artList[0].TaskID != task.TaskID || artList[0].TaskRunID != taskRunID || artList[0].ConversationID != conv.ConversationID || artList[0].UserID != "run-output-user" {
+		t.Errorf("ListRunOutputsByConversation: got artifact_id=%q task_id=%q task_run_id=%q conversation_id=%q user_id=%q", artList[0].ArtifactID, artList[0].TaskID, artList[0].TaskRunID, artList[0].ConversationID, artList[0].UserID)
 	}
-	if artList[0].ChatInputSnippet != "input" {
-		t.Errorf("ListRunOutputsByConversation: chat_input_snippet = %q, want input", artList[0].ChatInputSnippet)
+	if artList[0].TaskInputSnippet != "input" {
+		t.Errorf("ListRunOutputsByConversation: task_input_snippet = %q, want input", artList[0].TaskInputSnippet)
 	}
 
 	// GetTaskRunOutputFiles
-	items, err := s.GetTaskRunOutputFiles(ctx, chatRunID)
+	items, err := s.GetTaskRunOutputFiles(ctx, taskRunID)
 	if err != nil {
 		t.Fatalf("GetTaskRunOutputFiles: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	}
 }
 
-func TestClaimChat(t *testing.T) {
+func TestClaimTask(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -171,61 +171,61 @@ func TestClaimChat(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&Conversation{}, "conversation_id = ?", conv.ConversationID)
 	}()
-	chat, err := s.CreateChat(ctx, &CreateChatInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "update-if-user"})
+	task, err := s.CreateTask(ctx, &CreateTaskInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "update-if-user"})
 	if err != nil {
-		t.Fatalf("CreateChat: %v", err)
+		t.Fatalf("CreateTask: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "chat_id = ?", chat.ChatID)
-		_ = s.db.WithContext(ctx).Delete(&Chat{}, "chat_id = ?", chat.ChatID)
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
 	}()
 
 	// PENDING -> SCHEDULED: should update
-	updated, err := s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
+	updated, err := s.ClaimTask(ctx, ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
-		t.Fatalf("ClaimChat PENDING->SCHEDULED: %v", err)
+		t.Fatalf("ClaimTask PENDING->SCHEDULED: %v", err)
 	}
 	if !updated {
-		t.Error("ClaimChat PENDING->SCHEDULED: want updated true, got false")
+		t.Error("ClaimTask PENDING->SCHEDULED: want updated true, got false")
 	}
-	got, _ := s.GetChat(ctx, chat.ChatID)
+	got, _ := s.GetTask(ctx, task.TaskID)
 	if got == nil || got.Status != "SCHEDULED" {
-		t.Errorf("after PENDING->SCHEDULED: chat status = %q, want SCHEDULED", got.Status)
+		t.Errorf("after PENDING->SCHEDULED: task status = %q, want SCHEDULED", got.Status)
 	}
 
 	// PENDING -> SCHEDULED again: no match, updated false
-	updated, err = s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
+	updated, err = s.ClaimTask(ctx, ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
-		t.Fatalf("ClaimChat PENDING->SCHEDULED (second): %v", err)
+		t.Fatalf("ClaimTask PENDING->SCHEDULED (second): %v", err)
 	}
 	if updated {
-		t.Error("ClaimChat PENDING->SCHEDULED when already SCHEDULED: want updated false, got true")
+		t.Error("ClaimTask PENDING->SCHEDULED when already SCHEDULED: want updated false, got true")
 	}
-	got, _ = s.GetChat(ctx, chat.ChatID)
+	got, _ = s.GetTask(ctx, task.TaskID)
 	if got == nil || got.Status != "SCHEDULED" {
-		t.Errorf("chat status = %q, want SCHEDULED (unchanged)", got.Status)
+		t.Errorf("task status = %q, want SCHEDULED (unchanged)", got.Status)
 	}
 
 	// SCHEDULED -> RUNNING: should update
-	updated, err = s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
+	updated, err = s.ClaimTask(ctx, ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
-		t.Fatalf("ClaimChat SCHEDULED->RUNNING: %v", err)
+		t.Fatalf("ClaimTask SCHEDULED->RUNNING: %v", err)
 	}
 	if !updated {
-		t.Error("ClaimChat SCHEDULED->RUNNING: want updated true, got false")
+		t.Error("ClaimTask SCHEDULED->RUNNING: want updated true, got false")
 	}
-	got, _ = s.GetChat(ctx, chat.ChatID)
+	got, _ = s.GetTask(ctx, task.TaskID)
 	if got == nil || got.Status != "RUNNING" {
-		t.Errorf("after SCHEDULED->RUNNING: chat status = %q, want RUNNING", got.Status)
+		t.Errorf("after SCHEDULED->RUNNING: task status = %q, want RUNNING", got.Status)
 	}
 
 	// SCHEDULED -> RUNNING again: no match, updated false
-	updated, err = s.ClaimChat(ctx, ClaimChatInput{ChatID: chat.ChatID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
+	updated, err = s.ClaimTask(ctx, ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
-		t.Fatalf("ClaimChat SCHEDULED->RUNNING (second): %v", err)
+		t.Fatalf("ClaimTask SCHEDULED->RUNNING (second): %v", err)
 	}
 	if updated {
-		t.Error("ClaimChat SCHEDULED->RUNNING when already RUNNING: want updated false, got true")
+		t.Error("ClaimTask SCHEDULED->RUNNING when already RUNNING: want updated false, got true")
 	}
 }
 

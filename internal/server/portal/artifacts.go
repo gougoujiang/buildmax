@@ -12,21 +12,21 @@ import (
 
 type ArtifactResponse struct {
 	TaskRunID        string `json:"task_run_id"`
-	ChatID           string `json:"task_id"`
+	TaskID           string `json:"task_id"`
 	ConversationID   string `json:"conversation_id"`
 	UserID           string `json:"user_id"`
 	CreatedAt        int64  `json:"created_at"`
-	ChatInputSnippet string `json:"task_input_snippet"`
+	TaskInputSnippet string `json:"task_input_snippet"`
 }
 
-func artifactWithChatToResponse(a entity.ArtifactWithChat) ArtifactResponse {
+func artifactWithTaskToResponse(a entity.ArtifactWithTask) ArtifactResponse {
 	return ArtifactResponse{
 		TaskRunID:        a.ArtifactID,
-		ChatID:           a.ChatID,
+		TaskID:           a.TaskID,
 		ConversationID:   a.ConversationID,
 		UserID:           a.UserID,
 		CreatedAt:        a.CreatedAt,
-		ChatInputSnippet: a.ChatInputSnippet,
+		TaskInputSnippet: a.TaskInputSnippet,
 	}
 }
 
@@ -46,14 +46,14 @@ func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	list, err := h.cfg.RunOutputLister.ListRunOutputsByConversation(r.Context(), task.ConversationID, &task.ChatID)
+	list, err := h.cfg.RunOutputLister.ListRunOutputsByConversation(r.Context(), task.ConversationID, &task.TaskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_artifacts", "task_id", taskID)
 		return
 	}
 	out := make([]ArtifactResponse, len(list))
 	for i := range list {
-		out[i] = artifactWithChatToResponse(list[i])
+		out[i] = artifactWithTaskToResponse(list[i])
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
@@ -62,33 +62,33 @@ type ArtifactItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
-func (h *Handler) getArtifactRunAndChatAny(w http.ResponseWriter, r *http.Request, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool) {
+func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Request, taskRunID string) (run *entity.TaskRun, task *entity.Task, ok bool) {
 	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
 		return nil, nil, false
 	}
 	var err error
-	run, chat, err = h.cfg.TaskRunStore.GetTaskRunWithChat(r.Context(), chatRunID)
+	run, task, err = h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact", "task_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact", "task_run_id", taskRunID)
 		return nil, nil, false
 	}
-	if run == nil || chat == nil {
+	if run == nil || task == nil {
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
-	return run, chat, true
+	return run, task, true
 }
 
-func (h *Handler) getArtifactRunAndChatForUser(w http.ResponseWriter, r *http.Request, userID, chatRunID string) (run *entity.TaskRun, chat *entity.Chat, ok bool) {
-	run, chat, ok = h.getArtifactRunAndChatAny(w, r, chatRunID)
+func (h *Handler) getArtifactRunAndTaskForUser(w http.ResponseWriter, r *http.Request, userID, taskRunID string) (run *entity.TaskRun, task *entity.Task, ok bool) {
+	run, task, ok = h.getArtifactRunAndTaskAny(w, r, taskRunID)
 	if !ok {
 		return nil, nil, false
 	}
-	if _, ok = h.getConversationForUser(w, r, userID, chat.ConversationID); !ok {
+	if _, ok = h.getConversationForUser(w, r, userID, task.ConversationID); !ok {
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
-	return run, chat, true
+	return run, task, true
 }
 
 func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
@@ -96,17 +96,17 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	chatRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
 	if !ok {
 		return
 	}
-	_, _, ok = h.getArtifactRunAndChatForUser(w, r, userID, chatRunID)
+	_, _, ok = h.getArtifactRunAndTaskForUser(w, r, userID, taskRunID)
 	if !ok {
 		return
 	}
-	items, err := h.cfg.RunOutputLister.GetTaskRunOutputFiles(r.Context(), chatRunID)
+	items, err := h.cfg.RunOutputLister.GetTaskRunOutputFiles(r.Context(), taskRunID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_items", "artifact_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_items", "artifact_id", taskRunID)
 		return
 	}
 	out := make([]ArtifactItemResponse, len(items))
@@ -119,7 +119,7 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 const artifactResultFilename = "result.md"
 
 // resolveArtifactPath returns the validated path parameter (default result.md) and whether it is allowed for this run; writes error and returns ("", false) on failure.
-func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, chatRunID string) (pathParam string, ok bool) {
+func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, taskRunID string) (pathParam string, ok bool) {
 	pathParam = r.URL.Query().Get("path")
 	if pathParam == "" {
 		pathParam = artifactResultFilename
@@ -132,9 +132,9 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ch
 	}
 	allowed := pathParam == artifactResultFilename
 	if !allowed && h.cfg.RunOutputLister != nil {
-		items, listErr := h.cfg.RunOutputLister.GetTaskRunOutputFiles(r.Context(), chatRunID)
+		items, listErr := h.cfg.RunOutputLister.GetTaskRunOutputFiles(r.Context(), taskRunID)
 		if listErr != nil {
-			httputil.WriteInternalError(w, listErr, "portal handler error", "handler", "artifact_content", "task_run_id", chatRunID)
+			httputil.WriteInternalError(w, listErr, "portal handler error", "handler", "artifact_content", "task_run_id", taskRunID)
 			return "", false
 		}
 		for _, it := range items {
@@ -159,15 +159,15 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !h.requireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
-	chatRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
 	if !ok {
 		return
 	}
-	_, chat, ok := h.getArtifactRunAndChatForUser(w, r, userID, chatRunID)
+	_, task, ok := h.getArtifactRunAndTaskForUser(w, r, userID, taskRunID)
 	if !ok {
 		return
 	}
-	pathParam, ok := h.resolveArtifactPath(w, r, chatRunID)
+	pathParam, ok := h.resolveArtifactPath(w, r, taskRunID)
 	if !ok {
 		return
 	}
@@ -175,17 +175,17 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	var err error
 	if pathParam == artifactResultFilename {
 		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), blob.RunRef{
-			UserID:         chat.CreatedBy,
-			ConversationID: chat.ConversationID,
-			ChatID:         chat.ChatID,
-			TaskRunID:      chatRunID,
+			UserID:         task.CreatedBy,
+			ConversationID: task.ConversationID,
+			TaskID:         task.TaskID,
+			TaskRunID:      taskRunID,
 		})
 	} else {
 		data, err = h.cfg.ArtifactStorage.GetArtifactFile(r.Context(), blob.RunObjectRef{
-			UserID:         chat.CreatedBy,
-			ConversationID: chat.ConversationID,
-			ChatID:         chat.ChatID,
-			TaskRunID:      chatRunID,
+			UserID:         task.CreatedBy,
+			ConversationID: task.ConversationID,
+			TaskID:         task.TaskID,
+			TaskRunID:      taskRunID,
 			RelPath:        pathParam,
 		})
 	}
@@ -194,7 +194,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 			httputil.WriteJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_content", "task_run_id", chatRunID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "artifact_content", "task_run_id", taskRunID)
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

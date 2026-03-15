@@ -73,13 +73,13 @@ func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, userID string) ([
 	return out, err
 }
 
-// PutChatGlobal is a no-op for local FS (task run global files already live on worker disk).
-func (s *LocalFSPersistStorage) PutChatGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
+// PutTaskGlobal is a no-op for local FS (task run global files already live on worker disk).
+func (s *LocalFSPersistStorage) PutTaskGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
 	return nil
 }
 
-// GetChatGlobal returns ErrNotFound; task run global files are not in the persist root for local_fs (caller uses local path).
-func (s *LocalFSPersistStorage) GetChatGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
+// GetTaskGlobal returns ErrNotFound; task run global files are not in the persist root for local_fs (caller uses local path).
+func (s *LocalFSPersistStorage) GetTaskGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	return nil, ErrNotFound
 }
 

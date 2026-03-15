@@ -14,12 +14,12 @@ type User struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (User) TableName() string { return "user" }
 
-// Chat is the task model. JSON uses snake_case per project convention.
-// API exposes task_id as "id". Chat holds denormalized "last run" state (status, output, etc.)
+// Task is the task model. JSON uses snake_case per project convention.
+// API exposes task_id as "id". Task holds denormalized "last run" state (status, output, etc.)
 // and LastRunID for conversation/artifact lookup. Input is the initial (first run) prompt.
-type Chat struct {
+type Task struct {
 	ID                    uint    `gorm:"primaryKey;autoIncrement" json:"-"`
-	ChatID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null" json:"task_id"`
+	TaskID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null" json:"task_id"`
 	ConversationID        string  `gorm:"type:varchar(64);not null;index" json:"conversation_id"`
 	Status                string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input                 string  `gorm:"type:text;not null" json:"input"`
@@ -38,13 +38,13 @@ type Chat struct {
 }
 
 // TableName returns the table name for GORM (singular per project convention).
-func (Chat) TableName() string { return "task" }
+func (Task) TableName() string { return "task" }
 
 // TaskRun is one execution (initial or follow-up) of a task. Status: PENDING → SCHEDULED → RUNNING → SUCCEEDED | FAILED.
 type TaskRun struct {
 	ID               uint    `gorm:"primaryKey;autoIncrement" json:"-"`
 	TaskRunID        string  `gorm:"column:task_run_id;type:varchar(64);uniqueIndex;not null" json:"task_run_id"`
-	ChatID           string  `gorm:"column:task_id;type:varchar(64);not null;index" json:"task_id"`
+	TaskID           string  `gorm:"column:task_id;type:varchar(64);not null;index" json:"task_id"`
 	Input            string  `gorm:"type:text;not null" json:"input"`
 	Status           string  `gorm:"type:varchar(32);not null" json:"status"`
 	Output           *string `gorm:"type:text" json:"output,omitempty"`
@@ -99,15 +99,15 @@ type QuotaTier struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (QuotaTier) TableName() string { return "quota_tier" }
 
-// ArtifactWithChat is a DTO for listing run outputs (artifacts) with task/run context. ArtifactID holds task_run_id for API compatibility. JSON uses snake_case.
-type ArtifactWithChat struct {
+// ArtifactWithTask is a DTO for listing run outputs (artifacts) with task/run context. ArtifactID holds task_run_id for API compatibility. JSON uses snake_case.
+type ArtifactWithTask struct {
 	ArtifactID       string `json:"artifact_id"`
-	ChatID           string `json:"task_id"`
+	TaskID           string `json:"task_id"`
 	TaskRunID        string `json:"task_run_id"`
 	ConversationID   string `json:"conversation_id"`
 	UserID           string `json:"user_id"`
 	CreatedAt        int64  `json:"created_at"`
-	ChatInputSnippet string `json:"task_input_snippet"`
+	TaskInputSnippet string `json:"task_input_snippet"`
 }
 
 // Conversation is the Tier 1 conversation container (multi-turn from portal, cron, webhook, telegram). JSON uses snake_case.

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/testutil"
-	"buildmax/internal/streamhub"
 	"buildmax/internal/storage/entity"
+	"buildmax/internal/streamhub"
+	"buildmax/internal/testutil"
 )
 
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
@@ -16,10 +16,10 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	chatID := "c_chat1"
 	hub := streamhub.NewStreamHub()
 	cfg := Config{
-		Token:        "worker-tok",
+		Token: "worker-tok",
 		TaskRunStore: &testutil.MockTaskRunStore{
-			Runs:     []entity.TaskRun{{TaskRunID: chatRunID, ChatID: chatID}},
-			ChatList: []entity.Chat{{ChatID: chatID}},
+			Runs:     []entity.TaskRun{{TaskRunID: chatRunID, TaskID: chatID}},
+			TaskList: []entity.Task{{TaskID: chatID}},
 		},
 		Hub: hub,
 	}

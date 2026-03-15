@@ -14,14 +14,14 @@ import (
 
 // MockTaskStore is an in-memory TaskStore for tests.
 type MockTaskStore struct {
-	List      []entity.Chat
+	List      []entity.Task
 	ListErr   error
-	Create    *entity.Chat
+	Create    *entity.Task
 	CreateErr error
 }
 
-func (m *MockTaskStore) ListChatsByConversation(_ context.Context, conversationID string, order string) ([]entity.Chat, error) {
-	list, _, err := m.ListChatsByConversationPaginated(context.Background(), conversationID, false, 0, 0)
+func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]entity.Task, error) {
+	list, _, err := m.ListTasksByConversationPaginated(context.Background(), conversationID, false, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -33,11 +33,11 @@ func (m *MockTaskStore) ListChatsByConversation(_ context.Context, conversationI
 	return list, nil
 }
 
-func (m *MockTaskStore) ListChatsByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]entity.Chat, int, error) {
+func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]entity.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
-	var filtered []entity.Chat
+	var filtered []entity.Task
 	for _, c := range m.List {
 		if c.ConversationID != conversationID {
 			continue
@@ -52,7 +52,7 @@ func (m *MockTaskStore) ListChatsByConversationPaginated(_ context.Context, conv
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []entity.Chat{}, total, nil
+		return []entity.Task{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 {
@@ -64,7 +64,7 @@ func (m *MockTaskStore) ListChatsByConversationPaginated(_ context.Context, conv
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) CreateChat(_ context.Context, in *entity.CreateChatInput) (*entity.Chat, error) {
+func (m *MockTaskStore) CreateTask(_ context.Context, in *entity.CreateTaskInput) (*entity.Task, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
@@ -74,8 +74,8 @@ func (m *MockTaskStore) CreateChat(_ context.Context, in *entity.CreateChatInput
 	if in == nil {
 		return nil, nil
 	}
-	c := &entity.Chat{
-		ChatID:         "chat-uuid-1",
+	task := &entity.Task{
+		TaskID:         "chat-uuid-1",
 		ConversationID: in.ConversationID,
 		Status:         "PENDING",
 		Input:          in.Input,
@@ -84,10 +84,10 @@ func (m *MockTaskStore) CreateChat(_ context.Context, in *entity.CreateChatInput
 		CreatedAt:      12345,
 		AgentID:        in.AgentID,
 	}
-	return c, nil
+	return task, nil
 }
 
-func (m *MockTaskStore) GetChatBySessionID(_ context.Context, sessionID string) (*entity.Chat, error) {
+func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*entity.Task, error) {
 	for i := range m.List {
 		if m.List[i].SessionID != nil && *m.List[i].SessionID == sessionID {
 			return &m.List[i], nil
@@ -96,9 +96,9 @@ func (m *MockTaskStore) GetChatBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *MockTaskStore) UpdateChat(_ context.Context, in entity.UpdateChatInput) error {
+func (m *MockTaskStore) UpdateTask(_ context.Context, in entity.UpdateTaskInput) error {
 	for i := range m.List {
-		if m.List[i].ChatID == in.ChatID {
+		if m.List[i].TaskID == in.TaskID {
 			m.List[i].Status = in.Status
 			if in.StartedAt != nil {
 				m.List[i].StartedAt = in.StartedAt
@@ -121,9 +121,9 @@ func (m *MockTaskStore) UpdateChat(_ context.Context, in entity.UpdateChatInput)
 	return nil
 }
 
-func (m *MockTaskStore) ClaimChat(_ context.Context, in entity.ClaimChatInput) (bool, error) {
+func (m *MockTaskStore) ClaimTask(_ context.Context, in entity.ClaimTaskInput) (bool, error) {
 	for i := range m.List {
-		if m.List[i].ChatID == in.ChatID && m.List[i].Status == in.ExpectedStatus {
+		if m.List[i].TaskID == in.TaskID && m.List[i].Status == in.ExpectedStatus {
 			m.List[i].Status = in.NewStatus
 			if in.StartedAt != nil {
 				m.List[i].StartedAt = in.StartedAt
@@ -146,9 +146,9 @@ func (m *MockTaskStore) ClaimChat(_ context.Context, in entity.ClaimChatInput) (
 	return false, nil
 }
 
-func (m *MockTaskStore) GetChat(_ context.Context, chatID string) (*entity.Chat, error) {
+func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task, error) {
 	for i := range m.List {
-		if m.List[i].ChatID == chatID {
+		if m.List[i].TaskID == taskID {
 			return &m.List[i], nil
 		}
 	}
@@ -158,27 +158,27 @@ func (m *MockTaskStore) GetChat(_ context.Context, chatID string) (*entity.Chat,
 // MockTaskRunStore is an in-memory TaskRunStore for tests.
 type MockTaskRunStore struct {
 	Runs     []entity.TaskRun
-	ChatList []entity.Chat
+	TaskList []entity.Task
 }
 
-func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, chatID, input, createdBy string) (*entity.TaskRun, error) {
+func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy string) (*entity.TaskRun, error) {
 	return nil, nil
 }
 func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) {
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRun(_ context.Context, chatRunID string) (*entity.TaskRun, error) {
+func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*entity.TaskRun, error) {
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID == chatRunID {
+		if m.Runs[i].TaskRunID == taskRunID {
 			return &m.Runs[i], nil
 		}
 	}
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRunWithChat(_ context.Context, chatRunID string) (*entity.TaskRun, *entity.Chat, error) {
+func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*entity.TaskRun, *entity.Task, error) {
 	var run *entity.TaskRun
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID == chatRunID {
+		if m.Runs[i].TaskRunID == taskRunID {
 			run = &m.Runs[i]
 			break
 		}
@@ -186,14 +186,14 @@ func (m *MockTaskRunStore) GetTaskRunWithChat(_ context.Context, chatRunID strin
 	if run == nil {
 		return nil, nil, nil
 	}
-	var chat *entity.Chat
-	for i := range m.ChatList {
-		if m.ChatList[i].ChatID == run.ChatID {
-			chat = &m.ChatList[i]
+	var task *entity.Task
+	for i := range m.TaskList {
+		if m.TaskList[i].TaskID == run.TaskID {
+			task = &m.TaskList[i]
 			break
 		}
 	}
-	return run, chat, nil
+	return run, task, nil
 }
 func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in entity.ClaimTaskRunInput) (bool, error) {
 	for i := range m.Runs {
@@ -240,24 +240,24 @@ func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in entity.UpdateTaskRu
 	}
 	return nil
 }
-func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, chatRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
 	return nil
 }
-func (m *MockTaskRunStore) OnRunComplete(_ context.Context, chatRunID string, relativePaths []string) error {
+func (m *MockTaskRunStore) OnRunComplete(_ context.Context, taskRunID string, relativePaths []string) error {
 	return nil
 }
-func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, chatRunID string) error {
+func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
 	return nil
 }
 
 // MockRunOutputLister is an in-memory RunOutputLister for tests.
 type MockRunOutputLister struct {
-	List        []entity.ArtifactWithChat
+	List        []entity.ArtifactWithTask
 	ListErr     error
 	OutputFiles map[string][]entity.TaskRunArtifact
 }
 
-func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, conversationID string, chatID *string) ([]entity.ArtifactWithChat, error) {
+func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, conversationID string, taskID *string) ([]entity.ArtifactWithTask, error) {
 	if m.ListErr != nil {
 		return nil, m.ListErr
 	}
@@ -395,12 +395,12 @@ func NewMockArtifactStorage() *MockArtifactStorage {
 }
 
 func (m *MockArtifactStorage) PutResult(_ context.Context, ref blob.RunRef, data []byte) error {
-	m.Results[ref.UserID+"/"+ref.ConversationID+"/"+ref.ChatID+"/"+ref.TaskRunID] = append([]byte(nil), data...)
+	m.Results[ref.UserID+"/"+ref.ConversationID+"/"+ref.TaskID+"/"+ref.TaskRunID] = append([]byte(nil), data...)
 	return nil
 }
 
 func (m *MockArtifactStorage) GetResult(_ context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID
 	if data, ok := m.Results[key]; ok {
 		return data, nil
 	}
@@ -411,7 +411,7 @@ func (m *MockArtifactStorage) PutArtifactFile(_ context.Context, ref blob.RunObj
 	if m.Files == nil {
 		m.Files = make(map[string][]byte)
 	}
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	m.Files[key] = data
 	return nil
@@ -421,7 +421,7 @@ func (m *MockArtifactStorage) GetArtifactFile(_ context.Context, ref blob.RunObj
 	if m.Files == nil {
 		return nil, blob.ErrNotFound
 	}
-	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.ChatID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.UserID + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	if data, ok := m.Files[key]; ok {
 		return data, nil
 	}

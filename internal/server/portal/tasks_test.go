@@ -21,8 +21,8 @@ func TestListConversationTasksHandler(t *testing.T) {
 			{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
-	task1 := entity.Chat{ChatID: "c1", ConversationID: conversationID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
-	task2 := entity.Chat{ChatID: "c2", ConversationID: conversationID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := entity.Task{TaskID: "c1", ConversationID: conversationID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
+	task2 := entity.Task{TaskID: "c2", ConversationID: conversationID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
 
 	tests := []struct {
 		name         string
@@ -53,7 +53,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned conversation empty list returns 200",
-			taskStore:    &testutil.MockTaskStore{List: []entity.Chat{}},
+			taskStore:    &testutil.MockTaskStore{List: []entity.Task{}},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
@@ -62,7 +62,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned conversation with tasks returns 200",
-			taskStore:    &testutil.MockTaskStore{List: []entity.Chat{task1, task2}},
+			taskStore:    &testutil.MockTaskStore{List: []entity.Task{task1, task2}},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
@@ -155,8 +155,8 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		{
 			name: "valid body returns 201",
 			taskStore: &testutil.MockTaskStore{
-				Create: &entity.Chat{
-					ChatID: "new-chat-id", ConversationID: conversationID, Status: "PENDING",
+				Create: &entity.Task{
+					TaskID: "new-chat-id", ConversationID: conversationID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},

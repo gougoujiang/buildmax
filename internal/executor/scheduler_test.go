@@ -35,7 +35,7 @@ func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
 	return &spyTaskRunStore{
 		pendingRun: &entity.TaskRun{
 			TaskRunID: chatRunID,
-			ChatID:    "c_test",
+			TaskID:    "c_test",
 			Input:     "input",
 			Status:    "PENDING",
 			CreatedAt: time.Now().Unix(),
@@ -61,7 +61,7 @@ func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*entity.TaskR
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) GetTaskRunWithChat(_ context.Context, _ string) (*entity.TaskRun, *entity.Chat, error) {
+func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*entity.TaskRun, *entity.Task, error) {
 	return nil, nil, nil
 }
 

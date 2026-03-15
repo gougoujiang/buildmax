@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	chatapp "buildmax/internal/app/chat"
+	taskapp "buildmax/internal/app/task"
 	coreconv "buildmax/internal/conversation"
 )
 
@@ -27,7 +27,7 @@ func TestRuleBasedEngine_Process_wrongChannel(t *testing.T) {
 }
 
 func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
-	e := &RuleBasedEngine{Chat: nil}
+	e := &RuleBasedEngine{Task: nil}
 	ctx := context.Background()
 	turn := coreconv.ConversationTurn{
 		Channel: coreconv.ChannelWebhook,
@@ -36,15 +36,15 @@ func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
 	}
 	_, err := e.Process(ctx, "w_1", "", turn)
 	if err == nil {
-		t.Fatal("expected error when Chat is nil")
+		t.Fatal("expected error when Task is nil")
 	}
-	if !errors.Is(err, chatapp.ErrTaskRunsNotConfigured) {
+	if !errors.Is(err, taskapp.ErrTaskRunsNotConfigured) {
 		t.Errorf("err = %v", err)
 	}
 }
 
 func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
-	e := &RuleBasedEngine{Chat: &chatapp.Service{}} // Chat has nil stores; CreateChat will fail later, but we validate message first
+	e := &RuleBasedEngine{Task: &taskapp.Service{}} // Task service has nil stores; CreateTask will fail later, but we validate message first
 	ctx := context.Background()
 	turn := coreconv.ConversationTurn{
 		Channel: coreconv.ChannelWebhook,

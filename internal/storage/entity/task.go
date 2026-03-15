@@ -10,10 +10,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// ListChatsByConversation returns tasks in the conversation, ordered by created_at.
+// ListTasksByConversation returns tasks in the conversation, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
-func (s *Store) ListChatsByConversation(ctx context.Context, conversationID string, order string) ([]Chat, error) {
-	var list []Chat
+func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]Task, error) {
+	var list []Task
 	q := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
 	if order == "asc" {
 		q = q.Order("created_at ASC")
@@ -24,11 +24,11 @@ func (s *Store) ListChatsByConversation(ctx context.Context, conversationID stri
 	return list, err
 }
 
-// ListChatsByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
+// ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
 // executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
-// total is the total number of matching chats (ignoring limit/offset).
-func (s *Store) ListChatsByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Chat, int, error) {
-	q := s.db.WithContext(ctx).Model(&Chat{}).Where("conversation_id = ?", conversationID)
+// total is the total number of matching tasks (ignoring limit/offset).
+func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error) {
+	q := s.db.WithContext(ctx).Model(&Task{}).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
@@ -36,7 +36,7 @@ func (s *Store) ListChatsByConversationPaginated(ctx context.Context, conversati
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []Chat
+	var list []Task
 	q = s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
@@ -45,34 +45,34 @@ func (s *Store) ListChatsByConversationPaginated(ctx context.Context, conversati
 	return list, int(total), err
 }
 
-// GetChat returns the task by task_id, or (nil, nil) if not found.
-func (s *Store) GetChat(ctx context.Context, chatID string) (*Chat, error) {
-	var c Chat
-	err := s.db.WithContext(ctx).Where("task_id = ?", chatID).First(&c).Error
+// GetTask returns the task by task_id, or (nil, nil) if not found.
+func (s *Store) GetTask(ctx context.Context, taskID string) (*Task, error) {
+	var task Task
+	err := s.db.WithContext(ctx).Where("task_id = ?", taskID).First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &c, nil
+	return &task, nil
 }
 
-// GetChatBySessionID returns the task with the given session_id, or (nil, nil) if not found.
-func (s *Store) GetChatBySessionID(ctx context.Context, sessionID string) (*Chat, error) {
-	var c Chat
-	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).First(&c).Error
+// GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
+func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error) {
+	var task Task
+	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &c, nil
+	return &task, nil
 }
 
-// CreateChatInput is the input for CreateChat.
-type CreateChatInput struct {
+// CreateTaskInput is the input for CreateTask.
+type CreateTaskInput struct {
 	ConversationID        string
 	Input                 string
 	Title                 string
@@ -82,17 +82,17 @@ type CreateChatInput struct {
 	AgentID               *string
 }
 
-// CreateChat creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
-func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, error) {
+// CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
+func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, error) {
 	if in == nil {
-		return nil, errors.New("CreateChatInput is required")
+		return nil, errors.New("CreateTaskInput is required")
 	}
 	now := time.Now().Unix()
-	chatID := util.NewPrefixedID(util.PrefixChat)
-	chatRunID := util.NewPrefixedID(util.PrefixTaskRun)
+	taskID := util.NewPrefixedID(util.PrefixChat)
+	taskRunID := util.NewPrefixedID(util.PrefixTaskRun)
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
-	c := &Chat{
-		ChatID:                chatID,
+	task := &Task{
+		TaskID:                taskID,
 		ConversationID:        in.ConversationID,
 		Status:                "PENDING",
 		Input:                 in.Input,
@@ -101,19 +101,19 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 		TitleCompletionTokens: in.TitleCompletionTokens,
 		CreatedBy:             in.CreatedBy,
 		CreatedAt:             now,
-		LastRunID:             &chatRunID,
+		LastRunID:             &taskRunID,
 		SessionID:             &sessionID,
 		AgentID:               in.AgentID,
 	}
 	run := &TaskRun{
-		TaskRunID: chatRunID,
-		ChatID:    chatID,
+		TaskRunID: taskRunID,
+		TaskID:    taskID,
 		Input:     in.Input,
 		Status:    "PENDING",
 		CreatedAt: now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(c).Error; err != nil {
+		if err := tx.Create(task).Error; err != nil {
 			return err
 		}
 		return tx.Create(run).Error
@@ -121,10 +121,10 @@ func (s *Store) CreateChat(ctx context.Context, in *CreateChatInput) (*Chat, err
 	if err != nil {
 		return nil, err
 	}
-	return c, nil
+	return task, nil
 }
 
-func buildChatUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) map[string]interface{} {
+func buildTaskUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) map[string]interface{} {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {
 		updates["started_at"] = *startedAt
@@ -144,19 +144,19 @@ func buildChatUpdates(status string, startedAt, endedAt *int64, output, errorMes
 	return updates
 }
 
-// UpdateChat updates a task's status and optional fields.
+// UpdateTask updates a task's status and optional fields.
 // Only non-nil pointer fields are written; status is always set.
-func (s *Store) UpdateChat(ctx context.Context, in UpdateChatInput) error {
-	return s.db.WithContext(ctx).Model(&Chat{}).Where("task_id = ?", in.ChatID).Updates(
-		buildChatUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
+func (s *Store) UpdateTask(ctx context.Context, in UpdateTaskInput) error {
+	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", in.TaskID).Updates(
+		buildTaskUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	).Error
 }
 
-// ClaimChat updates a task's status and optional fields only when current status equals expectedStatus.
+// ClaimTask updates a task's status and optional fields only when current status equals expectedStatus.
 // Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
-func (s *Store) ClaimChat(ctx context.Context, in ClaimChatInput) (bool, error) {
-	result := s.db.WithContext(ctx).Model(&Chat{}).Where("task_id = ? AND status = ?", in.ChatID, in.ExpectedStatus).Updates(
-		buildChatUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
+func (s *Store) ClaimTask(ctx context.Context, in ClaimTaskInput) (bool, error) {
+	result := s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ? AND status = ?", in.TaskID, in.ExpectedStatus).Updates(
+		buildTaskUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	)
 	if result.Error != nil {
 		return false, result.Error
