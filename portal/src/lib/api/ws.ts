@@ -13,8 +13,7 @@ const STABLE_CONNECTION_MS = 10000
 
 /**
  * BuildMaxWebSocket manages a persistent WebSocket connection to the server.
- * Supports typed events, auto-reconnect with exponential backoff, and
- * task subscription restore on reconnect.
+ * Supports typed events, auto-reconnect with exponential backoff.
  */
 export class BuildMaxWebSocket {
   private ws: WebSocket | null = null
@@ -25,9 +24,6 @@ export class BuildMaxWebSocket {
   private reconnectDelay = RECONNECT_MIN
   private connectedAt = 0
   private sendQueue: string[] = []
-
-  /** Active task subscriptions to restore on reconnect. */
-  private _pendingTaskSubs = new Set<string>()
 
   /** Lifecycle callback: called when the connection opens (or re-opens). */
   onOpen: (() => void) | null = null
@@ -55,7 +51,6 @@ export class BuildMaxWebSocket {
       this.connectedAt = Date.now()
       this.reconnectDelay = RECONNECT_MIN
       this.flushQueue()
-      this.restoreSubscriptions()
       this.onOpen?.()
     }
 
@@ -126,16 +121,6 @@ export class BuildMaxWebSocket {
     return this.ws?.readyState === WebSocket.OPEN
   }
 
-  subscribeTask(taskId: string): void {
-    this._pendingTaskSubs.add(taskId)
-    this.send("subscribe.task", { task_id: taskId })
-  }
-
-  unsubscribeTask(taskId: string): void {
-    this._pendingTaskSubs.delete(taskId)
-    this.send("unsubscribe.task", { task_id: taskId })
-  }
-
   private dispatch(type: string, payload: unknown): void {
     const set = this.handlers.get(type)
     if (set) {
@@ -152,12 +137,6 @@ export class BuildMaxWebSocket {
   private flushQueue(): void {
     while (this.sendQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(this.sendQueue.shift()!)
-    }
-  }
-
-  private restoreSubscriptions(): void {
-    for (const taskId of this._pendingTaskSubs) {
-      this.send("subscribe.task", { task_id: taskId })
     }
   }
 

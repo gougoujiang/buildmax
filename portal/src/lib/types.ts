@@ -35,32 +35,21 @@ export interface Conversation {
 }
 
 // --- Profile scope (derived from route) ---
-// Scope = what is in context for the current view (profileId; taskId when on task).
-// Route = URL state; scope = derived context for data and display.
 
 export interface ProfileScope {
   profileId: string
-  taskId?: string
   conversationId?: string
 }
 
 // --- Route types ---
-// Conversation = Tier 1 dialogue. Task = Tier 2 background task (backend Task).
 
 export type Route =
   | { name: "home"; profileId: string }
   | { name: "newChat"; profileId: string }
-  | { name: "task"; profileId: string; taskId: string }
   | { name: "conversation"; profileId: string; conversationId: string }
   | { name: "chats"; profileId: string }
   | { name: "explore"; profileId: string }
   | { name: "agents"; profileId: string }
-
-// --- View run output (artifact modal) ---
-
-export interface ViewArtifactParams {
-  taskRunId: string
-}
 
 // --- Agent (user-owned persona) ---
 

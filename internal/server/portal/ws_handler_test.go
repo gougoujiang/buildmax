@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"buildmax/internal/streamhub"
 	"buildmax/internal/testutil"
 	"buildmax/internal/wsconn"
 
@@ -17,12 +16,12 @@ import (
 
 const wsTestSecret = "ws-test-secret"
 
-func setupWSHandler(hub streamhub.StreamHub) *Handler {
+func setupWSHandler() *Handler {
 	return NewHandler(Config{
 		JWTSecret:         wsTestSecret,
 		CORSOrigin:        "*",
 		ConversationStore: &testutil.MockConversationStore{},
-		Hub:               hub,
+		ConnRegistry:      NewConnRegistry(),
 	})
 }
 
@@ -62,7 +61,7 @@ func sendEnvelope(t *testing.T, conn *websocket.Conn, typ string, payload any) {
 }
 
 func TestWSUpgradeRequiresToken(t *testing.T) {
-	h := setupWSHandler(nil)
+	h := setupWSHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 	server := httptest.NewServer(mux)
@@ -79,7 +78,7 @@ func TestWSUpgradeRequiresToken(t *testing.T) {
 }
 
 func TestWSUpgradeInvalidToken(t *testing.T) {
-	h := setupWSHandler(nil)
+	h := setupWSHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 	server := httptest.NewServer(mux)
@@ -96,7 +95,7 @@ func TestWSUpgradeInvalidToken(t *testing.T) {
 }
 
 func TestWSConversationCreateFlow(t *testing.T) {
-	h := setupWSHandler(nil)
+	h := setupWSHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 	server := httptest.NewServer(mux)
@@ -134,56 +133,8 @@ func TestWSConversationCreateFlow(t *testing.T) {
 	}
 }
 
-func TestWSTaskStreamSubscription(t *testing.T) {
-	hub := streamhub.NewStreamHub()
-	h := setupWSHandler(hub)
-	mux := http.NewServeMux()
-	h.Register(mux)
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	token := testutil.SignJWT("u1", wsTestSecret)
-	conn := dialWS(t, server, token)
-	defer conn.Close()
-
-	taskID := "c_test123"
-
-	sendEnvelope(t, conn, wsconn.TypeSubscribeTask, wsconn.SubscribeTask{TaskID: taskID})
-
-	// Give subscription time to set up
-	time.Sleep(50 * time.Millisecond)
-
-	hub.Append(taskID, "chunk1")
-	hub.Append(taskID, "chunk2")
-	hub.Done(taskID)
-
-	var deltas []string
-	gotDone := false
-	for i := 0; i < 5; i++ {
-		env := readEnvelope(t, conn)
-		switch env.Type {
-		case wsconn.TypeTaskStreamDelta:
-			var d wsconn.TaskStreamDelta
-			json.Unmarshal(env.Payload, &d)
-			deltas = append(deltas, d.Delta)
-		case wsconn.TypeTaskStreamDone:
-			gotDone = true
-		}
-		if gotDone {
-			break
-		}
-	}
-
-	if len(deltas) == 0 {
-		t.Error("received no task stream deltas")
-	}
-	if !gotDone {
-		t.Error("did not receive task.stream.done")
-	}
-}
-
 func TestWSUnknownEventType(t *testing.T) {
-	h := setupWSHandler(nil)
+	h := setupWSHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 	server := httptest.NewServer(mux)

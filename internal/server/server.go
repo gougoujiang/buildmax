@@ -121,8 +121,8 @@ func (a chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string
 	return title, portal.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
 }
 
-// buildPortalConfig builds portal.Config from server config and the shared stream hub.
-func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
+// buildPortalConfig builds portal.Config from server config, the shared stream hub, and the connection registry.
+func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.ConnRegistry) portal.Config {
 	return portal.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
@@ -140,12 +140,15 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,
 		Hub:                      hub,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
+		ConnRegistry:             registry,
 	}
 }
 
 // New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and worker.
 func New(cfg Config) *Server {
 	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
+	connRegistry := portal.NewConnRegistry()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
 	mux.HandleFunc("GET /openapi.json", openAPIHandler)
@@ -157,11 +160,12 @@ func New(cfg Config) *Server {
 		JWTSecret:        cfg.Auth.JWTSecret,
 		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
 	}).Register(mux)
-	portal.NewHandler(buildPortalConfig(cfg, s.hub)).Register(mux)
+	portal.NewHandler(buildPortalConfig(cfg, s.hub, connRegistry)).Register(mux)
 	worker.NewHandler(worker.Config{
 		Token:        cfg.Worker.WorkerToken,
 		TaskRunStore: cfg.Stores.TaskRunStore,
 		Hub:          s.hub,
+		OnTaskRunTerminal: connRegistry.OnTaskRunTerminal,
 	}).Register(mux)
 	if cfg.Stores.UserWebhookKeyStore != nil {
 		msgPath := cfg.Webhook.MessagePath

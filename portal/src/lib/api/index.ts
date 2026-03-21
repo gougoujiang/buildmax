@@ -27,8 +27,6 @@ export type {
 } from "./types"
 export {
   apiAgentToAgent,
-  apiArtifactToArtifact,
-  apiTaskToTask,
   apiConversationToConversation,
 } from "./mappers"
 
@@ -38,15 +36,9 @@ export { getAgents, createAgent, updateAgent, deleteAgent } from "../../features
 export {
   getTasks,
   getTasksPaginated,
-  getTaskConversation,
-  createTask,
-  createTaskRun,
-  subscribeTaskStream,
 } from "../../features/tasks"
 export type {
-  CreateTaskBody,
   GetTasksPaginatedOptions,
-  RunStreamCallbacks,
 } from "../../features/tasks"
 export {
   getConversations,
@@ -57,5 +49,4 @@ export {
   addConversationMessageStream,
 } from "../../features/conversations"
 export type { ConversationStreamCallbacks } from "../../features/conversations"
-export { getArtifacts, getArtifactItems, getArtifactContent } from "../../features/artifacts"
 export { uploadFiles, getFileTree, getFileContent } from "../../features/files"

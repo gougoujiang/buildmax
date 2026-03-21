@@ -1,7 +1,9 @@
 package worker
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"buildmax/internal/server/httputil"
@@ -152,11 +154,24 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 			return false
 		}
 	}
-	if h.cfg.Hub != nil {
-		run, _, _ := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
-		if run != nil {
-			h.cfg.Hub.Done(run.TaskID)
+	run, task, _ := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
+	if h.cfg.Hub != nil && run != nil {
+		h.cfg.Hub.Done(run.TaskID)
+	}
+	if h.cfg.OnTaskRunTerminal != nil && run != nil && task != nil {
+		info := TaskRunTerminalInfo{
+			TaskRunID:      run.TaskRunID,
+			TaskID:         run.TaskID,
+			ConversationID: task.ConversationID,
+			UserID:         task.CreatedBy,
+			Status:         req.Status,
+			Output:         req.Output,
+			ErrorMessage:   req.ErrorMessage,
 		}
+		go func() {
+			slog.Info("worker: firing task run terminal callback", "task_run_id", info.TaskRunID, "status", info.Status)
+			h.cfg.OnTaskRunTerminal(context.Background(), info)
+		}()
 	}
 	return true
 }

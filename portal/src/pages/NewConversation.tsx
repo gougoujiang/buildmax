@@ -6,17 +6,15 @@ import { cn } from "../lib/cn"
 import { createConversation } from "../features/conversations"
 import { useApp } from "../contexts/AppContext"
 import { FilesPanel } from "../components/FilesPanel"
-import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
+import type { Conversation } from "../lib/types"
 
-type NewConversationTab = "conversations" | "artifacts" | "files"
+type NewConversationTab = "conversations" | "files"
 
 interface NewConversationProps {
   profileId: string
   token?: string
   onRefetchConversations?: () => void
   conversations: Conversation[]
-  artifacts: Artifact[]
-  onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 export function NewConversation({
@@ -24,8 +22,6 @@ export function NewConversation({
   token,
   onRefetchConversations,
   conversations,
-  artifacts,
-  onViewArtifact,
 }: NewConversationProps) {
   const { setPendingConversation } = useApp()
   const [prompt, setPrompt] = useState("")
@@ -83,7 +79,7 @@ export function NewConversation({
       </section>
 
       <div className="page-new-chat__tabs">
-        <div className="page-new-chat__tab-list" role="tablist" aria-label="Conversations, artifacts, and files">
+        <div className="page-new-chat__tab-list" role="tablist" aria-label="Conversations and files">
           <button
             type="button"
             role="tab"
@@ -94,17 +90,6 @@ export function NewConversation({
             onClick={() => setActiveTab("conversations")}
           >
             Conversations
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "artifacts"}
-            aria-controls="new-chat-tabpanel-artifacts"
-            id="new-chat-tab-artifacts"
-            className={cn("page-new-chat__tab", activeTab === "artifacts" && "page-new-chat__tab--active")}
-            onClick={() => setActiveTab("artifacts")}
-          >
-            Artifacts
           </button>
           <button
             type="button"
@@ -152,44 +137,6 @@ export function NewConversation({
                           <span className="page-activity__meta">{conv.timeLabel}</span>
                         </span>
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div
-          id="new-chat-tabpanel-artifacts"
-          role="tabpanel"
-          aria-labelledby="new-chat-tab-artifacts"
-          hidden={activeTab !== "artifacts"}
-          className="page-new-chat__tabpanel"
-        >
-          {activeTab === "artifacts" && (
-            <div className="page-new-chat__chats">
-              {artifacts.length === 0 ? (
-                <p className="page-activity__empty">No artifacts yet.</p>
-              ) : (
-                <ul className="page-activity__artifact-list">
-                  {artifacts.map((a) => (
-                    <li key={`artifact-${a.id}`} className="page-activity__artifact-item">
-                      <span className="page-activity__content">
-                        <span className="page-activity__task-title">{a.title}</span>
-                        <span className="page-activity__meta">
-                          {a.timeLabel} · task: {a.taskId} · artifact: {a.id}
-                        </span>
-                      </span>
-                      {onViewArtifact && (
-                        <button
-                          type="button"
-                          className="page-activity__artifact-view"
-                          onClick={() => onViewArtifact({ taskRunId: a.id })}
-                        >
-                          View
-                        </button>
-                      )}
                     </li>
                   ))}
                 </ul>

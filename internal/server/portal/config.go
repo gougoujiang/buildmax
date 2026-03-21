@@ -45,4 +45,5 @@ type Config struct {
 	ConversationLLMCaller    llm.LLMCaller
 	Hub                      streamhub.StreamHub
 	UserWebhookKeyStore      entity.UserWebhookKeyStore
+	ConnRegistry             *ConnRegistry
 }

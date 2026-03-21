@@ -5,7 +5,6 @@ import type { ProfileScope, Route } from "./lib/types"
 export function getScope(route: Route): ProfileScope {
   return {
     profileId: route.profileId,
-    taskId: "taskId" in route ? route.taskId : undefined,
     conversationId: "conversationId" in route ? route.conversationId : undefined,
   }
 }
@@ -16,7 +15,6 @@ export function getScope(route: Route): ProfileScope {
  */
 export const SEGMENT = {
   new: "new",
-  task: "task",
   conversation: "conversation",
   conversations: "conversations",
   explore: "explore",
@@ -46,9 +44,6 @@ export function parseHash(hash: string): Route {
   if (parts[1] === SEGMENT.agents) {
     return { name: "agents", profileId }
   }
-  if (parts[1] === SEGMENT.task && parts[2]) {
-    return { name: "task", profileId, taskId: parts[2] }
-  }
   if (parts[1] === SEGMENT.conversation && parts[2]) {
     return { name: "conversation", profileId, conversationId: parts[2] }
   }
@@ -62,8 +57,6 @@ export function buildHash(route: Route): string {
       return `#${route.profileId}`
     case "newChat":
       return `#${route.profileId}/${SEGMENT.new}`
-    case "task":
-      return `#${route.profileId}/${SEGMENT.task}/${route.taskId}`
     case "conversation":
       return `#${route.profileId}/${SEGMENT.conversation}/${route.conversationId}`
     case "chats":

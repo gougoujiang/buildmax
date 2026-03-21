@@ -9,7 +9,6 @@ import (
 	"time"
 
 	convapp "buildmax/internal/app/conversation"
-	"buildmax/internal/streamhub"
 	"buildmax/internal/wsconn"
 
 	"github.com/gorilla/websocket"
@@ -30,9 +29,6 @@ type wsConn struct {
 
 	writeCh chan []byte
 	closed  chan struct{} // closed when connection is being torn down
-
-	taskSubsMu sync.Mutex
-	taskSubs   map[string]func() // taskID → unsub
 
 	turnMu sync.Mutex // serializes conversation turns
 
@@ -82,13 +78,16 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wc := &wsConn{
-		conn:     conn,
-		h:        h,
-		userID:   userID,
-		writeCh:  make(chan []byte, wsWriteChSize),
-		closed:   make(chan struct{}),
-		taskSubs: make(map[string]func()),
-		cancel:   cancel,
+		conn:    conn,
+		h:       h,
+		userID:  userID,
+		writeCh: make(chan []byte, wsWriteChSize),
+		closed:  make(chan struct{}),
+		cancel:  cancel,
+	}
+
+	if h.cfg.ConnRegistry != nil {
+		h.cfg.ConnRegistry.Register(userID, wc)
 	}
 
 	slog.Info("ws connected", "user_id", userID, "remote", r.RemoteAddr)
@@ -198,21 +197,6 @@ func (wc *wsConn) handleClientEvent(ctx context.Context, env wsconn.Envelope) {
 		}
 		wc.handleConversationMessage(ctx, p)
 
-	case wsconn.TypeSubscribeTask:
-		p, err := wsconn.DecodePayload[wsconn.SubscribeTask](env)
-		if err != nil {
-			wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "invalid payload"})
-			return
-		}
-		wc.handleSubscribeTask(ctx, p)
-
-	case wsconn.TypeUnsubscribeTask:
-		p, err := wsconn.DecodePayload[wsconn.UnsubscribeTask](env)
-		if err != nil {
-			return
-		}
-		wc.handleUnsubscribeTask(p)
-
 	default:
 		wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "unknown event type: " + env.Type})
 	}
@@ -293,131 +277,56 @@ func (wc *wsConn) runConversationTurn(ctx context.Context, conversationID, messa
 
 	go func() {
 		defer wc.turnMu.Unlock()
-
-		slog.Info("ws turn start", "user_id", wc.userID, "conversation_id", conversationID)
-		sink := &wsSink{c: wc, conversationID: conversationID}
-		svc := wc.h.conversationService()
-
-		_, err := svc.HandleTurn(ctx, convapp.HandleTurnCmd{
-			UserID:         wc.userID,
-			Channel:        channel,
-			Message:        message,
-			ConversationID: conversationID,
-			StreamSink:     sink,
-		})
-		if err != nil {
-			slog.Error("ws turn error", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
-			wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-				ConversationID: conversationID,
-				Error:          err.Error(),
-			})
-		}
-		slog.Info("ws turn done", "user_id", wc.userID, "conversation_id", conversationID)
-		wc.sendEvent(wsconn.TypeMessageCompleted, wsconn.MessageCompleted{
-			ConversationID: conversationID,
-		})
+		wc.executeConversationTurn(ctx, conversationID, message, channel)
 	}()
 }
 
-func (wc *wsConn) handleSubscribeTask(ctx context.Context, p wsconn.SubscribeTask) {
-	if p.TaskID == "" {
-		wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "task_id required"})
-		return
-	}
-	if wc.h.cfg.Hub == nil {
-		wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "stream not available"})
-		return
-	}
-	if wc.h.cfg.TaskStore != nil {
-		task, err := wc.h.cfg.TaskStore.GetTask(ctx, p.TaskID)
-		if err != nil || task == nil {
-			wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "task not found"})
-			return
-		}
-		if wc.h.cfg.ConversationStore != nil {
-			conv, err := wc.h.cfg.ConversationStore.GetConversation(ctx, task.ConversationID)
-			if err != nil || conv == nil || conv.UserID != wc.userID {
-				wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "task not found"})
-				return
-			}
-		}
-	}
-
-	wc.taskSubsMu.Lock()
-	if existingUnsub, ok := wc.taskSubs[p.TaskID]; ok {
-		existingUnsub()
-		delete(wc.taskSubs, p.TaskID)
-	}
-	wc.taskSubsMu.Unlock()
-
-	slog.Info("ws task subscribe", "user_id", wc.userID, "task_id", p.TaskID)
-	events, unsub := wc.h.cfg.Hub.Subscribe(p.TaskID)
-
-	wc.taskSubsMu.Lock()
-	wc.taskSubs[p.TaskID] = unsub
-	wc.taskSubsMu.Unlock()
-
-	if buf := wc.h.cfg.Hub.Buffer(p.TaskID); buf != "" {
-		wc.sendEvent(wsconn.TypeTaskStreamDelta, wsconn.TaskStreamDelta{
-			TaskID: p.TaskID,
-			Delta:  buf,
-		})
-	}
-
-	go func() {
-		defer func() {
-			wc.taskSubsMu.Lock()
-			delete(wc.taskSubs, p.TaskID)
-			wc.taskSubsMu.Unlock()
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-				unsub()
-				return
-			case msg, ok := <-events:
-				if !ok {
-					return
-				}
-				if msg == streamhub.StreamEventDone {
-					wc.sendEvent(wsconn.TypeTaskStreamDone, wsconn.TaskStreamDone{TaskID: p.TaskID})
-					return
-				}
-				wc.sendEvent(wsconn.TypeTaskStreamDelta, wsconn.TaskStreamDelta{
-					TaskID: p.TaskID,
-					Delta:  msg,
-				})
-			}
-		}
-	}()
+// RunSystemConversationTurn runs a system-triggered conversation turn (e.g. task completion).
+// Unlike user-initiated turns, this blocks on turnMu instead of failing immediately,
+// so it queues behind any in-progress turn.
+func (wc *wsConn) RunSystemConversationTurn(ctx context.Context, conversationID, message string) {
+	wc.turnMu.Lock()
+	defer wc.turnMu.Unlock()
+	wc.executeConversationTurn(ctx, conversationID, message, "system")
 }
 
-func (wc *wsConn) handleUnsubscribeTask(p wsconn.UnsubscribeTask) {
-	slog.Info("ws task unsubscribe", "user_id", wc.userID, "task_id", p.TaskID)
-	wc.taskSubsMu.Lock()
-	defer wc.taskSubsMu.Unlock()
-	if unsub, ok := wc.taskSubs[p.TaskID]; ok {
-		unsub()
-		delete(wc.taskSubs, p.TaskID)
+func (wc *wsConn) executeConversationTurn(ctx context.Context, conversationID, message, channel string) {
+	slog.Info("ws turn start", "user_id", wc.userID, "conversation_id", conversationID, "channel", channel)
+	sink := &wsSink{c: wc, conversationID: conversationID}
+	svc := wc.h.conversationService()
+
+	_, err := svc.HandleTurn(ctx, convapp.HandleTurnCmd{
+		UserID:         wc.userID,
+		Channel:        channel,
+		Message:        message,
+		ConversationID: conversationID,
+		StreamSink:     sink,
+	})
+	if err != nil {
+		slog.Error("ws turn error", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
+		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
+			ConversationID: conversationID,
+			Error:          err.Error(),
+		})
 	}
+	slog.Info("ws turn done", "user_id", wc.userID, "conversation_id", conversationID)
+	wc.sendEvent(wsconn.TypeMessageCompleted, wsconn.MessageCompleted{
+		ConversationID: conversationID,
+	})
 }
 
 func (wc *wsConn) cleanup() {
+	if wc.h.cfg.ConnRegistry != nil {
+		wc.h.cfg.ConnRegistry.Unregister(wc.userID, wc)
+	}
+
 	wc.cancel()
 
-	// Signal all senders to stop before closing the channel.
 	select {
 	case <-wc.closed:
 	default:
 		close(wc.closed)
 	}
-
-	wc.taskSubsMu.Lock()
-	for id, unsub := range wc.taskSubs {
-		unsub()
-		delete(wc.taskSubs, id)
-	}
-	wc.taskSubsMu.Unlock()
 
 	close(wc.writeCh)
 }

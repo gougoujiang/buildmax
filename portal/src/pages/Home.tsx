@@ -1,11 +1,9 @@
-import type { Artifact, Conversation, ViewArtifactParams } from "../lib/types"
+import type { Conversation } from "../lib/types"
 import { navigate } from "../router"
 
 interface HomeProps {
   profileId: string
   conversations: Conversation[]
-  artifacts: Artifact[]
-  onViewArtifact?: (params: ViewArtifactParams) => void
 }
 
 const RECENT_CONVERSATIONS = 5
@@ -13,8 +11,6 @@ const RECENT_CONVERSATIONS = 5
 export function Home({
   profileId,
   conversations,
-  artifacts,
-  onViewArtifact,
 }: HomeProps) {
   const recentConversations = conversations.slice(0, RECENT_CONVERSATIONS)
 
@@ -40,33 +36,6 @@ export function Home({
                   </span>
                   <span className="page-home__chat-time">{conv.timeLabel}</span>
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="page-home__artifacts">
-        <h2 className="page-home__heading">Recent artifacts</h2>
-        {artifacts.length === 0 ? (
-          <p className="page-home__empty">No artifacts yet.</p>
-        ) : (
-          <ul className="page-home__artifact-list">
-            {artifacts.map((a) => (
-              <li key={a.id} className="page-home__artifact-card">
-                <div className="page-home__artifact-main">
-                  <span className="page-home__artifact-title">{a.title}</span>
-                  <span className="page-home__artifact-time">{a.timeLabel}</span>
-                </div>
-                {onViewArtifact && (
-                  <button
-                    type="button"
-                    className="page-home__artifact-view"
-                    onClick={() => onViewArtifact({ taskRunId: a.id })}
-                  >
-                    View
-                  </button>
-                )}
               </li>
             ))}
           </ul>

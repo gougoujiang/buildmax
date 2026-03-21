@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import type { Agent } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
-import { apiAgentToAgent, apiTaskToTask } from "../lib/api"
-import { createTask } from "../features/tasks"
+import { apiAgentToAgent } from "../lib/api"
+import { createConversation } from "../features/conversations"
 import {
   getAgents,
   createAgent,
@@ -22,7 +22,7 @@ interface AgentListProps {
 }
 
 export function AgentList({ profileId, token }: AgentListProps) {
-  const { setPendingTask } = useApp()
+  const { setPendingConversation } = useApp()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -104,14 +104,17 @@ export function AgentList({ profileId, token }: AgentListProps) {
     if (!token || !newTaskAgent) return
     setError(null)
     setStartingTaskAgentId(newTaskAgent.id)
-    createTask(profileId, { agent_id: newTaskAgent.id, input: editedInput }, token)
-      .then((task) => {
+    createConversation(profileId, { channel: "portal" }, token)
+      .then((created) => {
         setNewTaskAgent(null)
-        setPendingTask({ task: apiTaskToTask(task), initialInput: task.input ?? "" })
-        navigate({ name: "task", profileId, taskId: task.id })
+        setPendingConversation({
+          conversationId: created.conversation_id,
+          initialMessage: editedInput,
+        })
+        navigate({ name: "conversation", profileId, conversationId: created.conversation_id })
       })
       .catch((err) => {
-        setError(getErrorMessage(err, "Failed to start task"))
+        setError(getErrorMessage(err, "Failed to start conversation"))
       })
       .finally(() => setStartingTaskAgentId(null))
   }

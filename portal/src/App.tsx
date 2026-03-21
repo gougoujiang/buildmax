@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { navigate } from "./router"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
 import { WebSocketProvider } from "./contexts/WebSocketContext"
 import { Layout } from "./layout/Layout"
-import { ArtifactContentModal } from "./components/ArtifactContentModal"
 import { AppRouter } from "./components/AppRouter"
 import { useConversations } from "./hooks/useConversations"
 import { Login } from "./pages/Login"
@@ -19,8 +18,6 @@ function AppContent() {
     data: conversations,
     refetch: refetchConversations,
   } = useConversations(route.profileId, token)
-
-  const [viewArtifact, setViewArtifact] = useState<{ taskRunId: string } | null>(null)
 
   const needsRedirect = !!userId && (!route.profileId || route.profileId !== userId)
 
@@ -41,28 +38,17 @@ function AppContent() {
   }
 
   return (
-    <>
-      <Layout
-        route={route}
+    <Layout
+      route={route}
+      conversations={conversations}
+      user={user!}
+      onLogout={logout}
+    >
+      <AppRouter
         conversations={conversations}
-        user={user!}
-        onLogout={logout}
-      >
-        <AppRouter
-          conversations={conversations}
-          onRefetchConversations={refetchConversations}
-          onViewArtifact={setViewArtifact}
-        />
-      </Layout>
-      {viewArtifact && token && (
-        <ArtifactContentModal
-          open={true}
-          taskRunId={viewArtifact.taskRunId}
-          token={token}
-          onClose={() => setViewArtifact(null)}
-        />
-      )}
-    </>
+        onRefetchConversations={refetchConversations}
+      />
+    </Layout>
   )
 }
 
