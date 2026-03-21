@@ -10,11 +10,21 @@ import (
 	"time"
 
 	"buildmax/internal/app/agentrun"
+	"buildmax/internal/auth"
 	"buildmax/internal/config"
 	"buildmax/internal/session"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// AuthStatus is the auth state returned to the frontend.
+type AuthStatus struct {
+	LoggedIn  bool   `json:"logged_in"`
+	ServerURL string `json:"server_url,omitempty"`
+	UserID    string `json:"user_id,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Name      string `json:"name,omitempty"`
+}
 
 // SessionDetail is the session payload returned to the frontend for display.
 type SessionDetail struct {
@@ -114,6 +124,61 @@ func (a *App) GetSession(sessionID string) (SessionDetail, error) {
 		CreatedAt: sess.CreatedAt().Format(time.RFC3339),
 		Messages:  display,
 	}, nil
+}
+
+// GetAuthStatus returns the current authentication state for the frontend.
+func (a *App) GetAuthStatus() (*AuthStatus, error) {
+	creds, err := auth.Load(config.AuthPath())
+	if err != nil {
+		return nil, fmt.Errorf("load auth: %w", err)
+	}
+	if !creds.IsValid() {
+		return &AuthStatus{LoggedIn: false}, nil
+	}
+	return &AuthStatus{
+		LoggedIn:  true,
+		ServerURL: creds.ServerURL,
+		UserID:    creds.UserID,
+		Email:     creds.Email,
+		Name:      creds.Name,
+	}, nil
+}
+
+// RequestOTP calls the server's OTP endpoint. intent is "login" or "signup".
+func (a *App) RequestOTP(serverURL, email, intent string) error {
+	c := auth.NewClient(serverURL)
+	return c.RequestOTP(context.Background(), email, intent)
+}
+
+// DoLogin authenticates against the server and saves credentials on success.
+func (a *App) DoLogin(serverURL, email, otp string) (*AuthStatus, error) {
+	c := auth.NewClient(serverURL)
+	lr, err := c.Login(context.Background(), email, otp)
+	if err != nil {
+		return nil, err
+	}
+	creds := &auth.Credentials{
+		ServerURL: serverURL,
+		Token:     lr.Token,
+		UserID:    lr.User.ID,
+		Email:     lr.User.Email,
+		Name:      lr.User.Name,
+	}
+	if err := auth.Save(creds, config.AuthPath()); err != nil {
+		return nil, fmt.Errorf("save credentials: %w", err)
+	}
+	return &AuthStatus{
+		LoggedIn:  true,
+		ServerURL: serverURL,
+		UserID:    lr.User.ID,
+		Email:     lr.User.Email,
+		Name:      lr.User.Name,
+	}, nil
+}
+
+// Logout clears stored credentials.
+func (a *App) Logout() error {
+	return auth.Clear(config.AuthPath())
 }
 
 // SendMessage runs one user prompt in the given session (or creates a new session if sessionID is empty).

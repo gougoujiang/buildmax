@@ -52,6 +52,9 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().BoolP("version", "v", false, "print version and exit")
 	root.AddCommand(newVersionCommand())
+	root.AddCommand(newLoginCommand())
+	root.AddCommand(newLogoutCommand())
+	root.AddCommand(newWhoamiCommand())
 	return root
 }
 

@@ -92,6 +92,11 @@ func SettingsPath() string {
 	return filepath.Join(DataDir(), "settings.json")
 }
 
+// AuthPath returns the path to the auth credentials file under DataDir.
+func AuthPath() string {
+	return filepath.Join(DataDir(), "auth.json")
+}
+
 // ServerEnv holds server-only env (JWT, CORS). Port is resolved by cmd from flag or BUILDMAX_SERVER_PORT.
 type ServerEnv struct {
 	JWTSecret  string

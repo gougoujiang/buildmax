@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Avatar, ChatComposer, ChatThread, RecentList, ThemeProvider, ThemeToggle } from '@buildmax/gui';
 import { EventsOn, EventsOff } from './lib/wailsRuntime';
+import LoginPage from './LoginPage';
 
 function getApp() {
   if (typeof window === 'undefined') return null;
@@ -38,6 +39,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [recentCollapsed, setRecentCollapsed] = useState(false);
   const [wailsReady, setWailsReady] = useState(false);
+  const [authStatus, setAuthStatus] = useState(null);
 
   const MAX_RECENT_CHATS = 5;
   const sortedSessions = [...sessions].sort((a, b) =>
@@ -120,6 +122,21 @@ export default function App() {
   }, []);
 
   const app = getApp();
+
+  // Check auth status once wails is ready
+  useEffect(() => {
+    if (!wailsReady || !app) return;
+    app.GetAuthStatus()
+      .then((status) => setAuthStatus(status))
+      .catch(() => setAuthStatus({ logged_in: false }));
+  }, [wailsReady, app]);
+
+  function handleLogout() {
+    if (!app) return;
+    app.Logout()
+      .then(() => setAuthStatus({ logged_in: false }))
+      .catch(() => setAuthStatus({ logged_in: false }));
+  }
 
   function refreshSessions() {
     if (!app) return;
@@ -206,6 +223,26 @@ export default function App() {
     );
   }
 
+  if (authStatus === null) {
+    return (
+      <ThemeProvider>
+        <div className="shell">
+          <div className="shell__body" style={{ padding: '2rem' }}>
+            <p className="page-chat__text page-chat__muted">Loading…</p>
+          </div>
+        </div>
+      </ThemeProvider>
+    );
+  }
+
+  if (!authStatus.logged_in) {
+    return (
+      <ThemeProvider>
+        <LoginPage onLogin={(status) => setAuthStatus(status)} />
+      </ThemeProvider>
+    );
+  }
+
   const threadItems = messages.map((m, i) => ({
     id: `message-${i}`,
     role: m.role,
@@ -264,6 +301,18 @@ export default function App() {
                 </div>
               </div>
             </nav>
+            <div className="sidebar__footer">
+              <span className="sidebar__footer-email" title={authStatus.email}>
+                {authStatus.email}
+              </span>
+              <button
+                type="button"
+                className="sidebar__footer-logout"
+                onClick={handleLogout}
+              >
+                Sign out
+              </button>
+            </div>
           </aside>
           <main className="shell__main">
             <div className="shell__top">
