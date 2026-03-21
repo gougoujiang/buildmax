@@ -266,6 +266,14 @@ cmd_install() {
   else
     echo "Note: $WORKER_BINARY not found, skip. Run './make build' to build it."
   fi
+  local DESKTOP_BINARY="buildmax-desktop"
+  if [[ -f "$SCRIPT_DIR/$DESKTOP_BINARY" ]]; then
+    echo "Copying $DESKTOP_BINARY to ${LOCAL_BIN}/$DESKTOP_BINARY"
+    cp -f "$SCRIPT_DIR/$DESKTOP_BINARY" "${LOCAL_BIN}/$DESKTOP_BINARY"
+    chmod +x "${LOCAL_BIN}/$DESKTOP_BINARY"
+  else
+    echo "Note: $DESKTOP_BINARY not found, skip. Run './make build' to build it."
+  fi
   local LOCAL_BIN_IN_PATH=0
   case ":$PATH:" in
     *":${LOCAL_BIN}:"*) LOCAL_BIN_IN_PATH=1 ;;
@@ -288,11 +296,11 @@ cmd_install() {
   else
     echo ""
     echo "$LOCAL_BIN is already in your PATH."
-    echo "$CLI_BINARY, $SERVER_BINARY, and $WORKER_BINARY are now available from any directory."
+    echo "$CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, and buildmax-desktop are now available from any directory."
   fi
   echo ""
   echo "Installation complete!"
-  echo "You can run '$CLI_BINARY' (CLI), '$SERVER_BINARY', and '$WORKER_BINARY' from any directory (after updating PATH if needed)."
+  echo "You can run '$CLI_BINARY' (CLI), '$SERVER_BINARY', '$WORKER_BINARY', and 'buildmax-desktop' from any directory (after updating PATH if needed)."
 }
 
 cmd_pub_images() {

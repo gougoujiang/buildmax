@@ -31,7 +31,7 @@ Rationale: A single language reduces maintenance cost, enables cross-compilation
   - Users get a full Agent TUI experience in the terminal by running a single binary; no Node dependency for normal CLI use.
 - **Portal (web)**: A separate web-based entry point under `portal/` — React 19 + Vite + TypeScript; builds and runs independently. Depends on the shared **gui** package for theme and other reusable widgets. See `portal/README.md` for install, build, and dev commands.
 - **Desktop (Wails)**: Native desktop app under `desktop/` and `cmd/buildmax-desktop/` — Wails embeds a React 19 + Vite frontend in `desktop/frontend/`. Same shared **gui** package as portal so UI components are implemented once and used in both.
-- **Shared GUI package (`gui/`)**: An npm package at repo root (`@buildmax/gui`) that exports presentational React components and CSS (theme, and later e.g. settings UI, chat history rendering, input box). Portal and desktop have different inner logic (data, auth, routing); they share **widgets** from gui via props/callbacks. Both use React 19. Build with `cd gui && npm install && npm run build`; `./make build` and `./make run portal` / `./make run desktop` build or use gui as needed. See `gui/README.md`.
+- **Shared GUI package (`gui/`)**: An npm package at repo root (`@buildmax/gui`) that exports presentational React components and CSS. It already includes shared theme, modal, avatar, chat thread/composer, recent-list, and form-modal building blocks. Portal and desktop have different inner logic (data, auth, routing); they share **widgets** from gui via props/callbacks. Both use React 19. Build with `cd gui && npm install && npm run build`; `./make build` and `./make run portal` / `./make run desktop` build or use gui as needed. See `gui/README.md`.
 
 ### 2.3 Portal product vision (design reference)
 
@@ -75,20 +75,20 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 **HTTP server & Portal backend**
 - **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
 - **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/agents`; `POST /api/upload`, `GET /api/files`, `GET /api/files/{path...}`; `GET/POST /api/webhook-keys`; `GET/POST /api/conversations`, `GET/POST /api/conversations/{conversation_id}/messages`, `GET/POST /api/conversations/{conversation_id}/tasks`; `GET /api/tasks/{task_id}`, `POST /api/tasks/{task_id}/runs`, `GET /api/tasks/{task_id}/conversation`, `GET /api/tasks/{task_id}/stream`, `GET /api/tasks/{task_id}/artifacts`; `GET /api/task-runs/{task_run_id}/artifacts/items`, `GET /api/task-runs/{task_run_id}/artifacts/content`; `POST /api/webhook`; `GET /api/sessions/{session_id}`; **worker API** (chat-run-id only, worker token): `GET /api/worker/task-runs/{task_run_id}`, `PATCH /api/worker/task-runs/{task_run_id}`. JWT auth for user API; ownership is user/conversation/task based.
-- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Agent, Conversation, ConversationMessage, Chat, TaskRun, user webhook keys, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (user uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Run/storage layout**: user root has `home/` (uploads); each task run uses `conversations/<conversationID>/tasks/<taskID>/<taskRunID>/` with `home/` (materialized user home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use `home` for user uploads and `conversations/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
+- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Agent, Conversation, ConversationMessage, Task, TaskRun, user webhook keys, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (user uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Run/storage layout**: user root has `home/` (uploads); each task run uses `conversations/<conversationID>/tasks/<taskID>/<taskRunID>/` with `home/` (materialized user home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use `home` for user uploads and `conversations/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
 - **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING task runs, claims them with the typed run lifecycle API, and spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets task run via `GET /api/worker/task-runs/{task_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md` (layout + optional workspace AGENTS.md), runs the shared agent runtime in-process with BUILDMAX_HOME = run `global` and cwd = run dir, writes result to run `artifacts/result.md`, uploads run `global` to blob, and streams assistant reply deltas when enabled. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Shared GUI and frontends**
-- **GUI package** (`gui/`): Shared React 19 package at repo root; exports theme (ThemeProvider, useTheme, ThemeToggle, theme.css) and is the place for other shared widgets (e.g. settings, chat history rendering, input box). Consumed by portal and desktop via `"@buildmax/gui": "file:../gui"` (or `file:../../gui` from desktop/frontend). Build output in `gui/dist/`; `./make build` builds gui before desktop; `./make clean` removes `gui/node_modules` and `gui/dist`.
+- **GUI package** (`gui/`): Shared React 19 package at repo root; exports theme plus shared presentational components such as `BaseModal`, `FormModal`, `Avatar`, `ChatComposer`, `ChatThread`, and `RecentList`. Consumed by portal and desktop via `"@buildmax/gui": "file:../gui"` (or `file:../../gui` from desktop/frontend). Build output in `gui/dist/`; `./make build` builds gui before desktop; `./make clean` removes `gui/node_modules` and `gui/dist`.
 - **Portal** (`portal/`): React 19 + Vite + TypeScript; depends on `@buildmax/gui` for theme and shared components. Builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Home, Explore, Conversations, ConversationDetail, TaskDetail; API client, AuthContext; AppShell, Sidebar, TopBar, modals. Connects to Go backend for auth and the user/conversation/task/file APIs. The portal still uses a lightweight profile shell in routing/UI, but it no longer depends on workspace ownership APIs.
-- **Desktop app**: Wails app in `cmd/buildmax-desktop/` with frontend in `desktop/frontend/` (React 19 + Vite, JSX). Same `@buildmax/gui` dependency as portal; theme and future shared widgets come from gui. Desktop has its own data/runtime (Wails bindings, local session); only the presentational layer is shared with portal.
+- **Desktop app**: Wails app in `cmd/buildmax-desktop/` with frontend in `desktop/frontend/` (React 19 + Vite, JSX). Same `@buildmax/gui` dependency as portal. Desktop already supports local session listing/loading and local chat using the shared Go agent runtime; only the presentational layer is shared with portal.
 
 ### 4.2 Tier 1 and Tier 2 architecture
 
 - **Tier 1 = Conversation application service (orchestrator).** The application-layer orchestrator lives in `internal/app/conversation`. It is the single entry point for portal turns: it receives the normalized request, decides whether to run a direct conversation turn or create a background task run, and owns what the user sees. Tier 1 is the single voice to the user.
 - **Low-level Tier 1 loop = `internal/conversation`.** The `internal/conversation` package is now the low-level LLM loop used by the app-layer service. It owns message persistence, tool execution, and optional streaming for one turn, but it is not the server composition or transport boundary anymore.
-- **Tier 2 = Task + TaskRun (execution in the back).** A Chat with one or more TaskRuns is Tier 2: the worker materializes a run directory, executes the shared agent runtime there, produces artifacts, and can take a long time. Tier 2 is “tools in the back” - it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
-- **Tier 1 tools for Tier 2 (implemented via app services):** Tier 1 can (1) **create a Tier 2 task** through `internal/app/chat` and the `StartChat` tool, which creates a Chat and TaskRun for the worker; and (2) **rerun / follow-up on an existing chat** by creating a new run for that chat. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
+- **Tier 2 = Task + TaskRun (execution in the back).** A Task with one or more TaskRuns is Tier 2: the worker materializes a run directory, executes the shared agent runtime there, produces artifacts, and can take a long time. Tier 2 is “tools in the back” - it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
+- **Tier 1 tools for Tier 2 (implemented via app services):** Tier 1 can (1) **create a Tier 2 task** through `internal/app/task` and the `StartTask` tool, which creates a Task and TaskRun for the worker; and (2) **rerun / follow-up on an existing task** by creating a new run for that task. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
 
 ### 4.3 Planned / Not yet implemented
 
@@ -102,9 +102,9 @@ Following common Golang project conventions, the current structure is:
 
 ```
 buildmax/
-├── gui/                       # Shared GUI package (React 19): theme, future widgets; consumed by portal & desktop
+├── gui/                       # Shared GUI package (React 19): theme + shared presentational widgets; consumed by portal & desktop
 │   ├── package.json           # @buildmax/gui; peerDependencies react ^19
-│   ├── src/                   # ThemeContext, ThemeToggle, theme.css, index.ts
+│   ├── src/                   # Theme, modal, avatar, chat widgets, index.ts
 │   └── dist/                  # Build output (ESM, .d.ts, theme.css); not committed
 ├── cmd/
 │   ├── buildmax/              # CLI binary (TUI, -p, version)
@@ -120,7 +120,7 @@ buildmax/
 ├── internal/                  # Private packages (this project only)
 │   ├── app/                   # Application-layer orchestration services shared by transports/runtime
 │   │   ├── agentrun/          # Shared agent runtime used by CLI and worker
-│   │   ├── chat/              # Chat application service (create task, create run, background task)
+│   │   ├── task/              # Task application service (create task, create run, background task)
 │   │   └── conversation/      # Tier 1 orchestration entry point for portal turns
 │   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
 │   ├── tui/                   # Bubble Tea TUI (models, views, program entry: banner, input, viewport, format)
@@ -136,8 +136,8 @@ buildmax/
 │   │   ├── entity/            # MySQL (GORM): canonical backend models, typed lifecycle commands, interfaces and Store
 │   │   └── blob/              # Blob/file storage: PersistStorage (user home), ArtifactStorage; local FS and S3; keys use home, conversations/.../global
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), conversations, tasks, artifacts, upload, files, webhook, sessions; static (openapi, swagger)
-│   ├── servercmd/             # Server startup: RunServer (config, DB, blob, executor.NewScheduler, server.Run); used by cmd/buildmax-server
-│   ├── workercmd/             # Worker startup: RunWorker (env, get task run via API, blob storage, executor.RunTask); used by cmd/buildmax-worker
+│   ├── cmd/server/            # Server startup and bootstrap; used by cmd/buildmax-server
+│   ├── cmd/worker/            # Worker startup; used by cmd/buildmax-worker
 │   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask: run-scoped dirs (home, artifacts, global), materialize, shared runtime execution, TaskRunUpdater (API)
 ├── portal/                    # Web UI (React 19 + Vite + TypeScript); depends on gui
 │   ├── package.json           # Scripts: dev, build; dependency "@buildmax/gui": "file:../gui"
@@ -160,14 +160,14 @@ buildmax/
 
 - **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`.
 - **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and chat-run scheduler (spawns `buildmax-worker` per pending task run); use `./make run server` to build and run it.
-- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--chat-run-id`; calls `workercmd.RunWorker` (get task run via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
-- **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, internal setup for agent/session. No server subcommand.
+- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--chat-run-id`; calls `internal/cmd/worker` startup logic (get task run via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
+- **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, plus server/worker/desktop startup packages under `internal/cmd/*`.
 - **internal/app**: Application services that own orchestration boundaries: shared agent runtime, task workflows, and Tier 1 conversation handling.
 - **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
 - **internal/conversation**: Low-level conversation loop primitives used by `internal/app/conversation`; not the transport-layer orchestration entry point.
-- **internal/server**: HTTP API for the Portal; depends on `app/chat`, `app/conversation`, `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/servercmd`.
+- **internal/server**: HTTP API for the Portal; depends on `app/task`, `app/conversation`, `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/cmd/server`.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
-- **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop. Implement shared widgets (theme, settings, chat history, input box) here so portal and desktop do not duplicate UI.
+- **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop. Shared widgets already include theme, modal, avatar, chat history, input box, and recent-list building blocks.
 - **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
 - **desktop/frontend/**: Desktop UI; depends on `@buildmax/gui`. Same React 19 and shared components as portal; app logic (Wails bindings, session) is desktop-specific.
 - **design/**: Product and technical design docs; see section 6.
