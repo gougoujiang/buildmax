@@ -45,6 +45,7 @@ type TUIOpts struct {
 	Branch      string // current git branch (empty if not a repo); footer shows "branch: -" when empty
 	Version     string
 	SessionsDir string
+	UserEmail   string // logged-in user email; empty if not logged in
 }
 
 // agentDoneMsg is sent when agent.Process finishes (in a tea.Cmd).
@@ -377,12 +378,17 @@ func (m *Model) renderFooterView() string {
 	if m.opts.Branch != "" {
 		workspacePart += " (|-" + m.opts.Branch + ")"
 	}
-	footer := footerModelStyle.Render("model: "+m.opts.ModelName) + " | " +
-		footerBranchStyle.Render(workspacePart) + " | ctrl+c: quit | esc: clear/focus input | opt+mouse: select text"
-	if m.err != "" {
-		footer += " | error: " + m.err
+	line1 := footerModelStyle.Render("model: "+m.opts.ModelName) + " | " +
+		footerBranchStyle.Render(workspacePart)
+	if m.opts.UserEmail != "" {
+		line1 += " | " + m.opts.UserEmail
 	}
-	return footer
+
+	line2 := "ctrl+c: quit | esc: clear/focus input | opt+mouse: select text"
+	if m.err != "" {
+		line2 += " | error: " + m.err
+	}
+	return line1 + "\n" + line2
 }
 
 func (m *Model) syncViewportSize() {

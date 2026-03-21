@@ -213,8 +213,12 @@ func TestViewKeepsFooterAtBottom(t *testing.T) {
 		t.Fatalf("View() rendered %d lines, want terminal height 12", got)
 	}
 	last := lines[len(lines)-1]
-	if !strings.Contains(last, "model: test-model") {
-		t.Fatalf("footer should be on the last line, got %q", last)
+	secondLast := lines[len(lines)-2]
+	if !strings.Contains(secondLast, "model: test-model") {
+		t.Fatalf("footer line 1 should contain model name, got %q", secondLast)
+	}
+	if !strings.Contains(last, "ctrl+c: quit") {
+		t.Fatalf("footer line 2 should contain shortcuts, got %q", last)
 	}
 }
 

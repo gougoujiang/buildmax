@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"buildmax/internal/auth"
+	"buildmax/internal/config"
 	"buildmax/internal/tui"
 	"buildmax/internal/util"
 
@@ -16,6 +18,10 @@ func runTUI(resumeID string, modelSelector string) error {
 	if err != nil {
 		return err
 	}
+	var userEmail string
+	if creds, err := auth.Load(config.AuthPath()); err == nil && creds != nil {
+		userEmail = creds.Email
+	}
 	opts := tui.TUIOpts{
 		Agent:       res.Runtime.Agent,
 		LLMClient:   res.Runtime.LLMClient,
@@ -25,6 +31,7 @@ func runTUI(resumeID string, modelSelector string) error {
 		Branch:      util.CurrentBranch(res.CWD),
 		Version:     Version,
 		SessionsDir: res.SessionsDir,
+		UserEmail:   userEmail,
 	}
 	p := tea.NewProgram(tui.NewModel(opts), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
