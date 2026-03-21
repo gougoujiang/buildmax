@@ -40,6 +40,13 @@ func newWhoamiCommand() *cobra.Command {
 }
 
 func runLogin(_ *cobra.Command, _ []string) error {
+	return interactiveLogin()
+}
+
+// interactiveLogin prompts for server URL, email, and OTP, then saves
+// credentials on success. Used by both the login subcommand and the TUI
+// startup gate.
+func interactiveLogin() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	serverDefault := config.WorkerServerURL()

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"buildmax/internal/auth"
 	"buildmax/internal/config"
 	"buildmax/internal/session"
 
@@ -87,12 +88,35 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	if err := requireLogin(prompt == ""); err != nil {
+		return err
+	}
+
 	if prompt != "" {
 		slog.Info("running print mode")
 		return runPrintMode(prompt, effectiveSessionID, model)
 	}
 	slog.Info("starting TUI")
 	return runTUI(effectiveSessionID, model)
+}
+
+// requireLogin checks whether the user is logged in. If interactive is true
+// (TUI mode), it runs the interactive login flow when credentials are missing.
+// If interactive is false (print mode), it prints an error and returns.
+func requireLogin(interactive bool) error {
+	creds, err := auth.Load(config.AuthPath())
+	if err != nil {
+		return fmt.Errorf("load credentials: %w", err)
+	}
+	if creds.IsValid() {
+		return nil
+	}
+	if !interactive {
+		fmt.Fprintln(os.Stderr, "Not logged in. Run \"buildmax login\" first.")
+		return fmt.Errorf("not logged in")
+	}
+	fmt.Fprintln(os.Stdout, "Not logged in. Please log in to continue.")
+	return interactiveLogin()
 }
 
 // resolveResumeID resolves the --continue flag: if cont is true and resumeID
