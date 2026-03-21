@@ -41,4 +41,5 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{task_id}/artifacts", h.listTaskArtifactsHandler)
 	mux.HandleFunc("GET /api/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
 	mux.HandleFunc("GET /api/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
+	mux.HandleFunc("GET /api/ws", h.wsUpgradeHandler)
 }

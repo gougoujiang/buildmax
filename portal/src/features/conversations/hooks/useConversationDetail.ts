@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { getErrorMessage } from "../../../lib/errorMessage"
 import { useFetch } from "../../../hooks/useFetch"
-import {
-  addConversationMessageStream,
-  getConversationMessages,
-} from "../api"
+import { getConversationMessages } from "../api"
+import { useWebSocket } from "../../../contexts/WebSocketContext"
 
 interface UseConversationDetailOptions {
   profileId: string
@@ -12,6 +9,20 @@ interface UseConversationDetailOptions {
   token: string | null
   initialMessage?: string
   onMessageSent?: () => void
+}
+
+interface MessageDeltaPayload {
+  conversation_id: string
+  delta: string
+}
+
+interface MessageCompletedPayload {
+  conversation_id: string
+}
+
+interface ConversationErrorPayload {
+  conversation_id?: string
+  error: string
 }
 
 export function useConversationDetail({
@@ -22,6 +33,7 @@ export function useConversationDetail({
   onMessageSent,
 }: UseConversationDetailOptions) {
   const historyRef = useRef<HTMLElement | null>(null)
+  const ws = useWebSocket()
   const {
     data: messagesData,
     loading: messagesLoading,
@@ -43,68 +55,66 @@ export function useConversationDetail({
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<string | null>(null)
   const initialMessageSentRef = useRef(false)
 
-  const runMessageStream = useCallback(
-    async (content: string, signal?: AbortSignal) => {
+  const refetchMessagesRef = useRef(refetchMessages)
+  refetchMessagesRef.current = refetchMessages
+  const onMessageSentRef = useRef(onMessageSent)
+  onMessageSentRef.current = onMessageSent
+
+  useEffect(() => {
+    const handleDelta = (payload: MessageDeltaPayload) => {
+      if (payload.conversation_id !== conversationId) return
+      setStreamingContent((prev) => (prev ?? "") + payload.delta)
+    }
+
+    const handleCompleted = (payload: MessageCompletedPayload) => {
+      if (payload.conversation_id !== conversationId) return
+      setInput("")
+      setSending(false)
+      setStreamingContent(null)
+      refetchMessagesRef.current()
+      onMessageSentRef.current?.()
+    }
+
+    const handleError = (payload: ConversationErrorPayload) => {
+      if (payload.conversation_id && payload.conversation_id !== conversationId) return
+      setSendError(payload.error)
+      setSending(false)
+      setStreamingContent(null)
+      setOptimisticUserMessage(null)
+    }
+
+    ws.on("conversation.message.delta", handleDelta)
+    ws.on("conversation.message.completed", handleCompleted)
+    ws.on("conversation.error", handleError)
+
+    return () => {
+      ws.off("conversation.message.delta", handleDelta)
+      ws.off("conversation.message.completed", handleCompleted)
+      ws.off("conversation.error", handleError)
+    }
+  }, [ws, conversationId])
+
+  const sendMessage = useCallback(
+    (content: string) => {
       if (!token) return
       setSending(true)
       setSendError(null)
       setStreamingContent("")
-      try {
-        await addConversationMessageStream(
-          profileId,
-          conversationId,
-          { content },
-          token,
-          {
-            onDelta: (delta) => setStreamingContent((prev) => (prev ?? "") + delta),
-            onDone: () => {
-              setInput("")
-              setSending(false)
-              setStreamingContent(null)
-              refetchMessages()
-              onMessageSent?.()
-            },
-            onError: (err) => {
-              if (err.name === "AbortError") {
-                setSending(false)
-                setStreamingContent(null)
-                setOptimisticUserMessage(null)
-                return
-              }
-              setSendError(getErrorMessage(err, "Failed to send message"))
-              setSending(false)
-              setStreamingContent(null)
-              setOptimisticUserMessage(null)
-            },
-          },
-          { signal }
-        )
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          setSending(false)
-          setStreamingContent(null)
-          setOptimisticUserMessage(null)
-          return
-        }
-        setSendError(getErrorMessage(err, "Failed to send message"))
-        setSending(false)
-        setStreamingContent(null)
-        setOptimisticUserMessage(null)
-      }
+      setOptimisticUserMessage(content)
+      ws.send("conversation.message", {
+        conversation_id: conversationId,
+        content,
+      })
     },
-    [profileId, conversationId, token, refetchMessages, onMessageSent]
+    [ws, conversationId, token]
   )
-
-  const runMessageStreamRef = useRef(runMessageStream)
-  runMessageStreamRef.current = runMessageStream
 
   // Send the initial message exactly once when navigating from "new conversation".
   useEffect(() => {
     if (!initialMessage || !token || initialMessageSentRef.current) return
     initialMessageSentRef.current = true
-    setOptimisticUserMessage(initialMessage)
-    void runMessageStreamRef.current(initialMessage)
-  }, [initialMessage, token])
+    sendMessage(initialMessage)
+  }, [initialMessage, token, sendMessage])
 
   // Clear optimistic bubble once the real message list includes it.
   useEffect(() => {
@@ -124,7 +134,7 @@ export function useConversationDetail({
   async function handleSend() {
     const content = input.trim()
     if (!content || !token || sending) return
-    await runMessageStream(content)
+    sendMessage(content)
   }
 
   return {

@@ -77,6 +77,11 @@ func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {
 	if tokenStr == "" {
 		return "", false
 	}
+	return parseJWTSub(tokenStr, jwtSecret)
+}
+
+// parseJWTSub validates a raw JWT token string and returns the sub claim.
+func parseJWTSub(tokenStr, jwtSecret string) (string, bool) {
 	token, err := jwt.ParseWithClaims(tokenStr, &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(jwtSecret), nil
 	})

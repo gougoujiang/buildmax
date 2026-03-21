@@ -3,6 +3,7 @@ import { navigate } from "./router"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
+import { WebSocketProvider } from "./contexts/WebSocketContext"
 import { Layout } from "./layout/Layout"
 import { ArtifactContentModal } from "./components/ArtifactContentModal"
 import { AppRouter } from "./components/AppRouter"
@@ -69,9 +70,11 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppProvider>
-          <AppContent />
-        </AppProvider>
+        <WebSocketProvider>
+          <AppProvider>
+            <AppContent />
+          </AppProvider>
+        </WebSocketProvider>
       </AuthProvider>
     </ThemeProvider>
   )

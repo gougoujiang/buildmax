@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { getErrorMessage } from "../../../lib/errorMessage"
 import { useFetch } from "../../../hooks/useFetch"
-import {
-  createTaskRun,
-  getTaskConversation,
-  subscribeTaskStream,
-} from "../api"
+import { createTaskRun, getTaskConversation } from "../api"
+import { useWebSocket } from "../../../contexts/WebSocketContext"
 
 interface UseTaskDetailOptions {
   profileId: string
@@ -15,6 +12,15 @@ interface UseTaskDetailOptions {
   onRunComplete?: () => void
 }
 
+interface TaskStreamDeltaPayload {
+  task_id: string
+  delta: string
+}
+
+interface TaskStreamDonePayload {
+  task_id: string
+}
+
 export function useTaskDetail({
   profileId,
   taskId,
@@ -22,8 +28,8 @@ export function useTaskDetail({
   initialInput,
   onRunComplete,
 }: UseTaskDetailOptions) {
-  const streamCleanupRef = useRef<(() => void) | null>(null)
   const historyRef = useRef<HTMLElement | null>(null)
+  const ws = useWebSocket()
 
   const {
     data: session,
@@ -46,6 +52,11 @@ export function useTaskDetail({
   const [lastSentMessage, setLastSentMessage] = useState<string | null>(null)
   const [expandedToolIndices, setExpandedToolIndices] = useState<Set<number>>(new Set())
 
+  const refetchSessionRef = useRef(refetchSession)
+  refetchSessionRef.current = refetchSession
+  const onRunCompleteRef = useRef(onRunComplete)
+  onRunCompleteRef.current = onRunComplete
+
   function toggleToolExpand(index: number) {
     setExpandedToolIndices((prev) => {
       const next = new Set(prev)
@@ -55,37 +66,34 @@ export function useTaskDetail({
     })
   }
 
+  // Subscribe to task stream via WebSocket
   useEffect(() => {
-    return () => {
-      if (streamCleanupRef.current) {
-        streamCleanupRef.current()
-        streamCleanupRef.current = null
-      }
-    }
-  }, [])
+    if (!token || !taskId) return
 
-  useEffect(() => {
-    if (!token || !profileId || !taskId) return
-    const cleanup = subscribeTaskStream(profileId, taskId, token, {
-      onDelta: (text) => setStreamingContent((prev) => prev + text),
-      onDone: () => {
-        setStreamingContent("")
-        setLastSentMessage(null)
-        setFollowUpLoading(false)
-        refetchSession()
-        onRunComplete?.()
-      },
-      onError: (err) => {
-        setFollowUpError(getErrorMessage(err, "Stream failed"))
-        setFollowUpLoading(false)
-      },
-    })
-    streamCleanupRef.current = cleanup
-    return () => {
-      cleanup()
-      streamCleanupRef.current = null
+    const handleDelta = (payload: TaskStreamDeltaPayload) => {
+      if (payload.task_id !== taskId) return
+      setStreamingContent((prev) => prev + payload.delta)
     }
-  }, [profileId, taskId, token, refetchSession, onRunComplete])
+
+    const handleDone = (payload: TaskStreamDonePayload) => {
+      if (payload.task_id !== taskId) return
+      setStreamingContent("")
+      setLastSentMessage(null)
+      setFollowUpLoading(false)
+      refetchSessionRef.current()
+      onRunCompleteRef.current?.()
+    }
+
+    ws.on("task.stream.delta", handleDelta)
+    ws.on("task.stream.done", handleDone)
+    ws.subscribeTask(taskId)
+
+    return () => {
+      ws.off("task.stream.delta", handleDelta)
+      ws.off("task.stream.done", handleDone)
+      ws.unsubscribeTask(taskId)
+    }
+  }, [ws, taskId, token])
 
   useEffect(() => {
     if (!initialInput || session !== null || sessionLoading || sessionError) return

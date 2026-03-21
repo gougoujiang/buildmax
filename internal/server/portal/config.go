@@ -30,6 +30,7 @@ type RunOutputLister interface {
 // Config holds dependencies for authenticated portal endpoints.
 type Config struct {
 	JWTSecret                string
+	CORSOrigin               string // Allowed origin for WebSocket upgrade check
 	AgentStore               entity.AgentStore
 	TaskStore                entity.TaskStore
 	TaskRunStore             entity.TaskRunStore

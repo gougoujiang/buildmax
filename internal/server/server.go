@@ -125,6 +125,7 @@ func (a chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string
 func buildPortalConfig(cfg Config, hub streamhub.StreamHub) portal.Config {
 	return portal.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
+		CORSOrigin:               cfg.Auth.CORSOrigin,
 		AgentStore:               cfg.Stores.AgentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
