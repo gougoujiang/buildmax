@@ -104,13 +104,15 @@ export async function addConversationMessageStream(
   conversationId: string,
   body: { content: string },
   token: string,
-  callbacks: Pick<ConversationStreamCallbacks, "onDelta" | "onDone" | "onError">
+  callbacks: Pick<ConversationStreamCallbacks, "onDelta" | "onDone" | "onError">,
+  options?: { signal?: AbortSignal }
 ): Promise<void> {
   const url = `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/messages?stream=1`
   const res = await fetch(url, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
+    signal: options?.signal,
   })
   checkUnauthorized(res)
   if (!res.ok) {

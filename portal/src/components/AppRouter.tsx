@@ -30,6 +30,8 @@ export function AppRouter({
     token,
     pendingTask,
     setPendingTask,
+    pendingConversation,
+    setPendingConversation,
   } = useApp()
   const isHome = route.name === "home"
   const isNewChat = route.name === "newChat"
@@ -43,12 +45,19 @@ export function AppRouter({
   } = useTasks(route.profileId, token, route.name === "task" ? route.taskId : undefined, isTaskDetail)
 
   const routeTaskId = route.name === "task" ? route.taskId : undefined
-  // Clear pending task only when navigating away, so initialInput stays visible until we leave.
+  const routeConversationId = route.name === "conversation" ? route.conversationId : undefined
+
   useEffect(() => {
     if (!pendingTask) return
     const viewingThisTask = route.name === "task" && route.taskId === pendingTask.task.id
     if (!viewingThisTask) setPendingTask(null)
   }, [route.name, routeTaskId, pendingTask, setPendingTask])
+
+  useEffect(() => {
+    if (!pendingConversation) return
+    const viewing = route.name === "conversation" && route.conversationId === pendingConversation.conversationId
+    if (!viewing) setPendingConversation(null)
+  }, [route.name, routeConversationId, pendingConversation, setPendingConversation])
 
   const fallbackHome = (
     <Home
@@ -107,11 +116,16 @@ export function AppRouter({
   }
 
   if (route.name === "conversation") {
+    const initialMessage =
+      pendingConversation?.conversationId === route.conversationId
+        ? pendingConversation.initialMessage
+        : undefined
     return (
         <ConversationDetail
           conversationId={route.conversationId}
           profileId={route.profileId}
           onRefetch={onRefetchConversations}
+          initialMessage={initialMessage}
         />
       )
   }

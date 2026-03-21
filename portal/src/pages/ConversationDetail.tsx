@@ -5,18 +5,21 @@ interface ConversationDetailProps {
   conversationId: string
   profileId: string
   onRefetch?: () => void
+  initialMessage?: string
 }
 
 export function ConversationDetail({
   conversationId,
   profileId,
   onRefetch,
+  initialMessage,
 }: ConversationDetailProps) {
   const { token, user } = useAuth()
   const conversationDetail = useConversationDetail({
     profileId,
     conversationId,
     token,
+    initialMessage,
     onMessageSent: onRefetch,
   })
 
@@ -31,6 +34,7 @@ export function ConversationDetail({
       sending={conversationDetail.sending}
       sendError={conversationDetail.sendError}
       streamingContent={conversationDetail.streamingContent}
+      optimisticUserMessage={conversationDetail.optimisticUserMessage}
       user={user}
       onSend={conversationDetail.handleSend}
     />

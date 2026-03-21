@@ -14,6 +14,8 @@ interface ConversationDetailViewProps {
   sending: boolean
   sendError: string | null
   streamingContent: string | null
+  /** Shown after “new chat” navigation until the first user message appears from the server. */
+  optimisticUserMessage: string | null
   user: LoginUser | null
   onSend: () => void
 }
@@ -28,6 +30,7 @@ export function ConversationDetailView({
   sending,
   sendError,
   streamingContent,
+  optimisticUserMessage,
   user,
   onSend,
 }: ConversationDetailViewProps) {
@@ -46,6 +49,26 @@ export function ConversationDetailView({
       ) : null,
     }
   })
+
+  const showOptimisticUser =
+    optimisticUserMessage &&
+    !messages.some(
+      (m) => m.role === "user" && m.content === optimisticUserMessage
+    )
+
+  if (showOptimisticUser) {
+    items.push({
+      id: "optimistic-user",
+      role: "user",
+      label: "You",
+      avatar: user ? <UserAvatar user={user} size="sm" /> : undefined,
+      body: (
+        <div className="page-chat__msg-content page-chat__markdown">
+          <Markdown remarkPlugins={[remarkGfm]}>{optimisticUserMessage}</Markdown>
+        </div>
+      ),
+    })
+  }
 
   if (streamingContent !== null) {
     items.push({

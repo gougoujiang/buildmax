@@ -14,6 +14,11 @@ export interface PendingTask {
   initialInput: string
 }
 
+export interface PendingConversation {
+  conversationId: string
+  initialMessage: string
+}
+
 export interface AppContextValue {
   token: string | null
   route: Route
@@ -21,6 +26,9 @@ export interface AppContextValue {
   /** Set when navigating so TaskDetail can render immediately and show the initial query. */
   pendingTask: PendingTask | null
   setPendingTask: (p: PendingTask | null) => void
+  /** Set when creating a new conversation so ConversationDetail can send the first message on mount. */
+  pendingConversation: PendingConversation | null
+  setPendingConversation: (p: PendingConversation | null) => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -33,6 +41,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setPendingTask = useCallback((p: PendingTask | null) => {
     setPendingTaskState(p)
   }, [])
+  const [pendingConversation, setPendingConversationState] = useState<PendingConversation | null>(null)
+  const setPendingConversation = useCallback((p: PendingConversation | null) => {
+    setPendingConversationState(p)
+  }, [])
 
   const value: AppContextValue = {
     token,
@@ -40,6 +52,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     scope,
     pendingTask,
     setPendingTask,
+    pendingConversation,
+    setPendingConversation,
   }
 
   return (
