@@ -181,8 +181,22 @@ func (a *App) Logout() error {
 	return auth.Clear(config.AuthPath())
 }
 
+func (a *App) requireLogin() error {
+	creds, err := auth.Load(config.AuthPath())
+	if err != nil {
+		return fmt.Errorf("not logged in")
+	}
+	if !creds.IsValid() {
+		return fmt.Errorf("not logged in")
+	}
+	return nil
+}
+
 // SendMessage runs one user prompt in the given session (or creates a new session if sessionID is empty).
 func (a *App) SendMessage(sessionID string, prompt string) (SendMessageResult, error) {
+	if err := a.requireLogin(); err != nil {
+		return SendMessageResult{}, err
+	}
 	if prompt == "" {
 		return SendMessageResult{}, fmt.Errorf("prompt required")
 	}
@@ -222,6 +236,9 @@ func (s *desktopStreamSink) OnDelta(delta string) {
 // (StreamDonePayload) or desktop/stream-error (StreamErrorPayload). The frontend should
 // subscribe to these events before calling SendMessageStream.
 func (a *App) SendMessageStream(sessionID string, prompt string) error {
+	if err := a.requireLogin(); err != nil {
+		return err
+	}
 	if prompt == "" {
 		return fmt.Errorf("prompt required")
 	}
