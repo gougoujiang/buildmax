@@ -24,12 +24,18 @@ type testJWTClaims struct {
 	Sub string `json:"sub"`
 }
 
-// SignJWT builds a JWT with sub claim for use in tests.
+// SignJWT builds a JWT with sub claim and 24h expiry for use in tests.
 func SignJWT(sub, secret string) string {
+	return SignJWTWithExp(sub, secret, 24*time.Hour)
+}
+
+// SignJWTWithExp builds a JWT with sub claim and the given expiry offset from now.
+// Use a negative duration to create an already-expired token.
+func SignJWTWithExp(sub, secret string, expiresIn time.Duration) string {
 	now := time.Now()
 	claims := testJWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(expiresIn)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 		Sub: sub,
@@ -86,4 +92,12 @@ func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuota
 	m.ByEmail[email] = u
 	m.ByID[u.UserID] = u
 	return u, nil
+}
+
+func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginAt int64, platform string) error {
+	if u, ok := m.ByID[userID]; ok {
+		u.LastLoginAt = &loginAt
+		u.LastLoginPlatform = &platform
+	}
+	return nil
 }

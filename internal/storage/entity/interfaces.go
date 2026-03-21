@@ -12,6 +12,8 @@ type UserStore interface {
 	GetUser(ctx context.Context, userID string) (*User, error)
 	// CreateUser creates a user with the given email. defaultQuotaTier is applied when non-empty. Returns ErrEmailExists if the email is already registered.
 	CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*User, error)
+	// UpdateLoginMeta records the last login timestamp and platform for the user.
+	UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error
 }
 
 // QuotaTierStore provides quota tier limits by tier name.

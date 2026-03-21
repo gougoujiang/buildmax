@@ -35,6 +35,17 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*User, error) {
 	return &u, nil
 }
 
+// UpdateLoginMeta records the last login timestamp and platform for the user.
+func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error {
+	return s.db.WithContext(ctx).
+		Model(&User{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]interface{}{
+			"last_login_at":       loginAt,
+			"last_login_platform": platform,
+		}).Error
+}
+
 // CreateUser creates a user with the given email. Name is set to empty.
 // When defaultQuotaTier is non-empty, User.QuotaTier is set to it.
 // Returns ErrEmailExists if the email is already registered.

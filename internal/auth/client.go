@@ -63,10 +63,12 @@ func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 }
 
 // Login calls POST /api/login and returns the token and user on success.
-func (c *Client) Login(ctx context.Context, email, otp string) (*LoginResponse, error) {
+// platform identifies the calling client ("cli", "desktop", "portal").
+func (c *Client) Login(ctx context.Context, email, otp, platform string) (*LoginResponse, error) {
 	body, _ := json.Marshal(map[string]string{
-		"email": email,
-		"otp":   otp,
+		"email":    email,
+		"otp":      otp,
+		"platform": platform,
 	})
 	url := c.BaseURL + "/api/login"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))

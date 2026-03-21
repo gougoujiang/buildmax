@@ -24,6 +24,10 @@ func (m *mockUserStore) CreateUser(_ context.Context, _ string, _ string) (*enti
 	return nil, nil
 }
 
+func (m *mockUserStore) UpdateLoginMeta(_ context.Context, _ string, _ int64, _ string) error {
+	return nil
+}
+
 type mockUsageReader struct {
 	runCount, totalTokens int
 	err                   error

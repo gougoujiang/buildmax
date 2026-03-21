@@ -3,12 +3,14 @@ package entity
 // User is the user model. JSON uses snake_case per project convention.
 // Internal DB numeric id is intentionally not exposed; API and JWT use user_id.
 type User struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	UserID    string `gorm:"type:varchar(64);uniqueIndex;not null" json:"user_id"`
-	Email     string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-	Name      string `gorm:"type:varchar(255)" json:"name"`
-	QuotaTier string `gorm:"type:varchar(64)" json:"quota_tier,omitempty"`
-	CreatedAt int64  `gorm:"autoCreateTime" json:"created_at"`
+	ID                uint    `gorm:"primaryKey;autoIncrement" json:"-"`
+	UserID            string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"user_id"`
+	Email             string  `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
+	Name              string  `gorm:"type:varchar(255)" json:"name"`
+	QuotaTier         string  `gorm:"type:varchar(64)" json:"quota_tier,omitempty"`
+	LastLoginAt       *int64  `gorm:"" json:"last_login_at,omitempty"`
+	LastLoginPlatform *string `gorm:"type:varchar(32)" json:"last_login_platform,omitempty"`
+	CreatedAt         int64   `gorm:"autoCreateTime" json:"created_at"`
 }
 
 // TableName returns the table name for GORM (singular per project convention).

@@ -4,10 +4,12 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -22,10 +24,42 @@ type Credentials struct {
 	SavedAt   int64  `json:"saved_at"`
 }
 
-// IsValid returns true when the credentials contain a non-empty token.
-// It does not check token expiry.
+// IsValid returns true when the credentials contain a non-empty, unexpired
+// JWT token. It parses the exp claim from the token payload without
+// verifying the signature (clients don't have the server secret).
 func (c *Credentials) IsValid() bool {
-	return c != nil && c.Token != ""
+	if c == nil || c.Token == "" {
+		return false
+	}
+	exp, err := extractJWTExp(c.Token)
+	if err != nil {
+		return false
+	}
+	return time.Now().Unix() < exp
+}
+
+// extractJWTExp decodes the JWT payload (middle segment) and returns
+// the exp claim as a unix timestamp. Returns an error if the token is
+// not a three-segment JWT or the exp claim is missing.
+func extractJWTExp(tokenStr string) (int64, error) {
+	parts := strings.SplitN(tokenStr, ".", 3)
+	if len(parts) != 3 {
+		return 0, errors.New("not a JWT")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return 0, err
+	}
+	var claims struct {
+		Exp *float64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return 0, err
+	}
+	if claims.Exp == nil || *claims.Exp <= 0 {
+		return 0, errors.New("missing exp claim")
+	}
+	return int64(*claims.Exp), nil
 }
 
 // Save marshals creds to JSON and writes them to path, creating parent

@@ -79,7 +79,7 @@ func interactiveLogin() error {
 		return fmt.Errorf("OTP is required")
 	}
 
-	lr, err := client.Login(ctx, email, otp)
+	lr, err := client.Login(ctx, email, otp, "cli")
 	if err != nil {
 		return fmt.Errorf("login: %w", err)
 	}

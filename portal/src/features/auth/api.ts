@@ -17,6 +17,6 @@ export async function login(email: string, otp: string): Promise<LoginResponse> 
   return requestJson<LoginResponse>(`${getApiBase()}/api/login`, {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify({ email, otp }),
+    body: JSON.stringify({ email, otp, platform: "portal" }),
   })
 }

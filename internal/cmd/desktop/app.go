@@ -153,7 +153,7 @@ func (a *App) RequestOTP(serverURL, email, intent string) error {
 // DoLogin authenticates against the server and saves credentials on success.
 func (a *App) DoLogin(serverURL, email, otp string) (*AuthStatus, error) {
 	c := auth.NewClient(serverURL)
-	lr, err := c.Login(context.Background(), email, otp)
+	lr, err := c.Login(context.Background(), email, otp, "desktop")
 	if err != nil {
 		return nil, err
 	}

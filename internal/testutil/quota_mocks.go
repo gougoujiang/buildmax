@@ -47,6 +47,9 @@ func (d *DenyQuotaUserStore) GetUser(_ context.Context, _ string) (*entity.User,
 func (d *DenyQuotaUserStore) CreateUser(_ context.Context, _, _ string) (*entity.User, error) {
 	return nil, nil
 }
+func (d *DenyQuotaUserStore) UpdateLoginMeta(_ context.Context, _ string, _ int64, _ string) error {
+	return nil
+}
 
 // DenyQuotaUsageReader is used by quota 429 tests.
 type DenyQuotaUsageReader struct {

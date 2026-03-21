@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"buildmax/internal/testutil"
 )
 
 func TestSaveAndLoad(t *testing.T) {
@@ -66,15 +69,27 @@ func TestClear(t *testing.T) {
 }
 
 func TestIsValid(t *testing.T) {
-	var nilCreds *Credentials
-	if nilCreds.IsValid() {
-		t.Fatal("nil should not be valid")
+	secret := "test-secret"
+	validToken := testutil.SignJWTWithExp("u_1", secret, 24*time.Hour)
+	expiredToken := testutil.SignJWTWithExp("u_1", secret, -1*time.Hour)
+
+	tests := []struct {
+		name  string
+		creds *Credentials
+		want  bool
+	}{
+		{"nil credentials", nil, false},
+		{"empty token", &Credentials{}, false},
+		{"malformed token", &Credentials{Token: "not-a-jwt"}, false},
+		{"valid unexpired JWT", &Credentials{Token: validToken}, true},
+		{"expired JWT", &Credentials{Token: expiredToken}, false},
 	}
-	if (&Credentials{}).IsValid() {
-		t.Fatal("empty token should not be valid")
-	}
-	if !(&Credentials{Token: "x"}).IsValid() {
-		t.Fatal("non-empty token should be valid")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.creds.IsValid(); got != tt.want {
+				t.Errorf("IsValid() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -136,13 +151,18 @@ func TestClientLogin(t *testing.T) {
 		if r.URL.Path != "/api/login" || r.Method != http.MethodPost {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
+		var body map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["platform"] != "cli" {
+			t.Errorf("expected platform=cli, got %q", body["platform"])
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"token":"jwt123","user":{"id":"u_1","email":"a@b.com","name":"Alice"}}`))
 	}))
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	lr, err := c.Login(context.Background(), "a@b.com", "123456")
+	lr, err := c.Login(context.Background(), "a@b.com", "123456", "cli")
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -159,7 +179,7 @@ func TestClientLoginError(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	_, err := c.Login(context.Background(), "a@b.com", "wrong")
+	_, err := c.Login(context.Background(), "a@b.com", "wrong", "cli")
 	if err == nil {
 		t.Fatal("expected error")
 	}
