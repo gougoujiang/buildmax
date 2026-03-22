@@ -127,6 +127,34 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 	return err
 }
 
+func storedRoleForIncomingTurn(channel string) string {
+	if channel == "system" {
+		return "system"
+	}
+	return "user"
+}
+
+func replayMessageFromStore(m entity.ConversationMessage) llm.Message {
+	toolCallID := ""
+	if m.ToolCallID != nil {
+		toolCallID = *m.ToolCallID
+	}
+	role := m.Role
+	// Persisted system messages represent internal task-result handoff input, not top-level
+	// system instructions for the model, so replay them as ordinary user input.
+	if role == "system" {
+		role = "user"
+	}
+	msg := llm.Message{Role: role, Content: m.Content, ToolCallID: toolCallID}
+	if m.ToolCallsJSON != nil && *m.ToolCallsJSON != "" {
+		var toolCalls []llm.ToolCall
+		if err := json.Unmarshal([]byte(*m.ToolCallsJSON), &toolCalls); err == nil {
+			msg.ToolCalls = toolCalls
+		}
+	}
+	return msg
+}
+
 type preparedRun struct {
 	firstRound bool
 	buffer     *conversationBuffer
@@ -140,23 +168,13 @@ func prepareRun(ctx context.Context, msgStore entity.ConversationMessageStore, i
 	}
 	firstRound := len(msgs) == 0
 	channelPtr := &in.Channel
-	if _, err := msgStore.AppendMessage(ctx, in.ConversationID, "user", in.UserContent, channelPtr, nil, nil); err != nil {
-		return nil, fmt.Errorf("append user message: %w", err)
+	incomingRole := storedRoleForIncomingTurn(in.Channel)
+	if _, err := msgStore.AppendMessage(ctx, in.ConversationID, incomingRole, in.UserContent, channelPtr, nil, nil); err != nil {
+		return nil, fmt.Errorf("append incoming message: %w", err)
 	}
 	llmMsgs := make([]llm.Message, 0, len(msgs)+2)
 	for _, m := range msgs {
-		toolCallID := ""
-		if m.ToolCallID != nil {
-			toolCallID = *m.ToolCallID
-		}
-		msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: toolCallID}
-		if m.ToolCallsJSON != nil && *m.ToolCallsJSON != "" {
-			var toolCalls []llm.ToolCall
-			if err := json.Unmarshal([]byte(*m.ToolCallsJSON), &toolCalls); err == nil {
-				msg.ToolCalls = toolCalls
-			}
-		}
-		llmMsgs = append(llmMsgs, msg)
+		llmMsgs = append(llmMsgs, replayMessageFromStore(m))
 	}
 	llmMsgs = append(llmMsgs, llm.Message{Role: "user", Content: in.UserContent})
 

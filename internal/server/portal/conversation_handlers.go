@@ -53,6 +53,10 @@ type addMessageResponse struct {
 	Reply string `json:"reply"`
 }
 
+func isVisibleConversationMessage(m entity.ConversationMessage) bool {
+	return m.Role == "user" || m.Role == "assistant"
+}
+
 type sseSink struct {
 	w       http.ResponseWriter
 	flusher http.Flusher
@@ -219,15 +223,18 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_messages", "conversation_id", conversationID)
 		return
 	}
-	out := make([]conversationMessageResponse, len(msgs))
+	out := make([]conversationMessageResponse, 0, len(msgs))
 	for i := range msgs {
-		out[i] = conversationMessageResponse{
+		if !isVisibleConversationMessage(msgs[i]) {
+			continue
+		}
+		out = append(out, conversationMessageResponse{
 			ID:        msgs[i].ConversationMessageID,
 			Role:      msgs[i].Role,
 			Content:   msgs[i].Content,
 			Channel:   msgs[i].Channel,
 			CreatedAt: msgs[i].CreatedAt,
-		}
+		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, messagesResponse{Messages: out})
 }

@@ -277,12 +277,21 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		t.Errorf("AppendMessage tool: got %+v", m3)
 	}
 
+	sysCh := "system"
+	m4, err := s.AppendMessage(ctx, conv.ConversationID, "system", "[Task Result] internal", &sysCh, nil, nil)
+	if err != nil {
+		t.Fatalf("AppendMessage system: %v", err)
+	}
+	if m4.Role != "system" || m4.Content != "[Task Result] internal" || m4.Channel == nil || *m4.Channel != sysCh {
+		t.Errorf("AppendMessage system: got %+v", m4)
+	}
+
 	msgs, err := s.ListMessages(ctx, conv.ConversationID)
 	if err != nil {
 		t.Fatalf("ListMessages: %v", err)
 	}
-	if len(msgs) != 3 {
-		t.Fatalf("ListMessages: got %d, want 3", len(msgs))
+	if len(msgs) != 4 {
+		t.Fatalf("ListMessages: got %d, want 4", len(msgs))
 	}
 	if msgs[0].Role != "user" || msgs[0].Content != "hello" {
 		t.Errorf("ListMessages[0]: got role=%q content=%q", msgs[0].Role, msgs[0].Content)
@@ -292,6 +301,9 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 	if msgs[2].Role != "tool" || msgs[2].Content != "2025-03-01" {
 		t.Errorf("ListMessages[2]: got role=%q content=%q", msgs[2].Role, msgs[2].Content)
+	}
+	if msgs[3].Role != "system" || msgs[3].Content != "[Task Result] internal" {
+		t.Errorf("ListMessages[3]: got role=%q content=%q", msgs[3].Role, msgs[3].Content)
 	}
 }
 

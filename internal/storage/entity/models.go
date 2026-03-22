@@ -126,7 +126,7 @@ type Conversation struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (Conversation) TableName() string { return "conversation" }
 
-// ConversationMessage is one message in a Tier 1 conversation (user, assistant, or tool). JSON uses snake_case.
+// ConversationMessage is one message in a Tier 1 conversation (user, assistant, system, or tool). JSON uses snake_case.
 type ConversationMessage struct {
 	ID                    uint    `gorm:"primaryKey;autoIncrement" json:"-"`
 	ConversationMessageID string  `gorm:"type:varchar(64);uniqueIndex;not null" json:"conversation_message_id"`

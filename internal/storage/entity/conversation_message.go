@@ -7,8 +7,9 @@ import (
 	"buildmax/internal/util"
 )
 
-// AppendMessage appends one message to the conversation. channel is stored when role is "user";
-// tool_call_id is stored when role is "tool"; tool_calls (JSON) is stored when role is "assistant" with tool calls. Returns the created message.
+// AppendMessage appends one message to the conversation. channel is stored for incoming turns such as
+// role "user" and role "system"; tool_call_id is stored when role is "tool"; tool_calls (JSON) is
+// stored when role is "assistant" with tool calls. Returns the created message.
 func (s *Store) AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*ConversationMessage, error) {
 	msg := &ConversationMessage{
 		ConversationMessageID: util.NewPrefixedID(util.PrefixConversationMessage),
