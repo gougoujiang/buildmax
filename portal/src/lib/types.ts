@@ -38,7 +38,6 @@ export interface Conversation {
 
 export type Route =
   | { name: "home" }
-  | { name: "newChat" }
   | { name: "conversation"; conversationId: string }
   | { name: "chats" }
   | { name: "explore" }

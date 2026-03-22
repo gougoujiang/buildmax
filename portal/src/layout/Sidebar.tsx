@@ -116,8 +116,8 @@ export function Sidebar({
         <div className="sidebar__section">
           <button
             type="button"
-            className={cn("sidebar__nav-item", route.name === "newChat" && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "newChat" })}
+            className={cn("sidebar__nav-item", route.name === "home" && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "home" })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">New Conversation</span>

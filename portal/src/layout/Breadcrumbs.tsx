@@ -9,9 +9,7 @@ interface BreadcrumbsProps {
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   let crumbs: { label: string; route: Route }[] = []
 
-  if (route.name === "newChat") {
-    crumbs = [{ label: "New Conversation", route: { name: "newChat" } }]
-  } else if (route.name === "chats") {
+  if (route.name === "chats") {
     crumbs = [{ label: "Conversations", route: { name: "chats" } }]
   } else if (route.name === "explore") {
     crumbs = [{ label: "Files", route: { name: "explore" } }]

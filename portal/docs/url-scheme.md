@@ -5,7 +5,7 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 ## Rules
 
 - **Base**: The hash is optional. Empty or invalid hash is treated as home.
-- **First segment** (optional): One of `new`, `conversations`, `conversation`, `explore`, `agents`. If absent, the route is **home**.
+- **First segment** (optional): One of `conversations`, `conversation`, `explore`, `agents`. If absent, the route is **home**.
 - **IDs**: Entity IDs in the URL (for example `conversationId`) are opaque strings; the app does not interpret their format.
 
 ## Route patterns
@@ -13,7 +13,6 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 | Route          | Pattern                              | Example (IDs are placeholders)   |
 |----------------|--------------------------------------|----------------------------------|
 | Home           | `#/`                                 | `#/`                             |
-| New Conversation | `#/new`                            | `#/new`                          |
 | Conversations  | `#/conversations`                    | `#/conversations`                |
 | Conversation   | `#/conversation/<conversationId>`    | `#/conversation/c_xyz`           |
 | Explore (Files)| `#/explore`                          | `#/explore`                      |
@@ -22,7 +21,6 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 ## Examples
 
 - `https://example.com/` or `https://example.com/#` — Home.
-- `https://example.com/#/new` — New conversation.
 - `https://example.com/#/conversations` — Conversations list.
 - `https://example.com/#/conversation/c_xyz` — Conversation `c_xyz`.
 - `https://example.com/#/explore` — File explore.
