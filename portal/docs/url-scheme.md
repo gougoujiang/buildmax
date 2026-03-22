@@ -6,8 +6,8 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 
 - **Base**: The hash is optional. Empty or invalid hash is treated as home with no profile id; the app then redirects to the signed-in user's id.
 - **First segment**: The **user id** (`profileId`), used as the scope for all data (conversations, files, agents).
-- **Second segment** (optional): One of `new`, `conversations`, `conversation`, `task`, `explore`, `agents`. If absent, the route is **home**.
-- **IDs**: Entity IDs in the URL (conversation, task) are opaque strings; the app does not interpret their format.
+- **Second segment** (optional): One of `new`, `conversations`, `conversation`, `explore`, `agents`. If absent, the route is **home**.
+- **IDs**: Entity IDs in the URL (for example `conversationId`) are opaque strings; the app does not interpret their format.
 
 ## Route patterns
 
@@ -17,7 +17,6 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 | New Conversation | `#<userId>/new`                    | `#u_abc123/new`                  |
 | Conversations  | `#<userId>/conversations`            | `#u_abc123/conversations`        |
 | Conversation   | `#<userId>/conversation/<conversationId>` | `#u_abc123/conversation/cv_xyz` |
-| Task           | `#<userId>/task/<taskId>`            | `#u_abc123/task/c_xyz`           |
 | Explore (Files)| `#<userId>/explore`                  | `#u_abc123/explore`              |
 | Agents         | `#<userId>/agents`                   | `#u_abc123/agents`               |
 
@@ -28,7 +27,6 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 - `https://example.com/#u_abc/new` — New conversation for user `u_abc`.
 - `https://example.com/#u_abc/conversations` — Conversations list for user `u_abc`.
 - `https://example.com/#u_abc/conversation/cv_xyz` — Conversation `cv_xyz` for user `u_abc`.
-- `https://example.com/#u_abc/task/c_xyz` — Task (chat) `c_xyz` for user `u_abc`.
 - `https://example.com/#u_abc/explore` — File explore for user `u_abc`.
 - `https://example.com/#u_abc/agents` — Agents for user `u_abc`.
 
@@ -37,4 +35,4 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 - **Parse**: `parseHash(window.location.hash)` in `src/router.ts` turns the hash into a typed `Route`.
 - **Build**: `buildHash(route)` produces the canonical hash string.
 - **Navigate**: `navigate(route)` sets `window.location.hash` to the result of `buildHash(route)`.
-- Path segment names (`new`, `conversations`, `conversation`, `task`, `explore`, `agents`) are defined as `SEGMENT` in `src/router.ts` and used in both `parseHash` and `buildHash`.
+- Path segment names (`new`, `conversations`, `conversation`, `explore`, `agents`) are defined as `SEGMENT` in `src/router.ts` and used in both `parseHash` and `buildHash`.

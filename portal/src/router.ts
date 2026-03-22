@@ -11,7 +11,6 @@ export function getScope(route: Route): ProfileScope {
 
 /**
  * Path segment names used in the hash URL. Single source of truth for parseHash/buildHash.
- * Tier 1 uses conversation terminology; Tier 2 task detail uses `task`.
  */
 export const SEGMENT = {
   new: "new",
@@ -23,7 +22,7 @@ export const SEGMENT = {
 
 /**
  * Parse window.location.hash into a typed Route.
- * Hash format: #<profileId> | #<profileId>/task/<taskId> | #<profileId>/conversations | ...
+ * Hash format: #<profileId> | #<profileId>/conversation/<conversationId> | #<profileId>/conversations | ...
  * First segment = profileId (use as-is; if missing, "").
  */
 export function parseHash(hash: string): Route {

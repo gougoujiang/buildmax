@@ -131,7 +131,7 @@ export function NewConversation({
                         }
                       >
                         <span className="page-activity__content">
-                          <span className="page-activity__task-title">
+                          <span className="page-activity__conversation-title">
                             {conv.title?.trim() || "Conversation"}
                           </span>
                           <span className="page-activity__meta">{conv.timeLabel}</span>

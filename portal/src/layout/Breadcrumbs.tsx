@@ -25,11 +25,6 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
       { label: "Conversations", route: { name: "chats", profileId } },
       { label: convLabel, route },
     ]
-  } else if (route.name === "task") {
-    crumbs = [
-      { label: "Conversations", route: { name: "chats", profileId } },
-      { label: "Task", route },
-    ]
   } else {
     crumbs = [{ label: "Home", route: { name: "home", profileId } }]
   }

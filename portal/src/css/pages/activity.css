@@ -103,7 +103,7 @@
   gap: 0.15rem;
 }
 
-.page-activity__task-title {
+.page-activity__conversation-title {
   font-weight: 400;
   color: var(--color-text-muted);
 }
