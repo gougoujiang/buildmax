@@ -3,7 +3,6 @@ import { authHeaders } from "../../lib/api/common"
 import type { ApiArtifact, ApiArtifactItem } from "../../lib/api/types"
 
 export async function getArtifacts(
-  _profileId: string,
   token: string,
   options?: { taskId?: string }
 ): Promise<ApiArtifact[]> {

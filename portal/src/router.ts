@@ -1,13 +1,5 @@
 import { useState, useEffect } from "react"
-import type { ProfileScope, Route } from "./lib/types"
-
-/** Derive current scope from route (for data fetching and display). User is the top-level owner; profileId is the user id. */
-export function getScope(route: Route): ProfileScope {
-  return {
-    profileId: route.profileId,
-    conversationId: "conversationId" in route ? route.conversationId : undefined,
-  }
-}
+import type { Route } from "./lib/types"
 
 /**
  * Path segment names used in the hash URL. Single source of truth for parseHash/buildHash.
@@ -22,48 +14,45 @@ export const SEGMENT = {
 
 /**
  * Parse window.location.hash into a typed Route.
- * Hash format: #<profileId> | #<profileId>/conversation/<conversationId> | #<profileId>/conversations | ...
- * First segment = profileId (use as-is; if missing, "").
+ * Hash format: #/ | #/conversation/<conversationId> | #/conversations | ...
  */
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#\/?/, "")
   const parts = raw.split("/").filter(Boolean)
 
-  const profileId = parts[0] ?? ""
-
-  if (parts[1] === SEGMENT.new) {
-    return { name: "newChat", profileId }
+  if (parts[0] === SEGMENT.new) {
+    return { name: "newChat" }
   }
-  if (parts[1] === SEGMENT.conversations) {
-    return { name: "chats", profileId }
+  if (parts[0] === SEGMENT.conversations) {
+    return { name: "chats" }
   }
-  if (parts[1] === SEGMENT.explore) {
-    return { name: "explore", profileId }
+  if (parts[0] === SEGMENT.explore) {
+    return { name: "explore" }
   }
-  if (parts[1] === SEGMENT.agents) {
-    return { name: "agents", profileId }
+  if (parts[0] === SEGMENT.agents) {
+    return { name: "agents" }
   }
-  if (parts[1] === SEGMENT.conversation && parts[2]) {
-    return { name: "conversation", profileId, conversationId: parts[2] }
+  if (parts[0] === SEGMENT.conversation && parts[1]) {
+    return { name: "conversation", conversationId: parts[1] }
   }
-  return { name: "home", profileId }
+  return { name: "home" }
 }
 
 /** Convert a Route into a canonical hash string (includes leading #). */
 export function buildHash(route: Route): string {
   switch (route.name) {
     case "home":
-      return `#${route.profileId}`
+      return "#/"
     case "newChat":
-      return `#${route.profileId}/${SEGMENT.new}`
+      return `#/${SEGMENT.new}`
     case "conversation":
-      return `#${route.profileId}/${SEGMENT.conversation}/${route.conversationId}`
+      return `#/${SEGMENT.conversation}/${route.conversationId}`
     case "chats":
-      return `#${route.profileId}/${SEGMENT.conversations}`
+      return `#/${SEGMENT.conversations}`
     case "explore":
-      return `#${route.profileId}/${SEGMENT.explore}`
+      return `#/${SEGMENT.explore}`
     case "agents":
-      return `#${route.profileId}/${SEGMENT.agents}`
+      return `#/${SEGMENT.agents}`
   }
 }
 

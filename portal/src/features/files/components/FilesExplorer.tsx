@@ -6,13 +6,12 @@ import { FileViewer } from "./FileViewer"
 import { useFilesExplorer } from "../hooks/useFilesExplorer"
 
 interface FilesExplorerProps {
-  profileId: string
   className?: string
 }
 
-export function FilesExplorer({ profileId, className }: FilesExplorerProps) {
+export function FilesExplorer({ className }: FilesExplorerProps) {
   const { token } = useAuth()
-  const explorer = useFilesExplorer({ profileId, token })
+  const explorer = useFilesExplorer({ token })
 
   return (
     <div className={className ?? "files-panel"}>

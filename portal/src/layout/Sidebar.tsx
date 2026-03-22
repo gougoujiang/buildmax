@@ -29,7 +29,6 @@ import RecentIcon from "../icons/recent.svg?react"
 const CHATS_LIMIT = 5
 
 interface SidebarProps {
-  profileId: string
   route: Route
   conversations: Conversation[]
   user: LoginUser
@@ -41,7 +40,6 @@ function isAgentsActive(route: Route): boolean {
 }
 
 export function Sidebar({
-  profileId,
   route,
   conversations: conversationsList,
   user,
@@ -119,7 +117,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", route.name === "newChat" && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "newChat", profileId })}
+            onClick={() => navigate({ name: "newChat" })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">New Conversation</span>
@@ -156,11 +154,9 @@ export function Sidebar({
                     meta: conv.timeLabel,
                   }))}
                   activeId={route.name === "conversation" ? route.conversationId : null}
-                  onSelect={(conversationId) =>
-                    navigate({ name: "conversation", profileId, conversationId })
-                  }
+                  onSelect={(conversationId) => navigate({ name: "conversation", conversationId })}
                   moreActionLabel={hasMoreConversations ? "See all" : undefined}
-                  onMoreAction={hasMoreConversations ? () => navigate({ name: "chats", profileId }) : undefined}
+                  onMoreAction={hasMoreConversations ? () => navigate({ name: "chats" }) : undefined}
                   moreActionClassName="sidebar__chats-see-all"
                 />
               </div>
@@ -190,12 +186,12 @@ export function Sidebar({
                   activeId={route.name === "conversation" ? route.conversationId : null}
                   onSelect={(conversationId) => {
                     setConversationsPopupOpen(false)
-                    navigate({ name: "conversation", profileId, conversationId })
+                    navigate({ name: "conversation", conversationId })
                   }}
                   moreActionLabel={hasMoreConversations ? "See all" : undefined}
                   onMoreAction={hasMoreConversations ? () => {
                     setConversationsPopupOpen(false)
-                    navigate({ name: "chats", profileId })
+                    navigate({ name: "chats" })
                   } : undefined}
                   moreActionClassName="sidebar__chats-see-all"
                 />
@@ -205,7 +201,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "agents", profileId })}
+            onClick={() => navigate({ name: "agents" })}
           >
             <AgentAvatar size="sm" />
             <span className="sidebar__nav-item-text">Agents</span>

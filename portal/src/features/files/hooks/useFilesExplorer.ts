@@ -6,19 +6,18 @@ import { useFetch } from "../../../hooks/useFetch"
 import { getFileContent, getFileTree, uploadFiles } from "../api"
 
 interface UseFilesExplorerOptions {
-  profileId: string
   token: string | null
 }
 
-export function useFilesExplorer({ profileId, token }: UseFilesExplorerOptions) {
+export function useFilesExplorer({ token }: UseFilesExplorerOptions) {
   const {
     data: tree,
     loading: treeLoading,
     error: treeError,
     refetch: refetchTree,
   } = useFetch(
-    () => getFileTree(profileId, token!),
-    [profileId, token],
+    () => getFileTree(token!),
+    [token],
     {
       enabled: !!token,
       errorMessage: (e) => getErrorMessage(e, "Failed to load files"),
@@ -38,8 +37,8 @@ export function useFilesExplorer({ profileId, token }: UseFilesExplorerOptions) 
     loading: fileLoading,
     error: fileError,
   } = useFetch(
-    () => getFileContent(profileId, selectedFileId!, token!),
-    [profileId, selectedFileId, token],
+    () => getFileContent(selectedFileId!, token!),
+    [selectedFileId, token],
     {
       enabled: !!(token && selectedFileId),
       errorMessage: (e) => getErrorMessage(e, "Failed to load file"),
@@ -84,7 +83,7 @@ export function useFilesExplorer({ profileId, token }: UseFilesExplorerOptions) 
       setUploading(true)
       setUploadMsg(null)
       try {
-        const res = await uploadFiles(profileId, files, token, paths)
+        const res = await uploadFiles(files, token, paths)
         setUploadMsg({ text: `Uploaded ${res.uploaded.length} file(s)`, isError: false })
         await refetchTree()
       } catch (err) {
@@ -93,7 +92,7 @@ export function useFilesExplorer({ profileId, token }: UseFilesExplorerOptions) 
         setUploading(false)
       }
     },
-    [profileId, token, refetchTree]
+    [token, refetchTree]
   )
 
   const handleUpload = useCallback(

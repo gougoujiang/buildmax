@@ -4,7 +4,6 @@ import { getConversationMessages } from "../api"
 import { useWebSocket } from "../../../contexts/WebSocketContext"
 
 interface UseConversationDetailOptions {
-  profileId: string
   conversationId: string
   token: string | null
   initialMessage?: string
@@ -26,7 +25,6 @@ interface ConversationErrorPayload {
 }
 
 export function useConversationDetail({
-  profileId,
   conversationId,
   token,
   initialMessage,
@@ -40,10 +38,10 @@ export function useConversationDetail({
     error: messagesError,
     refetch: refetchMessages,
   } = useFetch(
-    () => getConversationMessages(profileId, conversationId, token!),
-    [profileId, conversationId, token],
+    () => getConversationMessages(conversationId, token!),
+    [conversationId, token],
     {
-      enabled: !!(token && profileId && conversationId),
+      enabled: !!(token && conversationId),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load messages"),
     }
   )

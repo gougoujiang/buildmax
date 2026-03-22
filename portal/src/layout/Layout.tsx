@@ -24,7 +24,6 @@ export function Layout({
     <div className="shell">
       <div className="shell__body">
         <Sidebar
-          profileId={route.profileId}
           route={route}
           conversations={conversations}
           user={user}

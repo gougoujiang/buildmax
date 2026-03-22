@@ -34,7 +34,6 @@ function tryParseConversationStreamEvent(
 }
 
 export async function getConversations(
-  _profileId: string,
   token: string,
   options?: { limit?: number; offset?: number }
 ): Promise<ApiConversationsListResponse> {
@@ -47,7 +46,6 @@ export async function getConversations(
 }
 
 export async function createConversation(
-  _profileId: string,
   body: { channel?: string; message?: string },
   token: string
 ): Promise<CreateConversationResponse> {
@@ -59,7 +57,6 @@ export async function createConversation(
 }
 
 export async function createConversationStream(
-  _profileId: string,
   body: { channel?: string; message?: string },
   token: string,
   callbacks: ConversationStreamCallbacks
@@ -100,7 +97,6 @@ export async function createConversationStream(
 }
 
 export async function addConversationMessageStream(
-  _profileId: string,
   conversationId: string,
   body: { content: string },
   token: string,
@@ -140,7 +136,6 @@ export async function addConversationMessageStream(
 }
 
 export async function getConversationMessages(
-  _profileId: string,
   conversationId: string,
   token: string
 ): Promise<ApiConversationMessagesResponse> {
@@ -151,7 +146,6 @@ export async function getConversationMessages(
 }
 
 export async function addConversationMessage(
-  _profileId: string,
   conversationId: string,
   body: { content: string },
   token: string

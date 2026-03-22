@@ -2,12 +2,10 @@ import type { Conversation } from "../lib/types"
 import { navigate } from "../router"
 
 interface TasksProps {
-  profileId: string
   conversations: Conversation[]
 }
 
 export function Tasks({
-  profileId,
   conversations,
 }: TasksProps) {
   return (
@@ -28,7 +26,6 @@ export function Tasks({
                 onClick={() =>
                   navigate({
                     name: "conversation",
-                    profileId,
                     conversationId: conv.id,
                   })
                 }

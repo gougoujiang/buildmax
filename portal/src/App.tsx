@@ -1,5 +1,3 @@
-import { useEffect } from "react"
-import { navigate } from "./router"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
@@ -13,28 +11,15 @@ import { SignUp } from "./pages/SignUp"
 function AppContent() {
   const { token, user, logout } = useAuth()
   const { route } = useApp()
-  const userId = user?.id ?? ""
   const {
     data: conversations,
     refetch: refetchConversations,
-  } = useConversations(route.profileId, token)
-
-  const needsRedirect = !!userId && (!route.profileId || route.profileId !== userId)
-
-  useEffect(() => {
-    if (needsRedirect) {
-      navigate({ name: "home", profileId: userId })
-    }
-  }, [needsRedirect, userId])
+  } = useConversations(token)
 
   if (!token) {
     const authHash = window.location.hash.replace(/^#\/?/, "").toLowerCase()
     if (authHash === "signup") return <SignUp />
     return <Login />
-  }
-
-  if (needsRedirect) {
-    return null
   }
 
   return (

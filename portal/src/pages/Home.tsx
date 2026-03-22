@@ -2,14 +2,12 @@ import type { Conversation } from "../lib/types"
 import { navigate } from "../router"
 
 interface HomeProps {
-  profileId: string
   conversations: Conversation[]
 }
 
 const RECENT_CONVERSATIONS = 5
 
 export function Home({
-  profileId,
   conversations,
 }: HomeProps) {
   const recentConversations = conversations.slice(0, RECENT_CONVERSATIONS)
@@ -27,9 +25,7 @@ export function Home({
                 <button
                   type="button"
                   className="page-home__chat-link"
-                  onClick={() =>
-                    navigate({ name: "conversation", profileId, conversationId: conv.id })
-                  }
+                  onClick={() => navigate({ name: "conversation", conversationId: conv.id })}
                 >
                   <span className="page-home__chat-name">
                     {conv.title?.trim() || "Conversation"}

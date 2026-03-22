@@ -34,7 +34,6 @@ export function AppRouter({
 
   const fallbackHome = (
     <Home
-      profileId={route.profileId}
       conversations={conversations}
     />
   )
@@ -43,7 +42,6 @@ export function AppRouter({
   if (route.name === "newChat") {
     return (
         <NewConversation
-          profileId={route.profileId}
           token={token ?? undefined}
           onRefetchConversations={onRefetchConversations}
           conversations={conversations}
@@ -53,17 +51,15 @@ export function AppRouter({
   if (route.name === "chats") {
     return (
       <Tasks
-        profileId={route.profileId}
         conversations={conversations}
       />
     )
   }
-  if (route.name === "explore") return <Explore profileId={route.profileId} />
+  if (route.name === "explore") return <Explore />
 
   if (route.name === "agents") {
     return (
       <AgentList
-        profileId={route.profileId}
         token={token ?? null}
       />
     )
@@ -77,7 +73,6 @@ export function AppRouter({
     return (
         <ConversationDetail
           conversationId={route.conversationId}
-          profileId={route.profileId}
           onRefetch={onRefetchConversations}
           initialMessage={initialMessage}
         />

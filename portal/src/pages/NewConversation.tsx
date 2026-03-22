@@ -11,14 +11,12 @@ import type { Conversation } from "../lib/types"
 type NewConversationTab = "conversations" | "files"
 
 interface NewConversationProps {
-  profileId: string
   token?: string
   onRefetchConversations?: () => void
   conversations: Conversation[]
 }
 
 export function NewConversation({
-  profileId,
   token,
   onRefetchConversations,
   conversations,
@@ -35,11 +33,7 @@ export function NewConversation({
     setRunning(true)
     setRunError(null)
     try {
-      const created = await createConversation(
-        profileId,
-        { channel: "portal" },
-        token
-      )
+      const created = await createConversation({ channel: "portal" }, token)
       setPendingConversation({
         conversationId: created.conversation_id,
         initialMessage: input,
@@ -48,7 +42,6 @@ export function NewConversation({
       setPrompt("")
       navigate({
         name: "conversation",
-        profileId,
         conversationId: created.conversation_id,
       })
     } catch (err) {
@@ -125,7 +118,6 @@ export function NewConversation({
                         onClick={() =>
                           navigate({
                             name: "conversation",
-                            profileId,
                             conversationId: conv.id,
                           })
                         }
@@ -153,7 +145,7 @@ export function NewConversation({
           className="page-new-chat__tabpanel page-new-chat__tabpanel--files"
         >
           {activeTab === "files" && (
-            <FilesPanel profileId={profileId} className="page-new-chat__files-panel" />
+            <FilesPanel className="page-new-chat__files-panel" />
           )}
         </div>
       </div>

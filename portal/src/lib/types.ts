@@ -34,22 +34,15 @@ export interface Conversation {
   timeLabel: string
 }
 
-// --- Profile scope (derived from route) ---
-
-export interface ProfileScope {
-  profileId: string
-  conversationId?: string
-}
-
 // --- Route types ---
 
 export type Route =
-  | { name: "home"; profileId: string }
-  | { name: "newChat"; profileId: string }
-  | { name: "conversation"; profileId: string; conversationId: string }
-  | { name: "chats"; profileId: string }
-  | { name: "explore"; profileId: string }
-  | { name: "agents"; profileId: string }
+  | { name: "home" }
+  | { name: "newChat" }
+  | { name: "conversation"; conversationId: string }
+  | { name: "chats" }
+  | { name: "explore" }
+  | { name: "agents" }
 
 // --- Agent (user-owned persona) ---
 

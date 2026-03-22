@@ -4,7 +4,6 @@ import type { UploadResponse } from "../../lib/api/types"
 import type { ExploreNode } from "../../lib/types"
 
 export async function uploadFiles(
-  _profileId: string,
   files: File[],
   token: string,
   paths?: string[]
@@ -25,14 +24,13 @@ export async function uploadFiles(
   })
 }
 
-export async function getFileTree(_profileId: string, token: string): Promise<ExploreNode> {
+export async function getFileTree(token: string): Promise<ExploreNode> {
   return requestJson<ExploreNode>(`${getApiBase()}/api/files`, {
     headers: authHeaders(token),
   })
 }
 
 export async function getFileContent(
-  _profileId: string,
   filePath: string,
   token: string
 ): Promise<string> {

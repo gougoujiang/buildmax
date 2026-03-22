@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react"
 import type { Route } from "../lib/types"
-import { getScope, useHashRoute } from "../router"
+import { useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
 
 export interface PendingConversation {
@@ -17,7 +17,6 @@ export interface PendingConversation {
 export interface AppContextValue {
   token: string | null
   route: Route
-  scope: ReturnType<typeof getScope>
   /** Set when creating a new conversation so ConversationDetail can send the first message on mount. */
   pendingConversation: PendingConversation | null
   setPendingConversation: (p: PendingConversation | null) => void
@@ -28,7 +27,6 @@ const AppContext = createContext<AppContextValue | null>(null)
 export function AppProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth()
   const route = useHashRoute()
-  const scope = getScope(route)
   const [pendingConversation, setPendingConversationState] = useState<PendingConversation | null>(null)
   const setPendingConversation = useCallback((p: PendingConversation | null) => {
     setPendingConversationState(p)
@@ -37,7 +35,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextValue = {
     token,
     route,
-    scope,
     pendingConversation,
     setPendingConversation,
   }

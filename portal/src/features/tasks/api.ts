@@ -63,7 +63,6 @@ export async function getTask(taskId: string, token: string): Promise<ApiTask> {
 }
 
 export async function getTaskConversation(
-  _profileId: string,
   taskId: string,
   token: string
 ): Promise<ApiSession | null> {
@@ -78,11 +77,10 @@ export async function getTaskConversation(
 }
 
 export async function createTask(
-  profileId: string,
   body: CreateTaskBody,
   token: string
 ): Promise<ApiTask> {
-  const conv = await createConversation(profileId, { channel: "portal" }, token)
+  const conv = await createConversation({ channel: "portal" }, token)
   return requestJson<ApiTask>(`${getApiBase()}/api/conversations/${encodeURIComponent(conv.conversation_id)}/tasks`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -91,7 +89,6 @@ export async function createTask(
 }
 
 export async function createTaskRun(
-  _profileId: string,
   taskId: string,
   body: { input: string },
   token: string
@@ -114,7 +111,6 @@ export async function createTaskRun(
 }
 
 export function subscribeTaskStream(
-  _profileId: string,
   taskId: string,
   token: string,
   callbacks: RunStreamCallbacks

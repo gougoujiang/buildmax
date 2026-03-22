@@ -17,11 +17,10 @@ import { EditAgentModal } from "../components/EditAgentModal"
 import { NewConversationFromAgent } from "../components/NewConversationFromAgent"
 
 interface AgentListProps {
-  profileId: string
   token: string | null
 }
 
-export function AgentList({ profileId, token }: AgentListProps) {
+export function AgentList({ token }: AgentListProps) {
   const { setPendingConversation } = useApp()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,10 +36,10 @@ export function AgentList({ profileId, token }: AgentListProps) {
   const fetchAgents = useCallback(() => {
     if (!token) return
     setLoading(true)
-    getAgents(profileId, token)
+    getAgents(token)
       .then((list) => setAgents(list.map(apiAgentToAgent)))
       .finally(() => setLoading(false))
-  }, [profileId, token])
+  }, [token])
 
   useEffect(() => {
     fetchAgents()
@@ -54,7 +53,7 @@ export function AgentList({ profileId, token }: AgentListProps) {
     if (!token) return
     setError(null)
     setCreating(true)
-    createAgent(profileId, values, token)
+    createAgent(values, token)
       .then((created) => {
         setAgents((prev) => [...prev, apiAgentToAgent(created)])
         setModalOpen(false)
@@ -71,7 +70,7 @@ export function AgentList({ profileId, token }: AgentListProps) {
     if (!token || editingAgent == null) return
     setError(null)
     setSaving(true)
-    updateAgent(profileId, editingAgent.id, values, token)
+    updateAgent(editingAgent.id, values, token)
       .then((updated) => {
         setAgents((prev) =>
           prev.map((a) => (a.id === editingAgent.id ? apiAgentToAgent(updated) : a))
@@ -86,7 +85,7 @@ export function AgentList({ profileId, token }: AgentListProps) {
     if (!token || editingAgent == null) return
     setError(null)
     setDeleting(true)
-    deleteAgent(profileId, editingAgent.id, token)
+    deleteAgent(editingAgent.id, token)
       .then(() => {
         setAgents((prev) => prev.filter((a) => a.id !== editingAgent.id))
         setEditingAgent(null)
@@ -104,14 +103,14 @@ export function AgentList({ profileId, token }: AgentListProps) {
     if (!token || !newTaskAgent) return
     setError(null)
     setStartingTaskAgentId(newTaskAgent.id)
-    createConversation(profileId, { channel: "portal" }, token)
+    createConversation({ channel: "portal" }, token)
       .then((created) => {
         setNewTaskAgent(null)
         setPendingConversation({
           conversationId: created.conversation_id,
           initialMessage: editedInput,
         })
-        navigate({ name: "conversation", profileId, conversationId: created.conversation_id })
+        navigate({ name: "conversation", conversationId: created.conversation_id })
       })
       .catch((err) => {
         setError(getErrorMessage(err, "Failed to start conversation"))
