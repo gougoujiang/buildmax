@@ -2,9 +2,9 @@ import { useState, useEffect } from "react"
 import type { Agent } from "../lib/types"
 import { BaseModal } from "@buildmax/gui"
 
-/** Builds the same preview format the backend uses for agent-based task input. */
+/** Builds the agent preview including ID so Tier 1 can pass it to StartTask. */
 export function buildAgentPreview(agent: Agent): string {
-  return `Agent: ${agent.name}\nDescription: ${agent.description ?? ""}\nInstructions:\n${agent.instructions ?? ""}`
+  return `Agent: ${agent.name} (id: ${agent.id})\nDescription: ${agent.description ?? ""}\nInstructions:\n${agent.instructions ?? ""}\n\nPlease start a background task with this agent.`
 }
 
 interface NewTaskFromAgentModalProps {
@@ -41,14 +41,14 @@ export function NewTaskFromAgentModal({
   return (
     <BaseModal
       open={open}
-      title={`New task with ${agent.name}`}
+      title={`New conversation with ${agent.name}`}
       titleId="new-task-from-agent-title"
       onClose={onClose}
       className="modal--large"
     >
       <div className="modal__body">
         <p className="modal__hint" id="new-task-from-agent-hint">
-          Review and edit the instructions below. You can add more context before starting the task.
+          Review and edit the instructions below. You can add more context before starting.
         </p>
         <label className="modal__label" htmlFor="new-task-from-agent-input">
           Instructions
@@ -84,7 +84,7 @@ export function NewTaskFromAgentModal({
           onClick={handleSubmit}
           disabled={loading}
         >
-          {loading ? "Starting…" : "Start task"}
+          {loading ? "Starting…" : "Start"}
         </button>
       </div>
     </BaseModal>

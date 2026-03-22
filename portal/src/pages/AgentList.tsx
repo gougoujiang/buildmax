@@ -198,9 +198,9 @@ export function AgentList({ profileId, token }: AgentListProps) {
                       handleOpenNewTaskModal(a)
                     }}
                     disabled={!token}
-                    aria-label={`New task with ${a.name}`}
+                    aria-label={`New conversation with ${a.name}`}
                   >
-                    New task
+                    New Conversation
                   </button>
                 </div>
               </article>

@@ -29,6 +29,7 @@ func (h *Handler) conversationService() *convapp.Service {
 		MessageStore:      h.cfg.ConversationMessageStore,
 		LLMCaller:         h.cfg.ConversationLLMCaller,
 		TitleGenerator:    conversationTitleGeneratorAdapter{gen: h.cfg.ChatTitleGenerator},
+		AgentStore:        h.cfg.AgentStore,
 	}
 }
 

@@ -32,6 +32,7 @@ type Service struct {
 	MessageStore      entity.ConversationMessageStore
 	LLMCaller         llm.LLMCaller
 	TitleGenerator    TitleGenerator
+	AgentStore        entity.AgentStore
 }
 
 // HandleTurnCmd describes one normalized portal turn.
@@ -85,13 +86,16 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		return HandleTurnResult{}, ErrLLMRequired
 	}
 
+	runners := s.conversationToolRunners(cmd.ConversationID, cmd.UserID)
+	runners.AgentSummaries = s.fetchAgentSummaries(ctx, cmd.UserID)
+
 	runInput := coreconv.RunInput{
 		ConversationID:     cmd.ConversationID,
 		UserContent:        cmd.Message,
 		Channel:            cmd.Channel,
 		ScopeID:            cmd.ConversationID,
 		UserID:             cmd.UserID,
-		Runners:            s.conversationToolRunners(cmd.ConversationID, cmd.UserID),
+		Runners:            runners,
 		TitleGenerator:     titleGeneratorAdapter{s.TitleGenerator},
 		RecentChatsSnippet: s.recentTasksSnippet(ctx, cmd.ConversationID),
 		StreamSink:         cmd.StreamSink,
@@ -233,6 +237,21 @@ func (r *continueTaskRunner) ContinueTask(ctx context.Context, conversationID, u
 		return "", err
 	}
 	return run.TaskRunID, nil
+}
+
+func (s *Service) fetchAgentSummaries(ctx context.Context, userID string) []tools.AgentSummary {
+	if s.AgentStore == nil {
+		return nil
+	}
+	agents, err := s.AgentStore.ListAgentsByUser(ctx, userID)
+	if err != nil || len(agents) == 0 {
+		return nil
+	}
+	summaries := make([]tools.AgentSummary, len(agents))
+	for i, a := range agents {
+		summaries[i] = tools.AgentSummary{ID: a.AgentID, Name: a.Name, Description: a.Description}
+	}
+	return summaries
 }
 
 func (s *Service) recentTasksSnippet(ctx context.Context, conversationID string) string {

@@ -21,10 +21,11 @@ type ConversationTitleGenerator interface {
 
 // ConversationToolRunners holds optional runners for Tier 1 task tools. Nil means do not add that tool.
 type ConversationToolRunners struct {
-	StartTask    tools.StartTaskRunner
-	ListTasks    tools.ListTasksRunner
-	GetTask      tools.GetTaskRunner
-	ContinueTask tools.ContinueTaskRunner
+	StartTask      tools.StartTaskRunner
+	ListTasks      tools.ListTasksRunner
+	GetTask        tools.GetTaskRunner
+	ContinueTask   tools.ContinueTaskRunner
+	AgentSummaries []tools.AgentSummary
 }
 
 // RunInput configures one conversation turn execution.
@@ -82,7 +83,7 @@ func buildConversationTools(scopeID, userID string, runners *ConversationToolRun
 		return toolList
 	}
 	if runners.StartTask != nil {
-		toolList = append(toolList, tools.NewStartTaskTool(scopeID, userID, runners.StartTask))
+		toolList = append(toolList, tools.NewStartTaskTool(scopeID, userID, runners.StartTask, runners.AgentSummaries))
 	}
 	if runners.ListTasks != nil {
 		toolList = append(toolList, tools.NewListTasksTool(scopeID, runners.ListTasks))

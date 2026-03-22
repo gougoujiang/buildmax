@@ -4,9 +4,17 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"buildmax/internal/core"
 )
+
+// AgentSummary holds the minimal info needed for the StartTask tool description.
+type AgentSummary struct {
+	ID          string
+	Name        string
+	Description string
+}
 
 // StartTaskRunner is the interface used by the start_task tool to create a background task.
 // Callers (e.g. server) implement this from their config; the conversation layer passes the runner
@@ -38,12 +46,33 @@ type startTaskTool struct {
 	scopeID string
 	userID  string
 	runner  StartTaskRunner
+	agents  []AgentSummary
 }
 
 func (t *startTaskTool) Name() string { return ToolNameStartTask }
 
+const startTaskBaseDescription = "Start a background task (Tier 2). The task is created and scheduled to run; it may take a while. Use this when the user asks for a long-running job, analysis, or work that should run in the background. Tell the user you have started a task and will report back when it completes. Do not provide internal task or run IDs to the user."
+
 func (t *startTaskTool) Description() string {
-	return "Start a background task (Tier 2). The task is created and scheduled to run; it may take a while. Use this when the user asks for a long-running job, analysis, or work that should run in the background. You must tell the user that a background task was started and give them the task id so they can check progress or results later."
+	if len(t.agents) == 0 {
+		return startTaskBaseDescription
+	}
+	var b strings.Builder
+	b.WriteString(startTaskBaseDescription)
+	b.WriteString("\n\nAvailable agents:\n")
+	for _, a := range t.agents {
+		b.WriteString("- ")
+		b.WriteString(a.Name)
+		b.WriteString(" (id: ")
+		b.WriteString(a.ID)
+		b.WriteString(")")
+		if a.Description != "" {
+			b.WriteString(" - ")
+			b.WriteString(a.Description)
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 func (t *startTaskTool) Parameters() any {
@@ -79,10 +108,13 @@ func (t *startTaskTool) Execute(ctx context.Context, args map[string]any) (strin
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Background task created and scheduled. task_id: %s, run_id: %s. The task will run in the background; the user can check progress or results in Activity or task detail.", taskID, runID), nil
+	_ = runID
+	return fmt.Sprintf("Background task created and scheduled (task_id: %s). The task is now running in the background.", taskID), nil
 }
 
-// NewStartTaskTool returns a core.Tool that uses runner to create a task. If runner is nil, Execute returns "not configured".
-func NewStartTaskTool(scopeID, userID string, runner StartTaskRunner) core.Tool {
-	return &startTaskTool{scopeID: scopeID, userID: userID, runner: runner}
+// NewStartTaskTool returns a core.Tool that uses runner to create a task.
+// agents provides the list of available agents to include in the tool description.
+// If runner is nil, Execute returns "not configured".
+func NewStartTaskTool(scopeID, userID string, runner StartTaskRunner, agents []AgentSummary) core.Tool {
+	return &startTaskTool{scopeID: scopeID, userID: userID, runner: runner, agents: agents}
 }
