@@ -27,12 +27,12 @@ type serverBootstrap struct {
 	runner          executor.WorkerRunner
 }
 
-// chatTitleGenAdapter implements httpserver.ChatTitleGenerator using session.GenerateTitleFromInput and an LLM client.
-type chatTitleGenAdapter struct {
+// titleGenAdapter implements httpserver.TitleGenerator using session.GenerateTitleFromInput and an LLM client.
+type titleGenAdapter struct {
 	client *llm.Client
 }
 
-func (a *chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, httpserver.TokenUsage, error) {
+func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, httpserver.TokenUsage, error) {
 	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
 		content, _, usage, err := a.client.ChatWithTools(ctx, msgs, nil)
 		return content, usage, err
@@ -130,8 +130,8 @@ func buildBlobStorage(ctx context.Context) (blob.PersistStorage, blob.ArtifactSt
 	if err != nil {
 		return nil, nil, fmt.Errorf("persist storage: %w", err)
 	}
-	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, func(userID, conversationID, chatID, chatRunID string) string {
-		return filepath.Join(config.WorkspacesDir(), userID, "artifacts", conversationID, chatID, chatRunID)
+	artifactStorage, err := setup.BuildArtifactStorage(wsCfg, func(userID, conversationID, taskID, taskRunID string) string {
+		return filepath.Join(config.WorkspacesDir(), userID, "artifacts", conversationID, taskID, taskRunID)
 	}, s3Client)
 	if err != nil {
 		return nil, nil, fmt.Errorf("artifact storage: %w", err)
@@ -196,7 +196,7 @@ func wireOptionalLLM(cfg *httpserver.Config) {
 		return
 	}
 	llmClient := llm.NewClient(llmCfg)
-	cfg.Conv.ChatTitleGenerator = &chatTitleGenAdapter{client: llmClient}
+	cfg.Conv.TitleGenerator = &titleGenAdapter{client: llmClient}
 	cfg.Conv.ConversationLLMCaller = llmClient
 }
 

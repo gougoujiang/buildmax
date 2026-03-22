@@ -18,7 +18,7 @@ type TaskRunTerminalInfo struct {
 	ErrorMessage   *string // error message (failed) — may be nil
 }
 
-// Config holds dependencies for the worker API (chat-run get, patch, stream).
+// Config holds dependencies for the worker API (task-run get, patch, stream).
 type Config struct {
 	Token              string                                            // Required for Authorization: Bearer <token> or X-Worker-Token
 	TaskRunStore       entity.TaskRunStore                               // Required for get/patch/stream

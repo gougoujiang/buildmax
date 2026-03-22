@@ -16,9 +16,9 @@ type TokenUsage struct {
 	CompletionTokens int
 }
 
-// ChatTitleGenerator generates a short title from chat input. Optional.
-type ChatTitleGenerator interface {
-	GenerateChatTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
+// TitleGenerator generates a short title from prompt input. Optional.
+type TitleGenerator interface {
+	GenerateTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
 }
 
 // RunOutputLister lists run outputs by conversation and gets output files for a run.
@@ -39,7 +39,7 @@ type Config struct {
 	ArtifactStorage          blob.ArtifactStorage
 	WorkspacesDir            string
 	QuotaChecker             *quota.Checker
-	ChatTitleGenerator       ChatTitleGenerator
+	TitleGenerator           TitleGenerator
 	ConversationStore        entity.ConversationStore
 	ConversationMessageStore entity.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller

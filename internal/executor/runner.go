@@ -42,11 +42,11 @@ func (r *LocalRunner) Run(ctx context.Context, run entity.TaskRun) (workerType s
 	return "local_process", nil, nil, nil
 }
 
-// jobNameForTaskRun returns a DNS-1123-compatible Job name: buildmax-worker-<sanitized-chat-run-id>-<unix-timestamp>.
+// jobNameForTaskRun returns a DNS-1123-compatible Job name: buildmax-worker-<sanitized-task-run-id>-<unix-timestamp>.
 // Total length is kept <= 63 characters.
-func jobNameForTaskRun(chatRunID string) string {
+func jobNameForTaskRun(taskRunID string) string {
 	const maxBaseLen = 30
-	sanitized := strings.ToLower(chatRunID)
+	sanitized := strings.ToLower(taskRunID)
 	sanitized = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(sanitized, "-")
 	sanitized = regexp.MustCompile(`-+`).ReplaceAllString(sanitized, "-")
 	sanitized = strings.Trim(sanitized, "-")
@@ -54,7 +54,7 @@ func jobNameForTaskRun(chatRunID string) string {
 		sanitized = sanitized[:maxBaseLen]
 	}
 	if sanitized == "" {
-		sanitized = "chat"
+		sanitized = "task"
 	}
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	return "buildmax-worker-" + sanitized + "-" + ts

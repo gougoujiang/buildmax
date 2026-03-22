@@ -11,14 +11,14 @@ import (
 )
 
 type conversationTitleGeneratorAdapter struct {
-	gen ChatTitleGenerator
+	gen TitleGenerator
 }
 
 func (a conversationTitleGeneratorAdapter) GenerateTitle(ctx context.Context, input string) (string, error) {
 	if a.gen == nil {
 		return "", nil
 	}
-	title, _, err := a.gen.GenerateChatTitle(ctx, input)
+	title, _, err := a.gen.GenerateTitle(ctx, input)
 	return title, err
 }
 
@@ -28,7 +28,7 @@ func (h *Handler) conversationService() *convapp.Service {
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,
 		LLMCaller:         h.cfg.ConversationLLMCaller,
-		TitleGenerator:    conversationTitleGeneratorAdapter{gen: h.cfg.ChatTitleGenerator},
+		TitleGenerator:    conversationTitleGeneratorAdapter{gen: h.cfg.TitleGenerator},
 		AgentStore:        h.cfg.AgentStore,
 	}
 }

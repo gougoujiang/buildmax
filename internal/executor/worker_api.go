@@ -18,8 +18,8 @@ import (
 // StreamSender sends run output deltas to the server (e.g. for live streaming). Optional; when nil, run output is not streamed.
 // Flush sends any buffered data; call when the stream ends so the last chunk is not lost.
 type StreamSender interface {
-	SendDelta(ctx context.Context, chatRunID, delta string) error
-	Flush(ctx context.Context, chatRunID string) error
+	SendDelta(ctx context.Context, taskRunID, delta string) error
+	Flush(ctx context.Context, taskRunID string) error
 }
 
 // ErrTaskRunAlreadyClaimed is returned when the server responds 409 to PATCH RUNNING (run not SCHEDULED or already RUNNING).
@@ -105,7 +105,7 @@ type WorkerHTTPUpdater struct {
 }
 
 // UpdateRunStatus sends PATCH to the server to update run status and optional fields.
-func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchTaskRunRequest) error {
+func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, taskRunID string, req *workerapi.PatchTaskRunRequest) error {
 	if req == nil {
 		req = &workerapi.PatchTaskRunRequest{}
 	}
@@ -114,7 +114,7 @@ func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, chatRunID strin
 		return err
 	}
 	cfg := WorkerAPIClientConfig{BaseURL: u.BaseURL, Token: u.Token, Client: u.Client}
-	pathSuffix := "/api/worker/task-runs/" + chatRunID
+	pathSuffix := "/api/worker/task-runs/" + taskRunID
 	resp, err := workerDo(ctx, cfg, http.MethodPatch, pathSuffix, raw)
 	if err != nil {
 		return err
@@ -137,8 +137,8 @@ type WorkerHTTPStreamSender struct {
 }
 
 // SendDelta POSTs the delta to POST /api/worker/task-runs/{task_run_id}/stream.
-func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta string) error {
-	if chatRunID == "" {
+func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, taskRunID, delta string) error {
+	if taskRunID == "" {
 		return nil
 	}
 	body := workerapi.StreamDeltaRequest{Delta: delta}
@@ -147,7 +147,7 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta
 		return err
 	}
 	cfg := WorkerAPIClientConfig{BaseURL: u.BaseURL, Token: u.Token, Client: u.Client}
-	pathSuffix := "/api/worker/task-runs/" + chatRunID + "/stream"
+	pathSuffix := "/api/worker/task-runs/" + taskRunID + "/stream"
 	resp, err := workerDo(ctx, cfg, http.MethodPost, pathSuffix, raw)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, chatRunID, delta
 }
 
 // Flush is a no-op; WorkerHTTPStreamSender sends each delta immediately.
-func (u *WorkerHTTPStreamSender) Flush(ctx context.Context, chatRunID string) error {
+func (u *WorkerHTTPStreamSender) Flush(ctx context.Context, taskRunID string) error {
 	return nil
 }
 
@@ -183,15 +183,15 @@ type DebouncedStreamSender struct {
 	timer            *time.Timer
 }
 
-func (d *DebouncedStreamSender) SendDelta(ctx context.Context, chatRunID, delta string) error {
-	return d.sendOrFlush(ctx, chatRunID, delta, false)
+func (d *DebouncedStreamSender) SendDelta(ctx context.Context, taskRunID, delta string) error {
+	return d.sendOrFlush(ctx, taskRunID, delta, false)
 }
 
-func (d *DebouncedStreamSender) Flush(ctx context.Context, chatRunID string) error {
-	return d.sendOrFlush(ctx, chatRunID, "", true)
+func (d *DebouncedStreamSender) Flush(ctx context.Context, taskRunID string) error {
+	return d.sendOrFlush(ctx, taskRunID, "", true)
 }
 
-func (d *DebouncedStreamSender) sendOrFlush(ctx context.Context, chatRunID, delta string, forceFlush bool) error {
+func (d *DebouncedStreamSender) sendOrFlush(ctx context.Context, taskRunID, delta string, forceFlush bool) error {
 	intervalMs := d.IntervalMs
 	if intervalMs <= 0 {
 		intervalMs = DebounceIntervalMs
@@ -213,7 +213,7 @@ func (d *DebouncedStreamSender) sendOrFlush(ctx context.Context, chatRunID, delt
 		return nil
 	}
 	if d.buf.Len() == 0 {
-		d.currentTaskRunID = chatRunID
+		d.currentTaskRunID = taskRunID
 	}
 	d.buf.WriteString(delta)
 

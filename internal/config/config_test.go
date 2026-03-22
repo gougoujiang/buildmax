@@ -471,23 +471,23 @@ func TestRuntimeWorkspaceDir(t *testing.T) {
 	}
 }
 
-func TestRuntimeChatBuildmaxDir(t *testing.T) {
+func TestRuntimeTaskBuildmaxDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeChatBuildmaxDir("ws-1", "chat-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "buildmax")
+	got := RuntimeTaskBuildmaxDir("ws-1", "task-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456", "buildmax")
 	if got != want {
-		t.Errorf("RuntimeChatBuildmaxDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
+		t.Errorf("RuntimeTaskBuildmaxDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
 	}
 }
 
-func TestRuntimeChatWSDir(t *testing.T) {
+func TestRuntimeTaskWSDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxWorkspacesDir, tmp)
-	got := RuntimeChatWSDir("ws-1", "chat-456")
-	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "chat-456", "ws")
+	got := RuntimeTaskWSDir("ws-1", "task-456")
+	want := filepath.Join(filepath.Clean(tmp), "ws-1", "tasks", "task-456", "ws")
 	if got != want {
-		t.Errorf("RuntimeChatWSDir(\"ws-1\", \"chat-456\") = %q, want %q", got, want)
+		t.Errorf("RuntimeTaskWSDir(\"ws-1\", \"task-456\") = %q, want %q", got, want)
 	}
 }
 

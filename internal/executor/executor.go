@@ -25,7 +25,7 @@ import (
 // When status is SUCCEEDED with artifact, server creates artifact and syncs task denormalized fields.
 // When status is FAILED, server syncs task denormalized from run.
 type TaskRunUpdater interface {
-	UpdateRunStatus(ctx context.Context, chatRunID string, req *workerapi.PatchTaskRunRequest) error
+	UpdateRunStatus(ctx context.Context, taskRunID string, req *workerapi.PatchTaskRunRequest) error
 }
 
 // RunScope identifies a task run by user, conversation, task, and run IDs.
@@ -189,7 +189,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *entity.Task, run *
 func runAgentTask(ctx context.Context, run *entity.TaskRun, runDir, runGlobalDir, sessionID string, streamSender StreamSender) ([]byte, *int, *int, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
-		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, chatRunID: run.TaskRunID}
+		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
 	}
 
 	var (
@@ -227,15 +227,15 @@ func runAgentTask(ctx context.Context, run *entity.TaskRun, runDir, runGlobalDir
 type streamSinkAdapter struct {
 	ctx          context.Context
 	streamSender StreamSender
-	chatRunID    string
+	taskRunID    string
 }
 
 func (s *streamSinkAdapter) OnDelta(delta string) {
 	if s.streamSender == nil || delta == "" {
 		return
 	}
-	if err := s.streamSender.SendDelta(s.ctx, s.chatRunID, delta); err != nil {
-		slog.Warn("executor: stream send delta failed", "task_run_id", s.chatRunID, "err", err)
+	if err := s.streamSender.SendDelta(s.ctx, s.taskRunID, delta); err != nil {
+		slog.Warn("executor: stream send delta failed", "task_run_id", s.taskRunID, "err", err)
 	}
 }
 
@@ -261,10 +261,10 @@ func persistRunResult(runArtifactsDir string, output []byte) {
 	}
 }
 
-func reportRunFailure(ctx context.Context, chatRunID string, err error, updater TaskRunUpdater) {
+func reportRunFailure(ctx context.Context, taskRunID string, err error, updater TaskRunUpdater) {
 	endTime := time.Now().Unix()
 	errMsg := fmt.Sprintf("%v", err)
-	_ = updater.UpdateRunStatus(ctx, chatRunID, &workerapi.PatchTaskRunRequest{
+	_ = updater.UpdateRunStatus(ctx, taskRunID, &workerapi.PatchTaskRunRequest{
 		Status:       string(entity.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,

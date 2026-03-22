@@ -51,7 +51,7 @@ type HandleTurnResult struct {
 	TaskIDs []string
 }
 
-// HandleTurn routes the turn to either a chat-run creation flow or a conversation LLM flow.
+// HandleTurn routes the turn to either a task-run creation flow or a conversation LLM flow.
 func (s *Service) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (HandleTurnResult, error) {
 	switch {
 	case cmd.TaskID != "":

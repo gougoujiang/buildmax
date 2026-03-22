@@ -17,7 +17,8 @@ type ChannelAdapter interface {
 
 // ConversationEngine processes one turn; may create Tier 2 runs and/or return a direct reply.
 type ConversationEngine interface {
-	// Process handles a normalized turn. workspaceID and chatID identify the target;
-	// chatID may be empty to create a new chat. Returns reply and/or task IDs (task_run_ids).
-	Process(ctx context.Context, workspaceID, chatID string, turn ConversationTurn) (ConversationResult, error)
+	// Process handles a normalized turn. conversationID and taskID identify the target;
+	// taskID may be empty when the turn should stay in Tier 1 conversation mode.
+	// Returns a direct reply and/or spawned task run ids.
+	Process(ctx context.Context, conversationID, taskID string, turn ConversationTurn) (ConversationResult, error)
 }

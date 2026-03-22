@@ -30,10 +30,10 @@ var staticFS embed.FS
 
 const shutdownTimeout = 10 * time.Second
 
-// ChatTitleGenerator generates a short title from chat input. Optional; when nil, create-chat uses truncated input.
-// Usage is returned for metering (billing). When the generator is used, the server stores title token usage on the chat.
-type ChatTitleGenerator interface {
-	GenerateChatTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
+// TitleGenerator generates a short title from prompt input. Optional; when nil, the caller uses truncated input.
+// Usage is returned for metering (billing).
+type TitleGenerator interface {
+	GenerateTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
 }
 
 // TokenUsage holds prompt and completion token counts for a single LLM call.
@@ -80,7 +80,7 @@ type WorkerConfig struct {
 
 // ConversationConfig holds Tier 1 conversation stores and LLM wiring.
 type ConversationConfig struct {
-	ChatTitleGenerator       ChatTitleGenerator
+	TitleGenerator           TitleGenerator
 	ConversationStore        entity.ConversationStore
 	ConversationMessageStore entity.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller
@@ -110,14 +110,14 @@ type Server struct {
 	hub streamhub.StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
-// chatTitleGenAdapter adapts server ChatTitleGenerator to portal.ChatTitleGenerator (TokenUsage type).
-type chatTitleGenAdapter struct{ gen ChatTitleGenerator }
+// titleGenAdapter adapts server.TitleGenerator to portal.TitleGenerator (TokenUsage type).
+type titleGenAdapter struct{ gen TitleGenerator }
 
-func (a chatTitleGenAdapter) GenerateChatTitle(ctx context.Context, input string) (string, portal.TokenUsage, error) {
+func (a titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, portal.TokenUsage, error) {
 	if a.gen == nil {
 		return "", portal.TokenUsage{}, nil
 	}
-	title, usage, err := a.gen.GenerateChatTitle(ctx, input)
+	title, usage, err := a.gen.GenerateTitle(ctx, input)
 	return title, portal.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
 }
 
@@ -134,7 +134,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.Con
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
 		QuotaChecker:             cfg.Auth.QuotaChecker,
-		ChatTitleGenerator:       chatTitleGenAdapter{cfg.Conv.ChatTitleGenerator},
+		TitleGenerator:           titleGenAdapter{cfg.Conv.TitleGenerator},
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,

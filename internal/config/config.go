@@ -245,51 +245,51 @@ func PersistentWorkspaceDir(workspaceID string) string {
 
 // RuntimeWorkspaceDir returns the ephemeral directory for a task.
 // It is WorkspacesDir()/<workspaceID>/tasks/<taskID>. Runtime dirs are left on disk; cleanup is a separate task.
-func RuntimeWorkspaceDir(workspaceID, chatID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", chatID)
+func RuntimeWorkspaceDir(workspaceID, taskID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID)
 }
 
-// RuntimeChatBuildmaxDir returns the buildmax subdir for a task (agent data: sessions, logs, settings).
-// It is RuntimeWorkspaceDir(workspaceID, chatID)/buildmax. For run-scoped dir use RuntimeTaskRunBuildmaxDir.
-func RuntimeChatBuildmaxDir(workspaceID, chatID string) string {
-	return filepath.Join(RuntimeWorkspaceDir(workspaceID, chatID), "buildmax")
+// RuntimeTaskBuildmaxDir returns the buildmax subdir for a task (agent data: sessions, logs, settings).
+// It is RuntimeWorkspaceDir(workspaceID, taskID)/buildmax. For run-scoped dir use RuntimeTaskRunBuildmaxDir.
+func RuntimeTaskBuildmaxDir(workspaceID, taskID string) string {
+	return filepath.Join(RuntimeWorkspaceDir(workspaceID, taskID), "buildmax")
 }
 
 // RuntimeTaskRunBuildmaxDir returns the buildmax subdir for a specific run: .../tasks/<taskID>/<taskRunID>/buildmax.
-func RuntimeTaskRunBuildmaxDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", chatID, chatRunID, "buildmax")
+func RuntimeTaskRunBuildmaxDir(workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID, taskRunID, "buildmax")
 }
 
 // RuntimeTaskRunDir returns the run directory: .../tasks/<taskID>/<taskRunID>.
-func RuntimeTaskRunDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", chatID, chatRunID)
+func RuntimeTaskRunDir(workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "tasks", taskID, taskRunID)
 }
 
 // RuntimeTaskRunHomeDir returns the run's home dir (materialized workspace home): .../tasks/<taskID>/<taskRunID>/home.
-func RuntimeTaskRunHomeDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "home")
+func RuntimeTaskRunHomeDir(workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(RuntimeTaskRunDir(workspaceID, taskID, taskRunID), "home")
 }
 
 // RuntimeTaskRunArtifactsDir returns the run's artifacts dir (run outputs): .../tasks/<taskID>/<taskRunID>/artifacts.
-func RuntimeTaskRunArtifactsDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "artifacts")
+func RuntimeTaskRunArtifactsDir(workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(RuntimeTaskRunDir(workspaceID, taskID, taskRunID), "artifacts")
 }
 
 // RuntimeTaskRunGlobalDir returns the run's global dir (BUILDMAX_HOME): .../tasks/<taskID>/<taskRunID>/global.
-func RuntimeTaskRunGlobalDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(RuntimeTaskRunDir(workspaceID, chatID, chatRunID), "global")
+func RuntimeTaskRunGlobalDir(workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(RuntimeTaskRunDir(workspaceID, taskID, taskRunID), "global")
 }
 
-// RuntimeChatWSDir returns the workspace subdir for a task run (materialized persist files).
-// It is RuntimeWorkspaceDir(workspaceID, chatID)/ws. Deprecated: use RuntimeTaskRunHomeDir for run-scoped materialize.
-func RuntimeChatWSDir(workspaceID, chatID string) string {
-	return filepath.Join(RuntimeWorkspaceDir(workspaceID, chatID), "ws")
+// RuntimeTaskWSDir returns the workspace subdir for a task run (materialized persist files).
+// It is RuntimeWorkspaceDir(workspaceID, taskID)/ws. Deprecated: use RuntimeTaskRunHomeDir for run-scoped materialize.
+func RuntimeTaskWSDir(workspaceID, taskID string) string {
+	return filepath.Join(RuntimeWorkspaceDir(workspaceID, taskID), "ws")
 }
 
 // RunOutputDir returns the directory for a task run's output files (one artifact per run).
-// It is WorkspacesDir()/<workspaceID>/artifacts/<chatID>/<chatRunID>.
-func RunOutputDir(workspaceID, chatID, chatRunID string) string {
-	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", chatID, chatRunID)
+// It is WorkspacesDir()/<workspaceID>/artifacts/<taskID>/<taskRunID>.
+func RunOutputDir(workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(WorkspacesDir(), workspaceID, "artifacts", taskID, taskRunID)
 }
 
 // LoadSettings reads the settings file at path. If path is empty, SettingsPath() is used.

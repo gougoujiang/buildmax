@@ -9,15 +9,15 @@ import (
 	"buildmax/internal/server/httputil"
 )
 
-type chatTitleGeneratorAdapter struct {
-	gen ChatTitleGenerator
+type taskTitleGeneratorAdapter struct {
+	gen TitleGenerator
 }
 
-func (a chatTitleGeneratorAdapter) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
+func (a taskTitleGeneratorAdapter) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
 	if a.gen == nil {
 		return "", 0, 0, nil
 	}
-	title, usage, err := a.gen.GenerateChatTitle(ctx, input)
+	title, usage, err := a.gen.GenerateTitle(ctx, input)
 	return title, usage.PromptTokens, usage.CompletionTokens, err
 }
 
@@ -31,7 +31,7 @@ func (h *Handler) taskService() *taskapp.Service {
 		Tasks:          h.cfg.TaskStore,
 		TaskRuns:       h.cfg.TaskRunStore,
 		QuotaChecker:   quotaChecker,
-		TitleGenerator: chatTitleGeneratorAdapter{gen: h.cfg.ChatTitleGenerator},
+		TitleGenerator: taskTitleGeneratorAdapter{gen: h.cfg.TitleGenerator},
 	}
 }
 
