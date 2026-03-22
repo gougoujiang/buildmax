@@ -7,23 +7,23 @@ export function buildAgentPreview(agent: Agent): string {
   return `Agent: ${agent.name} (id: ${agent.id})\nDescription: ${agent.description ?? ""}\nInstructions:\n${agent.instructions ?? ""}\n\nPlease start a background task with this agent.`
 }
 
-interface NewTaskFromAgentModalProps {
+interface NewConversationFromAgentProps {
   open: boolean
   agent: Agent | null
   loading: boolean
   error: string | null
   onClose: () => void
-  onStartTask: (input: string) => void
+  onStart: (input: string) => void
 }
 
-export function NewTaskFromAgentModal({
+export function NewConversationFromAgent({
   open,
   agent,
   loading,
   error,
   onClose,
-  onStartTask,
-}: NewTaskFromAgentModalProps) {
+  onStart,
+}: NewConversationFromAgentProps) {
   const [input, setInput] = useState("")
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function NewTaskFromAgentModal({
   }, [open, agent])
 
   function handleSubmit() {
-    onStartTask(input.trim())
+    onStart(input.trim())
   }
 
   if (!agent) return null
@@ -42,29 +42,29 @@ export function NewTaskFromAgentModal({
     <BaseModal
       open={open}
       title={`New conversation with ${agent.name}`}
-      titleId="new-task-from-agent-title"
+      titleId="new-conversation-from-agent-title"
       onClose={onClose}
       className="modal--large"
     >
       <div className="modal__body">
-        <p className="modal__hint" id="new-task-from-agent-hint">
+        <p className="modal__hint" id="new-conversation-from-agent-hint">
           Review and edit the instructions below. You can add more context before starting.
         </p>
-        <label className="modal__label" htmlFor="new-task-from-agent-input">
+        <label className="modal__label" htmlFor="new-conversation-from-agent-input">
           Instructions
         </label>
         <textarea
-          id="new-task-from-agent-input"
-          className="modal__textarea new-task-from-agent-modal__textarea"
+          id="new-conversation-from-agent-input"
+          className="modal__textarea new-conversation-from-agent-modal__textarea"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           rows={10}
           disabled={loading}
           placeholder="Agent: ..."
-          aria-describedby="new-task-from-agent-hint"
+          aria-describedby="new-conversation-from-agent-hint"
         />
         {error ? (
-          <p className="modal__error" id="new-task-from-agent-error" role="alert">
+          <p className="modal__error" id="new-conversation-from-agent-error" role="alert">
             {error}
           </p>
         ) : null}

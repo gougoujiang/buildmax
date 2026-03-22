@@ -13,7 +13,7 @@ Inject the user's available agents into the `StartTask` tool description so Tier
 | **internal/app/conversation** | Tier 1 orchestration; fetches agents, wires into tool runners | `Service`, `handleConversationTurn` |
 | **internal/server/portal** | Portal handler; constructs `Service` with dependencies | `conversationService()` |
 | **portal/src/pages** | Agent list page | `AgentList.tsx` |
-| **portal/src/components** | Agent-to-conversation modal | `NewTaskFromAgentModal.tsx` |
+| **portal/src/components** | Agent-to-conversation modal | `NewConversationFromAgent.tsx` |
 
 ## Structure
 
@@ -30,7 +30,7 @@ Inject the user's available agents into the `StartTask` tool description so Tier
 - `portal/src/pages/`
   - `AgentList.tsx` — **modified**; rename button text "New task" → "New Conversation", rename aria-label
 - `portal/src/components/`
-  - `NewTaskFromAgentModal.tsx` — **modified**; update `buildAgentPreview` to include agent ID and a prompt line; rename modal title and submit button text
+  - `NewConversationFromAgent.tsx` — **modified**; update `buildAgentPreview` to include agent ID and a prompt line; rename modal title and submit button text
 
 ## Main types
 
@@ -104,4 +104,4 @@ type startTaskTool struct {
 - **Modified**: `internal/app/conversation/service.go` — add `AgentStore entity.AgentStore` to `Service`, fetch agents in `handleConversationTurn`, convert to summaries, pass to `conversationToolRunners`
 - **Modified**: `internal/server/portal/conversation_service.go` — add `AgentStore: h.cfg.AgentStore` in `conversationService()`
 - **Modified**: `portal/src/pages/AgentList.tsx` — button text "New task" → "New Conversation", aria-label update
-- **Modified**: `portal/src/components/NewTaskFromAgentModal.tsx` — `buildAgentPreview` includes agent ID + prompt line, modal title and submit button text updated
+- **Modified**: `portal/src/components/NewConversationFromAgent.tsx` — `buildAgentPreview` includes agent ID + prompt line, modal title and submit button text updated

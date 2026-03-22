@@ -14,7 +14,7 @@ import { useApp } from "../contexts/AppContext"
 import { AgentAvatar } from "../components/UserAvatar"
 import { CreateAgentModal } from "../components/CreateAgentModal"
 import { EditAgentModal } from "../components/EditAgentModal"
-import { NewTaskFromAgentModal } from "../components/NewTaskFromAgentModal"
+import { NewConversationFromAgent } from "../components/NewConversationFromAgent"
 
 interface AgentListProps {
   profileId: string
@@ -234,7 +234,7 @@ export function AgentList({ profileId, token }: AgentListProps) {
         onDelete={handleDeleteAgent}
       />
 
-      <NewTaskFromAgentModal
+      <NewConversationFromAgent
         open={newTaskAgent != null}
         agent={newTaskAgent}
         loading={startingTaskAgentId !== null}
@@ -243,7 +243,7 @@ export function AgentList({ profileId, token }: AgentListProps) {
           setNewTaskAgent(null)
           if (newTaskAgent) setError(null)
         }}
-        onStartTask={handleStartTaskFromAgent}
+        onStart={handleStartTaskFromAgent}
       />
     </div>
   )
