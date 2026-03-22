@@ -5,6 +5,8 @@ import type { Route } from "./lib/types"
  * Path segment names used in the hash URL. Single source of truth for parseHash/buildHash.
  */
 export const SEGMENT = {
+  login: "login",
+  signup: "signup",
   conversation: "conversation",
   conversations: "conversations",
   explore: "explore",
@@ -19,6 +21,12 @@ export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#\/?/, "")
   const parts = raw.split("/").filter(Boolean)
 
+  if (parts[0] === SEGMENT.login) {
+    return { name: "login" }
+  }
+  if (parts[0] === SEGMENT.signup) {
+    return { name: "signup" }
+  }
   if (parts[0] === SEGMENT.conversations) {
     return { name: "chats" }
   }
@@ -39,6 +47,10 @@ export function buildHash(route: Route): string {
   switch (route.name) {
     case "home":
       return "#/"
+    case "login":
+      return `#/${SEGMENT.login}`
+    case "signup":
+      return `#/${SEGMENT.signup}`
     case "conversation":
       return `#/${SEGMENT.conversation}/${route.conversationId}`
     case "chats":

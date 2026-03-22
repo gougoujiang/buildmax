@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
@@ -7,6 +8,7 @@ import { AppRouter } from "./components/AppRouter"
 import { useConversations } from "./hooks/useConversations"
 import { Login } from "./pages/Login"
 import { SignUp } from "./pages/SignUp"
+import { navigate } from "./router"
 
 function AppContent() {
   const { token, user, logout } = useAuth()
@@ -16,9 +18,14 @@ function AppContent() {
     refetch: refetchConversations,
   } = useConversations(token)
 
+  useEffect(() => {
+    if (!token) return
+    if (route.name !== "login" && route.name !== "signup") return
+    navigate({ name: "home" })
+  }, [token, route])
+
   if (!token) {
-    const authHash = window.location.hash.replace(/^#\/?/, "").toLowerCase()
-    if (authHash === "signup") return <SignUp />
+    if (route.name === "signup") return <SignUp />
     return <Login />
   }
 
