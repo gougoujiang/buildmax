@@ -23,14 +23,14 @@ func TestNewListTasksTool_success(t *testing.T) {
 		if workspaceID != "w_1" {
 			return "", errors.New("wrong workspace")
 		}
-		return "1. c_1 | title1 | PENDING | 2025-01-01", nil
+		return "1. t_1 | title1 | PENDING | 2025-01-01", nil
 	}))
 	ctx := context.Background()
 	out, err := tool.Execute(ctx, map[string]any{})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if out != "1. c_1 | title1 | PENDING | 2025-01-01" {
+	if out != "1. t_1 | title1 | PENDING | 2025-01-01" {
 		t.Errorf("Execute = %q", out)
 	}
 }

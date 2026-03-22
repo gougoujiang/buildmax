@@ -12,14 +12,14 @@ import (
 )
 
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
-	chatRunID := "r_run1"
-	chatID := "c_chat1"
+	taskRunID := "r_run1"
+	taskID := "t_task1"
 	hub := streamhub.NewStreamHub()
 	cfg := Config{
 		Token: "worker-tok",
 		TaskRunStore: &testutil.MockTaskRunStore{
-			Runs:     []entity.TaskRun{{TaskRunID: chatRunID, TaskID: chatID}},
-			TaskList: []entity.Task{{TaskID: chatID}},
+			Runs:     []entity.TaskRun{{TaskRunID: taskRunID, TaskID: taskID}},
+			TaskList: []entity.Task{{TaskID: taskID}},
 		},
 		Hub: hub,
 	}
@@ -28,8 +28,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	h.Register(mux)
 
 	body := bytes.NewReader([]byte(`{"delta":"hello "}`))
-	req := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+chatRunID+"/stream", body)
-	req.SetPathValue("task_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+taskRunID+"/stream", body)
+	req.SetPathValue("task_run_id", taskRunID)
 	req.Header.Set("Authorization", "Bearer worker-tok")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -38,13 +38,13 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("POST stream: got status %d, want 200", w.Code)
 	}
-	if got := hub.Buffer(chatID); got != "hello " {
+	if got := hub.Buffer(taskID); got != "hello " {
 		t.Errorf("hub buffer: got %q, want \"hello \"", got)
 	}
 
 	body2 := bytes.NewReader([]byte(`{"delta":"world"}`))
-	req2 := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+chatRunID+"/stream", body2)
-	req2.SetPathValue("task_run_id", chatRunID)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+taskRunID+"/stream", body2)
+	req2.SetPathValue("task_run_id", taskRunID)
 	req2.Header.Set("Authorization", "Bearer worker-tok")
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	if w2.Code != http.StatusOK {
 		t.Errorf("POST stream second: got status %d, want 200", w2.Code)
 	}
-	if got := hub.Buffer(chatID); got != "hello world" {
+	if got := hub.Buffer(taskID); got != "hello world" {
 		t.Errorf("hub buffer after second: got %q, want \"hello world\"", got)
 	}
 }

@@ -7,16 +7,16 @@ import (
 )
 
 // Prefix constants for prefixed IDs. Use with NewPrefixedID.
-// Semantics: u=user, a=agent, c=task, r=task run, ar=artifact, f=artifact item, cv=conversation, cm=conversation message, whk=user webhook key.
+// Semantics: u=user, a=agent, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, whk=user webhook key.
 // Session IDs are internal (not user-facing) and use UUID; see entity.CreateChat.
 const (
 	PrefixUser                = "u"
 	PrefixAgent               = "a"
-	PrefixChat                = "c"
+	PrefixConversation        = "c"
+	PrefixTask                = "t"
 	PrefixTaskRun             = "r"
 	PrefixArtifact            = "ar"
 	PrefixArtifactItem        = "f"
-	PrefixConversation        = "cv"
 	PrefixConversationMessage = "cm"
 	PrefixWebhookKey          = "whk"
 )

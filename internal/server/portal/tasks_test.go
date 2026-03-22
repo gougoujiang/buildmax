@@ -21,8 +21,8 @@ func TestListConversationTasksHandler(t *testing.T) {
 			{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
-	task1 := entity.Task{TaskID: "c1", ConversationID: conversationID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
-	task2 := entity.Task{TaskID: "c2", ConversationID: conversationID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := entity.Task{TaskID: "t1", ConversationID: conversationID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
+	task2 := entity.Task{TaskID: "t2", ConversationID: conversationID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
 
 	tests := []struct {
 		name         string
@@ -66,7 +66,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
 			path:         "/api/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
-			wantBodyHas:  "c1",
+			wantBodyHas:  "t1",
 			wantArrayLen: 2,
 		},
 	}
@@ -156,7 +156,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name: "valid body returns 201",
 			taskStore: &testutil.MockTaskStore{
 				Create: &entity.Task{
-					TaskID: "new-chat-id", ConversationID: conversationID, Status: "PENDING",
+					TaskID: "new-task-id", ConversationID: conversationID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
@@ -164,7 +164,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			path:         "/api/conversations/" + conversationID + "/tasks",
 			body:         `{"input":"Do X"}`,
 			wantStatus:   http.StatusCreated,
-			wantBodyHas:  "new-chat-id",
+			wantBodyHas:  "new-task-id",
 			checkCreated: true,
 		},
 		{

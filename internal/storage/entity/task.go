@@ -88,7 +88,7 @@ func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, err
 		return nil, errors.New("CreateTaskInput is required")
 	}
 	now := time.Now().Unix()
-	taskID := util.NewPrefixedID(util.PrefixChat)
+	taskID := util.NewPrefixedID(util.PrefixTask)
 	taskRunID := util.NewPrefixedID(util.PrefixTaskRun)
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
 	task := &Task{

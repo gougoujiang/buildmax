@@ -39,7 +39,7 @@ func TestNewPrefixedID(t *testing.T) {
 func TestNewPrefixedID_Uniqueness(t *testing.T) {
 	seen := make(map[string]bool)
 	for i := 0; i < 1000; i++ {
-		id := NewPrefixedID(PrefixChat)
+		id := NewPrefixedID(PrefixTask)
 		if seen[id] {
 			t.Fatalf("collision at iteration %d: %q", i, id)
 		}

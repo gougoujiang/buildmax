@@ -392,12 +392,12 @@ Recommended task payload:
 {
   "run": {
     "task_run_id": "r_xxx",
-    "task_id": "c_xxx",
+    "task_id": "t_xxx",
     "input": "..."
   },
   "task": {
-    "task_id": "c_xxx",
-    "conversation_id": "cv_xxx",
+    "task_id": "t_xxx",
+    "conversation_id": "c_xxx",
     "user_id": "u_xxx",
     "session_id": "uuid-or-null",
     "last_run_id": "r_prev-or-null"

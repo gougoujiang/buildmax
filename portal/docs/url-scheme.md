@@ -16,7 +16,7 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 | Home           | `#<userId>`                          | `#u_abc123`                      |
 | New Conversation | `#<userId>/new`                    | `#u_abc123/new`                  |
 | Conversations  | `#<userId>/conversations`            | `#u_abc123/conversations`        |
-| Conversation   | `#<userId>/conversation/<conversationId>` | `#u_abc123/conversation/cv_xyz` |
+| Conversation   | `#<userId>/conversation/<conversationId>` | `#u_abc123/conversation/c_xyz` |
 | Explore (Files)| `#<userId>/explore`                  | `#u_abc123/explore`              |
 | Agents         | `#<userId>/agents`                   | `#u_abc123/agents`               |
 
@@ -26,7 +26,7 @@ The portal uses **hash-based routing**: the path after `#` defines the current v
 - `https://example.com/#u_abc` — Home for user `u_abc`.
 - `https://example.com/#u_abc/new` — New conversation for user `u_abc`.
 - `https://example.com/#u_abc/conversations` — Conversations list for user `u_abc`.
-- `https://example.com/#u_abc/conversation/cv_xyz` — Conversation `cv_xyz` for user `u_abc`.
+- `https://example.com/#u_abc/conversation/c_xyz` — Conversation `c_xyz` for user `u_abc`.
 - `https://example.com/#u_abc/explore` — File explore for user `u_abc`.
 - `https://example.com/#u_abc/agents` — Agents for user `u_abc`.
 

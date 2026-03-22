@@ -12,9 +12,9 @@ import (
 )
 
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
-	chatRunID := "run-1"
-	run := entity.TaskRun{TaskRunID: chatRunID, TaskID: "chat-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := entity.Task{TaskID: "chat-1", ConversationID: "conv-1", CreatedBy: "u1"}
+	taskRunID := "run-1"
+	run := entity.TaskRun{TaskRunID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	task := entity.Task{TaskID: "task-1", ConversationID: "conv-1", CreatedBy: "u1"}
 	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, TaskList: []entity.Task{task}}
 	cfg := Config{
 		Token:        "worker-token-123",
@@ -25,8 +25,8 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	h.Register(mux)
 
 	// Without token: 401
-	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+chatRunID, nil)
-	req.SetPathValue("task_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+	req.SetPathValue("task_run_id", taskRunID)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -34,8 +34,8 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	}
 
 	// With correct token: 200 and run+chat body
-	req = httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+chatRunID, nil)
-	req.SetPathValue("task_run_id", chatRunID)
+	req = httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+	req.SetPathValue("task_run_id", taskRunID)
 	req.Header.Set("Authorization", "Bearer worker-token-123")
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -67,9 +67,9 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 }
 
 func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
-	chatRunID := "run-scheduled"
-	run := entity.TaskRun{TaskRunID: chatRunID, TaskID: "chat1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := entity.Task{TaskID: "chat1", ConversationID: "conv-1"}
+	taskRunID := "run-scheduled"
+	run := entity.TaskRun{TaskRunID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	task := entity.Task{TaskID: "task1", ConversationID: "conv-1"}
 	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, TaskList: []entity.Task{task}}
 	cfg := Config{
 		Token:        "token",
@@ -81,8 +81,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 
 	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1", "started_at": int64(123)}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+chatRunID, bytes.NewReader(raw))
-	req.SetPathValue("task_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(raw))
+	req.SetPathValue("task_run_id", taskRunID)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -97,9 +97,9 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 }
 
 func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
-	chatRunID := "run-pending"
-	run := entity.TaskRun{TaskRunID: chatRunID, TaskID: "chat1", Input: "input", Status: "PENDING", CreatedAt: 1}
-	task := entity.Task{TaskID: "chat1", ConversationID: "conv-1"}
+	taskRunID := "run-pending"
+	run := entity.TaskRun{TaskRunID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: 1}
+	task := entity.Task{TaskID: "task1", ConversationID: "conv-1"}
 	mockRun := &testutil.MockTaskRunStore{Runs: []entity.TaskRun{run}, TaskList: []entity.Task{task}}
 	cfg := Config{
 		Token:        "token",
@@ -111,8 +111,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 
 	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1"}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+chatRunID, bytes.NewReader(raw))
-	req.SetPathValue("task_run_id", chatRunID)
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(raw))
+	req.SetPathValue("task_run_id", taskRunID)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

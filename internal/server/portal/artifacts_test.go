@@ -16,7 +16,7 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
 	conversationID := "conv-1"
-	taskID := "chat-1"
+	taskID := "task-1"
 	token := testutil.SignJWT(userID, secret)
 
 	mockConversations := &testutil.MockConversationStore{
@@ -76,12 +76,12 @@ func TestListArtifactItemsHandler(t *testing.T) {
 		},
 	}
 	mockTaskRun := &testutil.MockTaskRunStore{
-		Runs:     []entity.TaskRun{{TaskRunID: taskRunID, TaskID: "chat-1", Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []entity.Task{{TaskID: "chat-1", ConversationID: conversationID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		Runs:     []entity.TaskRun{{TaskRunID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: 1}},
+		TaskList: []entity.Task{{TaskID: "task-1", ConversationID: conversationID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &testutil.MockRunOutputLister{
 		OutputFiles: map[string][]entity.TaskRunArtifact{
-			taskRunID: {{TaskRunID: taskRunID, RelativePath: "result-chat1.md"}},
+			taskRunID: {{TaskRunID: taskRunID, RelativePath: "result-task1.md"}},
 		},
 	}
 
@@ -100,8 +100,8 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "result-chat1.md") {
-		t.Errorf("body should contain result-chat1.md, got %q", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "result-task1.md") {
+		t.Errorf("body should contain result-task1.md, got %q", rec.Body.String())
 	}
 }
 
@@ -110,7 +110,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	userID := "user-1"
 	conversationID := "conv-1"
 	taskRunID := "run-1"
-	taskID := "chat-1"
+	taskID := "task-1"
 	token := testutil.SignJWT(userID, secret)
 
 	mockConversations := &testutil.MockConversationStore{

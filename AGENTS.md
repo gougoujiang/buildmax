@@ -131,7 +131,7 @@ buildmax/
 │   ├── log/                   # slog init, BUILDMAX_LOG_LEVEL, rotated file
 │   ├── session/               # Session (id, title, history), SaveToDir, LoadFromDir, list index (sessions.json)
 │   ├── tools/                 # Tool implementations (readfile, writefile, editfile, bash, glob, grep, webfetch, todowrite, skill, agentdef, task)
-│   ├── util/                  # ID generation (prefixed IDs: u_, a_, c_, r_, ar_, f_, cv_, cm_, whk_), workspace helpers, git, argparse
+│   ├── util/                  # ID generation (prefixed IDs: u_, a_, c_, t_, r_, ar_, f_, cm_, whk_), workspace helpers, git, argparse
 │   ├── storage/               # Persistence under one namespace
 │   │   ├── entity/            # MySQL (GORM): canonical backend models, typed lifecycle commands, interfaces and Store
 │   │   └── blob/              # Blob/file storage: PersistStorage (user home), ArtifactStorage; local FS and S3; keys use home, conversations/.../global
@@ -191,7 +191,7 @@ buildmax/
 
 ### 6.3 Entity ID format
 
-- **Entity IDs use a prefixed format** `<prefix>_<body>`: prefix is a short type abbreviation (e.g. `u_` user, `a_` agent, `c_` task, `r_` task run, `ar_` artifact, `f_` artifact item, `cv_` conversation, `cm_` conversation message, `whk_` webhook key), body is 20 characters from `[a-z0-9]` (lowercase base36). Generated via `internal/util.NewPrefixedID(prefix)`; ordering uses `created_at`, not ID. See `.vibe/074-design.md` for full semantics.
+- **Entity IDs use a prefixed format** `<prefix>_<body>`: prefix is a short type abbreviation (e.g. `u_` user, `a_` agent, `c_` conversation, `t_` task, `r_` task run, `ar_` artifact, `f_` artifact item, `cm_` conversation message, `whk_` webhook key), body is 20 characters from `[a-z0-9]` (lowercase base36). Generated via `internal/util.NewPrefixedID(prefix)`; ordering uses `created_at`, not ID. See `.vibe/074-design.md` for full semantics.
 
 ### 6.4 Tool output for LLM
 

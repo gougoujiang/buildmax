@@ -21,7 +21,7 @@ func TestNewStartTaskTool_nilFunc(t *testing.T) {
 
 func TestNewStartTaskTool_missingInput(t *testing.T) {
 	tool := NewStartTaskTool("w_1", "u_1", FuncStartTaskRunner(func(ctx context.Context, input string, agentID *string) (string, string, error) {
-		return "c_1", "r_1", nil
+		return "t_1", "r_1", nil
 	}), nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{})
@@ -35,14 +35,14 @@ func TestNewStartTaskTool_success(t *testing.T) {
 		if input != "analyze repo" {
 			return "", "", errors.New("bad input")
 		}
-		return "c_abc", "r_xyz", nil
+		return "t_abc", "r_xyz", nil
 	}), nil)
 	ctx := context.Background()
 	out, err := tool.Execute(ctx, map[string]any{"input": "analyze repo"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if out != "Background task created and scheduled (task_id: c_abc). The task is now running in the background." {
+	if out != "Background task created and scheduled (task_id: t_abc). The task is now running in the background." {
 		t.Errorf("Execute = %q", out)
 	}
 }

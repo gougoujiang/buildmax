@@ -9,7 +9,7 @@ import (
 func TestNewGetTaskTool_nilRunner(t *testing.T) {
 	tool := NewGetTaskTool("w_1", nil)
 	ctx := context.Background()
-	_, err := tool.Execute(ctx, map[string]any{"task_id": "c_1"})
+	_, err := tool.Execute(ctx, map[string]any{"task_id": "t_1"})
 	if err == nil {
 		t.Fatal("Execute: expected error when runner is nil")
 	}
@@ -37,7 +37,7 @@ func TestNewGetTaskTool_notInWorkspace(t *testing.T) {
 		return "", errors.New("task not found or not in this workspace")
 	}))
 	ctx := context.Background()
-	_, err := tool.Execute(ctx, map[string]any{"task_id": "c_other"})
+	_, err := tool.Execute(ctx, map[string]any{"task_id": "t_other"})
 	if err == nil {
 		t.Fatal("Execute: expected error when task not in workspace")
 	}
@@ -45,17 +45,17 @@ func TestNewGetTaskTool_notInWorkspace(t *testing.T) {
 
 func TestNewGetTaskTool_success(t *testing.T) {
 	tool := NewGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
-		if workspaceID != "w_1" || chatID != "c_abc" {
+		if workspaceID != "w_1" || chatID != "t_abc" {
 			return "", errors.New("bad args")
 		}
-		return "task_id: c_abc\nstatus: SUCCEEDED", nil
+		return "task_id: t_abc\nstatus: SUCCEEDED", nil
 	}))
 	ctx := context.Background()
-	out, err := tool.Execute(ctx, map[string]any{"task_id": "c_abc"})
+	out, err := tool.Execute(ctx, map[string]any{"task_id": "t_abc"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if out != "task_id: c_abc\nstatus: SUCCEEDED" {
+	if out != "task_id: t_abc\nstatus: SUCCEEDED" {
 		t.Errorf("Execute = %q", out)
 	}
 }

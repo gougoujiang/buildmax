@@ -35,7 +35,7 @@ func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
 	return &spyTaskRunStore{
 		pendingRun: &entity.TaskRun{
 			TaskRunID: chatRunID,
-			TaskID:    "c_test",
+			TaskID:    "t_test",
 			Input:     "input",
 			Status:    "PENDING",
 			CreatedAt: time.Now().Unix(),

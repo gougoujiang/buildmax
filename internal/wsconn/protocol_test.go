@@ -6,7 +6,7 @@ import (
 )
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
-	original := MessageDelta{ConversationID: "cv_abc123", Delta: "hello world"}
+	original := MessageDelta{ConversationID: "c_abc123", Delta: "hello world"}
 	data, err := Encode(TypeMessageDelta, original)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
@@ -30,7 +30,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestEncodeProducesValidJSON(t *testing.T) {
-	data, err := Encode(TypeConversationCreated, ConversationCreated{ConversationID: "cv_xyz"})
+	data, err := Encode(TypeConversationCreated, ConversationCreated{ConversationID: "c_xyz"})
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
@@ -53,9 +53,9 @@ func TestDecodeClientEvents(t *testing.T) {
 		payload string
 	}{
 		{"conversation.create", TypeConversationCreate, `{"message":"hi"}`},
-		{"conversation.message", TypeConversationMessage, `{"conversation_id":"cv_1","content":"hello"}`},
-		{"subscribe.task", TypeSubscribeTask, `{"task_id":"c_1"}`},
-		{"unsubscribe.task", TypeUnsubscribeTask, `{"task_id":"c_1"}`},
+		{"conversation.message", TypeConversationMessage, `{"conversation_id":"c_1","content":"hello"}`},
+		{"subscribe.task", TypeSubscribeTask, `{"task_id":"t_1"}`},
+		{"unsubscribe.task", TypeUnsubscribeTask, `{"task_id":"t_1"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -72,13 +72,13 @@ func TestDecodeClientEvents(t *testing.T) {
 }
 
 func TestDecodePayloadTyped(t *testing.T) {
-	data, _ := Encode(TypeConversationMessage, ConversationMessage{ConversationID: "cv_abc", Content: "test"})
+	data, _ := Encode(TypeConversationMessage, ConversationMessage{ConversationID: "c_abc", Content: "test"})
 	env, _ := Decode(data)
 	got, err := DecodePayload[ConversationMessage](env)
 	if err != nil {
 		t.Fatalf("DecodePayload: %v", err)
 	}
-	if got.ConversationID != "cv_abc" || got.Content != "test" {
+	if got.ConversationID != "c_abc" || got.Content != "test" {
 		t.Errorf("unexpected: %+v", got)
 	}
 }
@@ -95,13 +95,13 @@ func TestEncodeAllServerEvents(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{TypeConversationCreated, ConversationCreated{ConversationID: "cv_1"}},
-		{TypeMessageDelta, MessageDelta{ConversationID: "cv_1", Delta: "hi"}},
-		{TypeMessageCompleted, MessageCompleted{ConversationID: "cv_1"}},
-		{TypeConversationError, ConversationError{ConversationID: "cv_1", Error: "fail"}},
-		{TypeTaskStatusChanged, TaskStatusChanged{TaskID: "c_1", Status: "SUCCEEDED"}},
-		{TypeTaskStreamDelta, TaskStreamDelta{TaskID: "c_1", Delta: "data"}},
-		{TypeTaskStreamDone, TaskStreamDone{TaskID: "c_1"}},
+		{TypeConversationCreated, ConversationCreated{ConversationID: "c_1"}},
+		{TypeMessageDelta, MessageDelta{ConversationID: "c_1", Delta: "hi"}},
+		{TypeMessageCompleted, MessageCompleted{ConversationID: "c_1"}},
+		{TypeConversationError, ConversationError{ConversationID: "c_1", Error: "fail"}},
+		{TypeTaskStatusChanged, TaskStatusChanged{TaskID: "t_1", Status: "SUCCEEDED"}},
+		{TypeTaskStreamDelta, TaskStreamDelta{TaskID: "t_1", Delta: "data"}},
+		{TypeTaskStreamDone, TaskStreamDone{TaskID: "t_1"}},
 		{TypeSystemError, SystemError{Error: "oops"}},
 	}
 	for _, e := range events {
