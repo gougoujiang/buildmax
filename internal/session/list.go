@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -38,6 +39,27 @@ func LoadList(dir string) ([]ListEntry, error) {
 		entries = []ListEntry{}
 	}
 	return entries, nil
+}
+
+// SortByCreatedAtDesc sorts entries in place by created_at descending (newest first).
+// Entries with invalid created_at are placed after valid ones; stable order is kept among ties and invalid rows.
+func SortByCreatedAtDesc(entries []ListEntry) {
+	sort.SliceStable(entries, func(i, j int) bool {
+		ti, ei := time.Parse(time.RFC3339, entries[i].CreatedAt)
+		tj, ej := time.Parse(time.RFC3339, entries[j].CreatedAt)
+		validI := ei == nil
+		validJ := ej == nil
+		if !validI && !validJ {
+			return false
+		}
+		if !validI {
+			return false
+		}
+		if !validJ {
+			return true
+		}
+		return ti.After(tj)
+	})
 }
 
 // UpsertListEntry loads the list from dir/sessions.json, upserts the entry by ID

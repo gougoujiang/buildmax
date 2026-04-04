@@ -108,6 +108,29 @@ func TestUpsertListEntry_UpdatesExisting(t *testing.T) {
 	}
 }
 
+func TestSortByCreatedAtDesc(t *testing.T) {
+	entries := []ListEntry{
+		{ID: "old", Title: "a", CreatedAt: "2026-01-31T10:00:00Z"},
+		{ID: "new", Title: "b", CreatedAt: "2026-01-31T14:00:00Z"},
+		{ID: "mid", Title: "c", CreatedAt: "2026-01-31T12:00:00Z"},
+	}
+	SortByCreatedAtDesc(entries)
+	if entries[0].ID != "new" || entries[1].ID != "mid" || entries[2].ID != "old" {
+		t.Errorf("order = %s, %s, %s, want new, mid, old", entries[0].ID, entries[1].ID, entries[2].ID)
+	}
+}
+
+func TestSortByCreatedAtDesc_InvalidTimesLast(t *testing.T) {
+	entries := []ListEntry{
+		{ID: "bad", Title: "x", CreatedAt: "not-a-date"},
+		{ID: "good", Title: "y", CreatedAt: "2026-01-31T12:00:00Z"},
+	}
+	SortByCreatedAtDesc(entries)
+	if entries[0].ID != "good" || entries[1].ID != "bad" {
+		t.Errorf("order = %s, %s, want good, bad", entries[0].ID, entries[1].ID)
+	}
+}
+
 func TestLastByCreatedAt_Empty(t *testing.T) {
 	got := LastByCreatedAt(nil)
 	if got != nil {

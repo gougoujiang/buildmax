@@ -349,6 +349,50 @@ func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
 	}
 }
 
+func TestSlashSessionListsNewestFirst(t *testing.T) {
+	sess := session.NewSession("")
+	dir := t.TempDir()
+	oldTime := "2026-01-01T10:00:00Z"
+	newTime := "2026-06-01T10:00:00Z"
+	if err := session.UpsertListEntry(dir, session.ListEntry{ID: "sess-old", Title: "older chat", CreatedAt: oldTime}); err != nil {
+		t.Fatalf("UpsertListEntry: %v", err)
+	}
+	if err := session.UpsertListEntry(dir, session.ListEntry{ID: "sess-new", Title: "newer chat", CreatedAt: newTime}); err != nil {
+		t.Fatalf("UpsertListEntry: %v", err)
+	}
+	m0 := NewModel(TUIOpts{
+		Session:     sess,
+		Version:     "0.0.1",
+		Workspace:   t.TempDir(),
+		SessionsDir: dir,
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/session")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	after := next.(*Model)
+	if after.sessionOverlay == nil {
+		t.Fatal("expected session overlay after /session")
+	}
+	if after.sessionOverlay.LoadError != "" || after.sessionOverlay.Empty {
+		t.Fatalf("unexpected overlay state: %+v", after.sessionOverlay)
+	}
+	if len(after.sessionOverlay.Lines) != 2 {
+		t.Fatalf("lines = %d, want 2: %v", len(after.sessionOverlay.Lines), after.sessionOverlay.Lines)
+	}
+	if !strings.Contains(after.sessionOverlay.Lines[0], "newer chat") || !strings.Contains(after.sessionOverlay.Lines[0], "sess-new") {
+		t.Errorf("first line should be newer session, got %q", after.sessionOverlay.Lines[0])
+	}
+	if !strings.Contains(after.sessionOverlay.Lines[1], "older chat") || !strings.Contains(after.sessionOverlay.Lines[1], "sess-old") {
+		t.Errorf("second line should be older session, got %q", after.sessionOverlay.Lines[1])
+	}
+	v := after.View()
+	if !strings.Contains(v, "Sessions (newest first)") {
+		t.Fatalf("view missing title, got %q", v[:min(400, len(v))])
+	}
+}
+
 func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
 	sess := session.NewSession("")
 	m := NewModel(TUIOpts{

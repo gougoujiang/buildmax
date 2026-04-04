@@ -89,7 +89,8 @@ type Model struct {
 	streamingBuffer string       // current turn's assistant text while streaming
 	streamChannel   chan tea.Msg // receives streamDeltaMsg and agentDoneMsg; set when agent run starts
 	mcpOverlay      *mcpOverlayState
-	slashPopup      *slashPopupState // live /command completion above input
+	sessionOverlay  *sessionOverlayState // /session list panel above the input
+	slashPopup      *slashPopupState    // live /command completion above input
 }
 
 // streamSinkToChannel implements agent.StreamSink by sending streamDeltaMsg to a channel.
@@ -208,6 +209,9 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.slashPopup != nil {
 			m.slashPopup = nil
 			return m, nil
+		}
+		if m.sessionOverlay != nil {
+			return closeSessionOverlay(m)
 		}
 		if m.mcpOverlay != nil {
 			return closeMCPOverlay(m)
@@ -428,6 +432,9 @@ func (m *Model) renderFooterView() string {
 	}
 
 	line2 := "ctrl+c: quit | esc: clear/dismiss | opt+mouse: select text | /… + ↑↓: commands"
+	if m.sessionOverlay != nil {
+		line2 += " | esc: close sessions panel"
+	}
 	if m.mcpOverlay != nil {
 		line2 += " | esc: close MCP panel"
 	}
@@ -443,6 +450,9 @@ func (m *Model) syncViewportSize() {
 	footerHeight := lipgloss.Height(m.renderFooterView())
 	extra := 0
 	if s := m.renderMCPInlinePanel(); s != "" {
+		extra += lipgloss.Height(s)
+	}
+	if s := m.renderSessionInlinePanel(); s != "" {
 		extra += lipgloss.Height(s)
 	}
 	if s := m.renderSlashPopupPanel(); s != "" {
@@ -494,6 +504,9 @@ func (m *Model) View() string {
 	m.syncViewportSize()
 	parts := []string{m.viewportBlock.View()}
 	if s := m.renderMCPInlinePanel(); s != "" {
+		parts = append(parts, s)
+	}
+	if s := m.renderSessionInlinePanel(); s != "" {
 		parts = append(parts, s)
 	}
 	if s := m.renderSlashPopupPanel(); s != "" {

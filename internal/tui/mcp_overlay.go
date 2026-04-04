@@ -170,16 +170,3 @@ func closeMCPOverlay(m *Model) (tea.Model, tea.Cmd) {
 	m.focusInput = true
 	return m, tea.Batch(textarea.Blink, m.inputBlock.Focus())
 }
-
-// dispatchSlashCommand runs a resolved system command (no session append).
-func dispatchSlashCommand(m *Model, cmd string) (tea.Model, tea.Cmd) {
-	switch cmd {
-	case "/mcp":
-		m.err = ""
-		m.mcpOverlay = &mcpOverlayState{Loading: true}
-		return m, runMCPProbeCmd(m.opts.Workspace)
-	default:
-		m.err = "unknown command " + cmd + " (try /mcp)"
-		return m, nil
-	}
-}

@@ -4,12 +4,14 @@ import (
 	"slices"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // builtinSlashCommands is sorted; add new system commands here for completion.
 var builtinSlashCommands = []string{
 	"/mcp",
+	"/session",
 }
 
 type slashPopupState struct {
@@ -102,4 +104,19 @@ func (m *Model) renderSlashPopupPanel() string {
 	b.WriteString(slashPopupLineStyle.Render("↑↓ select · enter run · esc dismiss"))
 	inner := strings.TrimRight(b.String(), "\n")
 	return mcpInlineBoxStyle.Width(boxW).Render(inner)
+}
+
+// dispatchSlashCommand runs a resolved system command (no session append).
+func dispatchSlashCommand(m *Model, cmd string) (tea.Model, tea.Cmd) {
+	switch cmd {
+	case "/mcp":
+		m.err = ""
+		m.mcpOverlay = &mcpOverlayState{Loading: true}
+		return m, runMCPProbeCmd(m.opts.Workspace)
+	case "/session":
+		return openSessionListOverlay(m)
+	default:
+		m.err = "unknown command " + cmd + " (try /mcp, /session)"
+		return m, nil
+	}
 }
