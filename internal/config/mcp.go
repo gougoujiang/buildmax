@@ -23,8 +23,10 @@ type MCPServerConfig struct {
 	URL     string            `json:"url"`
 }
 
-// ResolveMCPConfigPath returns the first existing MCP config file path, or "".
-// Order: BUILDMAX_MCP_CONFIG; <workspace>/.buildmax/mcp.json; <DataDir>/mcp.json.
+// ResolveMCPConfigPath returns one existing MCP config path for display or tooling, or "".
+// Order: BUILDMAX_MCP_CONFIG file; <workspace>/.buildmax/mcp.json; <DataDir>/mcp.json.
+// Note: when BUILDMAX_MCP_CONFIG is unset, LoadMCPConfigForWorkspace merges global and workspace
+// files if both exist; this function still returns only the first match in the list above.
 func ResolveMCPConfigPath(workspaceDir string) string {
 	if p := os.Getenv(EnvKeyBuildmaxMCPConfig); p != "" {
 		p = filepath.Clean(p)
@@ -45,12 +47,48 @@ func ResolveMCPConfigPath(workspaceDir string) string {
 	return ""
 }
 
-// LoadMCPConfigForWorkspace loads and validates mcp.json, or returns (nil, nil) if no file.
+// LoadMCPConfigForWorkspace loads and validates MCP config, or returns (nil, nil) if none.
+//
+// If BUILDMAX_MCP_CONFIG is set and that path exists as a file, only that file is loaded.
+// Otherwise it merges <DataDir>/mcp.json (global) with <workspace>/.buildmax/mcp.json when
+// workspaceDir is non-empty: all servers from both files are combined, and when a server id
+// appears in both, the workspace entry replaces the global one.
+//
+// After loading, $VAR and ${VAR} in each server's command, args, env values, and url are
+// expanded via mcpExpandMapping (built-in names such as EnvKeyBuildmaxWorkspaceRoot, then
+// os.Getenv). Additional built-ins can be added later; plugin-supplied values can hook in here.
 func LoadMCPConfigForWorkspace(workspaceDir string) (*MCPConfigRoot, error) {
-	path := ResolveMCPConfigPath(workspaceDir)
-	if path == "" {
+	if p := os.Getenv(EnvKeyBuildmaxMCPConfig); p != "" {
+		p = filepath.Clean(p)
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return loadMCPConfigFromFile(p, workspaceDir)
+		}
+	}
+
+	merged := MCPConfigRoot{MCPServers: map[string]MCPServerConfig{}}
+	globalPath := filepath.Join(DataDir(), "mcp.json")
+	if err := mergeMCPJSONFile(&merged, globalPath); err != nil {
+		return nil, err
+	}
+	if workspaceDir != "" {
+		wsPath := filepath.Join(workspaceDir, ".buildmax", "mcp.json")
+		if err := mergeMCPJSONFile(&merged, wsPath); err != nil {
+			return nil, err
+		}
+	}
+	if len(merged.MCPServers) == 0 {
 		return nil, nil
 	}
+	expandMCPConfigEnv(&merged, workspaceDir)
+	for id, s := range merged.MCPServers {
+		if err := validateMCPServerConfig(id, s); err != nil {
+			return nil, err
+		}
+	}
+	return &merged, nil
+}
+
+func loadMCPConfigFromFile(path, workspaceDir string) (*MCPConfigRoot, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("mcp config read %q: %w", path, err)
@@ -62,12 +100,73 @@ func LoadMCPConfigForWorkspace(workspaceDir string) (*MCPConfigRoot, error) {
 	if root.MCPServers == nil {
 		root.MCPServers = map[string]MCPServerConfig{}
 	}
+	expandMCPConfigEnv(&root, workspaceDir)
 	for id, s := range root.MCPServers {
 		if err := validateMCPServerConfig(id, s); err != nil {
 			return nil, err
 		}
 	}
 	return &root, nil
+}
+
+// mcpExpandMapping returns os.Expand mapping: built-in names first (from the loader), then
+// os.Getenv. EnvKeyBuildmaxWorkspaceRoot is always the workspaceDir argument, not the process env.
+func mcpExpandMapping(workspaceDir string) func(string) string {
+	return func(name string) string {
+		switch name {
+		case EnvKeyBuildmaxWorkspaceRoot:
+			return workspaceDir
+		default:
+			return os.Getenv(name)
+		}
+	}
+}
+
+// expandMCPConfigEnv replaces $VAR and ${VAR} in command, args, env values, and url for each
+// mcpServers entry using os.Expand and mcpExpandMapping. Unknown names use Getenv and become
+// empty if unset. Mutates root in place.
+func expandMCPConfigEnv(root *MCPConfigRoot, workspaceDir string) {
+	if root == nil || root.MCPServers == nil {
+		return
+	}
+	expand := mcpExpandMapping(workspaceDir)
+	for id := range root.MCPServers {
+		s := root.MCPServers[id]
+		s.Command = os.Expand(s.Command, expand)
+		for i := range s.Args {
+			s.Args[i] = os.Expand(s.Args[i], expand)
+		}
+		if s.Env != nil {
+			for k, v := range s.Env {
+				s.Env[k] = os.Expand(v, expand)
+			}
+		}
+		s.URL = os.Expand(s.URL, expand)
+		root.MCPServers[id] = s
+	}
+}
+
+// mergeMCPJSONFile parses path if the file exists; missing file is a no-op.
+// Existing keys in dst are overwritten by keys from the file.
+func mergeMCPJSONFile(dst *MCPConfigRoot, path string) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("mcp config read %q: %w", path, err)
+	}
+	var root MCPConfigRoot
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return fmt.Errorf("mcp config json %q: %w", path, err)
+	}
+	if root.MCPServers == nil {
+		return nil
+	}
+	for id, s := range root.MCPServers {
+		dst.MCPServers[id] = s
+	}
+	return nil
 }
 
 func validateMCPServerConfig(id string, s MCPServerConfig) error {

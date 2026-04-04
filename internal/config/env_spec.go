@@ -12,6 +12,8 @@ const (
 	// App data
 	EnvKeyBuildmaxHome          = "BUILDMAX_HOME"
 	EnvKeyBuildmaxMCPConfig     = "BUILDMAX_MCP_CONFIG"
+	// MCP mcp.json $VAR expansion: replaced by LoadMCPConfigForWorkspace(workspaceDir), not os.Getenv.
+	EnvKeyBuildmaxWorkspaceRoot = "BUILDMAX_WORKSPACE_ROOT"
 	EnvKeyBuildmaxWorkspacesDir = "BUILDMAX_WORKSPACES_DIR"
 	// Logging
 	EnvKeyBuildmaxLogLevel = "BUILDMAX_LOG_LEVEL"
@@ -67,7 +69,8 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxModel, DefaultModel, "LLM model name"},
 	// App data
 	{EnvKeyBuildmaxHome, "~/.buildmax", "Application data directory"},
-	{EnvKeyBuildmaxMCPConfig, "", "Optional path to mcp.json (overrides workspace/.buildmax/mcp.json and DataDir/mcp.json); CLI MCP only"},
+	{EnvKeyBuildmaxMCPConfig, "", "Optional path to mcp.json; if set and the file exists, only that file is used. Otherwise global DataDir/mcp.json and workspace .buildmax/mcp.json are merged (workspace wins on same server id); CLI MCP only"},
+	{EnvKeyBuildmaxWorkspaceRoot, "", "Name only for mcp.json $ expansion: expands to the workspace directory passed to LoadMCPConfigForWorkspace (not read from the process environment for expansion); CLI MCP only"},
 	{EnvKeyBuildmaxWorkspacesDir, "", "Parent of workspace roots (required for server mode; no default)"},
 	// Logging
 	{EnvKeyBuildmaxLogLevel, "info", "Log level: debug, info, warn, error, off"},
