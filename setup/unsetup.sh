@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tear down local dev: delete kind cluster and stop MinIO/MySQL port-forwards.
+# Tear down local dev: delete kind cluster and stop MinIO/MySQL/Redis port-forwards.
 # Brew-installed tools (kind, helm, kubectl, awscli) are not removed.
 set -e
 
@@ -7,11 +7,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CLUSTER_NAME="${BUILDMAX_KIND_CLUSTER:-buildmaxdev}"
 PID_FILE="$SCRIPT_DIR/.port-forward.pid"
 PID_FILE_MYSQL="$SCRIPT_DIR/.port-forward-mysql.pid"
+PID_FILE_REDIS="$SCRIPT_DIR/.port-forward-redis.pid"
 
 log() { echo "[unsetup] $*"; }
 
 # Stop port-forwards if we started them
-for pf in "$PID_FILE" "$PID_FILE_MYSQL"; do
+for pf in "$PID_FILE" "$PID_FILE_MYSQL" "$PID_FILE_REDIS"; do
   if [[ -f "$pf" ]]; then
     pid=$(cat "$pf")
     if kill -0 "$pid" 2>/dev/null; then

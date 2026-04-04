@@ -1,4 +1,4 @@
-# Local setup (kind + MinIO + MySQL + Ingress)
+# Local setup (kind + MinIO + MySQL + Redis + Ingress)
 
 From the repo root, run:
 
@@ -14,6 +14,7 @@ This script is idempotent and will:
 - Deploy whoami in namespace `test` for ingress testing
 - Create namespace `storage`, deploy MinIO, create bucket `bmstore`
 - Deploy MySQL in namespace `db` and start port-forward to localhost:3306
+- Deploy Redis in namespace `db` and start port-forward to localhost:6379
 - Start MinIO port-forwards (9000, 9001) and create the S3 bucket
 - Run a small test job
 

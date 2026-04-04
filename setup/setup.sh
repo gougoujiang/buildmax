@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CLUSTER_NAME="${BUILDMAX_KIND_CLUSTER:-buildmaxdev}"
 PID_FILE="$SCRIPT_DIR/.port-forward.pid"
 PID_FILE_MYSQL="$SCRIPT_DIR/.port-forward-mysql.pid"
+PID_FILE_REDIS="$SCRIPT_DIR/.port-forward-redis.pid"
 
 log() { echo "[setup] $*"; }
 
@@ -133,6 +134,34 @@ ensure_mysql() {
   fi
 }
 
+# --- Redis in cluster (namespace db) ---
+ensure_redis() {
+  log "Applying Redis manifest..."
+  kubectl apply -f "$SCRIPT_DIR/redis.yaml"
+
+  log "Waiting for Redis deployment to be ready..."
+  kubectl wait --for=condition=Available deployment/redis -n db --timeout=120s
+
+  if [[ -f "$PID_FILE_REDIS" ]]; then
+    local pid
+    pid=$(cat "$PID_FILE_REDIS")
+    if kill -0 "$pid" 2>/dev/null; then
+      log "Redis port-forward already running (PID $pid)"
+      return 0
+    fi
+    rm -f "$PID_FILE_REDIS"
+  fi
+  log "Starting port-forward for Redis (6379)..."
+  kubectl port-forward svc/redis 6379:6379 -n db &>/dev/null &
+  echo $! > "$PID_FILE_REDIS"
+  sleep 1
+  if ! kill -0 "$(cat "$PID_FILE_REDIS")" 2>/dev/null; then
+    log "Redis port-forward failed to start"
+    rm -f "$PID_FILE_REDIS"
+    return 1
+  fi
+}
+
 # --- Port-forward and S3 bucket (local) ---
 ensure_bucket_via_portforward() {
   # Stop any existing port-forward we started
@@ -199,10 +228,11 @@ main() {
   ensure_whoami_ingress_test
   ensure_storage
   ensure_mysql
+  ensure_redis
   ensure_bucket_via_portforward
   ensure_test_job
-  log "Setup done. MinIO: http://localhost:9000 (API), http://localhost:9001 (console). MySQL: localhost:3306 (user buildmax, DB buildmax)."
-  log "Port-forwards: $PID_FILE (MinIO), $PID_FILE_MYSQL (MySQL). Use './make unsetup' to tear down cluster and stop port-forwards."
+  log "Setup done. MinIO: http://localhost:9000 (API), http://localhost:9001 (console). MySQL: localhost:3306 (user buildmax, DB buildmax). Redis: localhost:6379."
+  log "Port-forwards: $PID_FILE (MinIO), $PID_FILE_MYSQL (MySQL), $PID_FILE_REDIS (Redis). Use './make unsetup' to tear down cluster and stop port-forwards."
   log "For Ingress: add '127.0.0.1 whoami.kind.local' and/or '127.0.0.1 buildmax.kind.local' to /etc/hosts."
 }
 
