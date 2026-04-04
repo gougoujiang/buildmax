@@ -11,6 +11,7 @@ const (
 	EnvKeyBuildmaxModel   = "BUILDMAX_MODEL"
 	// App data
 	EnvKeyBuildmaxHome          = "BUILDMAX_HOME"
+	EnvKeyBuildmaxMCPConfig     = "BUILDMAX_MCP_CONFIG"
 	EnvKeyBuildmaxWorkspacesDir = "BUILDMAX_WORKSPACES_DIR"
 	// Logging
 	EnvKeyBuildmaxLogLevel = "BUILDMAX_LOG_LEVEL"
@@ -66,6 +67,7 @@ var EnvVars = []EnvVar{
 	{EnvKeyBuildmaxModel, DefaultModel, "LLM model name"},
 	// App data
 	{EnvKeyBuildmaxHome, "~/.buildmax", "Application data directory"},
+	{EnvKeyBuildmaxMCPConfig, "", "Optional path to mcp.json (overrides workspace/.buildmax/mcp.json and DataDir/mcp.json); CLI MCP only"},
 	{EnvKeyBuildmaxWorkspacesDir, "", "Parent of workspace roots (required for server mode; no default)"},
 	// Logging
 	{EnvKeyBuildmaxLogLevel, "info", "Log level: debug, info, warn, error, off"},

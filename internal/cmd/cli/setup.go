@@ -15,6 +15,7 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 	rt, err := agentrun.Open(agentrun.OpenInput{
 		SessionID:     sessionID,
 		ModelSelector: modelSelector,
+		EnableMCP:     true,
 	})
 	if err != nil {
 		return setupResult{}, err

@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"buildmax/internal/agent"
 	"buildmax/internal/config"
 	"buildmax/internal/core"
 	"buildmax/internal/llm"
+	"buildmax/internal/mcpservers"
 	"buildmax/internal/session"
 	"buildmax/internal/tools"
 	"buildmax/internal/util"
@@ -25,6 +27,9 @@ type Runtime struct {
 	SessionsDir string
 	Workspace   string
 	ModelName   string
+
+	mcpCloseOnce sync.Once
+	mcpCleanup   func()
 }
 
 // OpenInput configures Runtime creation.
@@ -32,6 +37,8 @@ type OpenInput struct {
 	WorkspaceDir  string
 	SessionID     string
 	ModelSelector string
+	// EnableMCP, when true, loads mcp.json (CLI only) and registers LoadMcpTools + CallMcpTool.
+	EnableMCP bool
 }
 
 // RunInput configures one agent run.
@@ -83,6 +90,28 @@ func Open(in OpenInput) (*Runtime, error) {
 		return nil, err
 	}
 
+	var mcpCleanup func()
+	if in.EnableMCP {
+		mcpCfg, mcpErr := config.LoadMCPConfigForWorkspace(workspaceDir)
+		if mcpErr != nil {
+			slog.Error("load mcp config", "err", mcpErr)
+			return nil, mcpErr
+		}
+		if mcpCfg != nil && len(mcpCfg.MCPServers) > 0 {
+			ctx := context.Background()
+			reg, regErr := mcpservers.NewRegistry(ctx, mcpCfg, nil)
+			if regErr != nil {
+				slog.Error("mcp registry", "err", regErr)
+				return nil, fmt.Errorf("mcp: %w", regErr)
+			}
+			mcpCleanup = func() { _ = reg.Close() }
+			for _, t := range mcpservers.GatewayTools(reg) {
+				baseTools = append(baseTools, t)
+				toolsByName[t.Name()] = t
+			}
+		}
+	}
+
 	agentTypes := buildAgentTypes(baseTools, toolsByName, workspaceDir)
 
 	runner, err := agent.NewDefaultSubAgentRunner(client)
@@ -124,7 +153,22 @@ func Open(in OpenInput) (*Runtime, error) {
 		SessionsDir: sessionsDir,
 		Workspace:   workspaceDir,
 		ModelName:   modelName,
+		mcpCleanup:  mcpCleanup,
 	}, nil
+}
+
+// Close releases resources held by the runtime (e.g. MCP client sessions when EnableMCP was used).
+// Safe to call multiple times.
+func (r *Runtime) Close() {
+	if r == nil {
+		return
+	}
+	r.mcpCloseOnce.Do(func() {
+		if r.mcpCleanup != nil {
+			r.mcpCleanup()
+			r.mcpCleanup = nil
+		}
+	})
 }
 
 // RunPrompt executes one user prompt, persists the session, and returns run metadata.

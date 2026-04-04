@@ -18,6 +18,7 @@ func runTUI(resumeID string, modelSelector string) error {
 	if err != nil {
 		return err
 	}
+	defer res.Runtime.Close()
 	var userEmail string
 	if creds, err := auth.Load(config.AuthPath()); err == nil && creds != nil {
 		userEmail = creds.Email

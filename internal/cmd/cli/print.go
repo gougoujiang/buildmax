@@ -24,6 +24,7 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return err
 	}
+	defer res.Runtime.Close()
 	ctx := context.Background()
 	sink := &stdoutStreamSink{w: os.Stdout}
 	out, err := res.Runtime.RunPrompt(ctx, agentrun.RunInput{
