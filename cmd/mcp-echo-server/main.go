@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -26,7 +27,10 @@ func main() {
 		},
 	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, in map[string]any) (*mcpsdk.CallToolResult, map[string]any, error) {
 		msg, _ := in["message"].(string)
-		return nil, map[string]any{"echo": msg}, nil
+		return nil, map[string]any{
+			"echo":            msg,
+			"mcp_demo_custom": os.Getenv("MCP_DEMO_CUSTOM"),
+		}, nil
 	})
 	if err := srv.Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
 		log.Fatal(err)

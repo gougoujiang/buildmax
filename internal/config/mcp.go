@@ -55,8 +55,9 @@ func ResolveMCPConfigPath(workspaceDir string) string {
 // appears in both, the workspace entry replaces the global one.
 //
 // After loading, $VAR and ${VAR} in each server's command, args, env values, and url are
-// expanded via mcpExpandMapping (built-in names such as EnvKeyBuildmaxWorkspaceRoot, then
-// os.Getenv). Additional built-ins can be added later; plugin-supplied values can hook in here.
+// expanded against a variable table: snapshot of the process environment (os.Environ) plus
+// EnvKeyBuildmaxWorkspaceRoot set to workspaceDir (overrides the same key from the env if present).
+// More entries can be merged into that table later (e.g. plugin-injected vars).
 func LoadMCPConfigForWorkspace(workspaceDir string) (*MCPConfigRoot, error) {
 	if p := os.Getenv(EnvKeyBuildmaxMCPConfig); p != "" {
 		p = filepath.Clean(p)
@@ -109,22 +110,26 @@ func loadMCPConfigFromFile(path, workspaceDir string) (*MCPConfigRoot, error) {
 	return &root, nil
 }
 
-// mcpExpandMapping returns os.Expand mapping: built-in names first (from the loader), then
-// os.Getenv. EnvKeyBuildmaxWorkspaceRoot is always the workspaceDir argument, not the process env.
+// mcpExpandMapping returns an os.Expand lookup: all current process env vars, then
+// EnvKeyBuildmaxWorkspaceRoot = workspaceDir (loader wins over a duplicate env key).
 func mcpExpandMapping(workspaceDir string) func(string) string {
-	return func(name string) string {
-		switch name {
-		case EnvKeyBuildmaxWorkspaceRoot:
-			return workspaceDir
-		default:
-			return os.Getenv(name)
+	vars := make(map[string]string, 32+len(os.Environ()))
+	for _, e := range os.Environ() {
+		i := strings.IndexByte(e, '=')
+		if i <= 0 {
+			continue
 		}
+		vars[e[:i]] = e[i+1:]
+	}
+	vars[EnvKeyBuildmaxWorkspaceRoot] = workspaceDir
+	return func(name string) string {
+		return vars[name]
 	}
 }
 
 // expandMCPConfigEnv replaces $VAR and ${VAR} in command, args, env values, and url for each
-// mcpServers entry using os.Expand and mcpExpandMapping. Unknown names use Getenv and become
-// empty if unset. Mutates root in place.
+// mcpServers entry using os.Expand and the variable table from mcpExpandMapping. Missing names
+// expand to empty. Mutates root in place.
 func expandMCPConfigEnv(root *MCPConfigRoot, workspaceDir string) {
 	if root == nil || root.MCPServers == nil {
 		return

@@ -70,7 +70,7 @@ var EnvVars = []EnvVar{
 	// App data
 	{EnvKeyBuildmaxHome, "~/.buildmax", "Application data directory"},
 	{EnvKeyBuildmaxMCPConfig, "", "Optional path to mcp.json; if set and the file exists, only that file is used. Otherwise global DataDir/mcp.json and workspace .buildmax/mcp.json are merged (workspace wins on same server id); CLI MCP only"},
-	{EnvKeyBuildmaxWorkspaceRoot, "", "Name only for mcp.json $ expansion: expands to the workspace directory passed to LoadMCPConfigForWorkspace (not read from the process environment for expansion); CLI MCP only"},
+	{EnvKeyBuildmaxWorkspaceRoot, "", "mcp.json $ expansion: value is the workspace directory passed to LoadMCPConfigForWorkspace (overrides this key from the process env in the expansion table); CLI MCP only"},
 	{EnvKeyBuildmaxWorkspacesDir, "", "Parent of workspace roots (required for server mode; no default)"},
 	// Logging
 	{EnvKeyBuildmaxLogLevel, "info", "Log level: debug, info, warn, error, off"},
