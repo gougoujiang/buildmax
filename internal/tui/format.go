@@ -144,10 +144,10 @@ func indentLines(s string, spaces int) string {
 
 // ViewportContentOpts holds display options for building viewport content (version, width, busy state, carousel, streaming tail).
 type ViewportContentOpts struct {
-	Version      string
-	Width        int
-	Busy         bool
-	CarouselDots int
+	Version       string
+	Width         int
+	Busy          bool
+	CarouselDots  int
 	StreamingTail string
 }
 

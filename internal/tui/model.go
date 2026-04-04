@@ -88,6 +88,8 @@ type Model struct {
 	lastScrollID    int          // used to ignore stale scroll-idle timers when user scrolls again
 	streamingBuffer string       // current turn's assistant text while streaming
 	streamChannel   chan tea.Msg // receives streamDeltaMsg and agentDoneMsg; set when agent run starts
+	mcpOverlay      *mcpOverlayState
+	slashPopup      *slashPopupState // live /command completion above input
 }
 
 // streamSinkToChannel implements agent.StreamSink by sending streamDeltaMsg to a channel.
@@ -178,6 +180,20 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		vpCmd := m.viewportBlock.Update(msg)
 		return m, tea.Batch(vpCmd, m.scheduleScrollIdleReturn())
 	}
+	if m.focusInput && m.slashPopup != nil && len(m.slashPopup.matches) > 0 {
+		switch msg.Type {
+		case tea.KeyUp:
+			if m.slashPopup.selected > 0 {
+				m.slashPopup.selected--
+			} else {
+				m.slashPopup.selected = len(m.slashPopup.matches) - 1
+			}
+			return m, nil
+		case tea.KeyDown:
+			m.slashPopup.selected = (m.slashPopup.selected + 1) % len(m.slashPopup.matches)
+			return m, nil
+		}
+	}
 	if m.focusInput && isScrollKey(msg) {
 		m.focusInput = false
 		m.inputBlock.Blur()
@@ -186,18 +202,43 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.Type {
 	case tea.KeyEscape:
-		if !m.busy {
-			m.inputBlock.Reset()
-			m.inputBlock.SyncHeight()
+		if m.busy {
+			return m, nil
 		}
+		if m.slashPopup != nil {
+			m.slashPopup = nil
+			return m, nil
+		}
+		if m.mcpOverlay != nil {
+			return closeMCPOverlay(m)
+		}
+		m.inputBlock.Reset()
+		m.inputBlock.SyncHeight()
 		return m, nil
 	case tea.KeyEnter:
 		if m.busy {
 			return m, nil
 		}
+		if m.slashPopup != nil && len(m.slashPopup.matches) > 0 {
+			cmd := m.slashPopup.matches[m.slashPopup.selected]
+			m.slashPopup = nil
+			m.inputBlock.Reset()
+			m.inputBlock.SyncHeight()
+			return dispatchSlashCommand(m, cmd)
+		}
 		text := strings.TrimSpace(m.inputBlock.Value())
 		if text == "" {
 			return m, nil
+		}
+		if strings.HasPrefix(text, "/") {
+			m.inputBlock.Reset()
+			m.inputBlock.SyncHeight()
+			m.slashPopup = nil
+			parts := strings.Fields(text)
+			if len(parts) == 0 {
+				return m, nil
+			}
+			return dispatchSlashCommand(m, parts[0])
 		}
 		m.inputBlock.Reset()
 		m.inputBlock.SyncHeight()
@@ -216,6 +257,7 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	cmd := m.inputBlock.Update(msg)
 	m.inputBlock.SyncHeight()
+	m.syncSlashPopupFromInput()
 	return m, cmd
 }
 
@@ -234,6 +276,7 @@ func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 		Version: m.opts.Version, Width: m.width,
 		Busy: m.busy, CarouselDots: m.carouselDots, StreamingTail: m.streamingBuffer,
 	})
+	m.syncSlashPopupFromInput()
 	return m, nil
 }
 
@@ -384,7 +427,10 @@ func (m *Model) renderFooterView() string {
 		line1 += " | " + m.opts.UserEmail
 	}
 
-	line2 := "ctrl+c: quit | esc: clear/focus input | opt+mouse: select text"
+	line2 := "ctrl+c: quit | esc: clear/dismiss | opt+mouse: select text | /… + ↑↓: commands"
+	if m.mcpOverlay != nil {
+		line2 += " | esc: close MCP panel"
+	}
 	if m.err != "" {
 		line2 += " | error: " + m.err
 	}
@@ -395,7 +441,14 @@ func (m *Model) syncViewportSize() {
 	wasAtBottom := m.viewportBlock.AtBottom()
 	inputHeight := lipgloss.Height(m.renderInputView())
 	footerHeight := lipgloss.Height(m.renderFooterView())
-	vpHeight := m.height - inputHeight - footerHeight
+	extra := 0
+	if s := m.renderMCPInlinePanel(); s != "" {
+		extra += lipgloss.Height(s)
+	}
+	if s := m.renderSlashPopupPanel(); s != "" {
+		extra += lipgloss.Height(s)
+	}
+	vpHeight := m.height - inputHeight - footerHeight - extra
 	if vpHeight < 1 {
 		vpHeight = 1
 	}
@@ -424,21 +477,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleMouseMsg(m, msg)
 	case scrollIdleMsg:
 		return handleScrollIdle(m, msg)
+	case mcpProbeDoneMsg:
+		return handleMCPProbeDone(m, msg)
 	default:
 		cmd := m.inputBlock.Update(msg)
 		m.inputBlock.SyncHeight()
+		m.syncSlashPopupFromInput()
 		return m, cmd
 	}
 }
 
-// View renders viewport, input, and footer.
+// View renders viewport, optional MCP panel and slash popup above the input, then footer.
 func (m *Model) View() string {
 	inputView := m.renderInputView()
 	footerView := m.renderFooterView()
 	m.syncViewportSize()
-	return strings.Join([]string{
-		m.viewportBlock.View(),
-		inputView,
-		footerView,
-	}, "\n")
+	parts := []string{m.viewportBlock.View()}
+	if s := m.renderMCPInlinePanel(); s != "" {
+		parts = append(parts, s)
+	}
+	if s := m.renderSlashPopupPanel(); s != "" {
+		parts = append(parts, s)
+	}
+	parts = append(parts, inputView, footerView)
+	return strings.Join(parts, "\n")
 }

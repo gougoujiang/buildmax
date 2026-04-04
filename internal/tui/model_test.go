@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"buildmax/internal/llm"
+	"buildmax/internal/mcpservers"
 	"buildmax/internal/session"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -303,6 +304,117 @@ func TestMouseWheelOverInputScrollsTextareaInsteadOfChat(t *testing.T) {
 	}
 	if !strings.Contains(after, "chat-bottom") {
 		t.Fatalf("mouse wheel over input should not hide chat viewport content, got %q", after)
+	}
+}
+
+func TestSlashCompletionShowsPrefixMatch(t *testing.T) {
+	m0 := NewModel(TUIOpts{
+		Session:   session.NewSession(""),
+		Version:   "0.0.1",
+		Workspace: t.TempDir(),
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/mc")
+	mod.inputBlock.SyncHeight()
+	mod.syncSlashPopupFromInput()
+	if mod.slashPopup == nil || len(mod.slashPopup.matches) != 1 || mod.slashPopup.matches[0] != "/mcp" {
+		t.Fatalf("slashPopup=%+v", mod.slashPopup)
+	}
+	v := mod.View()
+	if !strings.Contains(v, "/mcp") || !strings.Contains(v, "Commands") {
+		t.Fatalf("view should list command, got: %s", v[:min(500, len(v))])
+	}
+}
+
+func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
+	sess := session.NewSession("")
+	m := NewModel(TUIOpts{
+		Session:   sess,
+		Version:   "0.0.1",
+		Workspace: t.TempDir(),
+	})
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	mod := m2.(*Model)
+	mod.inputBlock.SetValue("/nope")
+	mod.inputBlock.SyncHeight()
+	before := len(mod.opts.Session.Messages())
+	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	after := next.(*Model)
+	if len(after.opts.Session.Messages()) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages()))
+	}
+	if after.err == "" {
+		t.Fatal("expected footer error for unknown slash command")
+	}
+}
+
+func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
+	sess := session.NewSession("")
+	m := NewModel(TUIOpts{
+		Session:   sess,
+		Version:   "0.0.1",
+		Workspace: t.TempDir(),
+	})
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	mod := m2.(*Model)
+	mod.inputBlock.SetValue("/mcp")
+	mod.inputBlock.SyncHeight()
+	next, cmd := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	loading := next.(*Model)
+	if loading.mcpOverlay == nil || !loading.mcpOverlay.Loading {
+		t.Fatal("expected MCP overlay loading after /mcp")
+	}
+	if cmd == nil {
+		t.Fatal("expected probe command")
+	}
+	msg := cmd()
+	final, _ := loading.Update(msg)
+	fm := final.(*Model)
+	if fm.mcpOverlay == nil {
+		t.Fatal("overlay should remain open after probe")
+	}
+	if fm.mcpOverlay.Loading {
+		t.Fatal("overlay should not be loading after probe done")
+	}
+	if !fm.mcpOverlay.Empty {
+		t.Fatal("expected empty MCP config in temp workspace")
+	}
+}
+
+func TestMCPOverlayEscClosesAndProbeDoneShowsRows(t *testing.T) {
+	sess := session.NewSession("")
+	m0 := NewModel(TUIOpts{
+		Session:   sess,
+		Version:   "0.0.1",
+		Workspace: t.TempDir(),
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 18})
+	mod := m1.(*Model)
+	mod.mcpOverlay = &mcpOverlayState{Loading: true}
+	next, _ := mod.Update(mcpProbeDoneMsg{
+		Rows: []mcpservers.MCPServerProbeRow{
+			{ID: "a", Type: "stdio", OK: true, ToolCount: 2},
+		},
+	})
+	fm := next.(*Model)
+	if fm.mcpOverlay == nil || fm.mcpOverlay.Loading {
+		t.Fatal("expected overlay with rows")
+	}
+	if len(fm.mcpOverlay.Rows) != 1 {
+		t.Fatalf("rows=%d", len(fm.mcpOverlay.Rows))
+	}
+	out := fm.View()
+	if !strings.Contains(out, "a") || !strings.Contains(out, "connected") {
+		t.Fatalf("view should list server, got: %s", out[:min(400, len(out))])
+	}
+	next2, _ := fm.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	closed := next2.(*Model)
+	if closed.mcpOverlay != nil {
+		t.Fatal("esc should close MCP overlay")
+	}
+	if !closed.FocusInput() {
+		t.Fatal("esc should return focus to input")
 	}
 }
 
