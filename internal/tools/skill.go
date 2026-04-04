@@ -30,7 +30,7 @@ type SkillTool struct {
 // Missing directories are silently skipped. If multiple search paths contain a skill
 // with the same name, the first one found wins (search paths are priority-ordered).
 func NewSkill(searchPaths []string) (*SkillTool, error) {
-	skills := discoverSkills(searchPaths)
+	skills := DiscoverSkillEntries(searchPaths)
 	byName := make(map[string]SkillEntry, len(skills))
 	for _, s := range skills {
 		byName[s.Name] = s
@@ -121,9 +121,11 @@ func (s *SkillTool) Execute(ctx context.Context, args map[string]any) (string, e
 	return content, nil
 }
 
-// discoverSkills scans search paths for subdirectories containing SKILL.md.
+// DiscoverSkillEntries scans search paths for subdirectories containing SKILL.md.
 // First-path-wins on name conflicts. Returns skills sorted alphabetically by name.
-func discoverSkills(searchPaths []string) []SkillEntry {
+// This is the single discovery implementation used by NewSkill and other callers
+// that need a listing (e.g. TUI /skills).
+func DiscoverSkillEntries(searchPaths []string) []SkillEntry {
 	seen := make(map[string]bool)
 	var skills []SkillEntry
 

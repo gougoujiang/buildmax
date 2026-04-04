@@ -12,6 +12,7 @@ import (
 var builtinSlashCommands = []string{
 	"/mcp",
 	"/session",
+	"/skills",
 }
 
 type slashPopupState struct {
@@ -115,8 +116,10 @@ func dispatchSlashCommand(m *Model, cmd string) (tea.Model, tea.Cmd) {
 		return m, runMCPProbeCmd(m.opts.Workspace)
 	case "/session":
 		return openSessionListOverlay(m)
+	case "/skills":
+		return openSkillsOverlay(m)
 	default:
-		m.err = "unknown command " + cmd + " (try /mcp, /session)"
+		m.err = "unknown command " + cmd + " (try /mcp, /session, /skills)"
 		return m, nil
 	}
 }

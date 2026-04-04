@@ -89,6 +89,7 @@ type Model struct {
 	streamingBuffer string       // current turn's assistant text while streaming
 	streamChannel   chan tea.Msg // receives streamDeltaMsg and agentDoneMsg; set when agent run starts
 	mcpOverlay      *mcpOverlayState
+	skillsOverlay   *skillsOverlayState // /skills list panel above the input
 	sessionOverlay  *sessionOverlayState // /session list panel above the input
 	slashPopup      *slashPopupState    // live /command completion above input
 }
@@ -212,6 +213,9 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.sessionOverlay != nil {
 			return closeSessionOverlay(m)
+		}
+		if m.skillsOverlay != nil {
+			return closeSkillsOverlay(m)
 		}
 		if m.mcpOverlay != nil {
 			return closeMCPOverlay(m)
@@ -435,6 +439,9 @@ func (m *Model) renderFooterView() string {
 	if m.sessionOverlay != nil {
 		line2 += " | esc: close sessions panel"
 	}
+	if m.skillsOverlay != nil {
+		line2 += " | esc: close skills panel"
+	}
 	if m.mcpOverlay != nil {
 		line2 += " | esc: close MCP panel"
 	}
@@ -450,6 +457,9 @@ func (m *Model) syncViewportSize() {
 	footerHeight := lipgloss.Height(m.renderFooterView())
 	extra := 0
 	if s := m.renderMCPInlinePanel(); s != "" {
+		extra += lipgloss.Height(s)
+	}
+	if s := m.renderSkillsInlinePanel(); s != "" {
 		extra += lipgloss.Height(s)
 	}
 	if s := m.renderSessionInlinePanel(); s != "" {
@@ -497,13 +507,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// View renders viewport, optional MCP panel and slash popup above the input, then footer.
+// View renders viewport, optional MCP/skills/session panels and slash popup above the input, then footer.
 func (m *Model) View() string {
 	inputView := m.renderInputView()
 	footerView := m.renderFooterView()
 	m.syncViewportSize()
 	parts := []string{m.viewportBlock.View()}
 	if s := m.renderMCPInlinePanel(); s != "" {
+		parts = append(parts, s)
+	}
+	if s := m.renderSkillsInlinePanel(); s != "" {
 		parts = append(parts, s)
 	}
 	if s := m.renderSessionInlinePanel(); s != "" {

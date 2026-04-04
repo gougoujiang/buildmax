@@ -21,11 +21,11 @@ func setupSkillDir(t *testing.T, parent, name, content string) string {
 	return dir
 }
 
-func TestDiscoverSkills_ValidSkill(t *testing.T) {
+func TestDiscoverSkillEntries_ValidSkill(t *testing.T) {
 	tmp := t.TempDir()
 	setupSkillDir(t, tmp, "greet", "# Greet Skill\n\nA friendly greeting skill.\n\nDo something.")
 
-	skills := discoverSkills([]string{tmp})
+	skills := DiscoverSkillEntries([]string{tmp})
 	if len(skills) != 1 {
 		t.Fatalf("expected 1 skill, got %d", len(skills))
 	}
@@ -37,33 +37,33 @@ func TestDiscoverSkills_ValidSkill(t *testing.T) {
 	}
 }
 
-func TestDiscoverSkills_MissingDir(t *testing.T) {
-	skills := discoverSkills([]string{filepath.Join(t.TempDir(), "nonexistent")})
+func TestDiscoverSkillEntries_MissingDir(t *testing.T) {
+	skills := DiscoverSkillEntries([]string{filepath.Join(t.TempDir(), "nonexistent")})
 	if len(skills) != 0 {
 		t.Fatalf("expected 0 skills from missing dir, got %d", len(skills))
 	}
 }
 
-func TestDiscoverSkills_DirWithoutSkillMD(t *testing.T) {
+func TestDiscoverSkillEntries_DirWithoutSkillMD(t *testing.T) {
 	tmp := t.TempDir()
 	// Create a subdirectory without SKILL.md
 	if err := os.MkdirAll(filepath.Join(tmp, "noskill"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	skills := discoverSkills([]string{tmp})
+	skills := DiscoverSkillEntries([]string{tmp})
 	if len(skills) != 0 {
 		t.Fatalf("expected 0 skills (no SKILL.md), got %d", len(skills))
 	}
 }
 
-func TestDiscoverSkills_FirstPathWins(t *testing.T) {
+func TestDiscoverSkillEntries_FirstPathWins(t *testing.T) {
 	path1 := t.TempDir()
 	path2 := t.TempDir()
 	setupSkillDir(t, path1, "dupe", "# Dupe\n\nFirst path version.")
 	setupSkillDir(t, path2, "dupe", "# Dupe\n\nSecond path version.")
 
-	skills := discoverSkills([]string{path1, path2})
+	skills := DiscoverSkillEntries([]string{path1, path2})
 	if len(skills) != 1 {
 		t.Fatalf("expected 1 skill (deduped), got %d", len(skills))
 	}
@@ -72,13 +72,13 @@ func TestDiscoverSkills_FirstPathWins(t *testing.T) {
 	}
 }
 
-func TestDiscoverSkills_SortedAlphabetically(t *testing.T) {
+func TestDiscoverSkillEntries_SortedAlphabetically(t *testing.T) {
 	tmp := t.TempDir()
 	setupSkillDir(t, tmp, "zeta", "# Zeta\n\nZeta skill.")
 	setupSkillDir(t, tmp, "alpha", "# Alpha\n\nAlpha skill.")
 	setupSkillDir(t, tmp, "mid", "# Mid\n\nMid skill.")
 
-	skills := discoverSkills([]string{tmp})
+	skills := DiscoverSkillEntries([]string{tmp})
 	if len(skills) != 3 {
 		t.Fatalf("expected 3 skills, got %d", len(skills))
 	}
@@ -87,7 +87,7 @@ func TestDiscoverSkills_SortedAlphabetically(t *testing.T) {
 	}
 }
 
-func TestDiscoverSkills_FileInSearchPathIgnored(t *testing.T) {
+func TestDiscoverSkillEntries_FileInSearchPathIgnored(t *testing.T) {
 	tmp := t.TempDir()
 	// Create a regular file (not a directory) in the search path — should be ignored.
 	if err := os.WriteFile(filepath.Join(tmp, "notadir.md"), []byte("hello"), 0644); err != nil {
@@ -95,7 +95,7 @@ func TestDiscoverSkills_FileInSearchPathIgnored(t *testing.T) {
 	}
 	setupSkillDir(t, tmp, "real", "# Real\n\nA real skill.")
 
-	skills := discoverSkills([]string{tmp})
+	skills := DiscoverSkillEntries([]string{tmp})
 	if len(skills) != 1 {
 		t.Fatalf("expected 1 skill, got %d", len(skills))
 	}

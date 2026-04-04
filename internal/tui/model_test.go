@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -347,6 +349,9 @@ func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
 	if after.err == "" {
 		t.Fatal("expected footer error for unknown slash command")
 	}
+	if !strings.Contains(after.err, "/skills") || !strings.Contains(after.err, "/mcp") {
+		t.Fatalf("error should mention builtins, got %q", after.err)
+	}
 }
 
 func TestSlashSessionListsNewestFirst(t *testing.T) {
@@ -390,6 +395,106 @@ func TestSlashSessionListsNewestFirst(t *testing.T) {
 	v := after.View()
 	if !strings.Contains(v, "Sessions (newest first)") {
 		t.Fatalf("view missing title, got %q", v[:min(400, len(v))])
+	}
+}
+
+func TestSlashSkillsDoesNotAppendSession(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := session.NewSession("")
+	ws := t.TempDir()
+	m := NewModel(TUIOpts{
+		Session:   sess,
+		Version:   "0.0.1",
+		Workspace: ws,
+	})
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
+	mod := m2.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	before := len(mod.opts.Session.Messages())
+	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	after := next.(*Model)
+	if len(after.opts.Session.Messages()) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages()))
+	}
+	if after.skillsOverlay == nil {
+		t.Fatal("expected skills overlay after /skills")
+	}
+	if after.busy {
+		t.Fatal("slash command must not start agent")
+	}
+}
+
+func TestSlashSkillsOpensOverlayAndEscCloses(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := session.NewSession("")
+	ws := t.TempDir()
+	skillRoot := filepath.Join(ws, ".buildmax", "skills", "listdemo")
+	if err := os.MkdirAll(skillRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := "# Listdemo\n\nA skill for the TUI list test.\n"
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m0 := NewModel(TUIOpts{
+		Session:   sess,
+		Version:   "0.0.1",
+		Workspace: ws,
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	after := next.(*Model)
+	if after.skillsOverlay == nil {
+		t.Fatal("expected skills overlay")
+	}
+	if len(after.skillsOverlay.Entries) != 1 {
+		t.Fatalf("entries=%d want 1: %+v", len(after.skillsOverlay.Entries), after.skillsOverlay.Entries)
+	}
+	if after.skillsOverlay.Entries[0].Name != "listdemo" {
+		t.Errorf("skill name=%q", after.skillsOverlay.Entries[0].Name)
+	}
+	v := after.View()
+	if !strings.Contains(v, "Skills") || !strings.Contains(v, "listdemo") || !strings.Contains(v, "A skill for the TUI list test.") {
+		t.Fatalf("view missing expected content: %s", v[:min(600, len(v))])
+	}
+	next2, _ := after.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	closed := next2.(*Model)
+	if closed.skillsOverlay != nil {
+		t.Fatal("esc should close skills overlay")
+	}
+	if !closed.FocusInput() {
+		t.Fatal("esc should return focus to input")
+	}
+}
+
+func TestSlashSkillsEmptyOverlay(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := session.NewSession("")
+	ws := t.TempDir()
+	m0 := NewModel(TUIOpts{
+		Session:   sess,
+		Version:   "0.0.1",
+		Workspace: ws,
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	after := next.(*Model)
+	if after.skillsOverlay == nil {
+		t.Fatal("expected skills overlay")
+	}
+	if len(after.skillsOverlay.Entries) != 0 {
+		t.Fatalf("expected no skills, got %d", len(after.skillsOverlay.Entries))
+	}
+	v := after.View()
+	if !strings.Contains(v, "No skills found") {
+		t.Fatalf("expected empty state in view: %s", v[:min(500, len(v))])
 	}
 }
 
