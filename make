@@ -7,6 +7,8 @@ cd "$SCRIPT_DIR"
 CLI_BINARY="buildmax"
 SERVER_BINARY="buildmax-server"
 WORKER_BINARY="buildmax-worker"
+DESKTOP_BINARY="buildmax-desktop"
+BIN_DIR="bin"
 DESKTOP_DIR="cmd/buildmax-desktop"
 
 source ./loadenv
@@ -15,7 +17,7 @@ usage() {
   echo "Usage: ./make <command>"
   echo ""
   echo "Commands:"
-  echo "  build         Build $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, gui, desktop app; copy desktop binary to $SCRIPT_DIR/buildmax-desktop for local run"
+  echo "  build         Build $CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, gui, desktop app; copy desktop binary to $SCRIPT_DIR/$BIN_DIR/$DESKTOP_BINARY for local run"
   echo "  clean         Remove binaries, $DESKTOP_DIR/build, gui/portal/desktop frontend (node_modules, dist)"
   echo "  test          Run go test with BUILDMAX_HOME=testing-sandbox"
   echo "  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=testing-sandbox"
@@ -41,12 +43,12 @@ usage() {
 }
 
 cmd_run_server() {
-  if [[ ! -f "$SERVER_BINARY" ]]; then
-    echo "Error: $SERVER_BINARY not found. Run ./make build first."
+  if [[ ! -f "$SCRIPT_DIR/$BIN_DIR/$SERVER_BINARY" ]]; then
+    echo "Error: $BIN_DIR/$SERVER_BINARY not found. Run ./make build first."
     return 1
   fi
   echo "Starting server (Ctrl+C to stop)..."
-  ./"$SERVER_BINARY"
+  "$SCRIPT_DIR/$BIN_DIR/$SERVER_BINARY"
 }
 
 cmd_run_portal() {
@@ -94,21 +96,22 @@ cmd_run_desktop() {
 }
 
 cmd_build() {
+  mkdir -p "$SCRIPT_DIR/$BIN_DIR"
   echo "[cli] Building $CLI_BINARY..."
-  if go build -o "$CLI_BINARY" ./cmd/buildmax; then
-    echo "[cli] Built $CLI_BINARY"
+  if go build -o "$SCRIPT_DIR/$BIN_DIR/$CLI_BINARY" ./cmd/buildmax; then
+    echo "[cli] Built $BIN_DIR/$CLI_BINARY"
   else
     return 1
   fi
   echo "[server] Building $SERVER_BINARY..."
-  if go build -o "$SERVER_BINARY" ./cmd/buildmax-server; then
-    echo "[server] Built $SERVER_BINARY"
+  if go build -o "$SCRIPT_DIR/$BIN_DIR/$SERVER_BINARY" ./cmd/buildmax-server; then
+    echo "[server] Built $BIN_DIR/$SERVER_BINARY"
   else
     return 1
   fi
   echo "[worker] Building $WORKER_BINARY..."
-  if go build -o "$WORKER_BINARY" ./cmd/buildmax-worker; then
-    echo "[worker] Built $WORKER_BINARY"
+  if go build -o "$SCRIPT_DIR/$BIN_DIR/$WORKER_BINARY" ./cmd/buildmax-worker; then
+    echo "[worker] Built $BIN_DIR/$WORKER_BINARY"
   else
     return 1
   fi
@@ -141,16 +144,16 @@ cmd_build() {
     echo "[desktop] Running wails build..."
     if (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails build); then
       echo "[desktop] Built at $SCRIPT_DIR/$DESKTOP_DIR/build/"
-      # Copy desktop binary to workspace root for local testing (like buildmax-server)
-      local desktop_binary="buildmax-desktop"
+      # Copy desktop binary to ./bin for local testing (alongside server/worker)
       local src_bin=""
-      if [[ "$(uname -s)" = Darwin ]] && [[ -f "$SCRIPT_DIR/$DESKTOP_DIR/build/bin/BuildMax.app/Contents/MacOS/$desktop_binary" ]]; then
-        src_bin="$SCRIPT_DIR/$DESKTOP_DIR/build/bin/BuildMax.app/Contents/MacOS/$desktop_binary"
-      elif [[ -f "$SCRIPT_DIR/$DESKTOP_DIR/build/bin/$desktop_binary" ]]; then
-        src_bin="$SCRIPT_DIR/$DESKTOP_DIR/build/bin/$desktop_binary"
+      if [[ "$(uname -s)" = Darwin ]] && [[ -f "$SCRIPT_DIR/$DESKTOP_DIR/build/bin/BuildMax.app/Contents/MacOS/$DESKTOP_BINARY" ]]; then
+        src_bin="$SCRIPT_DIR/$DESKTOP_DIR/build/bin/BuildMax.app/Contents/MacOS/$DESKTOP_BINARY"
+      elif [[ -f "$SCRIPT_DIR/$DESKTOP_DIR/build/bin/$DESKTOP_BINARY" ]]; then
+        src_bin="$SCRIPT_DIR/$DESKTOP_DIR/build/bin/$DESKTOP_BINARY"
       fi
       if [[ -n "$src_bin" ]]; then
-        cp -f "$src_bin" "$SCRIPT_DIR/$desktop_binary" && chmod +x "$SCRIPT_DIR/$desktop_binary" && echo "[desktop] Copied binary to $SCRIPT_DIR/$desktop_binary"
+        mkdir -p "$SCRIPT_DIR/$BIN_DIR"
+        cp -f "$src_bin" "$SCRIPT_DIR/$BIN_DIR/$DESKTOP_BINARY" && chmod +x "$SCRIPT_DIR/$BIN_DIR/$DESKTOP_BINARY" && echo "[desktop] Copied binary to $SCRIPT_DIR/$BIN_DIR/$DESKTOP_BINARY"
       fi
     else
       echo "[desktop] Warning: wails build failed (see above)."
@@ -160,7 +163,7 @@ cmd_build() {
 
 cmd_clean() {
   echo "[clean] Removing binaries..."
-  rm -f "$CLI_BINARY" "$SERVER_BINARY" "$WORKER_BINARY" buildmax-desktop
+  rm -rf "$SCRIPT_DIR/$BIN_DIR"
   echo "[clean] Removing desktop app build..."
   rm -rf "$DESKTOP_DIR/build"
   echo "[clean] Removing gui (node_modules, dist)..."
@@ -182,10 +185,11 @@ cmd_test() {
 cmd_smoke() {
   mkdir -p testing-sandbox
   export BUILDMAX_HOME="$SCRIPT_DIR/testing-sandbox"
-  go build -o "$CLI_BINARY" ./cmd/buildmax
+  mkdir -p "$SCRIPT_DIR/$BIN_DIR"
+  go build -o "$SCRIPT_DIR/$BIN_DIR/$CLI_BINARY" ./cmd/buildmax
   export BUILDMAX_LOG_LEVEL=debug
   echo "Running smoke test..."
-  ./"$CLI_BINARY" -p "/smoke 0"
+  "$SCRIPT_DIR/$BIN_DIR/$CLI_BINARY" -p "/smoke 0"
 }
 
 cmd_bump_version() {
@@ -242,34 +246,33 @@ cmd_unsetup() {
 
 cmd_install() {
   local LOCAL_BIN="${HOME}/.local/bin"
-  if [[ ! -f "$SCRIPT_DIR/$CLI_BINARY" ]]; then
-    echo "Error: $CLI_BINARY not found in $SCRIPT_DIR" >&2
-    echo "Run './make build' or 'go build -o $CLI_BINARY ./cmd/buildmax' first." >&2
+  if [[ ! -f "$SCRIPT_DIR/$BIN_DIR/$CLI_BINARY" ]]; then
+    echo "Error: $BIN_DIR/$CLI_BINARY not found in $SCRIPT_DIR" >&2
+    echo "Run './make build' or 'go build -o $BIN_DIR/$CLI_BINARY ./cmd/buildmax' first." >&2
     return 1
   fi
   mkdir -p "$LOCAL_BIN"
   echo "Installing BuildMax binaries to ${LOCAL_BIN}..."
   echo "Copying $CLI_BINARY to ${LOCAL_BIN}/$CLI_BINARY"
-  cp -f "$SCRIPT_DIR/$CLI_BINARY" "${LOCAL_BIN}/$CLI_BINARY"
+  cp -f "$SCRIPT_DIR/$BIN_DIR/$CLI_BINARY" "${LOCAL_BIN}/$CLI_BINARY"
   chmod +x "${LOCAL_BIN}/$CLI_BINARY"
-  if [[ -f "$SCRIPT_DIR/$SERVER_BINARY" ]]; then
+  if [[ -f "$SCRIPT_DIR/$BIN_DIR/$SERVER_BINARY" ]]; then
     echo "Copying $SERVER_BINARY to ${LOCAL_BIN}/$SERVER_BINARY"
-    cp -f "$SCRIPT_DIR/$SERVER_BINARY" "${LOCAL_BIN}/$SERVER_BINARY"
+    cp -f "$SCRIPT_DIR/$BIN_DIR/$SERVER_BINARY" "${LOCAL_BIN}/$SERVER_BINARY"
     chmod +x "${LOCAL_BIN}/$SERVER_BINARY"
   else
     echo "Note: $SERVER_BINARY not found, skip. Run './make build' to build it."
   fi
-  if [[ -f "$SCRIPT_DIR/$WORKER_BINARY" ]]; then
+  if [[ -f "$SCRIPT_DIR/$BIN_DIR/$WORKER_BINARY" ]]; then
     echo "Copying $WORKER_BINARY to ${LOCAL_BIN}/$WORKER_BINARY"
-    cp -f "$SCRIPT_DIR/$WORKER_BINARY" "${LOCAL_BIN}/$WORKER_BINARY"
+    cp -f "$SCRIPT_DIR/$BIN_DIR/$WORKER_BINARY" "${LOCAL_BIN}/$WORKER_BINARY"
     chmod +x "${LOCAL_BIN}/$WORKER_BINARY"
   else
     echo "Note: $WORKER_BINARY not found, skip. Run './make build' to build it."
   fi
-  local DESKTOP_BINARY="buildmax-desktop"
-  if [[ -f "$SCRIPT_DIR/$DESKTOP_BINARY" ]]; then
+  if [[ -f "$SCRIPT_DIR/$BIN_DIR/$DESKTOP_BINARY" ]]; then
     echo "Copying $DESKTOP_BINARY to ${LOCAL_BIN}/$DESKTOP_BINARY"
-    cp -f "$SCRIPT_DIR/$DESKTOP_BINARY" "${LOCAL_BIN}/$DESKTOP_BINARY"
+    cp -f "$SCRIPT_DIR/$BIN_DIR/$DESKTOP_BINARY" "${LOCAL_BIN}/$DESKTOP_BINARY"
     chmod +x "${LOCAL_BIN}/$DESKTOP_BINARY"
   else
     echo "Note: $DESKTOP_BINARY not found, skip. Run './make build' to build it."
@@ -296,11 +299,11 @@ cmd_install() {
   else
     echo ""
     echo "$LOCAL_BIN is already in your PATH."
-    echo "$CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, and buildmax-desktop are now available from any directory."
+    echo "$CLI_BINARY, $SERVER_BINARY, $WORKER_BINARY, and $DESKTOP_BINARY are now available from any directory."
   fi
   echo ""
   echo "Installation complete!"
-  echo "You can run '$CLI_BINARY' (CLI), '$SERVER_BINARY', '$WORKER_BINARY', and 'buildmax-desktop' from any directory (after updating PATH if needed)."
+  echo "You can run '$CLI_BINARY' (CLI), '$SERVER_BINARY', '$WORKER_BINARY', and '$DESKTOP_BINARY' from any directory (after updating PATH if needed)."
 }
 
 cmd_pub_images() {
