@@ -3,8 +3,8 @@
  * Imports API types from ./types and UI types from ../types.
  */
 
-import type { ApiAgent, ApiArtifact, ApiTask, ApiConversation } from "./types"
-import type { Agent, Artifact, Task, Conversation } from "../types"
+import type { ApiAgent, ApiArtifact, ApiTask, ApiConversation, ApiIssue } from "./types"
+import type { Agent, Artifact, Task, Conversation, Issue } from "../types"
 
 /** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
 function formatRelativeTime(secondsSinceEpoch: number): string {
@@ -44,6 +44,22 @@ export function apiAgentToAgent(api: ApiAgent): Agent {
     description: api.description,
     instructions: api.instructions,
     createdAt: api.created_at,
+  }
+}
+
+export function apiIssueToIssue(api: ApiIssue): Issue {
+  return {
+    id: api.id,
+    userId: api.user_id,
+    title: api.title,
+    description: api.description,
+    status: api.status as Issue["status"],
+    assigneeKind: (api.assignee_kind as Issue["assigneeKind"]) ?? null,
+    assigneeId: api.assignee_id ?? null,
+    createdBy: api.created_by,
+    createdAt: api.created_at,
+    updatedAt: api.updated_at,
+    updatedLabel: formatRelativeTime(api.updated_at),
   }
 }
 

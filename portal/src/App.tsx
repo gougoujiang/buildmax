@@ -39,6 +39,7 @@ function AppContent() {
       <AppRouter
         conversations={conversations}
         onRefetchConversations={refetchConversations}
+        userId={user!.id}
       />
     </Layout>
   )

@@ -32,6 +32,7 @@ type Config struct {
 	JWTSecret                string
 	CORSOrigin               string // Allowed origin for WebSocket upgrade check
 	AgentStore               entity.AgentStore
+	IssueStore               entity.IssueStore
 	TaskStore                entity.TaskStore
 	TaskRunStore             entity.TaskRunStore
 	RunOutputLister          RunOutputLister

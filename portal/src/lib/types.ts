@@ -44,6 +44,8 @@ export type Route =
   | { name: "chats" }
   | { name: "explore" }
   | { name: "agents" }
+  | { name: "issues" }
+  | { name: "issue"; issueId: string }
 
 // --- Agent (user-owned persona) ---
 
@@ -53,6 +55,20 @@ export interface Agent {
   description?: string
   instructions?: string
   createdAt: number
+}
+
+export interface Issue {
+  id: string
+  userId: string
+  title: string
+  description: string
+  status: "todo" | "in_progress" | "done"
+  assigneeKind?: "person" | "agent" | null
+  assigneeId?: string | null
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+  updatedLabel: string
 }
 
 // --- Explore (user file structure) ---

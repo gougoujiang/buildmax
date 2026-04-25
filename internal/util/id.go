@@ -11,6 +11,7 @@ import (
 // Session IDs are internal (not user-facing) and use UUID; see entity.CreateChat.
 const (
 	PrefixUser                = "u"
+	PrefixIssue               = "i"
 	PrefixAgent               = "a"
 	PrefixConversation        = "c"
 	PrefixTask                = "t"

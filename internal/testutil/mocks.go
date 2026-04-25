@@ -12,6 +12,89 @@ import (
 	"gorm.io/gorm"
 )
 
+// MockIssueStore is an in-memory IssueStore for tests.
+type MockIssueStore struct {
+	Issues []entity.Issue
+}
+
+func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in entity.CreateIssueInput) (*entity.Issue, error) {
+	issue := entity.Issue{
+		IssueID:      fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
+		UserID:       userID,
+		Title:        in.Title,
+		Description:  in.Description,
+		Status:       entity.IssueStatusTodo,
+		CreatedBy:    userID,
+		CreatedAt:    time.Now().Unix(),
+		UpdatedAt:    time.Now().Unix(),
+		AssigneeKind: nil,
+		AssigneeID:   nil,
+	}
+	m.Issues = append(m.Issues, issue)
+	return &m.Issues[len(m.Issues)-1], nil
+}
+
+func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limit, offset int) ([]entity.Issue, int, error) {
+	var filtered []entity.Issue
+	for _, issue := range m.Issues {
+		if issue.UserID == userID {
+			filtered = append(filtered, issue)
+		}
+	}
+	total := len(filtered)
+	if offset > len(filtered) {
+		return []entity.Issue{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[offset:end], total, nil
+}
+
+func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*entity.Issue, error) {
+	for i := range m.Issues {
+		if m.Issues[i].IssueID == issueID {
+			return &m.Issues[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, in entity.UpdateIssueInput) (*entity.Issue, error) {
+	for i := range m.Issues {
+		if m.Issues[i].IssueID != issueID || m.Issues[i].UserID != userID {
+			continue
+		}
+		if in.Title != nil {
+			m.Issues[i].Title = *in.Title
+		}
+		if in.Description != nil {
+			m.Issues[i].Description = *in.Description
+		}
+		if in.Status != nil {
+			m.Issues[i].Status = *in.Status
+		}
+		if in.AssigneeKind != nil {
+			if *in.AssigneeKind == "" {
+				m.Issues[i].AssigneeKind = nil
+			} else {
+				m.Issues[i].AssigneeKind = in.AssigneeKind
+			}
+		}
+		if in.AssigneeID != nil {
+			if *in.AssigneeID == "" {
+				m.Issues[i].AssigneeID = nil
+			} else {
+				m.Issues[i].AssigneeID = in.AssigneeID
+			}
+		}
+		m.Issues[i].UpdatedAt = time.Now().Unix()
+		return &m.Issues[i], nil
+	}
+	return nil, nil
+}
+
 // MockTaskStore is an in-memory TaskStore for tests.
 type MockTaskStore struct {
 	List      []entity.Task

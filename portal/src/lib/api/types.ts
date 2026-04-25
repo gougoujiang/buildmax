@@ -36,6 +36,24 @@ export interface ApiAgent {
   created_at: number
 }
 
+export interface ApiIssue {
+  id: string
+  user_id: string
+  title: string
+  description: string
+  status: string
+  assignee_kind?: string | null
+  assignee_id?: string | null
+  created_by: string
+  created_at: number
+  updated_at: number
+}
+
+export interface ApiIssuesListResponse {
+  issues: ApiIssue[]
+  total: number
+}
+
 /** Paginated tasks response when using limit/offset/executed_only (if backend supports it). */
 export interface ApiTasksListResponse {
   tasks: ApiTask[]

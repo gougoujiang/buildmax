@@ -60,6 +60,7 @@ type AuthConfig struct {
 type StoresConfig struct {
 	UserStore           entity.UserStore
 	AgentStore          entity.AgentStore
+	IssueStore          entity.IssueStore
 	TaskStore           entity.TaskStore
 	TaskRunStore        entity.TaskRunStore
 	RunOutputLister     RunOutputLister
@@ -127,6 +128,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.Con
 		JWTSecret:                cfg.Auth.JWTSecret,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		AgentStore:               cfg.Stores.AgentStore,
+		IssueStore:               cfg.Stores.IssueStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
 		RunOutputLister:          cfg.Stores.RunOutputLister,

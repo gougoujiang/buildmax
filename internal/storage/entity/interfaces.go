@@ -37,6 +37,14 @@ type AgentStore interface {
 	DeleteAgent(ctx context.Context, agentID, userID string) error
 }
 
+// IssueStore provides issue persistence. Issues are user-scoped.
+type IssueStore interface {
+	CreateIssue(ctx context.Context, userID string, in CreateIssueInput) (*Issue, error)
+	ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]Issue, int, error)
+	GetIssue(ctx context.Context, issueID string) (*Issue, error)
+	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateIssueInput) (*Issue, error)
+}
+
 // TaskStore provides task persistence. Tasks belong to a conversation.
 // CreateTask creates a task plus its first TaskRun (both in one transaction).
 type TaskStore interface {

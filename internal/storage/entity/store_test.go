@@ -229,6 +229,61 @@ func TestClaimTask(t *testing.T) {
 	}
 }
 
+func TestIssueStore_CreateListUpdate(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	issue, err := s.CreateIssue(ctx, "issue-user", CreateIssueInput{
+		Title:       "Initial issue",
+		Description: "Initial description",
+	})
+	if err != nil {
+		t.Fatalf("CreateIssue: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&Issue{}, "issue_id = ?", issue.IssueID)
+	}()
+
+	if issue.IssueID == "" || issue.Status != IssueStatusTodo || issue.UserID != "issue-user" {
+		t.Fatalf("created issue = %+v", issue)
+	}
+
+	list, total, err := s.ListIssuesByUser(ctx, "issue-user", 50, 0)
+	if err != nil {
+		t.Fatalf("ListIssuesByUser: %v", err)
+	}
+	if total < 1 || len(list) < 1 {
+		t.Fatalf("list total=%d len=%d", total, len(list))
+	}
+
+	title := "Updated issue"
+	status := IssueStatusInProgress
+	kind := IssueAssigneePerson
+	id := "issue-user"
+	updated, err := s.UpdateIssue(ctx, issue.IssueID, "issue-user", UpdateIssueInput{
+		Title:        &title,
+		Status:       &status,
+		AssigneeKind: &kind,
+		AssigneeID:   &id,
+	})
+	if err != nil {
+		t.Fatalf("UpdateIssue: %v", err)
+	}
+	if updated == nil || updated.Title != title || updated.Status != status {
+		t.Fatalf("updated issue = %+v", updated)
+	}
+	if updated.AssigneeKind == nil || *updated.AssigneeKind != IssueAssigneePerson {
+		t.Fatalf("updated assignee kind = %v", updated.AssigneeKind)
+	}
+}
+
 func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {

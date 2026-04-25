@@ -6,15 +6,18 @@ import { AgentList } from "../pages/AgentList"
 import { ConversationDetail } from "../pages/ConversationDetail"
 import { NewConversation } from "../pages/NewConversation"
 import { Explore } from "../pages/Explore"
+import { Issues } from "../pages/Issues"
 
 export interface AppRouterProps {
   conversations: Conversation[]
   onRefetchConversations: () => Promise<void>
+  userId: string
 }
 
 export function AppRouter({
   conversations,
   onRefetchConversations,
+  userId,
 }: AppRouterProps) {
   const {
     route,
@@ -55,6 +58,14 @@ export function AppRouter({
         token={token ?? null}
       />
     )
+  }
+
+  if (route.name === "issues") {
+    return <Issues token={token ?? null} userId={userId} />
+  }
+
+  if (route.name === "issue") {
+    return <Issues token={token ?? null} routeIssueId={route.issueId} userId={userId} />
   }
 
   if (route.name === "conversation") {

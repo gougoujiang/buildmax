@@ -11,6 +11,8 @@ export const SEGMENT = {
   conversations: "conversations",
   explore: "explore",
   agents: "agents",
+  issues: "issues",
+  issue: "issue",
 } as const
 
 /**
@@ -36,6 +38,12 @@ export function parseHash(hash: string): Route {
   if (parts[0] === SEGMENT.agents) {
     return { name: "agents" }
   }
+  if (parts[0] === SEGMENT.issues) {
+    return { name: "issues" }
+  }
+  if (parts[0] === SEGMENT.issue && parts[1]) {
+    return { name: "issue", issueId: parts[1] }
+  }
   if (parts[0] === SEGMENT.conversation && parts[1]) {
     return { name: "conversation", conversationId: parts[1] }
   }
@@ -59,6 +67,10 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.explore}`
     case "agents":
       return `#/${SEGMENT.agents}`
+    case "issues":
+      return `#/${SEGMENT.issues}`
+    case "issue":
+      return `#/${SEGMENT.issue}/${route.issueId}`
   }
 }
 

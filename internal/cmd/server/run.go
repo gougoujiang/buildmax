@@ -164,6 +164,7 @@ func buildHTTPServerConfig(port int, serverEnv config.ServerEnv, workspacesDir s
 		Stores: httpserver.StoresConfig{
 			UserStore:                st,
 			AgentStore:               st,
+			IssueStore:               st,
 			TaskStore:                st,
 			TaskRunStore:             st,
 			RunOutputLister:          st,

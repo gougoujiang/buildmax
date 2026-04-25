@@ -36,7 +36,7 @@ Key facts from the code:
 - `conversation` is the Tier 1 container for portal turns.
   - `internal/storage/entity/models.go`
   - `internal/app/conversation/service.go`
-- `task` already exists and is closer to a user-facing work item than a low-level run.
+- `task` already exists as a durable execution-oriented object used by the current runtime and portal.
   - It has `title`, `input`, `created_by`, optional `agent_id`, and denormalized latest status/output.
   - `internal/storage/entity/models.go`
   - `internal/storage/entity/task.go`
@@ -63,22 +63,20 @@ Key facts from the code:
 
 ### 2.1 What This Means
 
-BuildMax does **not** need to invent tasking from zero.
+BuildMax already has a low-level execution model:
 
-The current system already has an important split:
-
-- `task` = durable container with title, latest state, conversation linkage
+- `task` = low-level execution container in the current system
 - `task_run` = one execution attempt
 
-That is a strong base for the next step.
+That is useful infrastructure, but it is **not** the same thing as the user-facing work-management concept we now want to introduce.
 
 The main gaps are:
 
+- no `issue` entity as a first-class work-management object
 - no `team` entity or team ownership boundary
 - no `workflow` entity or execution-plan abstraction
-- `task.status` is still mostly execution-oriented, not business-oriented
-- no assignment model for people vs agent vs workflow
-- no task-flow/timeline UI or API
+- no assignment model at the work-management layer for people vs agent vs workflow
+- no issue-first progress / process UI
 
 ---
 
@@ -100,17 +98,18 @@ Recommended user explanation:
 From this point onward in this document:
 
 - `Issue` = the user-facing concept
-- `task` / `task_run` = the current internal implementation types in the codebase
-
-Near-term implementation mapping:
-
-- one user-facing `Issue` maps to the current internal `task`
-- one execution attempt of an `Issue` maps to the current internal `task_run`
+- `task` / `task_run` = the current low-level execution types in the codebase
 
 This naming split is intentional. It avoids a collision between:
 
 - product language used in UI/docs
 - existing server/storage/runtime code
+
+Important clarification:
+
+- `Issue` is a new concept for managing work
+- `task` is an existing low-level concept for agent execution
+- these concepts may relate in future architecture, but they should **not** be treated as the same object in this phase
 
 ### 3.2 Important Modeling Rule
 
@@ -136,7 +135,7 @@ The UI can unify the assignment experience without forcing the data model to pre
 The roadmap should follow these rules:
 
 1. Keep the core visible concepts stable: `Team`, `Issue`, `Agent`, `Workflow`.
-2. Reuse the current `task` + `task_run` split instead of replacing it.
+2. Keep the current `task` + `task_run` split as the low-level execution model instead of overloading it into the user work-management model.
 3. Introduce `team` as a strong backend boundary, but keep early personal UX lightweight.
 4. Treat personal space as a default single-member team.
 5. Add enterprise complexity gradually; do not front-load RBAC, approvals, or org trees.
@@ -178,10 +177,10 @@ Priority order:
 4. Issue flow visualization
 5. Enterprise governance features
 
-This order intentionally starts with `Issue`, because it is the current best bridge between:
+This order intentionally starts with `Issue`, because it is the missing work-management layer between:
 
 - today’s execution model
-- tomorrow’s work-management model
+- tomorrow’s collaborative work system
 
 ---
 
@@ -265,7 +264,7 @@ Recommended status values:
 | Phase | Name | Status | Phase Doc | Notes |
 |------|------|--------|-----------|-------|
 | 0 | Terminology And Boundary Alignment | `not_started` | TBD | |
-| 1 | Issue Uplift | `not_started` | TBD | |
+| 1 | Issue Uplift | `in_progress` | `design/011-phase-1-issue-uplift.md` | Phase doc corrected: Issue is a new work-management object, separate from low-level task/task_run. |
 | 2 | Team Foundation | `not_started` | TBD | |
 | 3 | Workflow Foundation | `not_started` | TBD | |
 | 4 | Issue Flow Visualization | `not_started` | TBD | |
@@ -300,7 +299,7 @@ The current repo uses `task` for a durable object with `task_run` executions und
 
 - document the new user-facing language in product/docs:
   - `Issue` = user-facing work item
-  - `task` = current internal issue record
+  - `task` = current low-level execution record
   - `task_run` = execution attempt
   - `agent` = digital member
   - `workflow` = reusable execution plan
@@ -319,7 +318,7 @@ The current repo uses `task` for a durable object with `task_run` executions und
 ### Exit Criteria
 
 - product and engineering can describe the model consistently
-- no planned feature requires inventing a second internal work entity alongside `task`
+- product and engineering can describe `Issue` and `task` as distinct concepts without conflating them
 
 ---
 
@@ -327,7 +326,7 @@ The current repo uses `task` for a durable object with `task_run` executions und
 
 ### Goal
 
-Turn the existing internal `task` into the clear implementation backing for the user-facing `Issue`.
+Introduce `Issue` as a new user-facing work-management object.
 
 ### Why This Is First
 
@@ -336,23 +335,13 @@ This provides immediate value even before team/workflow land:
 - users can create issues
 - assign them
 - track progress
-- inspect execution history
+- manage work independent of low-level agent execution
 
 ### Scope
 
-#### 1. Separate business status from execution status
+#### 1. Add issue-level business state
 
-Today `task.status` is denormalized from run status and mainly carries values like:
-
-- `PENDING`
-- `SCHEDULED`
-- `RUNNING`
-- `SUCCEEDED`
-- `FAILED`
-
-That is useful for runtime, but not enough for work management.
-
-Add task-level business state, for example:
+Issue state should model work-management progress, for example:
 
 - `todo`
 - `in_progress`
@@ -360,16 +349,11 @@ Add task-level business state, for example:
 - `done`
 - `canceled`
 
-Keep execution state on `task_run`, and expose latest execution summary separately.
-
-Recommended direction:
-
-- add `task.lifecycle_status` or `task.business_status`
-- keep current `task.status` temporarily for compatibility, then gradually de-emphasize or rename in API responses later
+This is distinct from low-level execution status on `task` / `task_run`.
 
 #### 2. Add assignment model
 
-Add issue assignment fields on the internal `task` record:
+Add issue assignment fields on the new Issue object:
 
 - `assignee_kind`: `person` | `agent` | `workflow`
 - `assignee_id`
@@ -388,7 +372,7 @@ Workflow assignment can be schema-ready but feature-flagged until Phase 3.
 Recommended first batch:
 
 - `description` or richer `goal`
-- `business_status`
+- `status`
 - `priority`
 - `assignee_kind`
 - `assignee_id`
@@ -398,52 +382,48 @@ Optional if low-cost:
 - `due_at`
 - `completed_at`
 
-#### 4. Add execution history to issue detail
+#### 4. Add issue list/detail management surface
 
 Expose on the issue detail page:
 
-- latest run
-- previous runs
-- current/latest execution status
-- artifacts
-- related conversation/log links
-
-This can mostly reuse existing `task_run` and artifact data.
+- title
+- description / goal
+- assignee
+- status
+- priority
+- created_by
+- created_at
+- updated_at
 
 ### API Work
 
-- extend issue-facing task response shape
-- add issue update endpoint on top of the current task resource for:
+- add Issue CRUD APIs
+- add issue update endpoint for:
   - assignment
-  - business status
+  - status
   - title/description edits
-- add issue run history endpoint if missing
 
 ### UI Work
 
-- rename user-facing task list/detail language to issue list/detail where appropriate
-- issue list becomes a true work queue, not just execution history
+- add issue list/detail UI
+- issue list becomes a work queue / tracker
 - issue detail shows:
   - goal
   - assignee
-  - business status
-  - latest execution status
-  - run history
-  - artifacts
+  - status
+  - priority
 
 ### Code Areas
 
 - `internal/storage/entity/models.go`
-- `internal/storage/entity/task.go`
-- `internal/app/task`
-- `internal/server/portal/tasks.go`
-- portal task list/detail pages
+- new issue storage/service/portal areas to be introduced in this phase
+- portal issue list/detail pages
 
 ### Exit Criteria
 
-- a user can manage an issue even when no run is currently active
+- an Issue exists as a first-class user-facing object
 - an issue can be assigned to self or an agent
-- business status and execution status are both visible
+- issue management works without depending on low-level task/task_run execution records
 
 ---
 

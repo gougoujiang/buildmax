@@ -12,6 +12,7 @@ import NewChatIcon from "../icons/new-chat.svg?react"
 import SettingsIcon from "../icons/settings.svg?react"
 import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
+import IssueIcon from "../icons/issue.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
@@ -37,6 +38,10 @@ interface SidebarProps {
 
 function isAgentsActive(route: Route): boolean {
   return route.name === "agents"
+}
+
+function isIssuesActive(route: Route): boolean {
+  return route.name === "issues" || route.name === "issue"
 }
 
 export function Sidebar({
@@ -205,6 +210,14 @@ export function Sidebar({
           >
             <AgentAvatar size="sm" />
             <span className="sidebar__nav-item-text">Agents</span>
+          </button>
+          <button
+            type="button"
+            className={cn("sidebar__nav-item", isIssuesActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "issues" })}
+          >
+            <IssueIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Issues</span>
           </button>
         </div>
       </nav>

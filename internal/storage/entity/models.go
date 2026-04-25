@@ -16,6 +16,25 @@ type User struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (User) TableName() string { return "user" }
 
+// Issue is the user-facing work-management object. It is intentionally separate
+// from low-level task/task_run execution records.
+type Issue struct {
+	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"`
+	IssueID      string  `gorm:"column:issue_id;type:varchar(64);uniqueIndex;not null" json:"issue_id"`
+	UserID       string  `gorm:"type:varchar(64);not null;index" json:"user_id"`
+	Title        string  `gorm:"type:varchar(255);not null" json:"title"`
+	Description  string  `gorm:"type:text;not null" json:"description"`
+	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
+	AssigneeKind *string `gorm:"type:varchar(32)" json:"assignee_kind,omitempty"`
+	AssigneeID   *string `gorm:"type:varchar(64)" json:"assignee_id,omitempty"`
+	CreatedBy    string  `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt    int64   `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt    int64   `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (Issue) TableName() string { return "issue" }
+
 // Task is the task model. JSON uses snake_case per project convention.
 // API exposes task_id as "id". Task holds denormalized "last run" state (status, output, etc.)
 // and LastRunID for conversation/artifact lookup. Input is the initial (first run) prompt.
