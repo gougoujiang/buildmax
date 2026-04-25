@@ -17,7 +17,7 @@ import (
 // Version is the application version, shown by the version subcommand.
 var Version = "0.0.7"
 
-const rootLong = `BuildMax – AI Agent CLI
+var rootLong = fmt.Sprintf(`BuildMax – AI Agent CLI
 
   buildmax                    Start the TUI (new session)
   buildmax -r ID              Start the TUI with session ID
@@ -34,8 +34,8 @@ Sessions:
 Environment (for -p):
   BUILDMAX_API_KEY   API key (required for -p)
   BUILDMAX_BASE_URL                        Base URL (default: OpenRouter)
-  BUILDMAX_MODEL                          Model (default: openai/gpt-3.5-turbo)
-`
+  BUILDMAX_MODEL                          Model (default: %s)
+`, config.DefaultModel)
 
 // NewRootCommand creates and returns the root cobra command for BuildMax.
 func NewRootCommand() *cobra.Command {

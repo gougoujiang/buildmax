@@ -35,21 +35,22 @@ const DefaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"
 
 // Model names on OpenRouter (switch DefaultModel to use one).
 const (
-	ModelGPT35Turbo      = "openai/gpt-3.5-turbo" // NOT FREE
-	ModelGemma327bItFree = "google/gemma-3-27b-it:free"
-	ModelGLM45AirFree    = "z-ai/glm-4.5-air:free"
-	ModelGPT4oMini       = "openai/gpt-4o-mini"
+	ModelGPT35Turbo        = "openai/gpt-3.5-turbo" // NOT FREE
+	ModelGemma327bItFree   = "google/gemma-3-27b-it:free"
+	ModelGLM45AirFree      = "z-ai/glm-4.5-air:free"
+	ModelGPT4oMini         = "openai/gpt-4o-mini"
+	ModelGemini25FlashLite = "google/gemini-2.5-flash-lite"
 )
 
 // DefaultModel is the model used when BUILDMAX_MODEL is not set.
-const DefaultModel = ModelGPT4oMini
+const DefaultModel = ModelGemini25FlashLite
 
 // DefaultServerPort is the port used when BUILDMAX_SERVER_PORT is not set and --port is 0.
 const DefaultServerPort = 5678
 
 // LoadLLM loads LLM config from environment.
 // BUILDMAX_API_KEY for API key; BUILDMAX_BASE_URL for base URL (defaults to OpenRouter);
-// BUILDMAX_MODEL for model (defaults to openai/gpt-3.5-turbo).
+// BUILDMAX_MODEL for model (defaults to DefaultModel).
 func LoadLLM() LLM {
 	apiKey := os.Getenv(EnvKeyBuildmaxAPIKey)
 	baseURL := os.Getenv(EnvKeyBuildmaxBaseURL)
