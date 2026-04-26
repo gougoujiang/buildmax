@@ -65,6 +65,9 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
+		return
+	}
 	var req createAgentRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
@@ -103,8 +106,11 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
+		return
+	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
 		return
 	}
 	agentID, ok := pathValueRequired(w, r, "agent_id")
@@ -132,8 +138,11 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
+		return
+	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
 		return
 	}
 	agentID, ok := pathValueRequired(w, r, "agent_id")

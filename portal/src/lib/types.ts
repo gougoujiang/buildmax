@@ -85,6 +85,7 @@ export interface Workflow {
   name: string
   description: string
   definition: string
+  status: "draft" | "published" | "archived"
   createdBy: string
   createdAt: number
   updatedAt: number

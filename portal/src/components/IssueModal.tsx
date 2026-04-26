@@ -13,6 +13,7 @@ interface IssueModalProps {
   userId?: string
   loading: boolean
   runningWorkflow?: boolean
+  allowWorkflowAssignment?: boolean
   error: string | null
   onClose: () => void
   onSubmit: (values: {
@@ -35,6 +36,7 @@ export function IssueModal({
   userId,
   loading,
   runningWorkflow = false,
+  allowWorkflowAssignment = true,
   error,
   onClose,
   onSubmit,
@@ -44,6 +46,14 @@ export function IssueModal({
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState<Issue["status"]>("todo")
   const [assigneeValue, setAssigneeValue] = useState("")
+  const selectedWorkflowId = assigneeValue.startsWith("workflow:")
+    ? assigneeValue.slice("workflow:".length)
+    : issue?.assigneeKind === "workflow"
+      ? issue.assigneeId ?? ""
+      : ""
+  const selectableWorkflows = workflows.filter(
+    (workflow) => workflow.status === "published" || workflow.id === selectedWorkflowId,
+  )
 
   useEffect(() => {
     if (!open) return
@@ -116,10 +126,19 @@ export function IssueModal({
               {agents.map((agent) => (
                     <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
               ))}
-              {workflows.map((workflow) => (
-                <option key={workflow.id} value={`workflow:${workflow.id}`}>{workflow.name}</option>
-              ))}
+              {allowWorkflowAssignment
+                ? selectableWorkflows.map((workflow) => (
+                    <option key={workflow.id} value={`workflow:${workflow.id}`}>
+                      {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
+                    </option>
+                  ))
+                : null}
             </select>
+            <span className="issues-page__field-label">
+              {allowWorkflowAssignment
+                ? "Only `published` workflows are available for new assignment."
+                : "You can assign a person or agent here. Workflow assignment is limited to team owners and admins."}
+            </span>
           </label>
           {mode === "edit" && issue?.assigneeKind === "workflow" ? (
             <div className="workflow-page__inline-actions">

@@ -51,6 +51,7 @@ type Workflow struct {
 	Name        string `gorm:"type:varchar(255);not null" json:"name"`
 	Description string `gorm:"type:text;not null" json:"description"`
 	Definition  string `gorm:"type:longtext;not null" json:"definition"`
+	Status      string `gorm:"type:varchar(32);not null;default:'draft'" json:"status"`
 	CreatedBy   string `gorm:"type:varchar(64);not null" json:"created_by"`
 	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   int64  `gorm:"autoUpdateTime" json:"updated_at"`

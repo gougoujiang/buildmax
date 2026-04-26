@@ -29,6 +29,9 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 	if workflow.WorkflowID == "" {
 		t.Fatal("expected workflow id")
 	}
+	if workflow.Status != entity.WorkflowStatusDraft {
+		t.Fatalf("workflow status = %q, want draft", workflow.Status)
+	}
 }
 
 func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
@@ -39,6 +42,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 			Name:        "WF",
 			Definition:  `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Description: "desc",
+			Status:      entity.WorkflowStatusPublished,
 		}},
 	}
 	taskStore := &testutil.MockTaskStore{}

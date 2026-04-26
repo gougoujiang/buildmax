@@ -39,7 +39,7 @@ func TestIssueHandlers(t *testing.T) {
 		Agents: []entity.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
 	workflows := &testutil.MockWorkflowStore{
-		Workflows: []entity.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`}},
+		Workflows: []entity.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: entity.WorkflowStatusPublished}},
 	}
 	tasks := &testutil.MockTaskStore{}
 	teams := &testutil.MockTeamStore{
@@ -49,6 +49,8 @@ func TestIssueHandlers(t *testing.T) {
 		},
 		Members: []entity.TeamMember{
 			{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner},
+			{TeamID: personalTeamID, UserID: "u2", Role: entity.TeamRoleMember},
+			{TeamID: personalTeamID, UserID: "u3", Role: entity.TeamRoleAdmin},
 			{TeamID: otherTeamID, UserID: "u2", Role: entity.TeamRoleOwner},
 		},
 	}
@@ -184,6 +186,17 @@ func TestIssueHandlers(t *testing.T) {
 		}
 		if out.AssigneeKind == nil || *out.AssigneeKind != entity.IssueAssigneeWorkflow {
 			t.Fatalf("patched = %+v", out)
+		}
+	})
+
+	t.Run("PATCH issue assign to workflow forbidden for member", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"assignee_kind":"workflow","assignee_id":"w_1"}`))
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u2", issueTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
 		}
 	})
 

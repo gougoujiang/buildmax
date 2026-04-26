@@ -22,6 +22,7 @@ func TestWorkflowHandlers(t *testing.T) {
 			Name:        "WF",
 			Description: "desc",
 			Definition:  `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`,
+			Status:      entity.WorkflowStatusPublished,
 			CreatedBy:   "u1",
 			CreatedAt:   100,
 			UpdatedAt:   100,
@@ -32,7 +33,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	}
 	teamStore := &testutil.MockTeamStore{
 		Teams:   []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
-		Members: []entity.TeamMember{{TeamID: teamID, UserID: "u1", Role: entity.TeamRoleOwner}},
+		Members: []entity.TeamMember{{TeamID: teamID, UserID: "u1", Role: entity.TeamRoleOwner}, {TeamID: teamID, UserID: "u2", Role: entity.TeamRoleMember}, {TeamID: teamID, UserID: "u3", Role: entity.TeamRoleAdmin}},
 	}
 	taskStore := &testutil.MockTaskStore{}
 	issueStore := &testutil.MockIssueStore{
@@ -86,6 +87,13 @@ func TestWorkflowHandlers(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 		}
+		var out workflowResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if out.Status != entity.WorkflowStatusDraft {
+			t.Fatalf("workflow status = %q, want %q", out.Status, entity.WorkflowStatusDraft)
+		}
 	})
 
 	t.Run("POST direct workflow run", func(t *testing.T) {
@@ -102,6 +110,28 @@ func TestWorkflowHandlers(t *testing.T) {
 		}
 		if out.Run.ID == "" || len(out.Steps) != 1 {
 			t.Fatalf("run detail = %+v", out)
+		}
+	})
+
+	t.Run("POST create workflow forbidden for member", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u2", workflowTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+		}
+	})
+
+	t.Run("PATCH publish workflow by admin", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+teamID+"/workflows/w_1", strings.NewReader(`{"status":"published"}`))
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u3", workflowTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 		}
 	})
 

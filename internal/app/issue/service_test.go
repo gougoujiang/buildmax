@@ -118,7 +118,7 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: entity.IssueStatusTodo}},
 		},
 		Workflows: &testutil.MockWorkflowStore{
-			Workflows: []entity.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF"}},
+			Workflows: []entity.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF", Status: entity.WorkflowStatusPublished}},
 		},
 	}
 	kind := entity.IssueAssigneeWorkflow
@@ -135,5 +135,28 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	}
 	if issue.AssigneeID == nil || *issue.AssigneeID != "w_1" {
 		t.Fatalf("issue.AssigneeID = %v", issue.AssigneeID)
+	}
+}
+
+func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
+	svc := &Service{
+		Issues: &testutil.MockIssueStore{
+			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: entity.IssueStatusTodo}},
+		},
+		Workflows: &testutil.MockWorkflowStore{
+			Workflows: []entity.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF", Status: entity.WorkflowStatusDraft}},
+		},
+	}
+	kind := entity.IssueAssigneeWorkflow
+	id := "w_1"
+	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		UserID:       "u1",
+		TeamID:       "tm_1",
+		IssueID:      "i_1",
+		AssigneeKind: &kind,
+		AssigneeID:   &id,
+	})
+	if !errors.Is(err, ErrWorkflowNotPublished) {
+		t.Fatalf("err = %v, want %v", err, ErrWorkflowNotPublished)
 	}
 }

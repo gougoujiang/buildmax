@@ -19,6 +19,7 @@ var (
 	ErrAgentNotFound          = errors.New("agent not found or not owned by user")
 	ErrWorkflowsNotConfigured = errors.New("workflows not configured")
 	ErrWorkflowNotFound       = errors.New("workflow not found or not owned by team")
+	ErrWorkflowNotPublished   = errors.New("workflow not published")
 )
 
 type Service struct {
@@ -153,6 +154,9 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 		}
 		if workflow == nil || workflow.TeamID != teamID {
 			return ErrWorkflowNotFound
+		}
+		if workflow.Status != entity.WorkflowStatusPublished {
+			return ErrWorkflowNotPublished
 		}
 		return nil
 	default:

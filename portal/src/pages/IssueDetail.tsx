@@ -53,7 +53,7 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
 }
 
 export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
-  const { currentTeamId } = useTeam()
+  const { currentTeamId, currentUserRole } = useTeam()
   const [flow, setFlow] = useState<IssueFlow | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
@@ -67,6 +67,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const [runningWorkflow, setRunningWorkflow] = useState(false)
   const [runningAgent, setRunningAgent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const load = useCallback(async () => {
     if (!token || !currentTeamId) {
@@ -114,6 +115,12 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const latestAgentTask = flow?.agentTasks[0] ?? null
   const isWorkflowAssigned = flow?.issue.assigneeKind === "workflow" && Boolean(flow.issue.assigneeId)
   const isAgentAssigned = flow?.issue.assigneeKind === "agent" && Boolean(flow.issue.assigneeId)
+  const assignedWorkflowStatus =
+    flow?.workflow?.status ??
+    workflows.find((workflow) => workflow.id === flow?.issue.assigneeId)?.status
+  const publishedAssignableWorkflows = workflows.filter(
+    (workflow) => workflow.status === "published" || workflow.id === flow?.issue.assigneeId,
+  )
 
   const assigneeLabel = useCallback((issue: Issue): string => {
     if (issue.assigneeKind === "person") {
@@ -184,6 +191,10 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   function handleSave() {
     if (!token || !currentTeamId || !flow) return
     const [kind, id] = assigneeValue ? assigneeValue.split(":") : ["", ""]
+    if (kind === "workflow" && !canAssignWorkflow) {
+      setError("Workflow assignment is limited to team owners and admins")
+      return
+    }
     setSaving(true)
     setError(null)
     updateIssue(
@@ -248,7 +259,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
             <button
               type="button"
               className="page-activity__action-btn"
-              disabled={runningWorkflow || loading}
+              disabled={runningWorkflow || loading || assignedWorkflowStatus !== "published"}
               onClick={handleRunWorkflow}
             >
               {runningWorkflow ? "Running..." : "Run Workflow"}
@@ -323,10 +334,19 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                     {agents.map((agent) => (
                       <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
                     ))}
-                    {workflows.map((workflow) => (
-                      <option key={workflow.id} value={`workflow:${workflow.id}`}>{workflow.name}</option>
-                    ))}
+                    {canAssignWorkflow
+                      ? publishedAssignableWorkflows.map((workflow) => (
+                          <option key={workflow.id} value={`workflow:${workflow.id}`}>
+                            {workflow.name}{workflow.status !== "published" ? ` (${workflow.status})` : ""}
+                          </option>
+                        ))
+                      : null}
                   </select>
+                  <span className="issues-page__field-label">
+                    {canAssignWorkflow
+                      ? "Only `published` workflows are available for new assignment."
+                      : "You can still assign a person or agent here. Workflow assignment is limited to team owners and admins."}
+                  </span>
                 </label>
               </div>
               <div className="issues-page__meta-row">
@@ -336,6 +356,17 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
               </div>
             </div>
           </section>
+
+          {isWorkflowAssigned && assignedWorkflowStatus !== "published" ? (
+            <section className="issues-page__panel">
+              <div className="issues-page__toolbar">
+                <h2 className="issues-page__section-title">Workflow Availability</h2>
+              </div>
+              <p className="page-activity__empty">
+                The assigned workflow is currently `{assignedWorkflowStatus ?? "unknown"}` and cannot be run until it is `published`.
+              </p>
+            </section>
+          ) : null}
 
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">

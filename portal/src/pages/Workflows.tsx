@@ -19,13 +19,14 @@ interface WorkflowsProps {
 }
 
 export function Workflows({ token }: WorkflowsProps) {
-  const { currentTeamId } = useTeam()
+  const { currentTeamId, currentUserRole } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchWorkflows = useCallback(() => {
     if (!token || !currentTeamId) {
@@ -81,20 +82,27 @@ export function Workflows({ token }: WorkflowsProps) {
           </p>
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => {
-              setError(null)
-              setCreateOpen(true)
-            }}
-          >
-            New Workflow
-          </button>
+          {canManageWorkflows ? (
+            <button
+              type="button"
+              className="page-activity__action-btn"
+              onClick={() => {
+                setError(null)
+                setCreateOpen(true)
+              }}
+            >
+              New Workflow
+            </button>
+          ) : null}
         </div>
       </div>
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
+      {!canManageWorkflows ? (
+        <p className="page-activity__empty">
+          You can view workflows here, but only team owners and admins can create or edit them.
+        </p>
+      ) : null}
 
       <section className="issues-page__panel">
         <div className="issues-page__toolbar">
@@ -105,7 +113,11 @@ export function Workflows({ token }: WorkflowsProps) {
         {loading ? (
           <p className="page-activity__empty">Loading…</p>
         ) : workflows.length === 0 ? (
-          <p className="page-activity__empty">No workflows yet.</p>
+          <p className="page-activity__empty">
+            {canManageWorkflows
+              ? "No workflows yet. Create one to define a reusable execution plan for this team."
+              : "No workflows are available in this team yet. Team owners and admins can publish one when a shared process is ready."}
+          </p>
         ) : (
           <ul className="issues-page__list">
             {workflows.map((workflow) => (
@@ -122,7 +134,7 @@ export function Workflows({ token }: WorkflowsProps) {
                     </span>
                   </span>
                   <span className="issues-page__row-side">
-                    <span className="issues-page__status">workflow</span>
+                    <span className="issues-page__status">{workflow.status}</span>
                     <span className="page-activity__meta">{workflow.updatedLabel}</span>
                   </span>
                 </button>

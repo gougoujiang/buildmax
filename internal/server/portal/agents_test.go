@@ -22,7 +22,7 @@ func TestPatchAgentHandler(t *testing.T) {
 	}
 	teamStore := &testutil.MockTeamStore{
 		Teams:   []entity.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
-		Members: []entity.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner}},
+		Members: []entity.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: entity.TeamRoleMember}},
 	}
 
 	tests := []struct {
@@ -51,6 +51,15 @@ func TestPatchAgentHandler(t *testing.T) {
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "name required",
+		},
+		{
+			name:        "PATCH forbidden for member",
+			method:      http.MethodPatch,
+			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
+			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
+			authHeader:  "Bearer " + testutil.SignJWT("u2", agentTestSecret),
+			wantStatus:  http.StatusForbidden,
+			wantBodyHas: "forbidden",
 		},
 		{
 			name:        "PATCH non-existent agent returns 404",
@@ -148,7 +157,7 @@ func TestDeleteAgentHandler(t *testing.T) {
 			}
 			teamStore := &testutil.MockTeamStore{
 				Teams:   []entity.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
-				Members: []entity.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner}},
+				Members: []entity.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: entity.TeamRoleMember}},
 			}
 			h := NewHandler(Config{
 				JWTSecret:  agentTestSecret,

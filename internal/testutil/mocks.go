@@ -156,6 +156,7 @@ func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy,
 		Name:        name,
 		Description: description,
 		Definition:  definition,
+		Status:      entity.WorkflowStatusDraft,
 		CreatedBy:   createdBy,
 		CreatedAt:   time.Now().Unix(),
 		UpdatedAt:   time.Now().Unix(),
@@ -186,6 +187,9 @@ func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID
 		}
 		if in.Definition != nil {
 			m.Workflows[i].Definition = *in.Definition
+		}
+		if in.Status != nil {
+			m.Workflows[i].Status = *in.Status
 		}
 		m.Workflows[i].UpdatedAt = time.Now().Unix()
 		return &m.Workflows[i], nil

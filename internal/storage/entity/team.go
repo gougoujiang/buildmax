@@ -12,6 +12,8 @@ import (
 const (
 	// TeamRoleOwner is the initial role for the user who creates a team.
 	TeamRoleOwner = "owner"
+	// TeamRoleAdmin can manage shared automation assets but not membership ownership.
+	TeamRoleAdmin = "admin"
 	// TeamRoleMember is the basic collaboration role for invited members.
 	TeamRoleMember = "member"
 	// DefaultPersonalTeamName is the initial UX-facing name for a user's own space.

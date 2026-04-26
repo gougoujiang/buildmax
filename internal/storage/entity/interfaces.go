@@ -101,6 +101,7 @@ type UpdateWorkflowInput struct {
 	Name        *string
 	Description *string
 	Definition  *string
+	Status      *string
 }
 
 type CreateWorkflowStepRunInput struct {

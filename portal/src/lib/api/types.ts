@@ -57,6 +57,7 @@ export interface ApiWorkflow {
   name: string
   description: string
   definition: string
+  status: string
   created_by: string
   created_at: number
   updated_at: number

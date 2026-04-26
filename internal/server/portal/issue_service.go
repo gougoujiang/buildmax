@@ -49,6 +49,9 @@ func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool 
 	case errors.Is(err, issueapp.ErrWorkflowNotFound):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not found")
 		return true
+	case errors.Is(err, issueapp.ErrWorkflowNotPublished):
+		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not published")
+		return true
 	case errors.Is(err, issueapp.ErrIssueNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return true

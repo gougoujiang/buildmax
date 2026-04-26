@@ -23,7 +23,7 @@ interface AgentListProps {
 
 export function AgentList({ token }: AgentListProps) {
   const { setPendingConversation } = useApp()
-  const { currentTeamId } = useTeam()
+  const { currentTeamId, currentUserRole } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -34,6 +34,7 @@ export function AgentList({ token }: AgentListProps) {
   const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
   const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const canManageAgents = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchAgents = useCallback(() => {
     if (!token || !currentTeamId) {
@@ -43,7 +44,9 @@ export function AgentList({ token }: AgentListProps) {
     }
     setLoading(true)
     getAgents(currentTeamId, token)
-      .then((list) => setAgents(list.map(apiAgentToAgent)))
+      .then((list) => {
+        setAgents(list.map(apiAgentToAgent))
+      })
       .finally(() => setLoading(false))
   }, [token, currentTeamId])
 
@@ -134,26 +137,36 @@ export function AgentList({ token }: AgentListProps) {
           </p>
         </div>
         <div className="page-activity__actions">
-          <button
-            type="button"
-            className="page-activity__action-btn agent-list__create-btn"
-            onClick={() => {
-              setError(null)
-              setModalOpen(true)
-            }}
-            aria-label="Create agent"
-          >
-            Create agent
-          </button>
+          {canManageAgents ? (
+            <button
+              type="button"
+              className="page-activity__action-btn agent-list__create-btn"
+              onClick={() => {
+                setError(null)
+                setModalOpen(true)
+              }}
+              aria-label="Create agent"
+            >
+              Create agent
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {!canManageAgents ? (
+        <p className="page-activity__empty">
+          You can start conversations with team agents, but only team owners and admins can create or edit them.
+        </p>
+      ) : null}
 
       <section className="agent-list">
         {loading ? (
           <p className="page-activity__empty">Loading…</p>
         ) : agents.length === 0 ? (
           <p className="page-activity__empty agent-list__empty">
-            No agents yet. Click &quot;Create agent&quot; to add one.
+            {canManageAgents
+              ? "No agents yet. Click \"Create agent\" to add one."
+              : "No agents are available in this team yet. Team owners and admins can add one when you're ready to share a reusable agent."}
           </p>
         ) : (
           <div className="agent-list__grid">
@@ -163,12 +176,14 @@ export function AgentList({ token }: AgentListProps) {
                 className="agent-card"
                 role="button"
                 tabIndex={0}
-                aria-label={`Edit agent ${a.name}`}
+                aria-label={canManageAgents ? `Edit agent ${a.name}` : `${a.name}`}
                 onClick={() => {
+                  if (!canManageAgents) return
                   setError(null)
                   setEditingAgent(a)
                 }}
                 onKeyDown={(e) => {
+                  if (!canManageAgents) return
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
                     setError(null)
@@ -180,7 +195,7 @@ export function AgentList({ token }: AgentListProps) {
                   <AgentAvatar size="md" className="agent-card__avatar" />
                   <div className="agent-card__title-row">
                     <h3 className="agent-card__name">{a.name}</h3>
-                    <span className="agent-card__edit-hint" aria-hidden>Edit</span>
+                    {canManageAgents ? <span className="agent-card__edit-hint" aria-hidden>Edit</span> : null}
                   </div>
                 </header>
                 {a.description ? (

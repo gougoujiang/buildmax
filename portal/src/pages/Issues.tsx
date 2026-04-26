@@ -3,7 +3,7 @@ import type { Agent, Issue } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../lib/api/mappers"
-import { createIssue, getIssues } from "../features/issues"
+import { createIssue, getIssues, updateIssue } from "../features/issues"
 import { getAgents } from "../features/agents"
 import { getTeamMembers } from "../features/teams/api"
 import { getWorkflows } from "../features/workflows"
@@ -20,7 +20,7 @@ interface IssuesProps {
 }
 
 export function Issues({ token, userId }: IssuesProps) {
-  const { currentTeamId } = useTeam()
+  const { currentTeamId, currentUserRole } = useTeam()
   const [issues, setIssues] = useState<Issue[]>([])
   const [total, setTotal] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
@@ -31,6 +31,7 @@ export function Issues({ token, userId }: IssuesProps) {
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
+  const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -96,12 +97,34 @@ export function Issues({ token, userId }: IssuesProps) {
     return `${start}-${end} of ${total}`
   }, [page, total])
 
-  function handleCreate(values: { title: string; description?: string }) {
+  function handleCreate(values: {
+    title: string
+    description?: string
+    status: Issue["status"]
+    assignee_kind: "person" | "agent" | "workflow" | ""
+    assignee_id: string
+  }) {
     if (!token || !currentTeamId) return
     setSaving(true)
     setError(null)
-    createIssue(currentTeamId, values, token)
-      .then(() => {
+    createIssue(currentTeamId, { title: values.title, description: values.description }, token)
+      .then(async (created) => {
+        const needsPatch =
+          values.status !== "todo" ||
+          values.assignee_kind !== "" ||
+          values.assignee_id !== ""
+        if (needsPatch) {
+          await updateIssue(
+            currentTeamId,
+            created.id,
+            {
+              status: values.status,
+              assignee_kind: values.assignee_kind,
+              assignee_id: values.assignee_id,
+            },
+            token,
+          )
+        }
         setCreateOpen(false)
         setPage(1)
         navigate({ name: "issues" })
@@ -135,6 +158,11 @@ export function Issues({ token, userId }: IssuesProps) {
       </div>
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
+      {!canAssignWorkflow ? (
+        <p className="page-activity__empty">
+          You can create issues and assign people or agents here. Workflow assignment is reserved for team owners and admins.
+        </p>
+      ) : null}
 
       <section className="issues-page__panel">
         <div className="issues-page__toolbar">
@@ -145,7 +173,9 @@ export function Issues({ token, userId }: IssuesProps) {
         {loading ? (
           <p className="page-activity__empty">Loading…</p>
         ) : issues.length === 0 ? (
-          <p className="page-activity__empty">No issues yet.</p>
+          <p className="page-activity__empty">
+            No issues yet. Create one to track a work item, ownership, and progress for this team.
+          </p>
         ) : (
           <ul className="issues-page__list">
             {issues.map((issue) => (
@@ -207,12 +237,13 @@ export function Issues({ token, userId }: IssuesProps) {
         members={members}
         userId={userId}
         loading={saving}
+        allowWorkflowAssignment={canAssignWorkflow}
         error={createOpen ? error : null}
         onClose={() => {
           setCreateOpen(false)
           setError(null)
         }}
-        onSubmit={({ title, description }) => handleCreate({ title, description })}
+        onSubmit={handleCreate}
       />
 
     </div>

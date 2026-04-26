@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react"
 import { getTeams } from "../features/teams/api"
+import { getTeamMembers } from "../features/teams/api"
+import type { ApiTeamMember } from "../lib/api/types"
 import {
   clearStoredCurrentTeamId,
   getStoredCurrentTeamId,
@@ -25,6 +27,8 @@ interface TeamContextValue {
   teams: TeamSummary[]
   currentTeamId: string | null
   currentTeam: TeamSummary | null
+  currentTeamMembers: ApiTeamMember[]
+  currentUserRole: string | null
   loading: boolean
   setCurrentTeamId: (teamId: string) => void
   refetchTeams: (preferredTeamId?: string | null) => Promise<void>
@@ -47,15 +51,17 @@ function normalizeTeamName(team: { name: string; personal_for_user_id?: string |
 }
 
 export function TeamProvider({ children }: { children: ReactNode }) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const [teams, setTeams] = useState<TeamSummary[]>([])
   const [currentTeamId, setCurrentTeamIdState] = useState<string | null>(getStoredCurrentTeamId)
+  const [currentTeamMembers, setCurrentTeamMembers] = useState<ApiTeamMember[]>([])
   const [loading, setLoading] = useState(false)
 
   const refetchTeams = useCallback(async (preferredTeamId?: string | null) => {
     if (!token) {
       setTeams([])
       setCurrentTeamIdState(null)
+      setCurrentTeamMembers([])
       clearStoredCurrentTeamId()
       return
     }
@@ -84,6 +90,16 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     void refetchTeams()
   }, [refetchTeams])
 
+  useEffect(() => {
+    if (!token || !currentTeamId) {
+      setCurrentTeamMembers([])
+      return
+    }
+    void getTeamMembers(currentTeamId, token)
+      .then((members) => setCurrentTeamMembers(members))
+      .catch(() => setCurrentTeamMembers([]))
+  }, [token, currentTeamId])
+
   const setCurrentTeamId = useCallback(
     (teamId: string) => {
       if (!teams.some((team) => team.id === teamId)) return
@@ -98,10 +114,17 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     [teams, currentTeamId]
   )
 
+  const currentUserRole = useMemo(
+    () => currentTeamMembers.find((member) => member.user_id === user?.id)?.role ?? null,
+    [currentTeamMembers, user?.id],
+  )
+
   const value: TeamContextValue = {
     teams,
     currentTeamId,
     currentTeam,
+    currentTeamMembers,
+    currentUserRole,
     loading,
     setCurrentTeamId,
     refetchTeams,

@@ -34,7 +34,7 @@ export async function createWorkflow(
 export async function updateWorkflow(
   teamId: string,
   workflowId: string,
-  body: { name?: string; description?: string; definition?: string },
+  body: { name?: string; description?: string; definition?: string; status?: string },
   token: string,
 ): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}`, {

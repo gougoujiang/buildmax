@@ -88,6 +88,7 @@ export function apiWorkflowToWorkflow(api: ApiWorkflow): Workflow {
     name: api.name,
     description: api.description,
     definition: api.definition,
+    status: api.status as Workflow["status"],
     createdBy: api.created_by,
     createdAt: api.created_at,
     updatedAt: api.updated_at,

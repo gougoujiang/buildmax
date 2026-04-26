@@ -28,6 +28,9 @@ var (
 	ErrInvalidStepType            = errors.New("invalid workflow step type")
 	ErrInvalidStepID              = errors.New("invalid workflow step_id")
 	ErrInvalidTargetAgent         = errors.New("invalid target agent")
+	ErrInvalidWorkflowStatus      = errors.New("invalid workflow status")
+	ErrWorkflowNotPublished       = errors.New("workflow not published")
+	ErrWorkflowArchived           = errors.New("workflow archived")
 )
 
 type Service struct {
@@ -63,6 +66,7 @@ type UpdateWorkflowCmd struct {
 	Name        *string
 	Description *string
 	Definition  *string
+	Status      *string
 }
 
 type StartWorkflowRunCmd struct {
@@ -117,6 +121,7 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*e
 		Name:        cmd.Name,
 		Description: cmd.Description,
 		Definition:  cmd.Definition,
+		Status:      nil,
 	}
 	if cmd.Definition != nil {
 		if strings.TrimSpace(*cmd.Definition) == "" {
@@ -125,6 +130,12 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*e
 		if _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, *cmd.Definition); err != nil {
 			return nil, err
 		}
+	}
+	if cmd.Status != nil {
+		if !isValidWorkflowStatus(*cmd.Status) {
+			return nil, ErrInvalidWorkflowStatus
+		}
+		in.Status = cmd.Status
 	}
 	workflow, err := s.Workflows.UpdateWorkflow(ctx, cmd.WorkflowID, cmd.TeamID, in)
 	if err != nil {
@@ -183,6 +194,12 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
+	if workflow.Status == entity.WorkflowStatusArchived {
+		return nil, nil, ErrWorkflowArchived
+	}
+	if workflow.Status != entity.WorkflowStatusPublished {
+		return nil, nil, ErrWorkflowNotPublished
+	}
 	def, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, workflow.Definition)
 	if err != nil {
 		return nil, nil, err
@@ -234,6 +251,15 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		return nil, nil, err
 	}
 	return run, stepRuns, nil
+}
+
+func isValidWorkflowStatus(status string) bool {
+	switch status {
+	case entity.WorkflowStatusDraft, entity.WorkflowStatusPublished, entity.WorkflowStatusArchived:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) HandleTaskRunTerminal(ctx context.Context, info worker.TaskRunTerminalInfo) error {

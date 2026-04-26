@@ -10,6 +10,10 @@ import (
 )
 
 const (
+	WorkflowStatusDraft     = "draft"
+	WorkflowStatusPublished = "published"
+	WorkflowStatusArchived  = "archived"
+
 	WorkflowRunStatusPending   = "pending"
 	WorkflowRunStatusRunning   = "running"
 	WorkflowRunStatusSucceeded = "succeeded"
@@ -39,6 +43,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		Name:        name,
 		Description: description,
 		Definition:  definition,
+		Status:      WorkflowStatusDraft,
 		CreatedBy:   createdBy,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -80,6 +85,9 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 	}
 	if in.Definition != nil {
 		updates["definition"] = *in.Definition
+	}
+	if in.Status != nil {
+		updates["status"] = *in.Status
 	}
 	if err := s.db.WithContext(ctx).Model(&Workflow{}).Where("workflow_id = ?", workflowID).Updates(updates).Error; err != nil {
 		return nil, err

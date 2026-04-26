@@ -53,6 +53,15 @@ func (h *Handler) writeWorkflowServiceError(w http.ResponseWriter, err error) bo
 	case errors.Is(err, workflowapp.ErrInvalidDefinition), errors.Is(err, workflowapp.ErrInvalidStepType), errors.Is(err, workflowapp.ErrInvalidStepID), errors.Is(err, workflowapp.ErrInvalidTargetAgent):
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return true
+	case errors.Is(err, workflowapp.ErrInvalidWorkflowStatus):
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid workflow status")
+		return true
+	case errors.Is(err, workflowapp.ErrWorkflowNotPublished):
+		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not published")
+		return true
+	case errors.Is(err, workflowapp.ErrWorkflowArchived):
+		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow archived")
+		return true
 	}
 	return false
 }

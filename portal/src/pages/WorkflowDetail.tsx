@@ -68,19 +68,21 @@ function buildDefaultStep(agentId = "", index = 0): WorkflowStepDraft {
 }
 
 export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
-  const { currentTeamId } = useTeam()
+  const { currentTeamId, currentUserRole } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [runs, setRuns] = useState<WorkflowRun[]>([])
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [definition, setDefinition] = useState("")
+  const [status, setStatus] = useState<Workflow["status"]>("draft")
   const [stepDrafts, setStepDrafts] = useState<WorkflowStepDraft[]>([])
   const [definitionHint, setDefinitionHint] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
 
   const syncDefinition = useCallback((nextSteps: WorkflowStepDraft[]) => {
     setStepDrafts(nextSteps)
@@ -112,6 +114,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
       setName(mappedWorkflow.name)
       setDescription(mappedWorkflow.description)
       setDefinition(mappedWorkflow.definition)
+      setStatus(mappedWorkflow.status)
       setStepDrafts(parsed?.steps ?? [])
       setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
     } catch (err) {
@@ -126,13 +129,13 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   }, [load])
 
   function handleSave() {
-    if (!token || !currentTeamId || !workflow) return
+    if (!token || !currentTeamId || !workflow || !canManageWorkflows) return
     setSaving(true)
     setError(null)
     updateWorkflow(
       currentTeamId,
       workflow.id,
-      { name: name.trim(), description, definition: definition.trim() },
+      { name: name.trim(), description, definition: definition.trim(), status },
       token,
     )
       .then((updated) => {
@@ -142,6 +145,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
         setName(mapped.name)
         setDescription(mapped.description)
         setDefinition(mapped.definition)
+        setStatus(mapped.status)
         setStepDrafts(parsed?.steps ?? [])
         setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
       })
@@ -193,23 +197,30 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
           <button
             type="button"
             className="page-activity__action-btn"
-            disabled={running || loading || workflow == null}
+            disabled={running || loading || workflow == null || workflow.status !== "published"}
             onClick={handleRunWorkflow}
           >
             {running ? "Running…" : "Run Workflow"}
           </button>
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            disabled={saving || loading || workflow == null || !name.trim() || !definition.trim()}
-            onClick={handleSave}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
+          {canManageWorkflows ? (
+            <button
+              type="button"
+              className="page-activity__action-btn"
+              disabled={saving || loading || workflow == null || !name.trim() || !definition.trim()}
+              onClick={handleSave}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          ) : null}
         </div>
       </div>
 
       {error ? <p className="page-activity__empty">{error}</p> : null}
+      {!canManageWorkflows ? (
+        <p className="page-activity__empty">
+          This workflow is read-only for your role. You can still inspect it here, and you can run it when it is `published`.
+        </p>
+      ) : null}
 
       {loading ? (
         <p className="page-activity__empty">Loading…</p>
@@ -225,8 +236,24 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
 
             <div className="workflow-page__form">
               <label className="issues-page__field">
+                <span className="issues-page__field-label">Status</span>
+                <select
+                  className="issues-page__input"
+                  value={status}
+                  disabled={!canManageWorkflows}
+                  onChange={(e) => setStatus(e.target.value as Workflow["status"])}
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <span className="issues-page__field-label">
+                  Only `published` workflows can be assigned to issues or run manually.
+                </span>
+              </label>
+              <label className="issues-page__field">
                 <span className="issues-page__field-label">Name</span>
-                <input className="issues-page__input" value={name} onChange={(e) => setName(e.target.value)} />
+                <input className="issues-page__input" value={name} disabled={!canManageWorkflows} onChange={(e) => setName(e.target.value)} />
               </label>
               <label className="issues-page__field">
                 <span className="issues-page__field-label">Description</span>
@@ -234,20 +261,28 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                   className="issues-page__textarea"
                   rows={4}
                   value={description}
+                  disabled={!canManageWorkflows}
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </label>
+              {workflow.status !== "published" ? (
+                <p className="page-activity__empty">
+                  This workflow is currently `{workflow.status}`. Publish it before manual runs or issue assignment.
+                </p>
+              ) : null}
 
               <section className="workflow-page__builder">
                 <div className="issues-page__toolbar">
                   <h3 className="issues-page__section-title">Steps</h3>
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
-                    onClick={() => syncDefinition([...stepDrafts, buildDefaultStep(agents[0]?.id ?? "", stepDrafts.length)])}
-                  >
-                    Add Step
-                  </button>
+                  {canManageWorkflows ? (
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      onClick={() => syncDefinition([...stepDrafts, buildDefaultStep(agents[0]?.id ?? "", stepDrafts.length)])}
+                    >
+                      Add Step
+                    </button>
+                  ) : null}
                 </div>
                 {stepDrafts.length === 0 ? (
                   <p className="page-activity__empty">No steps yet.</p>
@@ -257,14 +292,16 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                       <li key={`${step.step_id}-${index}`} className="workflow-page__step">
                         <div className="workflow-page__step-head">
                           <strong>Step {index + 1}</strong>
-                          <button
-                            type="button"
-                            className="page-activity__action-btn"
-                            disabled={stepDrafts.length === 1}
-                            onClick={() => syncDefinition(stepDrafts.filter((_, draftIndex) => draftIndex !== index))}
-                          >
-                            Remove
-                          </button>
+                          {canManageWorkflows ? (
+                            <button
+                              type="button"
+                              className="page-activity__action-btn"
+                              disabled={stepDrafts.length === 1}
+                              onClick={() => syncDefinition(stepDrafts.filter((_, draftIndex) => draftIndex !== index))}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
                         </div>
                         <div className="workflow-page__builder-grid">
                           <label className="issues-page__field">
@@ -272,6 +309,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                             <input
                               className="issues-page__input"
                               value={step.step_id}
+                              disabled={!canManageWorkflows}
                               onChange={(e) =>
                                 syncDefinition(
                                   stepDrafts.map((draft, draftIndex) =>
@@ -286,6 +324,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                             <input
                               className="issues-page__input"
                               value={step.type}
+                              disabled={!canManageWorkflows}
                               onChange={(e) =>
                                 syncDefinition(
                                   stepDrafts.map((draft, draftIndex) =>
@@ -301,6 +340,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                           <select
                             className="issues-page__input"
                             value={step.target_agent_id}
+                            disabled={!canManageWorkflows}
                             onChange={(e) =>
                               syncDefinition(
                                 stepDrafts.map((draft, draftIndex) =>
@@ -323,6 +363,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                             className="issues-page__textarea"
                             rows={4}
                             value={step.prompt}
+                            disabled={!canManageWorkflows}
                             onChange={(e) =>
                               syncDefinition(
                                 stepDrafts.map((draft, draftIndex) =>
@@ -344,6 +385,7 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                   className="issues-page__textarea workflow-page__definition"
                   rows={12}
                   value={definition}
+                  disabled={!canManageWorkflows}
                   onChange={(e) => {
                     const nextDefinition = e.target.value
                     setDefinition(nextDefinition)

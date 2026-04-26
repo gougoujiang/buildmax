@@ -14,6 +14,7 @@ type workflowResponse struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Definition  string `json:"definition"`
+	Status      string `json:"status"`
 	CreatedBy   string `json:"created_by"`
 	CreatedAt   int64  `json:"created_at"`
 	UpdatedAt   int64  `json:"updated_at"`
@@ -74,6 +75,7 @@ type patchWorkflowRequest struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
 	Definition  *string `json:"definition"`
+	Status      *string `json:"status"`
 }
 
 type createWorkflowRunRequest struct {
@@ -87,6 +89,7 @@ func workflowToResponse(workflow entity.Workflow) workflowResponse {
 		Name:        workflow.Name,
 		Description: workflow.Description,
 		Definition:  workflow.Definition,
+		Status:      workflow.Status,
 		CreatedBy:   workflow.CreatedBy,
 		CreatedAt:   workflow.CreatedAt,
 		UpdatedAt:   workflow.UpdatedAt,
@@ -153,6 +156,9 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageWorkflows); !ok {
+		return
+	}
 	var req createWorkflowRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
@@ -195,8 +201,11 @@ func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
+		return
+	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageWorkflows); !ok {
 		return
 	}
 	workflowID, ok := pathValueRequired(w, r, "workflow_id")
@@ -213,6 +222,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Description: req.Description,
 		Definition:  req.Definition,
+		Status:      req.Status,
 	})
 	if err != nil {
 		if h.writeWorkflowServiceError(w, err) {
@@ -278,6 +288,9 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionRunWorkflow); !ok {
+		return
+	}
 	workflowID, ok := pathValueRequired(w, r, "workflow_id")
 	if !ok {
 		return
@@ -311,6 +324,9 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
 	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
+		return
+	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionRunWorkflow); !ok {
 		return
 	}
 	issueID, ok := pathValueRequired(w, r, "issue_id")

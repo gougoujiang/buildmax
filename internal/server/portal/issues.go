@@ -315,6 +315,11 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
+	if req.AssigneeKind != nil && *req.AssigneeKind == entity.IssueAssigneeWorkflow {
+		if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionAssignIssueWorkflow); !ok {
+			return
+		}
+	}
 	issue, err := h.issueService().UpdateIssue(r.Context(), issueapp.UpdateIssueCmd{
 		UserID:       userID,
 		TeamID:       teamID,
