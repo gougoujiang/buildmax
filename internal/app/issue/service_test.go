@@ -13,6 +13,7 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 	svc := &Service{Issues: &testutil.MockIssueStore{}}
 	_, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
 		UserID: "u1",
+		TeamID: "tm_1",
 		Title:  "",
 	})
 	if !errors.Is(err, ErrTitleRequired) {
@@ -23,12 +24,13 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 func TestUpdateIssue_InvalidStatus(t *testing.T) {
 	svc := &Service{
 		Issues: &testutil.MockIssueStore{
-			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1"}},
+			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1"}},
 		},
 	}
 	status := "blocked"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		UserID:  "u1",
+		TeamID:  "tm_1",
 		IssueID: "i_1",
 		Status:  &status,
 	})
@@ -40,13 +42,15 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 func TestUpdateIssue_AssignToPerson(t *testing.T) {
 	svc := &Service{
 		Issues: &testutil.MockIssueStore{
-			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", Status: entity.IssueStatusTodo}},
+			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: entity.IssueStatusTodo}},
 		},
+		Teams: &testutil.MockTeamStore{Members: []entity.TeamMember{{TeamID: "tm_1", UserID: "u1", Role: entity.TeamRoleOwner}}},
 	}
 	kind := entity.IssueAssigneePerson
 	id := "u1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		UserID:       "u1",
+		TeamID:       "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -62,16 +66,17 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &testutil.MockIssueStore{
-			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", Status: entity.IssueStatusTodo}},
+			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: entity.IssueStatusTodo}},
 		},
 		Agents: &testutil.MockAgentStore{
-			Agents: []entity.Agent{{AgentID: "a_1", UserID: "u1", Name: "Agent 1"}},
+			Agents: []entity.Agent{{AgentID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	kind := entity.IssueAssigneeAgent
 	id := "a_1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		UserID:       "u1",
+		TeamID:       "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,
@@ -87,16 +92,17 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &testutil.MockIssueStore{
-			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", Status: entity.IssueStatusTodo}},
+			Issues: []entity.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: entity.IssueStatusTodo}},
 		},
 		Agents: &testutil.MockAgentStore{
-			Agents: []entity.Agent{{AgentID: "a_1", UserID: "u2", Name: "Other Agent"}},
+			Agents: []entity.Agent{{AgentID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
 		},
 	}
 	kind := entity.IssueAssigneeAgent
 	id := "a_1"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
 		UserID:       "u1",
+		TeamID:       "tm_1",
 		IssueID:      "i_1",
 		AssigneeKind: &kind,
 		AssigneeID:   &id,

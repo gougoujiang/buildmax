@@ -18,13 +18,18 @@ type MockIssueStore struct {
 }
 
 func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in entity.CreateIssueInput) (*entity.Issue, error) {
+	return m.CreateIssueInTeam(context.Background(), "tm_personal", userID, in)
+}
+
+func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in entity.CreateIssueInput) (*entity.Issue, error) {
 	issue := entity.Issue{
 		IssueID:      fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
-		UserID:       userID,
+		UserID:       createdBy,
+		TeamID:       teamID,
 		Title:        in.Title,
 		Description:  in.Description,
 		Status:       entity.IssueStatusTodo,
-		CreatedBy:    userID,
+		CreatedBy:    createdBy,
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 		AssigneeKind: nil,
@@ -38,6 +43,24 @@ func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limi
 	var filtered []entity.Issue
 	for _, issue := range m.Issues {
 		if issue.UserID == userID {
+			filtered = append(filtered, issue)
+		}
+	}
+	total := len(filtered)
+	if offset > len(filtered) {
+		return []entity.Issue{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[offset:end], total, nil
+}
+
+func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, limit, offset int) ([]entity.Issue, int, error) {
+	var filtered []entity.Issue
+	for _, issue := range m.Issues {
+		if issue.TeamID == teamID {
 			filtered = append(filtered, issue)
 		}
 	}
@@ -66,33 +89,47 @@ func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, 
 		if m.Issues[i].IssueID != issueID || m.Issues[i].UserID != userID {
 			continue
 		}
-		if in.Title != nil {
-			m.Issues[i].Title = *in.Title
-		}
-		if in.Description != nil {
-			m.Issues[i].Description = *in.Description
-		}
-		if in.Status != nil {
-			m.Issues[i].Status = *in.Status
-		}
-		if in.AssigneeKind != nil {
-			if *in.AssigneeKind == "" {
-				m.Issues[i].AssigneeKind = nil
-			} else {
-				m.Issues[i].AssigneeKind = in.AssigneeKind
-			}
-		}
-		if in.AssigneeID != nil {
-			if *in.AssigneeID == "" {
-				m.Issues[i].AssigneeID = nil
-			} else {
-				m.Issues[i].AssigneeID = in.AssigneeID
-			}
-		}
-		m.Issues[i].UpdatedAt = time.Now().Unix()
-		return &m.Issues[i], nil
+		return m.applyIssueUpdate(i, in), nil
 	}
 	return nil, nil
+}
+
+func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in entity.UpdateIssueInput) (*entity.Issue, error) {
+	for i := range m.Issues {
+		if m.Issues[i].IssueID != issueID || m.Issues[i].TeamID != teamID {
+			continue
+		}
+		return m.applyIssueUpdate(i, in), nil
+	}
+	return nil, nil
+}
+
+func (m *MockIssueStore) applyIssueUpdate(i int, in entity.UpdateIssueInput) *entity.Issue {
+	if in.Title != nil {
+		m.Issues[i].Title = *in.Title
+	}
+	if in.Description != nil {
+		m.Issues[i].Description = *in.Description
+	}
+	if in.Status != nil {
+		m.Issues[i].Status = *in.Status
+	}
+	if in.AssigneeKind != nil {
+		if *in.AssigneeKind == "" {
+			m.Issues[i].AssigneeKind = nil
+		} else {
+			m.Issues[i].AssigneeKind = in.AssigneeKind
+		}
+	}
+	if in.AssigneeID != nil {
+		if *in.AssigneeID == "" {
+			m.Issues[i].AssigneeID = nil
+		} else {
+			m.Issues[i].AssigneeID = in.AssigneeID
+		}
+	}
+	m.Issues[i].UpdatedAt = time.Now().Unix()
+	return &m.Issues[i]
 }
 
 // MockTaskStore is an in-memory TaskStore for tests.
@@ -369,6 +406,16 @@ func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]e
 	return out, nil
 }
 
+func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]entity.Agent, error) {
+	var out []entity.Agent
+	for _, a := range m.Agents {
+		if a.TeamID == teamID {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
 func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*entity.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID {
@@ -379,9 +426,14 @@ func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*entity.Ag
 }
 
 func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*entity.Agent, error) {
+	return m.CreateAgentInTeam(context.Background(), "tm_personal", userID, name, description, instructions)
+}
+
+func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, name, description, instructions string) (*entity.Agent, error) {
 	a := entity.Agent{
 		AgentID:      fmt.Sprintf("a_%d", len(m.Agents)+1),
 		UserID:       userID,
+		TeamID:       teamID,
 		Name:         name,
 		Description:  description,
 		Instructions: instructions,
@@ -403,9 +455,31 @@ func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, d
 	return nil, nil
 }
 
+func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, name, description, instructions string) (*entity.Agent, error) {
+	for i := range m.Agents {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
+			m.Agents[i].Name = name
+			m.Agents[i].Description = description
+			m.Agents[i].Instructions = instructions
+			return &m.Agents[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) error {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
+			m.Agents = append(m.Agents[:i], m.Agents[i+1:]...)
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
+}
+
+func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID string) error {
+	for i := range m.Agents {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
 			m.Agents = append(m.Agents[:i], m.Agents[i+1:]...)
 			return nil
 		}
@@ -419,9 +493,14 @@ type MockConversationStore struct {
 }
 
 func (m *MockConversationStore) CreateConversation(_ context.Context, userID, channel, createdBy string) (*entity.Conversation, error) {
+	return m.CreateConversationInTeam(context.Background(), "tm_personal", userID, channel, createdBy)
+}
+
+func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, teamID, userID, channel, createdBy string) (*entity.Conversation, error) {
 	conv := entity.Conversation{
 		ConversationID: fmt.Sprintf("v_%d", len(m.Conversations)+1),
 		UserID:         userID,
+		TeamID:         teamID,
 		Channel:        channel,
 		CreatedBy:      createdBy,
 		CreatedAt:      time.Now().Unix(),
@@ -443,6 +522,23 @@ func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userI
 	var out []entity.Conversation
 	for _, conv := range m.Conversations {
 		if conv.UserID == userID {
+			out = append(out, conv)
+		}
+	}
+	total := len(out)
+	if offset > total {
+		return []entity.Conversation{}, total, nil
+	}
+	if limit <= 0 || offset+limit > total {
+		limit = total - offset
+	}
+	return out[offset : offset+limit], total, nil
+}
+
+func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamID string, limit, offset int) ([]entity.Conversation, int, error) {
+	var out []entity.Conversation
+	for _, conv := range m.Conversations {
+		if conv.TeamID == teamID {
 			out = append(out, conv)
 		}
 	}

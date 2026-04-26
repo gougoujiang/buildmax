@@ -42,6 +42,7 @@ func (m *mockConversationMessageStore) ListMessages(ctx context.Context, convers
 func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	secret := "test-conversation-secret"
 	conversationID := "conv1"
+	teamID := "tm_personal_u1"
 	channel := "system"
 	messageStore := &mockConversationMessageStore{
 		messages: []entity.ConversationMessage{
@@ -53,9 +54,13 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	}
 	h := NewHandler(Config{
 		JWTSecret: secret,
+		TeamStore: &testutil.MockTeamStore{
+			Teams:   []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
+			Members: []entity.TeamMember{{TeamID: teamID, UserID: "u1", Role: entity.TeamRoleOwner}},
+		},
 		ConversationStore: &testutil.MockConversationStore{
 			Conversations: []entity.Conversation{
-				{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+				{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 			},
 		},
 		ConversationMessageStore: messageStore,
@@ -63,7 +68,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/conversations/"+conversationID+"/messages", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations/"+conversationID+"/messages", nil)
 	req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", secret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

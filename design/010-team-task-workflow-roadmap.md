@@ -264,7 +264,7 @@ Recommended status values:
 | Phase | Name | Status | Phase Doc | Notes |
 |------|------|--------|-----------|-------|
 | 0 | Terminology And Boundary Alignment | `not_started` | TBD | |
-| 1 | Issue Uplift | `in_progress` | `design/011-phase-1-issue-uplift.md` | Phase doc corrected: Issue is a new work-management object, separate from low-level task/task_run. |
+| 1 | Issue Uplift | `done` | `design/011-phase-1-issue-uplift.md` | MVP landed: user-scoped Issue entity, CRUD API, top-level Issues menu, list view with pagination, shared create/detail modal, basic assignee/status editing. Issue remains separate from low-level task/task_run. |
 | 2 | Team Foundation | `not_started` | TBD | |
 | 3 | Workflow Foundation | `not_started` | TBD | |
 | 4 | Issue Flow Visualization | `not_started` | TBD | |

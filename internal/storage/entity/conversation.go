@@ -11,10 +11,20 @@ import (
 
 // CreateConversation creates a new Tier 1 conversation. Returns the conversation with conversation_id set.
 func (s *Store) CreateConversation(ctx context.Context, userID, channel, createdBy string) (*Conversation, error) {
+	teamID, err := s.personalTeamIDForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.CreateConversationInTeam(ctx, teamID, userID, channel, createdBy)
+}
+
+// CreateConversationInTeam creates a new team-scoped Tier 1 conversation.
+func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*Conversation, error) {
 	now := time.Now().Unix()
 	conv := &Conversation{
 		ConversationID: util.NewPrefixedID(util.PrefixConversation),
 		UserID:         userID,
+		TeamID:         teamID,
 		Channel:        channel,
 		CreatedBy:      createdBy,
 		CreatedAt:      now,
@@ -47,6 +57,20 @@ func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limi
 	}
 	var list []Conversation
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Limit(limit).Offset(offset).
+		Find(&list).Error
+	return list, int(total), err
+}
+
+// ListConversationsByTeam returns conversations for the team ordered by created_at DESC.
+func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]Conversation, int, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&Conversation{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []Conversation
+	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).
 		Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error

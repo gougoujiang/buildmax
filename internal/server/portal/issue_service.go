@@ -12,6 +12,7 @@ func (h *Handler) issueService() *issueapp.Service {
 	return &issueapp.Service{
 		Issues: h.cfg.IssueStore,
 		Agents: h.cfg.AgentStore,
+		Teams:  h.cfg.TeamStore,
 	}
 }
 
@@ -22,6 +23,9 @@ func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool 
 		return true
 	case errors.Is(err, issueapp.ErrTitleRequired):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "title required")
+		return true
+	case errors.Is(err, issueapp.ErrTeamsNotConfigured):
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "teams not configured")
 		return true
 	case errors.Is(err, issueapp.ErrInvalidStatus):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid status")

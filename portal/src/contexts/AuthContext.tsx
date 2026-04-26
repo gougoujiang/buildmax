@@ -8,6 +8,7 @@ import {
 } from "react"
 import type { LoginUser } from "../lib/api"
 import { UNAUTHORIZED_EVENT } from "../lib/api"
+import { clearStoredCurrentTeamId } from "../features/teams/storage"
 
 const TOKEN_KEY = "buildmax_token"
 const USER_KEY = "buildmax_user"
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
+    clearStoredCurrentTeamId()
     setState({ token: null, user: null })
   }, [])
 

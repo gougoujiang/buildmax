@@ -10,7 +10,7 @@ import (
 )
 
 func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -19,7 +19,7 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-	_, _, ok = h.getTaskForUser(w, r, userID, taskID)
+	_, _, ok = h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}

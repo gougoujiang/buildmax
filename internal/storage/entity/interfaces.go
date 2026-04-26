@@ -16,6 +16,24 @@ type UserStore interface {
 	UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error
 }
 
+// TeamStore provides team persistence and membership lookup.
+type TeamStore interface {
+	// GetTeam returns the team by team_id, or (nil, nil) when not found.
+	GetTeam(ctx context.Context, teamID string) (*Team, error)
+	// GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
+	GetPersonalTeamByUser(ctx context.Context, userID string) (*Team, error)
+	// ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
+	ListTeamsByUser(ctx context.Context, userID string) ([]Team, error)
+	// CreateTeam creates a new team and owner membership.
+	CreateTeam(ctx context.Context, name, createdBy string) (*Team, error)
+	// AddTeamMember adds or updates a team membership.
+	AddTeamMember(ctx context.Context, teamID, userID, role string) (*TeamMember, error)
+	// RemoveTeamMember removes one membership from a team.
+	RemoveTeamMember(ctx context.Context, teamID, userID string) error
+	// ListTeamMembers returns members of the team ordered by created_at ASC.
+	ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember, error)
+}
+
 // QuotaTierStore provides quota tier limits by tier name.
 type QuotaTierStore interface {
 	// GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
@@ -31,18 +49,25 @@ type UsageInWindowReader interface {
 // AgentStore provides agent persistence. Agents are user-scoped.
 type AgentStore interface {
 	ListAgentsByUser(ctx context.Context, userID string) ([]Agent, error)
+	ListAgentsByTeam(ctx context.Context, teamID string) ([]Agent, error)
 	GetAgent(ctx context.Context, agentID string) (*Agent, error)
 	CreateAgent(ctx context.Context, userID, name, description, instructions string) (*Agent, error)
+	CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*Agent, error)
 	UpdateAgent(ctx context.Context, agentID, userID, name, description, instructions string) (*Agent, error)
+	UpdateAgentInTeam(ctx context.Context, agentID, teamID, name, description, instructions string) (*Agent, error)
 	DeleteAgent(ctx context.Context, agentID, userID string) error
+	DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error
 }
 
 // IssueStore provides issue persistence. Issues are user-scoped.
 type IssueStore interface {
 	CreateIssue(ctx context.Context, userID string, in CreateIssueInput) (*Issue, error)
+	CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in CreateIssueInput) (*Issue, error)
 	ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]Issue, int, error)
+	ListIssuesByTeam(ctx context.Context, teamID string, limit, offset int) ([]Issue, int, error)
 	GetIssue(ctx context.Context, issueID string) (*Issue, error)
 	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateIssueInput) (*Issue, error)
+	UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in UpdateIssueInput) (*Issue, error)
 }
 
 // TaskStore provides task persistence. Tasks belong to a conversation.
@@ -86,8 +111,10 @@ type TaskRunStore interface {
 // ConversationStore provides Tier 1 conversation persistence. Conversations are user-scoped.
 type ConversationStore interface {
 	CreateConversation(ctx context.Context, userID, channel, createdBy string) (*Conversation, error)
+	CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*Conversation, error)
 	GetConversation(ctx context.Context, conversationID string) (*Conversation, error)
 	ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]Conversation, int, error)
+	ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]Conversation, int, error)
 	UpdateConversationTitle(ctx context.Context, conversationID, title string) error
 }
 

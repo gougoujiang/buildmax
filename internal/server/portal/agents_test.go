@@ -14,10 +14,15 @@ import (
 const agentTestSecret = "agent-test-secret"
 
 func TestPatchAgentHandler(t *testing.T) {
+	personalTeamID := "tm_personal_u1"
 	agentStore := &testutil.MockAgentStore{
 		Agents: []entity.Agent{
-			{AgentID: "a_1", UserID: "u1", Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
+			{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
+	}
+	teamStore := &testutil.MockTeamStore{
+		Teams:   []entity.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
+		Members: []entity.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner}},
 	}
 
 	tests := []struct {
@@ -32,7 +37,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:        "PATCH success",
 			method:      http.MethodPatch,
-			url:         "/api/agents/a_1",
+			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusOK,
@@ -41,7 +46,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:        "PATCH empty name returns 400",
 			method:      http.MethodPatch,
-			url:         "/api/agents/a_1",
+			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":""}`,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusBadRequest,
@@ -50,7 +55,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:        "PATCH non-existent agent returns 404",
 			method:      http.MethodPatch,
-			url:         "/api/agents/a_999",
+			url:         "/api/teams/" + personalTeamID + "/agents/a_999",
 			body:        `{"name":"X","description":"","instructions":""}`,
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
@@ -59,7 +64,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		{
 			name:       "PATCH no auth returns 401",
 			method:     http.MethodPatch,
-			url:        "/api/agents/a_1",
+			url:        "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:       `{"name":"X"}`,
 			authHeader: "",
 			wantStatus: http.StatusUnauthorized,
@@ -69,6 +74,7 @@ func TestPatchAgentHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewHandler(Config{
 				JWTSecret:  agentTestSecret,
+				TeamStore:  teamStore,
 				AgentStore: agentStore,
 			})
 			mux := http.NewServeMux()
@@ -105,6 +111,7 @@ func TestPatchAgentHandler(t *testing.T) {
 }
 
 func TestDeleteAgentHandler(t *testing.T) {
+	personalTeamID := "tm_personal_u1"
 	tests := []struct {
 		name        string
 		url         string
@@ -114,20 +121,20 @@ func TestDeleteAgentHandler(t *testing.T) {
 	}{
 		{
 			name:       "DELETE success returns 204",
-			url:        "/api/agents/a_1",
+			url:        "/api/teams/" + personalTeamID + "/agents/a_1",
 			authHeader: "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:        "DELETE non-existent agent returns 404",
-			url:         "/api/agents/a_999",
+			url:         "/api/teams/" + personalTeamID + "/agents/a_999",
 			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
 		{
 			name:       "DELETE no auth returns 401",
-			url:        "/api/agents/a_1",
+			url:        "/api/teams/" + personalTeamID + "/agents/a_1",
 			authHeader: "",
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -136,11 +143,16 @@ func TestDeleteAgentHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &testutil.MockAgentStore{
 				Agents: []entity.Agent{
-					{AgentID: "a_1", UserID: "u1", Name: "ToDelete", CreatedAt: 100},
+					{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
 				},
+			}
+			teamStore := &testutil.MockTeamStore{
+				Teams:   []entity.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
+				Members: []entity.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner}},
 			}
 			h := NewHandler(Config{
 				JWTSecret:  agentTestSecret,
+				TeamStore:  teamStore,
 				AgentStore: store,
 			})
 			mux := http.NewServeMux()

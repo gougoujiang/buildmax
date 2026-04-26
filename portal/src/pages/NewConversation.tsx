@@ -5,6 +5,7 @@ import { getErrorMessage } from "../lib/errorMessage"
 import { cn } from "../lib/cn"
 import { createConversation } from "../features/conversations"
 import { useApp } from "../contexts/AppContext"
+import { useTeam } from "../contexts/TeamContext"
 import { FilesPanel } from "../components/FilesPanel"
 import type { Conversation } from "../lib/types"
 
@@ -22,6 +23,7 @@ export function NewConversation({
   conversations,
 }: NewConversationProps) {
   const { setPendingConversation } = useApp()
+  const { currentTeamId } = useTeam()
   const [prompt, setPrompt] = useState("")
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -29,11 +31,11 @@ export function NewConversation({
 
   async function handleSend() {
     const input = prompt.trim()
-    if (!input || !token || running) return
+    if (!input || !token || !currentTeamId || running) return
     setRunning(true)
     setRunError(null)
     try {
-      const created = await createConversation({ channel: "portal" }, token)
+      const created = await createConversation(currentTeamId, { channel: "portal" }, token)
       setPendingConversation({
         conversationId: created.conversation_id,
         initialMessage: input,

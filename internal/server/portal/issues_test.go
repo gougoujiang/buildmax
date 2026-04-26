@@ -15,11 +15,14 @@ const issueTestSecret = "issue-test-secret"
 
 func TestIssueHandlers(t *testing.T) {
 	agentID := "a_1"
+	personalTeamID := "tm_personal_u1"
+	otherTeamID := "tm_other"
 	store := &testutil.MockIssueStore{
 		Issues: []entity.Issue{
 			{
 				IssueID:      "i_1",
 				UserID:       "u1",
+				TeamID:       personalTeamID,
 				Title:        "Initial issue",
 				Description:  "Initial description",
 				Status:       entity.IssueStatusTodo,
@@ -32,10 +35,21 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	agents := &testutil.MockAgentStore{
-		Agents: []entity.Agent{{AgentID: agentID, UserID: "u1", Name: "Agent 1"}},
+		Agents: []entity.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
+	}
+	teams := &testutil.MockTeamStore{
+		Teams: []entity.Team{
+			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"},
+			{TeamID: otherTeamID, Name: "Other", CreatedBy: "u2"},
+		},
+		Members: []entity.TeamMember{
+			{TeamID: personalTeamID, UserID: "u1", Role: entity.TeamRoleOwner},
+			{TeamID: otherTeamID, UserID: "u2", Role: entity.TeamRoleOwner},
+		},
 	}
 	h := NewHandler(Config{
-		JWTSecret: issueTestSecret,
+		JWTSecret:  issueTestSecret,
+		TeamStore:  teams,
 		IssueStore: store,
 		AgentStore: agents,
 	})
@@ -43,7 +57,7 @@ func TestIssueHandlers(t *testing.T) {
 	h.Register(mux)
 
 	t.Run("GET list issues", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/issues", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues", nil)
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -60,7 +74,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("POST create issue", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/issues", strings.NewReader(`{"title":"New issue","description":"Desc"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues", strings.NewReader(`{"title":"New issue","description":"Desc"}`))
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -75,10 +89,13 @@ func TestIssueHandlers(t *testing.T) {
 		if out.Title != "New issue" || out.Status != entity.IssueStatusTodo {
 			t.Fatalf("created = %+v", out)
 		}
+		if out.TeamID != personalTeamID {
+			t.Fatalf("created team_id = %q, want %q", out.TeamID, personalTeamID)
+		}
 	})
 
 	t.Run("POST create issue missing title returns 400", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/issues", strings.NewReader(`{"title":"","description":"Desc"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues", strings.NewReader(`{"title":"","description":"Desc"}`))
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -89,7 +106,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("GET issue detail", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/issues/i_1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1", nil)
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -99,7 +116,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to agent", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/issues/i_1", strings.NewReader(`{"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -117,7 +134,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH invalid status returns 400", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/issues/i_1", strings.NewReader(`{"status":"blocked"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"status":"blocked"}`))
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -128,11 +145,21 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("GET issue unauthorized returns 401", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/issues/i_1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("GET issues forbidden for non-member explicit team", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+otherTeamID+"/issues", nil)
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
 		}
 	})
 }

@@ -87,7 +87,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	}
 
 	runners := s.conversationToolRunners(cmd.ConversationID, cmd.UserID)
-	runners.AgentSummaries = s.fetchAgentSummaries(ctx, cmd.UserID)
+	runners.AgentSummaries = s.fetchAgentSummaries(ctx, cmd.UserID, cmd.ConversationID)
 
 	runInput := coreconv.RunInput{
 		ConversationID:     cmd.ConversationID,
@@ -239,11 +239,17 @@ func (r *continueTaskRunner) ContinueTask(ctx context.Context, conversationID, u
 	return run.TaskRunID, nil
 }
 
-func (s *Service) fetchAgentSummaries(ctx context.Context, userID string) []tools.AgentSummary {
+func (s *Service) fetchAgentSummaries(ctx context.Context, userID, conversationID string) []tools.AgentSummary {
 	if s.AgentStore == nil {
 		return nil
 	}
 	agents, err := s.AgentStore.ListAgentsByUser(ctx, userID)
+	if s.ConversationStore != nil && conversationID != "" {
+		conv, convErr := s.ConversationStore.GetConversation(ctx, conversationID)
+		if convErr == nil && conv != nil && conv.TeamID != "" {
+			agents, err = s.AgentStore.ListAgentsByTeam(ctx, conv.TeamID)
+		}
+	}
 	if err != nil || len(agents) == 0 {
 		return nil
 	}

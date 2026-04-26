@@ -14,6 +14,8 @@ import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
 import IssueIcon from "../icons/issue.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
+import { TeamMembersModal } from "../components/TeamMembersModal"
+import { useTeam } from "../contexts/TeamContext"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -50,11 +52,14 @@ export function Sidebar({
   user,
   onLogout,
 }: SidebarProps) {
+  const { teams, currentTeam, currentTeamId, loading: teamsLoading, setCurrentTeamId } = useTeam()
+  const showTeamSwitcher = teams.length > 1
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [conversationsCollapsed, setConversationsCollapsed] = useState(false)
   const [conversationsPopupOpen, setConversationsPopupOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
+  const [membersModalOpen, setMembersModalOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const conversationsTriggerRef = useRef<HTMLDivElement>(null)
   const conversationsCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,6 +124,50 @@ export function Sidebar({
       </div>
       <nav className="sidebar__nav" aria-label="Primary">
         <div className="sidebar__section">
+          {!sidebarCollapsed ? (
+            <div className="sidebar__team-switcher">
+              <div className="sidebar__team-head">
+                <label
+                  className="sidebar__team-label"
+                  htmlFor={showTeamSwitcher ? "sidebar-team-select" : undefined}
+                >
+                  Space
+                </label>
+                <button
+                  type="button"
+                  className="sidebar__team-add"
+                  onClick={() => setMembersModalOpen(true)}
+                  aria-label="Create a new space"
+                  title="Create a new space"
+                >
+                  +
+                </button>
+              </div>
+              {showTeamSwitcher ? (
+                <select
+                  id="sidebar-team-select"
+                  className="sidebar__team-select"
+                  value={currentTeamId ?? ""}
+                  onChange={(e) => setCurrentTeamId(e.target.value)}
+                  disabled={teamsLoading}
+                >
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="sidebar__team-display" aria-label="Current space">
+                  {currentTeam?.name ?? "My Space"}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="sidebar__team-badge" title={currentTeam?.name ?? "Current space"}>
+              {(currentTeam?.name ?? "S").slice(0, 1).toUpperCase()}
+            </div>
+          )}
           <button
             type="button"
             className={cn("sidebar__nav-item", route.name === "home" && "sidebar__nav-item--active")}
@@ -247,6 +296,27 @@ export function Sidebar({
               </div>
             </div>
             <div className="sidebar__user-menu-divider" role="separator" />
+            {!sidebarCollapsed && currentTeam ? (
+              <>
+                <div className="sidebar__user-menu-team" role="none">
+                  <span className="sidebar__user-menu-team-label">Current space</span>
+                  <span className="sidebar__user-menu-team-name">{currentTeam.name}</span>
+                </div>
+                <div className="sidebar__user-menu-divider" role="separator" />
+              </>
+            ) : null}
+            <button
+              type="button"
+              className="sidebar__user-menu-item"
+              role="menuitem"
+              onClick={() => {
+                setUserMenuOpen(false)
+                setMembersModalOpen(true)
+              }}
+            >
+              <span className="sidebar__user-menu-item-icon" aria-hidden>+</span>
+              Members
+            </button>
             <button
               type="button"
               className="sidebar__user-menu-item"
@@ -291,6 +361,7 @@ export function Sidebar({
         )}
       </div>
       <SettingsModal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
+      <TeamMembersModal open={membersModalOpen} onClose={() => setMembersModalOpen(false)} />
     </aside>
   )
 }

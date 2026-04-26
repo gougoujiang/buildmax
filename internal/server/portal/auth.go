@@ -53,6 +53,63 @@ func (h *Handler) withUserAndStore(w http.ResponseWriter, r *http.Request, store
 	return userID, true
 }
 
+func (h *Handler) withUserPathTeamAndStore(w http.ResponseWriter, r *http.Request, store interface{}, unavailableMsg string) (userID, teamID string, ok bool) {
+	userID, ok = h.withUserAndStore(w, r, store, unavailableMsg)
+	if !ok {
+		return "", "", false
+	}
+	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
+		return "", "", false
+	}
+	teamID, ok = pathValueRequired(w, r, "team_id")
+	if !ok {
+		return "", "", false
+	}
+	_, resolvedTeamID, ok := h.withExplicitTeam(w, r, userID, teamID)
+	if !ok {
+		return "", "", false
+	}
+	return userID, resolvedTeamID, true
+}
+
+func (h *Handler) withExplicitTeam(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, string, bool) {
+	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
+		return "", "", false
+	}
+	resolvedTeamID, ok := h.resolveTeamID(w, r, userID, teamID)
+	if !ok {
+		return "", "", false
+	}
+	return userID, resolvedTeamID, true
+}
+
+func (h *Handler) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, explicitTeamID string) (string, bool) {
+	if explicitTeamID == "" {
+		team, err := h.cfg.TeamStore.GetPersonalTeamByUser(r.Context(), userID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "resolve_current_team", "user_id", userID)
+			return "", false
+		}
+		if team == nil {
+			httputil.WriteJSONError(w, http.StatusForbidden, "team not found")
+			return "", false
+		}
+		return team.TeamID, true
+	}
+	teams, err := h.cfg.TeamStore.ListTeamsByUser(r.Context(), userID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "resolve_current_team", "user_id", userID)
+		return "", false
+	}
+	for _, team := range teams {
+		if team.TeamID == explicitTeamID {
+			return team.TeamID, true
+		}
+	}
+	httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
+	return "", false
+}
+
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")

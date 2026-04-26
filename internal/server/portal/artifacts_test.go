@@ -15,18 +15,19 @@ import (
 func TestListTaskArtifactsHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
+	teamID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskID := "task-1"
 	token := testutil.SignJWT(userID, secret)
 
 	mockConversations := &testutil.MockConversationStore{
 		Conversations: []entity.Conversation{
-			{ConversationID: conversationID, UserID: userID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockTasks := &testutil.MockTaskStore{
 		List: []entity.Task{
-			{TaskID: taskID, ConversationID: conversationID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
+			{TaskID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockLister := &testutil.MockRunOutputLister{
@@ -45,13 +46,14 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 
 	h := NewHandler(Config{
 		JWTSecret:         secret,
+		TeamStore:         &testutil.MockTeamStore{Teams: []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString(userID), CreatedBy: userID}}, Members: []entity.TeamMember{{TeamID: teamID, UserID: userID, Role: entity.TeamRoleOwner}}},
 		TaskStore:         mockTasks,
 		ConversationStore: mockConversations,
 		RunOutputLister:   mockLister,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodGet, "/api/tasks/"+taskID+"/artifacts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/tasks/"+taskID+"/artifacts", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -66,18 +68,19 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 func TestListArtifactItemsHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
+	teamID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskRunID := "run-1"
 	token := testutil.SignJWT(userID, secret)
 
 	mockConversations := &testutil.MockConversationStore{
 		Conversations: []entity.Conversation{
-			{ConversationID: conversationID, UserID: userID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockTaskRun := &testutil.MockTaskRunStore{
 		Runs:     []entity.TaskRun{{TaskRunID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []entity.Task{{TaskID: "task-1", ConversationID: conversationID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		TaskList: []entity.Task{{TaskID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &testutil.MockRunOutputLister{
 		OutputFiles: map[string][]entity.TaskRunArtifact{
@@ -87,13 +90,14 @@ func TestListArtifactItemsHandler(t *testing.T) {
 
 	h := NewHandler(Config{
 		JWTSecret:         secret,
+		TeamStore:         &testutil.MockTeamStore{Teams: []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString(userID), CreatedBy: userID}}, Members: []entity.TeamMember{{TeamID: teamID, UserID: userID, Role: entity.TeamRoleOwner}}},
 		TaskRunStore:      mockTaskRun,
 		RunOutputLister:   mockLister,
 		ConversationStore: mockConversations,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodGet, "/api/task-runs/"+taskRunID+"/artifacts/items", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/artifacts/items", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -108,6 +112,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 func TestArtifactContentHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
+	teamID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskRunID := "run-1"
 	taskID := "task-1"
@@ -115,12 +120,12 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	mockConversations := &testutil.MockConversationStore{
 		Conversations: []entity.Conversation{
-			{ConversationID: conversationID, UserID: userID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockTaskRun := &testutil.MockTaskRunStore{
 		Runs:     []entity.TaskRun{{TaskRunID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []entity.Task{{TaskID: taskID, ConversationID: conversationID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		TaskList: []entity.Task{{TaskID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &testutil.MockRunOutputLister{
 		OutputFiles: map[string][]entity.TaskRunArtifact{
@@ -139,6 +144,7 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	h := NewHandler(Config{
 		JWTSecret:         secret,
+		TeamStore:         &testutil.MockTeamStore{Teams: []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString(userID), CreatedBy: userID}}, Members: []entity.TeamMember{{TeamID: teamID, UserID: userID, Role: entity.TeamRoleOwner}}},
 		TaskRunStore:      mockTaskRun,
 		RunOutputLister:   mockLister,
 		ArtifactStorage:   artifactStorage,
@@ -146,7 +152,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodGet, "/api/task-runs/"+taskRunID+"/artifacts/content", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/artifacts/content", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

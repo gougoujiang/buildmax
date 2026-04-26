@@ -1,4 +1,5 @@
 import { useAuth } from "../contexts/AuthContext"
+import { useTeam } from "../contexts/TeamContext"
 import { ConversationDetailView, useConversationDetail } from "../features/conversations"
 
 interface ConversationDetailProps {
@@ -13,7 +14,9 @@ export function ConversationDetail({
   initialMessage,
 }: ConversationDetailProps) {
   const { token, user } = useAuth()
+  const { currentTeamId } = useTeam()
   const conversationDetail = useConversationDetail({
+    teamId: currentTeamId,
     conversationId,
     token,
     initialMessage,

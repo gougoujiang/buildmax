@@ -11,6 +11,7 @@ import (
 type IssueResponse struct {
 	ID           string  `json:"id"`
 	UserID       string  `json:"user_id"`
+	TeamID       string  `json:"team_id,omitempty"`
 	Title        string  `json:"title"`
 	Description  string  `json:"description"`
 	Status       string  `json:"status"`
@@ -43,6 +44,7 @@ func issueToResponse(issue entity.Issue) IssueResponse {
 	return IssueResponse{
 		ID:           issue.IssueID,
 		UserID:       issue.UserID,
+		TeamID:       issue.TeamID,
 		Title:        issue.Title,
 		Description:  issue.Description,
 		Status:       issue.Status,
@@ -55,14 +57,14 @@ func issueToResponse(issue entity.Issue) IssueResponse {
 }
 
 func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
-	list, total, err := h.cfg.IssueStore.ListIssuesByUser(r.Context(), userID, limit, offset)
+	list, total, err := h.cfg.IssueStore.ListIssuesByTeam(r.Context(), teamID, limit, offset)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_issues", "user_id", userID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_issues", "user_id", userID, "team_id", teamID)
 		return
 	}
 	out := make([]IssueResponse, len(list))
@@ -73,7 +75,7 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
@@ -83,6 +85,7 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, err := h.issueService().CreateIssue(r.Context(), issueapp.CreateIssueCmd{
 		UserID:      userID,
+		TeamID:      teamID,
 		Title:       req.Title,
 		Description: req.Description,
 	})
@@ -90,14 +93,14 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 		if h.writeIssueServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_issue", "user_id", userID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_issue", "user_id", userID, "team_id", teamID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, issueToResponse(*issue))
 }
 
 func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
@@ -110,7 +113,7 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue", "issue_id", issueID)
 		return
 	}
-	if issue == nil || issue.UserID != userID {
+	if issue == nil || issue.TeamID != teamID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
@@ -118,7 +121,7 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
@@ -132,6 +135,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, err := h.issueService().UpdateIssue(r.Context(), issueapp.UpdateIssueCmd{
 		UserID:       userID,
+		TeamID:       teamID,
 		IssueID:      issueID,
 		Title:        req.Title,
 		Description:  req.Description,

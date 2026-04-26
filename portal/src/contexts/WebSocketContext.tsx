@@ -7,11 +7,13 @@ import {
 } from "react"
 import { BuildMaxWebSocket } from "../lib/api/ws"
 import { useAuth } from "./AuthContext"
+import { useTeam } from "./TeamContext"
 
 const WebSocketContext = createContext<BuildMaxWebSocket | null>(null)
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth()
+  const { currentTeamId } = useTeam()
   const wsRef = useRef<BuildMaxWebSocket | null>(null)
 
   if (!wsRef.current) {
@@ -21,12 +23,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const ws = wsRef.current!
     if (token) {
-      ws.connect(token)
+      ws.close()
+      ws.connect(token, currentTeamId)
     } else {
       ws.close()
     }
     return () => ws.close()
-  }, [token])
+  }, [token, currentTeamId])
 
   return (
     <WebSocketContext.Provider value={wsRef.current}>

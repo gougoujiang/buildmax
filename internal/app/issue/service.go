@@ -8,29 +8,33 @@ import (
 )
 
 var (
-	ErrIssuesNotConfigured  = errors.New("issues not configured")
-	ErrTitleRequired        = errors.New("title required")
-	ErrInvalidStatus        = errors.New("invalid status")
-	ErrInvalidAssigneeKind  = errors.New("invalid assignee_kind")
-	ErrInvalidAssigneeID    = errors.New("invalid assignee_id")
-	ErrIssueNotFound        = errors.New("issue not found")
-	ErrAgentsNotConfigured  = errors.New("agents not configured")
-	ErrAgentNotFound        = errors.New("agent not found or not owned by user")
+	ErrIssuesNotConfigured = errors.New("issues not configured")
+	ErrTeamsNotConfigured  = errors.New("teams not configured")
+	ErrTitleRequired       = errors.New("title required")
+	ErrInvalidStatus       = errors.New("invalid status")
+	ErrInvalidAssigneeKind = errors.New("invalid assignee_kind")
+	ErrInvalidAssigneeID   = errors.New("invalid assignee_id")
+	ErrIssueNotFound       = errors.New("issue not found")
+	ErrAgentsNotConfigured = errors.New("agents not configured")
+	ErrAgentNotFound       = errors.New("agent not found or not owned by user")
 )
 
 type Service struct {
 	Issues entity.IssueStore
 	Agents entity.AgentStore
+	Teams  entity.TeamStore
 }
 
 type CreateIssueCmd struct {
 	UserID      string
+	TeamID      string
 	Title       string
 	Description string
 }
 
 type UpdateIssueCmd struct {
 	UserID       string
+	TeamID       string
 	IssueID      string
 	Title        *string
 	Description  *string
@@ -46,7 +50,10 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*entity.
 	if cmd.Title == "" {
 		return nil, ErrTitleRequired
 	}
-	return s.Issues.CreateIssue(ctx, cmd.UserID, entity.CreateIssueInput{
+	if cmd.TeamID == "" {
+		return nil, ErrTeamsNotConfigured
+	}
+	return s.Issues.CreateIssueInTeam(ctx, cmd.TeamID, cmd.UserID, entity.CreateIssueInput{
 		Title:       cmd.Title,
 		Description: cmd.Description,
 	})
@@ -59,10 +66,13 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*entity.
 	if cmd.Status != nil && !isValidStatus(*cmd.Status) {
 		return nil, ErrInvalidStatus
 	}
-	if err := s.validateAssignee(ctx, cmd.UserID, cmd.AssigneeKind, cmd.AssigneeID); err != nil {
+	if cmd.TeamID == "" {
+		return nil, ErrTeamsNotConfigured
+	}
+	if err := s.validateAssignee(ctx, cmd.TeamID, cmd.UserID, cmd.AssigneeKind, cmd.AssigneeID); err != nil {
 		return nil, err
 	}
-	issue, err := s.Issues.UpdateIssue(ctx, cmd.IssueID, cmd.UserID, entity.UpdateIssueInput{
+	issue, err := s.Issues.UpdateIssueInTeam(ctx, cmd.IssueID, cmd.TeamID, entity.UpdateIssueInput{
 		Title:        cmd.Title,
 		Description:  cmd.Description,
 		Status:       cmd.Status,
@@ -87,7 +97,7 @@ func isValidStatus(status string) bool {
 	}
 }
 
-func (s *Service) validateAssignee(ctx context.Context, userID string, kind, id *string) error {
+func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, kind, id *string) error {
 	if kind == nil && id == nil {
 		return nil
 	}
@@ -99,10 +109,19 @@ func (s *Service) validateAssignee(ctx context.Context, userID string, kind, id 
 	}
 	switch *kind {
 	case entity.IssueAssigneePerson:
-		if *id != userID {
-			return ErrInvalidAssigneeID
+		if s.Teams == nil {
+			return ErrTeamsNotConfigured
 		}
-		return nil
+		members, err := s.Teams.ListTeamMembers(ctx, teamID)
+		if err != nil {
+			return err
+		}
+		for _, member := range members {
+			if member.UserID == *id {
+				return nil
+			}
+		}
+		return ErrInvalidAssigneeID
 	case entity.IssueAssigneeAgent:
 		if *id == "" {
 			return ErrInvalidAssigneeID
@@ -114,7 +133,7 @@ func (s *Service) validateAssignee(ctx context.Context, userID string, kind, id 
 		if err != nil {
 			return err
 		}
-		if agent == nil || agent.UserID != userID {
+		if agent == nil || agent.TeamID != teamID {
 			return ErrAgentNotFound
 		}
 		return nil

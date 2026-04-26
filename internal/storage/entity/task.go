@@ -113,6 +113,11 @@ func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, err
 		CreatedAt: now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conv Conversation
+		if err := tx.Where("conversation_id = ?", in.ConversationID).First(&conv).Error; err != nil {
+			return err
+		}
+		task.TeamID = conv.TeamID
 		if err := tx.Create(task).Error; err != nil {
 			return err
 		}

@@ -66,7 +66,30 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	if defaultQuotaTier != "" {
 		u.QuotaTier = defaultQuotaTier
 	}
-	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
+	personalTeamID := util.NewPrefixedID(util.PrefixTeam)
+	personalTeam := Team{
+		TeamID:            personalTeamID,
+		Name:              DefaultPersonalTeamName,
+		PersonalForUserID: &u.UserID,
+		CreatedBy:         u.UserID,
+		CreatedAt:         u.CreatedAt,
+		UpdatedAt:         u.CreatedAt,
+	}
+	personalMember := TeamMember{
+		TeamID:    personalTeamID,
+		UserID:    u.UserID,
+		Role:      TeamRoleOwner,
+		CreatedAt: u.CreatedAt,
+	}
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&u).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&personalTeam).Error; err != nil {
+			return err
+		}
+		return tx.Create(&personalMember).Error
+	}); err != nil {
 		return nil, err
 	}
 	return &u, nil

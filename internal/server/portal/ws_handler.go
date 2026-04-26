@@ -26,6 +26,7 @@ type wsConn struct {
 	conn   *websocket.Conn
 	h      *Handler
 	userID string
+	teamID string
 
 	writeCh chan []byte
 	closed  chan struct{} // closed when connection is being torn down
@@ -59,6 +60,18 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	if h.cfg.TeamStore == nil {
+		http.Error(w, "teams not configured", http.StatusServiceUnavailable)
+		return
+	}
+	teamID, ok := pathValueRequired(w, r, "team_id")
+	if !ok {
+		return
+	}
+	_, teamID, ok = h.withExplicitTeam(w, r, userID, teamID)
+	if !ok {
+		return
+	}
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -81,6 +94,7 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		conn:    conn,
 		h:       h,
 		userID:  userID,
+		teamID:  teamID,
 		writeCh: make(chan []byte, wsWriteChSize),
 		closed:  make(chan struct{}),
 		cancel:  cancel,
@@ -217,7 +231,7 @@ func (wc *wsConn) handleConversationCreate(ctx context.Context, p wsconn.Convers
 		channel = "portal"
 	}
 
-	conv, err := wc.h.cfg.ConversationStore.CreateConversation(ctx, wc.userID, channel, wc.userID)
+	conv, err := wc.h.cfg.ConversationStore.CreateConversationInTeam(ctx, wc.teamID, wc.userID, channel, wc.userID)
 	if err != nil {
 		slog.Error("ws create conversation", "err", err, "user_id", wc.userID)
 		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{Error: "failed to create conversation"})
@@ -254,7 +268,7 @@ func (wc *wsConn) handleConversationMessage(ctx context.Context, p wsconn.Conver
 		})
 		return
 	}
-	if conv == nil || conv.UserID != wc.userID {
+	if conv == nil || conv.TeamID != wc.teamID {
 		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
 			ConversationID: p.ConversationID,
 			Error:          "conversation not found",

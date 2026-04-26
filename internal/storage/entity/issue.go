@@ -30,16 +30,28 @@ type UpdateIssueInput struct {
 	AssigneeID   *string
 }
 
-// CreateIssue creates a user-scoped issue with default status todo.
+// CreateIssue creates an issue with default status todo. During the transition to
+// team ownership, issues created through user-scoped flows are attached to the
+// user's default personal team.
 func (s *Store) CreateIssue(ctx context.Context, userID string, in CreateIssueInput) (*Issue, error) {
+	teamID, err := s.personalTeamIDForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.CreateIssueInTeam(ctx, teamID, userID, in)
+}
+
+// CreateIssueInTeam creates a team-scoped issue with default status todo.
+func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in CreateIssueInput) (*Issue, error) {
 	now := time.Now().Unix()
 	issue := &Issue{
 		IssueID:      util.NewPrefixedID(util.PrefixIssue),
-		UserID:       userID,
+		UserID:       createdBy,
+		TeamID:       teamID,
 		Title:        in.Title,
 		Description:  in.Description,
 		Status:       IssueStatusTodo,
-		CreatedBy:    userID,
+		CreatedBy:    createdBy,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		AssigneeKind: nil,
@@ -59,6 +71,23 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 	}
 	var list []Issue
 	q := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("updated_at DESC")
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	if err := q.Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, int(total), nil
+}
+
+// ListIssuesByTeam returns issues for the team ordered by updated_at DESC.
+func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, limit, offset int) ([]Issue, int, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&Issue{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []Issue
+	q := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -90,6 +119,23 @@ func (s *Store) UpdateIssue(ctx context.Context, issueID, userID string, in Upda
 	if issue.UserID != userID {
 		return nil, nil
 	}
+	return s.updateIssue(ctx, issueID, in)
+}
+
+// UpdateIssueInTeam updates only provided fields. Returns (nil, nil) if not found
+// or not owned by the given team.
+func (s *Store) UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in UpdateIssueInput) (*Issue, error) {
+	issue, err := s.GetIssue(ctx, issueID)
+	if err != nil || issue == nil {
+		return nil, err
+	}
+	if issue.TeamID != teamID {
+		return nil, nil
+	}
+	return s.updateIssue(ctx, issueID, in)
+}
+
+func (s *Store) updateIssue(ctx context.Context, issueID string, in UpdateIssueInput) (*Issue, error) {
 	updates := map[string]interface{}{
 		"updated_at": time.Now().Unix(),
 	}

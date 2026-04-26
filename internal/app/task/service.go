@@ -15,7 +15,7 @@ var (
 	ErrAgentsNotConfigured   = errors.New("agents not configured")
 	ErrTasksNotConfigured    = errors.New("tasks not configured")
 	ErrTaskRunsNotConfigured = errors.New("task runs not configured")
-	ErrAgentNotFound         = errors.New("agent not found or not owned by user")
+	ErrAgentNotFound         = errors.New("agent not found or not owned by team")
 )
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
@@ -50,6 +50,7 @@ type Service struct {
 type CreateTaskCmd struct {
 	ConversationID string
 	UserID         string
+	TeamID         string
 	Input          string
 	AgentID        *string
 }
@@ -72,7 +73,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*entity.Ta
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
-	input, agentID, err := s.resolveInput(ctx, cmd.UserID, cmd.Input, cmd.AgentID)
+	input, agentID, err := s.resolveInput(ctx, cmd.TeamID, cmd.UserID, cmd.Input, cmd.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +122,7 @@ func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*
 	}, nil
 }
 
-func (s *Service) resolveInput(ctx context.Context, userID, input string, agentID *string) (string, *string, error) {
+func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string, agentID *string) (string, *string, error) {
 	if agentID == nil || *agentID == "" {
 		if input == "" {
 			return "", nil, ErrInputRequired
@@ -135,7 +136,7 @@ func (s *Service) resolveInput(ctx context.Context, userID, input string, agentI
 	if err != nil {
 		return "", nil, err
 	}
-	if agent == nil || agent.UserID != userID {
+	if agent == nil || agent.TeamID != teamID {
 		return "", nil, ErrAgentNotFound
 	}
 	if input != "" {

@@ -59,6 +59,7 @@ type AuthConfig struct {
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
 	UserStore           entity.UserStore
+	TeamStore           entity.TeamStore
 	AgentStore          entity.AgentStore
 	IssueStore          entity.IssueStore
 	TaskStore           entity.TaskStore
@@ -127,6 +128,8 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.Con
 	return portal.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
+		UserStore:                cfg.Stores.UserStore,
+		TeamStore:                cfg.Stores.TeamStore,
 		AgentStore:               cfg.Stores.AgentStore,
 		IssueStore:               cfg.Stores.IssueStore,
 		TaskStore:                cfg.Stores.TaskStore,
@@ -164,9 +167,9 @@ func New(cfg Config) *Server {
 	}).Register(mux)
 	portal.NewHandler(buildPortalConfig(cfg, s.hub, connRegistry)).Register(mux)
 	worker.NewHandler(worker.Config{
-		Token:        cfg.Worker.WorkerToken,
-		TaskRunStore: cfg.Stores.TaskRunStore,
-		Hub:          s.hub,
+		Token:             cfg.Worker.WorkerToken,
+		TaskRunStore:      cfg.Stores.TaskRunStore,
+		Hub:               s.hub,
 		OnTaskRunTerminal: connRegistry.OnTaskRunTerminal,
 	}).Register(mux)
 	if cfg.Stores.UserWebhookKeyStore != nil {

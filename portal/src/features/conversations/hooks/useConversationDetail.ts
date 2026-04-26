@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useFetch } from "../../../hooks/useFetch"
 import { getConversationMessages } from "../api"
 import { useWebSocket } from "../../../contexts/WebSocketContext"
+import { useTeam } from "../../../contexts/TeamContext"
 
 interface UseConversationDetailOptions {
+  teamId: string | null
   conversationId: string
   token: string | null
   initialMessage?: string
@@ -25,6 +27,7 @@ interface ConversationErrorPayload {
 }
 
 export function useConversationDetail({
+  teamId,
   conversationId,
   token,
   initialMessage,
@@ -32,16 +35,17 @@ export function useConversationDetail({
 }: UseConversationDetailOptions) {
   const historyRef = useRef<HTMLElement | null>(null)
   const ws = useWebSocket()
+  const { currentTeamId } = useTeam()
   const {
     data: messagesData,
     loading: messagesLoading,
     error: messagesError,
     refetch: refetchMessages,
   } = useFetch(
-    () => getConversationMessages(conversationId, token!),
-    [conversationId, token],
+    () => getConversationMessages(teamId!, conversationId, token!),
+    [teamId, conversationId, token],
     {
-      enabled: !!(token && conversationId),
+      enabled: !!(token && teamId && conversationId),
       errorMessage: (e) => (e instanceof Error ? e.message : "Failed to load messages"),
     }
   )
@@ -57,6 +61,15 @@ export function useConversationDetail({
   refetchMessagesRef.current = refetchMessages
   const onMessageSentRef = useRef(onMessageSent)
   onMessageSentRef.current = onMessageSent
+
+  useEffect(() => {
+    setInput("")
+    setSending(false)
+    setSendError(null)
+    setStreamingContent(null)
+    setOptimisticUserMessage(null)
+    initialMessageSentRef.current = false
+  }, [conversationId, currentTeamId])
 
   useEffect(() => {
     const handleDelta = (payload: MessageDeltaPayload) => {

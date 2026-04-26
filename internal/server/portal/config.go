@@ -31,6 +31,8 @@ type RunOutputLister interface {
 type Config struct {
 	JWTSecret                string
 	CORSOrigin               string // Allowed origin for WebSocket upgrade check
+	UserStore                entity.UserStore
+	TeamStore                entity.TeamStore
 	AgentStore               entity.AgentStore
 	IssueStore               entity.IssueStore
 	TaskStore                entity.TaskStore

@@ -34,6 +34,7 @@ function tryParseConversationStreamEvent(
 }
 
 export async function getConversations(
+  teamId: string,
   token: string,
   options?: { limit?: number; offset?: number }
 ): Promise<ApiConversationsListResponse> {
@@ -41,15 +42,16 @@ export async function getConversations(
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   const q = params.toString()
-  const url = `${getApiBase()}/api/conversations${q ? `?${q}` : ""}`
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations${q ? `?${q}` : ""}`
   return requestJson<ApiConversationsListResponse>(url, { headers: authHeaders(token) })
 }
 
 export async function createConversation(
+  teamId: string,
   body: { channel?: string; message?: string },
   token: string
 ): Promise<CreateConversationResponse> {
-  return requestJson<CreateConversationResponse>(`${getApiBase()}/api/conversations`, {
+  return requestJson<CreateConversationResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -57,11 +59,12 @@ export async function createConversation(
 }
 
 export async function createConversationStream(
+  teamId: string,
   body: { channel?: string; message?: string },
   token: string,
   callbacks: ConversationStreamCallbacks
 ): Promise<void> {
-  const url = `${getApiBase()}/api/conversations?stream=1`
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations?stream=1`
   const res = await fetch(url, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -97,13 +100,14 @@ export async function createConversationStream(
 }
 
 export async function addConversationMessageStream(
+  teamId: string,
   conversationId: string,
   body: { content: string },
   token: string,
   callbacks: Pick<ConversationStreamCallbacks, "onDelta" | "onDone" | "onError">,
   options?: { signal?: AbortSignal }
 ): Promise<void> {
-  const url = `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/messages?stream=1`
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/messages?stream=1`
   const res = await fetch(url, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -136,22 +140,24 @@ export async function addConversationMessageStream(
 }
 
 export async function getConversationMessages(
+  teamId: string,
   conversationId: string,
   token: string
 ): Promise<ApiConversationMessagesResponse> {
   return requestJson<ApiConversationMessagesResponse>(
-    `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/messages`,
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/messages`,
     { headers: authHeaders(token) }
   )
 }
 
 export async function addConversationMessage(
+  teamId: string,
   conversationId: string,
   body: { content: string },
   token: string
 ): Promise<AddConversationMessageResponse> {
   return requestJson<AddConversationMessageResponse>(
-    `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/messages`,
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/messages`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },

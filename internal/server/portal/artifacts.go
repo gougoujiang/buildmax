@@ -31,7 +31,7 @@ func artifactWithTaskToResponse(a entity.ArtifactWithTask) ArtifactResponse {
 }
 
 func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -42,7 +42,7 @@ func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	task, _, ok := h.getTaskForUser(w, r, userID, taskID)
+	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}
@@ -79,12 +79,12 @@ func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Reques
 	return run, task, true
 }
 
-func (h *Handler) getArtifactRunAndTaskForUser(w http.ResponseWriter, r *http.Request, userID, taskRunID string) (run *entity.TaskRun, task *entity.Task, ok bool) {
+func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskRunID string) (run *entity.TaskRun, task *entity.Task, ok bool) {
 	run, task, ok = h.getArtifactRunAndTaskAny(w, r, taskRunID)
 	if !ok {
 		return nil, nil, false
 	}
-	if _, ok = h.getConversationForUser(w, r, userID, task.ConversationID); !ok {
+	if _, ok = h.getConversationForTeam(w, r, teamID, task.ConversationID); !ok {
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
@@ -92,7 +92,7 @@ func (h *Handler) getArtifactRunAndTaskForUser(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	_, _, ok = h.getArtifactRunAndTaskForUser(w, r, userID, taskRunID)
+	_, _, ok = h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID)
 	if !ok {
 		return
 	}
@@ -152,7 +152,7 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ta
 }
 
 func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -163,7 +163,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	_, task, ok := h.getArtifactRunAndTaskForUser(w, r, userID, taskRunID)
+	_, task, ok := h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID)
 	if !ok {
 		return
 	}

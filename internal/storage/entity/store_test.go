@@ -25,6 +25,10 @@ func TestCreateUser(t *testing.T) {
 	// Clean up if a previous run left the user.
 	existing, _ := s.UserByEmail(ctx, email)
 	if existing != nil {
+		if personal, _ := s.GetPersonalTeamByUser(ctx, existing.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
 		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", existing.UserID)
 	}
 
@@ -32,6 +36,13 @@ func TestCreateUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
+	defer func() {
+		if personal, _ := s.GetPersonalTeamByUser(ctx, u.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
+		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", u.UserID)
+	}()
 	if u.Email != email || u.UserID == "" {
 		t.Errorf("CreateUser: got user %+v", u)
 	}
@@ -43,6 +54,28 @@ func TestCreateUser(t *testing.T) {
 	}
 	if found == nil || found.UserID != u.UserID {
 		t.Errorf("UserByEmail: got %+v", found)
+	}
+
+	team, err := s.GetPersonalTeamByUser(ctx, u.UserID)
+	if err != nil {
+		t.Fatalf("GetPersonalTeamByUser: %v", err)
+	}
+	if team == nil {
+		t.Fatal("GetPersonalTeamByUser: got nil team")
+	}
+	if team.Name != DefaultPersonalTeamName {
+		t.Errorf("personal team name = %q, want %q", team.Name, DefaultPersonalTeamName)
+	}
+
+	members, err := s.ListTeamMembers(ctx, team.TeamID)
+	if err != nil {
+		t.Fatalf("ListTeamMembers: %v", err)
+	}
+	if len(members) != 1 {
+		t.Fatalf("ListTeamMembers: got %d members, want 1", len(members))
+	}
+	if members[0].UserID != u.UserID || members[0].Role != TeamRoleOwner {
+		t.Errorf("team member = %+v", members[0])
 	}
 }
 
@@ -63,6 +96,10 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 		t.Fatalf("first CreateUser: %v", err)
 	}
 	defer func() {
+		if personal, _ := s.GetPersonalTeamByUser(ctx, u.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
 		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", u.UserID)
 	}()
 
@@ -72,6 +109,57 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 	}
 	if !errors.Is(err, ErrEmailExists) {
 		t.Errorf("second CreateUser: got %v, want ErrEmailExists", err)
+	}
+}
+
+func TestCreateTeam(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	user, err := s.CreateUser(ctx, "team-owner@example.com", "")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	team, err := s.CreateTeam(ctx, "Ops", user.UserID)
+	if err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", team.TeamID)
+		_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", team.TeamID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
+		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", user.UserID)
+	}()
+
+	if team.TeamID == "" || team.Name != "Ops" || team.CreatedBy != user.UserID {
+		t.Fatalf("created team = %+v", team)
+	}
+
+	list, err := s.ListTeamsByUser(ctx, user.UserID)
+	if err != nil {
+		t.Fatalf("ListTeamsByUser: %v", err)
+	}
+	if len(list) < 2 {
+		t.Fatalf("ListTeamsByUser: got %d teams, want at least 2", len(list))
+	}
+
+	members, err := s.ListTeamMembers(ctx, team.TeamID)
+	if err != nil {
+		t.Fatalf("ListTeamMembers: %v", err)
+	}
+	if len(members) != 1 || members[0].UserID != user.UserID || members[0].Role != TeamRoleOwner {
+		t.Fatalf("team members = %+v", members)
 	}
 }
 
@@ -164,14 +252,23 @@ func TestClaimTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, "update-if-user", "portal", "update-if-user")
+	user, err := s.CreateUser(ctx, "update-if-user@example.com", "")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	conv, err := s.CreateConversation(ctx, user.UserID, "portal", user.UserID)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&Conversation{}, "conversation_id = ?", conv.ConversationID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
+		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", user.UserID)
 	}()
-	task, err := s.CreateTask(ctx, &CreateTaskInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "update-if-user"})
+	task, err := s.CreateTask(ctx, &CreateTaskInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: user.UserID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -179,6 +276,9 @@ func TestClaimTask(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
 		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
 	}()
+	if task.TeamID != conv.TeamID {
+		t.Fatalf("task.TeamID = %q, want %q", task.TeamID, conv.TeamID)
+	}
 
 	// PENDING -> SCHEDULED: should update
 	updated, err := s.ClaimTask(ctx, ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
@@ -239,8 +339,12 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	user, err := s.CreateUser(ctx, "issue-user@example.com", "")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
 
-	issue, err := s.CreateIssue(ctx, "issue-user", CreateIssueInput{
+	issue, err := s.CreateIssue(ctx, user.UserID, CreateIssueInput{
 		Title:       "Initial issue",
 		Description: "Initial description",
 	})
@@ -249,13 +353,18 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	}
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&Issue{}, "issue_id = ?", issue.IssueID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
+		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", user.UserID)
 	}()
 
-	if issue.IssueID == "" || issue.Status != IssueStatusTodo || issue.UserID != "issue-user" {
+	if issue.IssueID == "" || issue.Status != IssueStatusTodo || issue.UserID != user.UserID || issue.TeamID == "" {
 		t.Fatalf("created issue = %+v", issue)
 	}
 
-	list, total, err := s.ListIssuesByUser(ctx, "issue-user", 50, 0)
+	list, total, err := s.ListIssuesByUser(ctx, user.UserID, 50, 0)
 	if err != nil {
 		t.Fatalf("ListIssuesByUser: %v", err)
 	}
@@ -266,8 +375,8 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	title := "Updated issue"
 	status := IssueStatusInProgress
 	kind := IssueAssigneePerson
-	id := "issue-user"
-	updated, err := s.UpdateIssue(ctx, issue.IssueID, "issue-user", UpdateIssueInput{
+	id := user.UserID
+	updated, err := s.UpdateIssue(ctx, issue.IssueID, user.UserID, UpdateIssueInput{
 		Title:        &title,
 		Status:       &status,
 		AssigneeKind: &kind,
@@ -294,15 +403,24 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, "conv-test-user", "portal", "conv-test-user")
+	user, err := s.CreateUser(ctx, "conv-test-user@example.com", "")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	conv, err := s.CreateConversation(ctx, user.UserID, "portal", user.UserID)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&ConversationMessage{})
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&Conversation{})
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&TeamMember{}, "team_id = ?", personal.TeamID)
+			_ = s.db.WithContext(ctx).Delete(&Team{}, "team_id = ?", personal.TeamID)
+		}
+		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", user.UserID)
 	}()
-	if conv.ConversationID == "" || conv.UserID != "conv-test-user" || conv.Channel != "portal" {
+	if conv.ConversationID == "" || conv.UserID != user.UserID || conv.TeamID == "" || conv.Channel != "portal" {
 		t.Errorf("CreateConversation: got %+v", conv)
 	}
 

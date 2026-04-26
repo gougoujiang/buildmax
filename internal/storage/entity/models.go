@@ -16,12 +16,40 @@ type User struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (User) TableName() string { return "user" }
 
+// Team is the ownership and collaboration boundary for working resources.
+// A user's default personal team is represented by personal_for_user_id.
+type Team struct {
+	ID                uint    `gorm:"primaryKey;autoIncrement" json:"-"`
+	TeamID            string  `gorm:"column:team_id;type:varchar(64);uniqueIndex;not null" json:"team_id"`
+	Name              string  `gorm:"type:varchar(255);not null" json:"name"`
+	PersonalForUserID *string `gorm:"column:personal_for_user_id;type:varchar(64);uniqueIndex" json:"personal_for_user_id,omitempty"`
+	CreatedBy         string  `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt         int64   `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         int64   `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (Team) TableName() string { return "team" }
+
+// TeamMember is one user's membership in a team.
+type TeamMember struct {
+	ID        uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	TeamID    string `gorm:"column:team_id;type:varchar(64);not null;uniqueIndex:uq_team_member_team_user" json:"team_id"`
+	UserID    string `gorm:"column:user_id;type:varchar(64);not null;uniqueIndex:uq_team_member_team_user" json:"user_id"`
+	Role      string `gorm:"type:varchar(32);not null" json:"role"`
+	CreatedAt int64  `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName returns the table name for GORM (singular per project convention).
+func (TeamMember) TableName() string { return "team_member" }
+
 // Issue is the user-facing work-management object. It is intentionally separate
 // from low-level task/task_run execution records.
 type Issue struct {
 	ID           uint    `gorm:"primaryKey;autoIncrement" json:"-"`
 	IssueID      string  `gorm:"column:issue_id;type:varchar(64);uniqueIndex;not null" json:"issue_id"`
 	UserID       string  `gorm:"type:varchar(64);not null;index" json:"user_id"`
+	TeamID       string  `gorm:"type:varchar(64);index" json:"team_id,omitempty"`
 	Title        string  `gorm:"type:varchar(255);not null" json:"title"`
 	Description  string  `gorm:"type:text;not null" json:"description"`
 	Status       string  `gorm:"type:varchar(32);not null" json:"status"`
@@ -42,6 +70,7 @@ type Task struct {
 	ID                    uint    `gorm:"primaryKey;autoIncrement" json:"-"`
 	TaskID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null" json:"task_id"`
 	ConversationID        string  `gorm:"type:varchar(64);not null;index" json:"conversation_id"`
+	TeamID                string  `gorm:"type:varchar(64);index" json:"team_id,omitempty"`
 	Status                string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input                 string  `gorm:"type:text;not null" json:"input"`
 	Title                 string  `gorm:"type:varchar(256)" json:"title,omitempty"`
@@ -100,6 +129,7 @@ type Agent struct {
 	ID           uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	AgentID      string `gorm:"type:varchar(64);uniqueIndex;not null" json:"agent_id"`
 	UserID       string `gorm:"type:varchar(64);not null;index" json:"user_id"`
+	TeamID       string `gorm:"type:varchar(64);index" json:"team_id,omitempty"`
 	Name         string `gorm:"type:varchar(255);not null" json:"name"`
 	Description  string `gorm:"type:text" json:"description"`
 	Instructions string `gorm:"type:text" json:"instructions"`
@@ -136,6 +166,7 @@ type Conversation struct {
 	ID             uint   `gorm:"primaryKey;autoIncrement" json:"-"`
 	ConversationID string `gorm:"type:varchar(64);uniqueIndex;not null" json:"conversation_id"`
 	UserID         string `gorm:"type:varchar(64);not null;index" json:"user_id"`
+	TeamID         string `gorm:"type:varchar(64);index" json:"team_id,omitempty"`
 	Channel        string `gorm:"type:varchar(32);not null" json:"channel"`
 	Title          string `gorm:"type:varchar(256)" json:"title,omitempty"`
 	CreatedBy      string `gorm:"type:varchar(64);not null" json:"created_by"`

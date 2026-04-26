@@ -4,8 +4,9 @@
 
 - phase: `1`
 - name: `Issue Uplift`
-- status: `in_progress`
+- status: `done`
 - roadmap: [design/010-team-task-workflow-roadmap.md](./010-team-task-workflow-roadmap.md)
+- completed_at: `2026-04-25`
 
 ---
 
@@ -973,11 +974,73 @@ Suggested manual checklist:
 
 ---
 
-## 16. Open Questions
+## 16. Implementation Outcome
 
-These should be resolved during implementation:
+Phase 1 is complete with a deliberately small MVP.
 
-1. What is the minimal issue schema we want to commit to in v1?
+Implemented outcome:
+
+- added a new user-scoped `Issue` persisted entity
+- kept `Issue` separate from low-level `task` and `task_run`
+- added Issue CRUD APIs:
+  - `POST /api/issues`
+  - `GET /api/issues`
+  - `GET /api/issues/{issue_id}`
+  - `PATCH /api/issues/{issue_id}`
+- added minimal assignment support for:
+  - unassigned
+  - self (`person`)
+  - owned agent (`agent`)
+- added basic issue statuses:
+  - `todo`
+  - `in_progress`
+  - `done`
+- added a top-level `Issues` menu in Portal
+- added an issue list page with pagination
+- added a shared modal for:
+  - create issue
+  - issue detail / edit
+- aligned the modal behavior so:
+  - create closes and returns to the list
+  - save in detail closes and returns to the list
+- added a dedicated Issue sidebar icon matching the existing nav icon style
+
+### 16.1 Validation Completed
+
+Completed validation in this phase:
+
+- issue store tests
+- issue service validation tests
+- portal handler tests for create/list/get/update and basic error cases
+- portal production build verification
+
+Commands used during implementation:
+
+- `go test ./...`
+- `cd portal && npm run build`
+
+### 16.2 Current MVP Boundary
+
+Phase 1 intentionally stops at the work-management layer.
+
+Still intentionally out of scope after completion:
+
+- any direct Issue-to-task/task_run binding
+- team-aware ownership and collaboration
+- workflow assignment
+- board / kanban views
+- advanced search, filtering, or sorting
+- enterprise governance features
+
+---
+
+## 17. Open Questions For Later Phases
+
+These are deferred to later phases:
+
+1. How should Issue relate to low-level execution records once workflow/agent orchestration expands?
+2. When Team lands, how should Issue ownership migrate from `user` scope to `team` scope?
+3. What additional issue fields are worth adding after the MVP, such as `priority` or `due_at`?
 2. What exact route shape should issue APIs use?
 3. Should status transitions be unrestricted in v1, or lightly validated?
 

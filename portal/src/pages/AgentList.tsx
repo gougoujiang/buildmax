@@ -15,6 +15,7 @@ import { AgentAvatar } from "../components/UserAvatar"
 import { CreateAgentModal } from "../components/CreateAgentModal"
 import { EditAgentModal } from "../components/EditAgentModal"
 import { NewConversationFromAgent } from "../components/NewConversationFromAgent"
+import { useTeam } from "../contexts/TeamContext"
 
 interface AgentListProps {
   token: string | null
@@ -22,6 +23,7 @@ interface AgentListProps {
 
 export function AgentList({ token }: AgentListProps) {
   const { setPendingConversation } = useApp()
+  const { currentTeamId } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -34,12 +36,16 @@ export function AgentList({ token }: AgentListProps) {
   const [error, setError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(() => {
-    if (!token) return
+    if (!token || !currentTeamId) {
+      setAgents([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    getAgents(token)
+    getAgents(currentTeamId, token)
       .then((list) => setAgents(list.map(apiAgentToAgent)))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, currentTeamId])
 
   useEffect(() => {
     fetchAgents()
@@ -50,10 +56,10 @@ export function AgentList({ token }: AgentListProps) {
     description?: string
     instructions?: string
   }) {
-    if (!token) return
+    if (!token || !currentTeamId) return
     setError(null)
     setCreating(true)
-    createAgent(values, token)
+    createAgent(currentTeamId, values, token)
       .then((created) => {
         setAgents((prev) => [...prev, apiAgentToAgent(created)])
         setModalOpen(false)
@@ -67,10 +73,10 @@ export function AgentList({ token }: AgentListProps) {
     description?: string
     instructions?: string
   }) {
-    if (!token || editingAgent == null) return
+    if (!token || !currentTeamId || editingAgent == null) return
     setError(null)
     setSaving(true)
-    updateAgent(editingAgent.id, values, token)
+    updateAgent(currentTeamId, editingAgent.id, values, token)
       .then((updated) => {
         setAgents((prev) =>
           prev.map((a) => (a.id === editingAgent.id ? apiAgentToAgent(updated) : a))
@@ -82,10 +88,10 @@ export function AgentList({ token }: AgentListProps) {
   }
 
   function handleDeleteAgent() {
-    if (!token || editingAgent == null) return
+    if (!token || !currentTeamId || editingAgent == null) return
     setError(null)
     setDeleting(true)
-    deleteAgent(editingAgent.id, token)
+    deleteAgent(currentTeamId, editingAgent.id, token)
       .then(() => {
         setAgents((prev) => prev.filter((a) => a.id !== editingAgent.id))
         setEditingAgent(null)
@@ -100,10 +106,10 @@ export function AgentList({ token }: AgentListProps) {
   }
 
   function handleStartTaskFromAgent(editedInput: string) {
-    if (!token || !newTaskAgent) return
+    if (!token || !currentTeamId || !newTaskAgent) return
     setError(null)
     setStartingTaskAgentId(newTaskAgent.id)
-    createConversation({ channel: "portal" }, token)
+    createConversation(currentTeamId, { channel: "portal" }, token)
       .then((created) => {
         setNewTaskAgent(null)
         setPendingConversation({
@@ -124,7 +130,7 @@ export function AgentList({ token }: AgentListProps) {
         <div>
           <h1 className="page-activity__title">Agents</h1>
           <p className="page-activity__subtitle">
-            Create and manage personal agents (personas / task templates).
+            Create and manage team agents (personas / task templates).
           </p>
         </div>
         <div className="page-activity__actions">

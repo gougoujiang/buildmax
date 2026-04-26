@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
+import type { ApiTeamMember } from "../lib/api/types"
 import type { Agent, Issue } from "../lib/types"
 
 interface IssueModalProps {
@@ -7,6 +8,7 @@ interface IssueModalProps {
   mode: "create" | "edit"
   issue?: Issue | null
   agents: Agent[]
+  members: ApiTeamMember[]
   userId?: string
   loading: boolean
   error: string | null
@@ -25,6 +27,7 @@ export function IssueModal({
   mode,
   issue,
   agents,
+  members,
   userId,
   loading,
   error,
@@ -60,6 +63,13 @@ export function IssueModal({
   const titleText = mode === "create" ? "New Issue" : "Issue Details"
   const submitText = mode === "create" ? "Create issue" : "Save"
 
+  function memberLabel(member: ApiTeamMember): string {
+    if (member.user_id === userId) return "Me"
+    if (member.user_name && member.user_name.trim() !== "") return member.user_name
+    if (member.user_email && member.user_email.trim() !== "") return member.user_email
+    return `Member ${member.user_id.slice(0, 8)}`
+  }
+
   return (
     <BaseModal
       open={open}
@@ -90,7 +100,11 @@ export function IssueModal({
             <span className="issues-page__field-label">Assignee</span>
             <select className="issues-page__select" value={assigneeValue} onChange={(e) => setAssigneeValue(e.target.value)}>
               <option value="">Unassigned</option>
-              {userId ? <option value={`person:${userId}`}>Me</option> : null}
+              {members.map((member) => (
+                <option key={member.user_id} value={`person:${member.user_id}`}>
+                  {memberLabel(member)}
+                </option>
+              ))}
               {agents.map((agent) => (
                 <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
               ))}

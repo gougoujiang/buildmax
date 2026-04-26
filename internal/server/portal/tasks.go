@@ -70,7 +70,7 @@ func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request,
 	return task, true
 }
 
-func (h *Handler) getTaskForUser(w http.ResponseWriter, r *http.Request, userID, taskID string) (*entity.Task, *entity.Conversation, bool) {
+func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*entity.Task, *entity.Conversation, bool) {
 	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_task", "task_id", taskID)
@@ -80,8 +80,12 @@ func (h *Handler) getTaskForUser(w http.ResponseWriter, r *http.Request, userID,
 		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return nil, nil, false
 	}
-	conv, ok := h.getConversationForUser(w, r, userID, task.ConversationID)
+	conv, ok := h.getConversationForTeam(w, r, teamID, task.ConversationID)
 	if !ok {
+		return nil, nil, false
+	}
+	if task.TeamID != "" && task.TeamID != teamID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return nil, nil, false
 	}
 	return task, conv, true
@@ -93,7 +97,7 @@ type tasksListResponse struct {
 }
 
 func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -101,7 +105,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if _, ok = h.getConversationForUser(w, r, userID, conversationID); !ok {
+	if _, ok = h.getConversationForTeam(w, r, teamID, conversationID); !ok {
 		return
 	}
 	q := r.URL.Query()
@@ -138,7 +142,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -146,7 +150,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if _, ok = h.getConversationForUser(w, r, userID, conversationID); !ok {
+	if _, ok = h.getConversationForTeam(w, r, teamID, conversationID); !ok {
 		return
 	}
 	var req createTaskRequest
@@ -156,6 +160,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 	task, err := h.taskService().CreateTask(r.Context(), taskapp.CreateTaskCmd{
 		ConversationID: conversationID,
 		UserID:         userID,
+		TeamID:         teamID,
 		Input:          req.Input,
 		AgentID:        req.AgentID,
 	})
@@ -170,7 +175,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -178,7 +183,7 @@ func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	task, _, ok := h.getTaskForUser(w, r, userID, taskID)
+	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}
@@ -217,7 +222,7 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -225,7 +230,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	task, conv, ok := h.getTaskForUser(w, r, userID, taskID)
+	task, conv, ok := h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}
@@ -261,7 +266,7 @@ type ConversationResponse struct {
 }
 
 func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -270,7 +275,7 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-	task, _, ok := h.getTaskForUser(w, r, userID, taskID)
+	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}

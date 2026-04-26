@@ -18,6 +18,7 @@ const STABLE_CONNECTION_MS = 10000
 export class BuildMaxWebSocket {
   private ws: WebSocket | null = null
   private token: string | null = null
+  private teamId: string | null = null
   private handlers = new Map<string, Set<EventHandler>>()
   private intentionalClose = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -30,8 +31,9 @@ export class BuildMaxWebSocket {
   /** Lifecycle callback: called when the connection closes unexpectedly. */
   onClose: (() => void) | null = null
 
-  connect(token: string): void {
+  connect(token: string, teamId?: string | null): void {
     this.token = token
+    this.teamId = teamId ?? null
     this.intentionalClose = false
     this.openSocket()
   }
@@ -41,7 +43,9 @@ export class BuildMaxWebSocket {
 
     const httpBase = getApiBase()
     const wsBase = httpBase.replace(/^http/, "ws")
-    const url = `${wsBase}/api/ws?token=${encodeURIComponent(this.token)}`
+    if (!this.teamId) return
+    const params = new URLSearchParams({ token: this.token })
+    const url = `${wsBase}/api/teams/${encodeURIComponent(this.teamId)}/ws?${params.toString()}`
 
     console.log("[ws] connecting", wsBase)
     this.ws = new WebSocket(url)

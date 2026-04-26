@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"buildmax/internal/storage/entity"
 	"buildmax/internal/testutil"
 	"buildmax/internal/wsconn"
 
@@ -17,9 +18,11 @@ import (
 const wsTestSecret = "ws-test-secret"
 
 func setupWSHandler() *Handler {
+	teamID := "tm_personal_u1"
 	return NewHandler(Config{
 		JWTSecret:         wsTestSecret,
 		CORSOrigin:        "*",
+		TeamStore:         &testutil.MockTeamStore{Teams: []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}}, Members: []entity.TeamMember{{TeamID: teamID, UserID: "u1", Role: entity.TeamRoleOwner}}},
 		ConversationStore: &testutil.MockConversationStore{},
 		ConnRegistry:      NewConnRegistry(),
 	})
@@ -27,7 +30,7 @@ func setupWSHandler() *Handler {
 
 func dialWS(t *testing.T, server *httptest.Server, token string) *websocket.Conn {
 	t.Helper()
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/ws?token=" + token
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws?token=" + token
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial: %v (resp=%v)", err, resp)
@@ -67,7 +70,7 @@ func TestWSUpgradeRequiresToken(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/ws"
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws"
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error for missing token")
@@ -84,7 +87,7 @@ func TestWSUpgradeInvalidToken(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/ws?token=bad"
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws?token=bad"
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid token")

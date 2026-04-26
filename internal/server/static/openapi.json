@@ -129,7 +129,7 @@
         }
       }
     },
-    "/api/agents": {
+    "/api/teams/{team_id}/agents": {
       "get": {
         "summary": "List agents",
         "security": [{ "bearerAuth": [] }],
@@ -162,7 +162,7 @@
         }
       }
     },
-    "/api/agents/{agent_id}": {
+    "/api/teams/{team_id}/agents/{agent_id}": {
       "get": {
         "summary": "Get agent",
         "security": [{ "bearerAuth": [] }],
@@ -314,7 +314,7 @@
         }
       }
     },
-    "/api/conversations/{conversation_id}/messages": {
+    "/api/teams/{team_id}/conversations/{conversation_id}/messages": {
       "get": {
         "summary": "List conversation messages",
         "security": [{ "bearerAuth": [] }],
@@ -351,7 +351,7 @@
         }
       }
     },
-    "/api/conversations/{conversation_id}/tasks": {
+    "/api/teams/{team_id}/conversations/{conversation_id}/tasks": {
       "get": {
         "summary": "List tasks in a conversation",
         "security": [{ "bearerAuth": [] }],
@@ -390,7 +390,7 @@
         }
       }
     },
-    "/api/tasks/{task_id}": {
+    "/api/teams/{team_id}/tasks/{task_id}": {
       "get": {
         "summary": "Get task",
         "security": [{ "bearerAuth": [] }],
@@ -409,7 +409,7 @@
         }
       }
     },
-    "/api/tasks/{task_id}/runs": {
+    "/api/teams/{team_id}/tasks/{task_id}/runs": {
       "post": {
         "summary": "Create task run",
         "security": [{ "bearerAuth": [] }],
@@ -422,7 +422,7 @@
         }
       }
     },
-    "/api/tasks/{task_id}/conversation": {
+    "/api/teams/{team_id}/tasks/{task_id}/conversation": {
       "get": {
         "summary": "Get task execution conversation",
         "security": [{ "bearerAuth": [] }],
@@ -434,7 +434,7 @@
         }
       }
     },
-    "/api/tasks/{task_id}/stream": {
+    "/api/teams/{team_id}/tasks/{task_id}/stream": {
       "get": {
         "summary": "Stream task run output",
         "security": [{ "bearerAuth": [] }],
@@ -446,7 +446,7 @@
         }
       }
     },
-    "/api/tasks/{task_id}/artifacts": {
+    "/api/teams/{team_id}/tasks/{task_id}/artifacts": {
       "get": {
         "summary": "List artifacts for a task",
         "security": [{ "bearerAuth": [] }],
@@ -468,7 +468,7 @@
         }
       }
     },
-    "/api/task-runs/{task_run_id}/artifacts/items": {
+    "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items": {
       "get": {
         "summary": "List artifact files for a task run",
         "security": [{ "bearerAuth": [] }],
@@ -490,7 +490,7 @@
         }
       }
     },
-    "/api/task-runs/{task_run_id}/artifacts/content": {
+    "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content": {
       "get": {
         "summary": "Get artifact file content",
         "security": [{ "bearerAuth": [] }],

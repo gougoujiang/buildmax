@@ -17,6 +17,7 @@ type conversationListResponse struct {
 type conversationResponse struct {
 	ID        string `json:"id"`
 	UserID    string `json:"user_id"`
+	TeamID    string `json:"team_id,omitempty"`
 	Channel   string `json:"channel"`
 	Title     string `json:"title,omitempty"`
 	CreatedAt int64  `json:"created_at"`
@@ -120,14 +121,14 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 }
 
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
-	list, total, err := h.cfg.ConversationStore.ListConversationsByUser(r.Context(), userID, limit, offset)
+	list, total, err := h.cfg.ConversationStore.ListConversationsByTeam(r.Context(), teamID, limit, offset)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_conversations", "user_id", userID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "list_conversations", "user_id", userID, "team_id", teamID)
 		return
 	}
 	out := make([]conversationResponse, len(list))
@@ -135,6 +136,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 		out[i] = conversationResponse{
 			ID:        list[i].ConversationID,
 			UserID:    list[i].UserID,
+			TeamID:    list[i].TeamID,
 			Channel:   list[i].Channel,
 			Title:     list[i].Title,
 			CreatedAt: list[i].CreatedAt,
@@ -145,7 +147,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -159,9 +161,9 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	if req.Channel == "" {
 		req.Channel = "portal"
 	}
-	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), userID, req.Channel, userID)
+	conv, err := h.cfg.ConversationStore.CreateConversationInTeam(r.Context(), teamID, userID, req.Channel, userID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_conversation", "user_id", userID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_conversation", "user_id", userID, "team_id", teamID)
 		return
 	}
 	if req.Message == "" || h.cfg.ConversationLLMCaller == nil {
@@ -195,7 +197,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -214,7 +216,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return
 	}
-	if conv == nil || conv.UserID != userID {
+	if conv == nil || conv.TeamID != teamID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
@@ -240,7 +242,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.ConversationStore, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -248,7 +250,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	conv, ok := h.getConversationForUser(w, r, userID, conversationID)
+	conv, ok := h.getConversationForTeam(w, r, teamID, conversationID)
 	if !ok {
 		return
 	}
@@ -288,7 +290,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (h *Handler) getConversationForUser(w http.ResponseWriter, r *http.Request, userID, conversationID string) (*entity.Conversation, bool) {
+func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*entity.Conversation, bool) {
 	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return nil, false
 	}
@@ -297,7 +299,7 @@ func (h *Handler) getConversationForUser(w http.ResponseWriter, r *http.Request,
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return nil, false
 	}
-	if conv == nil || conv.UserID != userID {
+	if conv == nil || conv.TeamID != teamID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return nil, false
 	}

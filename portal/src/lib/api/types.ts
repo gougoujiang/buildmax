@@ -26,10 +26,11 @@ export interface ApiWorkspace {
   created_at?: number
 }
 
-/** Agent as returned by GET/POST /api/agents */
+/** Agent as returned by team-scoped agent endpoints. */
 export interface ApiAgent {
   id: string
   user_id: string
+  team_id: string
   name: string
   description: string
   instructions: string
@@ -39,6 +40,7 @@ export interface ApiAgent {
 export interface ApiIssue {
   id: string
   user_id: string
+  team_id: string
   title: string
   description: string
   status: string
@@ -60,7 +62,7 @@ export interface ApiTasksListResponse {
   total: number
 }
 
-/** Task as returned by task endpoints (GET /api/tasks/{id}, POST /api/conversations/{id}/tasks). */
+/** Task as returned by team-scoped task endpoints. */
 export interface ApiTask {
   id: string
   conversation_id: string
@@ -77,7 +79,7 @@ export interface ApiTask {
   agent_id?: string | null
 }
 
-/** Conversation as returned by GET /api/tasks/{id}/conversation */
+/** Conversation as returned by the team-scoped task conversation endpoint. */
 export interface ApiSession {
   id: string
   title: string
@@ -92,7 +94,7 @@ export interface ApiSessionMessage {
   tool_calls?: { id: string; name: string; arguments?: string }[]
 }
 
-/** Response from POST /api/tasks/{task_id}/runs */
+/** Response from the team-scoped create task run endpoint. */
 export interface CreateTaskRunResponse {
   task_run_id: string
   task_id: string
@@ -108,7 +110,7 @@ export interface ApiArtifact {
   task_input_snippet: string
 }
 
-/** Artifact item as returned by GET /api/task-runs/{task_run_id}/artifacts/items */
+/** Artifact item as returned by the team-scoped task-run artifact items endpoint. */
 export interface ApiArtifactItem {
   relative_path: string
 }
@@ -128,29 +130,46 @@ export interface ApiUsage {
   max_tokens_per_period?: number
 }
 
-/** Tier 1 conversation as returned by GET /api/conversations */
+/** Tier 1 conversation as returned by team-scoped conversation endpoints. */
 export interface ApiConversation {
   id: string
   user_id: string
+  team_id: string
   channel: string
   title?: string
   created_at: number
   created_by: string
 }
 
-/** Response from GET /api/conversations */
+export interface ApiTeam {
+  id: string
+  name: string
+  personal_for_user_id?: string | null
+  created_at?: number
+}
+
+export interface ApiTeamMember {
+  team_id: string
+  user_id: string
+  role: string
+  created_at?: number
+  user_name?: string
+  user_email?: string
+}
+
+/** Response from the team-scoped list conversations endpoint. */
 export interface ApiConversationsListResponse {
   conversations: ApiConversation[]
   total: number
 }
 
-/** Response from POST /api/conversations */
+/** Response from the team-scoped create conversation endpoint. */
 export interface CreateConversationResponse {
   conversation_id: string
   reply?: string
 }
 
-/** Message as returned by GET /api/conversations/{id}/messages */
+/** Message as returned by the team-scoped list conversation messages endpoint. */
 export interface ApiConversationMessage {
   id: string
   role: string
@@ -159,12 +178,12 @@ export interface ApiConversationMessage {
   created_at: number
 }
 
-/** Response from GET /api/conversations/{id}/messages */
+/** Response from the team-scoped list conversation messages endpoint. */
 export interface ApiConversationMessagesResponse {
   messages: ApiConversationMessage[]
 }
 
-/** Response from POST /api/conversations/{id}/messages */
+/** Response from the team-scoped add conversation message endpoint. */
 export interface AddConversationMessageResponse {
   reply: string
 }

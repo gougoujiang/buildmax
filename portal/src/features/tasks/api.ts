@@ -33,16 +33,18 @@ export interface RunStreamCallbacks {
 }
 
 export async function getTasks(
+  teamId: string,
   conversationId: string,
   token: string
 ): Promise<ApiTask[]> {
   return requestJson<ApiTask[]>(
-    `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/tasks`,
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/tasks`,
     { headers: authHeaders(token) }
   )
 }
 
 export async function getTasksPaginated(
+  teamId: string,
   conversationId: string,
   token: string,
   options?: GetTasksPaginatedOptions
@@ -52,22 +54,23 @@ export async function getTasksPaginated(
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
-  const url = `${getApiBase()}/api/conversations/${encodeURIComponent(conversationId)}/tasks${q ? `?${q}` : ""}`
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/tasks${q ? `?${q}` : ""}`
   return requestJson<ApiTasksListResponse>(url, { headers: authHeaders(token) })
 }
 
-export async function getTask(taskId: string, token: string): Promise<ApiTask> {
-  return requestJson<ApiTask>(`${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}`, {
+export async function getTask(teamId: string, taskId: string, token: string): Promise<ApiTask> {
+  return requestJson<ApiTask>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}`, {
     headers: authHeaders(token),
   })
 }
 
 export async function getTaskConversation(
+  teamId: string,
   taskId: string,
   token: string
 ): Promise<ApiSession | null> {
   const res = await fetch(
-    `${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}/conversation`,
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/conversation`,
     { headers: authHeaders(token) }
   )
   checkUnauthorized(res)
@@ -77,11 +80,12 @@ export async function getTaskConversation(
 }
 
 export async function createTask(
+  teamId: string,
   body: CreateTaskBody,
   token: string
 ): Promise<ApiTask> {
-  const conv = await createConversation({ channel: "portal" }, token)
-  return requestJson<ApiTask>(`${getApiBase()}/api/conversations/${encodeURIComponent(conv.conversation_id)}/tasks`, {
+  const conv = await createConversation(teamId, { channel: "portal" }, token)
+  return requestJson<ApiTask>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conv.conversation_id)}/tasks`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -89,12 +93,13 @@ export async function createTask(
 }
 
 export async function createTaskRun(
+  teamId: string,
   taskId: string,
   body: { input: string },
   token: string
 ): Promise<CreateTaskRunResponse> {
   const res = await fetch(
-    `${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}/runs`,
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -111,11 +116,12 @@ export async function createTaskRun(
 }
 
 export function subscribeTaskStream(
+  teamId: string,
   taskId: string,
   token: string,
   callbacks: RunStreamCallbacks
 ): () => void {
-  const url = `${getApiBase()}/api/tasks/${encodeURIComponent(taskId)}/stream`
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/stream`
   const controller = new AbortController()
 
   void fetch(url, { headers: authHeaders(token), signal: controller.signal })

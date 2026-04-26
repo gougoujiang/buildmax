@@ -16,13 +16,14 @@ import (
 func TestListConversationTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"
 	conversationID := "conv1"
+	teamID := "tm_personal_u1"
 	mockConversations := &testutil.MockConversationStore{
 		Conversations: []entity.Conversation{
-			{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+			{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
-	task1 := entity.Task{TaskID: "t1", ConversationID: conversationID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
-	task2 := entity.Task{TaskID: "t2", ConversationID: conversationID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := entity.Task{TaskID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
+	task2 := entity.Task{TaskID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
 
 	tests := []struct {
 		name         string
@@ -37,7 +38,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "no auth returns 401",
 			taskStore:    &testutil.MockTaskStore{},
 			authHeader:   "",
-			path:         "/api/conversations/" + conversationID + "/tasks",
+			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusUnauthorized,
 			wantBodyHas:  "unauthorized",
 			wantArrayLen: -1,
@@ -46,7 +47,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "conversation not owned returns 404",
 			taskStore:    &testutil.MockTaskStore{},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/conversations/conv-other/tasks",
+			path:         "/api/teams/" + teamID + "/conversations/conv-other/tasks",
 			wantStatus:   http.StatusNotFound,
 			wantBodyHas:  "conversation not found",
 			wantArrayLen: -1,
@@ -55,7 +56,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "owned conversation empty list returns 200",
 			taskStore:    &testutil.MockTaskStore{List: []entity.Task{}},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/conversations/" + conversationID + "/tasks",
+			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "[]",
 			wantArrayLen: 0,
@@ -64,7 +65,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "owned conversation with tasks returns 200",
 			taskStore:    &testutil.MockTaskStore{List: []entity.Task{task1, task2}},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/conversations/" + conversationID + "/tasks",
+			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "t1",
 			wantArrayLen: 2,
@@ -74,6 +75,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewHandler(Config{
 				JWTSecret:         secret,
+				TeamStore:         &testutil.MockTeamStore{Teams: []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}}, Members: []entity.TeamMember{{TeamID: teamID, UserID: "u1", Role: entity.TeamRoleOwner}}},
 				TaskStore:         tt.taskStore,
 				ConversationStore: mockConversations,
 			})
@@ -108,9 +110,10 @@ func TestListConversationTasksHandler(t *testing.T) {
 func TestCreateConversationTaskHandler(t *testing.T) {
 	secret := "test-create-task-secret"
 	conversationID := "conv1"
+	teamID := "tm_personal_u1"
 	mockConversations := &testutil.MockConversationStore{
 		Conversations: []entity.Conversation{
-			{ConversationID: conversationID, UserID: "u1", Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+			{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
 
@@ -129,7 +132,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:        "no auth returns 401",
 			taskStore:   &testutil.MockTaskStore{},
 			authHeader:  "",
-			path:        "/api/conversations/" + conversationID + "/tasks",
+			path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:        `{"input":"Do X"}`,
 			wantStatus:  http.StatusUnauthorized,
 			wantBodyHas: "unauthorized",
@@ -138,7 +141,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:        "conversation not owned returns 404",
 			taskStore:   &testutil.MockTaskStore{},
 			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-			path:        "/api/conversations/conv-other/tasks",
+			path:        "/api/teams/" + teamID + "/conversations/conv-other/tasks",
 			body:        `{"input":"Do X"}`,
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "conversation not found",
@@ -147,7 +150,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:        "missing input returns 400",
 			taskStore:   &testutil.MockTaskStore{},
 			authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-			path:        "/api/conversations/" + conversationID + "/tasks",
+			path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:        `{}`,
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "input",
@@ -156,12 +159,12 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name: "valid body returns 201",
 			taskStore: &testutil.MockTaskStore{
 				Create: &entity.Task{
-					TaskID: "new-task-id", ConversationID: conversationID, Status: "PENDING",
+					TaskID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/conversations/" + conversationID + "/tasks",
+			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:         `{"input":"Do X"}`,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "new-task-id",
@@ -172,11 +175,11 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			taskStore: &testutil.MockTaskStore{},
 			agentStore: &testutil.MockAgentStore{
 				Agents: []entity.Agent{
-					{AgentID: "a_1", UserID: "u1", Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
+					{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},
 			authHeader:   "Bearer " + testutil.SignJWT("u1", secret),
-			path:         "/api/conversations/" + conversationID + "/tasks",
+			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:         `{"agent_id":"a_1"}`,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "TestAgent",
@@ -203,7 +206,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		name:        "quota exceeded returns 429",
 		taskStore:   &testutil.MockTaskStore{},
 		authHeader:  "Bearer " + testutil.SignJWT("u1", secret),
-		path:        "/api/conversations/" + conversationID + "/tasks",
+		path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 		body:        `{"input":"Do X"}`,
 		wantStatus:  http.StatusTooManyRequests,
 		wantBodyHas: "quota exceeded",
@@ -213,6 +216,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				JWTSecret:         secret,
+				TeamStore:         &testutil.MockTeamStore{Teams: []entity.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}}, Members: []entity.TeamMember{{TeamID: teamID, UserID: "u1", Role: entity.TeamRoleOwner}}},
 				TaskStore:         tt.taskStore,
 				AgentStore:        tt.agentStore,
 				ConversationStore: mockConversations,
