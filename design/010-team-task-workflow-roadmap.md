@@ -268,7 +268,7 @@ Recommended status values:
 | 2 | Team Foundation | `done` | `design/012-phase-2-team-foundation.md` | Team is now the ownership boundary for issues, agents, conversations, and tasks. Default personal team (`My Space`) is created automatically, a standalone Team Settings page manages the current team's members, and APIs use explicit `/api/teams/{team_id}/...` routes instead of current-team header context. |
 | 3 | Workflow Foundation | `done` | `design/013-phase-3-workflow-foundation.md` | Workflow v1 is now landed as a lightweight, team-scoped linear step model with explicit manual trigger support, reusable task/task_run-backed execution, issue assignment to `workflow`, a dedicated workflow detail page, and standalone workflow run inspection. |
 | 4 | Issue Flow Visualization | `done` | `design/014-phase-4-issue-flow-visualization.md` | Issue detail now has issue-centric flow data, execution summary, timeline, workflow step state, workflow run history, and agent run sequence. Direct artifact/result aggregation remains deferred. |
-| 5 | Enterprise Governance | `not_started` | TBD | |
+| 5 | Enterprise Governance | `in_progress` | `design/016-phase-5-enterprise-governance-foundation.md` | Governance foundation is landed in code: team roles now support `owner/admin/member`, sensitive team actions use centralized authz checks, workflows have `draft/published/archived` lifecycle, and portal surfaces the new role/lifecycle behavior. Team-scoped quota, approvals, and audit remain deferred. |
 
 ### 7.6 Off-Roadmap Cleanup Log
 
