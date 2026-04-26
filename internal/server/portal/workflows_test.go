@@ -114,4 +114,21 @@ func TestWorkflowHandlers(t *testing.T) {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 		}
 	})
+
+	t.Run("GET issue flow", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/issues/i_1/flow", nil)
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", workflowTestSecret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		var out issueFlowResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if out.Issue.ID != "i_1" || out.Workflow == nil || out.Workflow.ID != "w_1" || len(out.Runs) == 0 {
+			t.Fatalf("issue flow = %+v", out)
+		}
+	})
 }

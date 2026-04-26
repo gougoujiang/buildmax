@@ -107,6 +107,18 @@ export interface ApiWorkflowRunDetailResponse {
   steps: ApiWorkflowStepRun[]
 }
 
+export interface ApiIssueFlowRun {
+  run: ApiWorkflowRun
+  steps: ApiWorkflowStepRun[]
+}
+
+export interface ApiIssueFlowResponse {
+  issue: ApiIssue
+  workflow?: ApiWorkflow | null
+  runs: ApiIssueFlowRun[]
+  total: number
+}
+
 export interface ApiIssuesListResponse {
   issues: ApiIssue[]
   total: number

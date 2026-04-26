@@ -27,6 +27,18 @@ type issueListResponse struct {
 	Total  int             `json:"total"`
 }
 
+type issueFlowRunResponse struct {
+	Run   workflowRunResponse       `json:"run"`
+	Steps []workflowStepRunResponse `json:"steps"`
+}
+
+type issueFlowResponse struct {
+	Issue    IssueResponse          `json:"issue"`
+	Workflow *workflowResponse      `json:"workflow,omitempty"`
+	Runs     []issueFlowRunResponse `json:"runs"`
+	Total    int                    `json:"total"`
+}
+
 type createIssueRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
@@ -118,6 +130,71 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, issueToResponse(*issue))
+}
+
+func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	if !ok {
+		return
+	}
+	if !h.requireStore(w, h.cfg.WorkflowStore, "workflows not configured") {
+		return
+	}
+	issueID, ok := pathValueRequired(w, r, "issue_id")
+	if !ok {
+		return
+	}
+	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_issue", "issue_id", issueID)
+		return
+	}
+	if issue == nil || issue.TeamID != teamID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+
+	var workflowOut *workflowResponse
+	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == entity.IssueAssigneeWorkflow {
+		workflow, err := h.cfg.WorkflowStore.GetWorkflow(r.Context(), *issue.AssigneeID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_workflow", "issue_id", issueID)
+			return
+		}
+		if workflow != nil && workflow.TeamID == teamID {
+			out := workflowToResponse(*workflow)
+			workflowOut = &out
+		}
+	}
+
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	runs, total, err := h.cfg.WorkflowStore.ListWorkflowRunsByIssue(r.Context(), issueID, limit, offset)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_runs", "issue_id", issueID)
+		return
+	}
+	runOut := make([]issueFlowRunResponse, len(runs))
+	for i := range runs {
+		steps, err := h.cfg.WorkflowStore.ListWorkflowStepRuns(r.Context(), runs[i].WorkflowRunID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_steps", "workflow_run_id", runs[i].WorkflowRunID)
+			return
+		}
+		stepOut := make([]workflowStepRunResponse, len(steps))
+		for j := range steps {
+			stepOut[j] = workflowStepRunToResponse(steps[j])
+		}
+		runOut[i] = issueFlowRunResponse{
+			Run:   workflowRunToResponse(runs[i]),
+			Steps: stepOut,
+		}
+	}
+	httputil.WriteJSON(w, http.StatusOK, issueFlowResponse{
+		Issue:    issueToResponse(*issue),
+		Workflow: workflowOut,
+		Runs:     runOut,
+		Total:    total,
+	})
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {

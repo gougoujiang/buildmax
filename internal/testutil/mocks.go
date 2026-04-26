@@ -225,6 +225,23 @@ func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workfl
 	return out[offset : offset+limit], total, nil
 }
 
+func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID string, limit, offset int) ([]entity.WorkflowRun, int, error) {
+	var out []entity.WorkflowRun
+	for _, run := range m.Runs {
+		if run.IssueID != nil && *run.IssueID == issueID {
+			out = append(out, run)
+		}
+	}
+	total := len(out)
+	if offset > total {
+		return []entity.WorkflowRun{}, total, nil
+	}
+	if limit <= 0 || offset+limit > total {
+		limit = total - offset
+	}
+	return out[offset : offset+limit], total, nil
+}
+
 func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID string) (*entity.WorkflowRun, error) {
 	for i := range m.Runs {
 		if m.Runs[i].WorkflowRunID == workflowRunID {

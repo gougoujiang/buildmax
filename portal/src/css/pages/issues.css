@@ -142,8 +142,54 @@
   margin-top: 1rem;
 }
 
+.issue-detail-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 1rem;
+}
+
+.issue-detail-page__wide {
+  grid-column: 1 / -1;
+}
+
+.issue-detail-page__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.issue-detail-page__timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.issue-detail-page__timeline-item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.issue-detail-page__timeline-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
 @media (max-width: 960px) {
   .issues-page__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .issue-detail-page__grid,
+  .issue-detail-page__split {
     grid-template-columns: 1fr;
   }
 

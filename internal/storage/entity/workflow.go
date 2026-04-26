@@ -122,6 +122,23 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 	return list, int(total), nil
 }
 
+func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]WorkflowRun, int, error) {
+	q := s.db.WithContext(ctx).Model(&WorkflowRun{}).Where("issue_id = ?", issueID)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []WorkflowRun
+	q = s.db.WithContext(ctx).Where("issue_id = ?", issueID).Order("created_at DESC")
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	if err := q.Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, int(total), nil
+}
+
 func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*WorkflowRun, error) {
 	var run WorkflowRun
 	err := s.db.WithContext(ctx).Where("workflow_run_id = ?", workflowRunID).First(&run).Error

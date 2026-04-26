@@ -125,6 +125,9 @@ export function apiWorkflowStepRunToWorkflowStepRun(api: ApiWorkflowStepRun): Wo
     taskRunId: api.task_run_id ?? null,
     outputSummary: api.output_summary ?? null,
     errorMessage: api.error_message ?? null,
+    createdAt: api.created_at,
+    startedAt: api.started_at ?? null,
+    endedAt: api.ended_at ?? null,
   }
 }
 

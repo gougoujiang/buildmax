@@ -7,6 +7,7 @@ import { ConversationDetail } from "../pages/ConversationDetail"
 import { NewConversation } from "../pages/NewConversation"
 import { Explore } from "../pages/Explore"
 import { Issues } from "../pages/Issues"
+import { IssueDetail } from "../pages/IssueDetail"
 import { Workflows } from "../pages/Workflows"
 import { WorkflowDetail } from "../pages/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/WorkflowRunDetail"
@@ -80,7 +81,7 @@ export function AppRouter({
   }
 
   if (route.name === "issue") {
-    return <Issues token={token ?? null} routeIssueId={route.issueId} userId={userId} />
+    return <IssueDetail token={token ?? null} issueId={route.issueId} userId={userId} />
   }
 
   if (route.name === "conversation") {

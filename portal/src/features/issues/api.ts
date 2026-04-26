@@ -3,7 +3,7 @@ import {
   getApiBase,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
-import type { ApiIssue, ApiIssuesListResponse } from "../../lib/api/types"
+import type { ApiIssue, ApiIssueFlowResponse, ApiIssuesListResponse } from "../../lib/api/types"
 
 export interface GetIssuesOptions {
   limit?: number
@@ -22,6 +22,12 @@ export async function getIssues(teamId: string, token: string, options?: GetIssu
 
 export async function getIssue(teamId: string, issueId: string, token: string): Promise<ApiIssue> {
   return requestJson<ApiIssue>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}`, {
+    headers: authHeaders(token),
+  })
+}
+
+export async function getIssueFlow(teamId: string, issueId: string, token: string): Promise<ApiIssueFlowResponse> {
+  return requestJson<ApiIssueFlowResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}/flow`, {
     headers: authHeaders(token),
   })
 }

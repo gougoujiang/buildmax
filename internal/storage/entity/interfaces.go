@@ -42,6 +42,7 @@ type WorkflowStore interface {
 	UpdateWorkflow(ctx context.Context, workflowID, teamID string, in UpdateWorkflowInput) (*Workflow, error)
 	CreateWorkflowRun(ctx context.Context, in CreateWorkflowRunInput) (*WorkflowRun, error)
 	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]WorkflowRun, int, error)
+	ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]WorkflowRun, int, error)
 	GetWorkflowRun(ctx context.Context, workflowRunID string) (*WorkflowRun, error)
 	ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]WorkflowStepRun, error)
 	CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []CreateWorkflowStepRunInput) ([]WorkflowStepRun, error)

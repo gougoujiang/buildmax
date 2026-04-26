@@ -113,6 +113,21 @@ export interface WorkflowStepRun {
   taskRunId?: string | null
   outputSummary?: string | null
   errorMessage?: string | null
+  createdAt: number
+  startedAt?: number | null
+  endedAt?: number | null
+}
+
+export interface IssueFlowRun {
+  run: WorkflowRun
+  steps: WorkflowStepRun[]
+}
+
+export interface IssueFlow {
+  issue: Issue
+  workflow?: Workflow | null
+  runs: IssueFlowRun[]
+  total: number
 }
 
 // --- Explore (user file structure) ---

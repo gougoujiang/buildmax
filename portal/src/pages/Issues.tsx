@@ -3,10 +3,10 @@ import type { Agent, Issue } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../lib/api/mappers"
-import { createIssue, getIssue, getIssues, updateIssue } from "../features/issues"
+import { createIssue, getIssues } from "../features/issues"
 import { getAgents } from "../features/agents"
 import { getTeamMembers } from "../features/teams/api"
-import { getWorkflows, runIssueWorkflow } from "../features/workflows"
+import { getWorkflows } from "../features/workflows"
 import { IssueModal } from "../components/IssueModal"
 import { useTeam } from "../contexts/TeamContext"
 import type { ApiTeamMember } from "../lib/api/types"
@@ -16,11 +16,10 @@ const PAGE_SIZE = 10
 
 interface IssuesProps {
   token: string | null
-  routeIssueId?: string
   userId?: string
 }
 
-export function Issues({ token, routeIssueId, userId }: IssuesProps) {
+export function Issues({ token, userId }: IssuesProps) {
   const { currentTeamId } = useTeam()
   const [issues, setIssues] = useState<Issue[]>([])
   const [total, setTotal] = useState(0)
@@ -29,11 +28,9 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
   const [members, setMembers] = useState<ApiTeamMember[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [runningWorkflow, setRunningWorkflow] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -71,15 +68,7 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
   }, [fetchIssues])
 
   useEffect(() => {
-    if (!token || !currentTeamId || !routeIssueId) return
-    getIssue(currentTeamId, routeIssueId, token)
-      .then((issue) => setSelectedIssue(apiIssueToIssue(issue)))
-      .catch((err) => setError(getErrorMessage(err, "Failed to load issue")))
-  }, [routeIssueId, token, currentTeamId])
-
-  useEffect(() => {
     setPage(1)
-    setSelectedIssue(null)
   }, [currentTeamId])
 
   function assigneeLabel(issue: Issue): string {
@@ -107,11 +96,6 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
     return `${start}-${end} of ${total}`
   }, [page, total])
 
-  function closeDetailModal() {
-    setSelectedIssue(null)
-    if (routeIssueId) navigate({ name: "issues" })
-  }
-
   function handleCreate(values: { title: string; description?: string }) {
     if (!token || !currentTeamId) return
     setSaving(true)
@@ -120,56 +104,11 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
       .then(() => {
         setCreateOpen(false)
         setPage(1)
-        setSelectedIssue(null)
         navigate({ name: "issues" })
         void fetchIssues()
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to create issue")))
       .finally(() => setSaving(false))
-  }
-
-  function handleSave(values: {
-    title: string
-    description: string
-    status: Issue["status"]
-    assignee_kind: "person" | "agent" | "workflow" | ""
-    assignee_id: string
-  }) {
-    if (!token || !currentTeamId || !selectedIssue) return
-    setSaving(true)
-    setError(null)
-    updateIssue(
-      currentTeamId,
-      selectedIssue.id,
-      {
-        title: values.title,
-        description: values.description,
-        status: values.status,
-        assignee_kind: values.assignee_kind,
-        assignee_id: values.assignee_id,
-      },
-      token,
-    )
-      .then((updated) => {
-        const mapped = apiIssueToIssue(updated)
-        setIssues((prev) => prev.map((issue) => (issue.id === mapped.id ? mapped : issue)))
-        setSelectedIssue(null)
-        navigate({ name: "issues" })
-      })
-      .catch((err) => setError(getErrorMessage(err, "Failed to update issue")))
-      .finally(() => setSaving(false))
-  }
-
-  function handleRunIssueWorkflow() {
-    if (!token || !currentTeamId || !selectedIssue) return
-    setRunningWorkflow(true)
-    setError(null)
-    runIssueWorkflow(currentTeamId, selectedIssue.id, token)
-      .then(() => {
-        setError("Workflow run started.")
-      })
-      .catch((err) => setError(getErrorMessage(err, "Failed to run workflow")))
-      .finally(() => setRunningWorkflow(false))
   }
 
   return (
@@ -215,7 +154,6 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
                   type="button"
                   className="issues-page__row"
                   onClick={() => {
-                    setSelectedIssue(issue)
                     navigate({ name: "issue", issueId: issue.id })
                   }}
                 >
@@ -277,24 +215,6 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
         onSubmit={({ title, description }) => handleCreate({ title, description })}
       />
 
-      <IssueModal
-        open={selectedIssue != null}
-        mode="edit"
-        issue={selectedIssue}
-        agents={agents}
-        workflows={workflows}
-        members={members}
-        userId={userId}
-        loading={saving}
-        runningWorkflow={runningWorkflow}
-        error={selectedIssue != null ? error : null}
-        onClose={() => {
-          setError(null)
-          closeDetailModal()
-        }}
-        onSubmit={handleSave}
-        onRunWorkflow={handleRunIssueWorkflow}
-      />
     </div>
   )
 }
