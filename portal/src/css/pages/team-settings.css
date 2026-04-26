@@ -1,0 +1,210 @@
+.team-settings-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.team-settings-page__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.team-settings-page__panel {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg-elevated);
+}
+
+.team-settings-page__wide {
+  grid-column: 1 / -1;
+}
+
+.team-settings-page__section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.team-settings-page__badge {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+}
+
+.team-settings-page__field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.team-settings-page__summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.team-settings-page__summary div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-muted);
+}
+
+.team-settings-page__summary dt {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.team-settings-page__summary dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.team-settings-page__muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.team-settings-page__inline-form {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.team-settings-page__inline-form .issues-page__input {
+  flex: 1;
+}
+
+.team-settings-page__member-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.team-settings-page__member-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.team-settings-page__member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.team-settings-page__member-main {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.team-settings-page__member-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.team-settings-page__member-meta {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-settings-page__member-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.team-settings-page__role {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.team-settings-page__remove-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.team-settings-page__remove-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+.team-settings-page__dialog {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.team-settings-page__dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.team-settings-page__secondary-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.team-settings-page__secondary-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+@media (max-width: 900px) {
+  .team-settings-page__grid,
+  .team-settings-page__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .team-settings-page__inline-form,
+  .team-settings-page__member {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .team-settings-page__member-actions {
+    justify-content: space-between;
+  }
+
+  .team-settings-page__member-head-actions,
+  .team-settings-page__dialog-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

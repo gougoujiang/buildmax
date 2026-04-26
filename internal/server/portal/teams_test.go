@@ -28,9 +28,15 @@ func TestTeamHandlers(t *testing.T) {
 		},
 	}
 	userStore := &testutil.MockUserStore{
+		ByEmail: map[string]*entity.User{
+			"u1@example.com": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
+			"u2@example.com": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
+			"u3@example.com": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},
+		},
 		ByID: map[string]*entity.User{
 			"u1": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
+			"u3": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},
 		},
 	}
 	h := NewHandler(Config{
@@ -148,6 +154,18 @@ func TestTeamHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("POST add team member requires existing user", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"email":"missing@example.com"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+	})
+
 	t.Run("DELETE remove team member by owner", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/teams/"+sharedTeamID+"/members/u2", nil)
 		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
@@ -179,7 +197,7 @@ func TestTeamHandlers(t *testing.T) {
 
 	t.Run("GET team members forbidden when not a member", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+sharedTeamID+"/members", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u3", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u4", teamTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {

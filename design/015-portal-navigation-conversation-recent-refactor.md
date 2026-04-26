@@ -3,10 +3,11 @@
 ## Status
 
 - type: `refactor`
-- status: `proposed`
+- status: `done`
 - roadmap: [design/010-team-task-workflow-roadmap.md](./010-team-task-workflow-roadmap.md)
 - context: off-roadmap cleanup after Phase 4
 - created_at: `2026-04-26`
+- completed_at: `2026-04-26`
 
 ---
 

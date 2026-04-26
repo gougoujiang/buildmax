@@ -11,6 +11,7 @@ import { IssueDetail } from "../pages/IssueDetail"
 import { Workflows } from "../pages/Workflows"
 import { WorkflowDetail } from "../pages/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/WorkflowRunDetail"
+import { TeamSettings } from "../pages/TeamSettings"
 
 export interface AppRouterProps {
   conversations: Conversation[]
@@ -63,6 +64,8 @@ export function AppRouter({
       />
     )
   }
+
+  if (route.name === "teamSettings") return <TeamSettings />
 
   if (route.name === "workflows") {
     return <Workflows token={token ?? null} />

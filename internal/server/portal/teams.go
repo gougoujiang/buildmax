@@ -196,11 +196,8 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user == nil {
-		user, err = h.cfg.UserStore.CreateUser(r.Context(), email, "")
-		if err != nil {
-			httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_team_member_user", "team_id", teamID, "email", email)
-			return
-		}
+		httputil.WriteJSONError(w, http.StatusBadRequest, "user does not exist")
+		return
 	}
 
 	member, err := h.cfg.TeamStore.AddTeamMember(r.Context(), teamID, user.UserID, role)

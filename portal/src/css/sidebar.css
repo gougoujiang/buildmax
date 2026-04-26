@@ -178,6 +178,11 @@
   justify-content: center;
 }
 
+.sidebar__team-add svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .sidebar__team-add:hover {
   background: var(--color-bg-hover);
 }
@@ -397,128 +402,6 @@
 .sidebar__user-menu-team-name {
   font-size: 0.88rem;
   color: var(--color-text);
-}
-
-.team-members-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.team-members-modal__header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.team-members-modal__title {
-  margin: 0;
-  font-size: 1.05rem;
-  color: var(--color-text);
-}
-
-.team-members-modal__subtitle {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-}
-
-.team-members-modal__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.team-members-modal__section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.team-members-modal__section-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.team-members-modal__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.team-members-modal__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-bg-muted);
-}
-
-.team-members-modal__item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.team-members-modal__item-name {
-  font-size: 0.92rem;
-  color: var(--color-text);
-}
-
-.team-members-modal__item-meta {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.team-members-modal__role {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
-.team-members-modal__item-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-shrink: 0;
-}
-
-.team-members-modal__remove-btn {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
-  padding: 0.35rem 0.7rem;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.team-members-modal__remove-btn:hover:not(:disabled) {
-  background: var(--color-bg-hover);
-}
-
-.team-members-modal__invite {
-  display: flex;
-  gap: 0.65rem;
-  align-items: center;
-}
-
-.team-members-modal__invite .issues-page__input {
-  flex: 1;
 }
 
 .sidebar__nav-item {

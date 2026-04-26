@@ -11,6 +11,7 @@ export const SEGMENT = {
   conversations: "conversations",
   explore: "explore",
   agents: "agents",
+  teamSettings: "team-settings",
   workflows: "workflows",
   workflow: "workflow",
   workflowRun: "workflow-run",
@@ -40,6 +41,9 @@ export function parseHash(hash: string): Route {
   }
   if (parts[0] === SEGMENT.agents) {
     return { name: "agents" }
+  }
+  if (parts[0] === SEGMENT.teamSettings) {
+    return { name: "teamSettings" }
   }
   if (parts[0] === SEGMENT.workflows) {
     return { name: "workflows" }
@@ -79,6 +83,8 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.explore}`
     case "agents":
       return `#/${SEGMENT.agents}`
+    case "teamSettings":
+      return `#/${SEGMENT.teamSettings}`
     case "workflows":
       return `#/${SEGMENT.workflows}`
     case "workflow":

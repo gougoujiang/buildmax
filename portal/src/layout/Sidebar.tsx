@@ -14,7 +14,7 @@ import IssueIcon from "../icons/issue.svg?react"
 import WorkflowIcon from "../icons/workflow.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
-import { TeamMembersModal } from "../components/TeamMembersModal"
+import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useTeam } from "../contexts/TeamContext"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
@@ -52,10 +52,12 @@ export function Sidebar({
 }: SidebarProps) {
   const { teams, currentTeam, currentTeamId, loading: teamsLoading, setCurrentTeamId } = useTeam()
   const showTeamSwitcher = teams.length > 1
+  const personalTeams = teams.filter((team) => Boolean(team.personalForUserId))
+  const sharedTeams = teams.filter((team) => !team.personalForUserId)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
-  const [membersModalOpen, setMembersModalOpen] = useState(false)
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -116,7 +118,7 @@ export function Sidebar({
                 <button
                   type="button"
                   className="sidebar__team-add"
-                  onClick={() => setMembersModalOpen(true)}
+                  onClick={() => setCreateSpaceOpen(true)}
                   aria-label="Create a new space"
                   title="Create a new space"
                 >
@@ -131,11 +133,24 @@ export function Sidebar({
                   onChange={(e) => setCurrentTeamId(e.target.value)}
                   disabled={teamsLoading}
                 >
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
+                  {personalTeams.length > 0 ? (
+                    <optgroup label="Personal">
+                      {personalTeams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {sharedTeams.length > 0 ? (
+                    <optgroup label="Teams">
+                      {sharedTeams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
                 </select>
               ) : (
                 <div className="sidebar__team-display" aria-label="Current space">
@@ -223,11 +238,13 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
-                setMembersModalOpen(true)
+                navigate({ name: "teamSettings" })
               }}
             >
-              <span className="sidebar__user-menu-item-icon" aria-hidden>+</span>
-              Members
+              <span className="sidebar__user-menu-item-icon" aria-hidden>
+                <SettingsIcon />
+              </span>
+              Team Settings
             </button>
             <button
               type="button"
@@ -273,7 +290,7 @@ export function Sidebar({
         )}
       </div>
       <SettingsModal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
-      <TeamMembersModal open={membersModalOpen} onClose={() => setMembersModalOpen(false)} />
+      <CreateSpaceDialog open={createSpaceOpen} onClose={() => setCreateSpaceOpen(false)} />
     </aside>
   )
 }
