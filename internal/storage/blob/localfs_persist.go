@@ -9,21 +9,21 @@ import (
 
 // LocalFSPersistStorage implements PersistStorage using the local filesystem.
 type LocalFSPersistStorage struct {
-	persistRoot func(userID string) string
+	persistRoot func(teamID string) string
 }
 
-// NewLocalFSPersistStorage returns a PersistStorage that uses the given root function per user.
-func NewLocalFSPersistStorage(persistRoot func(userID string) string) *LocalFSPersistStorage {
+// NewLocalFSPersistStorage returns a PersistStorage that uses the given root function per team.
+func NewLocalFSPersistStorage(persistRoot func(teamID string) string) *LocalFSPersistStorage {
 	return &LocalFSPersistStorage{persistRoot: persistRoot}
 }
 
-// Put writes one file at relPath under the user's persist root.
-func (s *LocalFSPersistStorage) Put(ctx context.Context, userID string, relPath string, r io.Reader) error {
+// Put writes one file at relPath under the team's persist root.
+func (s *LocalFSPersistStorage) Put(ctx context.Context, teamID string, relPath string, r io.Reader) error {
 	clean, err := CleanRelPath(relPath)
 	if err != nil {
 		return err
 	}
-	root := s.persistRoot(userID)
+	root := s.persistRoot(teamID)
 	fullPath := filepath.Join(root, filepath.FromSlash(clean))
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return err
@@ -38,19 +38,19 @@ func (s *LocalFSPersistStorage) Put(ctx context.Context, userID string, relPath 
 }
 
 // Get reads one file. Returns os.ErrNotExist if the file does not exist.
-func (s *LocalFSPersistStorage) Get(ctx context.Context, userID string, relPath string) ([]byte, error) {
+func (s *LocalFSPersistStorage) Get(ctx context.Context, teamID string, relPath string) ([]byte, error) {
 	clean, err := CleanRelPath(relPath)
 	if err != nil {
 		return nil, err
 	}
-	root := s.persistRoot(userID)
+	root := s.persistRoot(teamID)
 	fullPath := filepath.Join(root, filepath.FromSlash(clean))
 	return os.ReadFile(fullPath)
 }
 
-// ListFiles returns all file relative paths under the user persist root (files only).
-func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, userID string) ([]string, error) {
-	root := s.persistRoot(userID)
+// ListFiles returns all file relative paths under the team persist root (files only).
+func (s *LocalFSPersistStorage) ListFiles(ctx context.Context, teamID string) ([]string, error) {
+	root := s.persistRoot(teamID)
 	var out []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -93,10 +93,10 @@ func (s *LocalFSPersistStorage) GetTaskRunArtifacts(ctx context.Context, ref Run
 	return nil, ErrNotFound
 }
 
-// MaterializeToDir copies all persistent files from the user into dstDir.
+// MaterializeToDir copies all persistent files from the team into dstDir.
 // If the persist root does not exist or is empty, no error (empty dst).
-func (s *LocalFSPersistStorage) MaterializeToDir(ctx context.Context, userID string, dstDir string) error {
-	root := s.persistRoot(userID)
+func (s *LocalFSPersistStorage) MaterializeToDir(ctx context.Context, teamID string, dstDir string) error {
+	root := s.persistRoot(teamID)
 	return copyDirContents(root, dstDir)
 }
 

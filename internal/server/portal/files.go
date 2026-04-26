@@ -20,14 +20,14 @@ type fileNode struct {
 }
 
 func (h *Handler) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
 	ctx := r.Context()
-	relPaths, err := h.cfg.PersistStorage.ListFiles(ctx, userID)
+	relPaths, err := h.cfg.PersistStorage.ListFiles(ctx, teamID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "portal handler error", "handler", "files_tree", "user_id", userID)
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "files_tree", "team_id", teamID)
 		return
 	}
 	tree := buildTreeFromFileList(relPaths)
@@ -96,7 +96,7 @@ func sortFileNodes(n *fileNode) {
 }
 
 func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
@@ -110,7 +110,7 @@ func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-	data, err := h.cfg.PersistStorage.Get(r.Context(), userID, cleanPath)
+	data, err := h.cfg.PersistStorage.Get(r.Context(), teamID, cleanPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "file not found")

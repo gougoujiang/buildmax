@@ -114,8 +114,8 @@ func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task 
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
-	if err := persist.MaterializeToDir(ctx, task.CreatedBy, dirs.runHome); err != nil {
-		slog.Error("executor: failed to materialize user files", "task_run_id", run.TaskRunID, "user_id", task.CreatedBy, "err", err)
+	if err := persist.MaterializeToDir(ctx, task.TeamID, dirs.runHome); err != nil {
+		slog.Error("executor: failed to materialize team files", "task_run_id", run.TaskRunID, "team_id", task.TeamID, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {

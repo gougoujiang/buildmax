@@ -208,10 +208,13 @@
         }
       }
     },
-    "/api/files": {
+    "/api/teams/{team_id}/files": {
       "get": {
-        "summary": "List user files",
+        "summary": "List team files",
         "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -224,11 +227,12 @@
         }
       }
     },
-    "/api/files/{path}": {
+    "/api/teams/{team_id}/files/{path}": {
       "get": {
         "summary": "Get file content",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
+          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "path", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
@@ -236,10 +240,13 @@
         }
       }
     },
-    "/api/upload": {
+    "/api/teams/{team_id}/upload": {
       "post": {
         "summary": "Upload files",
         "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
         "responses": {
           "200": { "description": "OK" }
         }

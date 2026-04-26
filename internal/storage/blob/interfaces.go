@@ -1,4 +1,4 @@
-// Package blob provides pluggable storage for user files and task-run artifact files.
+// Package blob provides pluggable storage for team files and task-run artifact files.
 package blob
 
 import (
@@ -21,14 +21,14 @@ type RunRef struct {
 	TaskRunID      string
 }
 
-// PersistStorage reads/writes persistent user files and can materialize them to a local dir.
+// PersistStorage reads/writes persistent team files and can materialize them to a local dir.
 // PutTaskGlobal/GetTaskGlobal use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/global/.
 // PutTaskRunArtifacts/GetTaskRunArtifacts use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/artifacts/.
 type PersistStorage interface {
-	Put(ctx context.Context, userID string, relPath string, r io.Reader) error
-	Get(ctx context.Context, userID string, relPath string) ([]byte, error)
-	ListFiles(ctx context.Context, userID string) ([]string, error)
-	MaterializeToDir(ctx context.Context, userID string, dstDir string) error
+	Put(ctx context.Context, teamID string, relPath string, r io.Reader) error
+	Get(ctx context.Context, teamID string, relPath string) ([]byte, error)
+	ListFiles(ctx context.Context, teamID string) ([]string, error)
+	MaterializeToDir(ctx context.Context, teamID string, dstDir string) error
 	PutTaskGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetTaskGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
 	PutTaskRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error

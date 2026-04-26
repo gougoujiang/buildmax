@@ -1,5 +1,6 @@
 import { cn } from "../../../lib/cn"
 import { useAuth } from "../../../contexts/AuthContext"
+import { useTeam } from "../../../contexts/TeamContext"
 import { FileList } from "./FileList"
 import { FileTree } from "./FileTree"
 import { FileViewer } from "./FileViewer"
@@ -11,7 +12,8 @@ interface FilesExplorerProps {
 
 export function FilesExplorer({ className }: FilesExplorerProps) {
   const { token } = useAuth()
-  const explorer = useFilesExplorer({ token })
+  const { currentTeamId } = useTeam()
+  const explorer = useFilesExplorer({ teamId: currentTeamId, token })
 
   return (
     <div className={className ?? "files-panel"}>

@@ -362,3 +362,43 @@ func TestUploadTaskGlobal_SkipsMissingFiles(t *testing.T) {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}
 }
+
+func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
+	ctx := context.Background()
+	persist := newFakePersistStorage()
+	if err := persist.Put(ctx, "tm_shared", "shared.txt", bytes.NewReader([]byte("team"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := persist.Put(ctx, "u_creator", "private.txt", bytes.NewReader([]byte("user"))); err != nil {
+		t.Fatal(err)
+	}
+
+	dirs := runDirs{
+		runDir:       t.TempDir(),
+		runHome:      filepath.Join(t.TempDir(), "home"),
+		runArtifacts: filepath.Join(t.TempDir(), "artifacts"),
+		runGlobal:    filepath.Join(t.TempDir(), "global"),
+	}
+	task := &entity.Task{
+		TaskID:         "t1",
+		ConversationID: "c1",
+		TeamID:         "tm_shared",
+		CreatedBy:      "u_creator",
+	}
+	run := &entity.TaskRun{TaskRunID: "r1"}
+
+	if err := prepareRunWorkspace(ctx, persist, task, run, dirs); err != nil {
+		t.Fatal(err)
+	}
+
+	teamData, err := os.ReadFile(filepath.Join(dirs.runHome, "shared.txt"))
+	if err != nil {
+		t.Fatalf("read shared file: %v", err)
+	}
+	if string(teamData) != "team" {
+		t.Fatalf("shared file = %q, want %q", teamData, "team")
+	}
+	if _, err := os.Stat(filepath.Join(dirs.runHome, "private.txt")); !os.IsNotExist(err) {
+		t.Fatalf("private creator file should not be materialized, stat err = %v", err)
+	}
+}

@@ -45,7 +45,7 @@ func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob
 }
 
 // BuildPersistStorage returns the configured persist storage implementation.
-func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(userID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
+func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(teamID string) string, s3Client blob.S3Client) (blob.PersistStorage, error) {
 	switch cfg.PersistProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {

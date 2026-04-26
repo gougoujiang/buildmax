@@ -186,7 +186,7 @@ export interface ApiArtifactItem {
   relative_path: string
 }
 
-/** Upload response from POST /api/upload */
+/** Upload response from the team-scoped upload endpoint. */
 export interface UploadResponse {
   uploaded: string[]
 }

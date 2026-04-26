@@ -11,14 +11,14 @@ type ObjectKeyScope struct {
 	TaskRunID      string
 }
 
-// PersistObjectKey returns the S3 object key for a persistent user file.
+// PersistObjectKey returns the S3 object key for a persistent team file.
 // relPath must be already validated with CleanRelPath.
-func PersistObjectKey(prefix, userID, relPath string) (string, error) {
+func PersistObjectKey(prefix, teamID, relPath string) (string, error) {
 	clean, err := CleanRelPath(relPath)
 	if err != nil {
 		return "", err
 	}
-	return path.Join(prefix, userID, "home", clean), nil
+	return path.Join(prefix, teamID, "home", clean), nil
 }
 
 // ArtifactResultKey returns the S3 object key for a run's result.md (one artifact per task run).
@@ -45,9 +45,9 @@ func ArtifactFileKeyScope(scope ObjectKeyScope, relPath string) (string, error) 
 	return path.Join(scope.Prefix, scope.UserID, "artifacts", scope.ConversationID, scope.TaskID, scope.TaskRunID, clean), nil
 }
 
-// PersistPrefix returns the key prefix under which all persist files for a user live (for ListObjectsV2).
-func PersistPrefix(prefix, userID string) string {
-	return path.Join(prefix, userID, "home") + "/"
+// PersistPrefix returns the key prefix under which all persist files for a team live (for ListObjectsV2).
+func PersistPrefix(prefix, teamID string) string {
+	return path.Join(prefix, teamID, "home") + "/"
 }
 
 // TaskBuildmaxObjectKey returns the S3 object key for a task run buildmax file (logs, sessions, settings).

@@ -21,8 +21,8 @@ func NewS3PersistStorage(client S3Client, bucket, prefix string) *S3PersistStora
 }
 
 // Put writes one file at relPath.
-func (s *S3PersistStorage) Put(ctx context.Context, userID string, relPath string, r io.Reader) error {
-	key, err := PersistObjectKey(s.prefix, userID, relPath)
+func (s *S3PersistStorage) Put(ctx context.Context, teamID string, relPath string, r io.Reader) error {
+	key, err := PersistObjectKey(s.prefix, teamID, relPath)
 	if err != nil {
 		return err
 	}
@@ -30,17 +30,17 @@ func (s *S3PersistStorage) Put(ctx context.Context, userID string, relPath strin
 }
 
 // Get reads one file. Callers can use errors.Is(err, ErrNotFound) if the client returns a sentinel.
-func (s *S3PersistStorage) Get(ctx context.Context, userID string, relPath string) ([]byte, error) {
-	key, err := PersistObjectKey(s.prefix, userID, relPath)
+func (s *S3PersistStorage) Get(ctx context.Context, teamID string, relPath string) ([]byte, error) {
+	key, err := PersistObjectKey(s.prefix, teamID, relPath)
 	if err != nil {
 		return nil, err
 	}
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
-// ListFiles returns all file relative paths under the user persist root.
-func (s *S3PersistStorage) ListFiles(ctx context.Context, userID string) ([]string, error) {
-	listPrefix := PersistPrefix(s.prefix, userID)
+// ListFiles returns all file relative paths under the team persist root.
+func (s *S3PersistStorage) ListFiles(ctx context.Context, teamID string) ([]string, error) {
+	listPrefix := PersistPrefix(s.prefix, teamID)
 	keys, err := s.client.ListObjectKeys(ctx, s.bucket, listPrefix)
 	if err != nil {
 		return nil, err
@@ -96,13 +96,13 @@ func (s *S3PersistStorage) GetTaskRunArtifacts(ctx context.Context, ref RunObjec
 }
 
 // MaterializeToDir downloads all persistent files into dstDir.
-func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, userID string, dstDir string) error {
-	keys, err := s.ListFiles(ctx, userID)
+func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, teamID string, dstDir string) error {
+	keys, err := s.ListFiles(ctx, teamID)
 	if err != nil {
 		return err
 	}
 	for _, rel := range keys {
-		data, err := s.Get(ctx, userID, rel)
+		data, err := s.Get(ctx, teamID, rel)
 		if err != nil {
 			return err
 		}
