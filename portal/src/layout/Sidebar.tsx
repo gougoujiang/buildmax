@@ -3,7 +3,7 @@ import { cn } from "../lib/cn"
 import type { Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
-import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
+import { UserAvatar } from "../components/UserAvatar"
 import SidebarExpandIcon from "../icons/sidebar-expand.svg?react"
 import SidebarCollapseIcon from "../icons/sidebar-collapse.svg?react"
 import NewChatIcon from "../icons/new-chat.svg?react"
@@ -12,6 +12,7 @@ import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
 import IssueIcon from "../icons/issue.svg?react"
 import WorkflowIcon from "../icons/workflow.svg?react"
+import AgentsIcon from "../icons/agents.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
 import { TeamMembersModal } from "../components/TeamMembersModal"
 import { useTeam } from "../contexts/TeamContext"
@@ -176,7 +177,7 @@ export function Sidebar({
             className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
             onClick={() => navigate({ name: "agents" })}
           >
-            <AgentAvatar size="sm" />
+            <AgentsIcon className="sidebar__nav-icon" aria-hidden />
             <span className="sidebar__nav-item-text">Agents</span>
           </button>
         </div>
