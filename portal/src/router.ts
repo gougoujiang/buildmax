@@ -34,7 +34,7 @@ export function parseHash(hash: string): Route {
     return { name: "signup" }
   }
   if (parts[0] === SEGMENT.conversations) {
-    return { name: "conversations" }
+    return { name: "home" }
   }
   if (parts[0] === SEGMENT.explore) {
     return { name: "explore" }

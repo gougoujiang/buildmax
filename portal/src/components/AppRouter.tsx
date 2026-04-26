@@ -1,7 +1,6 @@
 import { useEffect } from "react"
 import type { Conversation } from "../lib/types"
 import { useApp } from "../contexts/AppContext"
-import { Conversations } from "../pages/Conversations"
 import { AgentList } from "../pages/AgentList"
 import { ConversationDetail } from "../pages/ConversationDetail"
 import { NewConversation } from "../pages/NewConversation"
@@ -48,13 +47,7 @@ export function AppRouter({
   )
 
   if (route.name === "home") return fallbackHome
-  if (route.name === "conversations") {
-    return (
-      <Conversations
-        conversations={conversations}
-      />
-    )
-  }
+  if (route.name === "conversations") return fallbackHome
   if (route.name === "explore") return <Explore />
 
   if (route.name === "agents") {

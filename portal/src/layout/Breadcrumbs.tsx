@@ -38,7 +38,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     const conv = conversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
-      { label: "Conversations", route: { name: "conversations" } },
+      { label: "Home", route: { name: "home" } },
       { label: convLabel, route },
     ]
   } else {

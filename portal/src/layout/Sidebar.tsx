@@ -169,7 +169,7 @@ export function Sidebar({
             onClick={() => navigate({ name: "home" })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Conversations</span>
+            <span className="sidebar__nav-item-text">Home</span>
           </button>
           <button
             type="button"
