@@ -1,6 +1,6 @@
 /**
  * API request/response types (snake_case as returned by the server).
- * Single source of truth for DTOs; see design/004-portal-api-contract.md for full contract.
+ * Single source of truth for DTOs; see design/archive/004-portal-api-contract.md for historical contract context.
  */
 
 export interface LoginUser {

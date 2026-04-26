@@ -4,7 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "predev": "npm --prefix ../gui run build",
     "dev": "vite",
+    "prebuild": "npm --prefix ../gui run build",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

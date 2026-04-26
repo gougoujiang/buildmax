@@ -12,14 +12,25 @@ The backend also includes a scheduler/worker execution pipeline for background t
 
 ## Current Model
 
-The active ownership and execution model is:
+The active product model is:
 
-- `user`
+- `team`
 - `conversation`
+- `issue`
+- `agent`
+- `workflow`
 - `task`
 - `task_run`
 
-Agents, uploaded files, and webhook keys are user-scoped. Portal and backend have largely moved away from the old workspace-centric product model.
+Recommended mental model:
+
+- work happens inside a `team`
+- users talk to the system through a `conversation`
+- user-facing work is tracked as an `issue`
+- reusable execution plans live in `workflow`
+- low-level background execution still runs through `task` and `task_run`
+
+This means BuildMax is no longer primarily a user-scoped or workspace-scoped product. The current server and Portal are centered on team-owned work and issue/workflow execution.
 
 ## Main Components
 
@@ -34,21 +45,21 @@ Agents, uploaded files, and webhook keys are user-scoped. Portal and backend hav
 ### Server
 
 - Binary: `cmd/buildmax-server`
-- HTTP API for auth, agents, conversations, tasks, files, artifacts, webhook keys, and worker callbacks
+- HTTP API for auth, teams, members, agents, issues, workflows, conversations, tasks, files, artifacts, webhook keys, and worker callbacks
 - Starts the scheduler that claims pending task runs and launches workers
 
 ### Worker
 
 - Binary: `cmd/buildmax-worker`
 - Executes one task run at a time
-- Materializes user files, prepares run-scoped `AGENTS.md`, runs the shared runtime, writes artifacts, and reports status back to the server
+- Materializes team files, prepares run-scoped `AGENTS.md`, runs the shared runtime, writes artifacts, and reports status back to the server
 
 ### Portal
 
 - Directory: `portal/`
 - Stack: React 19 + Vite + TypeScript
 - Uses the Go backend over HTTP
-- Supports conversations, task detail, artifacts, files, agents, login/signup, and related user flows
+- Supports conversations, issues, workflows, agents, team settings, files, login/signup, and related team-scoped work flows
 
 ### Desktop
 
@@ -76,7 +87,7 @@ Agents, uploaded files, and webhook keys are user-scoped. Portal and backend hav
 
 ### Two-tier flow
 
-BuildMax is moving on a clear two-tier architecture:
+BuildMax now uses a clear two-tier architecture:
 
 - Tier 1: user-facing conversation orchestration in `internal/app/conversation`
 - Tier 2: background execution through `task` and `task_run`, executed by worker processes
@@ -96,6 +107,8 @@ buildmax/
 │   ├── app/
 │   │   ├── agentrun/          # Shared runtime for CLI, worker, desktop
 │   │   ├── conversation/      # Tier 1 conversation orchestration
+│   │   ├── issue/             # Issue application service
+│   │   ├── workflow/          # Workflow and workflow-run orchestration
 │   │   └── task/              # Task and task_run workflows
 │   ├── agent/                 # Core agent loop and tool-calling logic
 │   ├── conversation/          # Low-level conversation loop
@@ -173,16 +186,25 @@ See:
 - `design/003-store-workspacestorage-reorg.md`
 - `design/007-two-tier-agent.md`
 - `design/008-backend-architecture-refactor.md`
-- `design/009-user-scoped-ownership-refactor.md`
+- `design/010-team-task-workflow-roadmap.md`
+- `design/018-versioned-workspace-and-outcome-roadmap.md`
+- `design/019-phase-1-product-and-docs-reset.md`
+
+Historical / superseded references live under `design/archive/`.
 
 ## Current Status
 
 As of the current main branch state:
 
 - server, scheduler, and worker are wired together
-- Portal uses conversation/task terminology and user-scoped ownership
+- team is the ownership boundary for issues, workflows, conversations, tasks, and uploaded files
+- Portal supports team-scoped conversations, issues, workflows, agents, and file browsing/upload
+- issue detail already exposes issue-centric execution visibility across workflow runs and agent-backed tasks
+- governance foundation is landed: team roles support `owner/admin/member`, and workflows use `draft/published/archived`
 - Desktop already supports local chat backed by the shared runtime
 - shared GUI is used by both Portal and Desktop
+- the previous Team / Issue / Workflow roadmap is effectively complete for its intended scope
+- the active roadmap is `design/018-versioned-workspace-and-outcome-roadmap.md`
 - Go tests pass on the current branch
 
 ## Notes

@@ -4,6 +4,11 @@
 
 This document turns the recent product discussion into an executable roadmap, using the **current codebase as the source of truth**.
 
+Status note as of `2026-04-26`:
+
+- this roadmap is effectively complete for its planned scope
+- a follow-up roadmap now lives in [design/018-versioned-workspace-and-outcome-roadmap.md](./018-versioned-workspace-and-outcome-roadmap.md)
+
 It focuses on three feedback themes:
 
 - support workflow
@@ -268,7 +273,7 @@ Recommended status values:
 | 2 | Team Foundation | `done` | `design/012-phase-2-team-foundation.md` | Team is now the ownership boundary for issues, agents, conversations, and tasks. Default personal team (`My Space`) is created automatically, a standalone Team Settings page manages the current team's members, and APIs use explicit `/api/teams/{team_id}/...` routes instead of current-team header context. |
 | 3 | Workflow Foundation | `done` | `design/013-phase-3-workflow-foundation.md` | Workflow v1 is now landed as a lightweight, team-scoped linear step model with explicit manual trigger support, reusable task/task_run-backed execution, issue assignment to `workflow`, a dedicated workflow detail page, and standalone workflow run inspection. |
 | 4 | Issue Flow Visualization | `done` | `design/014-phase-4-issue-flow-visualization.md` | Issue detail now has issue-centric flow data, execution summary, timeline, workflow step state, workflow run history, and agent run sequence. Direct artifact/result aggregation remains deferred. |
-| 5 | Enterprise Governance | `in_progress` | `design/016-phase-5-enterprise-governance-foundation.md` | Governance foundation is landed in code: team roles now support `owner/admin/member`, sensitive team actions use centralized authz checks, workflows have `draft/published/archived` lifecycle, and portal surfaces the new role/lifecycle behavior. Team-scoped quota, approvals, and audit remain deferred. |
+| 5 | Enterprise Governance | `done` | `design/016-phase-5-enterprise-governance-foundation.md` | Governance foundation is landed in code: team roles now support `owner/admin/member`, sensitive team actions use centralized authz checks, workflows have `draft/published/archived` lifecycle, and portal surfaces the new role/lifecycle behavior. Team-scoped quota, approvals, and audit remain deferred. |
 
 ### 7.6 Off-Roadmap Cleanup Log
 
@@ -276,6 +281,7 @@ Recommended status values:
 |------|------|-----|-------|
 | 2026-04-26 | Portal navigation conversation/recent refactor | `design/015-portal-navigation-conversation-recent-refactor.md` | Collapsed the old sidebar `Recent` concept into `Conversations`, removed the top-level Recent menu, reordered primary navigation to `Conversations`, `Issues`, `Workflows`, `Agents`, kept recent conversation history under the Conversations page, and renamed internal `chats` / `Tasks` route/page naming to `conversations` / `Conversations`. |
 | 2026-04-26 | Team management page | N/A | Added a standalone Portal Team Settings page before Phase 5 so current-team member viewing, invites, and member removal are managed as a real configuration surface instead of a small Members modal. |
+| 2026-04-26 | Team-scoped files alignment | `design/017-team-scoped-files-upload-alignment.md` | Team file APIs, storage partitioning, and worker runtime inputs now follow `team_id`, aligning uploaded files with the Team ownership model introduced earlier in the roadmap. |
 
 ### 7.7 Update Rule After Each Phase
 

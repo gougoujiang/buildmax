@@ -2,14 +2,15 @@
 
 ## Status
 
-- status: `proposed`
+- status: `done`
 - owners: `portal + storage + executor`
 - related_roadmap: [design/010-team-task-workflow-roadmap.md](./010-team-task-workflow-roadmap.md)
 - related_phase: [design/012-phase-2-team-foundation.md](./012-phase-2-team-foundation.md)
 - related_designs:
-  - [design/009-user-scoped-ownership-refactor.md](./009-user-scoped-ownership-refactor.md)
+  - [design/archive/009-user-scoped-ownership-refactor.md](./archive/009-user-scoped-ownership-refactor.md)
   - [design/003-store-workspacestorage-reorg.md](./003-store-workspacestorage-reorg.md)
 - created_at: `2026-04-26`
+- completed_at: `2026-04-26`
 
 ---
 

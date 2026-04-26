@@ -4,10 +4,11 @@
 
 - phase: `5`
 - name: `Enterprise Governance Foundation`
-- status: `in_progress`
+- status: `done`
 - roadmap: [design/010-team-task-workflow-roadmap.md](./010-team-task-workflow-roadmap.md)
 - depends_on: [design/014-phase-4-issue-flow-visualization.md](./014-phase-4-issue-flow-visualization.md)
 - started_at: `2026-04-26`
+- completed_at: `2026-04-26`
 
 ---
 
