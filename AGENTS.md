@@ -39,8 +39,8 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 - **Intent over tools**: User states goals; agent operates on a versioned text workspace (Markdown, CSV, JSON, YAML). Flow: Human → Agent → Workspace → Versioned state.
 - **Agent loop**: Observe → Plan → Act → Observe. Agent reads/edits files, runs code, commits; user does not interact with files directly.
-- **Ownership model**: User → Conversation → Task → TaskRun. Agents, webhook keys, and uploaded files are user-scoped. No project entity. Git is the hidden version engine; user sees timeline + restore, not commits/branches.
-- **Principles**: Intent first; text as primary representation; state versioned and reversible; mechanisms hidden, meaning visible; the user-owned file space is the agent’s body.
+- **Ownership model**: Team → Conversation → Task → TaskRun. Personal usage is represented by a default personal team (`My Space`). Issues, agents, workflows, conversations, tasks, and uploaded files are team-scoped. Webhook keys remain user-scoped for now. No project entity. Git is the hidden version engine; user sees timeline + restore, not commits/branches.
+- **Principles**: Intent first; text as primary representation; state versioned and reversible; mechanisms hidden, meaning visible; the team-owned file space is the agent’s body.
 - **Mental model**: User feels “I describe what I want” and “I can always go back,” not “I am operating software” or “I am managing versions.”
 
 ## 3. Goals and Principles
@@ -74,14 +74,41 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 **HTTP server & Portal backend**
 - **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
-- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET/POST /api/agents`; `POST /api/upload`, `GET /api/files`, `GET /api/files/{path...}`; `GET/POST /api/webhook-keys`; `GET/POST /api/conversations`, `GET/POST /api/conversations/{conversation_id}/messages`, `GET/POST /api/conversations/{conversation_id}/tasks`; `GET /api/tasks/{task_id}`, `POST /api/tasks/{task_id}/runs`, `GET /api/tasks/{task_id}/conversation`, `GET /api/tasks/{task_id}/stream`, `GET /api/tasks/{task_id}/artifacts`; `GET /api/task-runs/{task_run_id}/artifacts/items`, `GET /api/task-runs/{task_run_id}/artifacts/content`; `POST /api/webhook`; `GET /api/sessions/{session_id}`; **worker API** (chat-run-id only, worker token): `GET /api/worker/task-runs/{task_run_id}`, `PATCH /api/worker/task-runs/{task_run_id}`. JWT auth for user API; ownership is user/conversation/task based.
-- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Agent, Conversation, ConversationMessage, Task, TaskRun, user webhook keys, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (user uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md`. **Run/storage layout**: user root has `home/` (uploads); each task run uses `conversations/<conversationID>/tasks/<taskID>/<taskRunID>/` with `home/` (materialized user home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use `home` for user uploads and `conversations/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
+- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET /api/teams`, `POST /api/teams`, `GET/POST/DELETE /api/teams/{team_id}/members`; `GET/POST/PATCH/DELETE /api/teams/{team_id}/agents`; `GET/POST/PATCH /api/teams/{team_id}/issues`, `GET /api/teams/{team_id}/issues/{issue_id}`, `GET /api/teams/{team_id}/issues/{issue_id}/flow`, `POST /api/teams/{team_id}/issues/{issue_id}/agent-runs`, `POST /api/teams/{team_id}/issues/{issue_id}/workflow-runs`; `GET/POST/PATCH /api/teams/{team_id}/workflows`, `GET /api/teams/{team_id}/workflows/{workflow_id}`, `GET/POST /api/teams/{team_id}/workflows/{workflow_id}/runs`, `GET /api/teams/{team_id}/workflow-runs/{workflow_run_id}`; `POST /api/teams/{team_id}/upload`, `GET /api/teams/{team_id}/files`, `GET /api/teams/{team_id}/files/{path...}`; `GET/POST/DELETE /api/webhook-keys`; `GET/POST /api/teams/{team_id}/conversations`, `GET/POST /api/teams/{team_id}/conversations/{conversation_id}/messages`, `GET/POST /api/teams/{team_id}/conversations/{conversation_id}/tasks`; `GET /api/teams/{team_id}/tasks/{task_id}`, `POST /api/teams/{team_id}/tasks/{task_id}/runs`, `GET /api/teams/{team_id}/tasks/{task_id}/conversation`, `GET /api/teams/{team_id}/tasks/{task_id}/stream`, `GET /api/teams/{team_id}/tasks/{task_id}/artifacts`; `GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items`, `GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content`; `GET /api/teams/{team_id}/ws`; `POST /api/webhook`; `GET /api/sessions/{session_id}`; **worker API** (chat-run-id only, worker token): `GET /api/worker/task-runs/{task_run_id}`, `PATCH /api/worker/task-runs/{task_run_id}`. JWT auth for user API; team membership is the main ownership/authz boundary for working resources.
+- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Team, TeamMember, Issue, Workflow, WorkflowRun, WorkflowStepRun, Agent, Conversation, ConversationMessage, Task, TaskRun, user webhook keys, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (team uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md` and `design/017-team-scoped-files-upload-alignment.md`. **Run/storage layout**: each team has a persistent `home/`; each task run uses `conversations/<conversationID>/tasks/<taskID>/<taskRunID>/` with `home/` (materialized team home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use team-scoped `home` for uploads and run-scoped `conversations/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
 - **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING task runs, claims them with the typed run lifecycle API, and spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets task run via `GET /api/worker/task-runs/{task_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md` (layout + optional workspace AGENTS.md), runs the shared agent runtime in-process with BUILDMAX_HOME = run `global` and cwd = run dir, writes result to run `artifacts/result.md`, uploads run `global` to blob, and streams assistant reply deltas when enabled. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Shared GUI and frontends**
 - **GUI package** (`gui/`): Shared React 19 package at repo root; exports theme plus shared presentational components such as `BaseModal`, `FormModal`, `Avatar`, `ChatComposer`, `ChatThread`, and `RecentList`. Consumed by portal and desktop via `"@buildmax/gui": "file:../gui"` (or `file:../../gui` from desktop/frontend). Build output in `gui/dist/`; `./make build` builds gui before desktop; `./make clean` removes `gui/node_modules` and `gui/dist`.
-- **Portal** (`portal/`): React 19 + Vite + TypeScript; depends on `@buildmax/gui` for theme and shared components. Builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages: Login, SignUp, Home, Explore, Conversations, ConversationDetail, TaskDetail; API client, AuthContext; AppShell, Sidebar, TopBar, modals. Connects to Go backend for auth and the user/conversation/task/file APIs. The portal still uses a lightweight profile shell in routing/UI, but it no longer depends on workspace ownership APIs.
+- **Portal** (`portal/`): React 19 + Vite + TypeScript; depends on `@buildmax/gui` for theme and shared components. Builds independently (`cd portal && npm install && npm run dev` / `npm run build`). Pages now include Login, SignUp, Home, Explore, Conversations, ConversationDetail, Issues, IssueDetail, Workflows, WorkflowDetail, WorkflowRunDetail, Agents, and Team Settings; API client, AuthContext, TeamContext; AppShell, Sidebar, TopBar, modals. Connects to Go backend for auth and the team-scoped conversation/issue/workflow/agent/task/file APIs.
 - **Desktop app**: Wails app in `cmd/buildmax-desktop/` with frontend in `desktop/frontend/` (React 19 + Vite, JSX). Same `@buildmax/gui` dependency as portal. Desktop already supports local session listing/loading and local chat using the shared Go agent runtime; only the presentational layer is shared with portal.
+
+### 4.1.1 Roadmap Outcome Snapshot
+
+The `design/010-team-task-workflow-roadmap.md` program is effectively complete for the currently planned scope. The repo should now be understood with these rules:
+
+- **Issue is the main user-facing work object.**
+  - Issues are separate from low-level `task` / `task_run`.
+  - Portal has a top-level Issues area with list, detail, assignment, and execution visibility.
+- **Team is the ownership boundary.**
+  - Personal usage is an implicit single-member team (`My Space`).
+  - Issues, agents, workflows, conversations, tasks, and uploaded files belong to a team.
+  - Most Portal APIs use explicit `/api/teams/{team_id}/...` routes.
+- **Workflow is a team-scoped reusable execution plan.**
+  - Workflow v1 is a lightweight linear-step model.
+  - Issues can be assigned to a workflow.
+  - Workflow runs are durable and inspectable.
+- **Issue flow visibility is landed.**
+  - Issue detail shows workflow runs, step state, agent task sequence, execution summary, and timeline-style progress.
+- **Governance foundation is landed.**
+  - Team roles are `owner`, `admin`, `member`.
+  - Sensitive actions use centralized team authz checks.
+  - Workflows have lifecycle states `draft`, `published`, `archived`.
+  - Approvals, audit log, and team-scoped quota remain deferred.
+- **Files/upload were aligned after the roadmap phases.**
+  - Upload and file browsing are team-scoped.
+  - Portal file APIs use team routes.
+  - Worker runtime materializes `task.TeamID` files instead of `task.CreatedBy` files.
 
 ### 4.2 Tier 1 and Tier 2 architecture
 
@@ -134,7 +161,7 @@ buildmax/
 │   ├── util/                  # ID generation (prefixed IDs: u_, a_, c_, t_, r_, ar_, f_, cm_, whk_), workspace helpers, git, argparse
 │   ├── storage/               # Persistence under one namespace
 │   │   ├── entity/            # MySQL (GORM): canonical backend models, typed lifecycle commands, interfaces and Store
-│   │   └── blob/              # Blob/file storage: PersistStorage (user home), ArtifactStorage; local FS and S3; keys use home, conversations/.../global
+│   │   └── blob/              # Blob/file storage: PersistStorage (team home), ArtifactStorage; local FS and S3; keys use home, conversations/.../global
 │   ├── server/                # HTTP server: routes, auth (JWT, OTP), conversations, tasks, artifacts, upload, files, webhook, sessions; static (openapi, swagger)
 │   ├── cmd/server/            # Server startup and bootstrap; used by cmd/buildmax-server
 │   ├── cmd/worker/            # Worker startup; used by cmd/buildmax-worker
@@ -168,7 +195,7 @@ buildmax/
 - **internal/server**: HTTP API for the Portal; depends on `app/task`, `app/conversation`, `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/cmd/server`.
 - **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
 - **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop. Shared widgets already include theme, modal, avatar, chat history, input box, and recent-list building blocks.
-- **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). No change to `go.mod` or Go build/test.
+- **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). Team-aware UI uses `AuthContext` plus `TeamContext`; no change to `go.mod` or Go build/test.
 - **desktop/frontend/**: Desktop UI; depends on `@buildmax/gui`. Same React 19 and shared components as portal; app logic (Wails bindings, session) is desktop-specific.
 - **design/**: Product and technical design docs; see section 6.
 
