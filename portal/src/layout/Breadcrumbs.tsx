@@ -9,8 +9,8 @@ interface BreadcrumbsProps {
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   let crumbs: { label: string; route: Route }[] = []
 
-  if (route.name === "chats") {
-    crumbs = [{ label: "Conversations", route: { name: "chats" } }]
+  if (route.name === "conversations") {
+    crumbs = [{ label: "Conversations", route: { name: "conversations" } }]
   } else if (route.name === "explore") {
     crumbs = [{ label: "Files", route: { name: "explore" } }]
   } else if (route.name === "agents") {
@@ -38,7 +38,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     const conv = conversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"
     crumbs = [
-      { label: "Conversations", route: { name: "chats" } },
+      { label: "Conversations", route: { name: "conversations" } },
       { label: convLabel, route },
     ]
   } else {

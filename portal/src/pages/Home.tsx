@@ -17,7 +17,7 @@ export function Home({
       <section className="page-home__chats">
         <h2 className="page-home__heading">Recent conversations</h2>
         {recentConversations.length === 0 ? (
-          <p className="page-home__empty">No conversations yet. Use New Conversation in the sidebar to start one.</p>
+          <p className="page-home__empty">No conversations yet. Use Conversations in the sidebar to start one.</p>
         ) : (
           <ul className="page-home__list">
             {recentConversations.map((conv) => (

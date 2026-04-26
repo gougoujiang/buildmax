@@ -33,7 +33,7 @@ export function parseHash(hash: string): Route {
     return { name: "signup" }
   }
   if (parts[0] === SEGMENT.conversations) {
-    return { name: "chats" }
+    return { name: "conversations" }
   }
   if (parts[0] === SEGMENT.explore) {
     return { name: "explore" }
@@ -73,7 +73,7 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.signup}`
     case "conversation":
       return `#/${SEGMENT.conversation}/${route.conversationId}`
-    case "chats":
+    case "conversations":
       return `#/${SEGMENT.conversations}`
     case "explore":
       return `#/${SEGMENT.explore}`

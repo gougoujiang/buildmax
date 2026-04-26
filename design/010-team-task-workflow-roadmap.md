@@ -267,10 +267,16 @@ Recommended status values:
 | 1 | Issue Uplift | `done` | `design/011-phase-1-issue-uplift.md` | MVP landed: user-scoped Issue entity, CRUD API, top-level Issues menu, list view with pagination, shared create/detail modal, basic assignee/status editing. Issue remains separate from low-level task/task_run. |
 | 2 | Team Foundation | `done` | `design/012-phase-2-team-foundation.md` | Team is now the ownership boundary for issues, agents, conversations, and tasks. Default personal team (`My Space`) is created automatically, members can be managed from the portal, and APIs use explicit `/api/teams/{team_id}/...` routes instead of current-team header context. |
 | 3 | Workflow Foundation | `done` | `design/013-phase-3-workflow-foundation.md` | Workflow v1 is now landed as a lightweight, team-scoped linear step model with explicit manual trigger support, reusable task/task_run-backed execution, issue assignment to `workflow`, a dedicated workflow detail page, and standalone workflow run inspection. |
-| 4 | Issue Flow Visualization | `not_started` | TBD | |
+| 4 | Issue Flow Visualization | `done` | `design/014-phase-4-issue-flow-visualization.md` | Issue detail now has issue-centric flow data, execution summary, timeline, workflow step state, workflow run history, and agent run sequence. Direct artifact/result aggregation remains deferred. |
 | 5 | Enterprise Governance | `not_started` | TBD | |
 
-### 7.6 Update Rule After Each Phase
+### 7.6 Off-Roadmap Cleanup Log
+
+| Date | Area | Doc | Notes |
+|------|------|-----|-------|
+| 2026-04-26 | Portal navigation conversation/recent refactor | `design/015-portal-navigation-conversation-recent-refactor.md` | Collapsed the old sidebar `Recent` concept into `Conversations`, removed the top-level Recent menu, reordered primary navigation to `Conversations`, `Issues`, `Workflows`, `Agents`, kept recent conversation history under the Conversations page, and renamed internal `chats` / `Tasks` route/page naming to `conversations` / `Conversations`. |
+
+### 7.7 Update Rule After Each Phase
 
 When a phase finishes:
 

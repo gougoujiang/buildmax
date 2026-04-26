@@ -45,7 +45,7 @@ export type Route =
   | { name: "login" }
   | { name: "signup" }
   | { name: "conversation"; conversationId: string }
-  | { name: "chats" }
+  | { name: "conversations" }
   | { name: "explore" }
   | { name: "agents" }
   | { name: "workflows" }

@@ -1,13 +1,13 @@
 import type { Conversation } from "../lib/types"
 import { navigate } from "../router"
 
-interface TasksProps {
+interface ConversationsProps {
   conversations: Conversation[]
 }
 
-export function Tasks({
+export function Conversations({
   conversations,
-}: TasksProps) {
+}: ConversationsProps) {
   return (
     <div className="page-activity">
       <h1 className="page-activity__title">Conversations</h1>

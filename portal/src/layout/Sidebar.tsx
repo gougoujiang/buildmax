@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from "react"
-import { createPortal } from "react-dom"
-import { RecentList } from "@buildmax/gui"
 import { cn } from "../lib/cn"
-import type { Route, Conversation } from "../lib/types"
+import type { Route } from "../lib/types"
 import type { LoginUser } from "../lib/api"
 import { navigate } from "../router"
 import { UserAvatar, AgentAvatar } from "../components/UserAvatar"
@@ -28,13 +26,8 @@ const LOGO_ASCII = `
 |______/ \\____|_|_|\\____|_||_||_|______/_/  \\_\\
 `.trim()
 
-import RecentIcon from "../icons/recent.svg?react"
-
-const CHATS_LIMIT = 5
-
 interface SidebarProps {
   route: Route
-  conversations: Conversation[]
   user: LoginUser
   onLogout: () => void
 }
@@ -48,40 +41,21 @@ function isIssuesActive(route: Route): boolean {
 }
 
 function isWorkflowsActive(route: Route): boolean {
-  return route.name === "workflows" || route.name === "workflow"
+  return route.name === "workflows" || route.name === "workflow" || route.name === "workflowRun"
 }
 
 export function Sidebar({
   route,
-  conversations: conversationsList,
   user,
   onLogout,
 }: SidebarProps) {
   const { teams, currentTeam, currentTeamId, loading: teamsLoading, setCurrentTeamId } = useTeam()
   const showTeamSwitcher = teams.length > 1
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [conversationsCollapsed, setConversationsCollapsed] = useState(false)
-  const [conversationsPopupOpen, setConversationsPopupOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [membersModalOpen, setMembersModalOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const conversationsTriggerRef = useRef<HTMLDivElement>(null)
-  const conversationsCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const conversations = conversationsList.slice(0, CHATS_LIMIT)
-  const hasMoreConversations = conversationsList.length > CHATS_LIMIT
-
-  function openConversationsPopup() {
-    if (conversationsCloseTimeoutRef.current) {
-      clearTimeout(conversationsCloseTimeoutRef.current)
-      conversationsCloseTimeoutRef.current = null
-    }
-    setConversationsPopupOpen(true)
-  }
-
-  function scheduleCloseConversationsPopup() {
-    conversationsCloseTimeoutRef.current = setTimeout(() => setConversationsPopupOpen(false), 150)
-  }
 
   useEffect(() => {
     if (!userMenuOpen) return
@@ -179,91 +153,15 @@ export function Sidebar({
             onClick={() => navigate({ name: "home" })}
           >
             <NewChatIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">New Conversation</span>
+            <span className="sidebar__nav-item-text">Conversations</span>
           </button>
-          <div
-            className="sidebar__chats"
-            ref={conversationsTriggerRef}
-            onMouseEnter={sidebarCollapsed ? openConversationsPopup : undefined}
-            onMouseLeave={sidebarCollapsed ? scheduleCloseConversationsPopup : undefined}
-          >
-            <button
-              type="button"
-              className="sidebar__chats-toggle"
-              onClick={() => setConversationsCollapsed((c) => !c)}
-              aria-expanded={!conversationsCollapsed}
-              aria-controls="sidebar-conversations-list"
-            >
-              <RecentIcon className="sidebar__nav-icon" aria-hidden />
-              <span className="sidebar__heading">Recent</span>
-              <span className="sidebar__chats-chevron" aria-hidden>
-                {conversationsCollapsed ? "▶" : "▼"}
-              </span>
-            </button>
-            {!sidebarCollapsed && (
-              <div
-                id="sidebar-conversations-list"
-                className="sidebar__chats-list"
-                hidden={conversationsCollapsed}
-              >
-                <RecentList
-                  items={conversations.map((conv) => ({
-                    id: conv.id,
-                    title: conv.title?.trim() || "Conversation",
-                    meta: conv.timeLabel,
-                  }))}
-                  activeId={route.name === "conversation" ? route.conversationId : null}
-                  onSelect={(conversationId) => navigate({ name: "conversation", conversationId })}
-                  moreActionLabel={hasMoreConversations ? "See all" : undefined}
-                  onMoreAction={hasMoreConversations ? () => navigate({ name: "chats" }) : undefined}
-                  moreActionClassName="sidebar__chats-see-all"
-                />
-              </div>
-            )}
-          </div>
-          {sidebarCollapsed &&
-            conversationsPopupOpen &&
-            conversationsTriggerRef.current &&
-            createPortal(
-              <div
-                className="sidebar__chats-list sidebar__chats-list--portal"
-                onMouseEnter={openConversationsPopup}
-                onMouseLeave={scheduleCloseConversationsPopup}
-                style={{
-                  position: "fixed",
-                  left: conversationsTriggerRef.current.getBoundingClientRect().right + 4,
-                  top: conversationsTriggerRef.current.getBoundingClientRect().top,
-                  zIndex: 1000,
-                }}
-              >
-                <RecentList
-                  items={conversations.map((conv) => ({
-                    id: conv.id,
-                    title: conv.title?.trim() || "Conversation",
-                    meta: conv.timeLabel,
-                  }))}
-                  activeId={route.name === "conversation" ? route.conversationId : null}
-                  onSelect={(conversationId) => {
-                    setConversationsPopupOpen(false)
-                    navigate({ name: "conversation", conversationId })
-                  }}
-                  moreActionLabel={hasMoreConversations ? "See all" : undefined}
-                  onMoreAction={hasMoreConversations ? () => {
-                    setConversationsPopupOpen(false)
-                    navigate({ name: "chats" })
-                  } : undefined}
-                  moreActionClassName="sidebar__chats-see-all"
-                />
-              </div>,
-              document.body
-            )}
           <button
             type="button"
-            className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "agents" })}
+            className={cn("sidebar__nav-item", isIssuesActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "issues" })}
           >
-            <AgentAvatar size="sm" />
-            <span className="sidebar__nav-item-text">Agents</span>
+            <IssueIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Issues</span>
           </button>
           <button
             type="button"
@@ -275,11 +173,11 @@ export function Sidebar({
           </button>
           <button
             type="button"
-            className={cn("sidebar__nav-item", isIssuesActive(route) && "sidebar__nav-item--active")}
-            onClick={() => navigate({ name: "issues" })}
+            className={cn("sidebar__nav-item", isAgentsActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "agents" })}
           >
-            <IssueIcon className="sidebar__nav-icon" aria-hidden />
-            <span className="sidebar__nav-item-text">Issues</span>
+            <AgentAvatar size="sm" />
+            <span className="sidebar__nav-item-text">Agents</span>
           </button>
         </div>
       </nav>

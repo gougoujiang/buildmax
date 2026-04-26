@@ -25,7 +25,6 @@ export function Layout({
       <div className="shell__body">
         <Sidebar
           route={route}
-          conversations={conversations}
           user={user}
           onLogout={onLogout}
         />

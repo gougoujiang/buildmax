@@ -74,7 +74,7 @@ export function NewConversation({
       </section>
 
       <div className="page-new-chat__tabs">
-        <div className="page-new-chat__tab-list" role="tablist" aria-label="Conversations and files">
+        <div className="page-new-chat__tab-list" role="tablist" aria-label="Recent conversations and files">
           <button
             type="button"
             role="tab"
@@ -84,7 +84,7 @@ export function NewConversation({
             className={cn("page-new-chat__tab", activeTab === "conversations" && "page-new-chat__tab--active")}
             onClick={() => setActiveTab("conversations")}
           >
-            Conversations
+            Recent Conversations
           </button>
           <button
             type="button"
