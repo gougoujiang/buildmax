@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"embed"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	convapp "buildmax/internal/app/conversation"
 	taskapp "buildmax/internal/app/task"
+	workflowapp "buildmax/internal/app/workflow"
 	"buildmax/internal/conversation"
 	"buildmax/internal/llm"
 	"buildmax/internal/quota"
@@ -60,6 +62,7 @@ type AuthConfig struct {
 type StoresConfig struct {
 	UserStore           entity.UserStore
 	TeamStore           entity.TeamStore
+	WorkflowStore       entity.WorkflowStore
 	AgentStore          entity.AgentStore
 	IssueStore          entity.IssueStore
 	TaskStore           entity.TaskStore
@@ -130,6 +133,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.Con
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		UserStore:                cfg.Stores.UserStore,
 		TeamStore:                cfg.Stores.TeamStore,
+		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,
 		IssueStore:               cfg.Stores.IssueStore,
 		TaskStore:                cfg.Stores.TaskStore,
@@ -166,11 +170,17 @@ func New(cfg Config) *Server {
 		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
 	}).Register(mux)
 	portal.NewHandler(buildPortalConfig(cfg, s.hub, connRegistry)).Register(mux)
+	workflowCallback := buildWorkflowTerminalCallback(cfg)
 	worker.NewHandler(worker.Config{
-		Token:             cfg.Worker.WorkerToken,
-		TaskRunStore:      cfg.Stores.TaskRunStore,
-		Hub:               s.hub,
-		OnTaskRunTerminal: connRegistry.OnTaskRunTerminal,
+		Token:        cfg.Worker.WorkerToken,
+		TaskRunStore: cfg.Stores.TaskRunStore,
+		Hub:          s.hub,
+		OnTaskRunTerminal: func(ctx context.Context, info worker.TaskRunTerminalInfo) {
+			connRegistry.OnTaskRunTerminal(ctx, info)
+			if workflowCallback != nil {
+				workflowCallback(ctx, info)
+			}
+		},
 	}).Register(mux)
 	if cfg.Stores.UserWebhookKeyStore != nil {
 		msgPath := cfg.Webhook.MessagePath
@@ -208,6 +218,31 @@ func New(cfg Config) *Server {
 		Handler: handler,
 	}
 	return s
+}
+
+func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info worker.TaskRunTerminalInfo) {
+	if cfg.Stores.WorkflowStore == nil {
+		return nil
+	}
+	taskSvc := &taskapp.Service{
+		Agents:         cfg.Stores.AgentStore,
+		Tasks:          cfg.Stores.TaskStore,
+		TaskRuns:       cfg.Stores.TaskRunStore,
+		QuotaChecker:   cfg.Auth.QuotaChecker,
+		TitleGenerator: nil,
+	}
+	workflowSvc := &workflowapp.Service{
+		Workflows:     cfg.Stores.WorkflowStore,
+		Agents:        cfg.Stores.AgentStore,
+		Issues:        cfg.Stores.IssueStore,
+		Conversations: cfg.Conv.ConversationStore,
+		Task:          taskSvc,
+	}
+	return func(ctx context.Context, info worker.TaskRunTerminalInfo) {
+		if err := workflowSvc.HandleTaskRunTerminal(ctx, info); err != nil && !errors.Is(err, workflowapp.ErrWorkflowRunNotFound) {
+			slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
+		}
+	}
 }
 
 // Handler returns the HTTP handler for use in tests.

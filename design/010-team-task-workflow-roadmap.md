@@ -265,8 +265,8 @@ Recommended status values:
 |------|------|--------|-----------|-------|
 | 0 | Terminology And Boundary Alignment | `not_started` | TBD | |
 | 1 | Issue Uplift | `done` | `design/011-phase-1-issue-uplift.md` | MVP landed: user-scoped Issue entity, CRUD API, top-level Issues menu, list view with pagination, shared create/detail modal, basic assignee/status editing. Issue remains separate from low-level task/task_run. |
-| 2 | Team Foundation | `not_started` | TBD | |
-| 3 | Workflow Foundation | `not_started` | TBD | |
+| 2 | Team Foundation | `done` | `design/012-phase-2-team-foundation.md` | Team is now the ownership boundary for issues, agents, conversations, and tasks. Default personal team (`My Space`) is created automatically, members can be managed from the portal, and APIs use explicit `/api/teams/{team_id}/...` routes instead of current-team header context. |
+| 3 | Workflow Foundation | `done` | `design/013-phase-3-workflow-foundation.md` | Workflow v1 is now landed as a lightweight, team-scoped linear step model with explicit manual trigger support, reusable task/task_run-backed execution, issue assignment to `workflow`, a dedicated workflow detail page, and standalone workflow run inspection. |
 | 4 | Issue Flow Visualization | `not_started` | TBD | |
 | 5 | Enterprise Governance | `not_started` | TBD | |
 

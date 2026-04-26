@@ -8,21 +8,24 @@ import (
 )
 
 var (
-	ErrIssuesNotConfigured = errors.New("issues not configured")
-	ErrTeamsNotConfigured  = errors.New("teams not configured")
-	ErrTitleRequired       = errors.New("title required")
-	ErrInvalidStatus       = errors.New("invalid status")
-	ErrInvalidAssigneeKind = errors.New("invalid assignee_kind")
-	ErrInvalidAssigneeID   = errors.New("invalid assignee_id")
-	ErrIssueNotFound       = errors.New("issue not found")
-	ErrAgentsNotConfigured = errors.New("agents not configured")
-	ErrAgentNotFound       = errors.New("agent not found or not owned by user")
+	ErrIssuesNotConfigured    = errors.New("issues not configured")
+	ErrTeamsNotConfigured     = errors.New("teams not configured")
+	ErrTitleRequired          = errors.New("title required")
+	ErrInvalidStatus          = errors.New("invalid status")
+	ErrInvalidAssigneeKind    = errors.New("invalid assignee_kind")
+	ErrInvalidAssigneeID      = errors.New("invalid assignee_id")
+	ErrIssueNotFound          = errors.New("issue not found")
+	ErrAgentsNotConfigured    = errors.New("agents not configured")
+	ErrAgentNotFound          = errors.New("agent not found or not owned by user")
+	ErrWorkflowsNotConfigured = errors.New("workflows not configured")
+	ErrWorkflowNotFound       = errors.New("workflow not found or not owned by team")
 )
 
 type Service struct {
-	Issues entity.IssueStore
-	Agents entity.AgentStore
-	Teams  entity.TeamStore
+	Issues    entity.IssueStore
+	Agents    entity.AgentStore
+	Teams     entity.TeamStore
+	Workflows entity.WorkflowStore
 }
 
 type CreateIssueCmd struct {
@@ -135,6 +138,21 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 		}
 		if agent == nil || agent.TeamID != teamID {
 			return ErrAgentNotFound
+		}
+		return nil
+	case entity.IssueAssigneeWorkflow:
+		if *id == "" {
+			return ErrInvalidAssigneeID
+		}
+		if s.Workflows == nil {
+			return ErrWorkflowsNotConfigured
+		}
+		workflow, err := s.Workflows.GetWorkflow(ctx, *id)
+		if err != nil {
+			return err
+		}
+		if workflow == nil || workflow.TeamID != teamID {
+			return ErrWorkflowNotFound
 		}
 		return nil
 	default:

@@ -10,9 +10,10 @@ import (
 
 func (h *Handler) issueService() *issueapp.Service {
 	return &issueapp.Service{
-		Issues: h.cfg.IssueStore,
-		Agents: h.cfg.AgentStore,
-		Teams:  h.cfg.TeamStore,
+		Issues:    h.cfg.IssueStore,
+		Agents:    h.cfg.AgentStore,
+		Teams:     h.cfg.TeamStore,
+		Workflows: h.cfg.WorkflowStore,
 	}
 }
 
@@ -41,6 +42,12 @@ func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool 
 		return true
 	case errors.Is(err, issueapp.ErrAgentNotFound):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
+		return true
+	case errors.Is(err, issueapp.ErrWorkflowsNotConfigured):
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "workflows not configured")
+		return true
+	case errors.Is(err, issueapp.ErrWorkflowNotFound):
+		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not found")
 		return true
 	case errors.Is(err, issueapp.ErrIssueNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")

@@ -3,8 +3,26 @@
  * Imports API types from ./types and UI types from ../types.
  */
 
-import type { ApiAgent, ApiArtifact, ApiTask, ApiConversation, ApiIssue } from "./types"
-import type { Agent, Artifact, Task, Conversation, Issue } from "../types"
+import type {
+  ApiAgent,
+  ApiArtifact,
+  ApiTask,
+  ApiConversation,
+  ApiIssue,
+  ApiWorkflow,
+  ApiWorkflowRun,
+  ApiWorkflowStepRun,
+} from "./types"
+import type {
+  Agent,
+  Artifact,
+  Task,
+  Conversation,
+  Issue,
+  Workflow,
+  WorkflowRun,
+  WorkflowStepRun,
+} from "../types"
 
 /** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
 function formatRelativeTime(secondsSinceEpoch: number): string {
@@ -60,6 +78,53 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
     createdAt: api.created_at,
     updatedAt: api.updated_at,
     updatedLabel: formatRelativeTime(api.updated_at),
+  }
+}
+
+export function apiWorkflowToWorkflow(api: ApiWorkflow): Workflow {
+  return {
+    id: api.id,
+    teamId: api.team_id,
+    name: api.name,
+    description: api.description,
+    definition: api.definition,
+    createdBy: api.created_by,
+    createdAt: api.created_at,
+    updatedAt: api.updated_at,
+    updatedLabel: formatRelativeTime(api.updated_at),
+  }
+}
+
+export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
+  return {
+    id: api.id,
+    workflowId: api.workflow_id,
+    issueId: api.issue_id ?? null,
+    conversationId: api.conversation_id,
+    status: api.status as WorkflowRun["status"],
+    createdBy: api.created_by,
+    createdAt: api.created_at,
+    startedAt: api.started_at ?? null,
+    endedAt: api.ended_at ?? null,
+    errorMessage: api.error_message ?? null,
+    createdLabel: formatRelativeTime(api.created_at),
+  }
+}
+
+export function apiWorkflowStepRunToWorkflowStepRun(api: ApiWorkflowStepRun): WorkflowStepRun {
+  return {
+    id: api.id,
+    workflowRunId: api.workflow_run_id,
+    stepId: api.step_id,
+    stepIndex: api.step_index,
+    stepType: api.step_type,
+    targetAgentId: api.target_agent_id ?? null,
+    prompt: api.prompt,
+    status: api.status as WorkflowStepRun["status"],
+    taskId: api.task_id ?? null,
+    taskRunId: api.task_run_id ?? null,
+    outputSummary: api.output_summary ?? null,
+    errorMessage: api.error_message ?? null,
   }
 }
 

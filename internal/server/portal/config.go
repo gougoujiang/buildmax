@@ -33,6 +33,7 @@ type Config struct {
 	CORSOrigin               string // Allowed origin for WebSocket upgrade check
 	UserStore                entity.UserStore
 	TeamStore                entity.TeamStore
+	WorkflowStore            entity.WorkflowStore
 	AgentStore               entity.AgentStore
 	IssueStore               entity.IssueStore
 	TaskStore                entity.TaskStore

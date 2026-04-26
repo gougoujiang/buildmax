@@ -43,6 +43,63 @@ type TeamMember struct {
 // TableName returns the table name for GORM (singular per project convention).
 func (TeamMember) TableName() string { return "team_member" }
 
+// Workflow is a reusable team-scoped execution plan.
+type Workflow struct {
+	ID          uint   `gorm:"primaryKey;autoIncrement" json:"-"`
+	WorkflowID  string `gorm:"column:workflow_id;type:varchar(64);uniqueIndex;not null" json:"workflow_id"`
+	TeamID      string `gorm:"column:team_id;type:varchar(64);not null;index" json:"team_id"`
+	Name        string `gorm:"type:varchar(255);not null" json:"name"`
+	Description string `gorm:"type:text;not null" json:"description"`
+	Definition  string `gorm:"type:longtext;not null" json:"definition"`
+	CreatedBy   string `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt   int64  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt   int64  `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// TableName returns the table name for GORM.
+func (Workflow) TableName() string { return "workflow" }
+
+// WorkflowRun is one execution attempt of a workflow.
+type WorkflowRun struct {
+	ID             uint    `gorm:"primaryKey;autoIncrement" json:"-"`
+	WorkflowRunID  string  `gorm:"column:workflow_run_id;type:varchar(64);uniqueIndex;not null" json:"workflow_run_id"`
+	WorkflowID     string  `gorm:"column:workflow_id;type:varchar(64);not null;index" json:"workflow_id"`
+	IssueID        *string `gorm:"column:issue_id;type:varchar(64);index" json:"issue_id,omitempty"`
+	ConversationID string  `gorm:"column:conversation_id;type:varchar(64);not null;index" json:"conversation_id"`
+	Status         string  `gorm:"type:varchar(32);not null" json:"status"`
+	CreatedBy      string  `gorm:"type:varchar(64);not null" json:"created_by"`
+	CreatedAt      int64   `gorm:"autoCreateTime" json:"created_at"`
+	StartedAt      *int64  `gorm:"" json:"started_at,omitempty"`
+	EndedAt        *int64  `gorm:"" json:"ended_at,omitempty"`
+	ErrorMessage   *string `gorm:"type:text" json:"error_message,omitempty"`
+}
+
+// TableName returns the table name for GORM.
+func (WorkflowRun) TableName() string { return "workflow_run" }
+
+// WorkflowStepRun is one durable step execution record under a workflow run.
+type WorkflowStepRun struct {
+	ID            uint    `gorm:"primaryKey;autoIncrement" json:"-"`
+	StepRunID     string  `gorm:"column:workflow_step_run_id;type:varchar(64);uniqueIndex;not null" json:"workflow_step_run_id"`
+	WorkflowRunID string  `gorm:"column:workflow_run_id;type:varchar(64);not null;index" json:"workflow_run_id"`
+	StepID        string  `gorm:"column:step_id;type:varchar(128);not null" json:"step_id"`
+	StepIndex     int     `gorm:"column:step_index;not null" json:"step_index"`
+	StepType      string  `gorm:"column:step_type;type:varchar(32);not null" json:"step_type"`
+	TargetAgentID *string `gorm:"column:target_agent_id;type:varchar(64);index" json:"target_agent_id,omitempty"`
+	Prompt        string  `gorm:"type:text;not null" json:"prompt"`
+	Status        string  `gorm:"type:varchar(32);not null" json:"status"`
+	TaskID        *string `gorm:"column:task_id;type:varchar(64);index" json:"task_id,omitempty"`
+	TaskRunID     *string `gorm:"column:task_run_id;type:varchar(64);index" json:"task_run_id,omitempty"`
+	OutputSummary *string `gorm:"type:text" json:"output_summary,omitempty"`
+	ErrorMessage  *string `gorm:"type:text" json:"error_message,omitempty"`
+	CreatedAt     int64   `gorm:"autoCreateTime" json:"created_at"`
+	StartedAt     *int64  `gorm:"" json:"started_at,omitempty"`
+	EndedAt       *int64  `gorm:"" json:"ended_at,omitempty"`
+}
+
+// TableName returns the table name for GORM.
+func (WorkflowStepRun) TableName() string { return "workflow_step_run" }
+
 // Issue is the user-facing work-management object. It is intentionally separate
 // from low-level task/task_run execution records.
 type Issue struct {

@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Agent, Issue } from "../lib/types"
 import { navigate } from "../router"
 import { getErrorMessage } from "../lib/errorMessage"
-import { apiAgentToAgent, apiIssueToIssue } from "../lib/api/mappers"
+import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../lib/api/mappers"
 import { createIssue, getIssue, getIssues, updateIssue } from "../features/issues"
 import { getAgents } from "../features/agents"
 import { getTeamMembers } from "../features/teams/api"
+import { getWorkflows, runIssueWorkflow } from "../features/workflows"
 import { IssueModal } from "../components/IssueModal"
 import { useTeam } from "../contexts/TeamContext"
 import type { ApiTeamMember } from "../lib/api/types"
+import type { Workflow } from "../lib/types"
 
 const PAGE_SIZE = 10
 
@@ -23,9 +25,11 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
   const [issues, setIssues] = useState<Issue[]>([])
   const [total, setTotal] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
+  const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [members, setMembers] = useState<ApiTeamMember[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [runningWorkflow, setRunningWorkflow] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
@@ -37,6 +41,7 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
     if (!token || !currentTeamId) {
       setIssues([])
       setAgents([])
+      setWorkflows([])
       setMembers([])
       setTotal(0)
       setLoading(false)
@@ -48,12 +53,14 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
       getIssues(currentTeamId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
       getAgents(currentTeamId, token),
       getTeamMembers(currentTeamId, token),
+      getWorkflows(currentTeamId, token),
     ])
-      .then(([issueRes, agentRes, memberRes]) => {
+      .then(([issueRes, agentRes, memberRes, workflowRes]) => {
         setIssues(issueRes.issues.map(apiIssueToIssue))
         setTotal(issueRes.total)
         setAgents(agentRes.map(apiAgentToAgent))
         setMembers(memberRes)
+        setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to load issues")))
       .finally(() => setLoading(false))
@@ -86,6 +93,9 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
     }
     if (issue.assigneeKind === "agent") {
       return agents.find((agent) => agent.id === issue.assigneeId)?.name || "Agent"
+    }
+    if (issue.assigneeKind === "workflow") {
+      return workflows.find((workflow) => workflow.id === issue.assigneeId)?.name || "Workflow"
     }
     return "Unassigned"
   }
@@ -122,7 +132,7 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
     title: string
     description: string
     status: Issue["status"]
-    assignee_kind: "person" | "agent" | ""
+    assignee_kind: "person" | "agent" | "workflow" | ""
     assignee_id: string
   }) {
     if (!token || !currentTeamId || !selectedIssue) return
@@ -148,6 +158,18 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to update issue")))
       .finally(() => setSaving(false))
+  }
+
+  function handleRunIssueWorkflow() {
+    if (!token || !currentTeamId || !selectedIssue) return
+    setRunningWorkflow(true)
+    setError(null)
+    runIssueWorkflow(currentTeamId, selectedIssue.id, token)
+      .then(() => {
+        setError("Workflow run started.")
+      })
+      .catch((err) => setError(getErrorMessage(err, "Failed to run workflow")))
+      .finally(() => setRunningWorkflow(false))
   }
 
   return (
@@ -243,6 +265,7 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
         open={createOpen}
         mode="create"
         agents={agents}
+        workflows={workflows}
         members={members}
         userId={userId}
         loading={saving}
@@ -259,15 +282,18 @@ export function Issues({ token, routeIssueId, userId }: IssuesProps) {
         mode="edit"
         issue={selectedIssue}
         agents={agents}
+        workflows={workflows}
         members={members}
         userId={userId}
         loading={saving}
+        runningWorkflow={runningWorkflow}
         error={selectedIssue != null ? error : null}
         onClose={() => {
           setError(null)
           closeDetailModal()
         }}
         onSubmit={handleSave}
+        onRunWorkflow={handleRunIssueWorkflow}
       />
     </div>
   )

@@ -45,7 +45,7 @@ export async function updateIssue(
     title?: string
     description?: string
     status?: "todo" | "in_progress" | "done"
-    assignee_kind?: "person" | "agent" | ""
+    assignee_kind?: "person" | "agent" | "workflow" | ""
     assignee_id?: string
   },
   token: string,

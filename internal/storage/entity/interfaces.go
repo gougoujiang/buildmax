@@ -34,6 +34,23 @@ type TeamStore interface {
 	ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember, error)
 }
 
+// WorkflowStore provides workflow and workflow execution persistence.
+type WorkflowStore interface {
+	ListWorkflowsByTeam(ctx context.Context, teamID string) ([]Workflow, error)
+	CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*Workflow, error)
+	GetWorkflow(ctx context.Context, workflowID string) (*Workflow, error)
+	UpdateWorkflow(ctx context.Context, workflowID, teamID string, in UpdateWorkflowInput) (*Workflow, error)
+	CreateWorkflowRun(ctx context.Context, in CreateWorkflowRunInput) (*WorkflowRun, error)
+	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]WorkflowRun, int, error)
+	GetWorkflowRun(ctx context.Context, workflowRunID string) (*WorkflowRun, error)
+	ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]WorkflowStepRun, error)
+	CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []CreateWorkflowStepRunInput) ([]WorkflowStepRun, error)
+	UpdateWorkflowRun(ctx context.Context, workflowRunID string, in UpdateWorkflowRunInput) (*WorkflowRun, error)
+	UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in UpdateWorkflowStepRunInput) (*WorkflowStepRun, error)
+	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*WorkflowStepRun, error)
+	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*WorkflowStepRun, error)
+}
+
 // QuotaTierStore provides quota tier limits by tier name.
 type QuotaTierStore interface {
 	// GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
@@ -68,6 +85,47 @@ type IssueStore interface {
 	GetIssue(ctx context.Context, issueID string) (*Issue, error)
 	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateIssueInput) (*Issue, error)
 	UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in UpdateIssueInput) (*Issue, error)
+}
+
+type CreateWorkflowRunInput struct {
+	WorkflowID     string
+	IssueID        *string
+	ConversationID string
+	Status         string
+	CreatedBy      string
+	StartedAt      *int64
+}
+
+type UpdateWorkflowInput struct {
+	Name        *string
+	Description *string
+	Definition  *string
+}
+
+type CreateWorkflowStepRunInput struct {
+	StepID        string
+	StepIndex     int
+	StepType      string
+	TargetAgentID *string
+	Prompt        string
+	Status        string
+}
+
+type UpdateWorkflowRunInput struct {
+	Status       string
+	StartedAt    *int64
+	EndedAt      *int64
+	ErrorMessage *string
+}
+
+type UpdateWorkflowStepRunInput struct {
+	Status        *string
+	TaskID        *string
+	TaskRunID     *string
+	OutputSummary *string
+	ErrorMessage  *string
+	StartedAt     *int64
+	EndedAt       *int64
 }
 
 // TaskStore provides task persistence. Tasks belong to a conversation.

@@ -44,6 +44,9 @@ export type Route =
   | { name: "chats" }
   | { name: "explore" }
   | { name: "agents" }
+  | { name: "workflows" }
+  | { name: "workflow"; workflowId: string }
+  | { name: "workflowRun"; workflowRunId: string }
   | { name: "issues" }
   | { name: "issue"; issueId: string }
 
@@ -63,12 +66,53 @@ export interface Issue {
   title: string
   description: string
   status: "todo" | "in_progress" | "done"
-  assigneeKind?: "person" | "agent" | null
+  assigneeKind?: "person" | "agent" | "workflow" | null
   assigneeId?: string | null
   createdBy: string
   createdAt: number
   updatedAt: number
   updatedLabel: string
+}
+
+export interface Workflow {
+  id: string
+  teamId: string
+  name: string
+  description: string
+  definition: string
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+  updatedLabel: string
+}
+
+export interface WorkflowRun {
+  id: string
+  workflowId: string
+  issueId?: string | null
+  conversationId: string
+  status: "pending" | "running" | "succeeded" | "failed" | "canceled"
+  createdBy: string
+  createdAt: number
+  startedAt?: number | null
+  endedAt?: number | null
+  errorMessage?: string | null
+  createdLabel: string
+}
+
+export interface WorkflowStepRun {
+  id: string
+  workflowRunId: string
+  stepId: string
+  stepIndex: number
+  stepType: string
+  targetAgentId?: string | null
+  prompt: string
+  status: "pending" | "running" | "succeeded" | "failed" | "blocked"
+  taskId?: string | null
+  taskRunId?: string | null
+  outputSummary?: string | null
+  errorMessage?: string | null
 }
 
 // --- Explore (user file structure) ---

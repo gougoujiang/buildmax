@@ -17,6 +17,7 @@ func TestIssueHandlers(t *testing.T) {
 	agentID := "a_1"
 	personalTeamID := "tm_personal_u1"
 	otherTeamID := "tm_other"
+	workflowID := "w_1"
 	store := &testutil.MockIssueStore{
 		Issues: []entity.Issue{
 			{
@@ -37,6 +38,9 @@ func TestIssueHandlers(t *testing.T) {
 	agents := &testutil.MockAgentStore{
 		Agents: []entity.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
+	workflows := &testutil.MockWorkflowStore{
+		Workflows: []entity.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`}},
+	}
 	teams := &testutil.MockTeamStore{
 		Teams: []entity.Team{
 			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"},
@@ -48,10 +52,11 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	h := NewHandler(Config{
-		JWTSecret:  issueTestSecret,
-		TeamStore:  teams,
-		IssueStore: store,
-		AgentStore: agents,
+		JWTSecret:     issueTestSecret,
+		TeamStore:     teams,
+		IssueStore:    store,
+		AgentStore:    agents,
+		WorkflowStore: workflows,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -141,6 +146,24 @@ func TestIssueHandlers(t *testing.T) {
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+	})
+
+	t.Run("PATCH issue assign to workflow", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"assignee_kind":"workflow","assignee_id":"w_1"}`))
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		var out IssueResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode patch: %v", err)
+		}
+		if out.AssigneeKind == nil || *out.AssigneeKind != entity.IssueAssigneeWorkflow {
+			t.Fatalf("patched = %+v", out)
 		}
 	})
 

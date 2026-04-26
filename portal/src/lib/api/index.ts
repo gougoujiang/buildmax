@@ -24,15 +24,37 @@ export type {
   ApiConversationMessagesResponse,
   CreateConversationResponse,
   AddConversationMessageResponse,
+  ApiIssue,
+  ApiIssuesListResponse,
+  ApiWorkflow,
+  ApiWorkflowListResponse,
+  ApiWorkflowRun,
+  ApiWorkflowRunListResponse,
+  ApiWorkflowRunDetailResponse,
+  ApiWorkflowStepRun,
 } from "./types"
 export {
   apiAgentToAgent,
   apiConversationToConversation,
+  apiIssueToIssue,
+  apiWorkflowToWorkflow,
+  apiWorkflowRunToWorkflowRun,
+  apiWorkflowStepRunToWorkflowStepRun,
 } from "./mappers"
 
 export { requestOtp, login } from "../../features/auth"
 export { getUsage } from "../../features/usage"
 export { getAgents, createAgent, updateAgent, deleteAgent } from "../../features/agents"
+export {
+  getWorkflows,
+  getWorkflow,
+  createWorkflow,
+  updateWorkflow,
+  getWorkflowRuns,
+  getWorkflowRunDetail,
+  runWorkflow,
+  runIssueWorkflow,
+} from "../../features/workflows"
 export {
   getTasks,
   getTasksPaginated,

@@ -13,6 +13,7 @@ import SettingsIcon from "../icons/settings.svg?react"
 import HelpIcon from "../icons/help.svg?react"
 import SignOutIcon from "../icons/sign-out.svg?react"
 import IssueIcon from "../icons/issue.svg?react"
+import WorkflowIcon from "../icons/workflow.svg?react"
 import { SettingsModal } from "../components/SettingsModal"
 import { TeamMembersModal } from "../components/TeamMembersModal"
 import { useTeam } from "../contexts/TeamContext"
@@ -44,6 +45,10 @@ function isAgentsActive(route: Route): boolean {
 
 function isIssuesActive(route: Route): boolean {
   return route.name === "issues" || route.name === "issue"
+}
+
+function isWorkflowsActive(route: Route): boolean {
+  return route.name === "workflows" || route.name === "workflow"
 }
 
 export function Sidebar({
@@ -259,6 +264,14 @@ export function Sidebar({
           >
             <AgentAvatar size="sm" />
             <span className="sidebar__nav-item-text">Agents</span>
+          </button>
+          <button
+            type="button"
+            className={cn("sidebar__nav-item", isWorkflowsActive(route) && "sidebar__nav-item--active")}
+            onClick={() => navigate({ name: "workflows" })}
+          >
+            <WorkflowIcon className="sidebar__nav-icon" aria-hidden />
+            <span className="sidebar__nav-item-text">Workflows</span>
           </button>
           <button
             type="button"

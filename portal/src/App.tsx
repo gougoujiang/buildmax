@@ -39,6 +39,14 @@ function AppContent() {
     }
     if (route.name === "issue") {
       navigate({ name: "issues" })
+      return
+    }
+    if (route.name === "workflow") {
+      navigate({ name: "workflows" })
+      return
+    }
+    if (route.name === "workflowRun") {
+      navigate({ name: "workflows" })
     }
   }, [currentTeamId, route, setPendingConversation])
 

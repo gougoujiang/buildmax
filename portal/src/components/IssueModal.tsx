@@ -1,25 +1,28 @@
 import { useEffect, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
 import type { ApiTeamMember } from "../lib/api/types"
-import type { Agent, Issue } from "../lib/types"
+import type { Agent, Issue, Workflow } from "../lib/types"
 
 interface IssueModalProps {
   open: boolean
   mode: "create" | "edit"
   issue?: Issue | null
   agents: Agent[]
+  workflows: Workflow[]
   members: ApiTeamMember[]
   userId?: string
   loading: boolean
+  runningWorkflow?: boolean
   error: string | null
   onClose: () => void
   onSubmit: (values: {
     title: string
     description: string
     status: Issue["status"]
-    assignee_kind: "person" | "agent" | ""
+    assignee_kind: "person" | "agent" | "workflow" | ""
     assignee_id: string
   }) => void
+  onRunWorkflow?: () => void
 }
 
 export function IssueModal({
@@ -27,12 +30,15 @@ export function IssueModal({
   mode,
   issue,
   agents,
+  workflows,
   members,
   userId,
   loading,
+  runningWorkflow = false,
   error,
   onClose,
   onSubmit,
+  onRunWorkflow,
 }: IssueModalProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -45,12 +51,14 @@ export function IssueModal({
       setTitle(issue.title)
       setDescription(issue.description)
       setStatus(issue.status)
-      setAssigneeValue(
-        issue.assigneeKind === "person"
-          ? `person:${issue.assigneeId ?? ""}`
-          : issue.assigneeKind === "agent"
-            ? `agent:${issue.assigneeId ?? ""}`
-            : "",
+        setAssigneeValue(
+          issue.assigneeKind === "person"
+            ? `person:${issue.assigneeId ?? ""}`
+            : issue.assigneeKind === "agent"
+              ? `agent:${issue.assigneeId ?? ""}`
+              : issue.assigneeKind === "workflow"
+                ? `workflow:${issue.assigneeId ?? ""}`
+                : "",
       )
       return
     }
@@ -106,10 +114,25 @@ export function IssueModal({
                 </option>
               ))}
               {agents.map((agent) => (
-                <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
+                    <option key={agent.id} value={`agent:${agent.id}`}>{agent.name}</option>
+              ))}
+              {workflows.map((workflow) => (
+                <option key={workflow.id} value={`workflow:${workflow.id}`}>{workflow.name}</option>
               ))}
             </select>
           </label>
+          {mode === "edit" && issue?.assigneeKind === "workflow" ? (
+            <div className="workflow-page__inline-actions">
+              <button
+                type="button"
+                className="page-activity__action-btn"
+                disabled={runningWorkflow}
+                onClick={onRunWorkflow}
+              >
+                {runningWorkflow ? "Running…" : "Run Workflow"}
+              </button>
+            </div>
+          ) : null}
           {mode === "edit" && issue ? (
             <div className="issues-page__meta-row">
               <div className="page-activity__meta">Created: {new Date(issue.createdAt * 1000).toLocaleString()}</div>
@@ -135,7 +158,7 @@ export function IssueModal({
                   title: title.trim(),
                   description,
                   status,
-                  assignee_kind: (kind as "person" | "agent" | "") || "",
+                  assignee_kind: (kind as "person" | "agent" | "workflow" | "") || "",
                   assignee_id: id || "",
                 })
               }}

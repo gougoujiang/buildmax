@@ -51,6 +51,62 @@ export interface ApiIssue {
   updated_at: number
 }
 
+export interface ApiWorkflow {
+  id: string
+  team_id: string
+  name: string
+  description: string
+  definition: string
+  created_by: string
+  created_at: number
+  updated_at: number
+}
+
+export interface ApiWorkflowListResponse {
+  workflows: ApiWorkflow[]
+}
+
+export interface ApiWorkflowRun {
+  id: string
+  workflow_id: string
+  issue_id?: string | null
+  conversation_id: string
+  status: string
+  created_by: string
+  created_at: number
+  started_at?: number | null
+  ended_at?: number | null
+  error_message?: string | null
+}
+
+export interface ApiWorkflowStepRun {
+  id: string
+  workflow_run_id: string
+  step_id: string
+  step_index: number
+  step_type: string
+  target_agent_id?: string | null
+  prompt: string
+  status: string
+  task_id?: string | null
+  task_run_id?: string | null
+  output_summary?: string | null
+  error_message?: string | null
+  created_at: number
+  started_at?: number | null
+  ended_at?: number | null
+}
+
+export interface ApiWorkflowRunListResponse {
+  runs: ApiWorkflowRun[]
+  total: number
+}
+
+export interface ApiWorkflowRunDetailResponse {
+  run: ApiWorkflowRun
+  steps: ApiWorkflowStepRun[]
+}
+
 export interface ApiIssuesListResponse {
   issues: ApiIssue[]
   total: number

@@ -15,6 +15,7 @@ const (
 	IssueStatusDone       = "done"
 	IssueAssigneePerson   = "person"
 	IssueAssigneeAgent    = "agent"
+	IssueAssigneeWorkflow = "workflow"
 )
 
 type CreateIssueInput struct {

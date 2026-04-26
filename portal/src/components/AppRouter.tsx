@@ -7,6 +7,9 @@ import { ConversationDetail } from "../pages/ConversationDetail"
 import { NewConversation } from "../pages/NewConversation"
 import { Explore } from "../pages/Explore"
 import { Issues } from "../pages/Issues"
+import { Workflows } from "../pages/Workflows"
+import { WorkflowDetail } from "../pages/WorkflowDetail"
+import { WorkflowRunDetail } from "../pages/WorkflowRunDetail"
 
 export interface AppRouterProps {
   conversations: Conversation[]
@@ -58,6 +61,18 @@ export function AppRouter({
         token={token ?? null}
       />
     )
+  }
+
+  if (route.name === "workflows") {
+    return <Workflows token={token ?? null} />
+  }
+
+  if (route.name === "workflow") {
+    return <WorkflowDetail token={token ?? null} workflowId={route.workflowId} />
+  }
+
+  if (route.name === "workflowRun") {
+    return <WorkflowRunDetail token={token ?? null} workflowRunId={route.workflowRunId} />
   }
 
   if (route.name === "issues") {
