@@ -116,6 +116,7 @@ export interface ApiIssueFlowResponse {
   issue: ApiIssue
   workflow?: ApiWorkflow | null
   runs: ApiIssueFlowRun[]
+  agent_tasks: ApiTask[]
   total: number
 }
 
@@ -145,6 +146,7 @@ export interface ApiTask {
   ended_at: number | null
   error_message: string | null
   agent_id?: string | null
+  issue_id?: string | null
 }
 
 /** Conversation as returned by the team-scoped task conversation endpoint. */

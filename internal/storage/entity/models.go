@@ -128,6 +128,7 @@ type Task struct {
 	TaskID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null" json:"task_id"`
 	ConversationID        string  `gorm:"type:varchar(64);not null;index" json:"conversation_id"`
 	TeamID                string  `gorm:"type:varchar(64);index" json:"team_id,omitempty"`
+	IssueID               *string `gorm:"column:issue_id;type:varchar(64);index" json:"issue_id,omitempty"`
 	Status                string  `gorm:"type:varchar(32);not null" json:"status"`
 	Input                 string  `gorm:"type:text;not null" json:"input"`
 	Title                 string  `gorm:"type:varchar(256)" json:"title,omitempty"`

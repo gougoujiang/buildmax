@@ -41,6 +41,7 @@ func TestIssueHandlers(t *testing.T) {
 	workflows := &testutil.MockWorkflowStore{
 		Workflows: []entity.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`}},
 	}
+	tasks := &testutil.MockTaskStore{}
 	teams := &testutil.MockTeamStore{
 		Teams: []entity.Team{
 			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"},
@@ -52,11 +53,13 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	h := NewHandler(Config{
-		JWTSecret:     issueTestSecret,
-		TeamStore:     teams,
-		IssueStore:    store,
-		AgentStore:    agents,
-		WorkflowStore: workflows,
+		JWTSecret:         issueTestSecret,
+		TeamStore:         teams,
+		IssueStore:        store,
+		AgentStore:        agents,
+		WorkflowStore:     workflows,
+		TaskStore:         tasks,
+		ConversationStore: &testutil.MockConversationStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -135,6 +138,23 @@ func TestIssueHandlers(t *testing.T) {
 		}
 		if out.Status != entity.IssueStatusInProgress || out.AssigneeKind == nil || *out.AssigneeKind != entity.IssueAssigneeAgent {
 			t.Fatalf("patched = %+v", out)
+		}
+	})
+
+	t.Run("POST issue agent run", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues/i_1/agent-runs", nil)
+		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+		var out TaskResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode agent run: %v", err)
+		}
+		if out.IssueID == nil || *out.IssueID != "i_1" || out.AgentID == nil || *out.AgentID != agentID {
+			t.Fatalf("agent run = %+v", out)
 		}
 	})
 

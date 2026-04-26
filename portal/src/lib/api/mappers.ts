@@ -153,12 +153,15 @@ export function apiTaskToTask(api: ApiTask): Task {
   const ts = api.ended_at ?? api.created_at
   return {
     id: api.id,
+    conversationId: api.conversation_id,
     sessionId: api.session_id ?? undefined,
     title,
     status: taskStatusToUI(api.status),
     timeLabel: formatRelativeTime(ts),
     summary,
+    createdAt: api.created_at,
     agentId: api.agent_id ?? undefined,
+    issueId: api.issue_id ?? undefined,
   }
 }
 

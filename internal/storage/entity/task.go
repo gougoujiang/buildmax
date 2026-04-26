@@ -45,6 +45,21 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 	return list, int(total), err
 }
 
+func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error) {
+	q := s.db.WithContext(ctx).Model(&Task{}).Where("issue_id = ?", issueID)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []Task
+	q = s.db.WithContext(ctx).Where("issue_id = ?", issueID).Order("created_at DESC")
+	if limit > 0 {
+		q = q.Limit(limit).Offset(offset)
+	}
+	err := q.Find(&list).Error
+	return list, int(total), err
+}
+
 // GetTask returns the task by task_id, or (nil, nil) if not found.
 func (s *Store) GetTask(ctx context.Context, taskID string) (*Task, error) {
 	var task Task
@@ -80,6 +95,7 @@ type CreateTaskInput struct {
 	TitlePromptTokens     int
 	TitleCompletionTokens int
 	AgentID               *string
+	IssueID               *string
 }
 
 // CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
@@ -104,6 +120,7 @@ func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, err
 		LastRunID:             &taskRunID,
 		SessionID:             &sessionID,
 		AgentID:               in.AgentID,
+		IssueID:               in.IssueID,
 	}
 	run := &TaskRun{
 		TaskRunID: taskRunID,

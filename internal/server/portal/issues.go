@@ -2,8 +2,10 @@ package portal
 
 import (
 	"net/http"
+	"strings"
 
 	issueapp "buildmax/internal/app/issue"
+	taskapp "buildmax/internal/app/task"
 	"buildmax/internal/server/httputil"
 	"buildmax/internal/storage/entity"
 )
@@ -33,10 +35,15 @@ type issueFlowRunResponse struct {
 }
 
 type issueFlowResponse struct {
-	Issue    IssueResponse          `json:"issue"`
-	Workflow *workflowResponse      `json:"workflow,omitempty"`
-	Runs     []issueFlowRunResponse `json:"runs"`
-	Total    int                    `json:"total"`
+	Issue      IssueResponse          `json:"issue"`
+	Workflow   *workflowResponse      `json:"workflow,omitempty"`
+	Runs       []issueFlowRunResponse `json:"runs"`
+	AgentTasks []TaskResponse         `json:"agent_tasks"`
+	Total      int                    `json:"total"`
+}
+
+type createIssueAgentRunRequest struct {
+	Input string `json:"input"`
 }
 
 type createIssueRequest struct {
@@ -66,6 +73,18 @@ func issueToResponse(issue entity.Issue) IssueResponse {
 		CreatedAt:    issue.CreatedAt,
 		UpdatedAt:    issue.UpdatedAt,
 	}
+}
+
+func buildIssueAgentRunInput(issue entity.Issue) string {
+	var b strings.Builder
+	b.WriteString("Work on this issue.\n\n")
+	b.WriteString("Title: ")
+	b.WriteString(issue.Title)
+	if strings.TrimSpace(issue.Description) != "" {
+		b.WriteString("\n\nDescription:\n")
+		b.WriteString(issue.Description)
+	}
+	return b.String()
 }
 
 func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +192,18 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_runs", "issue_id", issueID)
 		return
 	}
+	agentTasks := []TaskResponse{}
+	if h.cfg.TaskStore != nil {
+		tasks, _, err := h.cfg.TaskStore.ListTasksByIssue(r.Context(), issueID, limit, offset)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_agent_tasks", "issue_id", issueID)
+			return
+		}
+		agentTasks = make([]TaskResponse, len(tasks))
+		for i := range tasks {
+			agentTasks[i] = taskToResponse(tasks[i])
+		}
+	}
 	runOut := make([]issueFlowRunResponse, len(runs))
 	for i := range runs {
 		steps, err := h.cfg.WorkflowStore.ListWorkflowStepRuns(r.Context(), runs[i].WorkflowRunID)
@@ -190,11 +221,85 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httputil.WriteJSON(w, http.StatusOK, issueFlowResponse{
-		Issue:    issueToResponse(*issue),
-		Workflow: workflowOut,
-		Runs:     runOut,
-		Total:    total,
+		Issue:      issueToResponse(*issue),
+		Workflow:   workflowOut,
+		Runs:       runOut,
+		AgentTasks: agentTasks,
+		Total:      total,
 	})
+}
+
+func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Request) {
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	if !ok {
+		return
+	}
+	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
+		return
+	}
+	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
+		return
+	}
+	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
+		return
+	}
+	issueID, ok := pathValueRequired(w, r, "issue_id")
+	if !ok {
+		return
+	}
+	var req createIssueAgentRunRequest
+	if r.ContentLength != 0 {
+		if !decodeJSONBody(w, r, &req) {
+			return
+		}
+	}
+	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_for_agent_run", "issue_id", issueID)
+		return
+	}
+	if issue == nil || issue.TeamID != teamID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != entity.IssueAssigneeAgent {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to agent")
+		return
+	}
+	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), *issue.AssigneeID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_agent_for_issue_run", "issue_id", issueID, "agent_id", *issue.AssigneeID)
+		return
+	}
+	if agent == nil || agent.TeamID != teamID {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
+		return
+	}
+	conv, err := h.cfg.ConversationStore.CreateConversationInTeam(r.Context(), teamID, userID, "issue_agent", userID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_issue_agent_conversation", "issue_id", issueID)
+		return
+	}
+	input := req.Input
+	if input == "" {
+		input = buildIssueAgentRunInput(*issue)
+	}
+	task, err := h.taskService().CreateTask(r.Context(), taskapp.CreateTaskCmd{
+		ConversationID: conv.ConversationID,
+		UserID:         userID,
+		TeamID:         teamID,
+		Input:          input,
+		AgentID:        issue.AssigneeID,
+		IssueID:        &issueID,
+	})
+	if err != nil {
+		if h.writeTaskServiceError(w, r, err, issue.AssigneeID) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_issue_agent_task", "issue_id", issueID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*task))
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {

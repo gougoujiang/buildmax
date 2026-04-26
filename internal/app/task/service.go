@@ -53,6 +53,7 @@ type CreateTaskCmd struct {
 	TeamID         string
 	Input          string
 	AgentID        *string
+	IssueID        *string
 }
 
 // CreateRunCmd creates a new run on an existing task.
@@ -89,6 +90,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*entity.Ta
 		TitlePromptTokens:     promptTokens,
 		TitleCompletionTokens: completionTokens,
 		AgentID:               agentID,
+		IssueID:               cmd.IssueID,
 	})
 }
 

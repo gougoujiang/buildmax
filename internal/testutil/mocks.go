@@ -417,6 +417,30 @@ func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conv
 	return filtered[offset:end], total, nil
 }
 
+func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limit, offset int) ([]entity.Task, int, error) {
+	if m.ListErr != nil {
+		return nil, 0, m.ListErr
+	}
+	var filtered []entity.Task
+	for _, task := range m.List {
+		if task.IssueID != nil && *task.IssueID == issueID {
+			filtered = append(filtered, task)
+		}
+	}
+	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+		filtered[i], filtered[j] = filtered[j], filtered[i]
+	}
+	total := len(filtered)
+	if offset > len(filtered) {
+		return []entity.Task{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[offset:end], total, nil
+}
+
 func (m *MockTaskStore) CreateTask(_ context.Context, in *entity.CreateTaskInput) (*entity.Task, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
@@ -439,6 +463,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *entity.CreateTaskInput
 		CreatedBy:      in.CreatedBy,
 		CreatedAt:      12345,
 		AgentID:        in.AgentID,
+		IssueID:        in.IssueID,
 	}
 	task.LastRunID = &lastRunID
 	m.List = append(m.List, *task)

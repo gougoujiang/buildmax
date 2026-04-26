@@ -3,7 +3,7 @@ import {
   getApiBase,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
-import type { ApiIssue, ApiIssueFlowResponse, ApiIssuesListResponse } from "../../lib/api/types"
+import type { ApiIssue, ApiIssueFlowResponse, ApiIssuesListResponse, ApiTask } from "../../lib/api/types"
 
 export interface GetIssuesOptions {
   limit?: number
@@ -60,5 +60,18 @@ export async function updateIssue(
     method: "PATCH",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
+  })
+}
+
+export async function runIssueAgent(
+  teamId: string,
+  issueId: string,
+  token: string,
+  input?: string,
+): Promise<ApiTask> {
+  return requestJson<ApiTask>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}/agent-runs`, {
+    method: "POST",
+    headers: { ...jsonHeaders, ...authHeaders(token) },
+    body: JSON.stringify(input ? { input } : {}),
   })
 }

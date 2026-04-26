@@ -8,13 +8,17 @@ export interface Profile {
 /** Background task (Tier 2) created from a conversation. Backend: Task. */
 export interface Task {
   id: string
+  conversationId: string
   sessionId?: string
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
   timeLabel: string
   summary: string
+  createdAt: number
   /** Set when the task was started from an agent. */
   agentId?: string
+  /** Set when the task was started from an issue. */
+  issueId?: string
 }
 
 export interface Artifact {
@@ -127,6 +131,7 @@ export interface IssueFlow {
   issue: Issue
   workflow?: Workflow | null
   runs: IssueFlowRun[]
+  agentTasks: Task[]
   total: number
 }
 

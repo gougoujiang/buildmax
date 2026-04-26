@@ -611,7 +611,7 @@ Need a new execution component that can:
 
 ## Phase 4: Issue Flow Visualization
 
-Status: `paused` after workflow-backed issue flow MVP. See [design/014-phase-4-issue-flow-visualization.md](./014-phase-4-issue-flow-visualization.md).
+Status: `done` for current scope; direct artifact/result aggregation is deferred. See [design/014-phase-4-issue-flow-visualization.md](./014-phase-4-issue-flow-visualization.md).
 
 ### Goal
 

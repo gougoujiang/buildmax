@@ -136,6 +136,7 @@ type TaskStore interface {
 	ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]Task, error)
 	// ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
 	ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error)
+	ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.

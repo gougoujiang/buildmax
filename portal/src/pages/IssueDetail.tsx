@@ -6,12 +6,13 @@ import { getErrorMessage } from "../lib/errorMessage"
 import {
   apiAgentToAgent,
   apiIssueToIssue,
+  apiTaskToTask,
   apiWorkflowRunToWorkflowRun,
   apiWorkflowStepRunToWorkflowStepRun,
   apiWorkflowToWorkflow,
 } from "../lib/api/mappers"
 import { getAgents } from "../features/agents"
-import { getIssueFlow, updateIssue } from "../features/issues"
+import { getIssueFlow, runIssueAgent, updateIssue } from "../features/issues"
 import { getTeamMembers } from "../features/teams/api"
 import { getWorkflows, runIssueWorkflow } from "../features/workflows"
 import { useTeam } from "../contexts/TeamContext"
@@ -38,6 +39,7 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
       run: apiWorkflowRunToWorkflowRun(item.run),
       steps: item.steps.map(apiWorkflowStepRunToWorkflowStepRun),
     })),
+    agentTasks: api.agent_tasks.map(apiTaskToTask),
     total: api.total,
   }
 }
@@ -63,6 +65,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [runningWorkflow, setRunningWorkflow] = useState(false)
+  const [runningAgent, setRunningAgent] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -108,7 +111,9 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }, [load])
 
   const currentRun = latestRun(flow)
+  const latestAgentTask = flow?.agentTasks[0] ?? null
   const isWorkflowAssigned = flow?.issue.assigneeKind === "workflow" && Boolean(flow.issue.assigneeId)
+  const isAgentAssigned = flow?.issue.assigneeKind === "agent" && Boolean(flow.issue.assigneeId)
 
   const assigneeLabel = useCallback((issue: Issue): string => {
     if (issue.assigneeKind === "person") {
@@ -157,6 +162,15 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
         })
       }
     }
+    for (const task of flow.agentTasks) {
+      events.push({
+        id: task.id,
+        label: "Agent run created",
+        detail: task.title || task.summary,
+        timestamp: task.createdAt,
+        status: task.status,
+      })
+    }
     return events.sort((a, b) => b.timestamp - a.timestamp)
   }, [flow])
 
@@ -202,6 +216,18 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       .finally(() => setRunningWorkflow(false))
   }
 
+  function handleRunAgent() {
+    if (!token || !currentTeamId || !flow) return
+    setRunningAgent(true)
+    setError(null)
+    runIssueAgent(currentTeamId, flow.issue.id, token)
+      .then(() => {
+        void load()
+      })
+      .catch((err) => setError(getErrorMessage(err, "Failed to run agent")))
+      .finally(() => setRunningAgent(false))
+  }
+
   return (
     <div className="page-activity">
       <div className="page-activity__head">
@@ -226,6 +252,16 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
               onClick={handleRunWorkflow}
             >
               {runningWorkflow ? "Running..." : "Run Workflow"}
+            </button>
+          ) : null}
+          {isAgentAssigned ? (
+            <button
+              type="button"
+              className="page-activity__action-btn"
+              disabled={runningAgent || loading}
+              onClick={handleRunAgent}
+            >
+              {runningAgent ? "Running..." : "Run Agent"}
             </button>
           ) : null}
           <button
@@ -304,7 +340,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
           <section className="issues-page__panel">
             <div className="issues-page__toolbar">
               <h2 className="issues-page__section-title">Execution Summary</h2>
-              <span className="issues-page__status">{currentRun?.run.status ?? "no_runs"}</span>
+              <span className="issues-page__status">{currentRun?.run.status ?? latestAgentTask?.status ?? "no_runs"}</span>
             </div>
             {currentRun ? (
               <div className="workflow-run-page__meta">
@@ -330,8 +366,24 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                   </button>
                 </div>
               </div>
+            ) : latestAgentTask ? (
+              <div className="workflow-run-page__meta">
+                <div><strong>Latest agent task:</strong> {latestAgentTask.id}</div>
+                <div><strong>Agent:</strong> {assigneeLabel(flow.issue)}</div>
+                <div><strong>Created:</strong> {formatTimestamp(latestAgentTask.createdAt)}</div>
+                <div><strong>Status:</strong> {latestAgentTask.status}</div>
+                <div className="workflow-run-page__step-actions">
+                  <button
+                    type="button"
+                    className="page-activity__action-btn"
+                    onClick={() => navigate({ name: "conversation", conversationId: latestAgentTask.conversationId })}
+                  >
+                    Open Conversation Trace
+                  </button>
+                </div>
+              </div>
             ) : (
-              <p className="page-activity__empty">No workflow runs recorded for this issue yet.</p>
+              <p className="page-activity__empty">No execution runs recorded for this issue yet.</p>
             )}
           </section>
 
@@ -407,6 +459,37 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                       </span>
                       <span className="issues-page__status">{item.run.status}</span>
                     </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="issues-page__panel">
+            <div className="issues-page__toolbar">
+              <h2 className="issues-page__section-title">Agent Run Sequence</h2>
+              <span className="page-activity__meta">{flow.agentTasks.length} tasks</span>
+            </div>
+            {flow.agentTasks.length === 0 ? (
+              <p className="page-activity__empty">No agent runs recorded for this issue yet.</p>
+            ) : (
+              <ul className="workflow-page__runs">
+                {flow.agentTasks.map((task) => (
+                  <li key={task.id}>
+                    <button
+                      type="button"
+                      className="workflow-page__run-row"
+                      onClick={() => navigate({ name: "conversation", conversationId: task.conversationId })}
+                    >
+                      <span>
+                        <strong>{task.title}</strong>
+                        <span className="page-activity__meta workflow-detail-page__run-id">
+                          {task.timeLabel}
+                        </span>
+                      </span>
+                      <span className="issues-page__status">{task.status}</span>
+                    </button>
+                    <pre className="workflow-page__step-output">{task.summary}</pre>
                   </li>
                 ))}
               </ul>

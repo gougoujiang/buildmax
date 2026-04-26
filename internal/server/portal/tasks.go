@@ -29,6 +29,7 @@ type TaskResponse struct {
 	EndedAt        *int64  `json:"ended_at,omitempty"`
 	ErrorMessage   *string `json:"error_message,omitempty"`
 	AgentID        *string `json:"agent_id,omitempty"`
+	IssueID        *string `json:"issue_id,omitempty"`
 }
 
 type createTaskRequest struct {
@@ -51,6 +52,7 @@ func taskToResponse(task entity.Task) TaskResponse {
 		EndedAt:        task.EndedAt,
 		ErrorMessage:   task.ErrorMessage,
 		AgentID:        task.AgentID,
+		IssueID:        task.IssueID,
 	}
 }
 

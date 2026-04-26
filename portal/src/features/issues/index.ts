@@ -1,1 +1,1 @@
-export { getIssues, getIssue, getIssueFlow, createIssue, updateIssue } from "./api"
+export { getIssues, getIssue, getIssueFlow, createIssue, updateIssue, runIssueAgent } from "./api"
