@@ -433,6 +433,19 @@ func (s *Service) validateIssueForRun(ctx context.Context, teamID, workflowID st
 }
 
 func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, error) {
+	def, err := parseDefinition(raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateDefinitionAgents(ctx, teamID, def); err != nil {
+		return nil, err
+	}
+	return def, nil
+}
+
+// parseDefinition unmarshals raw JSON into a WorkflowDefinition and validates structural fields
+// (step count, unique IDs, required type/agent/prompt). Does not touch the database.
+func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 	var def model.WorkflowDefinition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidDefinition, err)
@@ -460,18 +473,25 @@ func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw st
 		if step.TargetAgentID == "" || step.Prompt == "" {
 			return nil, ErrInvalidDefinition
 		}
-		if s.Agents == nil {
-			return nil, ErrInvalidTargetAgent
-		}
-		agent, err := s.Agents.GetAgent(ctx, step.TargetAgentID)
-		if err != nil {
-			return nil, err
-		}
-		if agent == nil || agent.TeamID != teamID {
-			return nil, ErrInvalidTargetAgent
-		}
 	}
 	return &def, nil
+}
+
+// validateDefinitionAgents checks that every step's target agent exists and belongs to teamID.
+func (s *Service) validateDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) error {
+	if s.Agents == nil {
+		return ErrInvalidTargetAgent
+	}
+	for i := range def.Steps {
+		agent, err := s.Agents.GetAgent(ctx, def.Steps[i].TargetAgentID)
+		if err != nil {
+			return err
+		}
+		if agent == nil || agent.TeamID != teamID {
+			return ErrInvalidTargetAgent
+		}
+	}
+	return nil
 }
 
 func summarizeOutput(output *string) *string {
