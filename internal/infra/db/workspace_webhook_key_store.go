@@ -27,7 +27,7 @@ func (s *Store) CreateKey(ctx context.Context, userID, name string) (plaintextKe
 	hash := sha256.Sum256([]byte(plaintextKey))
 	keyHash := hex.EncodeToString(hash[:])
 	keyID = util.NewPrefixedID(util.PrefixWebhookKey)
-	row := model.UserWebhookKey{
+	row := userWebhookKeyRow{
 		KeyID:   keyID,
 		UserID:  userID,
 		KeyHash: keyHash,
@@ -43,7 +43,7 @@ func (s *Store) CreateKey(ctx context.Context, userID, name string) (plaintextKe
 func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID string, err error) {
 	hash := sha256.Sum256([]byte(plaintextKey))
 	keyHash := hex.EncodeToString(hash[:])
-	var row model.UserWebhookKey
+	var row userWebhookKeyRow
 	err = s.db.WithContext(ctx).Where("key_hash = ?", keyHash).First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -56,7 +56,7 @@ func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID
 
 // ListKeys returns key metadata for the user.
 func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKeyMeta, error) {
-	var rows []model.UserWebhookKey
+	var rows []userWebhookKeyRow
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKey
 
 // RevokeKey deletes the key if it belongs to the user.
 func (s *Store) RevokeKey(ctx context.Context, userID, keyID string) error {
-	res := s.db.WithContext(ctx).Where("user_id = ? AND key_id = ?", userID, keyID).Delete(&model.UserWebhookKey{})
+	res := s.db.WithContext(ctx).Where("user_id = ? AND key_id = ?", userID, keyID).Delete(&userWebhookKeyRow{})
 	if res.Error != nil {
 		return res.Error
 	}

@@ -12,7 +12,7 @@ import (
 
 // GetAgent returns the agent by agent_id, or (nil, nil) when not found.
 func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, error) {
-	var a model.Agent
+	var a agentRow
 	err := s.db.WithContext(ctx).Where("agent_id = ?", agentID).First(&a).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -20,21 +20,21 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, err
 		}
 		return nil, err
 	}
-	return &a, nil
+	return toModelAgent(&a), nil
 }
 
 // ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Agent, error) {
-	var list []model.Agent
+	var list []agentRow
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&list).Error
-	return list, err
+	return toModelAgents(list), err
 }
 
 // ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Agent, error) {
-	var list []model.Agent
+	var list []agentRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error
-	return list, err
+	return toModelAgents(list), err
 }
 
 // CreateAgent inserts a new agent and returns it.
@@ -57,7 +57,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 		Instructions: instructions,
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := s.db.WithContext(ctx).Create(a).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(fromModelAgent(a)).Error; err != nil {
 		return nil, err
 	}
 	return a, nil
@@ -91,7 +91,7 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, name, descripti
 	a.Name = name
 	a.Description = description
 	a.Instructions = instructions
-	if err := s.db.WithContext(ctx).Save(a).Error; err != nil {
+	if err := s.db.WithContext(ctx).Save(fromModelAgent(a)).Error; err != nil {
 		return nil, err
 	}
 	return a, nil
@@ -106,7 +106,7 @@ func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	if a == nil || a.UserID != userID {
 		return gorm.ErrRecordNotFound
 	}
-	return s.db.WithContext(ctx).Delete(a).Error
+	return s.db.WithContext(ctx).Delete(fromModelAgent(a)).Error
 }
 
 // DeleteAgentInTeam deletes the agent if it exists and belongs to the team.
@@ -118,5 +118,5 @@ func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) e
 	if a == nil || a.TeamID != teamID {
 		return gorm.ErrRecordNotFound
 	}
-	return s.db.WithContext(ctx).Delete(a).Error
+	return s.db.WithContext(ctx).Delete(fromModelAgent(a)).Error
 }

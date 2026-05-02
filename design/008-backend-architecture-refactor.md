@@ -23,7 +23,7 @@ This document is now mostly historical. The active internal layout has moved to:
 - `internal/interface` for CLI, TUI, desktop, and local auth entry points.
 - `internal/bootstrap` for process startup and dependency wiring.
 
-The old compatibility/alias middle state has been removed. The main remaining architectural cleanup is that `internal/core/model` still contains GORM persistence tags and table names; a future pass can split pure core contracts from DB schema types under `internal/infra/db`.
+The old compatibility/alias middle state has been removed. `internal/core/model` is now a pure core model/contract package, and the GORM schema rows live in `internal/infra/db`.
 
 ---
 
@@ -55,7 +55,7 @@ The worker shells out to `buildmax -p`, then reads files written by CLI-side log
 
 ### 4. Model/storage separation is half-finished
 
-`internal/core/model` contains shared entities, repository contracts, and DB-facing struct tags. This is simple and working, but it means the core layer is not fully persistence-agnostic yet.
+`internal/core/model` now holds shared entities and repository contracts, while `internal/infra/db` owns the GORM schema rows and model/row mapping. The model boundary is much cleaner than the earlier alias-based state, although the package can still be narrowed further over time if it grows too broad.
 
 ### 5. Lifecycle/state transitions are stringly typed
 
@@ -450,7 +450,7 @@ Create pure domain packages and move GORM models into DB repositories.
 
 ### Alternative
 
-If that is too much for now, keep `internal/core/model` as the shared model/contract package and treat the embedded GORM tags as an explicit, temporary compromise until the real split is funded.
+That compromise is no longer needed in the current tree: the shared model/contract package remains in `internal/core/model`, and the DB schema structs now live in `internal/infra/db`.
 
 ### Recommendation
 

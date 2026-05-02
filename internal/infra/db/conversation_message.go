@@ -22,7 +22,7 @@ func (s *Store) AppendMessage(ctx context.Context, conversationID, role, content
 		ToolCallsJSON:         toolCallsJSON,
 		CreatedAt:             time.Now().Unix(),
 	}
-	if err := s.db.WithContext(ctx).Create(msg).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(fromModelConversationMessage(msg)).Error; err != nil {
 		return nil, err
 	}
 	return msg, nil
@@ -30,9 +30,9 @@ func (s *Store) AppendMessage(ctx context.Context, conversationID, role, content
 
 // ListMessages returns all messages for the conversation ordered by created_at ASC.
 func (s *Store) ListMessages(ctx context.Context, conversationID string) ([]model.ConversationMessage, error) {
-	var list []model.ConversationMessage
+	var list []conversationMessageRow
 	err := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID).
 		Order("created_at ASC").
 		Find(&list).Error
-	return list, err
+	return toModelConversationMessages(list), err
 }

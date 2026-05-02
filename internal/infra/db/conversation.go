@@ -30,7 +30,7 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 		CreatedBy:      createdBy,
 		CreatedAt:      now,
 	}
-	if err := s.db.WithContext(ctx).Create(conv).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(fromModelConversation(conv)).Error; err != nil {
 		return nil, err
 	}
 	return conv, nil
@@ -38,7 +38,7 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 
 // GetConversation returns the conversation by conversation_id, or (nil, nil) if not found.
 func (s *Store) GetConversation(ctx context.Context, conversationID string) (*model.Conversation, error) {
-	var c model.Conversation
+	var c conversationRow
 	err := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID).First(&c).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -46,41 +46,41 @@ func (s *Store) GetConversation(ctx context.Context, conversationID string) (*mo
 		}
 		return nil, err
 	}
-	return &c, nil
+	return toModelConversation(&c), nil
 }
 
 // ListConversationsByUser returns conversations for the user ordered by created_at DESC.
 // total is the total count of matching conversations (ignoring limit/offset).
 func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]model.Conversation, int, error) {
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&model.Conversation{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&conversationRow{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.Conversation
+	var list []conversationRow
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error
-	return list, int(total), err
+	return toModelConversations(list), int(total), err
 }
 
 // ListConversationsByTeam returns conversations for the team ordered by created_at DESC.
 func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Conversation, int, error) {
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&model.Conversation{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&conversationRow{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.Conversation
+	var list []conversationRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).
 		Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error
-	return list, int(total), err
+	return toModelConversations(list), int(total), err
 }
 
 // UpdateConversationTitle sets the title for the conversation (e.g. after first-round LLM generation).
 func (s *Store) UpdateConversationTitle(ctx context.Context, conversationID, title string) error {
-	return s.db.WithContext(ctx).Model(&model.Conversation{}).
+	return s.db.WithContext(ctx).Model(&conversationRow{}).
 		Where("conversation_id = ?", conversationID).
 		Update("title", title).Error
 }

@@ -12,7 +12,7 @@ import (
 
 // GetTeam returns the team by team_id, or (nil, nil) when not found.
 func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error) {
-	var team model.Team
+	var team teamRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).First(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -20,12 +20,12 @@ func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error)
 		}
 		return nil, err
 	}
-	return &team, nil
+	return toModelTeam(&team), nil
 }
 
 // GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
 func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*model.Team, error) {
-	var team model.Team
+	var team teamRow
 	err := s.db.WithContext(ctx).Where("personal_for_user_id = ?", userID).First(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -33,12 +33,12 @@ func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*mode
 		}
 		return nil, err
 	}
-	return &team, nil
+	return toModelTeam(&team), nil
 }
 
 // ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
 func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Team, error) {
-	var list []model.Team
+	var list []teamRow
 	err := s.db.WithContext(ctx).
 		Table("team").
 		Select("team.*").
@@ -46,7 +46,7 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 		Where("team_member.user_id = ?", userID).
 		Order("team.created_at ASC").
 		Find(&list).Error
-	return list, err
+	return toModelTeams(list), err
 }
 
 // CreateTeam creates a new team and owner membership.
@@ -66,11 +66,13 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 		Role:      model.TeamRoleOwner,
 		CreatedAt: now,
 	}
+	teamDB := fromModelTeam(team)
+	memberDB := fromModelTeamMember(member)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(team).Error; err != nil {
+		if err := tx.Create(teamDB).Error; err != nil {
 			return err
 		}
-		return tx.Create(member).Error
+		return tx.Create(memberDB).Error
 	})
 	if err != nil {
 		return nil, err
@@ -87,16 +89,16 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 		CreatedAt: time.Now().Unix(),
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing model.TeamMember
+		var existing teamMemberRow
 		findErr := tx.Where("team_id = ? AND user_id = ?", teamID, userID).First(&existing).Error
 		switch {
 		case errors.Is(findErr, gorm.ErrRecordNotFound):
-			return tx.Create(member).Error
+			return tx.Create(fromModelTeamMember(member)).Error
 		case findErr != nil:
 			return findErr
 		default:
 			existing.Role = role
-			member = &existing
+			member = toModelTeamMember(&existing)
 			return tx.Save(&existing).Error
 		}
 	})
@@ -110,17 +112,17 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID string) error {
 	return s.db.WithContext(ctx).
 		Where("team_id = ? AND user_id = ?", teamID, userID).
-		Delete(&model.TeamMember{}).Error
+		Delete(&teamMemberRow{}).Error
 }
 
 // ListTeamMembers returns members of the team ordered by created_at ASC.
 func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]model.TeamMember, error) {
-	var list []model.TeamMember
+	var list []teamMemberRow
 	err := s.db.WithContext(ctx).
 		Where("team_id = ?", teamID).
 		Order("created_at ASC").
 		Find(&list).Error
-	return list, err
+	return toModelTeamMembers(list), err
 }
 
 func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (string, error) {

@@ -12,7 +12,7 @@ import (
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.
 func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, error) {
-	var u model.User
+	var u userRow
 	err := s.db.WithContext(ctx).Where("email = ?", email).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -20,12 +20,12 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, err
 		}
 		return nil, err
 	}
-	return &u, nil
+	return toModelUser(&u), nil
 }
 
 // GetUser returns the user by user_id, or (nil, nil) when not found.
 func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error) {
-	var u model.User
+	var u userRow
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -33,13 +33,13 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error)
 		}
 		return nil, err
 	}
-	return &u, nil
+	return toModelUser(&u), nil
 }
 
 // UpdateLoginMeta records the last login timestamp and platform for the user.
 func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error {
 	return s.db.WithContext(ctx).
-		Model(&model.User{}).
+		Model(&userRow{}).
 		Where("user_id = ?", userID).
 		Updates(map[string]interface{}{
 			"last_login_at":       loginAt,
@@ -83,14 +83,17 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		Role:      model.TeamRoleOwner,
 		CreatedAt: u.CreatedAt,
 	}
+	userDB := fromModelUser(&u)
+	personalTeamDB := fromModelTeam(&personalTeam)
+	personalMemberDB := fromModelTeamMember(&personalMember)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&u).Error; err != nil {
+		if err := tx.Create(userDB).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&personalTeam).Error; err != nil {
+		if err := tx.Create(personalTeamDB).Error; err != nil {
 			return err
 		}
-		return tx.Create(&personalMember).Error
+		return tx.Create(personalMemberDB).Error
 	}); err != nil {
 		return nil, err
 	}
