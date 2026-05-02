@@ -128,7 +128,7 @@ func (s *Session) CreatedAt() time.Time {
 	return s.createdAt
 }
 
-// SetTitle sets the session title (for future use).
+// SetTitle sets the session title.
 func (s *Session) SetTitle(title string) {
 	s.title = title
 }
@@ -169,6 +169,23 @@ func SaveToDir(s *Session, dir string) error {
 	}
 	path := filepath.Join(dir, s.ID()+".json")
 	return os.WriteFile(path, data, 0644)
+}
+
+// PersistAfterReply runs the full "persist after reply" flow: ensure title from first user message,
+// save session to dir, build list entry from session and workspace, and upsert the list entry.
+// Returns the first error encountered.
+func PersistAfterReply(s *Session, dir, workspace string, maxTitleLen int) error {
+	EnsureTitleFromFirstUserMessage(s, maxTitleLen)
+	if err := SaveToDir(s, dir); err != nil {
+		return err
+	}
+	entry := ListEntry{
+		ID:        s.ID(),
+		Title:     s.Title(),
+		Workspace: workspace,
+		CreatedAt: s.CreatedAt().Format(time.RFC3339),
+	}
+	return UpsertListEntry(dir, entry)
 }
 
 // LoadFromDir reads dir/<sessionID>.json and returns a Session.

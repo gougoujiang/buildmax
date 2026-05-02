@@ -21,7 +21,7 @@ type ListEntry struct {
 }
 
 // LoadList reads dir/sessions.json and returns the list of entries.
-// If the file is missing, returns (nil, nil). If the file exists but is invalid JSON, returns a non-nil error.
+// If the file is missing, returns an empty slice and nil error. If the file exists but is invalid JSON, returns a non-nil error.
 func LoadList(dir string) ([]ListEntry, error) {
 	path := filepath.Join(dir, listFileName)
 	data, err := os.ReadFile(path)
@@ -116,23 +116,3 @@ func LastByCreatedAt(entries []ListEntry) *ListEntry {
 	return best
 }
 
-// EnsureTitleFromFirstUserMessage sets the session title from the first user message
-// if the title is empty and at least one user message exists, truncated to maxLen runes.
-// No-op otherwise.
-func EnsureTitleFromFirstUserMessage(s *Session, maxLen int) {
-	if s.Title() != "" {
-		return
-	}
-	msgs := s.Messages()
-	for _, m := range msgs {
-		if m.Role == "user" {
-			content := m.Content
-			runes := []rune(content)
-			if len(runes) > maxLen {
-				content = string(runes[:maxLen])
-			}
-			s.SetTitle(content)
-			return
-		}
-	}
-}
