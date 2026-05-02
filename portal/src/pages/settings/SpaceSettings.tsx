@@ -6,8 +6,8 @@ import {
   SpaceOverviewSection,
   type SpaceSection,
   useSettingsData,
-} from "./settings/shared"
-import { navigate } from "../router"
+} from "./shared"
+import { navigate } from "../../router"
 
 export function SpaceSettings({ section }: { section: SpaceSection }) {
   const [addMemberOpen, setAddMemberOpen] = useState(section === "memberNew")

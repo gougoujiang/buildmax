@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { Agent, Issue, IssueFlow, IssueFlowRun, Workflow } from "../lib/types"
-import type { ApiIssueFlowResponse, ApiTeamMember } from "../lib/api/types"
-import { navigate } from "../router"
-import { getErrorMessage } from "../lib/errorMessage"
+import type { Agent, Issue, IssueFlow, IssueFlowRun, Workflow } from "../../lib/types"
+import type { ApiIssueFlowResponse, ApiTeamMember } from "../../lib/api/types"
+import { navigate } from "../../router"
+import { getErrorMessage } from "../../lib/errorMessage"
 import {
   apiAgentToAgent,
   apiIssueToIssue,
@@ -10,12 +10,12 @@ import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowStepRunToWorkflowStepRun,
   apiWorkflowToWorkflow,
-} from "../lib/api/mappers"
-import { getAgents } from "../features/agents"
-import { getIssueFlow, runIssueAgent, updateIssue } from "../features/issues"
-import { getTeamMembers } from "../features/teams/api"
-import { getWorkflows, runIssueWorkflow } from "../features/workflows"
-import { useTeam } from "../contexts/TeamContext"
+} from "../../lib/api/mappers"
+import { getAgents } from "../../features/agents"
+import { getIssueFlow, runIssueAgent, updateIssue } from "../../features/issues"
+import { getTeamMembers } from "../../features/teams/api"
+import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
+import { useTeam } from "../../contexts/TeamContext"
 
 interface IssueDetailProps {
   token: string | null

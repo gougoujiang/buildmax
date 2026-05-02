@@ -1,6 +1,6 @@
 import type { Conversation } from "../lib/types"
 import { getErrorMessage } from "../lib/errorMessage"
-import { apiConversationToConversation } from "../lib/api"
+import { apiConversationToConversation } from "../lib/api/mappers"
 import { getConversations } from "../features/conversations"
 import { useAsyncList } from "./useAsyncList"
 

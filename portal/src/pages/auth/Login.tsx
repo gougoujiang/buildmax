@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { getErrorMessage } from "../lib/errorMessage"
-import { requestOtp, login } from "../features/auth"
-import { useAuth } from "../contexts/AuthContext"
+import { getErrorMessage } from "../../lib/errorMessage"
+import { requestOtp, login } from "../../features/auth"
+import { useAuth } from "../../contexts/AuthContext"
 
-export function SignUp() {
+export function Login() {
   const { login: setAuth } = useAuth()
   const [step, setStep] = useState<"email" | "otp">("email")
   const [email, setEmail] = useState("")
@@ -16,7 +16,7 @@ export function SignUp() {
     setError(null)
     setLoading(true)
     try {
-      await requestOtp(email, "signup")
+      await requestOtp(email, "login")
       setStep("otp")
     } catch (err) {
       setError(getErrorMessage(err, "Request failed"))
@@ -33,7 +33,7 @@ export function SignUp() {
       const res = await login(email, otp)
       setAuth(res.token, res.user)
     } catch (err) {
-      setError(getErrorMessage(err, "Sign up failed"))
+      setError(getErrorMessage(err, "Login failed"))
     } finally {
       setLoading(false)
     }
@@ -46,11 +46,11 @@ export function SignUp() {
           <h1 className="login-page__title">BuildMax</h1>
           <p className="login-page__subtitle">Enter OTP sent to {email}</p>
           <form onSubmit={handleSubmitOtp} className="login-page__form">
-            <label className="login-page__label" htmlFor="signup-otp">
+            <label className="login-page__label" htmlFor="login-otp">
               OTP
             </label>
             <input
-              id="signup-otp"
+              id="login-otp"
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -70,7 +70,7 @@ export function SignUp() {
               className="login-page__submit"
               disabled={loading}
             >
-              {loading ? "Signing up…" : "Sign up"}
+              {loading ? "Signing in…" : "Sign in"}
             </button>
             <button
               type="button"
@@ -86,7 +86,7 @@ export function SignUp() {
           </form>
         </div>
         <p className="login-page__footer">
-          Already have an account? <a href="#/login">Sign in</a>
+          <a href="#/signup">Sign up</a> for a new account
         </p>
       </div>
     )
@@ -96,13 +96,13 @@ export function SignUp() {
     <div className="login-page">
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
-        <p className="login-page__subtitle">Create an account</p>
+        <p className="login-page__subtitle">Sign in to continue</p>
         <form onSubmit={handleGetOtp} className="login-page__form">
-          <label className="login-page__label" htmlFor="signup-email">
+          <label className="login-page__label" htmlFor="login-email">
             Email
           </label>
           <input
-            id="signup-email"
+            id="login-email"
             type="email"
             className="login-page__input"
             value={email}
@@ -126,7 +126,7 @@ export function SignUp() {
         </form>
       </div>
       <p className="login-page__footer">
-        Already have an account? <a href="#/login">Sign in</a>
+        Don&apos;t have an account? <a href="#/signup">Sign up</a>
       </p>
     </div>
   )

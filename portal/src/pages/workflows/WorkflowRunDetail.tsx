@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Workflow, WorkflowRun, WorkflowStepRun } from "../lib/types"
-import { getErrorMessage } from "../lib/errorMessage"
+import type { Workflow, WorkflowRun, WorkflowStepRun } from "../../lib/types"
+import { getErrorMessage } from "../../lib/errorMessage"
 import {
   apiWorkflowRunToWorkflowRun,
   apiWorkflowStepRunToWorkflowStepRun,
   apiWorkflowToWorkflow,
-} from "../lib/api/mappers"
-import { getWorkflow, getWorkflowRunDetail } from "../features/workflows"
-import { navigate } from "../router"
-import { useTeam } from "../contexts/TeamContext"
+} from "../../lib/api/mappers"
+import { getWorkflow, getWorkflowRunDetail } from "../../features/workflows"
+import { navigate } from "../../router"
+import { useTeam } from "../../contexts/TeamContext"
 
 interface WorkflowRunDetailProps {
   token: string | null

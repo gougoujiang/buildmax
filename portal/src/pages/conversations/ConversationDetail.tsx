@@ -1,6 +1,6 @@
-import { useAuth } from "../contexts/AuthContext"
-import { useTeam } from "../contexts/TeamContext"
-import { ConversationDetailView, useConversationDetail } from "../features/conversations"
+import { useAuth } from "../../contexts/AuthContext"
+import { useTeam } from "../../contexts/TeamContext"
+import { ConversationDetailView, useConversationDetail } from "../../features/conversations"
 
 interface ConversationDetailProps {
   conversationId: string

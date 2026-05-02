@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Agent, Workflow, WorkflowRun } from "../lib/types"
-import { navigate } from "../router"
-import { getErrorMessage } from "../lib/errorMessage"
+import type { Agent, Workflow, WorkflowRun } from "../../lib/types"
+import { navigate } from "../../router"
+import { getErrorMessage } from "../../lib/errorMessage"
 import {
   apiAgentToAgent,
   apiWorkflowRunToWorkflowRun,
   apiWorkflowToWorkflow,
-} from "../lib/api/mappers"
-import { getAgents } from "../features/agents"
+} from "../../lib/api/mappers"
+import { getAgents } from "../../features/agents"
 import {
   getWorkflow,
   getWorkflowRuns,
   runWorkflow,
   updateWorkflow,
-} from "../features/workflows"
-import { useTeam } from "../contexts/TeamContext"
+} from "../../features/workflows"
+import { useTeam } from "../../contexts/TeamContext"
 
 interface WorkflowStepDraft {
   step_id: string

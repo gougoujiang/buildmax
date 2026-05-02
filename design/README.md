@@ -34,6 +34,7 @@ These docs still describe important current implementation foundations:
 - [015-portal-navigation-conversation-recent-refactor.md](./015-portal-navigation-conversation-recent-refactor.md)
 - [016-phase-5-enterprise-governance-foundation.md](./016-phase-5-enterprise-governance-foundation.md)
 - [017-team-scoped-files-upload-alignment.md](./017-team-scoped-files-upload-alignment.md)
+- [022-portal-src-maintainability-refactor.md](./022-portal-src-maintainability-refactor.md)
 
 ## Archive
 

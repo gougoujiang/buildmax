@@ -19,7 +19,7 @@ export function setStoredCurrentTeamId(teamId: string | null): void {
     }
     localStorage.removeItem(TEAM_KEY)
   } catch {
-    // ignore storage failures
+    // Storage may be unavailable in private or embedded browser contexts.
   }
 }
 

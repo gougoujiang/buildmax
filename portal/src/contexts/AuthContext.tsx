@@ -8,7 +8,7 @@ import {
 } from "react"
 import type { LoginUser } from "../lib/api"
 import { UNAUTHORIZED_EVENT } from "../lib/api"
-import { clearStoredCurrentTeamId } from "../features/teams/storage"
+import { clearStoredCurrentTeamId } from "../lib/storage/currentTeamStorage"
 
 const TOKEN_KEY = "buildmax_token"
 const USER_KEY = "buildmax_user"

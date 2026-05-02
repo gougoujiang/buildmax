@@ -5,8 +5,8 @@ import {
   SettingsUsageSection,
   type AccountSection,
   useSettingsData,
-} from "./settings/shared"
-import { navigate } from "../router"
+} from "./shared"
+import { navigate } from "../../router"
 
 export function AccountSettings({ section }: { section: AccountSection }) {
   const {

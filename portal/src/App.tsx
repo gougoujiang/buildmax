@@ -7,8 +7,8 @@ import { TeamProvider, useTeam } from "./contexts/TeamContext"
 import { Layout } from "./layout/Layout"
 import { AppRouter } from "./components/AppRouter"
 import { useConversations } from "./hooks/useConversations"
-import { Login } from "./pages/Login"
-import { SignUp } from "./pages/SignUp"
+import { Login } from "./pages/auth/Login"
+import { SignUp } from "./pages/auth/SignUp"
 import { navigate } from "./router"
 
 function AppContent() {

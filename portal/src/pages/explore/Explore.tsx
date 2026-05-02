@@ -1,4 +1,4 @@
-import { FilesPanel } from "../components/FilesPanel"
+import { FilesPanel } from "../../components/FilesPanel"
 
 export function Explore() {
   return (

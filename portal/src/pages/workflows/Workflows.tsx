@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { Agent, Workflow } from "../lib/types"
-import { navigate } from "../router"
-import { getErrorMessage } from "../lib/errorMessage"
+import type { Agent, Workflow } from "../../lib/types"
+import { navigate } from "../../router"
+import { getErrorMessage } from "../../lib/errorMessage"
 import {
   apiAgentToAgent,
   apiWorkflowToWorkflow,
-} from "../lib/api/mappers"
-import { getAgents } from "../features/agents"
+} from "../../lib/api/mappers"
+import { getAgents } from "../../features/agents"
 import {
   createWorkflow,
   getWorkflows,
-} from "../features/workflows"
-import { WorkflowModal } from "../components/WorkflowModal"
-import { useTeam } from "../contexts/TeamContext"
+} from "../../features/workflows"
+import { WorkflowModal } from "../../components/WorkflowModal"
+import { useTeam } from "../../contexts/TeamContext"
 
 interface WorkflowsProps {
   token: string | null

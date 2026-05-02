@@ -171,7 +171,7 @@ export function apiConversationToConversation(api: ApiConversation): Conversatio
     id: api.id,
     channel: api.channel,
     title: api.title?.trim() ?? "",
-    created_at: api.created_at,
+    createdAt: api.created_at,
     timeLabel: formatRelativeTime(api.created_at),
   }
 }

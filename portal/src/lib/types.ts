@@ -34,7 +34,7 @@ export interface Conversation {
   id: string
   channel: string
   title: string
-  created_at: number
+  createdAt: number
   timeLabel: string
 }
 

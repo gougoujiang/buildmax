@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Agent } from "../lib/types"
-import { navigate } from "../router"
-import { getErrorMessage } from "../lib/errorMessage"
-import { apiAgentToAgent } from "../lib/api"
-import { createConversation } from "../features/conversations"
+import type { Agent } from "../../lib/types"
+import { navigate } from "../../router"
+import { getErrorMessage } from "../../lib/errorMessage"
+import { apiAgentToAgent } from "../../lib/api/mappers"
+import { createConversation } from "../../features/conversations"
 import {
   getAgents,
   createAgent,
   updateAgent,
   deleteAgent,
-} from "../features/agents"
-import { useApp } from "../contexts/AppContext"
-import { AgentAvatar } from "../components/UserAvatar"
-import { CreateAgentModal } from "../components/CreateAgentModal"
-import { EditAgentModal } from "../components/EditAgentModal"
-import { NewConversationFromAgent } from "../components/NewConversationFromAgent"
-import { useTeam } from "../contexts/TeamContext"
+} from "../../features/agents"
+import { useApp } from "../../contexts/AppContext"
+import { AgentAvatar } from "../../components/UserAvatar"
+import { CreateAgentModal } from "../../components/CreateAgentModal"
+import { EditAgentModal } from "../../components/EditAgentModal"
+import { NewConversationFromAgent } from "../../components/NewConversationFromAgent"
+import { useTeam } from "../../contexts/TeamContext"
 
 interface AgentListProps {
   token: string | null

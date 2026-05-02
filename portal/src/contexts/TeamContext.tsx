@@ -14,7 +14,7 @@ import {
   clearStoredCurrentTeamId,
   getStoredCurrentTeamId,
   setStoredCurrentTeamId,
-} from "../features/teams/storage"
+} from "../lib/storage/currentTeamStorage"
 import { useAuth } from "./AuthContext"
 
 export interface TeamSummary {
