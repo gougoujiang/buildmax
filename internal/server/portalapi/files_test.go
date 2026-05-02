@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
@@ -86,7 +86,7 @@ func TestTeamScopedFilesHandlers(t *testing.T) {
 
 	h := NewHandler(Config{
 		JWTSecret:      filesTestSecret,
-		TeamStore:      &mock.MockTeamStore{Teams: []db.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamA, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: db.TeamRoleOwner}}},
+		TeamStore:      &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamA, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: model.TeamRoleOwner}}},
 		PersistStorage: persist,
 	})
 	mux := http.NewServeMux()

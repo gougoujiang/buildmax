@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
-	"buildmax/internal/infra/db"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
@@ -19,16 +19,16 @@ func TestListConversationTasksHandler(t *testing.T) {
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []db.Conversation{
+		Conversations: []model.Conversation{
 			{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
-	task1 := db.Task{TaskID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
-	task2 := db.Task{TaskID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := model.Task{TaskID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
+	task2 := model.Task{TaskID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
 
 	tests := []struct {
 		name         string
-		taskStore    db.TaskStore
+		taskStore    model.TaskStore
 		authHeader   string
 		path         string
 		wantStatus   int
@@ -55,7 +55,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned conversation empty list returns 200",
-			taskStore:    &mock.MockTaskStore{List: []db.Task{}},
+			taskStore:    &mock.MockTaskStore{List: []model.Task{}},
 			authHeader:   "Bearer " + util.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
@@ -64,7 +64,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned conversation with tasks returns 200",
-			taskStore:    &mock.MockTaskStore{List: []db.Task{task1, task2}},
+			taskStore:    &mock.MockTaskStore{List: []model.Task{task1, task2}},
 			authHeader:   "Bearer " + util.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
@@ -76,7 +76,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewHandler(Config{
 				JWTSecret:         secret,
-				TeamStore:         &mock.MockTeamStore{Teams: []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}}},
+				TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 				TaskStore:         tt.taskStore,
 				ConversationStore: mockConversations,
 			})
@@ -113,15 +113,15 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []db.Conversation{
+		Conversations: []model.Conversation{
 			{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
 
 	tests := []struct {
 		name         string
-		taskStore    db.TaskStore
-		agentStore   db.AgentStore
+		taskStore    model.TaskStore
+		agentStore   model.AgentStore
 		authHeader   string
 		path         string
 		body         string
@@ -159,7 +159,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		{
 			name: "valid body returns 201",
 			taskStore: &mock.MockTaskStore{
-				Create: &db.Task{
+				Create: &model.Task{
 					TaskID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
@@ -175,7 +175,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:      "create with agent_id composes input and returns 201",
 			taskStore: &mock.MockTaskStore{},
 			agentStore: &mock.MockAgentStore{
-				Agents: []db.Agent{
+				Agents: []model.Agent{
 					{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},
@@ -188,15 +188,15 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		},
 	}
 	denyChecker := quota.NewChecker(
-		&mock.DenyQuotaTeamStore{Team: &db.Team{TeamID: teamID, QuotaTier: "free_trial"}},
+		&mock.DenyQuotaTeamStore{Team: &model.Team{TeamID: teamID, QuotaTier: "free_trial"}},
 		&mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
-		&mock.DenyQuotaTierStore{Tier: &db.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		&mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		"free_trial",
 	)
 	tests = append(tests, struct {
 		name         string
-		taskStore    db.TaskStore
-		agentStore   db.AgentStore
+		taskStore    model.TaskStore
+		agentStore   model.AgentStore
 		authHeader   string
 		path         string
 		body         string
@@ -217,7 +217,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				JWTSecret:         secret,
-				TeamStore:         &mock.MockTeamStore{Teams: []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}}},
+				TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 				TaskStore:         tt.taskStore,
 				AgentStore:        tt.agentStore,
 				ConversationStore: mockConversations,

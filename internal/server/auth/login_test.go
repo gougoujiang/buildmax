@@ -7,17 +7,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 )
 
 func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"
-	userExists := &db.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	userExists := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 
 	tests := []struct {
 		name           string
-		userStore      db.UserStore
+		userStore      model.UserStore
 		jwtSecret      string
 		body           string
 		wantStatus     int
@@ -26,7 +26,7 @@ func TestLoginHandler(t *testing.T) {
 	}{
 		{
 			name:        "user found with valid otp returns 200 and token",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			jwtSecret:   secret,
 			body:        `{"email":"a@b.c","otp":"123456"}`,
 			wantStatus:  http.StatusOK,
@@ -34,7 +34,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:        "user found but wrong otp returns 401",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			jwtSecret:   secret,
 			body:        `{"email":"a@b.c","otp":"000000"}`,
 			wantStatus:  http.StatusUnauthorized,
@@ -42,7 +42,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:        "user found but missing otp returns 400",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			jwtSecret:   secret,
 			body:        `{"email":"a@b.c"}`,
 			wantStatus:  http.StatusBadRequest,
@@ -50,7 +50,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:        "user not found returns 401",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			jwtSecret:   secret,
 			body:        `{"email":"nobody@example.com","otp":"123456"}`,
 			wantStatus:  http.StatusUnauthorized,
@@ -58,14 +58,14 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:       "invalid body returns 400",
-			userStore:  &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:  &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			jwtSecret:  secret,
 			body:       `{`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "empty email returns 400",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			jwtSecret:   secret,
 			body:        `{"email":""}`,
 			wantStatus:  http.StatusBadRequest,

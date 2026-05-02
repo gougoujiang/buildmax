@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	blob "buildmax/internal/infra/objectstore"
 )
 
@@ -282,13 +282,13 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 		runArtifacts: filepath.Join(t.TempDir(), "artifacts"),
 		runGlobal:    filepath.Join(t.TempDir(), "global"),
 	}
-	task := &db.Task{
+	task := &model.Task{
 		TaskID:         "t1",
 		ConversationID: "c1",
 		TeamID:         "tm_shared",
 		CreatedBy:      "u_creator",
 	}
-	run := &db.TaskRun{TaskRunID: "r1"}
+	run := &model.TaskRun{TaskRunID: "r1"}
 
 	if err := prepareRunWorkspace(ctx, persist, task, run, dirs); err != nil {
 		t.Fatal(err)

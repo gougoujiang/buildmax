@@ -5,33 +5,33 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // MockTaskRunStore is an in-memory TaskRunStore for tests.
 type MockTaskRunStore struct {
-	Runs     []db.TaskRun
-	TaskList []db.Task
+	Runs     []model.TaskRun
+	TaskList []model.Task
 }
 
-func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*db.TaskRun, error) {
-	run := db.TaskRun{
+func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*model.TaskRun, error) {
+	run := model.TaskRun{
 		TaskRunID:     fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
 		TaskID:        taskID,
 		Input:         input,
 		CreatedBy:     createdBy,
 		CreatedByType: createdByType,
 		TriggerSource: triggerSource,
-		Status:        string(db.RunStatusPending),
+		Status:        string(model.RunStatusPending),
 		CreatedAt:     time.Now().Unix(),
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil
 }
-func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*db.TaskRun, error) {
+func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskRun, error) {
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*db.TaskRun, error) {
+func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*model.TaskRun, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == taskRunID {
 			return &m.Runs[i], nil
@@ -39,8 +39,8 @@ func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*db.
 	}
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*db.TaskRun, *db.Task, error) {
-	var run *db.TaskRun
+func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*model.TaskRun, *model.Task, error) {
+	var run *model.TaskRun
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == taskRunID {
 			run = &m.Runs[i]
@@ -50,7 +50,7 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	if run == nil {
 		return nil, nil, nil
 	}
-	var task *db.Task
+	var task *model.Task
 	for i := range m.TaskList {
 		if m.TaskList[i].TaskID == run.TaskID {
 			task = &m.TaskList[i]
@@ -59,7 +59,7 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	}
 	return run, task, nil
 }
-func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in db.ClaimTaskRunInput) (bool, error) {
+func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == in.TaskRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
 			m.Runs[i].Status = string(in.NewStatus)
@@ -74,7 +74,7 @@ func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in db.ClaimTaskRunI
 	}
 	return false, nil
 }
-func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in db.UpdateTaskRunInput) error {
+func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == in.TaskRunID {
 			m.Runs[i].Status = string(in.Status)

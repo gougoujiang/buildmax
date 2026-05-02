@@ -7,17 +7,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
 
 type mockConversationMessageStore struct {
-	messages []db.ConversationMessage
+	messages []model.ConversationMessage
 }
 
-func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*db.ConversationMessage, error) {
-	msg := db.ConversationMessage{
+func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*model.ConversationMessage, error) {
+	msg := model.ConversationMessage{
 		ConversationMessageID: "cm_mock",
 		ConversationID:        conversationID,
 		Role:                  role,
@@ -30,8 +30,8 @@ func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, conver
 	return &msg, nil
 }
 
-func (m *mockConversationMessageStore) ListMessages(ctx context.Context, conversationID string) ([]db.ConversationMessage, error) {
-	var out []db.ConversationMessage
+func (m *mockConversationMessageStore) ListMessages(ctx context.Context, conversationID string) ([]model.ConversationMessage, error) {
+	var out []model.ConversationMessage
 	for _, msg := range m.messages {
 		if msg.ConversationID == conversationID {
 			out = append(out, msg)
@@ -46,7 +46,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	teamID := "tm_personal_u1"
 	channel := "system"
 	messageStore := &mockConversationMessageStore{
-		messages: []db.ConversationMessage{
+		messages: []model.ConversationMessage{
 			{ConversationMessageID: "cm_1", ConversationID: conversationID, Role: "user", Content: "hello", CreatedAt: 1},
 			{ConversationMessageID: "cm_tool", ConversationID: conversationID, Role: "tool", Content: "tool output", CreatedAt: 2},
 			{ConversationMessageID: "cm_2", ConversationID: conversationID, Role: "system", Content: "[Task Result] internal", Channel: &channel, CreatedAt: 2},
@@ -56,11 +56,11 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	h := NewHandler(Config{
 		JWTSecret: secret,
 		TeamStore: &mock.MockTeamStore{
-			Teams:   []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
-			Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}},
+			Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
+			Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
 		},
 		ConversationStore: &mock.MockConversationStore{
-			Conversations: []db.Conversation{
+			Conversations: []model.Conversation{
 				{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 			},
 		},

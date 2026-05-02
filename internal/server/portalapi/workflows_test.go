@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
@@ -17,35 +17,35 @@ const workflowTestSecret = "workflow-test-secret"
 func TestWorkflowHandlers(t *testing.T) {
 	teamID := "tm_personal_u1"
 	workflowStore := &mock.MockWorkflowStore{
-		Workflows: []db.Workflow{{
+		Workflows: []model.Workflow{{
 			WorkflowID:  "w_1",
 			TeamID:      teamID,
 			Name:        "WF",
 			Description: "desc",
 			Definition:  `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`,
-			Status:      db.WorkflowStatusPublished,
+			Status:      model.WorkflowStatusPublished,
 			CreatedBy:   "u1",
 			CreatedAt:   100,
 			UpdatedAt:   100,
 		}},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []db.Agent{{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
+		Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
-		Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: teamID, UserID: "u2", Role: db.TeamRoleMember}, {TeamID: teamID, UserID: "u3", Role: db.TeamRoleAdmin}},
+		Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
+		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamID, UserID: "u2", Role: model.TeamRoleMember}, {TeamID: teamID, UserID: "u3", Role: model.TeamRoleAdmin}},
 	}
 	taskStore := &mock.MockTaskStore{}
 	issueStore := &mock.MockIssueStore{
-		Issues: []db.Issue{{
+		Issues: []model.Issue{{
 			IssueID:      "i_1",
 			UserID:       "u1",
 			TeamID:       teamID,
 			Title:        "Issue",
 			Description:  "Desc",
-			Status:       db.IssueStatusTodo,
-			AssigneeKind: util.PtrString(db.IssueAssigneeWorkflow),
+			Status:       model.IssueStatusTodo,
+			AssigneeKind: util.PtrString(model.IssueAssigneeWorkflow),
 			AssigneeID:   util.PtrString("w_1"),
 			CreatedBy:    "u1",
 		}},
@@ -92,8 +92,8 @@ func TestWorkflowHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if out.Status != db.WorkflowStatusDraft {
-			t.Fatalf("workflow status = %q, want %q", out.Status, db.WorkflowStatusDraft)
+		if out.Status != model.WorkflowStatusDraft {
+			t.Fatalf("workflow status = %q, want %q", out.Status, model.WorkflowStatusDraft)
 		}
 	})
 

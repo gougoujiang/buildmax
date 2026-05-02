@@ -16,7 +16,6 @@ import (
 	"buildmax/internal/core/quota"
 	taskapp "buildmax/internal/core/task"
 	workflowapp "buildmax/internal/core/workflow"
-	llm "buildmax/internal/infra/llm"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/auth"
 	"buildmax/internal/server/httputil"
@@ -87,7 +86,7 @@ type ConversationConfig struct {
 	TitleGenerator           TitleGenerator
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
-	ConversationLLMCaller    llm.LLMCaller
+	ConversationLLMCaller    model.LLMCaller
 }
 
 // WebhookConfig holds webhook handler options (message path and optional user ID for created runs).

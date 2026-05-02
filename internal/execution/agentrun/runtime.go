@@ -45,7 +45,7 @@ type OpenInput struct {
 // RunInput configures one agent run.
 type RunInput struct {
 	Prompt string
-	Stream llm.StreamSink
+	Stream model.StreamSink
 }
 
 // RunOutput is the result of one agent run.
@@ -199,7 +199,7 @@ func (r *Runtime) RunPrompt(ctx context.Context, in RunInput) (RunOutput, error)
 	}
 
 	if r.Session.Title() == "" {
-		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
 			content, _, usage, err := r.LLMClient.ChatWithTools(ctx, msgs, nil)
 			return content, usage, err
 		})

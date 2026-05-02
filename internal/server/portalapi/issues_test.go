@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
@@ -20,14 +20,14 @@ func TestIssueHandlers(t *testing.T) {
 	otherTeamID := "tm_other"
 	workflowID := "w_1"
 	store := &mock.MockIssueStore{
-		Issues: []db.Issue{
+		Issues: []model.Issue{
 			{
 				IssueID:      "i_1",
 				UserID:       "u1",
 				TeamID:       personalTeamID,
 				Title:        "Initial issue",
 				Description:  "Initial description",
-				Status:       db.IssueStatusTodo,
+				Status:       model.IssueStatusTodo,
 				CreatedBy:    "u1",
 				CreatedAt:    100,
 				UpdatedAt:    100,
@@ -37,22 +37,22 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	agents := &mock.MockAgentStore{
-		Agents: []db.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
+		Agents: []model.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
 	workflows := &mock.MockWorkflowStore{
-		Workflows: []db.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: db.WorkflowStatusPublished}},
+		Workflows: []model.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: model.WorkflowStatusPublished}},
 	}
 	tasks := &mock.MockTaskStore{}
 	teams := &mock.MockTeamStore{
-		Teams: []db.Team{
+		Teams: []model.Team{
 			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"},
 			{TeamID: otherTeamID, Name: "Other", CreatedBy: "u2"},
 		},
-		Members: []db.TeamMember{
-			{TeamID: personalTeamID, UserID: "u1", Role: db.TeamRoleOwner},
-			{TeamID: personalTeamID, UserID: "u2", Role: db.TeamRoleMember},
-			{TeamID: personalTeamID, UserID: "u3", Role: db.TeamRoleAdmin},
-			{TeamID: otherTeamID, UserID: "u2", Role: db.TeamRoleOwner},
+		Members: []model.TeamMember{
+			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner},
+			{TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember},
+			{TeamID: personalTeamID, UserID: "u3", Role: model.TeamRoleAdmin},
+			{TeamID: otherTeamID, UserID: "u2", Role: model.TeamRoleOwner},
 		},
 	}
 	h := NewHandler(Config{
@@ -97,7 +97,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode create: %v", err)
 		}
-		if out.Title != "New issue" || out.Status != db.IssueStatusTodo {
+		if out.Title != "New issue" || out.Status != model.IssueStatusTodo {
 			t.Fatalf("created = %+v", out)
 		}
 		if out.TeamID != personalTeamID {
@@ -139,7 +139,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode patch: %v", err)
 		}
-		if out.Status != db.IssueStatusInProgress || out.AssigneeKind == nil || *out.AssigneeKind != db.IssueAssigneeAgent {
+		if out.Status != model.IssueStatusInProgress || out.AssigneeKind == nil || *out.AssigneeKind != model.IssueAssigneeAgent {
 			t.Fatalf("patched = %+v", out)
 		}
 	})
@@ -209,7 +209,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode patch: %v", err)
 		}
-		if out.AssigneeKind == nil || *out.AssigneeKind != db.IssueAssigneeWorkflow {
+		if out.AssigneeKind == nil || *out.AssigneeKind != model.IssueAssigneeWorkflow {
 			t.Fatalf("patched = %+v", out)
 		}
 	})

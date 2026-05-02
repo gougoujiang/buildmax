@@ -8,7 +8,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // fakeJobCreator records the last created Job for tests.
@@ -24,7 +24,7 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, fake)
-	run := db.TaskRun{TaskRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
+	run := model.TaskRun{TaskRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
 
 	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run)
 	if err != nil {

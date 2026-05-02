@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 )
 
@@ -8,7 +9,7 @@ const chatInputSnippetMaxLen = 200
 
 // ListRunOutputsByConversation returns run outputs (artifacts) in the conversation, optionally filtered by task_id.
 // Order: run created_at DESC. ArtifactID in the result is task_run_id for API compatibility.
-func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]ArtifactWithTask, error) {
+func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error) {
 	q := `SELECT r.task_run_id AS artifact_id, r.task_id, r.task_run_id, c.conversation_id, v.user_id, r.created_at, LEFT(r.input, ?) AS task_input_snippet
 		FROM task_run_artifact o
 		JOIN task_run r ON o.task_run_id = r.task_run_id
@@ -21,14 +22,14 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 		args = append(args, *taskID)
 	}
 	q += ` GROUP BY r.task_run_id, r.task_id, c.conversation_id, v.user_id, r.created_at, r.input ORDER BY r.created_at DESC`
-	var out []ArtifactWithTask
+	var out []model.ArtifactWithTask
 	err := s.db.WithContext(ctx).Raw(q, args...).Scan(&out).Error
 	return out, err
 }
 
 // GetTaskRunOutputFiles returns all artifact rows for the given task_run_id, ordered by relative_path.
-func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]TaskRunArtifact, error) {
-	var items []TaskRunArtifact
+func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error) {
+	var items []model.TaskRunArtifact
 	err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Order("relative_path ASC").Find(&items).Error
 	return items, err
 }
@@ -36,7 +37,7 @@ func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]
 // TaskRunHasOutput returns true if the run has at least one output file (and thus is a valid "artifact" for content).
 func (s *Store) TaskRunHasOutput(ctx context.Context, taskRunID string) (bool, error) {
 	var n int64
-	err := s.db.WithContext(ctx).Model(&TaskRunArtifact{}).Where("task_run_id = ?", taskRunID).Limit(1).Count(&n).Error
+	err := s.db.WithContext(ctx).Model(&model.TaskRunArtifact{}).Where("task_run_id = ?", taskRunID).Limit(1).Count(&n).Error
 	if err != nil {
 		return false, err
 	}

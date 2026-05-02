@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // MockTeamStore is an in-memory TeamStore for tests.
 type MockTeamStore struct {
-	Teams   []db.Team
-	Members []db.TeamMember
+	Teams   []model.Team
+	Members []model.TeamMember
 }
 
-func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*db.Team, error) {
+func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*model.Team, error) {
 	for i := range m.Teams {
 		if m.Teams[i].TeamID == teamID {
 			return &m.Teams[i], nil
@@ -23,7 +23,7 @@ func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*db.Team, err
 	return nil, nil
 }
 
-func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) (*db.Team, error) {
+func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) (*model.Team, error) {
 	for i := range m.Teams {
 		if m.Teams[i].PersonalForUserID != nil && *m.Teams[i].PersonalForUserID == userID {
 			return &m.Teams[i], nil
@@ -32,8 +32,8 @@ func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) 
 	return nil, nil
 }
 
-func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]db.Team, error) {
-	var out []db.Team
+func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]model.Team, error) {
+	var out []model.Team
 	for _, member := range m.Members {
 		if member.UserID != userID {
 			continue
@@ -47,9 +47,9 @@ func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]db.
 	return out, nil
 }
 
-func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*db.Team, error) {
+func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
 	id := fmt.Sprintf("tm_%d", len(m.Teams)+1)
-	team := db.Team{
+	team := model.Team{
 		TeamID:    id,
 		Name:      name,
 		QuotaTier: quotaTier,
@@ -58,23 +58,23 @@ func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier
 		UpdatedAt: time.Now().Unix(),
 	}
 	m.Teams = append(m.Teams, team)
-	m.Members = append(m.Members, db.TeamMember{
+	m.Members = append(m.Members, model.TeamMember{
 		TeamID:    id,
 		UserID:    createdBy,
-		Role:      db.TeamRoleOwner,
+		Role:      model.TeamRoleOwner,
 		CreatedAt: time.Now().Unix(),
 	})
 	return &m.Teams[len(m.Teams)-1], nil
 }
 
-func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role string) (*db.TeamMember, error) {
+func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role string) (*model.TeamMember, error) {
 	for i := range m.Members {
 		if m.Members[i].TeamID == teamID && m.Members[i].UserID == userID {
 			m.Members[i].Role = role
 			return &m.Members[i], nil
 		}
 	}
-	member := db.TeamMember{
+	member := model.TeamMember{
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
@@ -96,8 +96,8 @@ func (m *MockTeamStore) RemoveTeamMember(_ context.Context, teamID, userID strin
 	return nil
 }
 
-func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]db.TeamMember, error) {
-	var out []db.TeamMember
+func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]model.TeamMember, error) {
+	var out []model.TeamMember
 	for _, member := range m.Members {
 		if member.TeamID == teamID {
 			out = append(out, member)

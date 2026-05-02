@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
-	"buildmax/internal/infra/db"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
@@ -19,16 +19,16 @@ func TestUsageHandler(t *testing.T) {
 	userID := "u1"
 	teamID := "tm_personal_u1"
 	teamStore := &mock.MockTeamStore{
-		Teams: []db.Team{
+		Teams: []model.Team{
 			{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().Unix()},
 		},
-		Members: []db.TeamMember{
-			{TeamID: teamID, UserID: userID, Role: db.TeamRoleOwner, CreatedAt: time.Now().Unix()},
+		Members: []model.TeamMember{
+			{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner, CreatedAt: time.Now().Unix()},
 		},
 	}
 	usageReader := &mock.MockUsageReader{RunCount: 2, TotalTokens: 5000}
 	tierStore := &mock.MockTierStore{
-		Tier: &db.QuotaTier{
+		Tier: &model.QuotaTier{
 			TierName:           "free_trial",
 			MaxRunsPerPeriod:   10,
 			MaxTokensPerPeriod: 100_000,

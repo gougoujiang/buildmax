@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"errors"
 	"time"
@@ -10,8 +11,8 @@ import (
 )
 
 // GetTeam returns the team by team_id, or (nil, nil) when not found.
-func (s *Store) GetTeam(ctx context.Context, teamID string) (*Team, error) {
-	var team Team
+func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error) {
+	var team model.Team
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).First(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -23,8 +24,8 @@ func (s *Store) GetTeam(ctx context.Context, teamID string) (*Team, error) {
 }
 
 // GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
-func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*Team, error) {
-	var team Team
+func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*model.Team, error) {
+	var team model.Team
 	err := s.db.WithContext(ctx).Where("personal_for_user_id = ?", userID).First(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -36,8 +37,8 @@ func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*Team
 }
 
 // ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
-func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]Team, error) {
-	var list []Team
+func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Team, error) {
+	var list []model.Team
 	err := s.db.WithContext(ctx).
 		Table("team").
 		Select("team.*").
@@ -49,9 +50,9 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]Team, err
 }
 
 // CreateTeam creates a new team and owner membership.
-func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*Team, error) {
+func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
 	now := time.Now().Unix()
-	team := &Team{
+	team := &model.Team{
 		TeamID:    util.NewPrefixedID(util.PrefixTeam),
 		Name:      name,
 		QuotaTier: quotaTier,
@@ -59,10 +60,10 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	member := &TeamMember{
+	member := &model.TeamMember{
 		TeamID:    team.TeamID,
 		UserID:    createdBy,
-		Role:      TeamRoleOwner,
+		Role:      model.TeamRoleOwner,
 		CreatedAt: now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -78,15 +79,15 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 }
 
 // AddTeamMember adds or updates a team membership.
-func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) (*TeamMember, error) {
-	member := &TeamMember{
+func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) (*model.TeamMember, error) {
+	member := &model.TeamMember{
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
 		CreatedAt: time.Now().Unix(),
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing TeamMember
+		var existing model.TeamMember
 		findErr := tx.Where("team_id = ? AND user_id = ?", teamID, userID).First(&existing).Error
 		switch {
 		case errors.Is(findErr, gorm.ErrRecordNotFound):
@@ -109,12 +110,12 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID string) error {
 	return s.db.WithContext(ctx).
 		Where("team_id = ? AND user_id = ?", teamID, userID).
-		Delete(&TeamMember{}).Error
+		Delete(&model.TeamMember{}).Error
 }
 
 // ListTeamMembers returns members of the team ordered by created_at ASC.
-func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember, error) {
-	var list []TeamMember
+func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]model.TeamMember, error) {
+	var list []model.TeamMember
 	err := s.db.WithContext(ctx).
 		Where("team_id = ?", teamID).
 		Order("created_at ASC").

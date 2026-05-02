@@ -36,7 +36,7 @@ type wsConn struct {
 	cancel context.CancelFunc
 }
 
-// wsSink implements llm.StreamSink by sending conversation.message.delta events.
+// wsSink implements model.StreamSink by sending conversation.message.delta events.
 type wsSink struct {
 	c              *wsConn
 	conversationID string

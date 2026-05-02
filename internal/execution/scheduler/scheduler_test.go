@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // spyTaskRunStore records UpdateTaskRunStatus and SyncTaskFromRun calls for tests.
@@ -15,7 +15,7 @@ type spyTaskRunStore struct {
 	mu sync.Mutex
 
 	// GetNextPendingTaskRun: return one run on first call, nil thereafter
-	pendingRun   *db.TaskRun
+	pendingRun   *model.TaskRun
 	pendingCalls int
 
 	// UpdateTaskRunStatusIf: return true for first claim (PENDING→SCHEDULED)
@@ -33,7 +33,7 @@ type spyTaskRunStore struct {
 
 func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
 	return &spyTaskRunStore{
-		pendingRun: &db.TaskRun{
+		pendingRun: &model.TaskRun{
 			TaskRunID: chatRunID,
 			TaskID:    "t_test",
 			Input:     "input",
@@ -43,11 +43,11 @@ func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
 	}
 }
 
-func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _, _, _ string) (*db.TaskRun, error) {
+func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _, _, _ string) (*model.TaskRun, error) {
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*db.TaskRun, error) {
+func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pendingCalls++
@@ -57,25 +57,25 @@ func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*db.TaskRun,
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*db.TaskRun, error) {
+func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*model.TaskRun, error) {
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*db.TaskRun, *db.Task, error) {
+func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*model.TaskRun, *model.Task, error) {
 	return nil, nil, nil
 }
 
-func (s *spyTaskRunStore) ClaimTaskRun(_ context.Context, in db.ClaimTaskRunInput) (bool, error) {
+func (s *spyTaskRunStore) ClaimTaskRun(_ context.Context, in model.ClaimTaskRunInput) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.statusIfCalls++
-	if s.statusIfCalls == 1 && in.ExpectedStatus == db.RunStatusPending && in.NewStatus == db.RunStatusScheduled {
+	if s.statusIfCalls == 1 && in.ExpectedStatus == model.RunStatusPending && in.NewStatus == model.RunStatusScheduled {
 		return true, nil
 	}
 	return false, nil
 }
 
-func (s *spyTaskRunStore) UpdateRun(_ context.Context, in db.UpdateTaskRunInput) error {
+func (s *spyTaskRunStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInput) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastUpdateStatus = &struct {
@@ -105,7 +105,7 @@ func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, chatRunID string) e
 // failingRunner implements WorkerRunner and always returns an error.
 type failingRunner struct{ err error }
 
-func (f *failingRunner) Run(_ context.Context, _ db.TaskRun) (string, *string, *int64, error) {
+func (f *failingRunner) Run(_ context.Context, _ model.TaskRun) (string, *string, *int64, error) {
 	if f.err != nil {
 		return "", nil, nil, f.err
 	}

@@ -6,65 +6,65 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 )
 
 func TestOtpRequestHandler(t *testing.T) {
-	userExists := &db.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	userExists := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 
 	tests := []struct {
 		name        string
-		userStore   db.UserStore
+		userStore   model.UserStore
 		body        string
 		wantStatus  int
 		wantBodyHas string
 	}{
 		{
 			name:        "signup new user returns 200",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:        `{"email":"new@example.com","intent":"signup"}`,
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "signup existing email returns 409",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			body:        `{"email":"a@b.c","intent":"signup"}`,
 			wantStatus:  http.StatusConflict,
 			wantBodyHas: "email already registered",
 		},
 		{
 			name:        "login unknown email returns 404",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:        `{"email":"nobody@example.com","intent":"login"}`,
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "user not found",
 		},
 		{
 			name:        "login existing user returns 200",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			body:        `{"email":"a@b.c","intent":"login"}`,
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "default intent signup creates user",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:        `{"email":"default@example.com"}`,
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "otp_sent",
 		},
 		{
 			name:        "empty email returns 400",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:        `{"email":"","intent":"signup"}`,
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "email required",
 		},
 		{
 			name:       "invalid body returns 400",
-			userStore:  &mock.MockUserStore{ByEmail: map[string]*db.User{}},
+			userStore:  &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:       `{`,
 			wantStatus: http.StatusBadRequest,
 		},

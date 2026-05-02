@@ -1,12 +1,12 @@
 package tui
 
 import (
+	"buildmax/internal/core/model"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	llm "buildmax/internal/infra/llm"
 	mcp "buildmax/internal/infra/mcp"
 	"buildmax/internal/session"
 
@@ -16,30 +16,30 @@ import (
 func TestFormatMessage(t *testing.T) {
 	tests := []struct {
 		name     string
-		msg      llm.Message
+		msg      model.Message
 		wantSub  []string // each must appear in the joined output
 		dontWant []string // none of these should appear
 	}{
 		{
 			name: "user message",
-			msg:  llm.Message{Role: "user", Content: "hello"},
+			msg:  model.Message{Role: "user", Content: "hello"},
 			wantSub: []string{
 				"hello",
 			},
 		},
 		{
 			name: "assistant message",
-			msg:  llm.Message{Role: "assistant", Content: "Hi there"},
+			msg:  model.Message{Role: "assistant", Content: "Hi there"},
 			wantSub: []string{
 				"Hi there",
 			},
 		},
 		{
 			name: "assistant with tool_calls",
-			msg: llm.Message{
+			msg: model.Message{
 				Role:    "assistant",
 				Content: "Reading the file.",
-				ToolCalls: []llm.ToolCall{
+				ToolCalls: []model.ToolCall{
 					{ID: "1", Name: "read_file", Arguments: `{"path":"/user/test/log.txt"}`},
 				},
 			},
@@ -52,7 +52,7 @@ func TestFormatMessage(t *testing.T) {
 		},
 		{
 			name: "tool message",
-			msg:  llm.Message{Role: "tool", Content: "file contents here"},
+			msg:  model.Message{Role: "tool", Content: "file contents here"},
 			wantSub: []string{
 				" * result:",
 			},
@@ -81,8 +81,8 @@ func TestBuildViewportContent(t *testing.T) {
 	// buildViewportContent is in the same package and takes *session.Session
 	// We can test via the session package
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "user", Content: "hi"})
-	sess.Append(llm.Message{Role: "assistant", Content: "Hello!"})
+	sess.Append(model.Message{Role: "user", Content: "hi"})
+	sess.Append(model.Message{Role: "assistant", Content: "Hello!"})
 
 	content := buildViewportContent(sess, ViewportContentOpts{Version: "0.0.1", Width: 80})
 	if !strings.Contains(content, "v0.0.1") {
@@ -104,8 +104,8 @@ func TestBuildViewportContent(t *testing.T) {
 
 func TestBuildViewportContent_Margin(t *testing.T) {
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "user", Content: "hi"})
-	sess.Append(llm.Message{Role: "assistant", Content: "Hello!"})
+	sess.Append(model.Message{Role: "user", Content: "hi"})
+	sess.Append(model.Message{Role: "assistant", Content: "Hello!"})
 	content := buildViewportContent(sess, ViewportContentOpts{Width: 80})
 	// After banner, message lines must start with left margin (two spaces) before ">" or "•".
 	lines := strings.Split(content, "\n")
@@ -127,7 +127,7 @@ func TestBuildViewportContent_WrapByContentWidth(t *testing.T) {
 	// Long plain line: with width 80 and margins, content width is 74. First line of assistant message should have many visible chars (no early ANSI wrap).
 	longLine := strings.Repeat("a", 100)
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "assistant", Content: longLine})
+	sess.Append(model.Message{Role: "assistant", Content: longLine})
 	content := buildViewportContent(sess, ViewportContentOpts{Width: 80})
 	lines := strings.Split(content, "\n")
 	var firstBulletLine string
@@ -148,7 +148,7 @@ func TestBuildViewportContent_WrapByContentWidth(t *testing.T) {
 
 func TestBuildViewportContent_BusyCarousel(t *testing.T) {
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "user", Content: "hi"})
+	sess.Append(model.Message{Role: "user", Content: "hi"})
 	content := buildViewportContent(sess, ViewportContentOpts{Width: 80, Busy: true})
 	if !strings.Contains(content, "•") {
 		t.Errorf("buildViewportContent(busy=true) should contain • for carousel, got: %s", content)
@@ -197,7 +197,7 @@ func TestModelFocusToggle(t *testing.T) {
 
 func TestViewKeepsFooterAtBottom(t *testing.T) {
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "assistant", Content: "short"})
+	sess.Append(model.Message{Role: "assistant", Content: "short"})
 	m := NewModel(TUIOpts{
 		Session:   sess,
 		ModelName: "test-model",
@@ -228,7 +228,7 @@ func TestViewKeepsFooterAtBottom(t *testing.T) {
 func TestViewportScrollShowsOlderMessages(t *testing.T) {
 	sess := session.NewSession("")
 	for i := 0; i < 8; i++ {
-		sess.Append(llm.Message{Role: "assistant", Content: strings.Repeat(string(rune('A'+i)), 18)})
+		sess.Append(model.Message{Role: "assistant", Content: strings.Repeat(string(rune('A'+i)), 18)})
 	}
 	m := NewModel(TUIOpts{
 		Session: sess,
@@ -261,7 +261,7 @@ func TestViewportScrollShowsOlderMessages(t *testing.T) {
 
 func TestMouseWheelOverInputScrollsTextareaInsteadOfChat(t *testing.T) {
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "assistant", Content: "chat-bottom"})
+	sess.Append(model.Message{Role: "assistant", Content: "chat-bottom"})
 
 	m := NewModel(TUIOpts{
 		Session: sess,

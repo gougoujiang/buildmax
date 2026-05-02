@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"errors"
 	"time"
@@ -35,23 +36,23 @@ func buildTaskRunUpdates(status string, startedAt, endedAt *int64, output, error
 	return updates
 }
 
-// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
-func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*TaskRun, error) {
+// CreateTaskRun creates a new run (PENDING). Returns model.ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
+func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*model.TaskRun, error) {
 	var inProgress int64
-	err := s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_id = ? AND status IN ?", taskID, []string{"PENDING", "SCHEDULED", "RUNNING"}).Count(&inProgress).Error
+	err := s.db.WithContext(ctx).Model(&model.TaskRun{}).Where("task_id = ? AND status IN ?", taskID, []string{"PENDING", "SCHEDULED", "RUNNING"}).Count(&inProgress).Error
 	if err != nil {
 		return nil, err
 	}
 	if inProgress > 0 {
-		return nil, ErrRunInProgress
+		return nil, model.ErrRunInProgress
 	}
-	run := &TaskRun{
+	run := &model.TaskRun{
 		TaskRunID:     util.NewPrefixedID(util.PrefixTaskRun),
 		TaskID:        taskID,
 		Input:         input,
 		CreatedBy:     createdBy,
-		CreatedByType: defaultString(createdByType, RunCreatedByTypeUser),
-		TriggerSource: defaultString(triggerSource, RunTriggerSourceTaskRerun),
+		CreatedByType: defaultString(createdByType, model.RunCreatedByTypeUser),
+		TriggerSource: defaultString(triggerSource, model.RunTriggerSourceTaskRerun),
 		Status:        "PENDING",
 		CreatedAt:     time.Now().Unix(),
 	}
@@ -62,8 +63,8 @@ func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, cre
 }
 
 // GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
-func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error) {
-	var r TaskRun
+func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*model.TaskRun, error) {
+	var r model.TaskRun
 	err := s.db.WithContext(ctx).Where("status = ?", "PENDING").Order("created_at ASC").First(&r).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -75,8 +76,8 @@ func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error) {
 }
 
 // GetTaskRun returns the run by task_run_id, or (nil, nil) if not found.
-func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error) {
-	var r TaskRun
+func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*model.TaskRun, error) {
+	var r model.TaskRun
 	err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).First(&r).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -88,7 +89,7 @@ func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, err
 }
 
 // GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
-func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*TaskRun, *Task, error) {
+func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*model.TaskRun, *model.Task, error) {
 	run, err := s.GetTaskRun(ctx, taskRunID)
 	if err != nil || run == nil {
 		return nil, nil, err
@@ -101,27 +102,27 @@ func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*Task
 }
 
 // ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
-func (s *Store) ClaimTaskRun(ctx context.Context, in ClaimTaskRunInput) (bool, error) {
-	result := s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_run_id = ? AND status = ?", in.TaskRunID, string(in.ExpectedStatus)).Updates(
+func (s *Store) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
+	result := s.db.WithContext(ctx).Model(&model.TaskRun{}).Where("task_run_id = ? AND status = ?", in.TaskRunID, string(in.ExpectedStatus)).Updates(
 		buildTaskRunUpdates(string(in.NewStatus), in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID, nil, nil),
 	)
 	if result.Error != nil {
 		return false, result.Error
 	}
-	if result.RowsAffected == 1 && (in.NewStatus == RunStatusPending || in.NewStatus == RunStatusScheduled || in.NewStatus == RunStatusRunning) {
+	if result.RowsAffected == 1 && (in.NewStatus == model.RunStatusPending || in.NewStatus == model.RunStatusScheduled || in.NewStatus == model.RunStatusRunning) {
 		_ = s.syncTaskStatusFromRun(ctx, in.TaskRunID, string(in.NewStatus), in.StartedAt, nil)
 	}
 	return result.RowsAffected == 1, nil
 }
 
 // UpdateRun updates a run's status and optional fields.
-func (s *Store) UpdateRun(ctx context.Context, in UpdateTaskRunInput) error {
-	if err := s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_run_id = ?", in.TaskRunID).Updates(
+func (s *Store) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
+	if err := s.db.WithContext(ctx).Model(&model.TaskRun{}).Where("task_run_id = ?", in.TaskRunID).Updates(
 		buildTaskRunUpdates(string(in.Status), in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID, in.PromptTokens, in.CompletionTokens),
 	).Error; err != nil {
 		return err
 	}
-	if in.Status == RunStatusPending || in.Status == RunStatusScheduled || in.Status == RunStatusRunning {
+	if in.Status == model.RunStatusPending || in.Status == model.RunStatusScheduled || in.Status == model.RunStatusRunning {
 		_ = s.syncTaskStatusFromRun(ctx, in.TaskRunID, string(in.Status), in.StartedAt, in.EndedAt)
 	}
 	return nil
@@ -129,7 +130,7 @@ func (s *Store) UpdateRun(ctx context.Context, in UpdateTaskRunInput) error {
 
 // syncTaskStatusFromRun updates the task row (denormalized status) for the run's task_id to match the run's status.
 func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status string, startedAt, endedAt *int64) error {
-	var run TaskRun
+	var run model.TaskRun
 	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Select("task_id").First(&run).Error; err != nil {
 		return err
 	}
@@ -145,7 +146,7 @@ func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status str
 			taskUpdates["ended_at"] = *endedAt
 		}
 	}
-	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(taskUpdates).Error
+	return s.db.WithContext(ctx).Model(&model.Task{}).Where("task_id = ?", run.TaskID).Updates(taskUpdates).Error
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.
@@ -157,7 +158,7 @@ func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerTy
 	if k8sJobCreatedAt != nil {
 		updates["k8s_job_created_at"] = *k8sJobCreatedAt
 	}
-	return s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_run_id = ?", taskRunID).Updates(updates).Error
+	return s.db.WithContext(ctx).Model(&model.TaskRun{}).Where("task_run_id = ?", taskRunID).Updates(updates).Error
 }
 
 // OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields.
@@ -166,12 +167,12 @@ func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePat
 		relativePaths = []string{"result.md"}
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var run TaskRun
+		var run model.TaskRun
 		if err := tx.Where("task_run_id = ?", taskRunID).First(&run).Error; err != nil {
 			return err
 		}
 		for _, relPath := range relativePaths {
-			if err := tx.Create(&TaskRunArtifact{TaskRunID: taskRunID, RelativePath: relPath}).Error; err != nil {
+			if err := tx.Create(&model.TaskRunArtifact{TaskRunID: taskRunID, RelativePath: relPath}).Error; err != nil {
 				return err
 			}
 		}
@@ -186,13 +187,13 @@ func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePat
 		if run.SessionID != nil {
 			updates["session_id"] = *run.SessionID
 		}
-		return tx.Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
+		return tx.Model(&model.Task{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
 	})
 }
 
 // SyncTaskFromRun updates task denormalized fields and last_run_id from the run. Use when run ends with FAILED (no artifact).
 func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
-	var run TaskRun
+	var run model.TaskRun
 	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).First(&run).Error; err != nil {
 		return err
 	}
@@ -207,5 +208,5 @@ func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
 	if run.SessionID != nil {
 		updates["session_id"] = *run.SessionID
 	}
-	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
+	return s.db.WithContext(ctx).Model(&model.Task{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
 }

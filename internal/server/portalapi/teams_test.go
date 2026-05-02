@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
@@ -18,23 +18,23 @@ func TestTeamHandlers(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	sharedTeamID := "tm_shared"
 	teamStore := &mock.MockTeamStore{
-		Teams: []db.Team{
+		Teams: []model.Team{
 			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100},
 			{TeamID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: 200, UpdatedAt: 200},
 		},
-		Members: []db.TeamMember{
-			{TeamID: personalTeamID, UserID: "u1", Role: db.TeamRoleOwner, CreatedAt: 100},
-			{TeamID: sharedTeamID, UserID: "u1", Role: db.TeamRoleOwner, CreatedAt: 200},
-			{TeamID: sharedTeamID, UserID: "u2", Role: db.TeamRoleMember, CreatedAt: 201},
+		Members: []model.TeamMember{
+			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: 100},
+			{TeamID: sharedTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: 200},
+			{TeamID: sharedTeamID, UserID: "u2", Role: model.TeamRoleMember, CreatedAt: 201},
 		},
 	}
 	userStore := &mock.MockUserStore{
-		ByEmail: map[string]*db.User{
+		ByEmail: map[string]*model.User{
 			"u1@example.com": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2@example.com": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
 			"u3@example.com": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},
 		},
-		ByID: map[string]*db.User{
+		ByID: map[string]*model.User{
 			"u1": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
 			"u3": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},

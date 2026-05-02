@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/mock"
 	"buildmax/internal/util"
 )
@@ -17,13 +17,13 @@ const agentTestSecret = "agent-test-secret"
 func TestPatchAgentHandler(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	agentStore := &mock.MockAgentStore{
-		Agents: []db.Agent{
+		Agents: []model.Agent{
 			{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []db.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
-		Members: []db.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: db.TeamRoleMember}},
+		Teams:   []model.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
+		Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
 	}
 
 	tests := []struct {
@@ -152,13 +152,13 @@ func TestDeleteAgentHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &mock.MockAgentStore{
-				Agents: []db.Agent{
+				Agents: []model.Agent{
 					{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
 				},
 			}
 			teamStore := &mock.MockTeamStore{
-				Teams:   []db.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
-				Members: []db.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: db.TeamRoleMember}},
+				Teams:   []model.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
+				Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
 			}
 			h := NewHandler(Config{
 				JWTSecret:  agentTestSecret,

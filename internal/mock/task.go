@@ -4,18 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // MockTaskStore is an in-memory TaskStore for tests.
 type MockTaskStore struct {
-	List      []db.Task
+	List      []model.Task
 	ListErr   error
-	Create    *db.Task
+	Create    *model.Task
 	CreateErr error
 }
 
-func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]db.Task, error) {
+func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]model.Task, error) {
 	list, _, err := m.ListTasksByConversationPaginated(context.Background(), conversationID, false, 0, 0)
 	if err != nil {
 		return nil, err
@@ -28,11 +28,11 @@ func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationI
 	return list, nil
 }
 
-func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]db.Task, int, error) {
+func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]model.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
-	var filtered []db.Task
+	var filtered []model.Task
 	for _, c := range m.List {
 		if c.ConversationID != conversationID {
 			continue
@@ -47,7 +47,7 @@ func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conv
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []db.Task{}, total, nil
+		return []model.Task{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 {
@@ -59,11 +59,11 @@ func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conv
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limit, offset int) ([]db.Task, int, error) {
+func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
-	var filtered []db.Task
+	var filtered []model.Task
 	for _, task := range m.List {
 		if task.IssueID != nil && *task.IssueID == issueID {
 			filtered = append(filtered, task)
@@ -74,7 +74,7 @@ func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limi
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []db.Task{}, total, nil
+		return []model.Task{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -83,7 +83,7 @@ func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) CreateTask(_ context.Context, in *db.CreateTaskInput) (*db.Task, error) {
+func (m *MockTaskStore) CreateTask(_ context.Context, in *model.CreateTaskInput) (*model.Task, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
@@ -96,7 +96,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *db.CreateTaskInput) (*
 	id := len(m.List) + 1
 	taskID := fmt.Sprintf("t_mock_%d", id)
 	lastRunID := fmt.Sprintf("r_mock_%d", id)
-	task := &db.Task{
+	task := &model.Task{
 		TaskID:         taskID,
 		ConversationID: in.ConversationID,
 		TeamID:         in.TeamID,
@@ -113,7 +113,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *db.CreateTaskInput) (*
 	return task, nil
 }
 
-func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*db.Task, error) {
+func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*model.Task, error) {
 	for i := range m.List {
 		if m.List[i].SessionID != nil && *m.List[i].SessionID == sessionID {
 			return &m.List[i], nil
@@ -122,7 +122,7 @@ func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *MockTaskStore) UpdateTask(_ context.Context, in db.UpdateTaskInput) error {
+func (m *MockTaskStore) UpdateTask(_ context.Context, in model.UpdateTaskInput) error {
 	for i := range m.List {
 		if m.List[i].TaskID == in.TaskID {
 			m.List[i].Status = in.Status
@@ -147,7 +147,7 @@ func (m *MockTaskStore) UpdateTask(_ context.Context, in db.UpdateTaskInput) err
 	return nil
 }
 
-func (m *MockTaskStore) ClaimTask(_ context.Context, in db.ClaimTaskInput) (bool, error) {
+func (m *MockTaskStore) ClaimTask(_ context.Context, in model.ClaimTaskInput) (bool, error) {
 	for i := range m.List {
 		if m.List[i].TaskID == in.TaskID && m.List[i].Status == in.ExpectedStatus {
 			m.List[i].Status = in.NewStatus
@@ -172,7 +172,7 @@ func (m *MockTaskStore) ClaimTask(_ context.Context, in db.ClaimTaskInput) (bool
 	return false, nil
 }
 
-func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*db.Task, error) {
+func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*model.Task, error) {
 	for i := range m.List {
 		if m.List[i].TaskID == taskID {
 			return &m.List[i], nil

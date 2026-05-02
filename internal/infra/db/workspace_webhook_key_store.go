@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -26,7 +27,7 @@ func (s *Store) CreateKey(ctx context.Context, userID, name string) (plaintextKe
 	hash := sha256.Sum256([]byte(plaintextKey))
 	keyHash := hex.EncodeToString(hash[:])
 	keyID = util.NewPrefixedID(util.PrefixWebhookKey)
-	row := UserWebhookKey{
+	row := model.UserWebhookKey{
 		KeyID:   keyID,
 		UserID:  userID,
 		KeyHash: keyHash,
@@ -42,7 +43,7 @@ func (s *Store) CreateKey(ctx context.Context, userID, name string) (plaintextKe
 func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID string, err error) {
 	hash := sha256.Sum256([]byte(plaintextKey))
 	keyHash := hex.EncodeToString(hash[:])
-	var row UserWebhookKey
+	var row model.UserWebhookKey
 	err = s.db.WithContext(ctx).Where("key_hash = ?", keyHash).First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -54,21 +55,21 @@ func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID
 }
 
 // ListKeys returns key metadata for the user.
-func (s *Store) ListKeys(ctx context.Context, userID string) ([]WebhookKeyMeta, error) {
-	var rows []UserWebhookKey
+func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKeyMeta, error) {
+	var rows []model.UserWebhookKey
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]WebhookKeyMeta, len(rows))
+	out := make([]model.WebhookKeyMeta, len(rows))
 	for i := range rows {
-		out[i] = WebhookKeyMeta{KeyID: rows[i].KeyID, Name: rows[i].Name, CreatedAt: rows[i].CreatedAt}
+		out[i] = model.WebhookKeyMeta{KeyID: rows[i].KeyID, Name: rows[i].Name, CreatedAt: rows[i].CreatedAt}
 	}
 	return out, nil
 }
 
 // RevokeKey deletes the key if it belongs to the user.
 func (s *Store) RevokeKey(ctx context.Context, userID, keyID string) error {
-	res := s.db.WithContext(ctx).Where("user_id = ? AND key_id = ?", userID, keyID).Delete(&UserWebhookKey{})
+	res := s.db.WithContext(ctx).Where("user_id = ? AND key_id = ?", userID, keyID).Delete(&model.UserWebhookKey{})
 	if res.Error != nil {
 		return res.Error
 	}

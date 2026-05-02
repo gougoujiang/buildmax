@@ -1,25 +1,24 @@
 package session
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"errors"
 	"strings"
 	"testing"
-
-	llm "buildmax/internal/infra/llm"
 )
 
 // fakeChatFunc returns a TitleChatClient that replies with the given fixed response and zero usage.
 func fakeChatFunc(reply string, err error) TitleChatClient {
-	return TitleChatFunc(func(_ context.Context, _ []llm.Message) (string, llm.Usage, error) {
-		return reply, llm.Usage{}, err
+	return TitleChatFunc(func(_ context.Context, _ []model.Message) (string, model.Usage, error) {
+		return reply, model.Usage{}, err
 	})
 }
 
 func TestGenerateTitle_Success(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "How do I sort a slice in Go?"})
-	s.Append(llm.Message{Role: "assistant", Content: "You can use sort.Slice..."})
+	s.Append(model.Message{Role: "user", Content: "How do I sort a slice in Go?"})
+	s.Append(model.Message{Role: "assistant", Content: "You can use sort.Slice..."})
 
 	title, _, err := GenerateTitle(context.Background(), fakeChatFunc("Sorting Slices in Go", nil), s.Messages())
 	if err != nil {
@@ -32,7 +31,7 @@ func TestGenerateTitle_Success(t *testing.T) {
 
 func TestGenerateTitle_StripsQuotes(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hello"})
+	s.Append(model.Message{Role: "user", Content: "Hello"})
 
 	title, _, err := GenerateTitle(context.Background(), fakeChatFunc(`"My Chat Title"`, nil), s.Messages())
 	if err != nil {
@@ -45,7 +44,7 @@ func TestGenerateTitle_StripsQuotes(t *testing.T) {
 
 func TestGenerateTitle_LLMError_Fallthrough(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hello"})
+	s.Append(model.Message{Role: "user", Content: "Hello"})
 
 	_, _, err := GenerateTitle(context.Background(), fakeChatFunc("", errors.New("api error")), s.Messages())
 	if err == nil {
@@ -65,14 +64,14 @@ func TestGenerateTitle_NoUserMessage(t *testing.T) {
 
 func TestGenerateTitle_TruncatesLongAssistantReply(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Tell me a story"})
-	s.Append(llm.Message{Role: "assistant", Content: strings.Repeat("a", 2000)})
+	s.Append(model.Message{Role: "user", Content: "Tell me a story"})
+	s.Append(model.Message{Role: "assistant", Content: strings.Repeat("a", 2000)})
 
 	// The chat func captures messages to verify assistant content was truncated.
-	var captured []llm.Message
-	titleClient := TitleChatFunc(func(_ context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+	var captured []model.Message
+	titleClient := TitleChatFunc(func(_ context.Context, msgs []model.Message) (string, model.Usage, error) {
 		captured = msgs
-		return "A Short Story", llm.Usage{}, nil
+		return "A Short Story", model.Usage{}, nil
 	})
 	title, _, err := GenerateTitle(context.Background(), titleClient, s.Messages())
 	if err != nil {

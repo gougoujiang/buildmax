@@ -1,12 +1,11 @@
 package session
 
 import (
+	"buildmax/internal/core/model"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	llm "buildmax/internal/infra/llm"
 )
 
 func TestLoadList_MissingFile(t *testing.T) {
@@ -156,8 +155,8 @@ func TestLastByCreatedAt_ReturnsLatest(t *testing.T) {
 
 func TestEnsureTitleFromFirstUserMessage_SetsTitle(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hello world"})
-	s.Append(llm.Message{Role: "assistant", Content: "Hi"})
+	s.Append(model.Message{Role: "user", Content: "Hello world"})
+	s.Append(model.Message{Role: "assistant", Content: "Hi"})
 	EnsureTitleFromFirstUserMessage(s, 100)
 	if s.Title() != "Hello world" {
 		t.Errorf("Title() = %q, want Hello world", s.Title())
@@ -170,7 +169,7 @@ func TestEnsureTitleFromFirstUserMessage_Truncates(t *testing.T) {
 	for i := 0; i < 150; i++ {
 		content += "x"
 	}
-	s.Append(llm.Message{Role: "user", Content: content})
+	s.Append(model.Message{Role: "user", Content: content})
 	EnsureTitleFromFirstUserMessage(s, 100)
 	got := s.Title()
 	if len([]rune(got)) != 100 {
@@ -183,7 +182,7 @@ func TestEnsureTitleFromFirstUserMessage_Truncates(t *testing.T) {
 
 func TestEnsureTitleFromFirstUserMessage_NoOpWhenTitleSet(t *testing.T) {
 	s := NewSession("existing")
-	s.Append(llm.Message{Role: "user", Content: "user said this"})
+	s.Append(model.Message{Role: "user", Content: "user said this"})
 	EnsureTitleFromFirstUserMessage(s, 100)
 	if s.Title() != "existing" {
 		t.Errorf("Title() = %q, want existing (no-op)", s.Title())
@@ -192,7 +191,7 @@ func TestEnsureTitleFromFirstUserMessage_NoOpWhenTitleSet(t *testing.T) {
 
 func TestEnsureTitleFromFirstUserMessage_NoOpWhenNoUserMessages(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "assistant", Content: "only assistant"})
+	s.Append(model.Message{Role: "assistant", Content: "only assistant"})
 	EnsureTitleFromFirstUserMessage(s, 100)
 	if s.Title() != "" {
 		t.Errorf("Title() = %q, want empty (no user message)", s.Title())

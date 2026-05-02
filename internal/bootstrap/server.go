@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"fmt"
 	"log/slog"
@@ -33,7 +34,7 @@ type titleGenAdapter struct {
 }
 
 func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, httpserver.TokenUsage, error) {
-	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
 		content, _, usage, err := a.client.ChatWithTools(ctx, msgs, nil)
 		return content, usage, err
 	})

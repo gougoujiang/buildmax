@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 
 	"gorm.io/gorm"
 )
 
 // MockAgentStore is an in-memory AgentStore for tests.
 type MockAgentStore struct {
-	Agents []db.Agent
+	Agents []model.Agent
 }
 
-func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]db.Agent, error) {
-	var out []db.Agent
+func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]model.Agent, error) {
+	var out []model.Agent
 	for _, a := range m.Agents {
 		if a.UserID == userID {
 			out = append(out, a)
@@ -25,8 +25,8 @@ func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]d
 	return out, nil
 }
 
-func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]db.Agent, error) {
-	var out []db.Agent
+func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]model.Agent, error) {
+	var out []model.Agent
 	for _, a := range m.Agents {
 		if a.TeamID == teamID {
 			out = append(out, a)
@@ -35,7 +35,7 @@ func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]d
 	return out, nil
 }
 
-func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*db.Agent, error) {
+func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*model.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID {
 			return &m.Agents[i], nil
@@ -44,12 +44,12 @@ func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*db.Agent,
 	return nil, nil
 }
 
-func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*db.Agent, error) {
+func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*model.Agent, error) {
 	return m.CreateAgentInTeam(context.Background(), "tm_personal", userID, name, description, instructions)
 }
 
-func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, name, description, instructions string) (*db.Agent, error) {
-	a := db.Agent{
+func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
+	a := model.Agent{
 		AgentID:      fmt.Sprintf("a_%d", len(m.Agents)+1),
 		UserID:       userID,
 		TeamID:       teamID,
@@ -62,7 +62,7 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, na
 	return &m.Agents[len(m.Agents)-1], nil
 }
 
-func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*db.Agent, error) {
+func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*model.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
 			m.Agents[i].Name = name
@@ -74,7 +74,7 @@ func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, d
 	return nil, nil
 }
 
-func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, name, description, instructions string) (*db.Agent, error) {
+func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, name, description, instructions string) (*model.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
 			m.Agents[i].Name = name

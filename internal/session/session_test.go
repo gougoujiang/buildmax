@@ -1,16 +1,14 @@
 package session
 
 import (
+	"buildmax/internal/core/model"
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	llm "buildmax/internal/infra/llm"
-
-	"github.com/google/uuid"
 )
 
 func TestNewSession(t *testing.T) {
@@ -47,8 +45,8 @@ func TestNewSession_EmptyTitle(t *testing.T) {
 
 func TestAppend_MessagesReturnsCopy(t *testing.T) {
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hi"})
-	s.Append(llm.Message{Role: "assistant", Content: "Hello"})
+	s.Append(model.Message{Role: "user", Content: "Hi"})
+	s.Append(model.Message{Role: "assistant", Content: "Hello"})
 
 	m1 := s.Messages()
 	m2 := s.Messages()
@@ -63,7 +61,7 @@ func TestAppend_MessagesReturnsCopy(t *testing.T) {
 		t.Errorf("m2: got %q, %q", m2[0].Content, m2[1].Content)
 	}
 	// Mutating the returned slice does not affect session
-	m1 = append(m1, llm.Message{Role: "user", Content: "extra"})
+	m1 = append(m1, model.Message{Role: "user", Content: "extra"})
 	if len(s.Messages()) != 2 {
 		t.Errorf("after mutating m1, Messages() length = %d, want 2", len(s.Messages()))
 	}
@@ -74,12 +72,12 @@ func TestAppend_UpdatesSessionState(t *testing.T) {
 	if len(s.Messages()) != 0 {
 		t.Fatalf("initial Messages() length = %d, want 0", len(s.Messages()))
 	}
-	s.Append(llm.Message{Role: "user", Content: "first"})
+	s.Append(model.Message{Role: "user", Content: "first"})
 	msgs := s.Messages()
 	if len(msgs) != 1 || msgs[0].Content != "first" {
 		t.Errorf("after first Append: Messages() = %v", msgs)
 	}
-	s.Append(llm.Message{Role: "assistant", Content: "reply"})
+	s.Append(model.Message{Role: "assistant", Content: "reply"})
 	msgs = s.Messages()
 	if len(msgs) != 2 || msgs[1].Content != "reply" {
 		t.Errorf("after second Append: Messages() = %v", msgs)
@@ -100,7 +98,7 @@ func TestID_Title_SetTitle(t *testing.T) {
 func TestSaveToDir_CreatesFileWithValidJSON(t *testing.T) {
 	dir := t.TempDir()
 	s := NewSession("test title")
-	s.Append(llm.Message{Role: "user", Content: "hello"})
+	s.Append(model.Message{Role: "user", Content: "hello"})
 
 	if err := SaveToDir(s, dir); err != nil {
 		t.Fatalf("SaveToDir: %v", err)
@@ -131,8 +129,8 @@ func TestSaveToDir_CreatesFileWithValidJSON(t *testing.T) {
 func TestLoadFromDir_AfterSaveReturnsSameSession(t *testing.T) {
 	dir := t.TempDir()
 	s := NewSession("round-trip")
-	s.Append(llm.Message{Role: "user", Content: "a"})
-	s.Append(llm.Message{Role: "assistant", Content: "b"})
+	s.Append(model.Message{Role: "user", Content: "a"})
+	s.Append(model.Message{Role: "assistant", Content: "b"})
 	if err := SaveToDir(s, dir); err != nil {
 		t.Fatalf("SaveToDir: %v", err)
 	}
@@ -189,8 +187,8 @@ func TestLoadFromDir_InvalidJSONReturnsError(t *testing.T) {
 func TestSaveToDir_LoadFromDir_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hi"})
-	s.Append(llm.Message{Role: "assistant", Content: "Hello"})
+	s.Append(model.Message{Role: "user", Content: "Hi"})
+	s.Append(model.Message{Role: "assistant", Content: "Hello"})
 	if err := SaveToDir(s, dir); err != nil {
 		t.Fatalf("SaveToDir: %v", err)
 	}
@@ -213,7 +211,7 @@ func TestSaveToDir_LoadFromDir_RoundTrip(t *testing.T) {
 func TestSaveToDir_LoadFromDir_UsageRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s := NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hi"})
+	s.Append(model.Message{Role: "user", Content: "Hi"})
 	s.AddUsage(50, 30)
 	if err := SaveToDir(s, dir); err != nil {
 		t.Fatalf("SaveToDir: %v", err)

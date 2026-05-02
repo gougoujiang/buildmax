@@ -17,7 +17,6 @@ import (
 	"buildmax/internal/core/model"
 	"buildmax/internal/execution/agentrun"
 	execworker "buildmax/internal/execution/worker"
-	llm "buildmax/internal/infra/llm"
 	blob "buildmax/internal/infra/objectstore"
 )
 
@@ -187,7 +186,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *m
 }
 
 func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender execworker.StreamSender) ([]byte, *int, *int, error) {
-	var sink llm.StreamSink
+	var sink model.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
 	}

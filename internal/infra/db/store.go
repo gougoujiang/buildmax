@@ -2,6 +2,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"fmt"
 	"log"
@@ -17,7 +18,7 @@ type Store struct {
 	db *gorm.DB
 }
 
-// New opens a MySQL connection with the given DSN and runs AutoMigrate for User, Team, TeamMember, Workflow, WorkflowRun, WorkflowStepRun, Issue, Agent, Task, TaskRun, TaskRunArtifact, QuotaTier, Conversation, ConversationMessage, and UserWebhookKey.
+// New opens a MySQL connection with the given DSN and runs AutoMigrate for model.User, model.Team, model.TeamMember, model.Workflow, model.WorkflowRun, model.WorkflowStepRun, model.Issue, model.Agent, model.Task, model.TaskRun, model.TaskRunArtifact, model.QuotaTier, model.Conversation, model.ConversationMessage, and model.UserWebhookKey.
 // If the legacy artifact table exists, migrates data to task_run_artifact and drops artifact/artifact_item and task columns.
 // If the old task_run_output_file table exists, migrates its data to task_run_artifact and drops it.
 // GORM logger is configured to ignore ErrRecordNotFound so expected "not found" lookups (e.g. GetNextPendingTaskRun when idle) do not spam the console.
@@ -29,7 +30,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Team{}, &TeamMember{}, &Workflow{}, &WorkflowRun{}, &WorkflowStepRun{}, &Issue{}, &Agent{}, &Task{}, &TaskRun{}, &TaskRunArtifact{}, &QuotaTier{}, &Conversation{}, &ConversationMessage{}, &UserWebhookKey{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&model.User{}, &model.Team{}, &model.TeamMember{}, &model.Workflow{}, &model.WorkflowRun{}, &model.WorkflowStepRun{}, &model.Issue{}, &model.Agent{}, &model.Task{}, &model.TaskRun{}, &model.TaskRunArtifact{}, &model.QuotaTier{}, &model.Conversation{}, &model.ConversationMessage{}, &model.UserWebhookKey{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"errors"
 	"time"
@@ -12,8 +13,8 @@ import (
 
 // ListTasksByConversation returns tasks in the conversation, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
-func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]Task, error) {
-	var list []Task
+func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]model.Task, error) {
+	var list []model.Task
 	q := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
 	if order == "asc" {
 		q = q.Order("created_at ASC")
@@ -27,8 +28,8 @@ func (s *Store) ListTasksByConversation(ctx context.Context, conversationID stri
 // ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
 // executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
 // total is the total number of matching tasks (ignoring limit/offset).
-func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error) {
-	q := s.db.WithContext(ctx).Model(&Task{}).Where("conversation_id = ?", conversationID)
+func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]model.Task, int, error) {
+	q := s.db.WithContext(ctx).Model(&model.Task{}).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
@@ -36,7 +37,7 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []Task
+	var list []model.Task
 	q = s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
@@ -45,13 +46,13 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 	return list, int(total), err
 }
 
-func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error) {
-	q := s.db.WithContext(ctx).Model(&Task{}).Where("issue_id = ?", issueID)
+func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
+	q := s.db.WithContext(ctx).Model(&model.Task{}).Where("issue_id = ?", issueID)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []Task
+	var list []model.Task
 	q = s.db.WithContext(ctx).Where("issue_id = ?", issueID).Order("created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -61,8 +62,8 @@ func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, off
 }
 
 // GetTask returns the task by task_id, or (nil, nil) if not found.
-func (s *Store) GetTask(ctx context.Context, taskID string) (*Task, error) {
-	var task Task
+func (s *Store) GetTask(ctx context.Context, taskID string) (*model.Task, error) {
+	var task model.Task
 	err := s.db.WithContext(ctx).Where("task_id = ?", taskID).First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -74,8 +75,8 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (*Task, error) {
 }
 
 // GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
-func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error) {
-	var task Task
+func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*model.Task, error) {
+	var task model.Task
 	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,16 +87,16 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task
 	return &task, nil
 }
 
-// CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
-func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, error) {
+// CreateTask creates a new task and its first model.TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
+func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*model.Task, error) {
 	if in == nil {
-		return nil, errors.New("CreateTaskInput is required")
+		return nil, errors.New("model.CreateTaskInput is required")
 	}
 	now := time.Now().Unix()
 	taskID := util.NewPrefixedID(util.PrefixTask)
 	taskRunID := util.NewPrefixedID(util.PrefixTaskRun)
 	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
-	task := &Task{
+	task := &model.Task{
 		TaskID:                taskID,
 		ConversationID:        in.ConversationID,
 		TeamID:                in.TeamID,
@@ -111,18 +112,18 @@ func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, err
 		AgentID:               in.AgentID,
 		IssueID:               in.IssueID,
 	}
-	run := &TaskRun{
+	run := &model.TaskRun{
 		TaskRunID:     taskRunID,
 		TaskID:        taskID,
 		Input:         in.Input,
 		CreatedBy:     defaultString(in.InitialRunCreatedBy, in.CreatedBy),
-		CreatedByType: defaultString(in.InitialRunCreatedByType, RunCreatedByTypeUser),
-		TriggerSource: defaultString(in.InitialRunTriggerSource, RunTriggerSourceTaskCreate),
+		CreatedByType: defaultString(in.InitialRunCreatedByType, model.RunCreatedByTypeUser),
+		TriggerSource: defaultString(in.InitialRunTriggerSource, model.RunTriggerSourceTaskCreate),
 		Status:        "PENDING",
 		CreatedAt:     now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var conv Conversation
+		var conv model.Conversation
 		if err := tx.Where("conversation_id = ?", in.ConversationID).First(&conv).Error; err != nil {
 			return err
 		}
@@ -169,16 +170,16 @@ func buildTaskUpdates(status string, startedAt, endedAt *int64, output, errorMes
 
 // UpdateTask updates a task's status and optional fields.
 // Only non-nil pointer fields are written; status is always set.
-func (s *Store) UpdateTask(ctx context.Context, in UpdateTaskInput) error {
-	return s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ?", in.TaskID).Updates(
+func (s *Store) UpdateTask(ctx context.Context, in model.UpdateTaskInput) error {
+	return s.db.WithContext(ctx).Model(&model.Task{}).Where("task_id = ?", in.TaskID).Updates(
 		buildTaskUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	).Error
 }
 
 // ClaimTask updates a task's status and optional fields only when current status equals expectedStatus.
 // Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
-func (s *Store) ClaimTask(ctx context.Context, in ClaimTaskInput) (bool, error) {
-	result := s.db.WithContext(ctx).Model(&Task{}).Where("task_id = ? AND status = ?", in.TaskID, in.ExpectedStatus).Updates(
+func (s *Store) ClaimTask(ctx context.Context, in model.ClaimTaskInput) (bool, error) {
+	result := s.db.WithContext(ctx).Model(&model.Task{}).Where("task_id = ? AND status = ?", in.TaskID, in.ExpectedStatus).Updates(
 		buildTaskUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	)
 	if result.Error != nil {

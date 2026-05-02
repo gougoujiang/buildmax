@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 )
 
@@ -10,7 +11,7 @@ import (
 func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, sinceUnix, untilUnix int64) (runCount, totalTokens int, err error) {
 	// Run count: task_runs joined with task where task.team_id = teamID and task_run.created_at in [since, until]
 	var runCnt int64
-	err = s.db.WithContext(ctx).Model(&TaskRun{}).
+	err = s.db.WithContext(ctx).Model(&model.TaskRun{}).
 		Joins("INNER JOIN task ON task.task_id = task_run.task_id AND task.team_id = ?", teamID).
 		Where("task_run.created_at >= ? AND task_run.created_at <= ?", sinceUnix, untilUnix).
 		Count(&runCnt).Error
@@ -21,7 +22,7 @@ func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, sinceUnix,
 
 	// Run tokens: sum (COALESCE(prompt_tokens,0) + COALESCE(completion_tokens,0)) for those runs
 	var runTokens int
-	err = s.db.WithContext(ctx).Model(&TaskRun{}).
+	err = s.db.WithContext(ctx).Model(&model.TaskRun{}).
 		Select("COALESCE(SUM(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0)").
 		Joins("INNER JOIN task ON task.task_id = task_run.task_id AND task.team_id = ?", teamID).
 		Where("task_run.created_at >= ? AND task_run.created_at <= ?", sinceUnix, untilUnix).
@@ -32,7 +33,7 @@ func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, sinceUnix,
 
 	// Task title tokens: sum (title_prompt_tokens + title_completion_tokens) for tasks created by user in window
 	var titleTokens int
-	err = s.db.WithContext(ctx).Model(&Task{}).
+	err = s.db.WithContext(ctx).Model(&model.Task{}).
 		Select("COALESCE(SUM(title_prompt_tokens + title_completion_tokens), 0)").
 		Where("team_id = ? AND created_at >= ? AND created_at <= ?", teamID, sinceUnix, untilUnix).
 		Scan(&titleTokens).Error

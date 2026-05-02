@@ -1,4 +1,4 @@
-// Package llm provides LLM client abstractions and implementations (OpenRouter/OpenAI-compatible).
+// Package llm provides LLM client implementations (OpenRouter/OpenAI-compatible).
 package llm
 
 import (
@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"buildmax/internal/core/model"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -54,7 +56,7 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
-func buildChatCompletionRequest(model string, messages []Message, tools []ToolDef) openai.ChatCompletionRequest {
+func buildChatCompletionRequest(modelName string, messages []model.Message, tools []model.ToolDef) openai.ChatCompletionRequest {
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
 		openaiMsgs = append(openaiMsgs, toOpenAIMessage(m))
@@ -64,13 +66,13 @@ func buildChatCompletionRequest(model string, messages []Message, tools []ToolDe
 		openaiTools = append(openaiTools, toOpenAITool(t))
 	}
 	return openai.ChatCompletionRequest{
-		Model:    model,
+		Model:    modelName,
 		Messages: openaiMsgs,
 		Tools:    openaiTools,
 	}
 }
 
-func toOpenAIMessage(m Message) openai.ChatCompletionMessage {
+func toOpenAIMessage(m model.Message) openai.ChatCompletionMessage {
 	msg := openai.ChatCompletionMessage{
 		Role:       m.Role,
 		Content:    m.Content,
@@ -92,7 +94,7 @@ func toOpenAIMessage(m Message) openai.ChatCompletionMessage {
 	return msg
 }
 
-func toOpenAITool(t ToolDef) openai.Tool {
+func toOpenAITool(t model.ToolDef) openai.Tool {
 	return openai.Tool{
 		Type: openai.ToolTypeFunction,
 		Function: &openai.FunctionDefinition{
@@ -103,13 +105,13 @@ func toOpenAITool(t ToolDef) openai.Tool {
 	}
 }
 
-func toToolCalls(toolCalls []openai.ToolCall) []ToolCall {
+func toToolCalls(toolCalls []openai.ToolCall) []model.ToolCall {
 	if len(toolCalls) == 0 {
 		return nil
 	}
-	out := make([]ToolCall, 0, len(toolCalls))
+	out := make([]model.ToolCall, 0, len(toolCalls))
 	for _, tc := range toolCalls {
-		out = append(out, ToolCall{
+		out = append(out, model.ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: tc.Function.Arguments,
@@ -119,19 +121,19 @@ func toToolCalls(toolCalls []openai.ToolCall) []ToolCall {
 }
 
 // ChatWithTools sends messages and tool definitions, returns assistant content, any tool calls, and usage.
-func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, usage Usage, err error) {
+func (c *Client) ChatWithTools(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	req := buildChatCompletionRequest(c.model, messages, tools)
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return "", nil, Usage{}, fmt.Errorf("chat completion: %w", err)
+		return "", nil, model.Usage{}, fmt.Errorf("chat completion: %w", err)
 	}
 	if len(resp.Choices) == 0 {
-		return "", nil, Usage{}, fmt.Errorf("no choices in response")
+		return "", nil, model.Usage{}, fmt.Errorf("no choices in response")
 	}
 	msg := resp.Choices[0].Message
 	content = msg.Content
 	toolCalls = toToolCalls(msg.ToolCalls)
-	usage = Usage{
+	usage = model.Usage{
 		PromptTokens:     resp.Usage.PromptTokens,
 		CompletionTokens: resp.Usage.CompletionTokens,
 		TotalTokens:      resp.Usage.TotalTokens,
@@ -141,13 +143,13 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []Message, tools []
 
 // ChatWithToolsStream sends messages and tool definitions, streams content deltas via onDelta,
 // and returns full content, any tool calls, and usage (when the provider sends it in a chunk). If onDelta is nil, it is not called.
-func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(delta string)) (content string, toolCalls []ToolCall, usage Usage, err error) {
+func (c *Client) ChatWithToolsStream(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(delta string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	req := buildChatCompletionRequest(c.model, messages, tools)
-	var streamUsage Usage
+	var streamUsage model.Usage
 	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
 	stream, err := c.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
-		return "", nil, Usage{}, fmt.Errorf("chat completion stream: %w", err)
+		return "", nil, model.Usage{}, fmt.Errorf("chat completion stream: %w", err)
 	}
 	defer stream.Close()
 
@@ -164,12 +166,12 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, to
 			if err == io.EOF {
 				break
 			}
-			return fullContent.String(), nil, Usage{}, fmt.Errorf("stream recv: %w", err)
+			return fullContent.String(), nil, model.Usage{}, fmt.Errorf("stream recv: %w", err)
 		}
 		if len(resp.Choices) == 0 {
 			continue
 		}
-		// Usage is captured from raw SSE by usageCaptureTransport when the provider sends it.
+		// model.Usage is captured from raw SSE by usageCaptureTransport when the provider sends it.
 		delta := resp.Choices[0].Delta
 		if delta.Content != "" {
 			fullContent.WriteString(delta.Content)
@@ -210,7 +212,7 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, to
 	}
 	for i := 0; i <= maxIdx; i++ {
 		if acc := toolCallAccum[i]; acc != nil && acc.id != "" {
-			toolCalls = append(toolCalls, ToolCall{
+			toolCalls = append(toolCalls, model.ToolCall{
 				ID:        acc.id,
 				Name:      acc.name,
 				Arguments: acc.arguments,
@@ -221,9 +223,9 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, messages []Message, to
 }
 
 // streamRespUsage extracts usage from a stream response when the provider includes it.
-// go-openai ChatCompletionStreamResponse does not currently expose Usage; capture is done via usageCaptureTransport.
-func streamRespUsage(resp openai.ChatCompletionStreamResponse) Usage {
-	return Usage{}
+// go-openai ChatCompletionStreamResponse does not currently expose model.Usage; capture is done via usageCaptureTransport.
+func streamRespUsage(resp openai.ChatCompletionStreamResponse) model.Usage {
+	return model.Usage{}
 }
 
 // usageCaptureTransport wraps the response body for SSE streams to capture usage from raw chunks.
@@ -241,7 +243,7 @@ func (t *usageCaptureTransport) RoundTrip(req *http.Request) (*http.Response, er
 		return resp, nil
 	}
 	if v := req.Context().Value(streamUsageKey); v != nil {
-		if usage, ok := v.(*Usage); ok && usage != nil {
+		if usage, ok := v.(*model.Usage); ok && usage != nil {
 			resp.Body = &usageCaptureReader{body: resp.Body, usage: usage}
 		}
 	}
@@ -251,7 +253,7 @@ func (t *usageCaptureTransport) RoundTrip(req *http.Request) (*http.Response, er
 // usageCaptureReader tees the stream and parses SSE "data:" lines for usage.
 type usageCaptureReader struct {
 	body  io.ReadCloser
-	usage *Usage
+	usage *model.Usage
 	buf   []byte
 	mu    sync.Mutex
 }
@@ -307,5 +309,5 @@ func (r *usageCaptureReader) parseUsageLocked() {
 	}
 }
 
-// Ensure *Client implements LLMCaller.
-var _ LLMCaller = (*Client)(nil)
+// Ensure *Client implements model.LLMCaller.
+var _ model.LLMCaller = (*Client)(nil)

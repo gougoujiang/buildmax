@@ -1,6 +1,7 @@
 package db
 
 import (
+	"buildmax/internal/core/model"
 	"context"
 	"errors"
 	"time"
@@ -10,8 +11,8 @@ import (
 )
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.
-func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
-	var u User
+func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, error) {
+	var u model.User
 	err := s.db.WithContext(ctx).Where("email = ?", email).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -23,8 +24,8 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*User, error) {
 }
 
 // GetUser returns the user by user_id, or (nil, nil) when not found.
-func (s *Store) GetUser(ctx context.Context, userID string) (*User, error) {
-	var u User
+func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error) {
+	var u model.User
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -38,7 +39,7 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*User, error) {
 // UpdateLoginMeta records the last login timestamp and platform for the user.
 func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error {
 	return s.db.WithContext(ctx).
-		Model(&User{}).
+		Model(&model.User{}).
 		Where("user_id = ?", userID).
 		Updates(map[string]interface{}{
 			"last_login_at":       loginAt,
@@ -49,15 +50,15 @@ func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int6
 // CreateUser creates a user with the given email. Name is set to empty.
 // When defaultQuotaTier is non-empty, User.QuotaTier is set to it.
 // Returns ErrEmailExists if the email is already registered.
-func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*User, error) {
+func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*model.User, error) {
 	existing, err := s.UserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 	if existing != nil {
-		return nil, ErrEmailExists
+		return nil, model.ErrEmailExists
 	}
-	u := User{
+	u := model.User{
 		UserID:    util.NewPrefixedID(util.PrefixUser),
 		Email:     email,
 		Name:      "",
@@ -67,19 +68,19 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		u.QuotaTier = defaultQuotaTier
 	}
 	personalTeamID := util.NewPrefixedID(util.PrefixTeam)
-	personalTeam := Team{
+	personalTeam := model.Team{
 		TeamID:            personalTeamID,
-		Name:              DefaultPersonalTeamName,
+		Name:              model.DefaultPersonalTeamName,
 		PersonalForUserID: &u.UserID,
 		QuotaTier:         defaultQuotaTier,
 		CreatedBy:         u.UserID,
 		CreatedAt:         u.CreatedAt,
 		UpdatedAt:         u.CreatedAt,
 	}
-	personalMember := TeamMember{
+	personalMember := model.TeamMember{
 		TeamID:    personalTeamID,
 		UserID:    u.UserID,
-		Role:      TeamRoleOwner,
+		Role:      model.TeamRoleOwner,
 		CreatedAt: u.CreatedAt,
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
