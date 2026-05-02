@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // WorkerRunner starts a worker for a task run. On success returns worker info to persist; on failure returns an error (caller should revert run to PENDING).
 type WorkerRunner interface {
-	Run(ctx context.Context, run db.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error)
+	Run(ctx context.Context, run model.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error)
 }
 
 // LocalRunner runs the worker binary as a local process (blocks until exit).
@@ -32,7 +32,7 @@ func NewLocalRunner(workerPath string) *LocalRunner {
 }
 
 // Run executes the worker process; on success returns ("local_process", nil, nil, nil). On failure returns error.
-func (r *LocalRunner) Run(ctx context.Context, run db.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
 	slog.Info("scheduler: spawning worker", "task_run_id", run.TaskRunID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.TaskRunID)
 	cmd.Env = os.Environ()

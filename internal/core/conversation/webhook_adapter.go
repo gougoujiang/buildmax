@@ -1,11 +1,9 @@
 package conversation
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 )
 
@@ -14,10 +12,17 @@ const (
 	DefaultWebhookUserID = "webhook"
 )
 
-// WebhookRequest holds parsed webhook HTTP input for the adapter. Use this so Receive can be tested without *http.Request.
+// WebhookRequest holds parsed webhook input for the adapter. Use this so Receive can be tested without transport-specific request types.
 type WebhookRequest struct {
 	Body   []byte
-	Header http.Header
+	Header map[string][]string
+}
+
+// WebhookCallbackSender is an optional transport adapter for delivering webhook
+// results. Core owns the decision of whether a callback target exists; server or
+// infra code owns the actual HTTP transport.
+type WebhookCallbackSender interface {
+	SendWebhookCallback(ctx context.Context, callbackURL string, output string) error
 }
 
 // WebhookAdapter implements ChannelAdapter for the webhook channel.
@@ -27,6 +32,8 @@ type WebhookAdapter struct {
 	MessagePath string
 	// UserID is the user ID to set on the turn (CreatedBy for runs). Default DefaultWebhookUserID.
 	UserID string
+	// CallbackSender delivers output when conversationID is a callback URL. Optional.
+	CallbackSender WebhookCallbackSender
 }
 
 // NewWebhookAdapter returns a WebhookAdapter with the given message path and optional user ID.
@@ -73,7 +80,7 @@ func (a *WebhookAdapter) Receive(ctx context.Context, raw any) (ConversationTurn
 	}, nil
 }
 
-// Send POSTs the output to the conversationID if it looks like a URL (e.g. callback URL). Otherwise no-op.
+// Send delivers output to the conversationID if it looks like a URL and a callback sender is configured. Otherwise no-op.
 func (a *WebhookAdapter) Send(ctx context.Context, conversationID string, output string) error {
 	if conversationID == "" {
 		return nil
@@ -81,21 +88,10 @@ func (a *WebhookAdapter) Send(ctx context.Context, conversationID string, output
 	if !strings.HasPrefix(conversationID, "http://") && !strings.HasPrefix(conversationID, "https://") {
 		return nil
 	}
-	body := bytes.NewBufferString(output)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, conversationID, body)
-	if err != nil {
-		return err
+	if a.CallbackSender == nil {
+		return nil
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("webhook callback returned %d", resp.StatusCode)
-	}
-	return nil
+	return a.CallbackSender.SendWebhookCallback(ctx, conversationID, output)
 }
 
 // getJSONPathString returns a string at the given dot-separated path in the JSON body.

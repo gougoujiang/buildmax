@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"buildmax/internal/config"
+	"buildmax/internal/core/model"
 	execruntime "buildmax/internal/execution/runtime"
 	execworker "buildmax/internal/execution/worker"
-	"buildmax/internal/infra/db"
 	blob "buildmax/internal/infra/objectstore"
 
 	"github.com/google/uuid"
@@ -56,7 +56,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("worker: run not found", "task_run_id", taskRunID)
 		return fmt.Errorf("run not found")
 	}
-	if run.Status != string(db.RunStatusScheduled) {
+	if run.Status != string(model.RunStatusScheduled) {
 		slog.Error("worker: run not in SCHEDULED status", "task_run_id", taskRunID, "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
@@ -68,7 +68,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	updater := &execworker.WorkerHTTPUpdater{BaseURL: baseURL, Token: token}
 	now := time.Now().Unix()
 	if err := updater.UpdateRunStatus(ctx, run.TaskRunID, &execworker.PatchTaskRunRequest{
-		Status:    string(db.RunStatusRunning),
+		Status:    string(model.RunStatusRunning),
 		StartedAt: &now,
 		SessionID: &sessionID,
 	}); err != nil {

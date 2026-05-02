@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"buildmax/internal/core/conversation"
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 )
 
@@ -52,7 +52,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	req := &conversation.WebhookRequest{
 		Body:   body,
-		Header: r.Header.Clone(),
+		Header: map[string][]string(r.Header.Clone()),
 	}
 	turn, err := h.cfg.Adapter.Receive(r.Context(), req)
 	if err != nil {
@@ -73,7 +73,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.cfg.Engine.Process(r.Context(), conv.ConversationID, "", turn)
 	if err != nil {
-		if errors.Is(err, db.ErrRunInProgress) {
+		if errors.Is(err, model.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "task has a run already in progress")
 			return
 		}

@@ -6,20 +6,20 @@ import (
 	"log/slog"
 	"strings"
 
-	llm "buildmax/internal/infra/llm"
+	"buildmax/internal/core/model"
 )
 
 // TitleChatClient is the interface for a simple chat completion (no tools), used for title generation.
-// Callers can pass *llm.Client via TitleChatFunc or a test double. Usage is returned for metering (e.g. billing).
+// Callers can pass an infra LLM adapter via TitleChatFunc or a test double. Usage is returned for metering (e.g. billing).
 type TitleChatClient interface {
-	Chat(ctx context.Context, messages []llm.Message) (string, llm.Usage, error)
+	Chat(ctx context.Context, messages []model.Message) (string, model.Usage, error)
 }
 
 // TitleChatFunc adapts a function to TitleChatClient so closures and *llm.Client wrappers can be used.
-type TitleChatFunc func(ctx context.Context, messages []llm.Message) (string, llm.Usage, error)
+type TitleChatFunc func(ctx context.Context, messages []model.Message) (string, model.Usage, error)
 
 // Chat implements TitleChatClient.
-func (f TitleChatFunc) Chat(ctx context.Context, messages []llm.Message) (string, llm.Usage, error) {
+func (f TitleChatFunc) Chat(ctx context.Context, messages []model.Message) (string, model.Usage, error) {
 	return f(ctx, messages)
 }
 
@@ -31,18 +31,18 @@ const taskTitleSystemPrompt = `Generate a short task title (3-5 words) from this
 
 // GenerateTitleFromInput uses an LLM to produce a concise title from a single input string (e.g. task prompt).
 // Returns the cleaned title string and usage for metering. Reuses cleanTitle for trimming and quote stripping.
-func GenerateTitleFromInput(ctx context.Context, client TitleChatClient, input string) (string, llm.Usage, error) {
+func GenerateTitleFromInput(ctx context.Context, client TitleChatClient, input string) (string, model.Usage, error) {
 	if input == "" {
-		return "", llm.Usage{}, nil
+		return "", model.Usage{}, nil
 	}
-	messages := []llm.Message{
+	messages := []model.Message{
 		{Role: "system", Content: taskTitleSystemPrompt},
 		{Role: "user", Content: input},
 	}
 	slog.Debug("generating task title via LLM")
 	title, usage, err := client.Chat(ctx, messages)
 	if err != nil {
-		return "", llm.Usage{}, err
+		return "", model.Usage{}, err
 	}
 	title = cleanTitle(title)
 	slog.Debug("generated task title", "title", title)
@@ -52,15 +52,15 @@ func GenerateTitleFromInput(ctx context.Context, client TitleChatClient, input s
 // GenerateTitle uses an LLM to produce a concise title from the conversation messages.
 // It extracts the first user message and first assistant reply (if any) to keep the
 // prompt small and cheap. Returns the cleaned title string and usage for metering.
-func GenerateTitle(ctx context.Context, client TitleChatClient, messages []llm.Message) (string, llm.Usage, error) {
+func GenerateTitle(ctx context.Context, client TitleChatClient, messages []model.Message) (string, model.Usage, error) {
 	// Build a small context: first user message + first assistant reply.
-	var titleMsgs []llm.Message
-	titleMsgs = append(titleMsgs, llm.Message{Role: "system", Content: titleSystemPrompt})
+	var titleMsgs []model.Message
+	titleMsgs = append(titleMsgs, model.Message{Role: "system", Content: titleSystemPrompt})
 
 	var gotUser, gotAssistant bool
 	for _, m := range messages {
 		if !gotUser && m.Role == "user" {
-			titleMsgs = append(titleMsgs, llm.Message{Role: "user", Content: m.Content})
+			titleMsgs = append(titleMsgs, model.Message{Role: "user", Content: m.Content})
 			gotUser = true
 			continue
 		}
@@ -70,19 +70,19 @@ func GenerateTitle(ctx context.Context, client TitleChatClient, messages []llm.M
 			if len([]rune(content)) > 500 {
 				content = string([]rune(content)[:500])
 			}
-			titleMsgs = append(titleMsgs, llm.Message{Role: "assistant", Content: content})
+			titleMsgs = append(titleMsgs, model.Message{Role: "assistant", Content: content})
 			gotAssistant = true
 			break
 		}
 	}
 	if !gotUser {
-		return "", llm.Usage{}, nil
+		return "", model.Usage{}, nil
 	}
 
 	slog.Debug("generating session title via LLM")
 	title, usage, err := client.Chat(ctx, titleMsgs)
 	if err != nil {
-		return "", llm.Usage{}, err
+		return "", model.Usage{}, err
 	}
 
 	title = cleanTitle(title)

@@ -12,10 +12,10 @@ import (
 	"time"
 
 	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
 	taskapp "buildmax/internal/core/task"
 	workflowapp "buildmax/internal/core/workflow"
-	"buildmax/internal/infra/db"
 	llm "buildmax/internal/infra/llm"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/auth"
@@ -45,8 +45,8 @@ type TokenUsage struct {
 
 // RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]db.ArtifactWithTask, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]db.TaskRunArtifact, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
+	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
 }
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
@@ -59,15 +59,15 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore           db.UserStore
-	TeamStore           db.TeamStore
-	WorkflowStore       db.WorkflowStore
-	AgentStore          db.AgentStore
-	IssueStore          db.IssueStore
-	TaskStore           db.TaskStore
-	TaskRunStore        db.TaskRunStore
+	UserStore           model.UserStore
+	TeamStore           model.TeamStore
+	WorkflowStore       model.WorkflowStore
+	AgentStore          model.AgentStore
+	IssueStore          model.IssueStore
+	TaskStore           model.TaskStore
+	TaskRunStore        model.TaskRunStore
 	RunOutputLister     RunOutputLister
-	UserWebhookKeyStore db.UserWebhookKeyStore
+	UserWebhookKeyStore model.UserWebhookKeyStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -85,8 +85,8 @@ type WorkerConfig struct {
 // ConversationConfig holds Tier 1 conversation stores and LLM wiring.
 type ConversationConfig struct {
 	TitleGenerator           TitleGenerator
-	ConversationStore        db.ConversationStore
-	ConversationMessageStore db.ConversationMessageStore
+	ConversationStore        model.ConversationStore
+	ConversationMessageStore model.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller
 }
 

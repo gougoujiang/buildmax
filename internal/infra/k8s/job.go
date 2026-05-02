@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // JobCreator creates Kubernetes Jobs. Used by K8sJobRunner; can be implemented by a clientset wrapper or a fake in tests.
@@ -38,7 +38,7 @@ func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, client JobCre
 }
 
 // Run creates a Job for the task run; on success returns ("k8s_job", &jobName, &createdAtUnix, nil). On failure returns error.
-func (r *K8sJobRunner) Run(ctx context.Context, run db.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
 	jobName := jobNameForTaskRun(run.TaskRunID)
 	now := metav1.Now()
 	createdAtUnix := now.Unix()

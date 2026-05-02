@@ -3,7 +3,7 @@ package portalapi
 import (
 	"net/http"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 )
 
@@ -47,11 +47,11 @@ func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, us
 func isRoleAllowed(role string, action teamAction) bool {
 	switch action {
 	case actionManageTeamMembers:
-		return role == db.TeamRoleOwner
+		return role == model.TeamRoleOwner
 	case actionManageAgents, actionManageWorkflows, actionAssignIssueWorkflow:
-		return role == db.TeamRoleOwner || role == db.TeamRoleAdmin
+		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin
 	case actionRunWorkflow:
-		return role == db.TeamRoleOwner || role == db.TeamRoleAdmin || role == db.TeamRoleMember
+		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin || role == model.TeamRoleMember
 	default:
 		return false
 	}

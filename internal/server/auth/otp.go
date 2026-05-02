@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 )
 
@@ -67,7 +67,7 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.cfg.UserStore.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
 	if err != nil {
-		if errors.Is(err, db.ErrEmailExists) {
+		if errors.Is(err, model.ErrEmailExists) {
 			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 			return
 		}

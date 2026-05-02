@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/httputil"
 )
@@ -19,7 +19,7 @@ type ArtifactResponse struct {
 	TaskInputSnippet string `json:"task_input_snippet"`
 }
 
-func artifactWithTaskToResponse(a db.ArtifactWithTask) ArtifactResponse {
+func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
 	return ArtifactResponse{
 		TaskRunID:        a.ArtifactID,
 		TaskID:           a.TaskID,
@@ -62,7 +62,7 @@ type ArtifactItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
-func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Request, taskRunID string) (run *db.TaskRun, task *db.Task, ok bool) {
+func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Request, taskRunID string) (run *model.TaskRun, task *model.Task, ok bool) {
 	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
 		return nil, nil, false
 	}
@@ -79,7 +79,7 @@ func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Reques
 	return run, task, true
 }
 
-func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskRunID string) (run *db.TaskRun, task *db.Task, ok bool) {
+func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskRunID string) (run *model.TaskRun, task *model.Task, ok bool) {
 	run, task, ok = h.getArtifactRunAndTaskAny(w, r, taskRunID)
 	if !ok {
 		return nil, nil, false

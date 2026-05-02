@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"buildmax/internal/config"
+	"buildmax/internal/core/model"
 	"buildmax/internal/execution/agentrun"
 	execworker "buildmax/internal/execution/worker"
-	"buildmax/internal/infra/db"
 	llm "buildmax/internal/infra/llm"
 	blob "buildmax/internal/infra/objectstore"
 )
@@ -57,8 +57,8 @@ type runDirs struct {
 
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
 type RunTaskInput struct {
-	Task            *db.Task
-	Run             *db.TaskRun
+	Task            *model.Task
+	Run             *model.TaskRun
 	SessionID       string
 	Paths           RuntimePaths
 	Persist         blob.PersistStorage
@@ -100,7 +100,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	return nil
 }
 
-func resolveRunDirs(paths RuntimePaths, task *db.Task, run *db.TaskRun) runDirs {
+func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) runDirs {
 	return runDirs{
 		runDir:       paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.TaskID, run.TaskRunID),
 		runHome:      paths.RuntimeTaskRunHomeDir(task.CreatedBy, task.ConversationID, task.TaskID, run.TaskRunID),
@@ -109,7 +109,7 @@ func resolveRunDirs(paths RuntimePaths, task *db.Task, run *db.TaskRun) runDirs 
 	}
 }
 
-func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task *db.Task, run *db.TaskRun, dirs runDirs) error {
+func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task *model.Task, run *model.TaskRun, dirs runDirs) error {
 	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal); err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task 
 	return nil
 }
 
-func executeRunTask(ctx context.Context, input RunTaskInput, task *db.Task, run *db.TaskRun, dirs runDirs) (RunResult, error) {
+func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, run *model.TaskRun, dirs runDirs) (RunResult, error) {
 	effectiveSessionID := input.SessionID
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
@@ -164,7 +164,7 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 	return nil
 }
 
-func restoreSessionFromPreviousRun(ctx context.Context, task *db.Task, run *db.TaskRun, runGlobalDir string, persist blob.PersistStorage) {
+func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *model.TaskRun, runGlobalDir string, persist blob.PersistStorage) {
 	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.TaskRunID {
 		return
 	}
@@ -186,7 +186,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *db.Task, run *db.T
 	_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
 }
 
-func runAgentTask(ctx context.Context, run *db.TaskRun, runDir, runGlobalDir, sessionID string, streamSender execworker.StreamSender) ([]byte, *int, *int, error) {
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender execworker.StreamSender) ([]byte, *int, *int, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -265,7 +265,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, updater 
 	endTime := time.Now().Unix()
 	errMsg := fmt.Sprintf("%v", err)
 	_ = updater.UpdateRunStatus(ctx, taskRunID, &execworker.PatchTaskRunRequest{
-		Status:       string(db.RunStatusFailed),
+		Status:       string(model.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,
 	})
@@ -280,7 +280,7 @@ func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, art
 		relativePaths = []string{"result.md"}
 	}
 	req := &execworker.PatchTaskRunRequest{
-		Status:   string(db.RunStatusSucceeded),
+		Status:   string(model.RunStatusSucceeded),
 		EndedAt:  &result.EndTime,
 		Output:   &result.OutputStr,
 		Artifact: &execworker.ArtifactPayload{RelativePaths: relativePaths},

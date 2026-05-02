@@ -3,8 +3,8 @@ package portalapi
 import (
 	"net/http"
 
+	"buildmax/internal/core/model"
 	workflowapp "buildmax/internal/core/workflow"
-	"buildmax/internal/infra/db"
 	"buildmax/internal/server/httputil"
 )
 
@@ -82,7 +82,7 @@ type createWorkflowRunRequest struct {
 	IssueID *string `json:"issue_id,omitempty"`
 }
 
-func workflowToResponse(workflow db.Workflow) workflowResponse {
+func workflowToResponse(workflow model.Workflow) workflowResponse {
 	return workflowResponse{
 		ID:          workflow.WorkflowID,
 		TeamID:      workflow.TeamID,
@@ -96,7 +96,7 @@ func workflowToResponse(workflow db.Workflow) workflowResponse {
 	}
 }
 
-func workflowRunToResponse(run db.WorkflowRun) workflowRunResponse {
+func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
 	return workflowRunResponse{
 		ID:             run.WorkflowRunID,
 		WorkflowID:     run.WorkflowID,
@@ -111,7 +111,7 @@ func workflowRunToResponse(run db.WorkflowRun) workflowRunResponse {
 	}
 }
 
-func workflowStepRunToResponse(step db.WorkflowStepRun) workflowStepRunResponse {
+func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunResponse {
 	return workflowStepRunResponse{
 		ID:            step.StepRunID,
 		WorkflowRunID: step.WorkflowRunID,
@@ -345,7 +345,7 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != db.IssueAssigneeWorkflow {
+	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != model.IssueAssigneeWorkflow {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to workflow")
 		return
 	}

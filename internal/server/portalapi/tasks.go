@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 
 	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/model"
 	taskapp "buildmax/internal/core/task"
-	"buildmax/internal/infra/db"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/httputil"
 )
@@ -37,7 +37,7 @@ type createTaskRequest struct {
 	AgentID *string `json:"agent_id,omitempty"`
 }
 
-func taskToResponse(task db.Task) TaskResponse {
+func taskToResponse(task model.Task) TaskResponse {
 	return TaskResponse{
 		ID:             task.TaskID,
 		ConversationID: task.ConversationID,
@@ -56,7 +56,7 @@ func taskToResponse(task db.Task) TaskResponse {
 	}
 }
 
-func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request, conversationID, taskID string) (*db.Task, bool) {
+func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request, conversationID, taskID string) (*model.Task, bool) {
 	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
 		return nil, false
 	}
@@ -72,7 +72,7 @@ func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request,
 	return task, true
 }
 
-func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*db.Task, *db.Conversation, bool) {
+func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *model.Conversation, bool) {
 	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_task", "task_id", taskID)
@@ -165,8 +165,8 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 		TeamID:         teamID,
 		Input:          req.Input,
 		AgentID:        req.AgentID,
-		CreatedByType:  db.RunCreatedByTypeUser,
-		TriggerSource:  db.RunTriggerSourcePortalTaskCreate,
+		CreatedByType:  model.RunCreatedByTypeUser,
+		TriggerSource:  model.RunTriggerSourcePortalTaskCreate,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, req.AgentID) {
@@ -210,7 +210,7 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return true
 		}
-		if errors.Is(err, db.ErrRunInProgress) {
+		if errors.Is(err, model.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
 			return true
 		}
@@ -310,7 +310,7 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) loadTaskConversationData(ctx context.Context, task *db.Task, lastRunID, sessionID string) ([]byte, error) {
+func (h *Handler) loadTaskConversationData(ctx context.Context, task *model.Task, lastRunID, sessionID string) ([]byte, error) {
 	relPath := "sessions/" + sessionID + ".json"
 	if h.cfg.PersistStorage != nil {
 		data, err := h.cfg.PersistStorage.GetTaskGlobal(ctx, blob.RunObjectRef{

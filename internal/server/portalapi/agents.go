@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 	"gorm.io/gorm"
 )
@@ -31,7 +31,7 @@ type patchAgentRequest struct {
 	Instructions string `json:"instructions"`
 }
 
-func agentToResponse(a db.Agent) AgentResponse {
+func agentToResponse(a model.Agent) AgentResponse {
 	return AgentResponse{
 		ID:           a.AgentID,
 		UserID:       a.UserID,

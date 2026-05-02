@@ -20,6 +20,7 @@ type TaskRunRun struct {
 type TaskRunTask struct {
 	TaskID         string  `json:"task_id"`
 	ConversationID string  `json:"conversation_id"`
+	TeamID         string  `json:"team_id"`
 	UserID         string  `json:"user_id"`
 	SessionID      *string `json:"session_id,omitempty"`
 	LastRunID      *string `json:"last_run_id,omitempty"`
@@ -49,5 +50,5 @@ type StreamDeltaRequest struct {
 	Delta string `json:"delta"`
 }
 
-// Run status values match db.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED).
-// Use db.RunStatusPending, db.RunStatusScheduled, etc. when building or comparing status.
+// Run status values match model.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED).
+// Use model.RunStatusPending, model.RunStatusScheduled, etc. when building or comparing status.

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 // StreamSender sends run output deltas to the server (e.g. for live streaming). Optional; when nil, run output is not streamed.
@@ -62,7 +62,7 @@ func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix
 }
 
 // GetWorkerTaskRun fetches run and task from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil, nil if not found.
-func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*db.TaskRun, *db.Task, error) {
+func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*model.TaskRun, *model.Task, error) {
 	pathSuffix := "/api/worker/task-runs/" + taskRunID
 	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
 	if err != nil {
@@ -79,16 +79,17 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		return nil, nil, err
 	}
-	run := &db.TaskRun{
+	run := &model.TaskRun{
 		TaskRunID: got.Run.TaskRunID,
 		TaskID:    got.Run.TaskID,
 		Input:     got.Run.Input,
 		Status:    got.Run.Status,
 		CreatedAt: got.Run.CreatedAt,
 	}
-	task := &db.Task{
+	task := &model.Task{
 		TaskID:         got.Task.TaskID,
 		ConversationID: got.Task.ConversationID,
+		TeamID:         got.Task.TeamID,
 		CreatedBy:      got.Task.UserID,
 		SessionID:      got.Task.SessionID,
 		LastRunID:      got.Task.LastRunID,

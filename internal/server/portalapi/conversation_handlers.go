@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	convapp "buildmax/internal/core/conversation"
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 )
 
@@ -54,7 +54,7 @@ type addMessageResponse struct {
 	Reply string `json:"reply"`
 }
 
-func isVisibleConversationMessage(m db.ConversationMessage) bool {
+func isVisibleConversationMessage(m model.ConversationMessage) bool {
 	return m.Role == "user" || m.Role == "assistant"
 }
 
@@ -290,7 +290,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*db.Conversation, bool) {
+func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*model.Conversation, bool) {
 	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return nil, false
 	}

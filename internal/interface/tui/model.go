@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"buildmax/internal/core/agent"
+	"buildmax/internal/core/model"
 	llm "buildmax/internal/infra/llm"
 	"buildmax/internal/session"
 
@@ -251,7 +252,7 @@ func handleKeyMsg(m *Model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.inputBlock.Reset()
 		m.inputBlock.SyncHeight()
-		m.opts.Session.Append(llm.Message{Role: "user", Content: text})
+		m.opts.Session.Append(model.Message{Role: "user", Content: text})
 		m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width, Busy: true})
 		m.busy = true
 		m.err = ""
@@ -321,7 +322,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 // generateTitleCmd returns a tea.Cmd that calls the LLM to generate a session title in the background.
 func generateTitleCmd(opts TUIOpts) tea.Cmd {
 	return func() tea.Msg {
-		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
 			content, _, usage, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
 			return content, usage, err
 		})

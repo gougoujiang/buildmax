@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"buildmax/internal/infra/db"
@@ -14,7 +15,7 @@ import (
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	taskRunID := "run-1"
 	run := db.TaskRun{TaskRunID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := db.Task{TaskID: "task-1", ConversationID: "conv-1", CreatedBy: "u1"}
+	task := db.Task{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
 	cfg := Config{
 		Token:        "worker-token-123",
@@ -44,6 +45,9 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	}
 	if body := w.Body.String(); body == "" || len(body) < 10 {
 		t.Errorf("with token: body too short: %q", body)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"team_id":"tm_1"`) {
+		t.Errorf("with token: body missing team_id: %q", body)
 	}
 }
 

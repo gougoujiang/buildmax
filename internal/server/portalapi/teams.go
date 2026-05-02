@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 )
 
@@ -35,7 +35,7 @@ type createTeamRequest struct {
 	Name string `json:"name"`
 }
 
-func teamToResponse(team db.Team) teamResponse {
+func teamToResponse(team model.Team) teamResponse {
 	return teamResponse{
 		ID:                team.TeamID,
 		Name:              team.Name,
@@ -46,7 +46,7 @@ func teamToResponse(team db.Team) teamResponse {
 	}
 }
 
-func teamMemberToResponse(member db.TeamMember, user *db.User) teamMemberResponse {
+func teamMemberToResponse(member model.TeamMember, user *model.User) teamMemberResponse {
 	resp := teamMemberResponse{
 		TeamID:    member.TeamID,
 		UserID:    member.UserID,
@@ -124,7 +124,7 @@ func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request)
 	}
 	out := make([]teamMemberResponse, len(list))
 	for i := range list {
-		var user *db.User
+		var user *model.User
 		if h.cfg.UserStore != nil {
 			found, err := h.cfg.UserStore.GetUser(r.Context(), list[i].UserID)
 			if err != nil {
@@ -162,7 +162,7 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	isOwner := false
 	for i := range members {
-		if members[i].UserID == userID && members[i].Role == db.TeamRoleOwner {
+		if members[i].UserID == userID && members[i].Role == model.TeamRoleOwner {
 			isOwner = true
 			break
 		}
@@ -183,9 +183,9 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	role := strings.TrimSpace(req.Role)
 	if role == "" {
-		role = db.TeamRoleMember
+		role = model.TeamRoleMember
 	}
-	if role != db.TeamRoleMember {
+	if role != model.TeamRoleMember {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "only member role is supported")
 		return
 	}
@@ -232,7 +232,7 @@ func (h *Handler) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request
 	}
 	isOwner := false
 	for i := range members {
-		if members[i].UserID == userID && members[i].Role == db.TeamRoleOwner {
+		if members[i].UserID == userID && members[i].Role == model.TeamRoleOwner {
 			isOwner = true
 			break
 		}

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 	"buildmax/internal/server/workerapi"
 )
 
@@ -74,7 +74,7 @@ func (r *ConnRegistry) OnTaskRunTerminal(ctx context.Context, info workerapi.Tas
 }
 
 func formatTaskResultMessage(info workerapi.TaskRunTerminalInfo) string {
-	if info.Status == string(db.RunStatusSucceeded) {
+	if info.Status == string(model.RunStatusSucceeded) {
 		output := ""
 		if info.Output != nil {
 			output = *info.Output

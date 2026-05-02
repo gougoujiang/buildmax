@@ -3,9 +3,8 @@ package portalapi
 import (
 	"context"
 
+	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
-	"buildmax/internal/infra/db"
-	llm "buildmax/internal/infra/llm"
 	blob "buildmax/internal/infra/objectstore"
 	streamhub "buildmax/internal/server/websocket"
 )
@@ -23,21 +22,21 @@ type TitleGenerator interface {
 
 // RunOutputLister lists run outputs by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]db.ArtifactWithTask, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]db.TaskRunArtifact, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
+	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
 }
 
 // Config holds dependencies for authenticated portal endpoints.
 type Config struct {
 	JWTSecret                string
 	CORSOrigin               string // Allowed origin for WebSocket upgrade check
-	UserStore                db.UserStore
-	TeamStore                db.TeamStore
-	WorkflowStore            db.WorkflowStore
-	AgentStore               db.AgentStore
-	IssueStore               db.IssueStore
-	TaskStore                db.TaskStore
-	TaskRunStore             db.TaskRunStore
+	UserStore                model.UserStore
+	TeamStore                model.TeamStore
+	WorkflowStore            model.WorkflowStore
+	AgentStore               model.AgentStore
+	IssueStore               model.IssueStore
+	TaskStore                model.TaskStore
+	TaskRunStore             model.TaskRunStore
 	RunOutputLister          RunOutputLister
 	PersistStorage           blob.PersistStorage
 	ArtifactStorage          blob.ArtifactStorage
@@ -45,10 +44,10 @@ type Config struct {
 	DefaultQuotaTier         string
 	QuotaChecker             *quota.Checker
 	TitleGenerator           TitleGenerator
-	ConversationStore        db.ConversationStore
-	ConversationMessageStore db.ConversationMessageStore
-	ConversationLLMCaller    llm.LLMCaller
+	ConversationStore        model.ConversationStore
+	ConversationMessageStore model.ConversationMessageStore
+	ConversationLLMCaller    model.LLMCaller
 	Hub                      streamhub.StreamHub
-	UserWebhookKeyStore      db.UserWebhookKeyStore
+	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConnRegistry             *ConnRegistry
 }

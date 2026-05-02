@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"buildmax/internal/infra/db"
+	"buildmax/internal/core/model"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 
 // Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	chatRuns     db.TaskRunStore
+	chatRuns     model.TaskRunStore
 	runner       WorkerRunner
 	pollInterval time.Duration
 	stopCh       chan struct{}
@@ -26,12 +26,12 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
-func NewScheduler(chatRunStore db.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
+func NewScheduler(chatRunStore model.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
 	return NewSchedulerWithPollInterval(chatRunStore, runner, defaultPollInterval)
 }
 
 // NewSchedulerWithPollInterval is like NewScheduler but allows setting the poll interval (e.g. for tests). Use 0 for default.
-func NewSchedulerWithPollInterval(chatRunStore db.TaskRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
+func NewSchedulerWithPollInterval(chatRunStore model.TaskRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
 	if chatRunStore == nil {
 		return nil, errors.New("executor: chatRunStore must not be nil")
 	}
@@ -84,10 +84,10 @@ func (s *Scheduler) loop() {
 			if run == nil {
 				continue
 			}
-			updated, err := s.chatRuns.ClaimTaskRun(ctx, db.ClaimTaskRunInput{
+			updated, err := s.chatRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
 				TaskRunID:      run.TaskRunID,
-				ExpectedStatus: db.RunStatusPending,
-				NewStatus:      db.RunStatusScheduled,
+				ExpectedStatus: model.RunStatusPending,
+				NewStatus:      model.RunStatusScheduled,
 			})
 			if err != nil {
 				slog.Warn("scheduler: claim failed", "task_run_id", run.TaskRunID, "err", err)
@@ -104,9 +104,9 @@ func (s *Scheduler) loop() {
 					errorMsg = errorMsg[:maxErrorMessageLength]
 				}
 				endedAt := time.Now().Unix()
-				if updateErr := s.chatRuns.UpdateRun(ctx, db.UpdateTaskRunInput{
+				if updateErr := s.chatRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
 					TaskRunID:    run.TaskRunID,
-					Status:       db.RunStatusFailed,
+					Status:       model.RunStatusFailed,
 					EndedAt:      &endedAt,
 					ErrorMessage: &errorMsg,
 				}); updateErr != nil {

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	llm "buildmax/internal/infra/llm"
+	"buildmax/internal/core/model"
 	"buildmax/internal/session"
 
 	"github.com/charmbracelet/lipgloss"
@@ -30,7 +30,7 @@ var userMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#B8D4E3"))
 // formatMessage returns display lines for a single chat message:
 // user → content only (leading ">" added in buildViewportContent); assistant → content plus " * name (args)" per tool call (leading bullet in buildViewportContent);
 // tool → optional " * result: ..." or omit.
-func formatMessage(m llm.Message) []string {
+func formatMessage(m model.Message) []string {
 	var lines []string
 	switch m.Role {
 	case "user":

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	issueapp "buildmax/internal/core/issue"
+	"buildmax/internal/core/model"
 	taskapp "buildmax/internal/core/task"
-	"buildmax/internal/infra/db"
 	"buildmax/internal/server/httputil"
 )
 
@@ -59,7 +59,7 @@ type patchIssueRequest struct {
 	AssigneeID   *string `json:"assignee_id"`
 }
 
-func issueToResponse(issue db.Issue) IssueResponse {
+func issueToResponse(issue model.Issue) IssueResponse {
 	return IssueResponse{
 		ID:           issue.IssueID,
 		UserID:       issue.UserID,
@@ -75,7 +75,7 @@ func issueToResponse(issue db.Issue) IssueResponse {
 	}
 }
 
-func buildIssueAgentRunInput(issue db.Issue) string {
+func buildIssueAgentRunInput(issue model.Issue) string {
 	var b strings.Builder
 	b.WriteString("Work on this issue.\n\n")
 	b.WriteString("Title: ")
@@ -174,7 +174,7 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var workflowOut *workflowResponse
-	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == db.IssueAssigneeWorkflow {
+	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == model.IssueAssigneeWorkflow {
 		workflow, err := h.cfg.WorkflowStore.GetWorkflow(r.Context(), *issue.AssigneeID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "portal handler error", "handler", "get_issue_flow_workflow", "issue_id", issueID)
@@ -262,7 +262,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != db.IssueAssigneeAgent {
+	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != model.IssueAssigneeAgent {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to agent")
 		return
 	}
@@ -291,8 +291,8 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		Input:          input,
 		AgentID:        issue.AssigneeID,
 		IssueID:        &issueID,
-		CreatedByType:  db.RunCreatedByTypeUser,
-		TriggerSource:  db.RunTriggerSourceIssueAgentRun,
+		CreatedByType:  model.RunCreatedByTypeUser,
+		TriggerSource:  model.RunTriggerSourceIssueAgentRun,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, issue.AssigneeID) {
@@ -317,7 +317,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	if req.AssigneeKind != nil && *req.AssigneeKind == db.IssueAssigneeWorkflow {
+	if req.AssigneeKind != nil && *req.AssigneeKind == model.IssueAssigneeWorkflow {
 		if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionAssignIssueWorkflow); !ok {
 			return
 		}

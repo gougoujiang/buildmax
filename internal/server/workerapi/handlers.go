@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"buildmax/internal/core/model"
 	execworker "buildmax/internal/execution/worker"
-	"buildmax/internal/infra/db"
 	"buildmax/internal/server/httputil"
 )
 
@@ -58,6 +58,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		Task: execworker.TaskRunTask{
 			TaskID:         task.TaskID,
 			ConversationID: task.ConversationID,
+			TeamID:         task.TeamID,
 			UserID:         task.CreatedBy,
 			SessionID:      task.SessionID,
 			LastRunID:      task.LastRunID,
@@ -99,13 +100,13 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 
 // handlePatchRunning handles status RUNNING; returns true if it wrote a response (caller should return).
 func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, taskRunID string, req *execworker.PatchTaskRunRequest) bool {
-	if req.Status != string(db.RunStatusRunning) {
+	if req.Status != string(model.RunStatusRunning) {
 		return false
 	}
-	updated, err := h.cfg.TaskRunStore.ClaimTaskRun(r.Context(), db.ClaimTaskRunInput{
+	updated, err := h.cfg.TaskRunStore.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
 		TaskRunID:      taskRunID,
-		ExpectedStatus: db.RunStatusScheduled,
-		NewStatus:      db.RunStatusRunning,
+		ExpectedStatus: model.RunStatusScheduled,
+		NewStatus:      model.RunStatusRunning,
 		StartedAt:      req.StartedAt,
 		SessionID:      req.SessionID,
 	})
@@ -122,9 +123,9 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, tas
 
 // handlePatchTerminalStatus handles status other than RUNNING: update status, OnRunComplete/SyncTaskFromRun, Hub.Done. Writes errors and does not write 200.
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *execworker.PatchTaskRunRequest) bool {
-	if err := h.cfg.TaskRunStore.UpdateRun(r.Context(), db.UpdateTaskRunInput{
+	if err := h.cfg.TaskRunStore.UpdateRun(r.Context(), model.UpdateTaskRunInput{
 		TaskRunID:        taskRunID,
-		Status:           db.RunStatus(req.Status),
+		Status:           model.RunStatus(req.Status),
 		StartedAt:        req.StartedAt,
 		EndedAt:          req.EndedAt,
 		Output:           req.Output,
@@ -136,7 +137,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
 		return false
 	}
-	if req.Status == string(db.RunStatusSucceeded) && req.Artifact != nil {
+	if req.Status == string(model.RunStatusSucceeded) && req.Artifact != nil {
 		relativePaths := req.Artifact.RelativePaths
 		if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
 			relativePaths = []string{req.Artifact.RelativePath}
@@ -148,7 +149,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_on_complete", "task_run_id", taskRunID)
 			return false
 		}
-	} else if req.Status == string(db.RunStatusFailed) {
+	} else if req.Status == string(model.RunStatusFailed) {
 		if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_sync", "task_run_id", taskRunID)
 			return false
