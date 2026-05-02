@@ -13,8 +13,7 @@ import (
 	execruntime "buildmax/internal/execution/runtime"
 	execworker "buildmax/internal/execution/worker"
 	blob "buildmax/internal/infra/objectstore"
-
-	"github.com/google/uuid"
+	"buildmax/internal/session"
 )
 
 // ErrAlreadyClaimed is returned by RunWorker when the run was already claimed by another worker (server returned 409).
@@ -61,7 +60,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
 
-	sessionID := uuid.New().String()
+	sessionID := session.NewID()
 	if task.SessionID != nil {
 		sessionID = *task.SessionID
 	}

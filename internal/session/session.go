@@ -60,11 +60,16 @@ type Session struct {
 	completionTokens int
 }
 
+// NewID returns a new session ID.
+func NewID() string {
+	return uuid.New().String()
+}
+
 // NewSession creates a new session with a generated UUID, the given title,
 // created_at set to the current time, and empty history. Title may be empty.
 func NewSession(title string) *Session {
 	return &Session{
-		id:        uuid.New().String(),
+		id:        NewID(),
 		title:     title,
 		createdAt: time.Now(),
 		messages:  nil,
