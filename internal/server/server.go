@@ -30,18 +30,6 @@ var staticFS embed.FS
 
 const shutdownTimeout = 10 * time.Second
 
-// TitleGenerator generates a short title from prompt input. Optional; when nil, the caller uses truncated input.
-// Usage is returned for metering (billing).
-type TitleGenerator interface {
-	GenerateTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
-}
-
-// TokenUsage holds prompt and completion token counts for a single LLM call.
-type TokenUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-}
-
 // RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
 type RunOutputLister interface {
 	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
@@ -83,7 +71,7 @@ type WorkerConfig struct {
 
 // ConversationConfig holds Tier 1 conversation stores and LLM wiring.
 type ConversationConfig struct {
-	TitleGenerator           TitleGenerator
+	TitleGenerator           model.TitleGenerator
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
 	ConversationLLMClient    model.LLMClient
@@ -113,17 +101,6 @@ type Server struct {
 	hub streamhub.StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
-// titleGenAdapter adapts server.TitleGenerator to portalapi.TitleGenerator (TokenUsage type).
-type titleGenAdapter struct{ gen TitleGenerator }
-
-func (a titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, portalapi.TokenUsage, error) {
-	if a.gen == nil {
-		return "", portalapi.TokenUsage{}, nil
-	}
-	title, usage, err := a.gen.GenerateTitle(ctx, input)
-	return title, portalapi.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
-}
-
 // buildPortalConfig builds portalapi.Config from server config, the shared stream hub, and the connection registry.
 func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portalapi.ConnRegistry) portalapi.Config {
 	return portalapi.Config{
@@ -142,7 +119,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portalapi.
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
 		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
 		QuotaChecker:             cfg.Auth.QuotaChecker,
-		TitleGenerator:           titleGenAdapter{cfg.Conv.TitleGenerator},
+		TitleGenerator:           cfg.Conv.TitleGenerator,
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
@@ -238,7 +215,7 @@ func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info wo
 		Task:          taskSvc,
 	}
 	return func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
-		workflowInfo := workflowapp.TaskRunTerminalInfo{
+		workflowInfo := model.TaskRunTerminalInfo{
 			TaskRunID:      info.TaskRunID,
 			TaskID:         info.TaskID,
 			ConversationID: info.ConversationID,

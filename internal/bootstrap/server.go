@@ -28,21 +28,21 @@ type serverBootstrap struct {
 	runner          scheduler.WorkerRunner
 }
 
-// titleGenAdapter implements httpserver.TitleGenerator using session.GenerateTitleFromInput and an LLM client.
+// titleGenAdapter implements model.TitleGenerator using session.GenerateTitleFromInput and an LLM client.
 type titleGenAdapter struct {
 	client *llm.Client
 }
 
-func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, httpserver.TokenUsage, error) {
+func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
 	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
 		content, _, usage, err := a.client.ChatCompletionBlocking(ctx, msgs, nil)
 		return content, usage, err
 	})
 	title, usage, err := session.GenerateTitleFromInput(ctx, titleClient, input)
 	if err != nil {
-		return "", httpserver.TokenUsage{}, err
+		return "", 0, 0, err
 	}
-	return title, httpserver.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, nil
+	return title, usage.PromptTokens, usage.CompletionTokens, nil
 }
 
 // RunServer loads server env and workspaces dir, opens the DB, builds blob storage,

@@ -23,11 +23,6 @@ type QuotaChecker interface {
 	Check(ctx context.Context, teamID string, runsToAdd, tokensToAdd int) (allowed bool, reason string)
 }
 
-// TitleGenerator generates a title and token usage for a task input.
-type TitleGenerator interface {
-	GenerateTitle(ctx context.Context, input string) (title string, promptTokens, completionTokens int, err error)
-}
-
 // QuotaExceededError is returned when quota blocks a task operation.
 type QuotaExceededError struct {
 	Reason string
@@ -43,7 +38,7 @@ type Service struct {
 	Tasks          model.TaskStore
 	TaskRuns       model.TaskRunStore
 	QuotaChecker   QuotaChecker
-	TitleGenerator TitleGenerator
+	TitleGenerator model.TitleGenerator
 }
 
 // CreateTaskCmd creates a new task and its first run.

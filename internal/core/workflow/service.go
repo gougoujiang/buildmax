@@ -40,17 +40,6 @@ type Service struct {
 	Task          *taskapp.Service
 }
 
-type Definition struct {
-	Steps []DefinitionStep `json:"steps"`
-}
-
-type DefinitionStep struct {
-	StepID        string `json:"step_id"`
-	Type          string `json:"type"`
-	TargetAgentID string `json:"target_agent_id"`
-	Prompt        string `json:"prompt"`
-}
-
 type CreateWorkflowCmd struct {
 	TeamID      string
 	UserID      string
@@ -75,16 +64,6 @@ type StartWorkflowRunCmd struct {
 	IssueID    *string
 }
 
-// TaskRunTerminalInfo describes a task run that reached a terminal state.
-type TaskRunTerminalInfo struct {
-	TaskRunID      string
-	TaskID         string
-	ConversationID string
-	UserID         string
-	Status         string
-	Output         *string
-	ErrorMessage   *string
-}
 
 func (s *Service) ListWorkflows(ctx context.Context, teamID string) ([]model.Workflow, error) {
 	if s.Workflows == nil {
@@ -272,7 +251,7 @@ func isValidWorkflowStatus(status string) bool {
 	}
 }
 
-func (s *Service) HandleTaskRunTerminal(ctx context.Context, info TaskRunTerminalInfo) error {
+func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) error {
 	if s.Workflows == nil {
 		return nil
 	}
@@ -453,8 +432,8 @@ func (s *Service) validateIssueForRun(ctx context.Context, teamID, workflowID st
 	return nil
 }
 
-func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*Definition, error) {
-	var def Definition
+func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, error) {
+	var def model.WorkflowDefinition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidDefinition, err)
 	}

@@ -82,7 +82,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}
 
 	output := "done"
-	if err := svc.HandleTaskRunTerminal(context.Background(), TaskRunTerminalInfo{
+	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
 		UserID:    "u1",

@@ -1,25 +1,12 @@
 package portalapi
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
 	taskapp "buildmax/internal/core/task"
 	"buildmax/internal/server/httputil"
 )
-
-type taskTitleGeneratorAdapter struct {
-	gen TitleGenerator
-}
-
-func (a taskTitleGeneratorAdapter) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
-	if a.gen == nil {
-		return "", 0, 0, nil
-	}
-	title, usage, err := a.gen.GenerateTitle(ctx, input)
-	return title, usage.PromptTokens, usage.CompletionTokens, err
-}
 
 func (h *Handler) taskService() *taskapp.Service {
 	var quotaChecker taskapp.QuotaChecker
@@ -31,7 +18,7 @@ func (h *Handler) taskService() *taskapp.Service {
 		Tasks:          h.cfg.TaskStore,
 		TaskRuns:       h.cfg.TaskRunStore,
 		QuotaChecker:   quotaChecker,
-		TitleGenerator: taskTitleGeneratorAdapter{gen: h.cfg.TitleGenerator},
+		TitleGenerator: h.cfg.TitleGenerator,
 	}
 }
 

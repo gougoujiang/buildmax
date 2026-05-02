@@ -9,17 +9,6 @@ import (
 	streamhub "buildmax/internal/server/websocket"
 )
 
-// TokenUsage holds prompt and completion token counts for a single LLM call.
-type TokenUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-}
-
-// TitleGenerator generates a short title from prompt input. Optional.
-type TitleGenerator interface {
-	GenerateTitle(ctx context.Context, input string) (title string, usage TokenUsage, err error)
-}
-
 // RunOutputLister lists run outputs by conversation and gets output files for a run.
 type RunOutputLister interface {
 	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
@@ -43,7 +32,7 @@ type Config struct {
 	WorkspacesDir            string
 	DefaultQuotaTier         string
 	QuotaChecker             *quota.Checker
-	TitleGenerator           TitleGenerator
+	TitleGenerator           model.TitleGenerator
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
 	ConversationLLMClient    model.LLMClient

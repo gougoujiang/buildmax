@@ -17,18 +17,13 @@ var (
 	ErrLLMRequired   = errors.New("conversation LLM not configured")
 )
 
-// TitleGenerator generates a conversation title from the first user message.
-type TitleGenerator interface {
-	GenerateTitle(ctx context.Context, input string) (string, error)
-}
-
 // Service is the single Tier 1 orchestration entry point for portal turns.
 type Service struct {
 	TaskService       *taskapp.Service
 	ConversationStore model.ConversationStore
 	MessageStore      model.ConversationMessageStore
 	LLMClient         model.LLMClient
-	TitleGenerator    TitleGenerator
+	TitleGenerator    model.TitleGenerator
 	AgentStore        model.AgentStore
 }
 
@@ -42,27 +37,21 @@ type HandleTurnCmd struct {
 	StreamSink     model.StreamSink
 }
 
-// HandleTurnResult returns either a direct reply and/or spawned task ids.
-type HandleTurnResult struct {
-	Reply   string
-	TaskIDs []string
-}
-
 // HandleTurn routes the turn to either a task-run creation flow or a conversation LLM flow.
-func (s *Service) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (HandleTurnResult, error) {
+func (s *Service) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	switch {
 	case cmd.TaskID != "":
 		return s.handleTaskRunTurn(ctx, cmd)
 	case cmd.ConversationID != "":
 		return s.handleConversationTurn(ctx, cmd)
 	default:
-		return HandleTurnResult{}, ErrInvalidTarget
+		return ConversationResult{}, ErrInvalidTarget
 	}
 }
 
-func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (HandleTurnResult, error) {
+func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	if s.TaskService == nil {
-		return HandleTurnResult{}, taskapp.ErrTaskRunsNotConfigured
+		return ConversationResult{}, taskapp.ErrTaskRunsNotConfigured
 	}
 	createdByType := model.RunCreatedByTypeUser
 	triggerSource := model.RunTriggerSourcePortalTaskRerun
@@ -78,17 +67,17 @@ func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (Han
 		TriggerSource: triggerSource,
 	})
 	if err != nil {
-		return HandleTurnResult{}, err
+		return ConversationResult{}, err
 	}
-	return HandleTurnResult{TaskIDs: []string{run.TaskRunID}}, nil
+	return ConversationResult{TaskIDs: []string{run.TaskRunID}}, nil
 }
 
-func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (HandleTurnResult, error) {
+func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	if s.ConversationStore == nil || s.MessageStore == nil {
-		return HandleTurnResult{}, fmt.Errorf("conversation stores not configured")
+		return ConversationResult{}, fmt.Errorf("conversation stores not configured")
 	}
 	if s.LLMClient == nil {
-		return HandleTurnResult{}, ErrLLMRequired
+		return ConversationResult{}, ErrLLMRequired
 	}
 
 	runners := s.conversationToolRunners(cmd.ConversationID, cmd.UserID, cmd.Channel)
@@ -103,12 +92,12 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		ScopeID:            cmd.ConversationID,
 		UserID:             cmd.UserID,
 		Runners:            runners,
-		TitleGenerator:     titleGeneratorAdapter{s.TitleGenerator},
+		TitleGenerator:     s.TitleGenerator,
 		RecentChatsSnippet: s.recentTasksSnippet(ctx, cmd.ConversationID),
 		StreamSink:         cmd.StreamSink,
 	}
 	reply, err := Run(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
-	return HandleTurnResult{Reply: reply}, err
+	return ConversationResult{Reply: reply}, err
 }
 
 func (s *Service) conversationToolRunners(conversationID, userID, channel string) *ConversationToolRunners {
@@ -319,13 +308,3 @@ func formatCreatedAt(unixSec int64) string {
 	return time.Unix(unixSec, 0).Format("2006-01-02 15:04")
 }
 
-type titleGeneratorAdapter struct {
-	gen TitleGenerator
-}
-
-func (a titleGeneratorAdapter) GenerateTitleFromInput(ctx context.Context, input string) (string, error) {
-	if a.gen == nil {
-		return "", nil
-	}
-	return a.gen.GenerateTitle(ctx, input)
-}
