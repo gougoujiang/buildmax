@@ -16,17 +16,8 @@ import (
 
 // BuildS3Client creates an S3-compatible client (MinIO or AWS S3). Use when either provider is minio.
 func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob.S3Client, error) {
-	resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		return aws.Endpoint{
-			URL:               cfg.Endpoint,
-			SigningRegion:     cfg.Region,
-			HostnameImmutable: true,
-		}, nil
-	})
-
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.Region),
-		awsconfig.WithEndpointResolverWithOptions(resolver),
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			cfg.AccessKey,
 			cfg.SecretKey,
@@ -38,6 +29,7 @@ func BuildS3Client(ctx context.Context, cfg config.WorkspaceStorageConfig) (blob
 	}
 
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(cfg.Endpoint)
 		o.UsePathStyle = true
 	})
 	return blob.NewS3ClientAdapter(client), nil
