@@ -18,9 +18,9 @@ type RunStats struct {
 	CompletionTokens int // accumulated completion tokens from LLM calls
 }
 
-// MessageBuffer is the minimal interface for the agent loop: get messages and append one message.
+// MessageHistory is the minimal interface for the agent loop: read the conversation so far and append one message.
 // The loop uses it so the same logic works with in-memory session or DB-backed conversation.
-type MessageBuffer interface {
+type MessageHistory interface {
 	Messages() []model.Message
 	Append(m model.Message) error
 }
@@ -29,26 +29,26 @@ type MessageBuffer interface {
 type RunLoopOpts struct {
 	LLMClient    model.LLMClient
 	SystemPrompt string
-	Tools        model.ToolRegistry
+	ToolRegistry model.ToolRegistry
 	MaxIter      int
-	Buffer       MessageBuffer
+	History      MessageHistory
 	StreamSink   model.StreamSink
 }
 
-// RunLoop runs the LLM loop once: build messages from buffer, call LLM, handle tool_calls, append to buffer, repeat until final reply.
-// It is used by Agent.processLoop (with session buffer) and by conversation.RunLoop (with DB-backed buffer).
+// RunLoop runs the LLM loop once: build messages from history, call LLM, handle tool_calls, append to history, repeat until final reply.
+// It is used by Agent.processLoop (with session history) and by conversation.Run (with DB-backed history).
 func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
 	var totalToolCalls, totalPrompt, totalCompletion int
 	for i := 0; i < opts.MaxIter; i++ {
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
-		messages := append([]model.Message{{Role: "system", Content: opts.SystemPrompt}}, opts.Buffer.Messages()...)
+		messages := append([]model.Message{{Role: "system", Content: opts.SystemPrompt}}, opts.History.Messages()...)
 		var content string
 		var toolCalls []model.ToolCall
 		var usage model.Usage
 		if opts.StreamSink != nil {
-			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionStreaming(ctx, messages, opts.Tools.GetDefs(), opts.StreamSink.OnDelta)
+			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionStreaming(ctx, messages, opts.ToolRegistry.GetDefs(), opts.StreamSink.OnDelta)
 		} else {
-			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionBlocking(ctx, messages, opts.Tools.GetDefs())
+			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionBlocking(ctx, messages, opts.ToolRegistry.GetDefs())
 		}
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)
@@ -58,17 +58,17 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		totalCompletion += usage.CompletionTokens
 		if len(toolCalls) == 0 {
 			slog.Debug("agent reply", "content", content)
-			if err := opts.Buffer.Append(model.Message{Role: "assistant", Content: content}); err != nil {
+			if err := opts.History.Append(model.Message{Role: "assistant", Content: content}); err != nil {
 				return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, err
 			}
 			return content, RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, nil
 		}
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
-		if err := opts.Buffer.Append(model.Message{Role: "assistant", Content: content, ToolCalls: toolCalls}); err != nil {
+		if err := opts.History.Append(model.Message{Role: "assistant", Content: content, ToolCalls: toolCalls}); err != nil {
 			return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, err
 		}
 		for _, tc := range toolCalls {
-			tool := opts.Tools.Lookup(tc.Name)
+			tool := opts.ToolRegistry.Lookup(tc.Name)
 			var result string
 			if tool == nil {
 				result = fmt.Sprintf("error: unknown tool %q", tc.Name)
@@ -80,7 +80,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			} else {
 				slog.Debug("tool result", "tool", tc.Name, "content", result)
 			}
-			if err := opts.Buffer.Append(model.Message{Role: "tool", Content: result, ToolCallID: tc.ID}); err != nil {
+			if err := opts.History.Append(model.Message{Role: "tool", Content: result, ToolCallID: tc.ID}); err != nil {
 				return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, err
 			}
 			totalToolCalls++

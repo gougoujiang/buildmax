@@ -89,7 +89,7 @@ func buildConversationTools(scopeID, userID string, runners *ConversationToolRun
 	return toolList
 }
 
-// conversationBuffer implements agent.MessageBuffer by persisting each Append to the message store.
+// conversationBuffer implements agent.MessageHistory by persisting each Append to the message store.
 type conversationBuffer struct {
 	ctx            context.Context
 	conversationID string
@@ -194,9 +194,9 @@ func executeRun(ctx context.Context, llmClient model.LLMClient, in RunInput, pre
 	reply, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    llmClient,
 		SystemPrompt: effectiveSystemPrompt(systemPrompt, in.RecentChatsSnippet),
-		Tools:        tools,
+		ToolRegistry: tools,
 		MaxIter:      maxIterations,
-		Buffer:       prepared.buffer,
+		History:      prepared.buffer,
 		StreamSink:   in.StreamSink,
 	})
 	if err != nil {
