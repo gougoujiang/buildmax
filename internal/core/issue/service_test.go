@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"buildmax/internal/core/model"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
 )
 
 func TestCreateIssue_TitleRequired(t *testing.T) {
-	svc := &Service{Issues: &testutil.MockIssueStore{}}
+	svc := &Service{Issues: &mock.MockIssueStore{}}
 	_, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
 		UserID: "u1",
 		TeamID: "tm_1",
@@ -23,7 +23,7 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 
 func TestUpdateIssue_InvalidStatus(t *testing.T) {
 	svc := &Service{
-		Issues: &testutil.MockIssueStore{
+		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1"}},
 		},
 	}
@@ -41,10 +41,10 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 
 func TestUpdateIssue_AssignToPerson(t *testing.T) {
 	svc := &Service{
-		Issues: &testutil.MockIssueStore{
+		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
-		Teams: &testutil.MockTeamStore{Members: []model.TeamMember{{TeamID: "tm_1", UserID: "u1", Role: model.TeamRoleOwner}}},
+		Teams: &mock.MockTeamStore{Members: []model.TeamMember{{TeamID: "tm_1", UserID: "u1", Role: model.TeamRoleOwner}}},
 	}
 	kind := model.IssueAssigneePerson
 	id := "u1"
@@ -65,10 +65,10 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 
 func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	svc := &Service{
-		Issues: &testutil.MockIssueStore{
+		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
-		Agents: &testutil.MockAgentStore{
+		Agents: &mock.MockAgentStore{
 			Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
@@ -91,10 +91,10 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 
 func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	svc := &Service{
-		Issues: &testutil.MockIssueStore{
+		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
-		Agents: &testutil.MockAgentStore{
+		Agents: &mock.MockAgentStore{
 			Agents: []model.Agent{{AgentID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
 		},
 	}
@@ -114,10 +114,10 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 
 func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	svc := &Service{
-		Issues: &testutil.MockIssueStore{
+		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
-		Workflows: &testutil.MockWorkflowStore{
+		Workflows: &mock.MockWorkflowStore{
 			Workflows: []model.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusPublished}},
 		},
 	}
@@ -140,10 +140,10 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 
 func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	svc := &Service{
-		Issues: &testutil.MockIssueStore{
+		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
-		Workflows: &testutil.MockWorkflowStore{
+		Workflows: &mock.MockWorkflowStore{
 			Workflows: []model.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusDraft}},
 		},
 	}

@@ -13,7 +13,7 @@ Target top-level packages:
 - `infra`: implementations for external systems such as DB, object storage, LLM providers, Kubernetes, MCP transport, and logging.
 - `server`: HTTP/WebSocket transport handlers and server lifecycle.
 - `interface`: local user entry points such as CLI, TUI, and desktop.
-- `session`, `util`, `testutil`: supporting packages with controlled scope.
+- `session`, `util`, `mock`: supporting packages with controlled scope.
 
 ## Target Shape
 
@@ -62,7 +62,7 @@ internal/
     desktop/
   session/
   util/
-  testutil/
+  mock/
 ```
 
 ## Dependency Rules

@@ -140,23 +140,23 @@ func (g *Grep) Parameters() any {
 // Returns formatted results based on output_mode, or "No matches found.", or an error.
 func (g *Grep) Execute(ctx context.Context, args map[string]any) (string, error) {
 	// Parse pattern (required)
-	pattern, err := util.ParseRequiredString(args, "pattern")
+	pattern, err := parseRequiredString(args, "pattern")
 	if err != nil {
 		return "", err
 	}
 
 	// Parse optional flags
-	caseInsensitive := util.ParseOptionalBool(args, "case_insensitive", false)
-	multiline := util.ParseOptionalBool(args, "multiline", false)
-	lineNumbers := util.ParseOptionalBool(args, "line_numbers", true)
-	outputMode := util.ParseOptionalString(args, "output_mode", "files_with_matches")
-	globFilter := util.ParseOptionalString(args, "glob", "")
-	typeFilter := util.ParseOptionalString(args, "type", "")
-	beforeCtx := util.ParseOptionalInt(args, "before_context", 0)
-	afterCtx := util.ParseOptionalInt(args, "after_context", 0)
-	ctxBoth := util.ParseOptionalInt(args, "context", 0)
-	headLimit := util.ParseOptionalInt(args, "head_limit", 0)
-	offset := util.ParseOptionalInt(args, "offset", 0)
+	caseInsensitive := parseOptionalBool(args, "case_insensitive", false)
+	multiline := parseOptionalBool(args, "multiline", false)
+	lineNumbers := parseOptionalBool(args, "line_numbers", true)
+	outputMode := parseOptionalString(args, "output_mode", "files_with_matches")
+	globFilter := parseOptionalString(args, "glob", "")
+	typeFilter := parseOptionalString(args, "type", "")
+	beforeCtx := parseOptionalInt(args, "before_context", 0)
+	afterCtx := parseOptionalInt(args, "after_context", 0)
+	ctxBoth := parseOptionalInt(args, "context", 0)
+	headLimit := parseOptionalInt(args, "head_limit", 0)
+	offset := parseOptionalInt(args, "offset", 0)
 
 	// context overrides before_context and after_context if set
 	if ctxBoth > 0 {

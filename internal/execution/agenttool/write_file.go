@@ -50,7 +50,7 @@ func (w *WriteFile) Parameters() any {
 // Execute writes args["content"] to the file at args["file_path"] if the path is under the tool's root.
 // Creates parent directories if needed; overwrites if the file exists. Returns a short success message or error.
 func (w *WriteFile) Execute(ctx context.Context, args map[string]any) (string, error) {
-	filePath, err := util.ParseRequiredString(args, "file_path")
+	filePath, err := parseRequiredString(args, "file_path")
 	if err != nil {
 		return "", err
 	}

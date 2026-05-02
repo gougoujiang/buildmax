@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	taskapp "buildmax/internal/core/task"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
 )
 
 func TestRuleBasedEngine_Process_wrongChannel(t *testing.T) {
@@ -46,7 +46,7 @@ func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
 func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
 	e := &RuleBasedEngine{
 		Task:          &taskapp.Service{},
-		Conversations: &testutil.MockConversationStore{},
+		Conversations: &mock.MockConversationStore{},
 	} // Task service has nil stores; CreateTask will fail later, but we validate message first
 	ctx := context.Background()
 	turn := ConversationTurn{

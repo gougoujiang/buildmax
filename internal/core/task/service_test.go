@@ -5,18 +5,18 @@ import (
 	"testing"
 
 	"buildmax/internal/core/model"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
 )
 
 func TestCreateRun_PersistsProvenance(t *testing.T) {
-	taskStore := &testutil.MockTaskStore{
+	taskStore := &mock.MockTaskStore{
 		List: []model.Task{{
 			TaskID: "t_1",
 			TeamID: "tm_1",
 			Status: "SUCCEEDED",
 		}},
 	}
-	runStore := &testutil.MockTaskRunStore{}
+	runStore := &mock.MockTaskRunStore{}
 	svc := &Service{
 		Tasks:    taskStore,
 		TaskRuns: runStore,

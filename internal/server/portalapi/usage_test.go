@@ -10,23 +10,24 @@ import (
 
 	"buildmax/internal/core/quota"
 	"buildmax/internal/infra/db"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
+	"buildmax/internal/util"
 )
 
 func TestUsageHandler(t *testing.T) {
 	secret := "test-usage-secret"
 	userID := "u1"
 	teamID := "tm_personal_u1"
-	teamStore := &testutil.MockTeamStore{
+	teamStore := &mock.MockTeamStore{
 		Teams: []db.Team{
-			{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().Unix()},
+			{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().Unix()},
 		},
 		Members: []db.TeamMember{
 			{TeamID: teamID, UserID: userID, Role: db.TeamRoleOwner, CreatedAt: time.Now().Unix()},
 		},
 	}
-	usageReader := &testutil.MockUsageReader{RunCount: 2, TotalTokens: 5000}
-	tierStore := &testutil.MockTierStore{
+	usageReader := &mock.MockUsageReader{RunCount: 2, TotalTokens: 5000}
+	tierStore := &mock.MockTierStore{
 		Tier: &db.QuotaTier{
 			TierName:           "free_trial",
 			MaxRunsPerPeriod:   10,
@@ -57,7 +58,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:        "no QuotaChecker returns 503",
-			authHeader:  "Bearer " + testutil.SignJWT(userID, secret),
+			authHeader:  "Bearer " + util.SignJWT(userID, secret),
 			path:        "/api/usage",
 			checker:     nil,
 			jwtSecret:   secret,
@@ -66,7 +67,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:       "legacy usage route returns personal team usage",
-			authHeader: "Bearer " + testutil.SignJWT(userID, secret),
+			authHeader: "Bearer " + util.SignJWT(userID, secret),
 			path:       "/api/usage",
 			checker:    checker,
 			jwtSecret:  secret,
@@ -77,7 +78,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:       "team usage route returns team usage",
-			authHeader: "Bearer " + testutil.SignJWT(userID, secret),
+			authHeader: "Bearer " + util.SignJWT(userID, secret),
 			path:       "/api/teams/" + teamID + "/usage",
 			checker:    checker,
 			jwtSecret:  secret,

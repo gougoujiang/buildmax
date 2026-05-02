@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"buildmax/internal/infra/db"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
+	"buildmax/internal/util"
 )
 
 const issueTestSecret = "issue-test-secret"
@@ -18,7 +19,7 @@ func TestIssueHandlers(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	otherTeamID := "tm_other"
 	workflowID := "w_1"
-	store := &testutil.MockIssueStore{
+	store := &mock.MockIssueStore{
 		Issues: []db.Issue{
 			{
 				IssueID:      "i_1",
@@ -35,16 +36,16 @@ func TestIssueHandlers(t *testing.T) {
 			},
 		},
 	}
-	agents := &testutil.MockAgentStore{
+	agents := &mock.MockAgentStore{
 		Agents: []db.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
-	workflows := &testutil.MockWorkflowStore{
+	workflows := &mock.MockWorkflowStore{
 		Workflows: []db.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: db.WorkflowStatusPublished}},
 	}
-	tasks := &testutil.MockTaskStore{}
-	teams := &testutil.MockTeamStore{
+	tasks := &mock.MockTaskStore{}
+	teams := &mock.MockTeamStore{
 		Teams: []db.Team{
-			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"},
+			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"},
 			{TeamID: otherTeamID, Name: "Other", CreatedBy: "u2"},
 		},
 		Members: []db.TeamMember{
@@ -61,14 +62,14 @@ func TestIssueHandlers(t *testing.T) {
 		AgentStore:        agents,
 		WorkflowStore:     workflows,
 		TaskStore:         tasks,
-		ConversationStore: &testutil.MockConversationStore{},
+		ConversationStore: &mock.MockConversationStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	t.Run("GET list issues", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -85,7 +86,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("POST create issue", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues", strings.NewReader(`{"title":"New issue","description":"Desc"}`))
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -106,7 +107,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("POST create issue missing title returns 400", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues", strings.NewReader(`{"title":"","description":"Desc"}`))
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -117,7 +118,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("GET issue detail", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -127,7 +128,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("PATCH issue assign to agent", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -145,7 +146,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("POST issue agent run", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues/i_1/agent-runs", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusCreated {
@@ -169,7 +170,7 @@ func TestIssueHandlers(t *testing.T) {
 			t.Fatalf("created task issue_id = %v, want i_1", created.IssueID)
 		}
 		flowReq := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1/flow", nil)
-		flowReq.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		flowReq.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		flowRec := httptest.NewRecorder()
 		mux.ServeHTTP(flowRec, flowReq)
 		if flowRec.Code != http.StatusOK {
@@ -186,7 +187,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("PATCH invalid status returns 400", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"status":"blocked"}`))
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -197,7 +198,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("PATCH issue assign to workflow", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"assignee_kind":"workflow","assignee_id":"w_1"}`))
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -215,7 +216,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("PATCH issue assign to workflow forbidden for member", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"assignee_kind":"workflow","assignee_id":"w_1"}`))
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u2", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u2", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -235,7 +236,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	t.Run("GET issues forbidden for non-member explicit team", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+otherTeamID+"/issues", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {

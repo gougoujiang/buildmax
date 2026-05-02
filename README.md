@@ -138,7 +138,7 @@ buildmax/
 │   │   └── desktop/           # Wails app bridge
 │   ├── server/                # HTTP API, portal API, auth, worker API, webhook, websocket
 │   ├── session/               # Local session persistence
-│   ├── testutil/              # Test mocks/helpers
+│   ├── mock/              # Test-only mocks/helpers
 │   └── util/                  # IDs, workspace helpers, git, argparse
 ├── portal/                    # Portal web app
 ├── desktop/frontend/          # Desktop frontend

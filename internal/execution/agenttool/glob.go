@@ -57,7 +57,7 @@ func (g *Glob) Parameters() any {
 // Execute lists files under the search directory that match the pattern, sorted by modification time (newest first).
 // Returns one absolute path per line, or "No files matched the pattern.", or an error for validation/system failures.
 func (g *Glob) Execute(ctx context.Context, args map[string]any) (string, error) {
-	pattern, err := util.ParseRequiredString(args, "pattern")
+	pattern, err := parseRequiredString(args, "pattern")
 	if err != nil {
 		return "", err
 	}

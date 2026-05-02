@@ -12,7 +12,8 @@ import (
 
 	"buildmax/internal/infra/db"
 	blob "buildmax/internal/infra/objectstore"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
+	"buildmax/internal/util"
 )
 
 const filesTestSecret = "files-test-secret"
@@ -85,12 +86,12 @@ func TestTeamScopedFilesHandlers(t *testing.T) {
 
 	h := NewHandler(Config{
 		JWTSecret:      filesTestSecret,
-		TeamStore:      &testutil.MockTeamStore{Teams: []db.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamA, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: db.TeamRoleOwner}}},
+		TeamStore:      &mock.MockTeamStore{Teams: []db.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamA, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: db.TeamRoleOwner}}},
 		PersistStorage: persist,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	token := testutil.SignJWT("u1", filesTestSecret)
+	token := util.SignJWT("u1", filesTestSecret)
 
 	t.Run("list files uses team scope", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamA+"/files", nil)

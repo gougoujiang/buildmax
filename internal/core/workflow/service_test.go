@@ -6,13 +6,13 @@ import (
 
 	"buildmax/internal/core/model"
 	taskapp "buildmax/internal/core/task"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
 )
 
 func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 	svc := &Service{
-		Workflows: &testutil.MockWorkflowStore{},
-		Agents: &testutil.MockAgentStore{
+		Workflows: &mock.MockWorkflowStore{},
+		Agents: &mock.MockAgentStore{
 			Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
@@ -34,7 +34,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 }
 
 func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
-	workflowStore := &testutil.MockWorkflowStore{
+	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
 			WorkflowID:  "w_1",
 			TeamID:      "tm_1",
@@ -44,8 +44,8 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 			Status:      model.WorkflowStatusPublished,
 		}},
 	}
-	taskStore := &testutil.MockTaskStore{}
-	agentStore := &testutil.MockAgentStore{
+	taskStore := &mock.MockTaskStore{}
+	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
 			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
@@ -54,7 +54,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	svc := &Service{
 		Workflows:     workflowStore,
 		Agents:        agentStore,
-		Conversations: &testutil.MockConversationStore{},
+		Conversations: &mock.MockConversationStore{},
 		Task: &taskapp.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,

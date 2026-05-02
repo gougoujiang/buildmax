@@ -58,7 +58,7 @@ func (r *ReadFile) Parameters() any {
 // Execute reads the file at args["file_path"] if it is under the tool's root.
 // File contents are returned as UTF-8 text; invalid UTF-8 in the file is passed through as-is.
 func (r *ReadFile) Execute(ctx context.Context, args map[string]any) (string, error) {
-	filePath, err := util.ParseRequiredString(args, "file_path")
+	filePath, err := parseRequiredString(args, "file_path")
 	if err != nil {
 		return "", err
 	}
@@ -98,11 +98,11 @@ func (r *ReadFile) Execute(ctx context.Context, args map[string]any) (string, er
 // parseOffsetLimit reads offset and limit from args. Defaults: offset=1, limit=DefaultLimit.
 // Values < 1 are clamped to the default.
 func parseOffsetLimit(args map[string]any) (offset, limit int) {
-	offset = util.ParseOptionalInt(args, "offset", 1)
+	offset = parseOptionalInt(args, "offset", 1)
 	if offset < 1 {
 		offset = 1
 	}
-	limit = util.ParseOptionalInt(args, "limit", DefaultLimit)
+	limit = parseOptionalInt(args, "limit", DefaultLimit)
 	if limit < 1 {
 		limit = DefaultLimit
 	}

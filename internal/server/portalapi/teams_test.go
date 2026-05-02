@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"buildmax/internal/infra/db"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
+	"buildmax/internal/util"
 )
 
 const teamTestSecret = "team-test-secret"
@@ -16,9 +17,9 @@ const teamTestSecret = "team-test-secret"
 func TestTeamHandlers(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	sharedTeamID := "tm_shared"
-	teamStore := &testutil.MockTeamStore{
+	teamStore := &mock.MockTeamStore{
 		Teams: []db.Team{
-			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100},
+			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100},
 			{TeamID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: 200, UpdatedAt: 200},
 		},
 		Members: []db.TeamMember{
@@ -27,7 +28,7 @@ func TestTeamHandlers(t *testing.T) {
 			{TeamID: sharedTeamID, UserID: "u2", Role: db.TeamRoleMember, CreatedAt: 201},
 		},
 	}
-	userStore := &testutil.MockUserStore{
+	userStore := &mock.MockUserStore{
 		ByEmail: map[string]*db.User{
 			"u1@example.com": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2@example.com": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
@@ -49,7 +50,7 @@ func TestTeamHandlers(t *testing.T) {
 
 	t.Run("GET list teams", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -70,7 +71,7 @@ func TestTeamHandlers(t *testing.T) {
 	t.Run("POST create team", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"name":"Design"}`)
 		req := httptest.NewRequest(http.MethodPost, "/api/teams", body)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -95,7 +96,7 @@ func TestTeamHandlers(t *testing.T) {
 
 	t.Run("GET team members", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+sharedTeamID+"/members", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -119,7 +120,7 @@ func TestTeamHandlers(t *testing.T) {
 	t.Run("POST add team member by owner", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"email":"u3@example.com"}`)
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -145,7 +146,7 @@ func TestTeamHandlers(t *testing.T) {
 	t.Run("POST add team member forbidden for non-owner", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"email":"u4@example.com"}`)
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u2", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u2", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -157,7 +158,7 @@ func TestTeamHandlers(t *testing.T) {
 	t.Run("POST add team member requires existing user", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"email":"missing@example.com"}`)
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -168,7 +169,7 @@ func TestTeamHandlers(t *testing.T) {
 
 	t.Run("DELETE remove team member by owner", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/teams/"+sharedTeamID+"/members/u2", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNoContent {
@@ -187,7 +188,7 @@ func TestTeamHandlers(t *testing.T) {
 
 	t.Run("DELETE remove self forbidden", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/api/teams/"+sharedTeamID+"/members/u1", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", teamTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusBadRequest {
@@ -197,7 +198,7 @@ func TestTeamHandlers(t *testing.T) {
 
 	t.Run("GET team members forbidden when not a member", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+sharedTeamID+"/members", nil)
-		req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u4", teamTestSecret))
+		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u4", teamTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {

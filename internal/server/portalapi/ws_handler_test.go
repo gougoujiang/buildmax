@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"buildmax/internal/infra/db"
+	"buildmax/internal/mock"
 	wsconn "buildmax/internal/server/websocket"
-	"buildmax/internal/testutil"
+	"buildmax/internal/util"
 
 	"github.com/gorilla/websocket"
 )
@@ -22,8 +23,8 @@ func setupWSHandler() *Handler {
 	return NewHandler(Config{
 		JWTSecret:         wsTestSecret,
 		CORSOrigin:        "*",
-		TeamStore:         &testutil.MockTeamStore{Teams: []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}}},
-		ConversationStore: &testutil.MockConversationStore{},
+		TeamStore:         &mock.MockTeamStore{Teams: []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}}, Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}}},
+		ConversationStore: &mock.MockConversationStore{},
 		ConnRegistry:      NewConnRegistry(),
 	})
 }
@@ -104,7 +105,7 @@ func TestWSConversationCreateFlow(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	token := testutil.SignJWT("u1", wsTestSecret)
+	token := util.SignJWT("u1", wsTestSecret)
 	conn := dialWS(t, server, token)
 	defer conn.Close()
 
@@ -143,7 +144,7 @@ func TestWSUnknownEventType(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	token := testutil.SignJWT("u1", wsTestSecret)
+	token := util.SignJWT("u1", wsTestSecret)
 	conn := dialWS(t, server, token)
 	defer conn.Close()
 

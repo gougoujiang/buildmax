@@ -8,20 +8,21 @@ import (
 	"testing"
 
 	"buildmax/internal/infra/db"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
+	"buildmax/internal/util"
 )
 
 const agentTestSecret = "agent-test-secret"
 
 func TestPatchAgentHandler(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
-	agentStore := &testutil.MockAgentStore{
+	agentStore := &mock.MockAgentStore{
 		Agents: []db.Agent{
 			{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
 	}
-	teamStore := &testutil.MockTeamStore{
-		Teams:   []db.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
+	teamStore := &mock.MockTeamStore{
+		Teams:   []db.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
 		Members: []db.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: db.TeamRoleMember}},
 	}
 
@@ -39,7 +40,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
-			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "Updated",
 		},
@@ -48,7 +49,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":""}`,
-			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "name required",
 		},
@@ -57,7 +58,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
-			authHeader:  "Bearer " + testutil.SignJWT("u2", agentTestSecret),
+			authHeader:  "Bearer " + util.SignJWT("u2", agentTestSecret),
 			wantStatus:  http.StatusForbidden,
 			wantBodyHas: "forbidden",
 		},
@@ -66,7 +67,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_999",
 			body:        `{"name":"X","description":"","instructions":""}`,
-			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
@@ -131,13 +132,13 @@ func TestDeleteAgentHandler(t *testing.T) {
 		{
 			name:       "DELETE success returns 204",
 			url:        "/api/teams/" + personalTeamID + "/agents/a_1",
-			authHeader: "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			authHeader: "Bearer " + util.SignJWT("u1", agentTestSecret),
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:        "DELETE non-existent agent returns 404",
 			url:         "/api/teams/" + personalTeamID + "/agents/a_999",
-			authHeader:  "Bearer " + testutil.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
@@ -150,13 +151,13 @@ func TestDeleteAgentHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &testutil.MockAgentStore{
+			store := &mock.MockAgentStore{
 				Agents: []db.Agent{
 					{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
 				},
 			}
-			teamStore := &testutil.MockTeamStore{
-				Teams:   []db.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
+			teamStore := &mock.MockTeamStore{
+				Teams:   []db.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
 				Members: []db.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: db.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: db.TeamRoleMember}},
 			}
 			h := NewHandler(Config{

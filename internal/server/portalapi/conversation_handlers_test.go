@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"buildmax/internal/infra/db"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
+	"buildmax/internal/util"
 )
 
 type mockConversationMessageStore struct {
@@ -54,11 +55,11 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	}
 	h := NewHandler(Config{
 		JWTSecret: secret,
-		TeamStore: &testutil.MockTeamStore{
-			Teams:   []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: testutil.PtrString("u1"), CreatedBy: "u1"}},
+		TeamStore: &mock.MockTeamStore{
+			Teams:   []db.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},
 			Members: []db.TeamMember{{TeamID: teamID, UserID: "u1", Role: db.TeamRoleOwner}},
 		},
-		ConversationStore: &testutil.MockConversationStore{
+		ConversationStore: &mock.MockConversationStore{
 			Conversations: []db.Conversation{
 				{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 			},
@@ -69,7 +70,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	h.Register(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations/"+conversationID+"/messages", nil)
-	req.Header.Set("Authorization", "Bearer "+testutil.SignJWT("u1", secret))
+	req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", secret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

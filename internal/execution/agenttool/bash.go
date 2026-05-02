@@ -61,7 +61,7 @@ func (b *Bash) Parameters() any {
 // On success (exit 0) returns output and nil error. On non-zero exit or timeout returns a clear message and nil error so the LLM receives a readable result.
 // Returns error only for argument validation (missing or empty command).
 func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error) {
-	command, err := util.ParseRequiredString(args, "command")
+	command, err := parseRequiredString(args, "command")
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +98,7 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 func parseTimeout(args map[string]any) time.Duration {
 	ms := defaultTimeoutMs
 	if v, ok := args["timeout"]; ok && v != nil {
-		if f, ok := util.ToFloat64(v); ok && f > 0 {
+		if f, ok := toFloat64(v); ok && f > 0 {
 			if f > maxTimeoutMs {
 				f = maxTimeoutMs
 			}

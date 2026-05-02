@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"buildmax/internal/infra/db"
+	"buildmax/internal/mock"
 	streamhub "buildmax/internal/server/websocket"
-	"buildmax/internal/testutil"
 )
 
 func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
@@ -17,7 +17,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	hub := streamhub.NewStreamHub()
 	cfg := Config{
 		Token: "worker-tok",
-		TaskRunStore: &testutil.MockTaskRunStore{
+		TaskRunStore: &mock.MockTaskRunStore{
 			Runs:     []db.TaskRun{{TaskRunID: taskRunID, TaskID: taskID}},
 			TaskList: []db.Task{{TaskID: taskID}},
 		},

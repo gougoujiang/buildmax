@@ -1,17 +1,13 @@
-// Package util provides shared helpers reusable across the project.
-//
-// argparse.go — argument-parsing helpers for JSON-decoded map[string]any args.
-// JSON numbers arrive as float64; int and int64 are also handled.
-package util
+package agenttool
 
 import (
 	"fmt"
 	"strings"
 )
 
-// ParseRequiredString extracts a required string argument from args, trims it,
+// parseRequiredString extracts a required string argument from args, trims it,
 // and returns an error if the key is missing, not a string, or empty after trimming.
-func ParseRequiredString(args map[string]any, key string) (string, error) {
+func parseRequiredString(args map[string]any, key string) (string, error) {
 	v, ok := args[key]
 	if !ok {
 		return "", fmt.Errorf("missing %s", key)
@@ -27,9 +23,9 @@ func ParseRequiredString(args map[string]any, key string) (string, error) {
 	return s, nil
 }
 
-// ParseOptionalString extracts an optional string argument with a default value.
+// parseOptionalString extracts an optional string argument with a default value.
 // Returns defaultVal if the key is missing, nil, not a string, or empty after trimming.
-func ParseOptionalString(args map[string]any, key, defaultVal string) string {
+func parseOptionalString(args map[string]any, key, defaultVal string) string {
 	v, ok := args[key]
 	if !ok || v == nil {
 		return defaultVal
@@ -45,9 +41,9 @@ func ParseOptionalString(args map[string]any, key, defaultVal string) string {
 	return s
 }
 
-// ParseOptionalBool extracts an optional boolean argument with a default value.
+// parseOptionalBool extracts an optional boolean argument with a default value.
 // Returns defaultVal if the key is missing, nil, or not a bool.
-func ParseOptionalBool(args map[string]any, key string, defaultVal bool) bool {
+func parseOptionalBool(args map[string]any, key string, defaultVal bool) bool {
 	v, ok := args[key]
 	if !ok || v == nil {
 		return defaultVal
@@ -59,10 +55,10 @@ func ParseOptionalBool(args map[string]any, key string, defaultVal bool) bool {
 	return b
 }
 
-// ParseOptionalInt extracts an optional non-negative integer argument with a default value.
+// parseOptionalInt extracts an optional non-negative integer argument with a default value.
 // JSON numbers arrive as float64; int and int64 are also accepted.
 // Returns defaultVal if the key is missing, nil, not a number, or negative.
-func ParseOptionalInt(args map[string]any, key string, defaultVal int) int {
+func parseOptionalInt(args map[string]any, key string, defaultVal int) int {
 	v, ok := args[key]
 	if !ok || v == nil {
 		return defaultVal
@@ -84,9 +80,9 @@ func ParseOptionalInt(args map[string]any, key string, defaultVal int) int {
 	return defaultVal
 }
 
-// ToFloat64 attempts to convert v to float64.
+// toFloat64 attempts to convert v to float64.
 // Handles float64, int, and int64 types (common in JSON-decoded values).
-func ToFloat64(v any) (float64, bool) {
+func toFloat64(v any) (float64, bool) {
 	switch x := v.(type) {
 	case float64:
 		return x, true

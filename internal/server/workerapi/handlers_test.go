@@ -8,14 +8,14 @@ import (
 	"testing"
 
 	"buildmax/internal/infra/db"
-	"buildmax/internal/testutil"
+	"buildmax/internal/mock"
 )
 
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	taskRunID := "run-1"
 	run := db.TaskRun{TaskRunID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
 	task := db.Task{TaskID: "task-1", ConversationID: "conv-1", CreatedBy: "u1"}
-	mockRun := &testutil.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
+	mockRun := &mock.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
 	cfg := Config{
 		Token:        "worker-token-123",
 		TaskRunStore: mockRun,
@@ -50,7 +50,7 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
 		Token:        "token",
-		TaskRunStore: &testutil.MockTaskRunStore{Runs: []db.TaskRun{}},
+		TaskRunStore: &mock.MockTaskRunStore{Runs: []db.TaskRun{}},
 	}
 	h := NewHandler(cfg)
 	mux := http.NewServeMux()
@@ -70,7 +70,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	taskRunID := "run-scheduled"
 	run := db.TaskRun{TaskRunID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
 	task := db.Task{TaskID: "task1", ConversationID: "conv-1"}
-	mockRun := &testutil.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
+	mockRun := &mock.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
 	cfg := Config{
 		Token:        "token",
 		TaskRunStore: mockRun,
@@ -100,7 +100,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	taskRunID := "run-pending"
 	run := db.TaskRun{TaskRunID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: 1}
 	task := db.Task{TaskID: "task1", ConversationID: "conv-1"}
-	mockRun := &testutil.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
+	mockRun := &mock.MockTaskRunStore{Runs: []db.TaskRun{run}, TaskList: []db.Task{task}}
 	cfg := Config{
 		Token:        "token",
 		TaskRunStore: mockRun,

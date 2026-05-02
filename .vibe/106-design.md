@@ -11,7 +11,7 @@ Add client-side JWT expiry detection to `Credentials.IsValid()` and record last 
 | **internal/auth** | Client-side credential persistence and auth HTTP client | `Credentials`, `IsValid`, `Save`, `Load`, `Clear`, `Client` (Login, RequestOTP) |
 | **internal/infra/db** | User model and UserStore interface + GORM impl | `User` struct, `UserStore` interface, `Store.UpdateLoginMeta` |
 | **internal/server/auth** | Unauthenticated auth endpoints (login, OTP) | `loginHandler`, `LoginRequest`, `Config` |
-| **internal/testutil** | Mock stores for tests | `MockUserStore` |
+| **internal/mock** | Mock stores for tests | `MockUserStore` |
 | **internal/interface/cli** | CLI login flow | `interactiveLogin` |
 | **internal/interface/desktop** | Desktop login flow | `App.DoLogin` |
 | **portal/src/features/auth** | Portal login API call | `login()` function |
@@ -28,7 +28,7 @@ Add client-side JWT expiry detection to `Credentials.IsValid()` and record last 
   - `user.go` — implement `Store.UpdateLoginMeta`
 - `internal/server/auth/`
   - `login.go` — add `Platform` to `LoginRequest`; call `UpdateLoginMeta` after success
-- `internal/testutil/`
+- `internal/mock/`
   - `helpers.go` — add `UpdateLoginMeta` to `MockUserStore`
 - `internal/interface/cli/`
   - `login.go` — pass `"cli"` platform to `client.Login`
@@ -103,8 +103,8 @@ No external dependency needed — only `encoding/base64`, `encoding/json`, `stri
 - **Modified**: `internal/core/model/db_repositories.go` — add `UpdateLoginMeta` to `UserStore`
 - **Modified**: `internal/infra/db/user.go` — implement `Store.UpdateLoginMeta`
 - **Modified**: `internal/server/auth/login.go` — add `Platform` to `LoginRequest`; call `UpdateLoginMeta` after success
-- **Modified**: `internal/testutil/helpers.go` — add `UpdateLoginMeta` to `MockUserStore`
-- **Modified**: `internal/testutil/quota_mocks.go` — add `UpdateLoginMeta` to `DenyQuotaUserStore`
+- **Modified**: `internal/mock/helpers.go` — add `UpdateLoginMeta` to `MockUserStore`
+- **Modified**: `internal/mock/quota_mocks.go` — add `UpdateLoginMeta` to `DenyQuotaUserStore`
 - **Modified**: `internal/interface/cli/login.go` — pass `"cli"` to `client.Login`
 - **Modified**: `internal/interface/desktop/app.go` — pass `"desktop"` to `client.Login`
 - **Modified**: `portal/src/features/auth/api.ts` — add `platform: "portal"` to login body

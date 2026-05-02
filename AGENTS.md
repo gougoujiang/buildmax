@@ -174,7 +174,7 @@ buildmax/
 │   │   └── desktop/           # Wails app bridge
 │   ├── server/                # HTTP API, auth handlers, portal API, webhook, websocket, worker API
 │   ├── session/               # Local session persistence and title helpers
-│   ├── testutil/              # Test mocks and helpers
+│   ├── mock/              # Test-only mocks and helpers
 │   └── util/                  # ID generation, workspace helpers, git, argparse
 ├── portal/                    # Web UI (React 19 + Vite + TypeScript); depends on gui
 ├── design/                    # Product and technical design docs
