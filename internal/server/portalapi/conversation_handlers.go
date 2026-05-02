@@ -166,7 +166,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_conversation", "user_id", userID, "team_id", teamID)
 		return
 	}
-	if req.Message == "" || h.cfg.ConversationLLMCaller == nil {
+	if req.Message == "" || h.cfg.ConversationLLMClient == nil {
 		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: ""})
 		return
 	}
@@ -257,7 +257,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !h.requireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
 		return
 	}
-	if h.cfg.ConversationLLMCaller == nil {
+	if h.cfg.ConversationLLMClient == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}

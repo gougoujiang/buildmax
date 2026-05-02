@@ -86,7 +86,7 @@ type ConversationConfig struct {
 	TitleGenerator           TitleGenerator
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
-	ConversationLLMCaller    model.LLMCaller
+	ConversationLLMClient    model.LLMClient
 }
 
 // WebhookConfig holds webhook handler options (message path and optional user ID for created runs).
@@ -145,7 +145,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portalapi.
 		TitleGenerator:           titleGenAdapter{cfg.Conv.TitleGenerator},
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
-		ConversationLLMCaller:    cfg.Conv.ConversationLLMCaller,
+		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
 		Hub:                      hub,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
 		ConnRegistry:             registry,

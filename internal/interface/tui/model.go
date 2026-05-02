@@ -323,7 +323,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 func generateTitleCmd(opts TUIOpts) tea.Cmd {
 	return func() tea.Msg {
 		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
-			content, _, usage, err := opts.LLMClient.ChatWithTools(ctx, msgs, nil)
+			content, _, usage, err := opts.LLMClient.ChatCompletionBlocking(ctx, msgs, nil)
 			return content, usage, err
 		})
 		title, usage, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages())

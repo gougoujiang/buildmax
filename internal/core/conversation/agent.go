@@ -192,7 +192,7 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 	}, nil
 }
 
-func executeRun(ctx context.Context, caller model.LLMCaller, in RunInput, prepared *preparedRun) (string, error) {
+func executeRun(ctx context.Context, caller model.LLMClient, in RunInput, prepared *preparedRun) (string, error) {
 	defs := agent.ToolDefs(prepared.toolsList)
 	toolsByName := make(map[string]model.Tool, len(prepared.toolsList))
 	for _, t := range prepared.toolsList {
@@ -223,7 +223,7 @@ func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in
 	}
 }
 
-func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, caller model.LLMCaller, in RunInput) (string, error) {
+func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, caller model.LLMClient, in RunInput) (string, error) {
 	prepared, err := prepareRun(ctx, msgStore, in)
 	if err != nil {
 		return "", err
@@ -237,7 +237,7 @@ func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore mo
 }
 
 // Run executes one conversation turn. Streaming is enabled when in.StreamSink is non-nil.
-func Run(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, caller model.LLMCaller, in RunInput) (string, error) {
+func Run(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, caller model.LLMClient, in RunInput) (string, error) {
 	if caller == nil {
 		if in.StreamSink != nil {
 			return "", fmt.Errorf("conversation stream LLM not configured")
@@ -256,7 +256,7 @@ func RunLoop(
 	ctx context.Context,
 	convStore model.ConversationStore,
 	msgStore model.ConversationMessageStore,
-	caller model.LLMCaller,
+	caller model.LLMClient,
 	conversationID string,
 	userContent string,
 	channel string,
@@ -288,7 +288,7 @@ func RunLoopStream(
 	ctx context.Context,
 	convStore model.ConversationStore,
 	msgStore model.ConversationMessageStore,
-	caller model.LLMCaller,
+	caller model.LLMClient,
 	conversationID string,
 	userContent string,
 	channel string,

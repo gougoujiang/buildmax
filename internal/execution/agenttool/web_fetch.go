@@ -40,7 +40,7 @@ type cacheEntry struct {
 // processes content with the LLM using a prompt, and returns the result.
 // It implements the model.Tool interface.
 type WebFetch struct {
-	caller   model.LLMCaller
+	caller   model.LLMClient
 	cache    map[string]cacheEntry
 	cacheMu  sync.RWMutex
 	cacheTTL time.Duration
@@ -48,7 +48,7 @@ type WebFetch struct {
 
 // NewWebFetch creates a WebFetch tool with the given LLM caller and cache TTL.
 // caller must be non-nil.
-func NewWebFetch(caller model.LLMCaller, cacheTTL time.Duration) (*WebFetch, error) {
+func NewWebFetch(caller model.LLMClient, cacheTTL time.Duration) (*WebFetch, error) {
 	if caller == nil {
 		return nil, errors.New("WebFetch: caller is required")
 	}
@@ -163,7 +163,7 @@ func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, er
 	// 8. Optional LLM step
 	finalURL := resp.Request.URL.String()
 	if prompt != "" {
-		reply, _, _, err := w.caller.ChatWithTools(ctx, []model.Message{
+		reply, _, _, err := w.caller.ChatCompletionBlocking(ctx, []model.Message{
 			{Role: "system", Content: "Answer based only on the following content.\n\n" + content},
 			{Role: "user", Content: prompt},
 		}, nil)

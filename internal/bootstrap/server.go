@@ -35,7 +35,7 @@ type titleGenAdapter struct {
 
 func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, httpserver.TokenUsage, error) {
 	titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
-		content, _, usage, err := a.client.ChatWithTools(ctx, msgs, nil)
+		content, _, usage, err := a.client.ChatCompletionBlocking(ctx, msgs, nil)
 		return content, usage, err
 	})
 	title, usage, err := session.GenerateTitleFromInput(ctx, titleClient, input)
@@ -201,7 +201,7 @@ func wireOptionalLLM(cfg *httpserver.Config) {
 	}
 	llmClient := llm.NewClient(llm.Config{APIKey: llmCfg.APIKey, BaseURL: llmCfg.BaseURL, Model: llmCfg.Model})
 	cfg.Conv.TitleGenerator = &titleGenAdapter{client: llmClient}
-	cfg.Conv.ConversationLLMCaller = llmClient
+	cfg.Conv.ConversationLLMClient = llmClient
 }
 
 func buildWorkerRunner() (scheduler.WorkerRunner, error) {

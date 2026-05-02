@@ -12,21 +12,21 @@ import (
 	"buildmax/internal/core/model"
 )
 
-// mockWebFetchLLM is a fake LLMCaller for WebFetch tests.
+// mockWebFetchLLM is a fake LLMClient for WebFetch tests.
 type mockWebFetchLLM struct {
 	mu        sync.Mutex
 	reply     string
 	callCount int
 }
 
-func (m *mockWebFetchLLM) ChatWithTools(ctx context.Context, messages []model.Message, tools []model.ToolDef) (string, []model.ToolCall, model.Usage, error) {
+func (m *mockWebFetchLLM) ChatCompletionBlocking(ctx context.Context, messages []model.Message, tools []model.ToolDef) (string, []model.ToolCall, model.Usage, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()
 	return m.reply, nil, model.Usage{}, nil
 }
 
-func (m *mockWebFetchLLM) ChatWithToolsStream(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (string, []model.ToolCall, model.Usage, error) {
+func (m *mockWebFetchLLM) ChatCompletionStreaming(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (string, []model.ToolCall, model.Usage, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()

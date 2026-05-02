@@ -46,7 +46,7 @@ type Config struct {
 	TitleGenerator           TitleGenerator
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
-	ConversationLLMCaller    model.LLMCaller
+	ConversationLLMClient    model.LLMClient
 	Hub                      streamhub.StreamHub
 	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConnRegistry             *ConnRegistry

@@ -95,7 +95,7 @@ type MessageBuffer interface {
 
 // RunLoopOpts configures a single run of the shared agent loop (used by both CLI agent and conversation).
 type RunLoopOpts struct {
-	Caller       model.LLMCaller
+	Caller       model.LLMClient
 	SystemPrompt string
 	ToolDefs     []model.ToolDef
 	ToolsByName  map[string]model.Tool
@@ -115,9 +115,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		var toolCalls []model.ToolCall
 		var usage model.Usage
 		if opts.StreamSink != nil {
-			content, toolCalls, usage, err = opts.Caller.ChatWithToolsStream(ctx, messages, opts.ToolDefs, opts.StreamSink.OnDelta)
+			content, toolCalls, usage, err = opts.Caller.ChatCompletionStreaming(ctx, messages, opts.ToolDefs, opts.StreamSink.OnDelta)
 		} else {
-			content, toolCalls, usage, err = opts.Caller.ChatWithTools(ctx, messages, opts.ToolDefs)
+			content, toolCalls, usage, err = opts.Caller.ChatCompletionBlocking(ctx, messages, opts.ToolDefs)
 		}
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)
@@ -161,7 +161,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 
 // Agent runs the agent loop: LLM call → execute tool_calls if any → repeat until final reply.
 type Agent struct {
-	caller       model.LLMCaller
+	caller       model.LLMClient
 	tools        []model.Tool
 	maxIter      int
 	systemPrompt string
@@ -219,8 +219,8 @@ func ExecuteTool(ctx context.Context, t model.Tool, tc model.ToolCall) string {
 	return result
 }
 
-// NewAgent builds an agent with the given LLM caller and tools.
-func NewAgent(caller model.LLMCaller, toolList []model.Tool, opts ...Option) *Agent {
+// NewAgent builds an agent with the given LLM client and tools.
+func NewAgent(caller model.LLMClient, toolList []model.Tool, opts ...Option) *Agent {
 	toolDefs := ToolDefs(toolList)
 	byName := make(map[string]model.Tool, len(toolList))
 	for _, t := range toolList {

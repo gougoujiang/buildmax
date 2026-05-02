@@ -82,8 +82,8 @@ func (b *testBuffer) Append(msg model.Message) error {
 	return nil
 }
 
-// mockLLMCaller is a fake LLM that returns configured content and tool calls.
-type mockLLMCaller struct {
+// mockLLMClient is a fake LLM that returns configured content and tool calls.
+type mockLLMClient struct {
 	mu        sync.Mutex
 	calls     int
 	responses []mockResponse // per-call response
@@ -95,7 +95,7 @@ type mockResponse struct {
 	usage     model.Usage
 }
 
-func (m *mockLLMCaller) ChatWithTools(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.responses) {
@@ -106,18 +106,18 @@ func (m *mockLLMCaller) ChatWithTools(ctx context.Context, messages []model.Mess
 	return r.content, r.toolCalls, r.usage, nil
 }
 
-func (m *mockLLMCaller) ChatWithToolsStream(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
-	content, toolCalls, usage, err = m.ChatWithTools(ctx, messages, tools)
+func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+	content, toolCalls, usage, err = m.ChatCompletionBlocking(ctx, messages, tools)
 	if err == nil && onDelta != nil && content != "" {
 		onDelta(content)
 	}
 	return content, toolCalls, usage, err
 }
 
-// Ensure mockLLMCaller implements model.LLMCaller.
-var _ model.LLMCaller = (*mockLLMCaller)(nil)
+// Ensure mockLLMClient implements model.LLMClient.
+var _ model.LLMClient = (*mockLLMClient)(nil)
 
-func (m *mockLLMCaller) callCount() int {
+func (m *mockLLMClient) callCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.calls
@@ -153,7 +153,7 @@ func (t *mockTool) executionCount() int {
 // ProcessWithSession returns that content and no tool is executed.
 func TestProcessWithSession_NoToolCall(t *testing.T) {
 	ctx := context.Background()
-	mock := &mockLLMCaller{
+	mock := &mockLLMClient{
 		responses: []mockResponse{
 			{content: "Hello, I am the final reply.", toolCalls: nil},
 		},
@@ -189,7 +189,7 @@ func TestProcessWithSession_NoToolCall(t *testing.T) {
 func TestProcessWithSession_WithToolCall(t *testing.T) {
 	ctx := context.Background()
 	toolResult := "the tool result"
-	mock := &mockLLMCaller{
+	mock := &mockLLMClient{
 		responses: []mockResponse{
 			{
 				content: "",
@@ -229,7 +229,7 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 // TestProcessWithSession_AccumulatesUsage asserts that RunStats accumulates prompt and completion tokens across LLM calls.
 func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 	ctx := context.Background()
-	mock := &mockLLMCaller{
+	mock := &mockLLMClient{
 		responses: []mockResponse{
 			{content: "", toolCalls: []model.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}}, usage: model.Usage{PromptTokens: 10, CompletionTokens: 5}},
 			{content: "Done.", toolCalls: nil, usage: model.Usage{PromptTokens: 20, CompletionTokens: 8}},
@@ -256,61 +256,61 @@ func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 	}
 }
 
-// recordingLLMCaller wraps an model.LLMCaller and records the messages from the first ChatWithTools call.
-type recordingLLMCaller struct {
-	inner    *mockLLMCaller
+// recordingLLMClient wraps an model.LLMClient and records the messages from the first ChatCompletionBlocking call.
+type recordingLLMClient struct {
+	inner    *mockLLMClient
 	firstMsg []model.Message
 	once     sync.Once
 }
 
-func (r *recordingLLMCaller) ChatWithTools(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	r.once.Do(func() {
 		r.firstMsg = make([]model.Message, len(messages))
 		copy(r.firstMsg, messages)
 	})
-	return r.inner.ChatWithTools(ctx, messages, tools)
+	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
 }
 
-func (r *recordingLLMCaller) ChatWithToolsStream(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
-	return r.inner.ChatWithToolsStream(ctx, messages, tools, onDelta)
+func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
 }
 
-// lastCallLLMCaller records the messages from the last ChatWithTools call (for ProcessWithSession tests).
-type lastCallLLMCaller struct {
-	inner   *mockLLMCaller
+// lastCallLLMClient records the messages from the last ChatCompletionBlocking call (for ProcessWithSession tests).
+type lastCallLLMClient struct {
+	inner   *mockLLMClient
 	lastMsg []model.Message
 	lastMu  sync.Mutex
 }
 
-func (r *lastCallLLMCaller) ChatWithTools(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	r.lastMu.Lock()
 	r.lastMsg = make([]model.Message, len(messages))
 	copy(r.lastMsg, messages)
 	r.lastMu.Unlock()
-	return r.inner.ChatWithTools(ctx, messages, tools)
+	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
 }
 
-func (r *lastCallLLMCaller) ChatWithToolsStream(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
-	return r.inner.ChatWithToolsStream(ctx, messages, tools, onDelta)
+func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
 }
 
-func (r *lastCallLLMCaller) lastMessages() []model.Message {
+func (r *lastCallLLMClient) lastMessages() []model.Message {
 	r.lastMu.Lock()
 	defer r.lastMu.Unlock()
 	return r.lastMsg
 }
 
-// TestProcessWithSession_SystemPromptPrepend verifies that the first ChatWithTools call receives
+// TestProcessWithSession_SystemPromptPrepend verifies that the first ChatCompletionBlocking call receives
 // a system message with DefaultSystemPrompt first, then the user message.
 func TestProcessWithSession_SystemPromptPrepend(t *testing.T) {
 	ctx := context.Background()
 	userMsg := "Hello, assistant."
-	inner := &mockLLMCaller{
+	inner := &mockLLMClient{
 		responses: []mockResponse{
 			{content: "Hi there.", toolCalls: nil},
 		},
 	}
-	rec := &recordingLLMCaller{inner: inner}
+	rec := &recordingLLMClient{inner: inner}
 	a := NewAgent(rec, nil)
 	sess := newTestBuffer()
 	_, _, err := a.Process(ctx, sess, userMsg)
@@ -348,7 +348,7 @@ func TestProcessWithSession_MaxIterationsExceeded(t *testing.T) {
 			},
 		})
 	}
-	mock := &mockLLMCaller{responses: responses}
+	mock := &mockLLMClient{responses: responses}
 	mockTool := &mockTool{
 		name:        "ping",
 		description: "Ping",
@@ -376,13 +376,13 @@ func TestProcessWithSession(t *testing.T) {
 	ctx := context.Background()
 	firstReply := "First reply."
 	secondReply := "Second reply."
-	inner := &mockLLMCaller{
+	inner := &mockLLMClient{
 		responses: []mockResponse{
 			{content: firstReply, toolCalls: nil},
 			{content: secondReply, toolCalls: nil},
 		},
 	}
-	rec := &lastCallLLMCaller{inner: inner}
+	rec := &lastCallLLMClient{inner: inner}
 	a := NewAgent(rec, nil)
 	sess := newTestBuffer()
 
@@ -464,7 +464,7 @@ func (r *recordingStreamSink) getDeltas() []string {
 func TestProcess_Streaming(t *testing.T) {
 	ctx := context.Background()
 	fullReply := "Hello, I am the streamed reply."
-	mock := &mockLLMCaller{
+	mock := &mockLLMClient{
 		responses: []mockResponse{
 			{content: fullReply, toolCalls: nil},
 		},
@@ -499,7 +499,7 @@ func TestProcess_Streaming(t *testing.T) {
 // ProcessAfterUserAppended runs the loop without appending again and returns the assistant reply.
 func TestProcessAfterUserAppended(t *testing.T) {
 	ctx := context.Background()
-	mock := &mockLLMCaller{
+	mock := &mockLLMClient{
 		responses: []mockResponse{
 			{content: "Reply to you.", toolCalls: nil},
 		},
@@ -533,7 +533,7 @@ func TestProcessAfterUserAppended(t *testing.T) {
 // TestProcessAfterUserAppended_EmptySession returns an error when session has no messages.
 func TestProcessAfterUserAppended_EmptySession(t *testing.T) {
 	ctx := context.Background()
-	a := NewAgent(&mockLLMCaller{}, nil)
+	a := NewAgent(&mockLLMClient{}, nil)
 	sess := newTestBuffer()
 	_, _, err := a.ProcessAfterUserAppended(ctx, sess)
 	if err == nil {
@@ -544,7 +544,7 @@ func TestProcessAfterUserAppended_EmptySession(t *testing.T) {
 // TestProcessAfterUserAppended_LastNotUser returns an error when last message is not user.
 func TestProcessAfterUserAppended_LastNotUser(t *testing.T) {
 	ctx := context.Background()
-	a := NewAgent(&mockLLMCaller{}, nil)
+	a := NewAgent(&mockLLMClient{}, nil)
 	sess := newTestBuffer()
 	sess.Append(model.Message{Role: "assistant", Content: "Hi"})
 	_, _, err := a.ProcessAfterUserAppended(ctx, sess)
@@ -554,16 +554,16 @@ func TestProcessAfterUserAppended_LastNotUser(t *testing.T) {
 }
 
 // TestSystemPromptOption verifies that the SystemPrompt option overrides the default system prompt
-// used in processLoop, so the first message sent to ChatWithTools uses the custom prompt.
+// used in processLoop, so the first message sent to ChatCompletionBlocking uses the custom prompt.
 func TestSystemPromptOption(t *testing.T) {
 	ctx := context.Background()
 	customPrompt := "You are a specialized sub-agent for code exploration."
-	inner := &mockLLMCaller{
+	inner := &mockLLMClient{
 		responses: []mockResponse{
 			{content: "Done.", toolCalls: nil},
 		},
 	}
-	rec := &recordingLLMCaller{inner: inner}
+	rec := &recordingLLMClient{inner: inner}
 	a := NewAgent(rec, nil, SystemPrompt(customPrompt))
 	sess := newTestBuffer()
 	_, _, err := a.Process(ctx, sess, "explore the code")
