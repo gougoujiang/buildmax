@@ -15,6 +15,38 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     crumbs = [{ label: "Files", route: { name: "explore" } }]
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents" } }]
+  } else if (route.name === "account") {
+    const sectionLabel = (() => {
+      switch (route.section) {
+        case "usage":
+          return "Usage"
+        case "webhook":
+          return "Webhook Keys"
+        case "general":
+        default:
+          return "General"
+      }
+    })()
+    crumbs = [
+      { label: "Account", route: { name: "account", section: "general" } },
+      { label: sectionLabel, route },
+    ]
+  } else if (route.name === "space") {
+    const sectionLabel = (() => {
+      switch (route.section) {
+        case "members":
+          return "Members"
+        case "memberNew":
+          return "Invite Member"
+        case "overview":
+        default:
+          return "Overview"
+      }
+    })()
+    crumbs = [
+      { label: "Space", route: { name: "space", section: "overview" } },
+      { label: sectionLabel, route },
+    ]
   } else if (route.name === "workflows") {
     crumbs = [{ label: "Workflows", route: { name: "workflows" } }]
   } else if (route.name === "workflow") {

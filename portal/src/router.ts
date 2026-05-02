@@ -11,6 +11,8 @@ export const SEGMENT = {
   conversations: "conversations",
   explore: "explore",
   agents: "agents",
+  account: "account",
+  space: "space",
   teamSettings: "team-settings",
   workflows: "workflows",
   workflow: "workflow",
@@ -42,8 +44,18 @@ export function parseHash(hash: string): Route {
   if (parts[0] === SEGMENT.agents) {
     return { name: "agents" }
   }
+  if (parts[0] === SEGMENT.account) {
+    if (parts[1] === "usage") return { name: "account", section: "usage" }
+    if (parts[1] === "webhook") return { name: "account", section: "webhook" }
+    return { name: "account", section: "general" }
+  }
+  if (parts[0] === SEGMENT.space) {
+    if (parts[1] === "members" && parts[2] === "new") return { name: "space", section: "memberNew" }
+    if (parts[1] === "members") return { name: "space", section: "members" }
+    return { name: "space", section: "overview" }
+  }
   if (parts[0] === SEGMENT.teamSettings) {
-    return { name: "teamSettings" }
+    return { name: "space", section: "overview" }
   }
   if (parts[0] === SEGMENT.workflows) {
     return { name: "workflows" }
@@ -83,8 +95,26 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.explore}`
     case "agents":
       return `#/${SEGMENT.agents}`
-    case "teamSettings":
-      return `#/${SEGMENT.teamSettings}`
+    case "account":
+      switch (route.section) {
+        case "usage":
+          return `#/${SEGMENT.account}/usage`
+        case "webhook":
+          return `#/${SEGMENT.account}/webhook`
+        case "general":
+        default:
+          return `#/${SEGMENT.account}`
+      }
+    case "space":
+      switch (route.section) {
+        case "members":
+          return `#/${SEGMENT.space}/members`
+        case "memberNew":
+          return `#/${SEGMENT.space}/members/new`
+        case "overview":
+        default:
+          return `#/${SEGMENT.space}`
+      }
     case "workflows":
       return `#/${SEGMENT.workflows}`
     case "workflow":

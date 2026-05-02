@@ -48,7 +48,8 @@ export type Route =
   | { name: "conversations" }
   | { name: "explore" }
   | { name: "agents" }
-  | { name: "teamSettings" }
+  | { name: "account"; section?: "general" | "usage" | "webhook" }
+  | { name: "space"; section?: "overview" | "members" | "memberNew" }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }
   | { name: "workflowRun"; workflowRunId: string }

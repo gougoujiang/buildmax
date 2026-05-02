@@ -13,7 +13,6 @@ import SignOutIcon from "../icons/sign-out.svg?react"
 import IssueIcon from "../icons/issue.svg?react"
 import WorkflowIcon from "../icons/workflow.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
-import { SettingsModal } from "../components/SettingsModal"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useTeam } from "../contexts/TeamContext"
 
@@ -56,7 +55,6 @@ export function Sidebar({
   const sharedTeams = teams.filter((team) => !team.personalForUserId)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
@@ -238,13 +236,13 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
-                navigate({ name: "teamSettings" })
+                navigate({ name: "account", section: "general" })
               }}
             >
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <SettingsIcon />
               </span>
-              Team Settings
+              Account
             </button>
             <button
               type="button"
@@ -252,13 +250,13 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setUserMenuOpen(false)
-                setSettingsModalOpen(true)
+                navigate({ name: "space", section: "overview" })
               }}
             >
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <SettingsIcon />
               </span>
-              Settings
+              Space
             </button>
             <button
               type="button"
@@ -289,7 +287,6 @@ export function Sidebar({
           </div>
         )}
       </div>
-      <SettingsModal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
       <CreateSpaceDialog open={createSpaceOpen} onClose={() => setCreateSpaceOpen(false)} />
     </aside>
   )
