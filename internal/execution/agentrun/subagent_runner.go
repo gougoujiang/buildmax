@@ -18,21 +18,21 @@ type SubAgentRunner interface {
 }
 
 type defaultSubAgentRunner struct {
-	caller model.LLMClient
+	llmClient model.LLMClient
 }
 
 // NewDefaultSubAgentRunner returns the default implementation of SubAgentRunner
-// backed by the same LLM caller used by the main agent.
-func NewDefaultSubAgentRunner(caller model.LLMClient) (SubAgentRunner, error) {
-	if caller == nil {
-		return nil, fmt.Errorf("subagent runner: caller must not be nil")
+// backed by the same LLM client used by the main agent.
+func NewDefaultSubAgentRunner(llmClient model.LLMClient) (SubAgentRunner, error) {
+	if llmClient == nil {
+		return nil, fmt.Errorf("subagent runner: LLM client must not be nil")
 	}
-	return &defaultSubAgentRunner{caller: caller}, nil
+	return &defaultSubAgentRunner{llmClient: llmClient}, nil
 }
 
 func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, tools []model.Tool, systemPrompt string, description string, prompt string) (string, error) {
 	sess := session.NewSession(description)
-	sub := coreagent.NewAgent(r.caller, tools, coreagent.SystemPrompt(systemPrompt))
+	sub := coreagent.NewAgent(r.llmClient, tools, coreagent.SystemPrompt(systemPrompt))
 	ctx = session.CtxWithSessionID(ctx, sess.ID())
 	reply, _, err := sub.Process(ctx, sess, prompt)
 	if err != nil {

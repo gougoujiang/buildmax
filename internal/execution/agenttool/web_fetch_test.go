@@ -42,13 +42,13 @@ func (m *mockWebFetchLLM) getCallCount() int {
 	return m.callCount
 }
 
-func TestNewWebFetch_NilCaller(t *testing.T) {
+func TestNewWebFetch_NilLLMClient(t *testing.T) {
 	_, err := NewWebFetch(nil, 15*time.Minute)
 	if err == nil {
 		t.Fatal("NewWebFetch(nil) should return error")
 	}
-	if !strings.Contains(err.Error(), "caller") {
-		t.Errorf("error should mention caller: %v", err)
+	if !strings.Contains(err.Error(), "LLM client") {
+		t.Errorf("error should mention LLM client: %v", err)
 	}
 }
 

@@ -192,7 +192,7 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 	}, nil
 }
 
-func executeRun(ctx context.Context, caller model.LLMClient, in RunInput, prepared *preparedRun) (string, error) {
+func executeRun(ctx context.Context, llmClient model.LLMClient, in RunInput, prepared *preparedRun) (string, error) {
 	defs := agent.ToolDefs(prepared.toolsList)
 	toolsByName := make(map[string]model.Tool, len(prepared.toolsList))
 	for _, t := range prepared.toolsList {
@@ -200,7 +200,7 @@ func executeRun(ctx context.Context, caller model.LLMClient, in RunInput, prepar
 	}
 
 	reply, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
-		Caller:       caller,
+		LLMClient:    llmClient,
 		SystemPrompt: effectiveSystemPrompt(systemPrompt, in.RecentChatsSnippet),
 		ToolDefs:     defs,
 		ToolsByName:  toolsByName,
@@ -223,12 +223,12 @@ func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in
 	}
 }
 
-func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, caller model.LLMClient, in RunInput) (string, error) {
+func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient model.LLMClient, in RunInput) (string, error) {
 	prepared, err := prepareRun(ctx, msgStore, in)
 	if err != nil {
 		return "", err
 	}
-	reply, err := executeRun(ctx, caller, in, prepared)
+	reply, err := executeRun(ctx, llmClient, in, prepared)
 	if err != nil {
 		return "", err
 	}
@@ -237,14 +237,14 @@ func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore mo
 }
 
 // Run executes one conversation turn. Streaming is enabled when in.StreamSink is non-nil.
-func Run(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, caller model.LLMClient, in RunInput) (string, error) {
-	if caller == nil {
+func Run(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient model.LLMClient, in RunInput) (string, error) {
+	if llmClient == nil {
 		if in.StreamSink != nil {
 			return "", fmt.Errorf("conversation stream LLM not configured")
 		}
 		return "", fmt.Errorf("conversation LLM not configured")
 	}
-	return runLoop(ctx, convStore, msgStore, caller, in)
+	return runLoop(ctx, convStore, msgStore, llmClient, in)
 }
 
 // RunLoop loads conversation messages, appends the new user message, runs the LLM loop with the given
@@ -256,7 +256,7 @@ func RunLoop(
 	ctx context.Context,
 	convStore model.ConversationStore,
 	msgStore model.ConversationMessageStore,
-	caller model.LLMClient,
+	llmClient model.LLMClient,
 	conversationID string,
 	userContent string,
 	channel string,
@@ -266,7 +266,7 @@ func RunLoop(
 	titleGenerator ConversationTitleGenerator,
 	recentChatsSnippet string,
 ) (reply string, err error) {
-	return Run(ctx, convStore, msgStore, caller, RunInput{
+	return Run(ctx, convStore, msgStore, llmClient, RunInput{
 		ConversationID:     conversationID,
 		UserContent:        userContent,
 		Channel:            channel,
@@ -288,7 +288,7 @@ func RunLoopStream(
 	ctx context.Context,
 	convStore model.ConversationStore,
 	msgStore model.ConversationMessageStore,
-	caller model.LLMClient,
+	llmClient model.LLMClient,
 	conversationID string,
 	userContent string,
 	channel string,
@@ -299,7 +299,7 @@ func RunLoopStream(
 	sink model.StreamSink,
 	recentChatsSnippet string,
 ) (reply string, err error) {
-	return Run(ctx, convStore, msgStore, caller, RunInput{
+	return Run(ctx, convStore, msgStore, llmClient, RunInput{
 		ConversationID:     conversationID,
 		UserContent:        userContent,
 		Channel:            channel,

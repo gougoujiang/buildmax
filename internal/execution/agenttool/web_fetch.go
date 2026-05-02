@@ -40,22 +40,22 @@ type cacheEntry struct {
 // processes content with the LLM using a prompt, and returns the result.
 // It implements the model.Tool interface.
 type WebFetch struct {
-	caller   model.LLMClient
-	cache    map[string]cacheEntry
-	cacheMu  sync.RWMutex
-	cacheTTL time.Duration
+	llmClient model.LLMClient
+	cache     map[string]cacheEntry
+	cacheMu   sync.RWMutex
+	cacheTTL  time.Duration
 }
 
-// NewWebFetch creates a WebFetch tool with the given LLM caller and cache TTL.
-// caller must be non-nil.
-func NewWebFetch(caller model.LLMClient, cacheTTL time.Duration) (*WebFetch, error) {
-	if caller == nil {
-		return nil, errors.New("WebFetch: caller is required")
+// NewWebFetch creates a WebFetch tool with the given LLM client and cache TTL.
+// llmClient must be non-nil.
+func NewWebFetch(llmClient model.LLMClient, cacheTTL time.Duration) (*WebFetch, error) {
+	if llmClient == nil {
+		return nil, errors.New("WebFetch: LLM client is required")
 	}
 	return &WebFetch{
-		caller:   caller,
-		cache:    make(map[string]cacheEntry),
-		cacheTTL: cacheTTL,
+		llmClient: llmClient,
+		cache:     make(map[string]cacheEntry),
+		cacheTTL:  cacheTTL,
 	}, nil
 }
 
@@ -163,7 +163,7 @@ func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, er
 	// 8. Optional LLM step
 	finalURL := resp.Request.URL.String()
 	if prompt != "" {
-		reply, _, _, err := w.caller.ChatCompletionBlocking(ctx, []model.Message{
+		reply, _, _, err := w.llmClient.ChatCompletionBlocking(ctx, []model.Message{
 			{Role: "system", Content: "Answer based only on the following content.\n\n" + content},
 			{Role: "user", Content: prompt},
 		}, nil)
