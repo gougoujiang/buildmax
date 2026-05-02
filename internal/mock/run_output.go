@@ -20,9 +20,9 @@ func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, co
 	return m.List, nil
 }
 
-func (m *MockRunOutputLister) GetTaskRunOutputFiles(_ context.Context, chatRunID string) ([]model.TaskRunArtifact, error) {
+func (m *MockRunOutputLister) GetTaskRunOutputFiles(_ context.Context, taskRunID string) ([]model.TaskRunArtifact, error) {
 	if m.OutputFiles != nil {
-		return m.OutputFiles[chatRunID], nil
+		return m.OutputFiles[taskRunID], nil
 	}
 	return nil, nil
 }

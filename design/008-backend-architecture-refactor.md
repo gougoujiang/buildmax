@@ -12,6 +12,19 @@ Refactor the backend under `cmd/` and `internal/` toward:
 
 This is an incremental plan, not a rewrite.
 
+## 2026 Package-Refactor Status
+
+This document is now mostly historical. The active internal layout has moved to:
+
+- `internal/core` for business concepts, use cases, contracts, and shared models.
+- `internal/execution` for agent runtime assembly, task-run execution, scheduler, worker coordination, agent tools, and MCP tools.
+- `internal/infra` for DB, object storage, LLM, Kubernetes, MCP transport, and logging implementations.
+- `internal/server` for HTTP/WebSocket transport.
+- `internal/interface` for CLI, TUI, desktop, and local auth entry points.
+- `internal/bootstrap` for process startup and dependency wiring.
+
+The old compatibility/alias middle state has been removed. The main remaining architectural cleanup is that `internal/core/model` still contains GORM persistence tags and table names; a future pass can split pure core contracts from DB schema types under `internal/infra/db`.
+
 ---
 
 ## Current problems
@@ -42,7 +55,7 @@ The worker shells out to `buildmax -p`, then reads files written by CLI-side log
 
 ### 4. Model/storage separation is half-finished
 
-`internal/model` looks like a domain package, but it still embeds GORM tags and table names. `internal/infra/db` aliases those same types. This adds indirection without a true boundary.
+`internal/core/model` contains shared entities, repository contracts, and DB-facing struct tags. This is simple and working, but it means the core layer is not fully persistence-agnostic yet.
 
 ### 5. Lifecycle/state transitions are stringly typed
 
@@ -135,10 +148,10 @@ internal/
 
 ### Collapse or rename
 
-- `internal/server` becomes transport-only HTTP wiring under `internal/infra/http`
+- `internal/server` should stay transport-focused HTTP/WebSocket wiring
 - `internal/infra/db` becomes DB repository implementations under `internal/infra/db`
-- `internal/model` is either removed, or converted into pure `internal/domain/*` types
-- `internal/core/conversation/adapter` moves under HTTP transport or conversation app layer depending on responsibility
+- `internal/core/model` can later split into pure core contracts plus DB schema structs under `internal/infra/db`
+- `internal/core/conversation` should remain the Tier 1 conversation orchestration surface
 
 ---
 
@@ -437,11 +450,11 @@ Create pure domain packages and move GORM models into DB repositories.
 
 ### Alternative
 
-If that is too much for now, remove `internal/model` and let `internal/infra/db` be the storage model package until the real split is funded.
+If that is too much for now, keep `internal/core/model` as the shared model/contract package and treat the embedded GORM tags as an explicit, temporary compromise until the real split is funded.
 
 ### Recommendation
 
-Do not keep the current alias-based middle state long term.
+The alias-based middle state has been removed. Do not reintroduce alias packages as compatibility shims; migrate callers to the target package directly.
 
 ---
 
@@ -551,7 +564,7 @@ Benefits:
 
 ### Fifth move set
 
-- replace `internal/model` with `internal/domain/*`
+- split persistence-specific structs out of `internal/core/model`
 - move GORM models under `infra/db`
 
 ---

@@ -1,4 +1,4 @@
-// Package executor provides task run scheduling and execution.
+// Package runtime prepares and executes task runs.
 //
 // agents_md.go: prepare AGENTS.md in the run directory so the CLI (buildmax -p)
 // reads it from cwd and the agent gets run context (directory layout + optional workspace AGENTS.md).
@@ -32,7 +32,7 @@ func BuildRunAgentsMdContent(runHome string) (string, error) {
 	out := strings.TrimSpace(runDirectoryStructureSection)
 	extra, err := agent.ReadAgentsMd(runHome)
 	if err != nil {
-		slog.Warn("executor: read workspace AGENTS.md for run", "run_home", runHome, "err", err)
+		slog.Warn("runtime: read workspace AGENTS.md for run", "run_home", runHome, "err", err)
 		// Continue with structure only
 		return out, nil
 	}

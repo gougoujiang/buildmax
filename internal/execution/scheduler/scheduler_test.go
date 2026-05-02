@@ -10,7 +10,7 @@ import (
 	"buildmax/internal/core/model"
 )
 
-// spyTaskRunStore records UpdateTaskRunStatus and SyncTaskFromRun calls for tests.
+// spyTaskRunStore records UpdateRun and SyncTaskFromRun calls for tests.
 type spyTaskRunStore struct {
 	mu sync.Mutex
 
@@ -23,18 +23,18 @@ type spyTaskRunStore struct {
 
 	// Recorded calls
 	lastUpdateStatus *struct {
-		chatRunID    string
+		taskRunID    string
 		status       string
 		endedAt      *int64
 		errorMessage *string
 	}
-	syncChatFromRunCalls []string
+	syncTaskFromRunCalls []string
 }
 
-func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
+func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 	return &spyTaskRunStore{
 		pendingRun: &model.TaskRun{
-			TaskRunID: chatRunID,
+			TaskRunID: taskRunID,
 			TaskID:    "t_test",
 			Input:     "input",
 			Status:    "PENDING",
@@ -79,7 +79,7 @@ func (s *spyTaskRunStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInp
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastUpdateStatus = &struct {
-		chatRunID    string
+		taskRunID    string
 		status       string
 		endedAt      *int64
 		errorMessage *string
@@ -95,10 +95,10 @@ func (s *spyTaskRunStore) OnRunComplete(_ context.Context, _ string, _ []string)
 	return nil
 }
 
-func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, chatRunID string) error {
+func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.syncChatFromRunCalls = append(s.syncChatFromRunCalls, chatRunID)
+	s.syncTaskFromRunCalls = append(s.syncTaskFromRunCalls, taskRunID)
 	return nil
 }
 
@@ -115,8 +115,8 @@ func (f *failingRunner) Run(_ context.Context, _ model.TaskRun) (string, *string
 var errSpawnFailed = errors.New("spawn failed for test")
 
 func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
-	chatRunID := "r_spy123456789012345678"
-	spy := newSpyTaskRunStore(chatRunID)
+	taskRunID := "r_spy123456789012345678"
+	spy := newSpyTaskRunStore(taskRunID)
 	runner := &failingRunner{err: errSpawnFailed}
 
 	s, err := NewSchedulerWithPollInterval(spy, runner, 10*time.Millisecond)
@@ -136,23 +136,23 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 		t.Fatal("UpdateTaskRunStatus was not called")
 	}
 	if spy.lastUpdateStatus.status != "FAILED" {
-		t.Errorf("UpdateTaskRunStatus status = %q, want FAILED", spy.lastUpdateStatus.status)
+		t.Errorf("UpdateRun status = %q, want FAILED", spy.lastUpdateStatus.status)
 	}
-	if spy.lastUpdateStatus.chatRunID != chatRunID {
-		t.Errorf("UpdateTaskRunStatus chatRunID = %q, want %q", spy.lastUpdateStatus.chatRunID, chatRunID)
+	if spy.lastUpdateStatus.taskRunID != taskRunID {
+		t.Errorf("UpdateRun taskRunID = %q, want %q", spy.lastUpdateStatus.taskRunID, taskRunID)
 	}
 	if spy.lastUpdateStatus.endedAt == nil {
-		t.Error("UpdateTaskRunStatus endedAt is nil, want set")
+		t.Error("UpdateRun endedAt is nil, want set")
 	}
 	if spy.lastUpdateStatus.errorMessage == nil || *spy.lastUpdateStatus.errorMessage == "" {
-		t.Error("UpdateTaskRunStatus errorMessage is nil or empty, want non-empty")
+		t.Error("UpdateRun errorMessage is nil or empty, want non-empty")
 	}
 
-	// SyncTaskFromRun must have been called with the same chatRunID
-	if len(spy.syncChatFromRunCalls) == 0 {
+	// SyncTaskFromRun must have been called with the same taskRunID.
+	if len(spy.syncTaskFromRunCalls) == 0 {
 		t.Fatal("SyncTaskFromRun was not called")
 	}
-	if spy.syncChatFromRunCalls[0] != chatRunID {
-		t.Errorf("SyncTaskFromRun chatRunID = %q, want %q", spy.syncChatFromRunCalls[0], chatRunID)
+	if spy.syncTaskFromRunCalls[0] != taskRunID {
+		t.Errorf("SyncTaskFromRun taskRunID = %q, want %q", spy.syncTaskFromRunCalls[0], taskRunID)
 	}
 }

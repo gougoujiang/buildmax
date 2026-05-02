@@ -1,7 +1,7 @@
-// Package executor provides task run scheduling and execution.
+// Package runtime provides task-run execution.
 //
-//   - Scheduler: polls for PENDING task runs, spawns worker with --task-run-id.
-//   - RunTask: runs a single run (materialize workspace, optionally restore session, run buildmax -p, update run via TaskRunUpdater).
+// RunTask runs a single run: materialize workspace, optionally restore session,
+// run the shared agent runtime, persist outputs, and update run state through TaskRunUpdater.
 package runtime
 
 import (
@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"buildmax/internal/config"
 	"buildmax/internal/core/model"
 	"buildmax/internal/execution/agentrun"
 	execworker "buildmax/internal/execution/worker"
@@ -56,14 +55,15 @@ type runDirs struct {
 
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
 type RunTaskInput struct {
-	Task            *model.Task
-	Run             *model.TaskRun
-	SessionID       string
-	Paths           RuntimePaths
-	Persist         blob.PersistStorage
-	ArtifactStorage blob.ArtifactStorage
-	Updater         TaskRunUpdater
-	StreamSender    execworker.StreamSender
+	Task               *model.Task
+	Run                *model.TaskRun
+	SessionID          string
+	Paths              RuntimePaths
+	Persist            blob.PersistStorage
+	ArtifactStorage    blob.ArtifactStorage
+	Updater            TaskRunUpdater
+	StreamSender       execworker.StreamSender
+	BuildmaxHomeEnvKey string
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, run buildmax -p, upload run global to blob, update run and task via updater.
@@ -71,10 +71,10 @@ type RunTaskInput struct {
 func RunTask(ctx context.Context, input RunTaskInput) error {
 	task, run := input.Task, input.Run
 	if task == nil || run == nil {
-		return errors.New("executor: task and run must not be nil")
+		return errors.New("runtime: task and run must not be nil")
 	}
 	if input.Paths == nil || input.Persist == nil || input.ArtifactStorage == nil || input.Updater == nil {
-		return errors.New("executor: paths, persist, artifactStorage and updater must not be nil")
+		return errors.New("runtime: paths, persist, artifactStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, task, run)
 	scope := RunScope{UserID: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.TaskID, TaskRunID: run.TaskRunID}
@@ -86,7 +86,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	result, err := executeRunTask(ctx, input, task, run, dirs)
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-		slog.Error("executor: run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
+		slog.Error("runtime: run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
 		reportRunFailure(ctx, run.TaskRunID, err, input.Updater)
 		return err
 	}
@@ -95,7 +95,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if err := reportRunSuccess(ctx, scope, result, input.ArtifactStorage, input.Updater); err != nil {
 		return err
 	}
-	slog.Info("executor: run succeeded", "task_run_id", run.TaskRunID)
+	slog.Info("runtime: run succeeded", "task_run_id", run.TaskRunID)
 	return nil
 }
 
@@ -114,11 +114,11 @@ func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task 
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
 	if err := persist.MaterializeToDir(ctx, task.TeamID, dirs.runHome); err != nil {
-		slog.Error("executor: failed to materialize team files", "task_run_id", run.TaskRunID, "team_id", task.TeamID, "err", err)
+		slog.Error("runtime: failed to materialize team files", "task_run_id", run.TaskRunID, "team_id", task.TeamID, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
-		slog.Error("executor: failed to prepare run AGENTS.md", "task_run_id", run.TaskRunID, "err", err)
+		slog.Error("runtime: failed to prepare run AGENTS.md", "task_run_id", run.TaskRunID, "err", err)
 		return err
 	}
 	return nil
@@ -129,7 +129,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	output, promptTokens, completionTokens, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender)
+	output, promptTokens, completionTokens, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.BuildmaxHomeEnvKey)
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
 		OutputStr:        string(output),
@@ -185,7 +185,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *m
 	_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender execworker.StreamSender) ([]byte, *int, *int, error) {
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender execworker.StreamSender, buildmaxHomeEnv string) ([]byte, *int, *int, error) {
 	var sink model.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -195,7 +195,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		out agentrun.RunOutput
 		err error
 	)
-	err = withBuildmaxHome(runGlobalDir, func() error {
+	err = withBuildmaxHome(buildmaxHomeEnv, runGlobalDir, func() error {
 		rt, openErr := agentrun.Open(agentrun.OpenInput{
 			WorkspaceDir: runDir,
 			SessionID:    sessionID,
@@ -211,7 +211,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 	})
 	if streamSender != nil {
 		if flushErr := streamSender.Flush(ctx, run.TaskRunID); flushErr != nil {
-			slog.Warn("executor: stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
+			slog.Warn("runtime: stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
 		}
 	}
 	if err != nil {
@@ -234,20 +234,23 @@ func (s *streamSinkAdapter) OnDelta(delta string) {
 		return
 	}
 	if err := s.streamSender.SendDelta(s.ctx, s.taskRunID, delta); err != nil {
-		slog.Warn("executor: stream send delta failed", "task_run_id", s.taskRunID, "err", err)
+		slog.Warn("runtime: stream send delta failed", "task_run_id", s.taskRunID, "err", err)
 	}
 }
 
-func withBuildmaxHome(home string, fn func() error) error {
-	prev, hadPrev := os.LookupEnv(config.EnvKeyBuildmaxHome)
-	if err := os.Setenv(config.EnvKeyBuildmaxHome, home); err != nil {
+func withBuildmaxHome(envKey, home string, fn func() error) error {
+	if envKey == "" {
+		envKey = "BUILDMAX_HOME"
+	}
+	prev, hadPrev := os.LookupEnv(envKey)
+	if err := os.Setenv(envKey, home); err != nil {
 		return err
 	}
 	defer func() {
 		if hadPrev {
-			_ = os.Setenv(config.EnvKeyBuildmaxHome, prev)
+			_ = os.Setenv(envKey, prev)
 		} else {
-			_ = os.Unsetenv(config.EnvKeyBuildmaxHome)
+			_ = os.Unsetenv(envKey)
 		}
 	}()
 	return fn()
@@ -256,7 +259,7 @@ func withBuildmaxHome(home string, fn func() error) error {
 func persistRunResult(runArtifactsDir string, output []byte) {
 	resultPath := filepath.Join(runArtifactsDir, "result.md")
 	if err := os.WriteFile(resultPath, output, 0644); err != nil {
-		slog.Error("executor: failed to write result file", "path", resultPath, "err", err)
+		slog.Error("runtime: failed to write result file", "path", resultPath, "err", err)
 	}
 }
 
@@ -272,7 +275,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, updater 
 
 func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
 	if putErr := artifactStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
-		slog.Error("executor: failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
+		slog.Error("runtime: failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}
 	relativePaths := uploadRunArtifactsToStorage(ctx, result.RunArtifactsDir, scope, artifactStorage)
 	if len(relativePaths) == 0 {
@@ -315,13 +318,13 @@ func walkAndUploadFiles(ctx context.Context, rootDir string, scope RunScope, ope
 		uploadErr := upload(ctx, scope, relPath, f)
 		_ = f.Close()
 		if uploadErr != nil {
-			warn("executor: upload file failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", uploadErr)
+			warn("runtime: upload file failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", uploadErr)
 			return nil
 		}
 		relativePaths = append(relativePaths, relPath)
 		return nil
 	}); err != nil {
-		errorLog("executor: walk upload source failed", "task_run_id", scope.TaskRunID, "root", rootDir, "err", err)
+		errorLog("runtime: walk upload source failed", "task_run_id", scope.TaskRunID, "root", rootDir, "err", err)
 	}
 	return relativePaths
 }
@@ -332,7 +335,7 @@ func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunS
 		ctx,
 		artifactsDir,
 		scope,
-		"executor: upload run artifacts open failed",
+		"runtime: upload run artifacts open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return persist.PutTaskRunArtifacts(ctx, blob.RunObjectRef{
 				UserID:         scope.UserID,
@@ -353,7 +356,7 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 		ctx,
 		runArtifactsDir,
 		scope,
-		"executor: artifact file open failed",
+		"runtime: artifact file open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return artifactStorage.PutArtifactFile(ctx, blob.RunObjectRef{
 				UserID:         scope.UserID,
@@ -389,7 +392,7 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		}
 		f, err := os.Open(fullPath)
 		if err != nil {
-			slog.Warn("executor: upload run global open failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
+			slog.Warn("runtime: upload run global open failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
 			continue
 		}
 		putErr := persist.PutTaskGlobal(ctx, blob.RunObjectRef{
@@ -401,7 +404,7 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		}, f)
 		f.Close()
 		if putErr != nil {
-			slog.Warn("executor: upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
+			slog.Warn("runtime: upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
 		}
 	}
 }

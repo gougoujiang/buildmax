@@ -1,5 +1,5 @@
 // Scheduler polls for pending task runs and runs the worker via a WorkerRunner (local process or k8s Job).
-// It does not perform run execution; the worker process calls executor.RunTask.
+// It does not perform run execution; the worker process calls runtime.RunTask.
 package scheduler
 
 import (
@@ -18,7 +18,7 @@ const (
 
 // Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	chatRuns     model.TaskRunStore
+	taskRuns     model.TaskRunStore
 	runner       WorkerRunner
 	pollInterval time.Duration
 	stopCh       chan struct{}
@@ -26,23 +26,23 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
-func NewScheduler(chatRunStore model.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
-	return NewSchedulerWithPollInterval(chatRunStore, runner, defaultPollInterval)
+func NewScheduler(taskRunStore model.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
+	return NewSchedulerWithPollInterval(taskRunStore, runner, defaultPollInterval)
 }
 
 // NewSchedulerWithPollInterval is like NewScheduler but allows setting the poll interval (e.g. for tests). Use 0 for default.
-func NewSchedulerWithPollInterval(chatRunStore model.TaskRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
-	if chatRunStore == nil {
-		return nil, errors.New("executor: chatRunStore must not be nil")
+func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
+	if taskRunStore == nil {
+		return nil, errors.New("scheduler: taskRunStore must not be nil")
 	}
 	if runner == nil {
-		return nil, errors.New("executor: runner must not be nil")
+		return nil, errors.New("scheduler: runner must not be nil")
 	}
 	if pollInterval == 0 {
 		pollInterval = defaultPollInterval
 	}
 	return &Scheduler{
-		chatRuns:     chatRunStore,
+		taskRuns:     taskRunStore,
 		runner:       runner,
 		pollInterval: pollInterval,
 		stopCh:       make(chan struct{}),
@@ -76,7 +76,7 @@ func (s *Scheduler) loop() {
 			return
 		case <-ticker.C:
 			ctx := context.Background()
-			run, err := s.chatRuns.GetNextPendingTaskRun(ctx)
+			run, err := s.taskRuns.GetNextPendingTaskRun(ctx)
 			if err != nil {
 				slog.Warn("scheduler: poll failed", "err", err)
 				continue
@@ -84,7 +84,7 @@ func (s *Scheduler) loop() {
 			if run == nil {
 				continue
 			}
-			updated, err := s.chatRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
+			updated, err := s.taskRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
 				TaskRunID:      run.TaskRunID,
 				ExpectedStatus: model.RunStatusPending,
 				NewStatus:      model.RunStatusScheduled,
@@ -104,7 +104,7 @@ func (s *Scheduler) loop() {
 					errorMsg = errorMsg[:maxErrorMessageLength]
 				}
 				endedAt := time.Now().Unix()
-				if updateErr := s.chatRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
+				if updateErr := s.taskRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
 					TaskRunID:    run.TaskRunID,
 					Status:       model.RunStatusFailed,
 					EndedAt:      &endedAt,
@@ -113,12 +113,12 @@ func (s *Scheduler) loop() {
 					slog.Error("scheduler: failed to set run to FAILED", "task_run_id", run.TaskRunID, "err", updateErr)
 					continue
 				}
-				if syncErr := s.chatRuns.SyncTaskFromRun(ctx, run.TaskRunID); syncErr != nil {
-					slog.Warn("scheduler: failed to sync chat from run", "task_run_id", run.TaskRunID, "err", syncErr)
+				if syncErr := s.taskRuns.SyncTaskFromRun(ctx, run.TaskRunID); syncErr != nil {
+					slog.Warn("scheduler: failed to sync task from run", "task_run_id", run.TaskRunID, "err", syncErr)
 				}
 				continue
 			}
-			if err := s.chatRuns.UpdateTaskRunWorkerInfo(ctx, run.TaskRunID, workerType, k8sName, k8sAt); err != nil {
+			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.TaskRunID, workerType, k8sName, k8sAt); err != nil {
 				slog.Warn("scheduler: failed to persist worker info", "task_run_id", run.TaskRunID, "err", err)
 			}
 		}

@@ -46,7 +46,7 @@ func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (stri
 }
 
 // RunServer loads server env and workspaces dir, opens the DB, builds blob storage,
-// creates and starts the task executor, then runs the HTTP server until shutdown.
+// creates and starts the task-run scheduler, then runs the HTTP server until shutdown.
 // The port argument should already be resolved (e.g. via config.ResolveServerPort).
 func RunServer(ctx context.Context, port int) error {
 	bootstrap, err := buildServerBootstrap(ctx, port)
@@ -55,7 +55,7 @@ func RunServer(ctx context.Context, port int) error {
 	}
 	sched, err := scheduler.NewScheduler(bootstrap.store, bootstrap.runner)
 	if err != nil {
-		return fmt.Errorf("executor: %w", err)
+		return fmt.Errorf("scheduler: %w", err)
 	}
 	sched.Start()
 	defer sched.Stop()

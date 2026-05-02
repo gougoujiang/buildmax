@@ -107,14 +107,15 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	httpSender := &execworker.WorkerHTTPStreamSender{BaseURL: baseURL, Token: token}
 	streamSender := &execworker.DebouncedStreamSender{Inner: httpSender}
 	err = execruntime.RunTask(ctx, execruntime.RunTaskInput{
-		Task:            task,
-		Run:             run,
-		SessionID:       sessionID,
-		Paths:           paths,
-		Persist:         persistStorage,
-		ArtifactStorage: artifactStorage,
-		Updater:         updater,
-		StreamSender:    streamSender,
+		Task:               task,
+		Run:                run,
+		SessionID:          sessionID,
+		Paths:              paths,
+		Persist:            persistStorage,
+		ArtifactStorage:    artifactStorage,
+		Updater:            updater,
+		StreamSender:       streamSender,
+		BuildmaxHomeEnvKey: config.EnvKeyBuildmaxHome,
 	})
 	if err != nil {
 		slog.Error("worker: run execution failed", "task_run_id", taskRunID, "err", err)

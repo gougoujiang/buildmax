@@ -108,7 +108,10 @@ Each step should keep `go test ./...` and the three main Go binaries buildable.
 
 The package refactor is complete for the planned scope. Source imports and active documentation now use the target package layout directly, and the old compatibility packages have been removed.
 
+Architecture guard tests now live in `internal/architecture` and protect the high-level dependency direction plus the rule that new internal type aliases should not be introduced as refactor compatibility shims.
+
 Remaining architecture cleanup:
 
 - Consider whether to split `core/model` into smaller domain-specific model/contract packages if it becomes too broad.
+- Consider moving GORM-specific schema tags and table names from `core/model` into `infra/db` if we want `core` to become fully persistence-agnostic.
 - Consider introducing `core/team`, `core/workspace`, or `execution/artifact` when those concepts need dedicated orchestration logic rather than shared models or infrastructure adapters.
