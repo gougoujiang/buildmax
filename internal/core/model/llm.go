@@ -41,3 +41,9 @@ type LLMClient interface {
 type StreamSink interface {
 	OnDelta(delta string)
 }
+
+// TitleGenerator generates a short title from an input string, e.g. via LLM.
+// Returns token usage for metering; on error or when nil, callers fall back to truncated input.
+type TitleGenerator interface {
+	GenerateTitle(ctx context.Context, input string) (title string, promptTokens, completionTokens int, err error)
+}

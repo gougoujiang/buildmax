@@ -1,7 +1,6 @@
 package portalapi
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -10,25 +9,13 @@ import (
 	"buildmax/internal/server/httputil"
 )
 
-type conversationTitleGeneratorAdapter struct {
-	gen TitleGenerator
-}
-
-func (a conversationTitleGeneratorAdapter) GenerateTitle(ctx context.Context, input string) (string, error) {
-	if a.gen == nil {
-		return "", nil
-	}
-	title, _, err := a.gen.GenerateTitle(ctx, input)
-	return title, err
-}
-
 func (h *Handler) conversationService() *convapp.Service {
 	return &convapp.Service{
 		TaskService:       h.taskService(),
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,
 		LLMClient:         h.cfg.ConversationLLMClient,
-		TitleGenerator:    conversationTitleGeneratorAdapter{gen: h.cfg.TitleGenerator},
+		TitleGenerator:    h.cfg.TitleGenerator,
 		AgentStore:        h.cfg.AgentStore,
 	}
 }

@@ -11,11 +11,6 @@ import (
 	"buildmax/internal/core/model"
 )
 
-// ConversationTitleGenerator generates a short title from the first user message (e.g. via LLM). Optional for RunLoop/RunLoopStream.
-type ConversationTitleGenerator interface {
-	GenerateTitleFromInput(ctx context.Context, input string) (string, error)
-}
-
 // ConversationToolRunners holds optional runners for Tier 1 task tools. Nil means do not add that tool.
 type ConversationToolRunners struct {
 	StartTask      StartTaskRunner
@@ -34,7 +29,7 @@ type RunInput struct {
 	ScopeID            string
 	UserID             string
 	Runners            *ConversationToolRunners
-	TitleGenerator     ConversationTitleGenerator
+	TitleGenerator     model.TitleGenerator
 	RecentChatsSnippet string
 	StreamSink         model.StreamSink
 }
@@ -218,7 +213,7 @@ func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in
 	if !prepared.firstRound || in.UserContent == "" || in.TitleGenerator == nil {
 		return
 	}
-	if title, err := in.TitleGenerator.GenerateTitleFromInput(ctx, in.UserContent); err == nil && title != "" {
+	if title, _, _, err := in.TitleGenerator.GenerateTitle(ctx, in.UserContent); err == nil && title != "" {
 		_ = convStore.UpdateConversationTitle(ctx, in.ConversationID, title)
 	}
 }
@@ -263,7 +258,7 @@ func RunLoop(
 	toolsList []model.Tool,
 	scopeID, userID string,
 	runners *ConversationToolRunners,
-	titleGenerator ConversationTitleGenerator,
+	titleGenerator model.TitleGenerator,
 	recentChatsSnippet string,
 ) (reply string, err error) {
 	return Run(ctx, convStore, msgStore, llmClient, RunInput{
@@ -295,7 +290,7 @@ func RunLoopStream(
 	toolsList []model.Tool,
 	scopeID, userID string,
 	runners *ConversationToolRunners,
-	titleGenerator ConversationTitleGenerator,
+	titleGenerator model.TitleGenerator,
 	sink model.StreamSink,
 	recentChatsSnippet string,
 ) (reply string, err error) {

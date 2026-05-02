@@ -70,6 +70,31 @@ const (
 	RunTriggerSourceWebhook            = "webhook"
 )
 
+// WorkflowDefinition is the parsed structure of a workflow definition JSON.
+type WorkflowDefinition struct {
+	Steps []WorkflowDefinitionStep `json:"steps"`
+}
+
+// WorkflowDefinitionStep describes one step in a workflow definition.
+type WorkflowDefinitionStep struct {
+	StepID        string `json:"step_id"`
+	Type          string `json:"type"`
+	TargetAgentID string `json:"target_agent_id"`
+	Prompt        string `json:"prompt"`
+}
+
+// TaskRunTerminalInfo describes a task run that reached a terminal state.
+// Used by the workflow service to advance or finalize workflow step runs.
+type TaskRunTerminalInfo struct {
+	TaskRunID      string
+	TaskID         string
+	ConversationID string
+	UserID         string
+	Status         string
+	Output         *string
+	ErrorMessage   *string
+}
+
 // CreateTaskInput is the input for CreateTask.
 type CreateTaskInput struct {
 	ConversationID          string
