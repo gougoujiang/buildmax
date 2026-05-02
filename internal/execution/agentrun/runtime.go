@@ -200,7 +200,7 @@ func (r *Runtime) RunPrompt(ctx context.Context, in RunInput) (RunOutput, error)
 
 	if r.Session.Title() == "" {
 		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
-			content, _, usage, err := r.LLMClient.ChatWithTools(ctx, msgs, nil)
+			content, _, usage, err := r.LLMClient.ChatCompletionBlocking(ctx, msgs, nil)
 			return content, usage, err
 		})
 		title, titleUsage, titleErr := session.GenerateTitle(ctx, titleClient, r.Session.Messages())

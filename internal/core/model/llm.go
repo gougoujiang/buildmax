@@ -31,10 +31,10 @@ type Usage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// LLMCaller can perform chat-with-tools.
-type LLMCaller interface {
-	ChatWithTools(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, usage Usage, err error)
-	ChatWithToolsStream(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(string)) (content string, toolCalls []ToolCall, usage Usage, err error)
+// LLMClient can perform chat completions with tools.
+type LLMClient interface {
+	ChatCompletionBlocking(ctx context.Context, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, usage Usage, err error)
+	ChatCompletionStreaming(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(string)) (content string, toolCalls []ToolCall, usage Usage, err error)
 }
 
 // StreamSink receives content deltas during streaming. Implementations may write to stdout, send to a TUI, or buffer for SSE.

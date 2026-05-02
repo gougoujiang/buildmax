@@ -27,7 +27,7 @@ type Service struct {
 	TaskService       *taskapp.Service
 	ConversationStore model.ConversationStore
 	MessageStore      model.ConversationMessageStore
-	LLMCaller         model.LLMCaller
+	LLMClient         model.LLMClient
 	TitleGenerator    TitleGenerator
 	AgentStore        model.AgentStore
 }
@@ -87,7 +87,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	if s.ConversationStore == nil || s.MessageStore == nil {
 		return HandleTurnResult{}, fmt.Errorf("conversation stores not configured")
 	}
-	if s.LLMCaller == nil {
+	if s.LLMClient == nil {
 		return HandleTurnResult{}, ErrLLMRequired
 	}
 
@@ -107,7 +107,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		RecentChatsSnippet: s.recentTasksSnippet(ctx, cmd.ConversationID),
 		StreamSink:         cmd.StreamSink,
 	}
-	reply, err := Run(ctx, s.ConversationStore, s.MessageStore, s.LLMCaller, runInput)
+	reply, err := Run(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
 	return HandleTurnResult{Reply: reply}, err
 }
 

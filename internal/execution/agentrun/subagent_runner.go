@@ -18,12 +18,12 @@ type SubAgentRunner interface {
 }
 
 type defaultSubAgentRunner struct {
-	caller model.LLMCaller
+	caller model.LLMClient
 }
 
 // NewDefaultSubAgentRunner returns the default implementation of SubAgentRunner
 // backed by the same LLM caller used by the main agent.
-func NewDefaultSubAgentRunner(caller model.LLMCaller) (SubAgentRunner, error) {
+func NewDefaultSubAgentRunner(caller model.LLMClient) (SubAgentRunner, error) {
 	if caller == nil {
 		return nil, fmt.Errorf("subagent runner: caller must not be nil")
 	}

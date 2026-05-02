@@ -123,7 +123,7 @@ func TestWSConversationCreateFlow(t *testing.T) {
 		t.Error("conversation_id is empty")
 	}
 
-	// Since LLMCaller is nil, we should get an error then completed
+	// Since LLMClient is nil, we should get an error then completed
 	seen := map[string]bool{}
 	for i := 0; i < 3; i++ {
 		env = readEnvelope(t, conn)

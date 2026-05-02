@@ -120,8 +120,8 @@ func toToolCalls(toolCalls []openai.ToolCall) []model.ToolCall {
 	return out
 }
 
-// ChatWithTools sends messages and tool definitions, returns assistant content, any tool calls, and usage.
-func (c *Client) ChatWithTools(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+// ChatCompletionBlocking sends messages and tool definitions, returns assistant content, any tool calls, and usage.
+func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []model.Message, tools []model.ToolDef) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	req := buildChatCompletionRequest(c.model, messages, tools)
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
@@ -141,9 +141,9 @@ func (c *Client) ChatWithTools(ctx context.Context, messages []model.Message, to
 	return content, toolCalls, usage, nil
 }
 
-// ChatWithToolsStream sends messages and tool definitions, streams content deltas via onDelta,
+// ChatCompletionStreaming sends messages and tool definitions, streams content deltas via onDelta,
 // and returns full content, any tool calls, and usage (when the provider sends it in a chunk). If onDelta is nil, it is not called.
-func (c *Client) ChatWithToolsStream(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(delta string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
+func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []model.Message, tools []model.ToolDef, onDelta func(delta string)) (content string, toolCalls []model.ToolCall, usage model.Usage, err error) {
 	req := buildChatCompletionRequest(c.model, messages, tools)
 	var streamUsage model.Usage
 	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
@@ -309,5 +309,5 @@ func (r *usageCaptureReader) parseUsageLocked() {
 	}
 }
 
-// Ensure *Client implements model.LLMCaller.
-var _ model.LLMCaller = (*Client)(nil)
+// Ensure *Client implements model.LLMClient.
+var _ model.LLMClient = (*Client)(nil)
