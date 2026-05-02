@@ -1,13 +1,14 @@
 package db
 
 import (
-	"buildmax/internal/core/model"
 	"context"
 	"errors"
 	"time"
 
+	"buildmax/internal/core/model"
+	"buildmax/internal/session"
 	"buildmax/internal/util"
-	"github.com/google/uuid"
+
 	"gorm.io/gorm"
 )
 
@@ -95,7 +96,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 	now := time.Now().Unix()
 	taskID := util.NewPrefixedID(util.PrefixTask)
 	taskRunID := util.NewPrefixedID(util.PrefixTaskRun)
-	sessionID := uuid.New().String() // UUID for buildmax CLI (session not exposed to user)
+	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
 	task := &model.Task{
 		TaskID:                taskID,
 		ConversationID:        in.ConversationID,
