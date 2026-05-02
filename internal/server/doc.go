@@ -1,13 +1,12 @@
-// Package server provides the HTTP server for BuildMax (backend for portal).
+// Package server provides the HTTP server for BuildMax.
 //
-// The server is split by API kind:
+// Route handling lives in the handlers sub-package:
 //
-//   - server/auth — unauthenticated entry: POST /api/otp/request, POST /api/login.
-//   - server/portalapi — authenticated user API: agents, tasks, artifacts,
-//     conversations, stream, files, upload, usage.
-//   - server/workerapi — worker API: GET/PATCH /api/worker/task-runs/{id}, POST .../stream.
-//     Uses Bearer or X-Worker-Token auth.
+//   - server/handlers — all HTTP handlers in one package, grouped by domain file:
+//     auth.go (OTP/login + JWT middleware), teams.go, agents.go, usage.go,
+//     issues.go, workflows.go, conversations.go, tasks.go, artifacts.go,
+//     files.go, stream.go, ws.go, webhook_keys.go, inbound_webhook.go, worker.go.
 //
-// This package wires the three above (auth.Register, portalapi.Register, execworker.Register),
-// holds Config and the stream hub, and serves healthz, openapi, swagger and middleware.
+// This package wires handlers.NewHandler, holds server Config, and serves
+// healthz, openapi, swagger, CORS, and request-logging middleware.
 package server

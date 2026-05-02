@@ -17,12 +17,8 @@ import (
 	taskapp "buildmax/internal/core/task"
 	workflowapp "buildmax/internal/core/workflow"
 	blob "buildmax/internal/infra/objectstore"
-	"buildmax/internal/server/auth"
+	"buildmax/internal/server/handlers"
 	"buildmax/internal/server/httputil"
-	"buildmax/internal/server/portalapi"
-	"buildmax/internal/server/webhook"
-	streamhub "buildmax/internal/server/websocket"
-	"buildmax/internal/server/workerapi"
 )
 
 //go:embed static/openapi.json static/swagger.html
@@ -98,41 +94,11 @@ type Config struct {
 type Server struct {
 	srv *http.Server
 	cfg Config
-	hub streamhub.StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
-// buildPortalConfig builds portalapi.Config from server config, the shared stream hub, and the connection registry.
-func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portalapi.ConnRegistry) portalapi.Config {
-	return portalapi.Config{
-		JWTSecret:                cfg.Auth.JWTSecret,
-		CORSOrigin:               cfg.Auth.CORSOrigin,
-		UserStore:                cfg.Stores.UserStore,
-		TeamStore:                cfg.Stores.TeamStore,
-		WorkflowStore:            cfg.Stores.WorkflowStore,
-		AgentStore:               cfg.Stores.AgentStore,
-		IssueStore:               cfg.Stores.IssueStore,
-		TaskStore:                cfg.Stores.TaskStore,
-		TaskRunStore:             cfg.Stores.TaskRunStore,
-		RunOutputLister:          cfg.Stores.RunOutputLister,
-		PersistStorage:           cfg.Storage.PersistStorage,
-		ArtifactStorage:          cfg.Storage.ArtifactStorage,
-		WorkspacesDir:            cfg.Storage.WorkspacesDir,
-		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
-		QuotaChecker:             cfg.Auth.QuotaChecker,
-		TitleGenerator:           cfg.Conv.TitleGenerator,
-		ConversationStore:        cfg.Conv.ConversationStore,
-		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
-		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
-		Hub:                      hub,
-		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
-		ConnRegistry:             registry,
-	}
-}
-
-// New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and workerapi.
+// New builds an HTTP server with routes for healthz, openapi, swagger, and all API handlers.
 func New(cfg Config) *Server {
-	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
-	connRegistry := portalapi.NewConnRegistry()
+	s := &Server{cfg: cfg}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
@@ -140,49 +106,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
-	auth.NewHandler(auth.Config{
-		UserStore:        cfg.Stores.UserStore,
-		JWTSecret:        cfg.Auth.JWTSecret,
-		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
-	}).Register(mux)
-	portalapi.NewHandler(buildPortalConfig(cfg, s.hub, connRegistry)).Register(mux)
-	workflowCallback := buildWorkflowTerminalCallback(cfg)
-	workerapi.NewHandler(workerapi.Config{
-		Token:        cfg.Worker.WorkerToken,
-		TaskRunStore: cfg.Stores.TaskRunStore,
-		Hub:          s.hub,
-		OnTaskRunTerminal: func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
-			connRegistry.OnTaskRunTerminal(ctx, info)
-			if workflowCallback != nil {
-				workflowCallback(ctx, info)
-			}
-		},
-	}).Register(mux)
-	if cfg.Stores.UserWebhookKeyStore != nil {
-		msgPath := cfg.Webhook.MessagePath
-		if msgPath == "" {
-			msgPath = "message"
-		}
-		userID := cfg.Webhook.UserID
-		if userID == "" {
-			userID = convapp.DefaultWebhookUserID
-		}
-		taskSvc := &taskapp.Service{
-			Agents:         cfg.Stores.AgentStore,
-			Tasks:          cfg.Stores.TaskStore,
-			TaskRuns:       cfg.Stores.TaskRunStore,
-			QuotaChecker:   cfg.Auth.QuotaChecker,
-			TitleGenerator: nil,
-		}
-		webhookHandler := webhook.NewHandler(webhook.Config{
-			Adapter:           convapp.NewWebhookAdapter(msgPath, userID),
-			Engine:            &convapp.RuleBasedEngine{Task: taskSvc, Conversations: cfg.Conv.ConversationStore},
-			ConversationStore: cfg.Conv.ConversationStore,
-			KeyStore:          cfg.Stores.UserWebhookKeyStore,
-			MessagePath:       msgPath,
-		})
-		webhookHandler.Register(mux)
-	}
+
+	handlers.NewHandler(buildHandlersConfig(cfg)).Register(mux)
 
 	handler := http.Handler(mux)
 	if cfg.Auth.CORSOrigin != "" {
@@ -196,7 +121,58 @@ func New(cfg Config) *Server {
 	return s
 }
 
-func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
+func buildHandlersConfig(cfg Config) handlers.Config {
+	msgPath := cfg.Webhook.MessagePath
+	if msgPath == "" {
+		msgPath = "message"
+	}
+	webhookUserID := cfg.Webhook.UserID
+	if webhookUserID == "" {
+		webhookUserID = convapp.DefaultWebhookUserID
+	}
+	var webhookAdapter convapp.ChannelAdapter
+	var webhookEngine convapp.ConversationEngine
+	if cfg.Stores.UserWebhookKeyStore != nil {
+		taskSvc := &taskapp.Service{
+			Agents:         cfg.Stores.AgentStore,
+			Tasks:          cfg.Stores.TaskStore,
+			TaskRuns:       cfg.Stores.TaskRunStore,
+			QuotaChecker:   cfg.Auth.QuotaChecker,
+			TitleGenerator: nil,
+		}
+		webhookAdapter = convapp.NewWebhookAdapter(msgPath, webhookUserID)
+		webhookEngine = &convapp.RuleBasedEngine{Task: taskSvc, Conversations: cfg.Conv.ConversationStore}
+	}
+	return handlers.Config{
+		JWTSecret:                cfg.Auth.JWTSecret,
+		CORSOrigin:               cfg.Auth.CORSOrigin,
+		WorkerToken:              cfg.Worker.WorkerToken,
+		UserStore:                cfg.Stores.UserStore,
+		TeamStore:                cfg.Stores.TeamStore,
+		WorkflowStore:            cfg.Stores.WorkflowStore,
+		AgentStore:               cfg.Stores.AgentStore,
+		IssueStore:               cfg.Stores.IssueStore,
+		TaskStore:                cfg.Stores.TaskStore,
+		TaskRunStore:             cfg.Stores.TaskRunStore,
+		RunOutputLister:          cfg.Stores.RunOutputLister,
+		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
+		ConversationStore:        cfg.Conv.ConversationStore,
+		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
+		PersistStorage:           cfg.Storage.PersistStorage,
+		ArtifactStorage:          cfg.Storage.ArtifactStorage,
+		WorkspacesDir:            cfg.Storage.WorkspacesDir,
+		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
+		QuotaChecker:             cfg.Auth.QuotaChecker,
+		TitleGenerator:           cfg.Conv.TitleGenerator,
+		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
+		WebhookAdapter:           webhookAdapter,
+		WebhookEngine:            webhookEngine,
+		WebhookMessagePath:       msgPath,
+		OnTaskRunTerminal:        buildOnTaskRunTerminal(cfg),
+	}
+}
+
+func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
 	if cfg.Stores.WorkflowStore == nil {
 		return nil
 	}
@@ -214,7 +190,7 @@ func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info wo
 		Conversations: cfg.Conv.ConversationStore,
 		Task:          taskSvc,
 	}
-	return func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
+	return func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
 		workflowInfo := model.TaskRunTerminalInfo{
 			TaskRunID:      info.TaskRunID,
 			TaskID:         info.TaskID,
@@ -261,7 +237,6 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// serveStatic reads path from staticFS and serves it with the given Content-Type. On read error, logs and writes 500.
 func serveStatic(w http.ResponseWriter, path, contentType string) {
 	data, err := staticFS.ReadFile(path)
 	if err != nil {
