@@ -2,9 +2,11 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"buildmax/internal/core/model"
 )
@@ -27,8 +29,7 @@ type MessageBuffer interface {
 type RunLoopOpts struct {
 	LLMClient    model.LLMClient
 	SystemPrompt string
-	ToolDefs     []model.ToolDef
-	ToolsByName  map[string]model.Tool
+	Tools        model.ToolRegistry
 	MaxIter      int
 	Buffer       MessageBuffer
 	StreamSink   model.StreamSink
@@ -45,9 +46,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		var toolCalls []model.ToolCall
 		var usage model.Usage
 		if opts.StreamSink != nil {
-			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionStreaming(ctx, messages, opts.ToolDefs, opts.StreamSink.OnDelta)
+			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionStreaming(ctx, messages, opts.Tools.GetDefs(), opts.StreamSink.OnDelta)
 		} else {
-			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionBlocking(ctx, messages, opts.ToolDefs)
+			content, toolCalls, usage, err = opts.LLMClient.ChatCompletionBlocking(ctx, messages, opts.Tools.GetDefs())
 		}
 		if err != nil {
 			slog.Error("LLM call failed", "err", err)
@@ -67,9 +68,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, err
 		}
 		for _, tc := range toolCalls {
-			tool, ok := opts.ToolsByName[tc.Name]
+			tool := opts.Tools.Lookup(tc.Name)
 			var result string
-			if !ok {
+			if tool == nil {
 				result = fmt.Sprintf("error: unknown tool %q", tc.Name)
 			} else {
 				result = ExecuteTool(ctx, tool, tc)
@@ -87,4 +88,34 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	}
 	slog.Warn("agent max iterations exceeded")
 	return "", RunStats{ToolCalls: totalToolCalls, PromptTokens: totalPrompt, CompletionTokens: totalCompletion}, errors.New("agent: max iterations exceeded")
+}
+
+// ExecuteTool runs one tool call: parses tc.Arguments, calls tool.Execute, and returns the result or an error string.
+func ExecuteTool(ctx context.Context, t model.Tool, tc model.ToolCall) string {
+	var args map[string]any
+	if tc.Arguments != "" {
+		if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
+			return fmt.Sprintf("error: invalid arguments: %v", err)
+		}
+	}
+	if args == nil {
+		args = make(map[string]any)
+	}
+	result, err := t.Execute(ctx, args)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return result
+}
+
+func toolCallsSummary(calls []model.ToolCall) []string {
+	s := make([]string, 0, len(calls))
+	for _, tc := range calls {
+		args := tc.Arguments
+		if len(args) > 80 {
+			args = args[:80] + "..."
+		}
+		s = append(s, tc.Name+": "+strings.TrimSpace(args))
+	}
+	return s
 }

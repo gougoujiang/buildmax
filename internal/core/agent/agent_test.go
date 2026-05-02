@@ -9,35 +9,6 @@ import (
 	"buildmax/internal/core/model"
 )
 
-// TestBuildToolDefs asserts BuildToolDefs builds one model.ToolDef per tool with correct name/description/parameters.
-func TestBuildToolDefs(t *testing.T) {
-	mock := &mockTool{
-		name:        "test_tool",
-		description: "A test tool",
-		params:      map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "string"}}},
-	}
-	defs := BuildToolDefs([]model.Tool{mock})
-	if len(defs) != 1 {
-		t.Fatalf("len(defs) = %d, want 1", len(defs))
-	}
-	if defs[0].Name != "test_tool" {
-		t.Errorf("defs[0].Name = %q, want test_tool", defs[0].Name)
-	}
-	if defs[0].Description != "A test tool" {
-		t.Errorf("defs[0].Description = %q, want A test tool", defs[0].Description)
-	}
-	if defs[0].Parameters == nil {
-		t.Error("defs[0].Parameters is nil")
-	}
-	// Ensure mockTool implements model.Tool
-	var _ model.Tool = (*mockTool)(nil)
-	// Empty tools
-	empty := BuildToolDefs(nil)
-	if len(empty) != 0 {
-		t.Errorf("BuildToolDefs(nil) length = %d, want 0", len(empty))
-	}
-}
-
 // TestExecuteTool asserts ExecuteTool parses arguments, calls Execute, and returns result or error string.
 func TestExecuteTool(t *testing.T) {
 	ctx := context.Background()
@@ -67,6 +38,12 @@ type testBuffer struct {
 }
 
 func newTestBuffer() *testBuffer { return &testBuffer{} }
+
+func newTestToolRegistry(tools ...model.Tool) model.ToolRegistry {
+	registry := model.NewToolRegistry()
+	registry.AppendTools(tools...)
+	return registry
+}
 
 func (b *testBuffer) Messages() []model.Message {
 	if len(b.messages) == 0 {
@@ -164,7 +141,7 @@ func TestProcessWithSession_NoToolCall(t *testing.T) {
 		params:      map[string]any{"type": "object"},
 		result:      "echoed",
 	}
-	a := NewAgent(mock, []model.Tool{mockTool})
+	a := NewAgent(mock, newTestToolRegistry(mockTool))
 	sess := newTestBuffer()
 	reply, stats, err := a.Process(ctx, sess, "Hi")
 	if err != nil {
@@ -206,7 +183,7 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 		params:      map[string]any{"type": "object", "properties": map[string]any{"location": map[string]any{"type": "string"}}},
 		result:      toolResult,
 	}
-	a := NewAgent(mock, []model.Tool{mockTool})
+	a := NewAgent(mock, newTestToolRegistry(mockTool))
 	sess := newTestBuffer()
 	reply, stats, err := a.Process(ctx, sess, "What is the weather in Boston?")
 	if err != nil {
@@ -236,7 +213,7 @@ func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 		},
 	}
 	mockTool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
-	a := NewAgent(mock, []model.Tool{mockTool})
+	a := NewAgent(mock, newTestToolRegistry(mockTool))
 	sess := newTestBuffer()
 	reply, stats, err := a.Process(ctx, sess, "Hi")
 	if err != nil {
@@ -311,7 +288,7 @@ func TestProcessWithSession_SystemPromptPrepend(t *testing.T) {
 		},
 	}
 	rec := &recordingLLMClient{inner: inner}
-	a := NewAgent(rec, nil)
+	a := NewAgent(rec, newTestToolRegistry())
 	sess := newTestBuffer()
 	_, _, err := a.Process(ctx, sess, userMsg)
 	if err != nil {
@@ -355,7 +332,7 @@ func TestProcessWithSession_MaxIterationsExceeded(t *testing.T) {
 		params:      map[string]any{"type": "object"},
 		result:      "pong",
 	}
-	a := NewAgent(mock, []model.Tool{mockTool}, MaxIterations(3))
+	a := NewAgent(mock, newTestToolRegistry(mockTool), MaxIterations(3))
 	sess := newTestBuffer()
 	_, stats, err := a.Process(ctx, sess, "ping")
 	if err == nil {
@@ -383,7 +360,7 @@ func TestProcessWithSession(t *testing.T) {
 		},
 	}
 	rec := &lastCallLLMClient{inner: inner}
-	a := NewAgent(rec, nil)
+	a := NewAgent(rec, newTestToolRegistry())
 	sess := newTestBuffer()
 
 	reply1, _, err := a.Process(ctx, sess, "First message")
@@ -470,7 +447,7 @@ func TestProcess_Streaming(t *testing.T) {
 		},
 	}
 	sink := &recordingStreamSink{}
-	a := NewAgent(mock, nil)
+	a := NewAgent(mock, newTestToolRegistry())
 	sess := newTestBuffer()
 	reply, _, err := a.Process(ctx, sess, "Hi", WithStreamSink(sink))
 	if err != nil {
@@ -504,7 +481,7 @@ func TestProcessAfterUserAppended(t *testing.T) {
 			{content: "Reply to you.", toolCalls: nil},
 		},
 	}
-	a := NewAgent(mock, nil)
+	a := NewAgent(mock, newTestToolRegistry())
 	sess := newTestBuffer()
 	sess.Append(model.Message{Role: "user", Content: "Hello"})
 
@@ -533,7 +510,7 @@ func TestProcessAfterUserAppended(t *testing.T) {
 // TestProcessAfterUserAppended_EmptySession returns an error when session has no messages.
 func TestProcessAfterUserAppended_EmptySession(t *testing.T) {
 	ctx := context.Background()
-	a := NewAgent(&mockLLMClient{}, nil)
+	a := NewAgent(&mockLLMClient{}, newTestToolRegistry())
 	sess := newTestBuffer()
 	_, _, err := a.ProcessAfterUserAppended(ctx, sess)
 	if err == nil {
@@ -544,7 +521,7 @@ func TestProcessAfterUserAppended_EmptySession(t *testing.T) {
 // TestProcessAfterUserAppended_LastNotUser returns an error when last message is not user.
 func TestProcessAfterUserAppended_LastNotUser(t *testing.T) {
 	ctx := context.Background()
-	a := NewAgent(&mockLLMClient{}, nil)
+	a := NewAgent(&mockLLMClient{}, newTestToolRegistry())
 	sess := newTestBuffer()
 	sess.Append(model.Message{Role: "assistant", Content: "Hi"})
 	_, _, err := a.ProcessAfterUserAppended(ctx, sess)
@@ -564,7 +541,7 @@ func TestSystemPromptOption(t *testing.T) {
 		},
 	}
 	rec := &recordingLLMClient{inner: inner}
-	a := NewAgent(rec, nil, SystemPrompt(customPrompt))
+	a := NewAgent(rec, newTestToolRegistry(), SystemPrompt(customPrompt))
 	sess := newTestBuffer()
 	_, _, err := a.Process(ctx, sess, "explore the code")
 	if err != nil {

@@ -12,3 +12,41 @@ type Tool interface {
 	Parameters() any // JSON schema for arguments (e.g. map[string]any)
 	Execute(ctx context.Context, args map[string]any) (result string, err error)
 }
+
+// ToolRegistry keeps the tools available to an agent run.
+type ToolRegistry struct {
+	tools []Tool
+}
+
+// NewToolRegistry builds an empty registry for the tools available to an agent run.
+func NewToolRegistry() ToolRegistry {
+	return ToolRegistry{}
+}
+
+// AppendTools adds tools to the registry.
+func (r *ToolRegistry) AppendTools(tools ...Tool) {
+	r.tools = append(r.tools, tools...)
+}
+
+// GetDefs builds the LLM-facing tool definitions.
+func (r ToolRegistry) GetDefs() []ToolDef {
+	defs := make([]ToolDef, 0, len(r.tools))
+	for _, t := range r.tools {
+		defs = append(defs, ToolDef{
+			Name:        t.Name(),
+			Description: t.Description(),
+			Parameters:  t.Parameters(),
+		})
+	}
+	return defs
+}
+
+// Lookup returns the executable tool matching name, or nil if none match.
+func (r ToolRegistry) Lookup(name string) Tool {
+	for _, tool := range r.tools {
+		if tool.Name() == name {
+			return tool
+		}
+	}
+	return nil
+}

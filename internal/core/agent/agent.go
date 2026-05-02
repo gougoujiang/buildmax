@@ -33,8 +33,7 @@ type Agent struct {
 	llmClient    model.LLMClient
 	maxIter      int
 	systemPrompt string
-	toolDefs     []model.ToolDef // cached from tools for each request
-	toolsByName  map[string]model.Tool
+	tools        model.ToolRegistry
 }
 
 // AgentConfigurer configures an Agent.
@@ -56,13 +55,12 @@ func SystemPrompt(prompt string) AgentConfigurer {
 }
 
 // NewAgent builds an agent with the given LLM client and tools.
-func NewAgent(llmClient model.LLMClient, toolList []model.Tool, opts ...AgentConfigurer) *Agent {
+func NewAgent(llmClient model.LLMClient, tools model.ToolRegistry, opts ...AgentConfigurer) *Agent {
 	a := &Agent{
 		llmClient:    llmClient,
 		maxIter:      DefaultMaxIterations,
 		systemPrompt: DefaultSystemPrompt,
-		toolDefs:     BuildToolDefs(toolList),
-		toolsByName:  BuildToolsByName(toolList),
+		tools:        tools,
 	}
 	configureAgent(a, opts...)
 	return a
@@ -115,8 +113,7 @@ func (a *Agent) processLoop(ctx context.Context, buffer MessageBuffer, cfg proce
 	return RunLoop(ctx, RunLoopOpts{
 		LLMClient:    a.llmClient,
 		SystemPrompt: a.systemPrompt,
-		ToolDefs:     a.toolDefs,
-		ToolsByName:  a.toolsByName,
+		Tools:        a.tools,
 		MaxIter:      a.maxIter,
 		Buffer:       buffer,
 		StreamSink:   cfg.streamSink,

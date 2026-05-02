@@ -134,7 +134,10 @@ func Open(in OpenInput) (*Runtime, error) {
 		effectivePrompt = effectivePrompt + "\n\n" + extra
 	}
 
-	a := agent.NewAgent(client, append(baseTools, taskTool), agent.SystemPrompt(effectivePrompt))
+	registry := model.NewToolRegistry()
+	registry.AppendTools(baseTools...)
+	registry.AppendTools(taskTool)
+	a := agent.NewAgent(client, registry, agent.SystemPrompt(effectivePrompt))
 
 	sessionsDir := config.SessionsDir()
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {

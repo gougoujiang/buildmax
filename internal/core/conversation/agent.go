@@ -188,17 +188,13 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 }
 
 func executeRun(ctx context.Context, llmClient model.LLMClient, in RunInput, prepared *preparedRun) (string, error) {
-	defs := agent.BuildToolDefs(prepared.toolsList)
-	toolsByName := make(map[string]model.Tool, len(prepared.toolsList))
-	for _, t := range prepared.toolsList {
-		toolsByName[t.Name()] = t
-	}
+	tools := model.NewToolRegistry()
+	tools.AppendTools(prepared.toolsList...)
 
 	reply, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    llmClient,
 		SystemPrompt: effectiveSystemPrompt(systemPrompt, in.RecentChatsSnippet),
-		ToolDefs:     defs,
-		ToolsByName:  toolsByName,
+		Tools:        tools,
 		MaxIter:      maxIterations,
 		Buffer:       prepared.buffer,
 		StreamSink:   in.StreamSink,
