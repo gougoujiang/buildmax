@@ -32,7 +32,7 @@ Auth is done via JWT: `userIDFromRequest` parses `Authorization: Bearer <token>`
 
 1. **Creation**: `server.New(cfg)` or similar builds a `Server` with the given `Config`. Stores can be nil; endpoints that need them return 503 or 404 when not configured.
 2. **Routing**: Handlers are registered on a single `http.ServeMux` (or equivalent). CORS middleware is applied when `Config.CORSOrigin` is set (e.g. `http://localhost:5173` for the Vite dev server).
-3. **Run**: The server listens on `Config.Addr`, typically `:5678`. Graceful shutdown is handled via `ListenAndServe` and signal handling in the command that starts the server (e.g. `internal/cmd/server.go`).
+3. **Run**: The server listens on `Config.Addr`, typically `:5678`. Graceful shutdown is handled via `ListenAndServe` and signal handling in the command that starts the server (e.g. `internal/interface/cli/server.go`).
 
 ## Dependencies
 

@@ -97,7 +97,7 @@ The detail page currently includes:
 
 Last validation:
 
-- `go test ./internal/server/portal ./internal/app/task ./internal/app/workflow ./internal/storage/entity`
+- `go test ./internal/server/portal ./internal/core/task ./internal/core/workflow ./internal/infra/db`
 - `cd portal && npm run build`
 - focused frontend lint check for changed files
 

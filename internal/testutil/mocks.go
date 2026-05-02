@@ -6,29 +6,29 @@ import (
 	"io"
 	"time"
 
-	"buildmax/internal/storage/blob"
-	"buildmax/internal/storage/entity"
+	"buildmax/internal/infra/db"
+	blob "buildmax/internal/infra/objectstore"
 
 	"gorm.io/gorm"
 )
 
 // MockIssueStore is an in-memory IssueStore for tests.
 type MockIssueStore struct {
-	Issues []entity.Issue
+	Issues []db.Issue
 }
 
-func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in entity.CreateIssueInput) (*entity.Issue, error) {
+func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in db.CreateIssueInput) (*db.Issue, error) {
 	return m.CreateIssueInTeam(context.Background(), "tm_personal", userID, in)
 }
 
-func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in entity.CreateIssueInput) (*entity.Issue, error) {
-	issue := entity.Issue{
+func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in db.CreateIssueInput) (*db.Issue, error) {
+	issue := db.Issue{
 		IssueID:      fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
 		UserID:       createdBy,
 		TeamID:       teamID,
 		Title:        in.Title,
 		Description:  in.Description,
-		Status:       entity.IssueStatusTodo,
+		Status:       db.IssueStatusTodo,
 		CreatedBy:    createdBy,
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
@@ -39,8 +39,8 @@ func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy 
 	return &m.Issues[len(m.Issues)-1], nil
 }
 
-func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limit, offset int) ([]entity.Issue, int, error) {
-	var filtered []entity.Issue
+func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limit, offset int) ([]db.Issue, int, error) {
+	var filtered []db.Issue
 	for _, issue := range m.Issues {
 		if issue.UserID == userID {
 			filtered = append(filtered, issue)
@@ -48,7 +48,7 @@ func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limi
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []entity.Issue{}, total, nil
+		return []db.Issue{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -57,8 +57,8 @@ func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, limit, offset int) ([]entity.Issue, int, error) {
-	var filtered []entity.Issue
+func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, limit, offset int) ([]db.Issue, int, error) {
+	var filtered []db.Issue
 	for _, issue := range m.Issues {
 		if issue.TeamID == teamID {
 			filtered = append(filtered, issue)
@@ -66,7 +66,7 @@ func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, limi
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []entity.Issue{}, total, nil
+		return []db.Issue{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -75,7 +75,7 @@ func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*entity.Issue, error) {
+func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*db.Issue, error) {
 	for i := range m.Issues {
 		if m.Issues[i].IssueID == issueID {
 			return &m.Issues[i], nil
@@ -84,7 +84,7 @@ func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*entity.Is
 	return nil, nil
 }
 
-func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, in entity.UpdateIssueInput) (*entity.Issue, error) {
+func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, in db.UpdateIssueInput) (*db.Issue, error) {
 	for i := range m.Issues {
 		if m.Issues[i].IssueID != issueID || m.Issues[i].UserID != userID {
 			continue
@@ -94,7 +94,7 @@ func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, 
 	return nil, nil
 }
 
-func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in entity.UpdateIssueInput) (*entity.Issue, error) {
+func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in db.UpdateIssueInput) (*db.Issue, error) {
 	for i := range m.Issues {
 		if m.Issues[i].IssueID != issueID || m.Issues[i].TeamID != teamID {
 			continue
@@ -104,7 +104,7 @@ func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID st
 	return nil, nil
 }
 
-func (m *MockIssueStore) applyIssueUpdate(i int, in entity.UpdateIssueInput) *entity.Issue {
+func (m *MockIssueStore) applyIssueUpdate(i int, in db.UpdateIssueInput) *db.Issue {
 	if in.Title != nil {
 		m.Issues[i].Title = *in.Title
 	}
@@ -134,13 +134,13 @@ func (m *MockIssueStore) applyIssueUpdate(i int, in entity.UpdateIssueInput) *en
 
 // MockWorkflowStore is an in-memory WorkflowStore for tests.
 type MockWorkflowStore struct {
-	Workflows []entity.Workflow
-	Runs      []entity.WorkflowRun
-	StepRuns  []entity.WorkflowStepRun
+	Workflows []db.Workflow
+	Runs      []db.WorkflowRun
+	StepRuns  []db.WorkflowStepRun
 }
 
-func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string) ([]entity.Workflow, error) {
-	var out []entity.Workflow
+func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string) ([]db.Workflow, error) {
+	var out []db.Workflow
 	for _, workflow := range m.Workflows {
 		if workflow.TeamID == teamID {
 			out = append(out, workflow)
@@ -149,14 +149,14 @@ func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string
 	return out, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy, name, description, definition string) (*entity.Workflow, error) {
-	workflow := entity.Workflow{
+func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy, name, description, definition string) (*db.Workflow, error) {
+	workflow := db.Workflow{
 		WorkflowID:  fmt.Sprintf("w_mock_%d", len(m.Workflows)+1),
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
 		Definition:  definition,
-		Status:      entity.WorkflowStatusDraft,
+		Status:      db.WorkflowStatusDraft,
 		CreatedBy:   createdBy,
 		CreatedAt:   time.Now().Unix(),
 		UpdatedAt:   time.Now().Unix(),
@@ -165,7 +165,7 @@ func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy,
 	return &m.Workflows[len(m.Workflows)-1], nil
 }
 
-func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*entity.Workflow, error) {
+func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*db.Workflow, error) {
 	for i := range m.Workflows {
 		if m.Workflows[i].WorkflowID == workflowID {
 			return &m.Workflows[i], nil
@@ -174,7 +174,7 @@ func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID string, in entity.UpdateWorkflowInput) (*entity.Workflow, error) {
+func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID string, in db.UpdateWorkflowInput) (*db.Workflow, error) {
 	for i := range m.Workflows {
 		if m.Workflows[i].WorkflowID != workflowID || m.Workflows[i].TeamID != teamID {
 			continue
@@ -197,8 +197,8 @@ func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in entity.CreateWorkflowRunInput) (*entity.WorkflowRun, error) {
-	run := entity.WorkflowRun{
+func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in db.CreateWorkflowRunInput) (*db.WorkflowRun, error) {
+	run := db.WorkflowRun{
 		WorkflowRunID:  fmt.Sprintf("wr_mock_%d", len(m.Runs)+1),
 		WorkflowID:     in.WorkflowID,
 		IssueID:        in.IssueID,
@@ -212,8 +212,8 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in entity.Creat
 	return &m.Runs[len(m.Runs)-1], nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workflowID string, limit, offset int) ([]entity.WorkflowRun, int, error) {
-	var out []entity.WorkflowRun
+func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workflowID string, limit, offset int) ([]db.WorkflowRun, int, error) {
+	var out []db.WorkflowRun
 	for _, run := range m.Runs {
 		if run.WorkflowID == workflowID {
 			out = append(out, run)
@@ -221,7 +221,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workfl
 	}
 	total := len(out)
 	if offset > total {
-		return []entity.WorkflowRun{}, total, nil
+		return []db.WorkflowRun{}, total, nil
 	}
 	if limit <= 0 || offset+limit > total {
 		limit = total - offset
@@ -229,8 +229,8 @@ func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workfl
 	return out[offset : offset+limit], total, nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID string, limit, offset int) ([]entity.WorkflowRun, int, error) {
-	var out []entity.WorkflowRun
+func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID string, limit, offset int) ([]db.WorkflowRun, int, error) {
+	var out []db.WorkflowRun
 	for _, run := range m.Runs {
 		if run.IssueID != nil && *run.IssueID == issueID {
 			out = append(out, run)
@@ -238,7 +238,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID s
 	}
 	total := len(out)
 	if offset > total {
-		return []entity.WorkflowRun{}, total, nil
+		return []db.WorkflowRun{}, total, nil
 	}
 	if limit <= 0 || offset+limit > total {
 		limit = total - offset
@@ -246,7 +246,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID s
 	return out[offset : offset+limit], total, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID string) (*entity.WorkflowRun, error) {
+func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID string) (*db.WorkflowRun, error) {
 	for i := range m.Runs {
 		if m.Runs[i].WorkflowRunID == workflowRunID {
 			return &m.Runs[i], nil
@@ -255,8 +255,8 @@ func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID stri
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunID string) ([]entity.WorkflowStepRun, error) {
-	var out []entity.WorkflowStepRun
+func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunID string) ([]db.WorkflowStepRun, error) {
+	var out []db.WorkflowStepRun
 	for _, step := range m.StepRuns {
 		if step.WorkflowRunID == workflowRunID {
 			out = append(out, step)
@@ -265,10 +265,10 @@ func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunI
 	return out, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRunID string, steps []entity.CreateWorkflowStepRunInput) ([]entity.WorkflowStepRun, error) {
-	out := make([]entity.WorkflowStepRun, len(steps))
+func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRunID string, steps []db.CreateWorkflowStepRunInput) ([]db.WorkflowStepRun, error) {
+	out := make([]db.WorkflowStepRun, len(steps))
 	for i := range steps {
-		out[i] = entity.WorkflowStepRun{
+		out[i] = db.WorkflowStepRun{
 			StepRunID:     fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
 			WorkflowRunID: workflowRunID,
 			StepID:        steps[i].StepID,
@@ -284,7 +284,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 	return out, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID string, in entity.UpdateWorkflowRunInput) (*entity.WorkflowRun, error) {
+func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID string, in db.UpdateWorkflowRunInput) (*db.WorkflowRun, error) {
 	for i := range m.Runs {
 		if m.Runs[i].WorkflowRunID != workflowRunID {
 			continue
@@ -304,7 +304,7 @@ func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID s
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID string, in entity.UpdateWorkflowStepRunInput) (*entity.WorkflowStepRun, error) {
+func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID string, in db.UpdateWorkflowStepRunInput) (*db.WorkflowStepRun, error) {
 	for i := range m.StepRuns {
 		if m.StepRuns[i].StepRunID != stepRunID {
 			continue
@@ -351,7 +351,7 @@ func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID s
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*entity.WorkflowStepRun, error) {
+func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*db.WorkflowStepRun, error) {
 	for i := range m.StepRuns {
 		if m.StepRuns[i].TaskID != nil && *m.StepRuns[i].TaskID == taskID {
 			return &m.StepRuns[i], nil
@@ -360,7 +360,7 @@ func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowStepRunByTaskRunID(_ context.Context, taskRunID string) (*entity.WorkflowStepRun, error) {
+func (m *MockWorkflowStore) GetWorkflowStepRunByTaskRunID(_ context.Context, taskRunID string) (*db.WorkflowStepRun, error) {
 	for i := range m.StepRuns {
 		if m.StepRuns[i].TaskRunID != nil && *m.StepRuns[i].TaskRunID == taskRunID {
 			return &m.StepRuns[i], nil
@@ -371,13 +371,13 @@ func (m *MockWorkflowStore) GetWorkflowStepRunByTaskRunID(_ context.Context, tas
 
 // MockTaskStore is an in-memory TaskStore for tests.
 type MockTaskStore struct {
-	List      []entity.Task
+	List      []db.Task
 	ListErr   error
-	Create    *entity.Task
+	Create    *db.Task
 	CreateErr error
 }
 
-func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]entity.Task, error) {
+func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]db.Task, error) {
 	list, _, err := m.ListTasksByConversationPaginated(context.Background(), conversationID, false, 0, 0)
 	if err != nil {
 		return nil, err
@@ -390,11 +390,11 @@ func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationI
 	return list, nil
 }
 
-func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]entity.Task, int, error) {
+func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conversationID string, executedOnly bool, limit, offset int) ([]db.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
-	var filtered []entity.Task
+	var filtered []db.Task
 	for _, c := range m.List {
 		if c.ConversationID != conversationID {
 			continue
@@ -409,7 +409,7 @@ func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conv
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []entity.Task{}, total, nil
+		return []db.Task{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 {
@@ -421,11 +421,11 @@ func (m *MockTaskStore) ListTasksByConversationPaginated(_ context.Context, conv
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limit, offset int) ([]entity.Task, int, error) {
+func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limit, offset int) ([]db.Task, int, error) {
 	if m.ListErr != nil {
 		return nil, 0, m.ListErr
 	}
-	var filtered []entity.Task
+	var filtered []db.Task
 	for _, task := range m.List {
 		if task.IssueID != nil && *task.IssueID == issueID {
 			filtered = append(filtered, task)
@@ -436,7 +436,7 @@ func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limi
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []entity.Task{}, total, nil
+		return []db.Task{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -445,7 +445,7 @@ func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockTaskStore) CreateTask(_ context.Context, in *entity.CreateTaskInput) (*entity.Task, error) {
+func (m *MockTaskStore) CreateTask(_ context.Context, in *db.CreateTaskInput) (*db.Task, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
@@ -458,9 +458,10 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *entity.CreateTaskInput
 	id := len(m.List) + 1
 	taskID := fmt.Sprintf("t_mock_%d", id)
 	lastRunID := fmt.Sprintf("r_mock_%d", id)
-	task := &entity.Task{
+	task := &db.Task{
 		TaskID:         taskID,
 		ConversationID: in.ConversationID,
+		TeamID:         in.TeamID,
 		Status:         "PENDING",
 		Input:          in.Input,
 		Title:          in.Title,
@@ -474,7 +475,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *entity.CreateTaskInput
 	return task, nil
 }
 
-func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*entity.Task, error) {
+func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) (*db.Task, error) {
 	for i := range m.List {
 		if m.List[i].SessionID != nil && *m.List[i].SessionID == sessionID {
 			return &m.List[i], nil
@@ -483,7 +484,7 @@ func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) 
 	return nil, nil
 }
 
-func (m *MockTaskStore) UpdateTask(_ context.Context, in entity.UpdateTaskInput) error {
+func (m *MockTaskStore) UpdateTask(_ context.Context, in db.UpdateTaskInput) error {
 	for i := range m.List {
 		if m.List[i].TaskID == in.TaskID {
 			m.List[i].Status = in.Status
@@ -508,7 +509,7 @@ func (m *MockTaskStore) UpdateTask(_ context.Context, in entity.UpdateTaskInput)
 	return nil
 }
 
-func (m *MockTaskStore) ClaimTask(_ context.Context, in entity.ClaimTaskInput) (bool, error) {
+func (m *MockTaskStore) ClaimTask(_ context.Context, in db.ClaimTaskInput) (bool, error) {
 	for i := range m.List {
 		if m.List[i].TaskID == in.TaskID && m.List[i].Status == in.ExpectedStatus {
 			m.List[i].Status = in.NewStatus
@@ -533,7 +534,7 @@ func (m *MockTaskStore) ClaimTask(_ context.Context, in entity.ClaimTaskInput) (
 	return false, nil
 }
 
-func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task, error) {
+func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*db.Task, error) {
 	for i := range m.List {
 		if m.List[i].TaskID == taskID {
 			return &m.List[i], nil
@@ -544,28 +545,28 @@ func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*entity.Task,
 
 // MockTaskRunStore is an in-memory TaskRunStore for tests.
 type MockTaskRunStore struct {
-	Runs     []entity.TaskRun
-	TaskList []entity.Task
+	Runs     []db.TaskRun
+	TaskList []db.Task
 }
 
-func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*entity.TaskRun, error) {
-	run := entity.TaskRun{
+func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*db.TaskRun, error) {
+	run := db.TaskRun{
 		TaskRunID:     fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
 		TaskID:        taskID,
 		Input:         input,
 		CreatedBy:     createdBy,
 		CreatedByType: createdByType,
 		TriggerSource: triggerSource,
-		Status:        string(entity.RunStatusPending),
+		Status:        string(db.RunStatusPending),
 		CreatedAt:     time.Now().Unix(),
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil
 }
-func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) {
+func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*db.TaskRun, error) {
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*entity.TaskRun, error) {
+func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*db.TaskRun, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == taskRunID {
 			return &m.Runs[i], nil
@@ -573,8 +574,8 @@ func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*ent
 	}
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*entity.TaskRun, *entity.Task, error) {
-	var run *entity.TaskRun
+func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*db.TaskRun, *db.Task, error) {
+	var run *db.TaskRun
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == taskRunID {
 			run = &m.Runs[i]
@@ -584,7 +585,7 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	if run == nil {
 		return nil, nil, nil
 	}
-	var task *entity.Task
+	var task *db.Task
 	for i := range m.TaskList {
 		if m.TaskList[i].TaskID == run.TaskID {
 			task = &m.TaskList[i]
@@ -593,7 +594,7 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	}
 	return run, task, nil
 }
-func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in entity.ClaimTaskRunInput) (bool, error) {
+func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in db.ClaimTaskRunInput) (bool, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == in.TaskRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
 			m.Runs[i].Status = string(in.NewStatus)
@@ -608,7 +609,7 @@ func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in entity.ClaimTask
 	}
 	return false, nil
 }
-func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in entity.UpdateTaskRunInput) error {
+func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in db.UpdateTaskRunInput) error {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == in.TaskRunID {
 			m.Runs[i].Status = string(in.Status)
@@ -650,19 +651,19 @@ func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) 
 
 // MockRunOutputLister is an in-memory RunOutputLister for tests.
 type MockRunOutputLister struct {
-	List        []entity.ArtifactWithTask
+	List        []db.ArtifactWithTask
 	ListErr     error
-	OutputFiles map[string][]entity.TaskRunArtifact
+	OutputFiles map[string][]db.TaskRunArtifact
 }
 
-func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, conversationID string, taskID *string) ([]entity.ArtifactWithTask, error) {
+func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, conversationID string, taskID *string) ([]db.ArtifactWithTask, error) {
 	if m.ListErr != nil {
 		return nil, m.ListErr
 	}
 	return m.List, nil
 }
 
-func (m *MockRunOutputLister) GetTaskRunOutputFiles(_ context.Context, chatRunID string) ([]entity.TaskRunArtifact, error) {
+func (m *MockRunOutputLister) GetTaskRunOutputFiles(_ context.Context, chatRunID string) ([]db.TaskRunArtifact, error) {
 	if m.OutputFiles != nil {
 		return m.OutputFiles[chatRunID], nil
 	}
@@ -671,11 +672,11 @@ func (m *MockRunOutputLister) GetTaskRunOutputFiles(_ context.Context, chatRunID
 
 // MockAgentStore is an in-memory AgentStore for tests.
 type MockAgentStore struct {
-	Agents []entity.Agent
+	Agents []db.Agent
 }
 
-func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]entity.Agent, error) {
-	var out []entity.Agent
+func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]db.Agent, error) {
+	var out []db.Agent
 	for _, a := range m.Agents {
 		if a.UserID == userID {
 			out = append(out, a)
@@ -684,8 +685,8 @@ func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]e
 	return out, nil
 }
 
-func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]entity.Agent, error) {
-	var out []entity.Agent
+func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]db.Agent, error) {
+	var out []db.Agent
 	for _, a := range m.Agents {
 		if a.TeamID == teamID {
 			out = append(out, a)
@@ -694,7 +695,7 @@ func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]e
 	return out, nil
 }
 
-func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*entity.Agent, error) {
+func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*db.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID {
 			return &m.Agents[i], nil
@@ -703,12 +704,12 @@ func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*entity.Ag
 	return nil, nil
 }
 
-func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*entity.Agent, error) {
+func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*db.Agent, error) {
 	return m.CreateAgentInTeam(context.Background(), "tm_personal", userID, name, description, instructions)
 }
 
-func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, name, description, instructions string) (*entity.Agent, error) {
-	a := entity.Agent{
+func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, name, description, instructions string) (*db.Agent, error) {
+	a := db.Agent{
 		AgentID:      fmt.Sprintf("a_%d", len(m.Agents)+1),
 		UserID:       userID,
 		TeamID:       teamID,
@@ -721,7 +722,7 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, na
 	return &m.Agents[len(m.Agents)-1], nil
 }
 
-func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*entity.Agent, error) {
+func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*db.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
 			m.Agents[i].Name = name
@@ -733,7 +734,7 @@ func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, d
 	return nil, nil
 }
 
-func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, name, description, instructions string) (*entity.Agent, error) {
+func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, name, description, instructions string) (*db.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
 			m.Agents[i].Name = name
@@ -767,15 +768,15 @@ func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID st
 
 // MockConversationStore is an in-memory ConversationStore for tests.
 type MockConversationStore struct {
-	Conversations []entity.Conversation
+	Conversations []db.Conversation
 }
 
-func (m *MockConversationStore) CreateConversation(_ context.Context, userID, channel, createdBy string) (*entity.Conversation, error) {
+func (m *MockConversationStore) CreateConversation(_ context.Context, userID, channel, createdBy string) (*db.Conversation, error) {
 	return m.CreateConversationInTeam(context.Background(), "tm_personal", userID, channel, createdBy)
 }
 
-func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, teamID, userID, channel, createdBy string) (*entity.Conversation, error) {
-	conv := entity.Conversation{
+func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, teamID, userID, channel, createdBy string) (*db.Conversation, error) {
+	conv := db.Conversation{
 		ConversationID: fmt.Sprintf("v_%d", len(m.Conversations)+1),
 		UserID:         userID,
 		TeamID:         teamID,
@@ -787,7 +788,7 @@ func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, team
 	return &m.Conversations[len(m.Conversations)-1], nil
 }
 
-func (m *MockConversationStore) GetConversation(_ context.Context, conversationID string) (*entity.Conversation, error) {
+func (m *MockConversationStore) GetConversation(_ context.Context, conversationID string) (*db.Conversation, error) {
 	for i := range m.Conversations {
 		if m.Conversations[i].ConversationID == conversationID {
 			return &m.Conversations[i], nil
@@ -796,8 +797,8 @@ func (m *MockConversationStore) GetConversation(_ context.Context, conversationI
 	return nil, nil
 }
 
-func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userID string, limit, offset int) ([]entity.Conversation, int, error) {
-	var out []entity.Conversation
+func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userID string, limit, offset int) ([]db.Conversation, int, error) {
+	var out []db.Conversation
 	for _, conv := range m.Conversations {
 		if conv.UserID == userID {
 			out = append(out, conv)
@@ -805,7 +806,7 @@ func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userI
 	}
 	total := len(out)
 	if offset > total {
-		return []entity.Conversation{}, total, nil
+		return []db.Conversation{}, total, nil
 	}
 	if limit <= 0 || offset+limit > total {
 		limit = total - offset
@@ -813,8 +814,8 @@ func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userI
 	return out[offset : offset+limit], total, nil
 }
 
-func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamID string, limit, offset int) ([]entity.Conversation, int, error) {
-	var out []entity.Conversation
+func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamID string, limit, offset int) ([]db.Conversation, int, error) {
+	var out []db.Conversation
 	for _, conv := range m.Conversations {
 		if conv.TeamID == teamID {
 			out = append(out, conv)
@@ -822,7 +823,7 @@ func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamI
 	}
 	total := len(out)
 	if offset > total {
-		return []entity.Conversation{}, total, nil
+		return []db.Conversation{}, total, nil
 	}
 	if limit <= 0 || offset+limit > total {
 		limit = total - offset

@@ -11,9 +11,9 @@ Intercept **`/…`** input in the Bubble Tea TUI as **system tools** (no session
 | Package | Role |
 |---------|------|
 | `internal/config` | Unchanged; TUI calls `LoadMCPConfigForWorkspace(workspace)` (same merge + expand rules as CLI). |
-| `internal/mcpservers` | New **probe** API: per-server connect attempt, tool count on success, structured row for UI; reuses `newTransport`, `listAllTools`, same SDK client `Implementation` as `NewRegistry`. |
-| `internal/tui` | Slash parsing on Enter; overlay state + rendering + key routing; async `tea.Cmd` for probe (no blocking `Update`). |
-| `internal/cmd/cli` | No struct changes if workspace already on `TUIOpts.Workspace`; optional import churn only if tests need new exports (they should not). |
+| `internal/infra/mcp` | New **probe** API: per-server connect attempt, tool count on success, structured row for UI; reuses `newTransport`, `listAllTools`, same SDK client `Implementation` as `NewRegistry`. |
+| `internal/interface/tui` | Slash parsing on Enter; overlay state + rendering + key routing; async `tea.Cmd` for probe (no blocking `Update`). |
+| `internal/interface/cli` | No struct changes if workspace already on `TUIOpts.Workspace`; optional import churn only if tests need new exports (they should not). |
 
 ## Data flow
 
@@ -47,7 +47,7 @@ flowchart TD
 
 ## Structure
 
-### `internal/mcpservers`
+### `internal/infra/mcp`
 
 **New file (recommended):** `probe.go`
 
@@ -90,7 +90,7 @@ func probeOneServer(ctx context.Context, id string, entry config.MCPServerConfig
 - `ProbeMCPServers` with cfg containing one **stdio** server whose `command` is invalid or exits immediately → one row with `OK == false`, `Err != nil`.
 - Nil or empty `MCPServers`: either document as caller responsibility or return `nil` slice without error (TUI handles empty config before calling probe).
 
-### `internal/tui`
+### `internal/interface/tui`
 
 **`model.go` — new fields on `Model`:**
 
@@ -185,11 +185,11 @@ After reading `text := strings.TrimSpace(m.inputBlock.Value())`:
 
 | Area | Change |
 |------|--------|
-| `internal/mcpservers/probe.go` | **New:** `MCPServerProbeRow`, `ProbeMCPServers`, `probeOneServer`. |
-| `internal/mcpservers/probe_test.go` | **New:** failure-path / empty-input tests (no real MCP servers). |
-| `internal/tui/model.go` | Overlay state; `mcpProbeDoneMsg`; `Update` case; Enter slash branch; `handleKeyMsg` early overlay; `View` compose overlay; mouse guard. |
-| `internal/tui/mcp_overlay.go` | **New:** overlay rendering + styles. |
-| `internal/tui/model_test.go` | Slash: no session length change; overlay open after `/mcp` + Esc closes (may inject `runMCPProbeCmd` stub via testing hook **or** test only synchronous path by sending `mcpProbeDoneMsg` manually in tests — prefer **manual msg** + fake rows to avoid real probe in tests). |
+| `internal/infra/mcp/probe.go` | **New:** `MCPServerProbeRow`, `ProbeMCPServers`, `probeOneServer`. |
+| `internal/infra/mcp/probe_test.go` | **New:** failure-path / empty-input tests (no real MCP servers). |
+| `internal/interface/tui/model.go` | Overlay state; `mcpProbeDoneMsg`; `Update` case; Enter slash branch; `handleKeyMsg` early overlay; `View` compose overlay; mouse guard. |
+| `internal/interface/tui/mcp_overlay.go` | **New:** overlay rendering + styles. |
+| `internal/interface/tui/model_test.go` | Slash: no session length change; overlay open after `/mcp` + Esc closes (may inject `runMCPProbeCmd` stub via testing hook **or** test only synchronous path by sending `mcpProbeDoneMsg` manually in tests — prefer **manual msg** + fake rows to avoid real probe in tests). |
 
 ## Risks / notes
 

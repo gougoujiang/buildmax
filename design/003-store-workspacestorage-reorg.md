@@ -1,5 +1,8 @@
 # Proposal: Reorganizing `internal/store` and `internal/workspacestorage`
 
+
+> Note: this document records an earlier storage rename. The later internal package refactor superseded the final package locations: persistence contracts and shared entities now live in `internal/core/model`, the MySQL/GORM implementation lives in `internal/infra/db`, blob/object storage implementations live in `internal/infra/objectstore`, and startup builders live in `internal/bootstrap/objectstore.go`. See `design/018-internal-package-refactor.md`.
+
 ## Current situation
 
 | Package | Responsibility | Backend |
@@ -49,13 +52,13 @@ Both names suggest “where workspace-related data lives,” which makes the spl
 
 Keep both concepts but group under a single top-level name:
 
-- **`internal/storage/entity`** — current `store` (User, Workspace, Project, Task, Artifact; MySQL).
-- **`internal/storage/blob`** — current `workspacestorage` (PersistStorage, ArtifactStorage; local/S3).
+- **`internal/infra/db`** — current `store` (User, Workspace, Project, Task, Artifact; MySQL).
+- **`internal/infra/objectstore`** — current `workspacestorage` (PersistStorage, ArtifactStorage; local/S3).
 
 **Pros:** Single “storage” namespace; entity vs. blob is clear from path.  
 **Cons:** Deeper paths; more files to move; `storage` is still a bit overloaded.
 
-**Implementation (done):** All code from `internal/store` moved to `internal/storage/entity` (package `entity`). All code from `internal/workspacestorage` moved to `internal/storage/blob` (package `blob`). Imports updated across `internal/config`, `internal/cmd`, `internal/server`, `internal/executor`. Old packages removed.
+**Implementation (done):** All code from `internal/store` moved to `internal/infra/db` (package `entity`). All code from `internal/workspacestorage` moved to `internal/infra/objectstore` (package `blob`). Imports updated across `internal/config`, `internal/bootstrap`, `internal/server`, `internal/execution`. Old packages removed.
 
 ---
 
@@ -96,4 +99,4 @@ If you want the “workspace” concept in the name for the file layer, Option D
 
 ---
 
-*Option C was implemented: `internal/store` → `internal/storage/entity`, `internal/workspacestorage` → `internal/storage/blob`.*
+*Option C was implemented: `internal/store` → `internal/infra/db`, `internal/workspacestorage` → `internal/infra/objectstore`.*

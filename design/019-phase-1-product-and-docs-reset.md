@@ -150,9 +150,9 @@ Likely touch points for this phase:
 
 Reference code anchors:
 
-- [internal/storage/entity/models.go](../internal/storage/entity/models.go)
-- [internal/app/conversation/service.go](../internal/app/conversation/service.go)
-- [internal/app/workflow/service.go](../internal/app/workflow/service.go)
+- [internal/core/model/db_entities.go](../internal/core/model/db_entities.go)
+- [internal/core/conversation/service.go](../internal/core/conversation/service.go)
+- [internal/core/workflow/service.go](../internal/core/workflow/service.go)
 - [internal/server/portal/team_authz.go](../internal/server/portal/team_authz.go)
 - [portal/src/pages/IssueDetail.tsx](../portal/src/pages/IssueDetail.tsx)
 - [portal/src/pages/WorkflowDetail.tsx](../portal/src/pages/WorkflowDetail.tsx)

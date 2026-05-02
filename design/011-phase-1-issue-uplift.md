@@ -255,9 +255,9 @@ This phase introduces a new work-management object, so it should expect both add
 
 Likely changes:
 
-- `internal/storage/entity/models.go`
-- `internal/storage/entity/interfaces.go`
-- `internal/storage/entity/store.go`
+- `internal/core/model/db_entities.go`
+- `internal/core/model/db_repositories.go`
+- `internal/infra/db/store.go`
 - new issue-specific storage file(s)
 
 Expected work:
@@ -270,7 +270,7 @@ Expected work:
 
 Likely changes:
 
-- new issue application service under `internal/app/`
+- new issue application service under `internal/core/`
 
 Expected work:
 
@@ -589,7 +589,7 @@ This section turns the MVP into concrete backend shapes that fit the current rep
 
 ### 10.1 Entity Store Interface Draft
 
-Recommended new store interface in `internal/storage/entity/interfaces.go`:
+Recommended new store interface in `internal/core/model/db_repositories.go`:
 
 ```go
 type IssueStore interface {
@@ -647,7 +647,7 @@ Recommended store behavior:
 
 Recommended new service:
 
-- `internal/app/issue/service.go`
+- `internal/core/issue/service.go`
 
 Recommended shape:
 
@@ -808,14 +808,14 @@ Recommended implementation breakdown:
 
 ### Task 1: Add Issue Entity And Store
 
-- add `Issue` model to `internal/storage/entity/models.go`
-- add `IssueStore` to `internal/storage/entity/interfaces.go`
+- add `Issue` model to `internal/core/model/db_entities.go`
+- add `IssueStore` to `internal/core/model/db_repositories.go`
 - implement issue store methods in new entity file(s)
 - wire auto-migrate in store/bootstrap
 
 ### Task 2: Add Issue Application Service
 
-- create `internal/app/issue/service.go`
+- create `internal/core/issue/service.go`
 - add create/update commands
 - add MVP validation
 

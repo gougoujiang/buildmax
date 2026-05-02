@@ -10,8 +10,8 @@ const (
 	EnvKeyBuildmaxBaseURL = "BUILDMAX_BASE_URL"
 	EnvKeyBuildmaxModel   = "BUILDMAX_MODEL"
 	// App data
-	EnvKeyBuildmaxHome          = "BUILDMAX_HOME"
-	EnvKeyBuildmaxMCPConfig     = "BUILDMAX_MCP_CONFIG"
+	EnvKeyBuildmaxHome      = "BUILDMAX_HOME"
+	EnvKeyBuildmaxMCPConfig = "BUILDMAX_MCP_CONFIG"
 	// MCP mcp.json $VAR expansion: replaced by LoadMCPConfigForWorkspace(workspaceDir), not os.Getenv.
 	EnvKeyBuildmaxWorkspaceRoot = "BUILDMAX_WORKSPACE_ROOT"
 	EnvKeyBuildmaxWorkspacesDir = "BUILDMAX_WORKSPACES_DIR"

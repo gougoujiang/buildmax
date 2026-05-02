@@ -8,7 +8,7 @@ Split the TUI footer into two lines and show the logged-in user email on line 1.
 
 Two files changed, no new packages.
 
-### 1. `internal/tui/model.go` — TUIOpts + renderFooterView
+### 1. `internal/interface/tui/model.go` — TUIOpts + renderFooterView
 
 **TUIOpts change**: Add one field.
 
@@ -46,7 +46,7 @@ func (m *Model) renderFooterView() string {
 
 No other method in `model.go` changes. `syncViewportSize` already computes `footerHeight` via `lipgloss.Height(m.renderFooterView())`, which counts `\n`, so the viewport will automatically shrink by one row.
 
-### 2. `internal/cmd/cli/tui.go` — pass UserEmail
+### 2. `internal/interface/cli/tui.go` — pass UserEmail
 
 Load credentials (best-effort) and extract email before building `TUIOpts`.
 
@@ -83,5 +83,5 @@ Credential loading is best-effort: errors are silently ignored (the footer simpl
 
 | File | Change |
 |------|--------|
-| `internal/tui/model.go` | Add `UserEmail string` to `TUIOpts`; rewrite `renderFooterView` to two lines |
-| `internal/cmd/cli/tui.go` | Add `auth` and `config` imports; load credentials; set `UserEmail` in opts |
+| `internal/interface/tui/model.go` | Add `UserEmail string` to `TUIOpts`; rewrite `renderFooterView` to two lines |
+| `internal/interface/cli/tui.go` | Add `auth` and `config` imports; load credentials; set `UserEmail` in opts |

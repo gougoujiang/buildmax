@@ -36,19 +36,19 @@ user
 Key facts from the code:
 
 - `agent` is a user-scoped persona resource.
-  - `internal/storage/entity/models.go`
-  - `internal/storage/entity/agent.go`
+  - `internal/core/model/db_entities.go`
+  - `internal/infra/db/agent.go`
 - `conversation` is the Tier 1 container for portal turns.
-  - `internal/storage/entity/models.go`
-  - `internal/app/conversation/service.go`
+  - `internal/core/model/db_entities.go`
+  - `internal/core/conversation/service.go`
 - `task` already exists as a durable execution-oriented object used by the current runtime and portal.
   - It has `title`, `input`, `created_by`, optional `agent_id`, and denormalized latest status/output.
-  - `internal/storage/entity/models.go`
-  - `internal/storage/entity/task.go`
+  - `internal/core/model/db_entities.go`
+  - `internal/infra/db/task.go`
 - `task_run` is the actual execution unit.
   - It is what scheduler/worker consume and update.
-  - `internal/storage/entity/models.go`
-  - `internal/storage/entity/task_run.go`
+  - `internal/core/model/db_entities.go`
+  - `internal/infra/db/task_run.go`
   - `internal/server/worker/handlers.go`
 - the portal already supports:
   - conversations
@@ -64,7 +64,7 @@ Key facts from the code:
   - inspect one task
   - continue a task
   - provide agent summaries to the LLM
-  - `internal/app/conversation/service.go`
+  - `internal/core/conversation/service.go`
 
 ### 2.1 What This Means
 
@@ -428,7 +428,7 @@ Expose on the issue detail page:
 
 ### Code Areas
 
-- `internal/storage/entity/models.go`
+- `internal/core/model/db_entities.go`
 - new issue storage/service/portal areas to be introduced in this phase
 - portal issue list/detail pages
 
@@ -515,7 +515,7 @@ Phase 2 UX should remain intentionally light:
 
 ### Code Areas
 
-- `internal/storage/entity/models.go`
+- `internal/core/model/db_entities.go`
 - stores for team/team_member
 - auth/context resolution in portal/server
 - portal team selector and member management
@@ -611,7 +611,7 @@ Need a new execution component that can:
 ### Code Areas
 
 - new workflow store/service
-- `internal/app/task` integration for workflow assignment
+- `internal/core/task` integration for workflow assignment
 - executor extensions for workflow runs
 
 ### Exit Criteria

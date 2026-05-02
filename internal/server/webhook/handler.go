@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"buildmax/internal/conversation"
+	"buildmax/internal/core/conversation"
+	"buildmax/internal/infra/db"
 	"buildmax/internal/server/httputil"
-	"buildmax/internal/storage/entity"
 )
 
 // Register adds the webhook route to mux: POST /api/webhook.
@@ -73,7 +73,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.cfg.Engine.Process(r.Context(), conv.ConversationID, "", turn)
 	if err != nil {
-		if errors.Is(err, entity.ErrRunInProgress) {
+		if errors.Is(err, db.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "task has a run already in progress")
 			return
 		}

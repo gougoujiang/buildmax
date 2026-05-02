@@ -60,19 +60,19 @@ However, governance is still intentionally thin.
 ### 2.2 Key Code Anchors
 
 - Team models and role constants:
-  - `internal/storage/entity/models.go`
-  - `internal/storage/entity/team.go`
+  - `internal/core/model/db_entities.go`
+  - `internal/infra/db/team.go`
 - Team-aware route authorization:
   - `internal/server/portal/auth.go`
 - Team member management handler logic:
   - `internal/server/portal/teams.go`
 - Issue assignment validation:
-  - `internal/app/issue/service.go`
+  - `internal/core/issue/service.go`
 - Workflow CRUD and run behavior:
-  - `internal/app/workflow/service.go`
+  - `internal/core/workflow/service.go`
 - User-scoped quota enforcement:
-  - `internal/quota/quota.go`
-  - `internal/app/task/service.go`
+  - `internal/core/quota/quota.go`
+  - `internal/core/task/service.go`
 
 ### 2.3 Main Gap
 
@@ -350,11 +350,11 @@ This is a design constraint, not a requirement to implement audit in this phase.
 
 Likely code areas for the first implementation slice:
 
-- `internal/storage/entity/models.go`
-- `internal/storage/entity/team.go`
-- `internal/storage/entity/interfaces.go`
-- `internal/app/issue/service.go`
-- `internal/app/workflow/service.go`
+- `internal/core/model/db_entities.go`
+- `internal/infra/db/team.go`
+- `internal/core/model/db_repositories.go`
+- `internal/core/issue/service.go`
+- `internal/core/workflow/service.go`
 - `internal/server/portal/auth.go`
 - `internal/server/portal/teams.go`
 - `internal/server/portal/agents.go`
@@ -366,7 +366,7 @@ Likely code areas for the first implementation slice:
 
 Potential new package if useful:
 
-- `internal/authz` or `internal/app/teamauth`
+- `internal/authz` or `internal/core/teamauth`
 
 The key architectural goal is to avoid burying new governance rules directly inside individual handlers again.
 

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"buildmax/internal/infra/db"
 	"buildmax/internal/server/httputil"
-	"buildmax/internal/storage/entity"
 )
 
 // OtpRequestRequest is the JSON body for POST /api/otp/request.
@@ -67,7 +67,7 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.cfg.UserStore.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
 	if err != nil {
-		if errors.Is(err, entity.ErrEmailExists) {
+		if errors.Is(err, db.ErrEmailExists) {
 			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 			return
 		}

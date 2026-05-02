@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `internal/llm` package provides the LLM client and message types for communicating with OpenAI-compatible APIs (default: OpenRouter). It translates between BuildMax's internal types and the OpenAI wire format.
+The `internal/infra/llm` package provides the LLM client and message types for communicating with OpenAI-compatible APIs (default: OpenRouter). It translates between BuildMax's internal types and the OpenAI wire format.
 
 ## Key Types and Interfaces
 
@@ -47,7 +47,7 @@ All types use `json:"snake_case"` tags for persistence consistency.
 ## Dependencies
 
 - **Uses**: `internal/config` (LLM config struct), `github.com/sashabaranov/go-openai` (API client)
-- **Used by**: `internal/agent` (via LLMCaller interface), `cmd/buildmax` (creates Client)
+- **Used by**: `internal/core/agent` (via LLMCaller interface), `cmd/buildmax` (creates Client)
 
 ## Notes
 

@@ -70,8 +70,8 @@ Sessions are stored as JSON files under `DataDir()/sessions/`:
 
 ## Dependencies
 
-- **Uses**: `internal/llm` (Message type for history), `github.com/google/uuid` (ID generation)
-- **Used by**: `internal/agent` (reads/writes messages), `internal/tui` (passes to agent, persists after reply), `cmd/buildmax` (loads/creates sessions)
+- **Uses**: `internal/infra/llm` (Message type for history), `github.com/google/uuid` (ID generation)
+- **Used by**: `internal/core/agent` (reads/writes messages), `internal/interface/tui` (passes to agent, persists after reply), `cmd/buildmax` (loads/creates sessions)
 
 ## Notes
 

@@ -29,7 +29,7 @@ The next roadmap should not spend its first phases reintroducing new top-level n
 As of the current repository state, BuildMax already has:
 
 - a shared Go agent runtime reused by CLI, desktop, and worker execution
-- Tier 1 conversation orchestration in `internal/app/conversation`
+- Tier 1 conversation orchestration in `internal/core/conversation`
 - Tier 2 execution through `task` and `task_run`
 - team-scoped `issue`, `agent`, `workflow`, `conversation`, and `task`
 - workflow run and step-run persistence
@@ -39,12 +39,12 @@ As of the current repository state, BuildMax already has:
 
 Key anchors in code:
 
-- shared runtime: `internal/app/agentrun`
-- Tier 1 orchestration: `internal/app/conversation`
-- issue/workflow/task application services: `internal/app/issue`, `internal/app/workflow`, `internal/app/task`
-- worker execution pipeline: `internal/executor`
+- shared runtime: `internal/execution/agentrun`
+- Tier 1 orchestration: `internal/core/conversation`
+- issue/workflow/task application services: `internal/core/issue`, `internal/core/workflow`, `internal/core/task`
+- worker execution pipeline: `internal/execution`
 - team authz: `internal/server/portal/team_authz.go`
-- workflow lifecycle enforcement: `internal/app/workflow/service.go`
+- workflow lifecycle enforcement: `internal/core/workflow/service.go`
 - issue flow UI: `portal/src/pages/IssueDetail.tsx`
 - workflow detail UI: `portal/src/pages/WorkflowDetail.tsx`
 - team-scoped files UI/API: `portal/src/features/files`, `internal/server/portal/files.go`

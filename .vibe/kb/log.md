@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `internal/log` package configures the application's default `log/slog` logger. Log level is read from `BUILDMAX_LOG_LEVEL` (debug, info, warn, error, off). Output goes only to a rotating file under `config.DataDir()/logs/buildmax.log` (Lumberjack); nothing is written to stdout/stderr so the TUI and prompt-mode output stay clean.
+The `internal/infra/log` package configures the application's default `log/slog` logger. Log level is read from `BUILDMAX_LOG_LEVEL` (debug, info, warn, error, off). Output goes only to a rotating file under `config.DataDir()/logs/buildmax.log` (Lumberjack); nothing is written to stdout/stderr so the TUI and prompt-mode output stay clean.
 
 ## Key Functions
 

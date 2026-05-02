@@ -57,26 +57,29 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 ### 4.1 Implemented
 
 **CLI & TUI**
-- **CLI**: Cobra in `internal/cmd` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand; `cmd/buildmax/main.go` is the thin entry point. The server runs as a separate binary (`buildmax-server`).
-- **TUI**: Bubble Tea via `internal/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner + version, chat history), input at bottom, footer (model, workspace, ctrl+c: quit). `--resume <id>`, `--continue`, `--session-id <uuid>` for session handling. Session persisted after each assistant reply.
+- **CLI**: Cobra in `internal/interface/cli` — root command (TUI or `-p`/`--resume` prompt mode), `buildmax version` subcommand; `cmd/buildmax/main.go` is the thin entry point. The server and worker run as separate binaries.
+- **TUI**: Bubble Tea via `internal/interface/tui`; default when running `buildmax` with no flags. Layout: scrollable area (banner + version, chat history), input at bottom, footer (model, workspace, ctrl+c: quit). `--resume <id>`, `--continue`, `--session-id <uuid>` for session handling. Session persisted after each assistant reply.
+- **Local auth**: CLI/desktop-side login client and credential persistence live in `internal/interface/auth`; server-side auth handlers live in `internal/server/auth`.
 - **Session**: In-memory session in `internal/session` (id, title, created_at, message history); multi-turn; save/load under `DataDir()/sessions/<id>.json`; list index in `sessions.json` via `session.LoadList`.
 
 **Agent & tools**
-- **LLM integration**: OpenAI-compatible client in `internal/llm` (OpenRouter default); env-based config (`BUILDMAX_API_KEY`, `BUILDMAX_BASE_URL`, `BUILDMAX_MODEL`).
-- **Agent loop**: Single-turn flow with tool calling (LLM → tool_calls → execute tools → re-call LLM → reply) in `internal/agent`; default system prompt prepended in `Process`.
+- **LLM integration**: OpenAI-compatible implementation in `internal/infra/llm` (OpenRouter default); shared LLM contracts such as `Message`, `ToolCall`, `Usage`, and `LLMCaller` live in `internal/core/model`; env-based config (`BUILDMAX_API_KEY`, `BUILDMAX_BASE_URL`, `BUILDMAX_MODEL`) is loaded by `internal/config`.
+- **Agent loop**: Shared tool-calling loop (LLM -> tool_calls -> execute tools -> re-call LLM -> reply) in `internal/core/agent`; default system prompt prepended by the core agent run.
+- **Agent runtime assembly**: Runtime wiring for CLI, worker, and desktop lives in `internal/execution/agentrun`; process bootstrapping lives in `internal/bootstrap/*`.
 - **Optional workspace AGENTS.md**: When running the CLI, if a file named `AGENTS.md` exists at the workspace root (current working directory), its contents are appended to the default system prompt so the agent receives project-specific instructions. See the [agents.md](https://agents.md/) convention. For remote runs, the worker prepares an `AGENTS.md` in the run directory (run directory layout plus optional workspace `AGENTS.md` from materialized home) so the same convention applies when the shared agent runtime runs with cwd = run dir.
-- **Tools** (`internal/tools`): `read_file`, `writefile`, `editfile`, `bash`, `glob`, `grep` (with format), `webfetch`, `todowrite`, `skill`, `agentdef`, `task`; path under configurable root (e.g. CWD). Tool output is LLM-oriented (meaningful on success and failure).
+- **Runtime tools** (`internal/execution/agenttool`): `read_file`, `writefile`, `editfile`, `bash`, `glob`, `grep` (with format), `webfetch`, `todowrite`, `skill`, `agentdef`, `task`; path under configurable root (e.g. CWD). Tool output is LLM-oriented (meaningful on success and failure). Conversation-specific tools such as `StartTask`, `ContinueTask`, `ListTasks`, and `GetTask` live in `internal/core/conversation`.
+- **MCP tools**: MCP protocol/client transport lives in `internal/infra/mcp`; agent-facing MCP gateway tools live in `internal/execution/mcptool`.
 
 **Config & infra**
 - **Application data**: `config.DataDir()` — default `~/.buildmax`, override via `BUILDMAX_HOME`; `make test` uses `testing-sandbox`.
-- **Config**: Env-only; `internal/config` provides `LoadLLM()`, `DataDir()`, `SessionsDir()`, `LogsDir()`, `SettingsPath()`, `LoadSettings()`, `MySQLDSN()`, `LoadServerEnv()`, `ResolveServerPort()`, `WorkspacesDir()`, `PersistentWorkspaceDir()`, `RuntimeWorkspaceDir()`, `ArtifactDir()`, `WorkerBinaryPath()`, `WorkerServerURL()`, `WorkerToken()`, `LoadWorkspaceStorageConfig()`, `BuildS3Client()`, `BuildPersistStorage()`, `BuildArtifactStorage()`. Single source of truth for env keys in `env_spec.go`; see `.env.example` and `design/002-env-config-maintainability.md`.
-- **Logging**: `log/slog` via `internal/log`; level from `BUILDMAX_LOG_LEVEL`; file-only (rotated under `DataDir()/logs`, Lumberjack); TUI/prompt output stays clean.
+- **Config**: Env-only; `internal/config` provides env loading and path resolution such as `LoadLLM()`, `DataDir()`, `SessionsDir()`, `LogsDir()`, `SettingsPath()`, `LoadSettings()`, `MySQLDSN()`, `LoadServerEnv()`, `ResolveServerPort()`, `WorkspacesDir()`, `PersistentWorkspaceDir()`, `RuntimeWorkspaceDir()`, `ArtifactDir()`, `WorkerBinaryPath()`, `WorkerServerURL()`, `WorkerToken()`, and `LoadWorkspaceStorageConfig()`. Startup-time wiring helpers live under `internal/bootstrap/*`; config does not import infra implementations. Single source of truth for env keys in `env_spec.go`; see `.env.example` and `design/002-env-config-maintainability.md`.
+- **Logging**: `log/slog` via `internal/infra/log`; level from `BUILDMAX_LOG_LEVEL`; file-only (rotated under `DataDir()/logs`, Lumberjack); TUI/prompt output stays clean.
 
 **HTTP server & Portal backend**
-- **Server** (`buildmax-server` binary): HTTP API in `internal/server`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
-- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET /api/teams`, `POST /api/teams`, `GET/POST/DELETE /api/teams/{team_id}/members`; `GET/POST/PATCH/DELETE /api/teams/{team_id}/agents`; `GET/POST/PATCH /api/teams/{team_id}/issues`, `GET /api/teams/{team_id}/issues/{issue_id}`, `GET /api/teams/{team_id}/issues/{issue_id}/flow`, `POST /api/teams/{team_id}/issues/{issue_id}/agent-runs`, `POST /api/teams/{team_id}/issues/{issue_id}/workflow-runs`; `GET/POST/PATCH /api/teams/{team_id}/workflows`, `GET /api/teams/{team_id}/workflows/{workflow_id}`, `GET/POST /api/teams/{team_id}/workflows/{workflow_id}/runs`, `GET /api/teams/{team_id}/workflow-runs/{workflow_run_id}`; `POST /api/teams/{team_id}/upload`, `GET /api/teams/{team_id}/files`, `GET /api/teams/{team_id}/files/{path...}`; `GET/POST/DELETE /api/webhook-keys`; `GET/POST /api/teams/{team_id}/conversations`, `GET/POST /api/teams/{team_id}/conversations/{conversation_id}/messages`, `GET/POST /api/teams/{team_id}/conversations/{conversation_id}/tasks`; `GET /api/teams/{team_id}/tasks/{task_id}`, `POST /api/teams/{team_id}/tasks/{task_id}/runs`, `GET /api/teams/{team_id}/tasks/{task_id}/conversation`, `GET /api/teams/{team_id}/tasks/{task_id}/stream`, `GET /api/teams/{team_id}/tasks/{task_id}/artifacts`; `GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items`, `GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content`; `GET /api/teams/{team_id}/ws`; `POST /api/webhook`; `GET /api/sessions/{session_id}`; **worker API** (chat-run-id only, worker token): `GET /api/worker/task-runs/{task_run_id}`, `PATCH /api/worker/task-runs/{task_run_id}`. JWT auth for user API; team membership is the main ownership/authz boundary for working resources.
-- **Storage**: Entity persistence (MySQL via GORM) in `internal/storage/entity` — the canonical backend model layer for User, Team, TeamMember, Issue, Workflow, WorkflowRun, WorkflowStepRun, Agent, Conversation, ConversationMessage, Task, TaskRun, user webhook keys, quota entities, and related repository interfaces. Blob storage in `internal/storage/blob` — PersistStorage (team uploads under **home**), ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. See `design/003-store-workspacestorage-reorg.md` and `design/017-team-scoped-files-upload-alignment.md`. **Run/storage layout**: each team has a persistent `home/`; each task run uses `conversations/<conversationID>/tasks/<taskID>/<taskRunID>/` with `home/` (materialized team home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use team-scoped `home` for uploads and run-scoped `conversations/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
-- **Executor** (`internal/executor`): **Scheduler** (in server process): polls for PENDING task runs, claims them with the typed run lifecycle API, and spawns the **buildmax-worker** binary with `--chat-run-id` only. **Worker** (`buildmax-worker` binary): gets task run via `GET /api/worker/task-runs/{task_run_id}`, updates status/results via `PATCH`, materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md` (layout + optional workspace AGENTS.md), runs the shared agent runtime in-process with BUILDMAX_HOME = run `global` and cwd = run dir, writes result to run `artifacts/result.md`, uploads run `global` to blob, and streams assistant reply deltas when enabled. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
+- **Server** (`buildmax-server` binary): HTTP API in `internal/server`, bootstrapped by `internal/bootstrap`; started via `./make run server` or by running the `buildmax-server` binary. Listen address from `--port` or `BUILDMAX_SERVER_PORT` (default 5678). Requires `BUILDMAX_JWT_SECRET`; optional `BUILDMAX_CORS_ORIGIN` (default `http://localhost:5173`). Optional `BUILDMAX_WORKER_TOKEN` for worker-to-server auth (`/api/worker/*`).
+- **Routes**: `GET /healthz`, `GET /openapi.json`, `GET /swagger/`; `POST /api/otp/request`, `POST /api/login`; `GET /api/teams`, `POST /api/teams`, `GET/POST/DELETE /api/teams/{team_id}/members`; `GET/POST/PATCH/DELETE /api/teams/{team_id}/agents`; `GET/POST/PATCH /api/teams/{team_id}/issues`, `GET /api/teams/{team_id}/issues/{issue_id}`, `GET /api/teams/{team_id}/issues/{issue_id}/flow`, `POST /api/teams/{team_id}/issues/{issue_id}/agent-runs`, `POST /api/teams/{team_id}/issues/{issue_id}/workflow-runs`; `GET/POST/PATCH /api/teams/{team_id}/workflows`, `GET /api/teams/{team_id}/workflows/{workflow_id}`, `GET/POST /api/teams/{team_id}/workflows/{workflow_id}/runs`, `GET /api/teams/{team_id}/workflow-runs/{workflow_run_id}`; `POST /api/teams/{team_id}/upload`, `GET /api/teams/{team_id}/files`, `GET /api/teams/{team_id}/files/{path...}`; `GET/POST/DELETE /api/webhook-keys`; `GET/POST /api/teams/{team_id}/conversations`, `GET/POST /api/teams/{team_id}/conversations/{conversation_id}/messages`, `GET/POST /api/teams/{team_id}/conversations/{conversation_id}/tasks`; `GET /api/teams/{team_id}/tasks/{task_id}`, `POST /api/teams/{team_id}/tasks/{task_id}/runs`, `GET /api/teams/{team_id}/tasks/{task_id}/conversation`, `GET /api/teams/{team_id}/tasks/{task_id}/stream`, `GET /api/teams/{team_id}/tasks/{task_id}/artifacts`; `GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items`, `GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content`; `GET /api/teams/{team_id}/ws`; `POST /api/webhook`; `GET /api/sessions/{session_id}`; **worker API** (task-run-id only, worker token): `GET /api/worker/task-runs/{task_run_id}`, `PATCH /api/worker/task-runs/{task_run_id}`. JWT auth for user API; team membership is the main ownership/authz boundary for working resources.
+- **Storage**: Shared persistence-facing models and repository contracts live in `internal/core/model`. MySQL/GORM implementation lives in `internal/infra/db`. Blob storage implementations live in `internal/infra/objectstore` — PersistStorage (team uploads under **home**) and ArtifactStorage (artifact result files); backends: local FS or S3/MinIO; config via `BUILDMAX_PERSIST_STORAGE`, `BUILDMAX_ARTIFACT_STORAGE`, `BUILDMAX_MINIO_*`. Startup builders live in `internal/bootstrap/objectstore.go`. See `design/003-store-workspacestorage-reorg.md` and `design/017-team-scoped-files-upload-alignment.md`. **Run/storage layout**: each team has a persistent `home/`; each task run uses `conversations/<conversationID>/tasks/<taskID>/<taskRunID>/` with `home/` (materialized team home), `artifacts/` (run output, e.g. result.md), and `global/` (BUILDMAX_HOME for that run). Blob keys use team-scoped `home` for uploads and run-scoped `conversations/.../global/...` for run state. The **worker** accesses storage directly for materialize and artifacts; no proxy through server.
+- **Execution**: Scheduler lives in `internal/execution/scheduler` and runs in the server process: it polls for PENDING task runs, claims them with the typed run lifecycle API, and spawns the **buildmax-worker** binary. Worker API client and worker-side HTTP updater live in `internal/execution/worker`. Run execution lives in `internal/execution/runtime`: the worker materializes workspace `home` to run `home`, prepares run-directory `AGENTS.md`, runs the shared agent runtime in-process with BUILDMAX_HOME = run `global` and cwd = run dir, writes result to run `artifacts/result.md`, uploads run `global` to blob, and streams assistant reply deltas when enabled. The `buildmax-worker` binary is bootstrapped by `internal/bootstrap`. Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, and storage env when running the worker.
 
 **Shared GUI and frontends**
 - **GUI package** (`gui/`): Shared React 19 package at repo root; exports theme plus shared presentational components such as `BaseModal`, `FormModal`, `Avatar`, `ChatComposer`, `ChatThread`, and `RecentList`. Consumed by portal and desktop via `"@buildmax/gui": "file:../gui"` (or `file:../../gui` from desktop/frontend). Build output in `gui/dist/`; `./make build` builds gui before desktop; `./make clean` removes `gui/node_modules` and `gui/dist`.
@@ -112,10 +115,10 @@ The `design/010-team-task-workflow-roadmap.md` program is effectively complete f
 
 ### 4.2 Tier 1 and Tier 2 architecture
 
-- **Tier 1 = Conversation application service (orchestrator).** The application-layer orchestrator lives in `internal/app/conversation`. It is the single entry point for portal turns: it receives the normalized request, decides whether to run a direct conversation turn or create a background task run, and owns what the user sees. Tier 1 is the single voice to the user.
-- **Low-level Tier 1 loop = `internal/conversation`.** The `internal/conversation` package is now the low-level LLM loop used by the app-layer service. It owns message persistence, tool execution, and optional streaming for one turn, but it is not the server composition or transport boundary anymore.
+- **Tier 1 = Conversation application service (orchestrator).** The orchestrator lives in `internal/core/conversation`. It is the single entry point for portal turns: it receives the normalized request, decides whether to run a direct conversation turn or create/continue a background task run, and owns what the user sees. Tier 1 is the single voice to the user.
+- **Low-level Tier 1 loop = `internal/core/conversation` + `internal/core/agent`.** `internal/core/conversation` owns message persistence, tool selection, system-channel handoff, and optional streaming for one turn. `internal/core/agent` owns the shared tool-calling loop. System task-result turns do not expose task-creation tools, preventing task-run feedback loops.
 - **Tier 2 = Task + TaskRun (execution in the back).** A Task with one or more TaskRuns is Tier 2: the worker materializes a run directory, executes the shared agent runtime there, produces artifacts, and can take a long time. Tier 2 is “tools in the back” - it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
-- **Tier 1 tools for Tier 2 (implemented via app services):** Tier 1 can (1) **create a Tier 2 task** through `internal/app/task` and the `StartTask` tool, which creates a Task and TaskRun for the worker; and (2) **rerun / follow-up on an existing task** by creating a new run for that task. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
+- **Tier 1 tools for Tier 2 (implemented via core services):** Tier 1 can (1) **create a Tier 2 task** through `internal/core/task` and the `StartTask` tool, which creates a Task and TaskRun for the worker; and (2) **rerun / follow-up on an existing task** by creating a new run for that task. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
 
 ### 4.3 Planned / Not yet implemented
 
@@ -130,79 +133,79 @@ Following common Golang project conventions, the current structure is:
 ```
 buildmax/
 ├── gui/                       # Shared GUI package (React 19): theme + shared presentational widgets; consumed by portal & desktop
-│   ├── package.json           # @buildmax/gui; peerDependencies react ^19
-│   ├── src/                   # Theme, modal, avatar, chat widgets, index.ts
-│   └── dist/                  # Build output (ESM, .d.ts, theme.css); not committed
 ├── cmd/
-│   ├── buildmax/              # CLI binary (TUI, -p, version)
-│   │   └── main.go
-│   ├── buildmax-server/       # Server binary (HTTP API + chat-run scheduler)
-│   │   └── main.go
+│   ├── buildmax/              # CLI/TUI binary
+│   ├── buildmax-server/       # Server binary (HTTP API + scheduler)
 │   ├── buildmax-worker/       # Worker binary (runs one task run via API + direct storage)
-│   │   └── main.go
-│   └── buildmax-desktop/       # Desktop app (Wails); embeds desktop/frontend
-│       └── main.go
+│   └── buildmax-desktop/      # Desktop app (Wails); embeds desktop/frontend
 ├── desktop/                   # Desktop frontend (React 19 + Vite); depends on gui
-│   └── frontend/              # Wails UI; package.json has "file:../../gui"
-├── internal/                  # Private packages (this project only)
-│   ├── app/                   # Application-layer orchestration services shared by transports/runtime
-│   │   ├── agentrun/          # Shared agent runtime used by CLI and worker
-│   │   ├── task/              # Task application service (create task, create run, background task)
-│   │   └── conversation/      # Tier 1 orchestration entry point for portal turns
-│   ├── cmd/                   # Cobra root, flags, version; prompt/TUI runners, setup (CLI only; no server)
-│   ├── tui/                   # Bubble Tea TUI (models, views, program entry: banner, input, viewport, format)
-│   ├── agent/                 # Core Agent logic (Process, tools, system prompt, subagent runner)
-│   ├── conversation/          # Low-level Tier 1 LLM loop (message persistence, tool execution, streaming)
-│   ├── llm/                   # LLM client (OpenAI-compatible), types, ChatWithTools
-│   ├── config/                # Config: LoadLLM(), DataDir(), MySQLDSN(), server env, workspace paths, workspace storage (env_spec.go, workspace_storage.go)
-│   ├── log/                   # slog init, BUILDMAX_LOG_LEVEL, rotated file
-│   ├── session/               # Session (id, title, history), SaveToDir, LoadFromDir, list index (sessions.json)
-│   ├── tools/                 # Tool implementations (readfile, writefile, editfile, bash, glob, grep, webfetch, todowrite, skill, agentdef, task)
-│   ├── util/                  # ID generation (prefixed IDs: u_, a_, c_, t_, r_, ar_, f_, cm_, whk_), workspace helpers, git, argparse
-│   ├── storage/               # Persistence under one namespace
-│   │   ├── entity/            # MySQL (GORM): canonical backend models, typed lifecycle commands, interfaces and Store
-│   │   └── blob/              # Blob/file storage: PersistStorage (team home), ArtifactStorage; local FS and S3; keys use home, conversations/.../global
-│   ├── server/                # HTTP server: routes, auth (JWT, OTP), conversations, tasks, artifacts, upload, files, webhook, sessions; static (openapi, swagger)
-│   ├── cmd/server/            # Server startup and bootstrap; used by cmd/buildmax-server
-│   ├── cmd/worker/            # Worker startup; used by cmd/buildmax-worker
-│   └── executor/              # Scheduler: polls and spawns buildmax-worker; RunTask: run-scoped dirs (home, artifacts, global), materialize, shared runtime execution, TaskRunUpdater (API)
+├── internal/                  # Private Go packages (this project only)
+│   ├── bootstrap/             # Process startup and dependency wiring
+│   │   ├── server.go          # Server bootstrap; used by cmd/buildmax-server
+│   │   ├── worker.go          # Worker bootstrap; used by cmd/buildmax-worker
+│   │   └── objectstore.go     # Startup builders for object storage implementations
+│   ├── config/                # Env loading, paths, server/worker/storage config, env_spec.go
+│   ├── core/                  # Business concepts, use cases, contracts, and shared models
+│   │   ├── model/             # Shared entities, repository contracts, LLM contracts, Tool contract
+│   │   ├── agent/             # Core tool-calling loop and prompt/options
+│   │   ├── conversation/      # Tier 1 conversation orchestration and conversation tools
+│   │   ├── issue/             # Issue use cases
+│   │   ├── task/              # Task and task_run workflows
+│   │   ├── workflow/          # Workflow and workflow-run orchestration
+│   │   └── quota/             # Team quota checks
+│   ├── execution/             # Runtime execution, scheduler, worker client/updater, agent/MCP tool adapters
+│   │   ├── agentrun/          # Shared runtime assembly used by CLI, worker, and desktop
+│   │   ├── agenttool/         # Runtime agent tools (read, write, bash, grep, task, etc.)
+│   │   ├── mcptool/           # Agent-facing MCP gateway tools
+│   │   ├── runtime/           # Task-run execution in run-scoped directories
+│   │   ├── scheduler/         # Polls pending runs and spawns workers
+│   │   └── worker/            # Worker API client and update/stream senders
+│   ├── infra/                 # External-system implementations
+│   │   ├── db/                # MySQL/GORM implementation of core model repositories
+│   │   ├── objectstore/       # Local FS and S3/MinIO persist/artifact storage
+│   │   ├── llm/               # OpenAI-compatible LLM implementation
+│   │   ├── k8s/               # Kubernetes worker job launcher
+│   │   ├── mcp/               # MCP protocol/client transport and registry
+│   │   └── log/               # slog/lumberjack logging implementation
+│   ├── interface/             # Local user-facing entry points
+│   │   ├── auth/              # CLI/desktop login client and credential persistence
+│   │   ├── cli/               # Cobra CLI, prompt mode, version command
+│   │   ├── tui/               # Bubble Tea TUI
+│   │   └── desktop/           # Wails app bridge
+│   ├── server/                # HTTP API, auth handlers, portal API, webhook, websocket, worker API
+│   ├── session/               # Local session persistence and title helpers
+│   ├── testutil/              # Test mocks and helpers
+│   └── util/                  # ID generation, workspace helpers, git, argparse
 ├── portal/                    # Web UI (React 19 + Vite + TypeScript); depends on gui
-│   ├── package.json           # Scripts: dev, build; dependency "@buildmax/gui": "file:../gui"
-│   ├── vite.config.ts         # Vite config (build out: dist/)
-│   ├── index.html             # Vite entry HTML
-│   ├── README.md              # Install, build, dev instructions
-│   └── src/                   # App, router; pages; components; lib; contexts (Auth); theme from @buildmax/gui
-├── design/                    # Design docs (001-about-portal, 002-env-config, 003-store-workspacestorage-reorg)
+├── design/                    # Product and technical design docs
 ├── configs/                   # Config file examples
-├── example/                   # Example files for tools (e.g. shakespeare.txt)
-├── setup/                     # Setup scripts (e.g. setup.sh, port-forward)
-├── deployment/                # Application manifests (e.g. buildmax-deploy.yaml for kind)
-├── .vibe/                     # Task documents and design docs (vibe lifecycle)
-├── make.bat                   # Windows: build, test, run (build uses cmd/buildmax)
+├── setup/                     # Setup scripts
+├── deployment/                # Application manifests
+├── .vibe/                     # Task documents and design docs
 ├── go.mod
 ├── go.sum
 ├── .env.example               # Env var template (sync with config/env_spec.go)
 └── README.md
 ```
 
-- **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`.
-- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Runs the HTTP API and chat-run scheduler (spawns `buildmax-worker` per pending task run); use `./make run server` to build and run it.
-- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--chat-run-id`; calls `internal/cmd/worker` startup logic (get task run via API, blob storage, executor.RunTask). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
-- **internal/cmd**: Cobra root command, version subcommand, CLI flags, prompt mode and TUI runners, plus server/worker/desktop startup packages under `internal/cmd/*`.
-- **internal/app**: Application services that own orchestration boundaries: shared agent runtime, task workflows, and Tier 1 conversation handling.
-- **internal/storage**: Entity persistence (DB) in `entity/`; blob/file storage in `blob/`. See `design/003-store-workspacestorage-reorg.md`.
-- **internal/conversation**: Low-level conversation loop primitives used by `internal/app/conversation`; not the transport-layer orchestration entry point.
-- **internal/server**: HTTP API for the Portal; depends on `app/task`, `app/conversation`, `storage/entity`, `storage/blob`, `config`; executor is started by the server binary via `internal/cmd/server`.
-- **internal/**: Packages not exposed externally; can be split or partially moved to **pkg/** later.
-- **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop. Shared widgets already include theme, modal, avatar, chat history, input box, and recent-list building blocks.
-- **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`). Team-aware UI uses `AuthContext` plus `TeamContext`; no change to `go.mod` or Go build/test.
+- **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`; delegates to `internal/interface/cli`.
+- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Delegates to `internal/bootstrap`, which wires DB, storage, LLM, HTTP server, and scheduler.
+- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-run-id`; delegates to `internal/bootstrap` startup logic (get task run via API, blob storage, execution/runtime). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
+- **internal/bootstrap**: Process startup and dependency wiring for server, worker, and startup storage builders.
+- **internal/interface**: Local user-facing entry points: CLI, TUI, desktop, and local auth credential/client code.
+- **internal/core**: Business logic and contracts. `core/model` owns shared entities, repository contracts, LLM contracts, and the Tool contract.
+- **internal/execution**: Agent runtime assembly, scheduler, worker client/updater, task-run execution, runtime tools, and MCP tool integration.
+- **internal/infra**: External-system implementations such as DB, object storage, LLM, Kubernetes, MCP transport, and logging.
+- **internal/server**: HTTP API for the Portal and worker callbacks. It depends on core services and execution worker contracts; it is bootstrapped by `internal/bootstrap`.
+- **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop.
+- **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`).
 - **desktop/frontend/**: Desktop UI; depends on `@buildmax/gui`. Same React 19 and shared components as portal; app logic (Wails bindings, session) is desktop-specific.
 - **design/**: Product and technical design docs; see section 6.
 
 ## 6. Documentation and Repository
 
 - **Task docs**: `.vibe/NNN.md` (e.g. `.vibe/001.md`); design docs `.vibe/NNN-design.md`. TOC: `.vibe/000-TOC.md`.
-- **Design docs** (in `design/`): [design/001-about-portal.md](design/001-about-portal.md) — Portal/Nexus product vision, concepts, principles, wireframe; [design/002-env-config-maintainability.md](design/002-env-config-maintainability.md) — env-based config; [design/003-store-workspacestorage-reorg.md](design/003-store-workspacestorage-reorg.md) — storage layout (entity/blob). **Workspace on-disk layout** (home, run dirs home/artifacts/global): `.vibe/075-design.md`.
+- **Design docs** (in `design/`): [design/001-about-portal.md](design/001-about-portal.md) — Portal/Nexus product vision, concepts, principles, wireframe; [design/002-env-config-maintainability.md](design/002-env-config-maintainability.md) — env-based config; [design/003-store-workspacestorage-reorg.md](design/003-store-workspacestorage-reorg.md) — historical storage layout reference; current implementations live under `internal/infra/db` and `internal/infra/objectstore`. **Workspace on-disk layout** (home, run dirs home/artifacts/global): `.vibe/075-design.md`.
 - **Env reference**: `.env.example` and `internal/config/env_spec.go` (single source of truth for env keys).
 - Code and scripts: repository root, managed with Go modules.
 
@@ -238,7 +241,7 @@ buildmax/
 - **Run server**: `./make run server` — builds and runs `buildmax-server` (default port 5678). The server spawns `buildmax-worker` for each task; ensure `buildmax-worker` is on PATH or in the same directory, and set `BUILDMAX_SERVER_URL` and `BUILDMAX_WORKER_TOKEN` (and storage env) when running the worker.
 - **Run portal**: `./make run portal` — builds gui if missing, then starts the Portal dev server (Vite; installs npm deps if needed).
 - **Run desktop**: `./make run desktop` — builds gui if missing, then starts the desktop app in Wails dev mode (installs frontend deps if needed).
-- **Bump version**: `./make bump [patch|minor|major]` — updates `Version` in `internal/cmd/root.go` (default: patch).
+- **Bump version**: `./make bump [patch|minor|major]` — updates `Version` in `internal/interface/cli/root.go` (default: patch).
 - **Setup / Unsetup**: `./make setup` runs `setup/setup.sh` (one-click local dev: kind cluster, MinIO, MySQL, port-forwards, test job; idempotent). `./make unsetup` runs `setup/unsetup.sh` to tear down. Requires Homebrew (kind, helm, kubectl, awscli). Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.
 
 **Windows:** `make.bat` in the repo root provides `build` and `test` for Windows; prefer PowerShell over batch when running commands. Build output: `buildmax.exe`.

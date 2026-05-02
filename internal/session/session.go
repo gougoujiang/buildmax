@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"buildmax/internal/llm"
+	"buildmax/internal/core/model"
 
 	"github.com/google/uuid"
 )
@@ -40,12 +40,12 @@ func SessionIDFromContext(ctx context.Context) (string, bool) {
 // Used only for encoding/decoding; Session's internal fields stay unexported.
 // omitempty skips null/empty values so persisted JSON stays minimal.
 type sessionFile struct {
-	ID               string        `json:"id"`
-	Title            string        `json:"title,omitempty"`
-	CreatedAt        string        `json:"created_at"` // RFC3339
-	Messages         []llm.Message `json:"messages,omitempty"`
-	PromptTokens     int           `json:"prompt_tokens,omitempty"`
-	CompletionTokens int           `json:"completion_tokens,omitempty"`
+	ID               string          `json:"id"`
+	Title            string          `json:"title,omitempty"`
+	CreatedAt        string          `json:"created_at"` // RFC3339
+	Messages         []model.Message `json:"messages,omitempty"`
+	PromptTokens     int             `json:"prompt_tokens,omitempty"`
+	CompletionTokens int             `json:"completion_tokens,omitempty"`
 }
 
 // Session holds conversation history (user, assistant, tool messages) and metadata.
@@ -55,7 +55,7 @@ type Session struct {
 	id               string
 	title            string
 	createdAt        time.Time
-	messages         []llm.Message
+	messages         []model.Message
 	promptTokens     int
 	completionTokens int
 }
@@ -74,10 +74,10 @@ func NewSession(title string) *Session {
 // NewSessionFromData constructs a Session from persisted data (e.g. after LoadFromDir).
 // Used to restore a session without exporting Session's internal fields.
 // promptTokens and completionTokens are the accumulated usage from the session file (0 for old files).
-func NewSessionFromData(id, title string, createdAt time.Time, messages []llm.Message, promptTokens, completionTokens int) *Session {
-	var msgs []llm.Message
+func NewSessionFromData(id, title string, createdAt time.Time, messages []model.Message, promptTokens, completionTokens int) *Session {
+	var msgs []model.Message
 	if len(messages) > 0 {
-		msgs = make([]llm.Message, len(messages))
+		msgs = make([]model.Message, len(messages))
 		copy(msgs, messages)
 	}
 	return &Session{
@@ -92,17 +92,18 @@ func NewSessionFromData(id, title string, createdAt time.Time, messages []llm.Me
 
 // Append adds one message to the session's history. Caller must ensure
 // role is user, assistant, or tool (system is not stored in session).
-func (s *Session) Append(msg llm.Message) {
+func (s *Session) Append(msg model.Message) error {
 	s.messages = append(s.messages, msg)
+	return nil
 }
 
 // Messages returns a copy of the current conversation history so callers
 // cannot mutate session state and the agent can safely append during the loop.
-func (s *Session) Messages() []llm.Message {
+func (s *Session) Messages() []model.Message {
 	if len(s.messages) == 0 {
 		return nil
 	}
-	out := make([]llm.Message, len(s.messages))
+	out := make([]model.Message, len(s.messages))
 	copy(out, s.messages)
 	return out
 }

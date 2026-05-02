@@ -20,7 +20,7 @@ The `internal/util` package provides small helpers used across the codebase: wor
 
 ## Dependencies
 
-- **Used by**: `internal/tools` (workspace for read/write/edit/glob etc.), other callers that need path or git helpers
+- **Used by**: `internal/execution/agenttool` (workspace for read/write/edit/glob etc.), other callers that need path or git helpers
 
 ## Notes
 

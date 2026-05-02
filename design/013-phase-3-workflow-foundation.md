@@ -315,25 +315,25 @@ Phase 3 is additive, but it must integrate with existing issue, team, task, and 
 
 Likely changes:
 
-- `internal/storage/entity/models.go`
-- `internal/storage/entity/interfaces.go`
+- `internal/core/model/db_entities.go`
+- `internal/core/model/db_repositories.go`
 - new workflow-related entity files
-- `internal/storage/entity/issue.go`
-- possibly `internal/storage/entity/task.go` for workflow-linked task creation metadata
+- `internal/infra/db/issue.go`
+- possibly `internal/infra/db/task.go` for workflow-linked task creation metadata
 
 ### 7.2 Application Layer
 
 Likely changes:
 
-- new workflow service under `internal/app/`
+- new workflow service under `internal/core/`
 - issue service assignment validation
 - task service integration for workflow step dispatch
 
 Likely files:
 
-- new `internal/app/workflow/service.go`
-- `internal/app/issue/service.go`
-- `internal/app/task/service.go`
+- new `internal/core/workflow/service.go`
+- `internal/core/issue/service.go`
+- `internal/core/task/service.go`
 
 ### 7.3 Server / Portal Backend
 
@@ -361,8 +361,8 @@ Likely changes:
 
 Likely files:
 
-- `internal/executor/*`
-- `internal/app/task/service.go`
+- `internal/execution/*`
+- `internal/core/task/service.go`
 - possibly new workflow runtime package if separation is cleaner
 
 ### 7.5 Portal Frontend

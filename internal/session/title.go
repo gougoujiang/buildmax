@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"buildmax/internal/llm"
+	llm "buildmax/internal/infra/llm"
 )
 
 // TitleChatClient is the interface for a simple chat completion (no tools), used for title generation.

@@ -8,7 +8,7 @@ import (
 
 // Prefix constants for prefixed IDs. Use with NewPrefixedID.
 // Semantics: u=user, tm=team, a=agent, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, whk=user webhook key.
-// Session IDs are internal (not user-facing) and use UUID; see entity.CreateChat.
+// Session IDs are internal (not user-facing) and use UUID; see db.CreateChat.
 const (
 	PrefixUser                = "u"
 	PrefixTeam                = "tm"

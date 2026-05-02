@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"os"
 
-	"buildmax/internal/cmd/worker"
+	"buildmax/internal/bootstrap"
 	"buildmax/internal/config"
-	log "buildmax/internal/log"
+	log "buildmax/internal/infra/log"
 )
 
 func main() {
@@ -29,8 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	if err := worker.RunWorker(ctx, *taskRunID); err != nil {
-		if errors.Is(err, worker.ErrAlreadyClaimed) {
+	if err := bootstrap.RunWorker(ctx, *taskRunID); err != nil {
+		if errors.Is(err, bootstrap.ErrAlreadyClaimed) {
 			os.Exit(2) // run not executed (already claimed by another worker)
 		}
 		slog.Error("worker run failed", "task_run_id", *taskRunID, "err", err)

@@ -39,7 +39,7 @@ This means BuildMax is no longer primarily a user-scoped or workspace-scoped pro
 - Binary: `cmd/buildmax`
 - Default experience: Bubble Tea TUI
 - Also supports print/prompt mode
-- Uses the shared runtime in `internal/app/agentrun`
+- Uses the shared runtime assembly in `internal/execution/agentrun`
 - Persists local sessions under `BUILDMAX_HOME` / `~/.buildmax`
 
 ### Server
@@ -79,7 +79,7 @@ This means BuildMax is no longer primarily a user-scoped or workspace-scoped pro
 
 ### Shared runtime
 
-`internal/app/agentrun` is the reusable runtime used by:
+`internal/execution/agentrun` is the reusable runtime assembly used by:
 
 - CLI/TUI
 - worker task execution
@@ -89,10 +89,10 @@ This means BuildMax is no longer primarily a user-scoped or workspace-scoped pro
 
 BuildMax now uses a clear two-tier architecture:
 
-- Tier 1: user-facing conversation orchestration in `internal/app/conversation`
+- Tier 1: user-facing conversation orchestration in `internal/core/conversation`
 - Tier 2: background execution through `task` and `task_run`, executed by worker processes
 
-The low-level Tier 1 loop lives in `internal/conversation`, while the app-layer orchestration boundary lives in `internal/app/conversation`.
+The core agent tool-calling loop lives in `internal/core/agent`; task-run runtime execution lives in `internal/execution/runtime`.
 
 ## Repository Layout
 
@@ -104,26 +104,50 @@ buildmax/
 │   ├── buildmax-worker/       # Worker binary
 │   └── buildmax-desktop/      # Wails desktop app
 ├── internal/
-│   ├── app/
-│   │   ├── agentrun/          # Shared runtime for CLI, worker, desktop
-│   │   ├── conversation/      # Tier 1 conversation orchestration
-│   │   ├── issue/             # Issue application service
-│   │   ├── workflow/          # Workflow and workflow-run orchestration
-│   │   └── task/              # Task and task_run workflows
-│   ├── agent/                 # Core agent loop and tool-calling logic
-│   ├── conversation/          # Low-level conversation loop
-│   ├── executor/              # Scheduler + worker execution helpers
-│   ├── server/                # HTTP API handlers and wiring
-│   ├── storage/               # Entity and blob storage
-│   ├── tools/                 # Agent tools
-│   ├── tui/                   # Bubble Tea TUI
-│   └── session/               # Local session persistence
+│   ├── bootstrap/             # Process startup and dependency wiring
+│   │   ├── server.go          # Server bootstrap
+│   │   ├── worker.go          # Worker bootstrap
+│   │   └── objectstore.go     # Object storage builders
+│   ├── config/                # Env loading and path/config resolution
+│   ├── core/                  # Business concepts, use cases, and contracts
+│   │   ├── model/             # Shared entities, repository contracts, LLM contracts, Tool contract
+│   │   ├── agent/             # Core agent loop and tool-calling logic
+│   │   ├── conversation/      # Tier 1 conversation orchestration and conversation tools
+│   │   ├── issue/             # Issue use cases
+│   │   ├── task/              # Task and task_run workflows
+│   │   ├── workflow/          # Workflow orchestration
+│   │   └── quota/             # Quota checks
+│   ├── execution/             # Runtime execution, scheduler, worker coordination, tool adapters
+│   │   ├── agentrun/          # Shared runtime assembly for CLI, worker, desktop
+│   │   ├── agenttool/         # Runtime agent tools
+│   │   ├── mcptool/           # Agent-facing MCP gateway
+│   │   ├── runtime/           # Task-run execution
+│   │   ├── scheduler/         # Pending-run scheduler
+│   │   └── worker/            # Worker API contracts/client/updater
+│   ├── infra/                 # External-system implementations
+│   │   ├── db/                # MySQL/GORM persistence
+│   │   ├── objectstore/       # Local FS and S3/MinIO blob storage
+│   │   ├── llm/               # OpenAI-compatible LLM client
+│   │   ├── k8s/               # Kubernetes job support
+│   │   ├── mcp/               # MCP transport/registry/probe
+│   │   └── log/               # slog/lumberjack logging
+│   ├── interface/             # Local user-facing entry points
+│   │   ├── auth/              # CLI/desktop auth client and credential persistence
+│   │   ├── cli/               # Cobra CLI and prompt/TUI entry
+│   │   ├── tui/               # Bubble Tea TUI
+│   │   └── desktop/           # Wails app bridge
+│   ├── server/                # HTTP API, portal API, auth, worker API, webhook, websocket
+│   ├── session/               # Local session persistence
+│   ├── testutil/              # Test mocks/helpers
+│   └── util/                  # IDs, workspace helpers, git, argparse
 ├── portal/                    # Portal web app
 ├── desktop/frontend/          # Desktop frontend
 ├── gui/                       # Shared React GUI package
 ├── design/                    # Design docs
 └── .vibe/                     # Task and working docs
 ```
+
+The main dependency direction is `bootstrap -> interface/server/execution/infra -> core`, with `config` kept as env/path loading only. Core packages should not import `config`, `infra`, `execution`, `server`, or `interface`.
 
 ## Build and Run
 
@@ -187,6 +211,7 @@ See:
 - `design/007-two-tier-agent.md`
 - `design/008-backend-architecture-refactor.md`
 - `design/010-team-task-workflow-roadmap.md`
+- `design/018-internal-package-refactor.md`
 - `design/018-versioned-workspace-and-outcome-roadmap.md`
 - `design/019-phase-1-product-and-docs-reset.md`
 
@@ -204,7 +229,8 @@ As of the current main branch state:
 - Desktop already supports local chat backed by the shared runtime
 - shared GUI is used by both Portal and Desktop
 - the previous Team / Issue / Workflow roadmap is effectively complete for its intended scope
-- the active roadmap is `design/018-versioned-workspace-and-outcome-roadmap.md`
+- the internal package refactor in `design/018-internal-package-refactor.md` is complete for the planned scope
+- the active product roadmap is `design/018-versioned-workspace-and-outcome-roadmap.md`
 - Go tests pass on the current branch
 
 ## Notes

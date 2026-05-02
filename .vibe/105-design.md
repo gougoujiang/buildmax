@@ -8,7 +8,7 @@ Add a Go-side credential check to the desktop app's agent-running bindings (`Sen
 
 | Module (package) | Responsibility | Change |
 |-------------------|----------------|--------|
-| **internal/cmd/desktop** | Desktop Wails bindings | Modified: `app.go` |
+| **internal/interface/desktop** | Desktop Wails bindings | Modified: `app.go` |
 
 No new packages, types, or interfaces. Uses existing `internal/auth` and `internal/config` as-is.
 
@@ -16,13 +16,13 @@ No new packages, types, or interfaces. Uses existing `internal/auth` and `intern
 
 **Files changed**
 
-- `internal/cmd/desktop/app.go` — Add a private `requireLogin() error` method on `App`. Insert a call to it at the top of `SendMessage` and `SendMessageStream`, before any other logic.
+- `internal/interface/desktop/app.go` — Add a private `requireLogin() error` method on `App`. Insert a call to it at the top of `SendMessage` and `SendMessageStream`, before any other logic.
 
 No other files are changed.
 
 ## Method design
 
-### internal/cmd/desktop/app.go
+### internal/interface/desktop/app.go
 
 | Receiver | Method | Signature | Responsibility |
 |----------|--------|-----------|----------------|
@@ -123,4 +123,4 @@ Frontend calls: app.SendMessage("", "hello")
 
 ## Changes for review
 
-- **Modified**: `internal/cmd/desktop/app.go` — add `requireLogin() error` method on `*App`; call it at the top of `SendMessage` and `SendMessageStream`.
+- **Modified**: `internal/interface/desktop/app.go` — add `requireLogin() error` method on `*App`; call it at the top of `SendMessage` and `SendMessageStream`.

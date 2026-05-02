@@ -1,20 +1,25 @@
-# App
+# Application Boundaries
 
 ## Purpose
 
-The `internal/app` package is a thin bootstrap layer for the TUI. It provides `NewModel(opts tui.TUIOpts) tea.Model`, which returns the root Bubble Tea model used when running in TUI mode. All real logic lives in `internal/tui`; app only wires the TUI options into the model.
+There is no longer an `internal/app` package. The old thin TUI wrapper and application-service packages were folded into the stable architecture:
 
-## Key Types
+- local user entry points live under `internal/interface/*`
+- business use cases and orchestration live under `internal/core/*`
+- runtime execution and worker/scheduler behavior live under `internal/execution/*`
+- process startup and dependency wiring live under `internal/bootstrap/*`
 
-| Name | Kind | Role |
-|------|------|------|
-| **NewModel** | func | `(opts tui.TUIOpts) tea.Model` — builds the root TUI model |
+## Current Mapping
 
-## Dependencies
-
-- **Uses**: `internal/tui`, `github.com/charmbracelet/bubbletea`
-- **Used by**: `internal/cmd` (TUI runner calls `app.NewModel`)
+| Old responsibility | Current package |
+|--------------------|-----------------|
+| TUI wrapper | `internal/interface/tui` called from `internal/interface/cli` |
+| Tier 1 conversation orchestration | `internal/core/conversation` |
+| Issue service | `internal/core/issue` |
+| Task service | `internal/core/task` |
+| Workflow service | `internal/core/workflow` |
+| Shared agent runtime assembly | `internal/execution/agentrun` |
 
 ## Notes
 
-- See [TUI](tui.md) for the actual model, viewport, and input handling.
+Use `internal/bootstrap/*` only for process startup wiring. Do not introduce a new `internal/app` package unless the architecture is intentionally revised again.

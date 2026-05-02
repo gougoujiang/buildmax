@@ -297,11 +297,11 @@ Phase 2 is broader than Phase 1 because it changes the ownership model for multi
 
 Likely changes:
 
-- `internal/storage/entity/models.go`
-- `internal/storage/entity/interfaces.go`
-- `internal/storage/entity/store.go`
+- `internal/core/model/db_entities.go`
+- `internal/core/model/db_repositories.go`
+- `internal/infra/db/store.go`
 - new files for `team` and `team_member` stores
-- `internal/storage/entity/user.go`
+- `internal/infra/db/user.go`
 - existing stores for issue / agent / conversation / task
 
 ### 7.2 Application Layer
@@ -314,9 +314,9 @@ Likely changes:
 
 Likely files:
 
-- `internal/app/issue/service.go`
-- `internal/app/task/service.go`
-- `internal/app/conversation/service.go`
+- `internal/core/issue/service.go`
+- `internal/core/task/service.go`
+- `internal/core/conversation/service.go`
 
 ### 7.3 Server / Portal Backend
 

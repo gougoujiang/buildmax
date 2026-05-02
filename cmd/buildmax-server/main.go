@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 
+	"buildmax/internal/bootstrap"
 	"buildmax/internal/config"
-	log "buildmax/internal/log"
-	"buildmax/internal/cmd/server"
+	log "buildmax/internal/infra/log"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	if err := server.RunServer(ctx, port); err != nil {
+	if err := bootstrap.RunServer(ctx, port); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

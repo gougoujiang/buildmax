@@ -4,7 +4,7 @@
 
 Load `mcp.json`, connect MCP servers via the official Go SDK (`stdio` / `sse` / `http`), and expose MCP capabilities to the LLM through **two** `core.Tool` entries — **`LoadMcpTools`** and **`CallMcpTool`** — so **tool-definition tokens** stay bounded when many MCP tools exist. Full JSON Schema per tool is returned only when the model calls **`LoadMcpTools`**.
 
-**Product scope:** MCP is enabled **only** for the **`buildmax` CLI** (`cmd/buildmax` → `internal/cmd/cli`). Desktop, worker, and other `agentrun.Open` callers keep MCP **off** via an explicit **`OpenInput` flag** (default false).
+**Product scope:** MCP is enabled **only** for the **`buildmax` CLI** (`cmd/buildmax` → `internal/interface/cli`). Desktop, worker, and other `agentrun.Open` callers keep MCP **off** via an explicit **`OpenInput` flag** (default false).
 
 ## Rationale
 
@@ -15,9 +15,9 @@ Flattening every MCP tool into `ToolDefs` duplicates large `parameters` blobs on
 | Package | Responsibility |
 |---------|----------------|
 | **`internal/config`** | Resolve `mcp.json` path; parse `mcpServers`; `BUILDMAX_MCP_CONFIG` in `env_spec.go`. |
-| **`internal/mcpservers`** (new) | **Registry**: server id → `ClientSession` + cached `ListTools` result (summaries + schema source for `LoadMcpTools`). **Gateway**: two tools. Transports per `type`. **`cleanup`** closes all sessions. `import mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"`. |
-| **`internal/app/agentrun`** | **`OpenInput.EnableMCP`** (default **false**). When **true** and MCP config non-empty: append gateway tools in `buildBaseTools`; store **`mcpCleanup`** on **`Runtime`**; **`Runtime.Close()`** runs registry cleanup. |
-| **`internal/cmd/cli`** | Only call site that sets **`EnableMCP: true`** (TUI + print). **`defer rt.Close()`** (or equivalent) so MCP sessions exit. |
+| **`internal/infra/mcp`** (new) | **Registry**: server id → `ClientSession` + cached `ListTools` result (summaries + schema source for `LoadMcpTools`). **Gateway**: two tools. Transports per `type`. **`cleanup`** closes all sessions. `import mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"`. |
+| **`internal/execution/agentrun`** | **`OpenInput.EnableMCP`** (default **false**). When **true** and MCP config non-empty: append gateway tools in `buildBaseTools`; store **`mcpCleanup`** on **`Runtime`**; **`Runtime.Close()`** runs registry cleanup. |
+| **`internal/interface/cli`** | Only call site that sets **`EnableMCP: true`** (TUI + print). **`defer rt.Close()`** (or equivalent) so MCP sessions exit. |
 | **Desktop, executor** | Continue calling `Open` with default **`EnableMCP: false`** — no MCP tools, no SDK connections, no code changes required beyond the new field default. |
 
 **Dependency**: `github.com/modelcontextprotocol/go-sdk` (e.g. `v1.4.1`+).
@@ -71,15 +71,15 @@ Optional later: optional **`description`** field per server in JSON to enrich ca
 **New files**
 
 - `internal/config/mcp.go` — types, path resolution, load/parse (missing file → `nil`).
-- `internal/mcpservers/registry.go` — `Registry` struct, connect-all + list-all for catalog, lookup by `(server, tool_name)`.
-- `internal/mcpservers/gateway_tools.go` — `LoadMcpTools` + `CallMcpTool` as `core.Tool` implementations holding `*Registry`.
-- `internal/mcpservers/transport.go` — `transportFor(cfg MCPServerConfig) (mcpsdk.Transport, error)` or similar.
+- `internal/infra/mcp/registry.go` — `Registry` struct, connect-all + list-all for catalog, lookup by `(server, tool_name)`.
+- `internal/infra/mcp/gateway_tools.go` — `LoadMcpTools` + `CallMcpTool` as `core.Tool` implementations holding `*Registry`.
+- `internal/infra/mcp/transport.go` — `transportFor(cfg MCPServerConfig) (mcpsdk.Transport, error)` or similar.
 - Tests: `mcp_test.go`, `gateway_test.go` with in-memory transport / mock session where possible.
 
 **Modified**
 
-- `go.mod` / `go.sum`, `env_spec.go`, `.env.example`, `internal/app/agentrun/runtime.go` (`OpenInput`, conditional MCP init), **`internal/cmd/cli`** (`EnableMCP: true`, `Close` on exit).
-- **Not modified for MCP**: `internal/executor`, `internal/cmd/desktop` (they inherit `EnableMCP == false`).
+- `go.mod` / `go.sum`, `env_spec.go`, `.env.example`, `internal/execution/agentrun/runtime.go` (`OpenInput`, conditional MCP init), **`internal/interface/cli`** (`EnableMCP: true`, `Close` on exit).
+- **Not modified for MCP**: `internal/execution`, `internal/interface/desktop` (they inherit `EnableMCP == false`).
 
 ## Method design (summary)
 
@@ -128,6 +128,6 @@ sequenceDiagram
 
 ## Changes for review
 
-- **New**: `internal/config/mcp.go`, `internal/mcpservers/*.go`, tests.
-- **Modified**: `go.mod`, `env_spec`, `.env.example`, `agentrun/runtime.go`, **`internal/cmd/cli` only** for `EnableMCP` + `Close`.
+- **New**: `internal/config/mcp.go`, `internal/infra/mcp/*.go`, tests.
+- **Modified**: `go.mod`, `env_spec`, `.env.example`, `agentrun/runtime.go`, **`internal/interface/cli` only** for `EnableMCP` + `Close`.
 - **Dropped vs earlier draft**: Per-MCP `core.Tool` flattening; collision-prefix logic for each MCP tool name.

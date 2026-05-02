@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"buildmax/internal/storage/entity"
+	"buildmax/internal/infra/db"
 	"buildmax/internal/util"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -48,41 +48,41 @@ func SignJWTWithExp(sub, secret string, expiresIn time.Duration) string {
 // MockUserStore is an in-memory UserStore for tests.
 // Use ByEmail and ByID to pre-seed users; CreateErr and NextUserID for behavior.
 type MockUserStore struct {
-	ByEmail    map[string]*entity.User
-	ByID       map[string]*entity.User
+	ByEmail    map[string]*db.User
+	ByID       map[string]*db.User
 	CreateErr  error
 	NextUserID int
 }
 
-func (m *MockUserStore) UserByEmail(_ context.Context, email string) (*entity.User, error) {
+func (m *MockUserStore) UserByEmail(_ context.Context, email string) (*db.User, error) {
 	if m.ByEmail == nil {
 		return nil, nil
 	}
 	return m.ByEmail[email], nil
 }
 
-func (m *MockUserStore) GetUser(_ context.Context, userID string) (*entity.User, error) {
+func (m *MockUserStore) GetUser(_ context.Context, userID string) (*db.User, error) {
 	if m.ByID != nil {
 		return m.ByID[userID], nil
 	}
 	return nil, nil
 }
 
-func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuotaTier string) (*entity.User, error) {
+func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuotaTier string) (*db.User, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
 	if m.ByEmail == nil {
-		m.ByEmail = make(map[string]*entity.User)
+		m.ByEmail = make(map[string]*db.User)
 	}
 	if m.ByID == nil {
-		m.ByID = make(map[string]*entity.User)
+		m.ByID = make(map[string]*db.User)
 	}
 	if existing := m.ByEmail[email]; existing != nil {
-		return nil, entity.ErrEmailExists
+		return nil, db.ErrEmailExists
 	}
 	m.NextUserID++
-	u := &entity.User{
+	u := &db.User{
 		UserID:    fmt.Sprintf("mock-u-%d", m.NextUserID),
 		Email:     email,
 		QuotaTier: defaultQuotaTier,
@@ -104,11 +104,11 @@ func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginA
 
 // MockTeamStore is an in-memory TeamStore for tests.
 type MockTeamStore struct {
-	Teams   []entity.Team
-	Members []entity.TeamMember
+	Teams   []db.Team
+	Members []db.TeamMember
 }
 
-func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*entity.Team, error) {
+func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*db.Team, error) {
 	for i := range m.Teams {
 		if m.Teams[i].TeamID == teamID {
 			return &m.Teams[i], nil
@@ -117,7 +117,7 @@ func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*entity.Team,
 	return nil, nil
 }
 
-func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) (*entity.Team, error) {
+func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) (*db.Team, error) {
 	for i := range m.Teams {
 		if m.Teams[i].PersonalForUserID != nil && *m.Teams[i].PersonalForUserID == userID {
 			return &m.Teams[i], nil
@@ -126,8 +126,8 @@ func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) 
 	return nil, nil
 }
 
-func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]entity.Team, error) {
-	var out []entity.Team
+func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]db.Team, error) {
+	var out []db.Team
 	for _, member := range m.Members {
 		if member.UserID != userID {
 			continue
@@ -141,9 +141,9 @@ func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]ent
 	return out, nil
 }
 
-func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*entity.Team, error) {
+func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*db.Team, error) {
 	id := fmt.Sprintf("tm_%d", len(m.Teams)+1)
-	team := entity.Team{
+	team := db.Team{
 		TeamID:    id,
 		Name:      name,
 		QuotaTier: quotaTier,
@@ -152,23 +152,23 @@ func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier
 		UpdatedAt: time.Now().Unix(),
 	}
 	m.Teams = append(m.Teams, team)
-	m.Members = append(m.Members, entity.TeamMember{
+	m.Members = append(m.Members, db.TeamMember{
 		TeamID:    id,
 		UserID:    createdBy,
-		Role:      entity.TeamRoleOwner,
+		Role:      db.TeamRoleOwner,
 		CreatedAt: time.Now().Unix(),
 	})
 	return &m.Teams[len(m.Teams)-1], nil
 }
 
-func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role string) (*entity.TeamMember, error) {
+func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role string) (*db.TeamMember, error) {
 	for i := range m.Members {
 		if m.Members[i].TeamID == teamID && m.Members[i].UserID == userID {
 			m.Members[i].Role = role
 			return &m.Members[i], nil
 		}
 	}
-	member := entity.TeamMember{
+	member := db.TeamMember{
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
@@ -190,8 +190,8 @@ func (m *MockTeamStore) RemoveTeamMember(_ context.Context, teamID, userID strin
 	return nil
 }
 
-func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]entity.TeamMember, error) {
-	var out []entity.TeamMember
+func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]db.TeamMember, error) {
+	var out []db.TeamMember
 	for _, member := range m.Members {
 		if member.TeamID == teamID {
 			out = append(out, member)

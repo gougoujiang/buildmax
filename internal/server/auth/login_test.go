@@ -7,17 +7,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"buildmax/internal/infra/db"
 	"buildmax/internal/testutil"
-	"buildmax/internal/storage/entity"
 )
 
 func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"
-	userExists := &entity.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	userExists := &db.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 
 	tests := []struct {
 		name           string
-		userStore      entity.UserStore
+		userStore      db.UserStore
 		jwtSecret      string
 		body           string
 		wantStatus     int
@@ -25,50 +25,50 @@ func TestLoginHandler(t *testing.T) {
 		wantBodyNotHas string
 	}{
 		{
-			name:       "user found with valid otp returns 200 and token",
-			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
-			jwtSecret:  secret,
-			body:       `{"email":"a@b.c","otp":"123456"}`,
-			wantStatus: http.StatusOK,
+			name:        "user found with valid otp returns 200 and token",
+			userStore:   &testutil.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			jwtSecret:   secret,
+			body:        `{"email":"a@b.c","otp":"123456"}`,
+			wantStatus:  http.StatusOK,
 			wantBodyHas: "token",
 		},
 		{
-			name:       "user found but wrong otp returns 401",
-			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
-			jwtSecret:  secret,
-			body:       `{"email":"a@b.c","otp":"000000"}`,
-			wantStatus: http.StatusUnauthorized,
+			name:        "user found but wrong otp returns 401",
+			userStore:   &testutil.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			jwtSecret:   secret,
+			body:        `{"email":"a@b.c","otp":"000000"}`,
+			wantStatus:  http.StatusUnauthorized,
 			wantBodyHas: "invalid otp",
 		},
 		{
-			name:       "user found but missing otp returns 400",
-			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{"a@b.c": userExists}},
-			jwtSecret:  secret,
-			body:       `{"email":"a@b.c"}`,
-			wantStatus: http.StatusBadRequest,
+			name:        "user found but missing otp returns 400",
+			userStore:   &testutil.MockUserStore{ByEmail: map[string]*db.User{"a@b.c": userExists}},
+			jwtSecret:   secret,
+			body:        `{"email":"a@b.c"}`,
+			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "otp required",
 		},
 		{
-			name:       "user not found returns 401",
-			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
-			jwtSecret:  secret,
-			body:       `{"email":"nobody@example.com","otp":"123456"}`,
-			wantStatus: http.StatusUnauthorized,
+			name:        "user not found returns 401",
+			userStore:   &testutil.MockUserStore{ByEmail: map[string]*db.User{}},
+			jwtSecret:   secret,
+			body:        `{"email":"nobody@example.com","otp":"123456"}`,
+			wantStatus:  http.StatusUnauthorized,
 			wantBodyHas: "user not found",
 		},
 		{
 			name:       "invalid body returns 400",
-			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
+			userStore:  &testutil.MockUserStore{ByEmail: map[string]*db.User{}},
 			jwtSecret:  secret,
 			body:       `{`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "empty email returns 400",
-			userStore:  &testutil.MockUserStore{ByEmail: map[string]*entity.User{}},
-			jwtSecret:  secret,
-			body:       `{"email":""}`,
-			wantStatus: http.StatusBadRequest,
+			name:        "empty email returns 400",
+			userStore:   &testutil.MockUserStore{ByEmail: map[string]*db.User{}},
+			jwtSecret:   secret,
+			body:        `{"email":""}`,
+			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "email required",
 		},
 		{

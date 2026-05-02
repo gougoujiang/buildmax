@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"buildmax/internal/llm"
+	llm "buildmax/internal/infra/llm"
 )
 
 func TestLoadList_MissingFile(t *testing.T) {

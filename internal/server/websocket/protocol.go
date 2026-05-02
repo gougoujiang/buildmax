@@ -1,0 +1,128 @@
+// Package wsconn defines the typed event protocol for WebSocket communication
+// between the portal frontend and the server. All messages are JSON envelopes
+// with a "type" field and a typed "payload".
+package websocket
+
+import "encoding/json"
+
+// Envelope is the wire format for every WebSocket message (both directions).
+type Envelope struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// Encode marshals an event type and payload into JSON bytes suitable for WebSocket write.
+func Encode(eventType string, payload any) ([]byte, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(Envelope{Type: eventType, Payload: raw})
+}
+
+// Decode unmarshals raw bytes into an Envelope.
+func Decode(data []byte) (Envelope, error) {
+	var env Envelope
+	err := json.Unmarshal(data, &env)
+	return env, err
+}
+
+// DecodePayload unmarshals the envelope's raw payload into the target type T.
+func DecodePayload[T any](env Envelope) (T, error) {
+	var v T
+	err := json.Unmarshal(env.Payload, &v)
+	return v, err
+}
+
+// ---------------------------------------------------------------------------
+// Client → Server event types
+// ---------------------------------------------------------------------------
+
+const (
+	TypeConversationCreate  = "conversation.create"
+	TypeConversationMessage = "conversation.message"
+	TypeSubscribeTask       = "subscribe.task"
+	TypeUnsubscribeTask     = "unsubscribe.task"
+)
+
+// ConversationCreate is the payload for TypeConversationCreate.
+type ConversationCreate struct {
+	Channel string `json:"channel,omitempty"`
+	Message string `json:"message"`
+}
+
+// ConversationMessage is the payload for TypeConversationMessage.
+type ConversationMessage struct {
+	ConversationID string `json:"conversation_id"`
+	Content        string `json:"content"`
+}
+
+// SubscribeTask is the payload for TypeSubscribeTask.
+type SubscribeTask struct {
+	TaskID string `json:"task_id"`
+}
+
+// UnsubscribeTask is the payload for TypeUnsubscribeTask.
+type UnsubscribeTask struct {
+	TaskID string `json:"task_id"`
+}
+
+// ---------------------------------------------------------------------------
+// Server → Client event types
+// ---------------------------------------------------------------------------
+
+const (
+	TypeConversationCreated = "conversation.created"
+	TypeMessageDelta        = "conversation.message.delta"
+	TypeMessageCompleted    = "conversation.message.completed"
+	TypeConversationError   = "conversation.error"
+	TypeTaskStatusChanged   = "task.status.changed"
+	TypeTaskStreamDelta     = "task.stream.delta"
+	TypeTaskStreamDone      = "task.stream.done"
+	TypeSystemError         = "system.error"
+)
+
+// ConversationCreated is the payload for TypeConversationCreated.
+type ConversationCreated struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// MessageDelta is the payload for TypeMessageDelta.
+type MessageDelta struct {
+	ConversationID string `json:"conversation_id"`
+	Delta          string `json:"delta"`
+}
+
+// MessageCompleted is the payload for TypeMessageCompleted.
+type MessageCompleted struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationError is the payload for TypeConversationError.
+type ConversationError struct {
+	ConversationID string `json:"conversation_id,omitempty"`
+	Error          string `json:"error"`
+}
+
+// TaskStatusChanged is the payload for TypeTaskStatusChanged.
+type TaskStatusChanged struct {
+	TaskID string `json:"task_id"`
+	Status string `json:"status"`
+	Title  string `json:"title,omitempty"`
+}
+
+// TaskStreamDelta is the payload for TypeTaskStreamDelta.
+type TaskStreamDelta struct {
+	TaskID string `json:"task_id"`
+	Delta  string `json:"delta"`
+}
+
+// TaskStreamDone is the payload for TypeTaskStreamDone.
+type TaskStreamDone struct {
+	TaskID string `json:"task_id"`
+}
+
+// SystemError is the payload for TypeSystemError.
+type SystemError struct {
+	Error string `json:"error"`
+}

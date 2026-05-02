@@ -7,8 +7,8 @@ import (
 
 	"buildmax/desktop"
 	"buildmax/internal/config"
-	log "buildmax/internal/log"
-	desktopcmd "buildmax/internal/cmd/desktop"
+	log "buildmax/internal/infra/log"
+	desktopcmd "buildmax/internal/interface/desktop"
 )
 
 func main() {

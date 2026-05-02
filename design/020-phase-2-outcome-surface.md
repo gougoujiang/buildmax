@@ -199,8 +199,8 @@ Likely touch points for this phase:
 - [internal/server/portal/issues.go](../internal/server/portal/issues.go)
 - [internal/server/portal/tasks.go](../internal/server/portal/tasks.go)
 - [internal/server/portal/artifacts.go](../internal/server/portal/artifacts.go)
-- [internal/app/issue/service.go](../internal/app/issue/service.go)
-- [internal/storage/entity/interfaces.go](../internal/storage/entity/interfaces.go)
+- [internal/core/issue/service.go](../internal/core/issue/service.go)
+- [internal/core/model/db_repositories.go](../internal/core/model/db_repositories.go)
 
 Relevant existing capabilities:
 

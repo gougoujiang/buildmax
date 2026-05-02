@@ -61,4 +61,4 @@ The desktop app uses the same application data directory as the CLI: **`BUILDMAX
 
 - **`cmd/buildmax-desktop/`** — Entrypoint only: `main.go`, `wails.json`.
 - **`desktop/`** (repo root) — React + Vite app in `desktop/frontend/` (src/, index.html, package.json). `desktop/assets.go` embeds `frontend/dist/` for production. Wails runs `npm run build` to produce `dist/`, then the Go binary serves it.
-- **`internal/cmd/desktop`** — App logic (App, Run, Startup/Shutdown).
+- **`internal/interface/desktop`** — App logic (App, Run, Startup/Shutdown).

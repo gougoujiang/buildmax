@@ -30,8 +30,8 @@ User
 The system has three layers:
 
 1. **CLI layer** (`cmd/buildmax`): Cobra commands, flag parsing, dispatches to TUI or prompt mode.
-2. **Agent layer** (`internal/agent`): The core loop — calls the LLM, processes tool calls, manages the conversation via Session.
-3. **Infrastructure** (`internal/llm`, `internal/config`, `internal/session`, `internal/tools`, `internal/log`): LLM client, configuration, session persistence, tool implementations, logging.
+2. **Agent layer** (`internal/core/agent`): The core loop — calls the LLM, processes tool calls, manages the conversation via Session.
+3. **Infrastructure** (`internal/infra/llm`, `internal/config`, `internal/session`, `internal/execution/agenttool`, `internal/infra/log`): LLM client, configuration, session persistence, tool implementations, logging.
 
 ## Directory Layout
 

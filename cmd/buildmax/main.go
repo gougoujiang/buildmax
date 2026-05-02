@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"buildmax/internal/cmd/cli"
 	"buildmax/internal/config"
-	log "buildmax/internal/log"
+	log "buildmax/internal/infra/log"
+	"buildmax/internal/interface/cli"
 )
 
 func main() {

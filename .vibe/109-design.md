@@ -11,8 +11,8 @@ When a Tier 2 task run reaches terminal status (SUCCEEDED/FAILED), the server au
 | **internal/server/portal** | WebSocket handler, connection registry, portal API | `ConnRegistry`, `wsConn`, `wsSink`, `Handler` |
 | **internal/server/worker** | Worker API handler; fires completion callback | `Config.OnTaskRunTerminal`, `Handler` |
 | **internal/server/server.go** | Wires registry, callback, and services together | `Server`, `New()` |
-| **internal/app/conversation** | Tier 1 orchestration; existing `HandleTurn` reused | `Service`, `HandleTurnCmd` |
-| **internal/conversation** | Low-level LLM loop; system prompt | `systemPrompt`, `Run` |
+| **internal/core/conversation** | Tier 1 orchestration; existing `HandleTurn` reused | `Service`, `HandleTurnCmd` |
+| **internal/core/conversation** | Low-level LLM loop; system prompt | `systemPrompt`, `Run` |
 | **internal/wsconn** | WebSocket protocol types | Event type constants, payload types |
 | **portal/src/** | Frontend; remove TaskDetail, task subscriptions | Pages, router, ws.ts, AppRouter |
 
@@ -30,7 +30,7 @@ When a Tier 2 task run reaches terminal status (SUCCEEDED/FAILED), the server au
   - `handlers.go` — **modified**; fire callback after terminal status update
 - `internal/server/`
   - `server.go` — **modified**; create `ConnRegistry`, wire callback
-- `internal/conversation/`
+- `internal/core/conversation/`
   - `agent.go` — **modified**; update system prompt
 - `internal/wsconn/`
   - `protocol.go` — **modified** (minor); remove task subscription types or mark unused
@@ -104,7 +104,7 @@ The LLM sees this as a "user" message in the conversation (persisted with `chann
 
 **Dependencies**
 
-- `internal/server/portal` depends on `internal/app/conversation` for `HandleTurn` (existing)
+- `internal/server/portal` depends on `internal/core/conversation` for `HandleTurn` (existing)
 - `internal/server/worker` depends on nothing new; the callback is a plain function injected via Config
 - `internal/server/server.go` depends on `portal.ConnRegistry` and wires everything
 
@@ -154,7 +154,7 @@ This guarantees at most one turn runs per connection at any time, and system tur
 
 ## System prompt update
 
-Current prompt in `internal/conversation/agent.go`:
+Current prompt in `internal/core/conversation/agent.go`:
 ```
 ...
 - StartTask: create and schedule a new background task. Always tell the user the task_id and run_id and where to check progress (Activity or task detail). Do not claim the work is done immediately—the task runs in the background.
@@ -181,7 +181,7 @@ Do not mention task IDs, run IDs, or internal system details. Speak to the user 
 - **Modified**: `internal/server/worker/config.go` — add `OnTaskRunTerminal` callback field
 - **Modified**: `internal/server/worker/handlers.go` — fire callback after `handlePatchTerminalStatus`
 - **Modified**: `internal/server/server.go` — create ConnRegistry, pass to portal config, wire OnTaskRunTerminal closure
-- **Modified**: `internal/conversation/agent.go` — update `systemPrompt` for task result handling
+- **Modified**: `internal/core/conversation/agent.go` — update `systemPrompt` for task result handling
 - **Deleted**: `portal/src/pages/TaskDetail.tsx`
 - **Deleted**: `portal/src/components/ArtifactContentModal.tsx`
 - **Modified**: `portal/src/components/AppRouter.tsx` — remove task route

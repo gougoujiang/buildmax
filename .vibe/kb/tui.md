@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `internal/tui` package implements the terminal user interface using Bubble Tea (charmbracelet). It provides an interactive chat experience with a scrollable viewport, text input, and status footer.
+The `internal/interface/tui` package implements the terminal user interface using Bubble Tea (charmbracelet). It provides an interactive chat experience with a scrollable viewport, text input, and status footer.
 
 ## Key Types and Interfaces
 
@@ -70,13 +70,13 @@ The `internal/tui` package implements the terminal user interface using Bubble T
 
 ## Dependencies
 
-- **Uses**: `internal/agent` (Agent for processing), `internal/session` (Session for state and persistence), `internal/llm` (Message type)
+- **Uses**: `internal/core/agent` (Agent for processing), `internal/session` (Session for state and persistence), `internal/infra/llm` (Message type)
 - **External**: `github.com/charmbracelet/bubbletea`, `github.com/charmbracelet/bubbles` (textarea, viewport), `github.com/charmbracelet/lipgloss` (styling)
-- **Used by**: `internal/app` (bootstrap), `cmd/buildmax` (starts TUI)
+- **Used by**: `internal/interface/cli`, `cmd/buildmax` (starts TUI)
 
 ## Notes
 
 - The TUI uses `tea.WithAltScreen()` for full-screen mode.
 - Session is persisted after every assistant reply (not on quit).
-- The `internal/app` package is a thin wrapper: `app.NewModel(opts)` creates `tui.NewModel(opts)`.
+- The CLI starts the TUI through `internal/interface/cli`, which constructs the model from `internal/interface/tui`.
 - See also: [Agent Loop](agent-loop.md), [Session](session.md), [CLI](cli.md).

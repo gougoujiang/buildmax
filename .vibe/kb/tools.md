@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `internal/tools` package provides all tool implementations the agent can invoke. Each tool implements the `agent.Tool` interface and is registered with the Agent at startup. Tools are designed for LLM consumption — their results are sent back to the model as tool-role messages.
+The `internal/execution/agenttool` package provides all tool implementations the agent can invoke. Each tool implements the `agent.Tool` interface and is registered with the Agent at startup. Tools are designed for LLM consumption — their results are sent back to the model as tool-role messages.
 
 ## Key Types and Interfaces
 
@@ -62,8 +62,8 @@ The `internal/tools` package provides all tool implementations the agent can inv
 
 ## Dependencies
 
-- **Uses**: `internal/agent` (Tool interface), `internal/llm` (for WebFetch's LLM caller)
-- **Used by**: `cmd/buildmax` (creates tools), `internal/agent` (executes tools)
+- **Uses**: `internal/core/agent` (Tool interface), `internal/infra/llm` (for WebFetch's LLM caller)
+- **Used by**: `cmd/buildmax` (creates tools), `internal/core/agent` (executes tools)
 
 ## Notes
 

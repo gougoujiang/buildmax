@@ -8,9 +8,9 @@ Inject the user's available agents into the `StartTask` tool description so Tier
 
 | Module (package) | Responsibility | Owns |
 |------------------|----------------|------|
-| **internal/tools** | Tool definitions for agent loop | `AgentSummary`, `startTaskTool`, `NewStartTaskTool` |
-| **internal/conversation** | Low-level Tier 1 LLM loop; builds tools from runners | `ConversationToolRunners`, `buildConversationTools` |
-| **internal/app/conversation** | Tier 1 orchestration; fetches agents, wires into tool runners | `Service`, `handleConversationTurn` |
+| **internal/execution/agenttool** | Tool definitions for agent loop | `AgentSummary`, `startTaskTool`, `NewStartTaskTool` |
+| **internal/core/conversation** | Low-level Tier 1 LLM loop; builds tools from runners | `ConversationToolRunners`, `buildConversationTools` |
+| **internal/core/conversation** | Tier 1 orchestration; fetches agents, wires into tool runners | `Service`, `handleConversationTurn` |
 | **internal/server/portal** | Portal handler; constructs `Service` with dependencies | `conversationService()` |
 | **portal/src/pages** | Agent list page | `AgentList.tsx` |
 | **portal/src/components** | Agent-to-conversation modal | `NewConversationFromAgent.tsx` |
@@ -19,11 +19,11 @@ Inject the user's available agents into the `StartTask` tool description so Tier
 
 **Directory / files**
 
-- `internal/tools/`
+- `internal/execution/agenttool/`
   - `start_chat.go` — **modified**; add `AgentSummary` type, `agents` field on `startTaskTool`, dynamic `Description()`, update `NewStartTaskTool` signature, update `Execute` return message
-- `internal/conversation/`
+- `internal/core/conversation/`
   - `agent.go` — **modified**; add `AgentSummaries` field to `ConversationToolRunners`, pass to `NewStartTaskTool` in `buildConversationTools`
-- `internal/app/conversation/`
+- `internal/core/conversation/`
   - `service.go` — **modified**; add `AgentStore` field to `Service`, fetch agents in `handleConversationTurn`, convert to `AgentSummary` slice, set on runners
 - `internal/server/portal/`
   - `conversation_service.go` — **modified**; pass `cfg.AgentStore` to `convapp.Service`
@@ -92,16 +92,16 @@ type startTaskTool struct {
 
 **Dependencies**
 
-- `internal/tools` — no new imports
-- `internal/conversation` — imports `internal/tools` (existing)
-- `internal/app/conversation` — imports `internal/storage/entity` (existing), `internal/tools` (new import for `AgentSummary`)
+- `internal/execution/agenttool` — no new imports
+- `internal/core/conversation` — imports `internal/execution/agenttool` (existing)
+- `internal/core/conversation` — imports `internal/infra/db` (existing), `internal/execution/agenttool` (new import for `AgentSummary`)
 - `internal/server/portal` — no new imports (already has `AgentStore` on Config)
 
 ## Changes for review
 
-- **Modified**: `internal/tools/start_chat.go` — add `AgentSummary` type, `agents` field on `startTaskTool`, dynamic `Description()`, update `NewStartTaskTool` signature (add `agents []AgentSummary`), update `Execute` return message
-- **Modified**: `internal/conversation/agent.go` — add `AgentSummaries []tools.AgentSummary` to `ConversationToolRunners`, pass to `NewStartTaskTool` in `buildConversationTools`
-- **Modified**: `internal/app/conversation/service.go` — add `AgentStore entity.AgentStore` to `Service`, fetch agents in `handleConversationTurn`, convert to summaries, pass to `conversationToolRunners`
+- **Modified**: `internal/execution/agenttool/start_chat.go` — add `AgentSummary` type, `agents` field on `startTaskTool`, dynamic `Description()`, update `NewStartTaskTool` signature (add `agents []AgentSummary`), update `Execute` return message
+- **Modified**: `internal/core/conversation/agent.go` — add `AgentSummaries []tools.AgentSummary` to `ConversationToolRunners`, pass to `NewStartTaskTool` in `buildConversationTools`
+- **Modified**: `internal/core/conversation/service.go` — add `AgentStore entity.AgentStore` to `Service`, fetch agents in `handleConversationTurn`, convert to summaries, pass to `conversationToolRunners`
 - **Modified**: `internal/server/portal/conversation_service.go` — add `AgentStore: h.cfg.AgentStore` in `conversationService()`
 - **Modified**: `portal/src/pages/AgentList.tsx` — button text "New task" → "New Conversation", aria-label update
 - **Modified**: `portal/src/components/NewConversationFromAgent.tsx` — `buildAgentPreview` includes agent ID + prompt line, modal title and submit button text updated

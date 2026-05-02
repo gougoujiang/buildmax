@@ -10,10 +10,10 @@ Add **`/skills`** to the Bubble Tea TUI: a **system-only** slash command that op
 
 | Package | Role |
 |---------|------|
-| `internal/tools` | Export **`DiscoverSkillEntries(searchPaths []string) []SkillEntry`**; **`NewSkill`** calls it instead of unexported `discoverSkills` so discovery logic stays single-sourced. |
+| `internal/execution/agenttool` | Export **`DiscoverSkillEntries(searchPaths []string) []SkillEntry`**; **`NewSkill`** calls it instead of unexported `discoverSkills` so discovery logic stays single-sourced. |
 | `internal/config` | Unchanged; TUI uses existing **`SkillSearchPaths(workspace)`**. |
-| `internal/tui` | Slash registration + dispatch; **`skillsOverlayState`** + render + Esc + viewport height; optional footer hint. |
-| `internal/app/agentrun` | No change (already passes paths into `NewSkill`). |
+| `internal/interface/tui` | Slash registration + dispatch; **`skillsOverlayState`** + render + Esc + viewport height; optional footer hint. |
+| `internal/execution/agentrun` | No change (already passes paths into `NewSkill`). |
 
 ## Data flow
 
@@ -41,7 +41,7 @@ Unlike `/mcp`, there is **no** `tea.Cmd` goroutine or follow-up message type: di
 
 ## Structure
 
-### `internal/tools/skill.go`
+### `internal/execution/agenttool/skill.go`
 
 1. **Rename / replace** the unexported scanner:
    - **`DiscoverSkillEntries(searchPaths []string) []SkillEntry`** — same body as today’s `discoverSkills` (log, skip missing dirs, first-path-wins, sort by name). Document that it is the **single** discovery entry used by **`NewSkill`** and callers that need a listing.
@@ -60,7 +60,7 @@ Unlike `/mcp`, there is **no** `tea.Cmd` goroutine or follow-up message type: di
 
 - Add **`TestDiscoverSkillEntries_*`** (or extend existing tests): table-driven cases using **`t.TempDir()`** — e.g. no dirs, one skill with `SKILL.md`, two roots with same skill name (first path wins), description extraction unchanged. Reuse fixtures/helpers already used by `NewSkill` tests where possible.
 
-### `internal/tui`
+### `internal/interface/tui`
 
 **New file (recommended):** `skills_overlay.go`
 
@@ -114,12 +114,12 @@ type skillsOverlayState struct {
 ### Method design summary
 
 ```go
-// internal/tools
+// internal/execution/agenttool
 func DiscoverSkillEntries(searchPaths []string) []SkillEntry
 
 func NewSkill(searchPaths []string) (*SkillTool, error) // uses DiscoverSkillEntries internally
 
-// internal/tui (skills_overlay.go + model.go + slash.go)
+// internal/interface/tui (skills_overlay.go + model.go + slash.go)
 func openSkillsOverlay(m *Model) (tea.Model, tea.Cmd)
 func (m *Model) renderSkillsInlinePanel() string
 func (m *Model) buildSkillsOverlayContent(maxLineWidth int) string
@@ -138,8 +138,8 @@ func closeSkillsOverlay(m *Model) (tea.Model, tea.Cmd)
 
 | Location | Cases |
 |----------|--------|
-| `internal/tools` | `DiscoverSkillEntries` parity with prior `NewSkill` discovery (fixtures under temp dirs). |
-| `internal/tui` (`model_test.go` or new test file) | Submit **`/skills`** with `TUIOpts.Workspace` pointing at a temp dir tree containing **`skills/<name>/SKILL.md`**: **`session.Messages` unchanged**, **`busy`** never set; **`skillsOverlay != nil`** and rendered body contains skill **name** (and optionally path); Esc transitions **`skillsOverlay == nil`**, **`FocusInput() == true`**. Empty workspace skills dirs → empty state string present, still no session append. |
+| `internal/execution/agenttool` | `DiscoverSkillEntries` parity with prior `NewSkill` discovery (fixtures under temp dirs). |
+| `internal/interface/tui` (`model_test.go` or new test file) | Submit **`/skills`** with `TUIOpts.Workspace` pointing at a temp dir tree containing **`skills/<name>/SKILL.md`**: **`session.Messages` unchanged**, **`busy`** never set; **`skillsOverlay != nil`** and rendered body contains skill **name** (and optionally path); Esc transitions **`skillsOverlay == nil`**, **`FocusInput() == true`**. Empty workspace skills dirs → empty state string present, still no session append. |
 
 No network, no external binaries.
 
@@ -147,10 +147,10 @@ No network, no external binaries.
 
 | Area | Change |
 |------|--------|
-| `internal/tools/skill.go` | Add **`DiscoverSkillEntries`**; **`NewSkill`** uses it; remove **`discoverSkills`**. |
-| `internal/tools/skill_test.go` | Tests for **`DiscoverSkillEntries`**. |
-| `internal/tui/skills_overlay.go` | **New** — state, open/render/build/close. |
-| `internal/tui/model.go` | **`skillsOverlay`** field; **`View`** + **`syncViewportSize`** + **Esc** chain + **`renderFooterView`**. |
-| `internal/tui/slash.go` | **`/skills`** builtin + dispatch + unknown-command text. |
+| `internal/execution/agenttool/skill.go` | Add **`DiscoverSkillEntries`**; **`NewSkill`** uses it; remove **`discoverSkills`**. |
+| `internal/execution/agenttool/skill_test.go` | Tests for **`DiscoverSkillEntries`**. |
+| `internal/interface/tui/skills_overlay.go` | **New** — state, open/render/build/close. |
+| `internal/interface/tui/model.go` | **`skillsOverlay`** field; **`View`** + **`syncViewportSize`** + **Esc** chain + **`renderFooterView`**. |
+| `internal/interface/tui/slash.go` | **`/skills`** builtin + dispatch + unknown-command text. |
 
 **Risk / note:** If both **MCP** and **skills** panels were ever shown at once, layout stacks them; normal UX is one at a time. No change required beyond correct **Esc** ordering.

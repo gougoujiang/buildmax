@@ -42,7 +42,7 @@ The worker shells out to `buildmax -p`, then reads files written by CLI-side log
 
 ### 4. Model/storage separation is half-finished
 
-`internal/model` looks like a domain package, but it still embeds GORM tags and table names. `internal/storage/entity` aliases those same types. This adds indirection without a true boundary.
+`internal/model` looks like a domain package, but it still embeds GORM tags and table names. `internal/infra/db` aliases those same types. This adds indirection without a true boundary.
 
 ### 5. Lifecycle/state transitions are stringly typed
 
@@ -61,7 +61,7 @@ The target shape is a simple layered backend:
 1. `cmd/*`
 Binary entrypoints only.
 
-2. `internal/app/*`
+2. `internal/core/*`
 Application services and use cases. This is where business workflows live.
 
 3. `internal/domain/*`
@@ -85,11 +85,11 @@ This is not strict clean architecture for its own sake. The main objective is to
 - `cmd/buildmax-server`
 - `cmd/buildmax-worker`
 - `internal/config`
-- `internal/log`
-- `internal/llm`
-- `internal/tools`
+- `internal/infra/log`
+- `internal/infra/llm`
+- `internal/execution/agenttool`
 - `internal/session`
-- `internal/tui`
+- `internal/interface/tui`
 - `internal/util`
 
 ### Introduce
@@ -136,9 +136,9 @@ internal/
 ### Collapse or rename
 
 - `internal/server` becomes transport-only HTTP wiring under `internal/infra/http`
-- `internal/storage/entity` becomes DB repository implementations under `internal/infra/db`
+- `internal/infra/db` becomes DB repository implementations under `internal/infra/db`
 - `internal/model` is either removed, or converted into pure `internal/domain/*` types
-- `internal/conversation/adapter` moves under HTTP transport or conversation app layer depending on responsibility
+- `internal/core/conversation/adapter` moves under HTTP transport or conversation app layer depending on responsibility
 
 ---
 
@@ -311,10 +311,10 @@ This removes the current worker-to-CLI binary dependency and fixes the layering 
 
 ### Move code from
 
-- `internal/cmd/cli/setup.go`
-- `internal/cmd/cli/print.go`
-- parts of `internal/agent`
-- parts of `internal/executor`
+- `internal/interface/cli/setup.go`
+- `internal/interface/cli/print.go`
+- parts of `internal/core/agent`
+- parts of `internal/execution`
 
 ### End state
 
@@ -437,7 +437,7 @@ Create pure domain packages and move GORM models into DB repositories.
 
 ### Alternative
 
-If that is too much for now, remove `internal/model` and let `internal/storage/entity` be the storage model package until the real split is funded.
+If that is too much for now, remove `internal/model` and let `internal/infra/db` be the storage model package until the real split is funded.
 
 ### Recommendation
 
@@ -485,7 +485,7 @@ Scope:
 - add `app/conversation.Service`
 - migrate portal conversation endpoints
 - migrate portal chat-run creation path
-- reduce `internal/conversation` to either domain contracts or runtime internals, not both
+- reduce `internal/core/conversation` to either domain contracts or runtime internals, not both
 
 Benefits:
 
@@ -524,14 +524,14 @@ Benefits:
 
 ### First move set
 
-- create `internal/app/agentrun`
-- migrate logic from `internal/cmd/cli/setup.go`
-- make `internal/cmd/cli/print.go` call `agentrun`
-- make `internal/executor` call `agentrun` instead of `exec.Command("buildmax", ...)`
+- create `internal/execution/agentrun`
+- migrate logic from `internal/interface/cli/setup.go`
+- make `internal/interface/cli/print.go` call `agentrun`
+- make `internal/execution` call `agentrun` instead of `exec.Command("buildmax", ...)`
 
 ### Second move set
 
-- create `internal/app/chat/service.go`
+- create `internal/core/chat/service.go`
 - move `buildChatInputFromAgent`
 - move title generation helper
 - move quota + create-chat logic
@@ -539,7 +539,7 @@ Benefits:
 
 ### Third move set
 
-- create `internal/app/conversation/service.go`
+- create `internal/core/conversation/service.go`
 - move `RunLoop` and `RunLoopStream` internals behind service methods
 - make both portal conversation endpoints and chat-run creation call the same service
 

@@ -57,16 +57,16 @@ That creates model mismatch in shared-team operation:
 ### 3.2 Current Code Anchors
 
 - checker logic:
-  - [internal/quota/quota.go](../internal/quota/quota.go)
+  - [internal/core/quota/quota.go](../internal/core/quota/quota.go)
 - task service integration:
-  - [internal/app/task/service.go](../internal/app/task/service.go)
+  - [internal/core/task/service.go](../internal/core/task/service.go)
 - portal usage endpoint:
   - [internal/server/portal/usage.go](../internal/server/portal/usage.go)
 - usage aggregation:
-  - [internal/storage/entity/quota_usage.go](../internal/storage/entity/quota_usage.go)
+  - [internal/infra/db/quota_usage.go](../internal/infra/db/quota_usage.go)
 - quota tier model:
-  - [internal/storage/entity/models.go](../internal/storage/entity/models.go)
-  - [internal/storage/entity/quota_tier.go](../internal/storage/entity/quota_tier.go)
+  - [internal/core/model/db_entities.go](../internal/core/model/db_entities.go)
+  - [internal/infra/db/quota_tier.go](../internal/infra/db/quota_tier.go)
 
 ### 3.3 Key Technical Mismatch
 
@@ -264,20 +264,20 @@ Recommendation:
 
 Likely touch points:
 
-- [internal/storage/entity/models.go](../internal/storage/entity/models.go)
-- [internal/storage/entity/interfaces.go](../internal/storage/entity/interfaces.go)
-- [internal/storage/entity/quota_usage.go](../internal/storage/entity/quota_usage.go)
-- [internal/quota/quota.go](../internal/quota/quota.go)
-- [internal/app/task/service.go](../internal/app/task/service.go)
+- [internal/core/model/db_entities.go](../internal/core/model/db_entities.go)
+- [internal/core/model/db_repositories.go](../internal/core/model/db_repositories.go)
+- [internal/infra/db/quota_usage.go](../internal/infra/db/quota_usage.go)
+- [internal/core/quota/quota.go](../internal/core/quota/quota.go)
+- [internal/core/task/service.go](../internal/core/task/service.go)
 - [internal/server/portal/usage.go](../internal/server/portal/usage.go)
 - [internal/server/portal/task_service.go](../internal/server/portal/task_service.go)
 - [internal/server/portal/config.go](../internal/server/portal/config.go)
-- [internal/cmd/server/run.go](../internal/cmd/server/run.go)
+- [internal/bootstrap/server.go](../internal/bootstrap/server.go)
 - [portal/src/pages/TeamSettings.tsx](../portal/src/pages/TeamSettings.tsx)
 
 Tests likely affected:
 
-- [internal/quota/quota_test.go](../internal/quota/quota_test.go)
+- [internal/core/quota/quota_test.go](../internal/core/quota/quota_test.go)
 - [internal/server/portal/usage_test.go](../internal/server/portal/usage_test.go)
 - [internal/server/portal/tasks_test.go](../internal/server/portal/tasks_test.go)
 
@@ -319,7 +319,7 @@ Update task service and its callers so quota checks use `teamID`.
 
 This likely means:
 
-- extending the quota-checker interface used by `internal/app/task`
+- extending the quota-checker interface used by `internal/core/task`
 - updating `CreateTask` and `CreateRun` call paths to supply team ownership explicitly
 
 ### Step 5. Update Usage API / UI

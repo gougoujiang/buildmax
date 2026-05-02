@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"buildmax/internal/llm"
+	llm "buildmax/internal/infra/llm"
 
 	"github.com/google/uuid"
 )

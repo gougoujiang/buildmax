@@ -11,8 +11,8 @@ Document post-parse, pre-validation expansion for MCP `mcp.json` strings inside 
 | Package | Role |
 |---------|------|
 | `internal/config` | Owns expansion; `LoadMCPConfigForWorkspace` orchestrates parse → expand → validate. |
-| `internal/mcpservers` | Unchanged; continues to receive already-expanded `MCPServerConfig`. |
-| `internal/app/agentrun` | Unchanged; still calls `LoadMCPConfigForWorkspace` only. |
+| `internal/infra/mcp` | Unchanged; continues to receive already-expanded `MCPServerConfig`. |
+| `internal/execution/agentrun` | Unchanged; still calls `LoadMCPConfigForWorkspace` only. |
 
 ## Data flow
 
@@ -93,4 +93,4 @@ Use a temp dir + `BUILDMAX_MCP_CONFIG` pointing at written JSON (same pattern as
 | `internal/config/mcp_test.go` | New tests for expansion cases above; ensure existing path/validation tests still pass. |
 | `go.mod` | No change. |
 
-No edits to `internal/mcpservers/*`, `internal/app/agentrun/runtime.go`, or OpenAPI/docs for this task.
+No edits to `internal/infra/mcp/*`, `internal/execution/agentrun/runtime.go`, or OpenAPI/docs for this task.

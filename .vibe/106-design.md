@@ -9,11 +9,11 @@ Add client-side JWT expiry detection to `Credentials.IsValid()` and record last 
 | Module (package) | Responsibility | Owns |
 |------------------|----------------|------|
 | **internal/auth** | Client-side credential persistence and auth HTTP client | `Credentials`, `IsValid`, `Save`, `Load`, `Clear`, `Client` (Login, RequestOTP) |
-| **internal/storage/entity** | User model and UserStore interface + GORM impl | `User` struct, `UserStore` interface, `Store.UpdateLoginMeta` |
+| **internal/infra/db** | User model and UserStore interface + GORM impl | `User` struct, `UserStore` interface, `Store.UpdateLoginMeta` |
 | **internal/server/auth** | Unauthenticated auth endpoints (login, OTP) | `loginHandler`, `LoginRequest`, `Config` |
 | **internal/testutil** | Mock stores for tests | `MockUserStore` |
-| **internal/cmd/cli** | CLI login flow | `interactiveLogin` |
-| **internal/cmd/desktop** | Desktop login flow | `App.DoLogin` |
+| **internal/interface/cli** | CLI login flow | `interactiveLogin` |
+| **internal/interface/desktop** | Desktop login flow | `App.DoLogin` |
 | **portal/src/features/auth** | Portal login API call | `login()` function |
 
 ## Structure
@@ -22,7 +22,7 @@ Add client-side JWT expiry detection to `Credentials.IsValid()` and record last 
 
 - `internal/auth/`
   - `credentials.go` — add `extractJWTExp` helper; update `IsValid` to check exp
-- `internal/storage/entity/`
+- `internal/infra/db/`
   - `models.go` — add `LastLoginAt`, `LastLoginPlatform` fields to `User`
   - `interfaces.go` — add `UpdateLoginMeta` to `UserStore`
   - `user.go` — implement `Store.UpdateLoginMeta`
@@ -30,9 +30,9 @@ Add client-side JWT expiry detection to `Credentials.IsValid()` and record last 
   - `login.go` — add `Platform` to `LoginRequest`; call `UpdateLoginMeta` after success
 - `internal/testutil/`
   - `helpers.go` — add `UpdateLoginMeta` to `MockUserStore`
-- `internal/cmd/cli/`
+- `internal/interface/cli/`
   - `login.go` — pass `"cli"` platform to `client.Login`
-- `internal/cmd/desktop/`
+- `internal/interface/desktop/`
   - `app.go` — pass `"desktop"` platform to `client.Login`
 - `portal/src/features/auth/`
   - `api.ts` — add `platform: "portal"` to login request body
@@ -86,8 +86,8 @@ No external dependency needed — only `encoding/base64`, `encoding/json`, `stri
 
 - `internal/auth` — no new dependencies (stdlib only).
 - `internal/server/auth` — already depends on `entity.UserStore`; no new dependency.
-- `internal/storage/entity` — no new dependency.
-- `internal/cmd/cli` and `internal/cmd/desktop` — already depend on `internal/auth`; no new dependency.
+- `internal/infra/db` — no new dependency.
+- `internal/interface/cli` and `internal/interface/desktop` — already depend on `internal/auth`; no new dependency.
 
 **Key data structures**
 
@@ -99,12 +99,12 @@ No external dependency needed — only `encoding/base64`, `encoding/json`, `stri
 - **Modified**: `internal/auth/credentials.go` — add `extractJWTExp` func; update `IsValid` to check token expiry
 - **Modified**: `internal/auth/client.go` — add `platform` parameter to `Login` method
 - **Modified**: `internal/auth/auth_test.go` — update `TestIsValid` with real JWT tokens (expired, valid, malformed); update `TestClientLogin` for new `platform` param
-- **Modified**: `internal/storage/entity/models.go` — add `LastLoginAt`, `LastLoginPlatform` to `User`
-- **Modified**: `internal/storage/entity/interfaces.go` — add `UpdateLoginMeta` to `UserStore`
-- **Modified**: `internal/storage/entity/user.go` — implement `Store.UpdateLoginMeta`
+- **Modified**: `internal/core/model/db_entities.go` — add `LastLoginAt`, `LastLoginPlatform` to `User`
+- **Modified**: `internal/core/model/db_repositories.go` — add `UpdateLoginMeta` to `UserStore`
+- **Modified**: `internal/infra/db/user.go` — implement `Store.UpdateLoginMeta`
 - **Modified**: `internal/server/auth/login.go` — add `Platform` to `LoginRequest`; call `UpdateLoginMeta` after success
 - **Modified**: `internal/testutil/helpers.go` — add `UpdateLoginMeta` to `MockUserStore`
 - **Modified**: `internal/testutil/quota_mocks.go` — add `UpdateLoginMeta` to `DenyQuotaUserStore`
-- **Modified**: `internal/cmd/cli/login.go` — pass `"cli"` to `client.Login`
-- **Modified**: `internal/cmd/desktop/app.go` — pass `"desktop"` to `client.Login`
+- **Modified**: `internal/interface/cli/login.go` — pass `"cli"` to `client.Login`
+- **Modified**: `internal/interface/desktop/app.go` — pass `"desktop"` to `client.Login`
 - **Modified**: `portal/src/features/auth/api.ts` — add `platform: "portal"` to login body

@@ -7,7 +7,7 @@
 
 ## Problem
 
-Many environment variables are used across `internal/config`, `internal/cmd`, `internal/log`, and `internal/workspacestorage`. Keeping `.env` and `.env.example` in sync with code is error-prone.
+Many environment variables are used across `internal/config`, `internal/interface/cli`, `internal/infra/log`, and `internal/workspacestorage`. Keeping `.env` and `.env.example` in sync with code is error-prone.
 
 ## Recommendations
 
@@ -24,7 +24,7 @@ Many environment variables are used across `internal/config`, `internal/cmd`, `i
   - Server: `LoadServerEnv()` (JWT, CORS), `ResolveServerPort(portFromFlag)` (port from flag or BUILDMAX_SERVER_PORT)
   - MySQL: `MySQLDSN()`
   - Workspace storage: `LoadWorkspaceStorageConfig()`
-  - Log level: `LogLevel()` (used by `internal/log.Init()`)
+  - Log level: `LogLevel()` (used by `internal/infra/log.Init()`)
   - App paths: `DataDir()`, `WorkspacesDir()`, etc.
 - `cmd/server` and `log.Init()` call config only; no `os.Getenv` in cmd or log for these vars.
 

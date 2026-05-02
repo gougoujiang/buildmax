@@ -41,7 +41,7 @@ Public IDs are UUIDs generated with `uuid.New().String()` (via internal `newUUID
 ## Dependencies
 
 - **Uses**: `gorm.io/gorm`, `gorm.io/driver/mysql`, `github.com/google/uuid`.
-- **Used by**: `internal/server` (injected as store interfaces), `internal/cmd` (server command builds Store from env and passes it to server.Config).
+- **Used by**: `internal/server` (injected as store interfaces), `internal/interface/cli` (server command builds Store from env and passes it to server.Config).
 
 ## Notes
 

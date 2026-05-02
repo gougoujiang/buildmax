@@ -48,7 +48,7 @@ ModelGLM45AirFree    = "z-ai/glm-4.5-air:free"      // current default
 ## Dependencies
 
 - **Uses**: Go standard library only (`os`, `path/filepath`)
-- **Used by**: `cmd/buildmax` (loads config at startup), `internal/llm` (Client uses LLM struct)
+- **Used by**: `cmd/buildmax` (loads config at startup), `internal/infra/llm` (Client uses LLM struct)
 
 ## Notes
 

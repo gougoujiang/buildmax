@@ -11,20 +11,19 @@ import (
 	"syscall"
 	"time"
 
-	convapp "buildmax/internal/app/conversation"
-	taskapp "buildmax/internal/app/task"
-	workflowapp "buildmax/internal/app/workflow"
-	"buildmax/internal/conversation"
-	"buildmax/internal/llm"
-	"buildmax/internal/quota"
+	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/quota"
+	taskapp "buildmax/internal/core/task"
+	workflowapp "buildmax/internal/core/workflow"
+	"buildmax/internal/infra/db"
+	llm "buildmax/internal/infra/llm"
+	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/auth"
 	"buildmax/internal/server/httputil"
-	"buildmax/internal/server/portal"
+	"buildmax/internal/server/portalapi"
 	"buildmax/internal/server/webhook"
-	"buildmax/internal/server/worker"
-	"buildmax/internal/storage/blob"
-	"buildmax/internal/storage/entity"
-	"buildmax/internal/streamhub"
+	streamhub "buildmax/internal/server/websocket"
+	"buildmax/internal/server/workerapi"
 )
 
 //go:embed static/openapi.json static/swagger.html
@@ -46,8 +45,8 @@ type TokenUsage struct {
 
 // RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
 type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]entity.ArtifactWithTask, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]entity.TaskRunArtifact, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]db.ArtifactWithTask, error)
+	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]db.TaskRunArtifact, error)
 }
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
@@ -60,15 +59,15 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore           entity.UserStore
-	TeamStore           entity.TeamStore
-	WorkflowStore       entity.WorkflowStore
-	AgentStore          entity.AgentStore
-	IssueStore          entity.IssueStore
-	TaskStore           entity.TaskStore
-	TaskRunStore        entity.TaskRunStore
+	UserStore           db.UserStore
+	TeamStore           db.TeamStore
+	WorkflowStore       db.WorkflowStore
+	AgentStore          db.AgentStore
+	IssueStore          db.IssueStore
+	TaskStore           db.TaskStore
+	TaskRunStore        db.TaskRunStore
 	RunOutputLister     RunOutputLister
-	UserWebhookKeyStore entity.UserWebhookKeyStore
+	UserWebhookKeyStore db.UserWebhookKeyStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -86,8 +85,8 @@ type WorkerConfig struct {
 // ConversationConfig holds Tier 1 conversation stores and LLM wiring.
 type ConversationConfig struct {
 	TitleGenerator           TitleGenerator
-	ConversationStore        entity.ConversationStore
-	ConversationMessageStore entity.ConversationMessageStore
+	ConversationStore        db.ConversationStore
+	ConversationMessageStore db.ConversationMessageStore
 	ConversationLLMCaller    llm.LLMCaller
 }
 
@@ -115,20 +114,20 @@ type Server struct {
 	hub streamhub.StreamHub // in-memory stream buffer per run (Phase 1); nil if not used
 }
 
-// titleGenAdapter adapts server.TitleGenerator to portal.TitleGenerator (TokenUsage type).
+// titleGenAdapter adapts server.TitleGenerator to portalapi.TitleGenerator (TokenUsage type).
 type titleGenAdapter struct{ gen TitleGenerator }
 
-func (a titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, portal.TokenUsage, error) {
+func (a titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, portalapi.TokenUsage, error) {
 	if a.gen == nil {
-		return "", portal.TokenUsage{}, nil
+		return "", portalapi.TokenUsage{}, nil
 	}
 	title, usage, err := a.gen.GenerateTitle(ctx, input)
-	return title, portal.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
+	return title, portalapi.TokenUsage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}, err
 }
 
-// buildPortalConfig builds portal.Config from server config, the shared stream hub, and the connection registry.
-func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.ConnRegistry) portal.Config {
-	return portal.Config{
+// buildPortalConfig builds portalapi.Config from server config, the shared stream hub, and the connection registry.
+func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portalapi.ConnRegistry) portalapi.Config {
+	return portalapi.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		UserStore:                cfg.Stores.UserStore,
@@ -154,10 +153,10 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.Con
 	}
 }
 
-// New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and worker.
+// New builds an HTTP server with routes for healthz, openapi, swagger, auth (login/OTP), portal (user API), and workerapi.
 func New(cfg Config) *Server {
 	s := &Server{cfg: cfg, hub: streamhub.NewStreamHub()}
-	connRegistry := portal.NewConnRegistry()
+	connRegistry := portalapi.NewConnRegistry()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
@@ -170,13 +169,13 @@ func New(cfg Config) *Server {
 		JWTSecret:        cfg.Auth.JWTSecret,
 		DefaultQuotaTier: cfg.Auth.DefaultQuotaTier,
 	}).Register(mux)
-	portal.NewHandler(buildPortalConfig(cfg, s.hub, connRegistry)).Register(mux)
+	portalapi.NewHandler(buildPortalConfig(cfg, s.hub, connRegistry)).Register(mux)
 	workflowCallback := buildWorkflowTerminalCallback(cfg)
-	worker.NewHandler(worker.Config{
+	workerapi.NewHandler(workerapi.Config{
 		Token:        cfg.Worker.WorkerToken,
 		TaskRunStore: cfg.Stores.TaskRunStore,
 		Hub:          s.hub,
-		OnTaskRunTerminal: func(ctx context.Context, info worker.TaskRunTerminalInfo) {
+		OnTaskRunTerminal: func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
 			connRegistry.OnTaskRunTerminal(ctx, info)
 			if workflowCallback != nil {
 				workflowCallback(ctx, info)
@@ -190,7 +189,7 @@ func New(cfg Config) *Server {
 		}
 		userID := cfg.Webhook.UserID
 		if userID == "" {
-			userID = conversation.DefaultWebhookUserID
+			userID = convapp.DefaultWebhookUserID
 		}
 		taskSvc := &taskapp.Service{
 			Agents:         cfg.Stores.AgentStore,
@@ -200,7 +199,7 @@ func New(cfg Config) *Server {
 			TitleGenerator: nil,
 		}
 		webhookHandler := webhook.NewHandler(webhook.Config{
-			Adapter:           conversation.NewWebhookAdapter(msgPath, userID),
+			Adapter:           convapp.NewWebhookAdapter(msgPath, userID),
 			Engine:            &convapp.RuleBasedEngine{Task: taskSvc, Conversations: cfg.Conv.ConversationStore},
 			ConversationStore: cfg.Conv.ConversationStore,
 			KeyStore:          cfg.Stores.UserWebhookKeyStore,
@@ -221,7 +220,7 @@ func New(cfg Config) *Server {
 	return s
 }
 
-func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info worker.TaskRunTerminalInfo) {
+func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
 	if cfg.Stores.WorkflowStore == nil {
 		return nil
 	}
@@ -239,8 +238,17 @@ func buildWorkflowTerminalCallback(cfg Config) func(ctx context.Context, info wo
 		Conversations: cfg.Conv.ConversationStore,
 		Task:          taskSvc,
 	}
-	return func(ctx context.Context, info worker.TaskRunTerminalInfo) {
-		if err := workflowSvc.HandleTaskRunTerminal(ctx, info); err != nil && !errors.Is(err, workflowapp.ErrWorkflowRunNotFound) {
+	return func(ctx context.Context, info workerapi.TaskRunTerminalInfo) {
+		workflowInfo := workflowapp.TaskRunTerminalInfo{
+			TaskRunID:      info.TaskRunID,
+			TaskID:         info.TaskID,
+			ConversationID: info.ConversationID,
+			UserID:         info.UserID,
+			Status:         info.Status,
+			Output:         info.Output,
+			ErrorMessage:   info.ErrorMessage,
+		}
+		if err := workflowSvc.HandleTaskRunTerminal(ctx, workflowInfo); err != nil && !errors.Is(err, workflowapp.ErrWorkflowRunNotFound) {
 			slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
 		}
 	}

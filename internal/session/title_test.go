@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"buildmax/internal/llm"
+	llm "buildmax/internal/infra/llm"
 )
 
 // fakeChatFunc returns a TitleChatClient that replies with the given fixed response and zero usage.

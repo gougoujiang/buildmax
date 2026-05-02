@@ -64,9 +64,9 @@ Tier 2 is the **current chat/task_run model**, used as the task execution level:
 
 No change to the execution pipeline; Tier 1 *invokes* Tier 2 by creating/updating chats and runs.
 
-### 3.1 Relationship to `internal/agent`
+### 3.1 Relationship to `internal/core/agent`
 
-The **`internal/agent`** package was originally developed for the BuildMax CLI/TUI and is also used as the **agent engine** when the worker handles task runs (Tier 2). We can reuse its key mechanism (LLM loop, tool calling) when implementing a Tier 1 **conversation manager**, but the two usages must be kept distinct:
+The **`internal/core/agent`** package was originally developed for the BuildMax CLI/TUI and is also used as the **agent engine** when the worker handles task runs (Tier 2). We can reuse its key mechanism (LLM loop, tool calling) when implementing a Tier 1 **conversation manager**, but the two usages must be kept distinct:
 
 | Aspect | Tier 2 (current agent) | Tier 1 (conversation manager) |
 |--------|------------------------|------------------------------|
@@ -74,7 +74,7 @@ The **`internal/agent`** package was originally developed for the BuildMax CLI/T
 | **System prompt** | Task execution: “help with software engineering tasks”, use tools, follow conventions, etc. | Conversation: understand intent, clarify, decide when to spawn a task; do not perform workspace work. |
 | **Workspace** | Heavy use: CWD = run dir, tools operate on workspace files, AGENTS.md, artifacts. | **No heavy reliance.** Tier 1 does not operate on the workspace directly. All workspace-related work is achieved by **creating chat/task runs** and letting Tier 2 execute. |
 
-**Implication:** When adding an LLM-based Tier 1 engine (Phase 3), either use a separate agent instance with a different system prompt and tool list, or factor `internal/agent` so that system prompt, tools, and workspace binding are configurable — and Tier 1 is configured with conversation-oriented prompt and tools (e.g. “spawn_task” instead of read_file/writefile). Tier 1 must not be given the same workspace-scoped tools as Tier 2.
+**Implication:** When adding an LLM-based Tier 1 engine (Phase 3), either use a separate agent instance with a different system prompt and tool list, or factor `internal/core/agent` so that system prompt, tools, and workspace binding are configurable — and Tier 1 is configured with conversation-oriented prompt and tools (e.g. “spawn_task” instead of read_file/writefile). Tier 1 must not be given the same workspace-scoped tools as Tier 2.
 
 ---
 
@@ -197,7 +197,7 @@ Option B is cleaner conceptually but adds migration and more concepts; Option A 
 
 ## 8. Implementation Phases (suggested)
 
-1. **Phase 1**: Define Tier 1 interfaces (`ConversationTurn`, `ChannelAdapter`, `ConversationEngine`, `ConversationResult`) and channel enum in a new package (e.g. `internal/conversation` or under `internal/server`).
+1. **Phase 1**: Define Tier 1 interfaces (`ConversationTurn`, `ChannelAdapter`, `ConversationEngine`, `ConversationResult`) and channel enum in a new package (e.g. `internal/core/conversation` or under `internal/server`).
 2. **Phase 2**: Implement portal as first `ChannelAdapter`; conversation engine is pass-through (every message spawns one Tier 2 run). No new LLM call yet.
 3. **Phase 3**: Add Tier 1 LLM conversation for portal (and later IM): maintain conversation history, allow clarification and deferred task spawn.
 4. **Phase 4**: Add cron and webhook adapters with rule-based engine (no LLM).
@@ -207,7 +207,7 @@ Option B is cleaner conceptually but adds migration and more concepts; Option A 
 
 ## 9. References
 
-- Current agent loop: `internal/agent/agent.go`
-- Chat/TaskRun model: `internal/model/models.go`, `internal/storage/entity`
-- Scheduler/worker: `internal/executor/scheduler.go`, worker binary and RunTask
+- Current agent loop: `internal/core/agent/agent.go`
+- Chat/TaskRun model: `internal/model/models.go`, `internal/infra/db`
+- Scheduler/worker: `internal/execution/scheduler/scheduler.go`, worker binary and RunTask
 - Portal product vision: [design/001-about-portal.md](001-about-portal.md)

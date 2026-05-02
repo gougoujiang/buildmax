@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `internal/agent` package implements the core agent logic: receiving a user message, calling the LLM, executing any tool calls the LLM requests, and repeating until the LLM produces a final text reply.
+The `internal/core/agent` package implements the core agent logic: receiving a user message, calling the LLM, executing any tool calls the LLM requests, and repeating until the LLM produces a final text reply.
 
 ## Key Types and Interfaces
 
@@ -56,8 +56,8 @@ All tool results (success or error) are appended to the session so the LLM sees 
 
 ## Dependencies
 
-- **Uses**: `internal/llm` (Message, ToolDef, ToolCall types), `internal/session` (Session for history)
-- **Used by**: `cmd/buildmax` (creates Agent), `internal/tui` (calls ProcessAfterUserAppended)
+- **Uses**: `internal/infra/llm` (Message, ToolDef, ToolCall types), `internal/session` (Session for history)
+- **Used by**: `cmd/buildmax` (creates Agent), `internal/interface/tui` (calls ProcessAfterUserAppended)
 
 ## Notes
 
