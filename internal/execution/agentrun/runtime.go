@@ -137,7 +137,7 @@ func Open(in OpenInput) (*Runtime, error) {
 	registry := model.NewToolRegistry()
 	registry.AppendTools(baseTools...)
 	registry.AppendTools(taskTool)
-	a := agent.NewAgent(client, registry, agent.SystemPrompt(effectivePrompt))
+	a := agent.NewAgent(client, registry, agent.WithSystemPrompt(effectivePrompt))
 
 	sessionsDir := config.SessionsDir()
 	if err = os.MkdirAll(sessionsDir, 0755); err != nil {

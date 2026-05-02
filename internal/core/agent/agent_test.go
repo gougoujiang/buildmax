@@ -332,7 +332,7 @@ func TestProcessWithSession_MaxIterationsExceeded(t *testing.T) {
 		params:      map[string]any{"type": "object"},
 		result:      "pong",
 	}
-	a := NewAgent(mock, newTestToolRegistry(mockTool), MaxIterations(3))
+	a := NewAgent(mock, newTestToolRegistry(mockTool), WithMaxIterations(3))
 	sess := newTestBuffer()
 	_, stats, err := a.Process(ctx, sess, "ping")
 	if err == nil {
@@ -541,7 +541,7 @@ func TestSystemPromptOption(t *testing.T) {
 		},
 	}
 	rec := &recordingLLMClient{inner: inner}
-	a := NewAgent(rec, newTestToolRegistry(), SystemPrompt(customPrompt))
+	a := NewAgent(rec, newTestToolRegistry(), WithSystemPrompt(customPrompt))
 	sess := newTestBuffer()
 	_, _, err := a.Process(ctx, sess, "explore the code")
 	if err != nil {

@@ -34,7 +34,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, tools []model.T
 	sess := session.NewSession(description)
 	registry := model.NewToolRegistry()
 	registry.AppendTools(tools...)
-	sub := coreagent.NewAgent(r.llmClient, registry, coreagent.SystemPrompt(systemPrompt))
+	sub := coreagent.NewAgent(r.llmClient, registry, coreagent.WithSystemPrompt(systemPrompt))
 	ctx = session.CtxWithSessionID(ctx, sess.ID())
 	reply, _, err := sub.Process(ctx, sess, prompt)
 	if err != nil {
