@@ -10,7 +10,7 @@ import (
 
 // GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
 func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*model.QuotaTier, error) {
-	var t model.QuotaTier
+	var t quotaTierRow
 	err := s.db.WithContext(ctx).Where("tier_name = ?", tierName).First(&t).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -18,19 +18,19 @@ func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*model.Quota
 		}
 		return nil, err
 	}
-	return &t, nil
+	return toModelQuotaTier(&t), nil
 }
 
 // SeedDefaultQuotaTiers inserts free_trial and pro tiers if the quota_tier table is empty.
 func (s *Store) SeedDefaultQuotaTiers(ctx context.Context) error {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&model.QuotaTier{}).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&quotaTierRow{}).Count(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
-	defaults := []model.QuotaTier{
+	defaults := []quotaTierRow{
 		{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100_000, PeriodDays: 30},
 		{TierName: "pro", MaxRunsPerPeriod: 1000, MaxTokensPerPeriod: 10_000_000, PeriodDays: 30},
 	}

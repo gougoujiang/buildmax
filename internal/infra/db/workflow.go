@@ -11,9 +11,9 @@ import (
 )
 
 func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model.Workflow, error) {
-	var list []model.Workflow
+	var list []workflowRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error
-	return list, err
+	return toModelWorkflows(list), err
 }
 
 func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
@@ -29,14 +29,14 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := s.db.WithContext(ctx).Create(workflow).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(fromModelWorkflow(workflow)).Error; err != nil {
 		return nil, err
 	}
 	return workflow, nil
 }
 
 func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error) {
-	var workflow model.Workflow
+	var workflow workflowRow
 	err := s.db.WithContext(ctx).Where("workflow_id = ?", workflowID).First(&workflow).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -44,7 +44,7 @@ func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Work
 		}
 		return nil, err
 	}
-	return &workflow, nil
+	return toModelWorkflow(&workflow), nil
 }
 
 func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, in model.UpdateWorkflowInput) (*model.Workflow, error) {
@@ -70,7 +70,7 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 	if in.Status != nil {
 		updates["status"] = *in.Status
 	}
-	if err := s.db.WithContext(ctx).Model(&model.Workflow{}).Where("workflow_id = ?", workflowID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&workflowRow{}).Where("workflow_id = ?", workflowID).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.GetWorkflow(ctx, workflowID)
@@ -88,19 +88,19 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRu
 		CreatedAt:      now,
 		StartedAt:      in.StartedAt,
 	}
-	if err := s.db.WithContext(ctx).Create(run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(fromModelWorkflowRun(run)).Error; err != nil {
 		return nil, err
 	}
 	return run, nil
 }
 
 func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
-	q := s.db.WithContext(ctx).Model(&model.WorkflowRun{}).Where("workflow_id = ?", workflowID)
+	q := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("workflow_id = ?", workflowID)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.WorkflowRun
+	var list []workflowRunRow
 	q = s.db.WithContext(ctx).Where("workflow_id = ?", workflowID).Order("created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -108,16 +108,16 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return list, int(total), nil
+	return toModelWorkflowRuns(list), int(total), nil
 }
 
 func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
-	q := s.db.WithContext(ctx).Model(&model.WorkflowRun{}).Where("issue_id = ?", issueID)
+	q := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("issue_id = ?", issueID)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.WorkflowRun
+	var list []workflowRunRow
 	q = s.db.WithContext(ctx).Where("issue_id = ?", issueID).Order("created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -125,11 +125,11 @@ func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, lim
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return list, int(total), nil
+	return toModelWorkflowRuns(list), int(total), nil
 }
 
 func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*model.WorkflowRun, error) {
-	var run model.WorkflowRun
+	var run workflowRunRow
 	err := s.db.WithContext(ctx).Where("workflow_run_id = ?", workflowRunID).First(&run).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -137,16 +137,16 @@ func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*mode
 		}
 		return nil, err
 	}
-	return &run, nil
+	return toModelWorkflowRun(&run), nil
 }
 
 func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]model.WorkflowStepRun, error) {
-	var list []model.WorkflowStepRun
+	var list []workflowStepRunRow
 	err := s.db.WithContext(ctx).
 		Where("workflow_run_id = ?", workflowRunID).
 		Order("step_index ASC, created_at ASC").
 		Find(&list).Error
-	return list, err
+	return toModelWorkflowStepRuns(list), err
 }
 
 func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []model.CreateWorkflowStepRunInput) ([]model.WorkflowStepRun, error) {
@@ -154,9 +154,9 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 		return []model.WorkflowStepRun{}, nil
 	}
 	now := time.Now().Unix()
-	rows := make([]model.WorkflowStepRun, len(steps))
+	rows := make([]workflowStepRunRow, len(steps))
 	for i := range steps {
-		rows[i] = model.WorkflowStepRun{
+		rows[i] = workflowStepRunRow{
 			StepRunID:     util.NewPrefixedID(util.PrefixWorkflowStepRun),
 			WorkflowRunID: workflowRunID,
 			StepID:        steps[i].StepID,
@@ -171,7 +171,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	if err := s.db.WithContext(ctx).Create(&rows).Error; err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return toModelWorkflowStepRuns(rows), nil
 }
 
 func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in model.UpdateWorkflowRunInput) (*model.WorkflowRun, error) {
@@ -187,7 +187,7 @@ func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in 
 	if in.ErrorMessage != nil {
 		updates["error_message"] = *in.ErrorMessage
 	}
-	if err := s.db.WithContext(ctx).Model(&model.WorkflowRun{}).Where("workflow_run_id = ?", workflowRunID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("workflow_run_id = ?", workflowRunID).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.GetWorkflowRun(ctx, workflowRunID)
@@ -235,7 +235,7 @@ func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in 
 	if len(updates) == 0 {
 		return s.getWorkflowStepRun(ctx, stepRunID)
 	}
-	if err := s.db.WithContext(ctx).Model(&model.WorkflowStepRun{}).Where("workflow_step_run_id = ?", stepRunID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&workflowStepRunRow{}).Where("workflow_step_run_id = ?", stepRunID).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.getWorkflowStepRun(ctx, stepRunID)
@@ -250,7 +250,7 @@ func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID str
 }
 
 func (s *Store) getWorkflowStepRunByColumn(ctx context.Context, col, value string) (*model.WorkflowStepRun, error) {
-	var step model.WorkflowStepRun
+	var step workflowStepRunRow
 	err := s.db.WithContext(ctx).Where(col+" = ?", value).First(&step).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -258,11 +258,11 @@ func (s *Store) getWorkflowStepRunByColumn(ctx context.Context, col, value strin
 		}
 		return nil, err
 	}
-	return &step, nil
+	return toModelWorkflowStepRun(&step), nil
 }
 
 func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*model.WorkflowStepRun, error) {
-	var step model.WorkflowStepRun
+	var step workflowStepRunRow
 	err := s.db.WithContext(ctx).Where("workflow_step_run_id = ?", stepRunID).First(&step).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -270,5 +270,5 @@ func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*mode
 		}
 		return nil, err
 	}
-	return &step, nil
+	return toModelWorkflowStepRun(&step), nil
 }

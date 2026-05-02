@@ -29,15 +29,15 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 
 // GetTaskRunOutputFiles returns all artifact rows for the given task_run_id, ordered by relative_path.
 func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error) {
-	var items []model.TaskRunArtifact
+	var items []taskRunArtifactRow
 	err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Order("relative_path ASC").Find(&items).Error
-	return items, err
+	return toModelTaskRunArtifacts(items), err
 }
 
 // TaskRunHasOutput returns true if the run has at least one output file (and thus is a valid "artifact" for content).
 func (s *Store) TaskRunHasOutput(ctx context.Context, taskRunID string) (bool, error) {
 	var n int64
-	err := s.db.WithContext(ctx).Model(&model.TaskRunArtifact{}).Where("task_run_id = ?", taskRunID).Limit(1).Count(&n).Error
+	err := s.db.WithContext(ctx).Model(&taskRunArtifactRow{}).Where("task_run_id = ?", taskRunID).Limit(1).Count(&n).Error
 	if err != nil {
 		return false, err
 	}

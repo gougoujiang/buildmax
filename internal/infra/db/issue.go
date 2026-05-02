@@ -37,7 +37,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 		AssigneeKind: nil,
 		AssigneeID:   nil,
 	}
-	if err := s.db.WithContext(ctx).Create(issue).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(fromModelIssue(issue)).Error; err != nil {
 		return nil, err
 	}
 	return issue, nil
@@ -46,10 +46,10 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 // ListIssuesByUser returns issues for the user ordered by updated_at DESC.
 func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]model.Issue, int, error) {
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&model.Issue{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.Issue
+	var list []issueRow
 	q := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -57,16 +57,16 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return list, int(total), nil
+	return toModelIssues(list), int(total), nil
 }
 
 // ListIssuesByTeam returns issues for the team ordered by updated_at DESC.
 func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Issue, int, error) {
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&model.Issue{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.Issue
+	var list []issueRow
 	q := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
@@ -74,12 +74,12 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, limit, offs
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return list, int(total), nil
+	return toModelIssues(list), int(total), nil
 }
 
 // GetIssue returns the issue by issue_id, or (nil, nil) if not found.
 func (s *Store) GetIssue(ctx context.Context, issueID string) (*model.Issue, error) {
-	var issue model.Issue
+	var issue issueRow
 	err := s.db.WithContext(ctx).Where("issue_id = ?", issueID).First(&issue).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -87,7 +87,7 @@ func (s *Store) GetIssue(ctx context.Context, issueID string) (*model.Issue, err
 		}
 		return nil, err
 	}
-	return &issue, nil
+	return toModelIssue(&issue), nil
 }
 
 // UpdateIssue updates only provided fields. Returns (nil, nil) if not found or not owned by user.
@@ -142,7 +142,7 @@ func (s *Store) updateIssue(ctx context.Context, issueID string, in model.Update
 			updates["assignee_id"] = *in.AssigneeID
 		}
 	}
-	if err := s.db.WithContext(ctx).Model(&model.Issue{}).Where("issue_id = ?", issueID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("issue_id = ?", issueID).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.GetIssue(ctx, issueID)
