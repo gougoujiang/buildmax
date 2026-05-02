@@ -9,14 +9,14 @@ import (
 	"buildmax/internal/core/model"
 )
 
-// TestToolDefs asserts ToolDefs builds one model.ToolDef per tool with correct name/description/parameters.
-func TestToolDefs(t *testing.T) {
+// TestBuildToolDefs asserts BuildToolDefs builds one model.ToolDef per tool with correct name/description/parameters.
+func TestBuildToolDefs(t *testing.T) {
 	mock := &mockTool{
 		name:        "test_tool",
 		description: "A test tool",
 		params:      map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "string"}}},
 	}
-	defs := ToolDefs([]model.Tool{mock})
+	defs := BuildToolDefs([]model.Tool{mock})
 	if len(defs) != 1 {
 		t.Fatalf("len(defs) = %d, want 1", len(defs))
 	}
@@ -32,9 +32,9 @@ func TestToolDefs(t *testing.T) {
 	// Ensure mockTool implements model.Tool
 	var _ model.Tool = (*mockTool)(nil)
 	// Empty tools
-	empty := ToolDefs(nil)
+	empty := BuildToolDefs(nil)
 	if len(empty) != 0 {
-		t.Errorf("ToolDefs(nil) length = %d, want 0", len(empty))
+		t.Errorf("BuildToolDefs(nil) length = %d, want 0", len(empty))
 	}
 }
 

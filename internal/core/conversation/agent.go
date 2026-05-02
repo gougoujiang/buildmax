@@ -188,7 +188,7 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 }
 
 func executeRun(ctx context.Context, llmClient model.LLMClient, in RunInput, prepared *preparedRun) (string, error) {
-	defs := agent.ToolDefs(prepared.toolsList)
+	defs := agent.BuildToolDefs(prepared.toolsList)
 	toolsByName := make(map[string]model.Tool, len(prepared.toolsList))
 	for _, t := range prepared.toolsList {
 		toolsByName[t.Name()] = t
