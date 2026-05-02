@@ -88,14 +88,17 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*Task
 
 // CreateTaskInput is the input for CreateTask.
 type CreateTaskInput struct {
-	ConversationID        string
-	Input                 string
-	Title                 string
-	CreatedBy             string
-	TitlePromptTokens     int
-	TitleCompletionTokens int
-	AgentID               *string
-	IssueID               *string
+	ConversationID          string
+	Input                   string
+	Title                   string
+	CreatedBy               string
+	InitialRunCreatedBy     string
+	InitialRunCreatedByType string
+	InitialRunTriggerSource string
+	TitlePromptTokens       int
+	TitleCompletionTokens   int
+	AgentID                 *string
+	IssueID                 *string
 }
 
 // CreateTask creates a new task and its first TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
@@ -123,11 +126,14 @@ func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, err
 		IssueID:               in.IssueID,
 	}
 	run := &TaskRun{
-		TaskRunID: taskRunID,
-		TaskID:    taskID,
-		Input:     in.Input,
-		Status:    "PENDING",
-		CreatedAt: now,
+		TaskRunID:     taskRunID,
+		TaskID:        taskID,
+		Input:         in.Input,
+		CreatedBy:     defaultString(in.InitialRunCreatedBy, in.CreatedBy),
+		CreatedByType: defaultString(in.InitialRunCreatedByType, RunCreatedByTypeUser),
+		TriggerSource: defaultString(in.InitialRunTriggerSource, RunTriggerSourceTaskCreate),
+		Status:        "PENDING",
+		CreatedAt:     now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var conv Conversation
@@ -144,6 +150,13 @@ func (s *Store) CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, err
 		return nil, err
 	}
 	return task, nil
+}
+
+func defaultString(v, fallback string) string {
+	if v != "" {
+		return v
+	}
+	return fallback
 }
 
 func buildTaskUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) map[string]interface{} {

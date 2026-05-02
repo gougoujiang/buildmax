@@ -23,6 +23,7 @@ type Team struct {
 	TeamID            string  `gorm:"column:team_id;type:varchar(64);uniqueIndex;not null" json:"team_id"`
 	Name              string  `gorm:"type:varchar(255);not null" json:"name"`
 	PersonalForUserID *string `gorm:"column:personal_for_user_id;type:varchar(64);uniqueIndex" json:"personal_for_user_id,omitempty"`
+	QuotaTier         string  `gorm:"column:quota_tier;type:varchar(64)" json:"quota_tier,omitempty"`
 	CreatedBy         string  `gorm:"type:varchar(64);not null" json:"created_by"`
 	CreatedAt         int64   `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         int64   `gorm:"autoUpdateTime" json:"updated_at"`
@@ -155,6 +156,9 @@ type TaskRun struct {
 	TaskRunID        string  `gorm:"column:task_run_id;type:varchar(64);uniqueIndex;not null" json:"task_run_id"`
 	TaskID           string  `gorm:"column:task_id;type:varchar(64);not null;index" json:"task_id"`
 	Input            string  `gorm:"type:text;not null" json:"input"`
+	CreatedBy        string  `gorm:"type:varchar(64);index" json:"created_by,omitempty"`
+	CreatedByType    string  `gorm:"type:varchar(32)" json:"created_by_type,omitempty"`
+	TriggerSource    string  `gorm:"type:varchar(64)" json:"trigger_source,omitempty"`
 	Status           string  `gorm:"type:varchar(32);not null" json:"status"`
 	Output           *string `gorm:"type:text" json:"output,omitempty"`
 	ErrorMessage     *string `gorm:"type:text" json:"error_message,omitempty"`

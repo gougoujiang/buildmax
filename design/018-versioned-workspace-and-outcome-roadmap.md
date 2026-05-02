@@ -177,7 +177,7 @@ Recommended status values:
 | 2 | Outcome Surface | `not_started` | `design/020-phase-2-outcome-surface.md` | Make issue/conversation surfaces show direct results and artifacts as first-class outputs, not only links to lower-level runs. |
 | 3 | Versioned Workspace Foundation | `not_started` | TBD | Introduce a durable workspace change model, snapshot boundary, and hidden version engine plumbing. |
 | 4 | Restore And Semantic Timeline | `not_started` | TBD | Let users inspect meaningful change history and restore prior workspace state without dealing with Git internals. |
-| 5 | Shared-Team Governance 2.0 | `not_started` | TBD | Add the next control-layer slice: audit/event visibility, team quota direction, and human checkpoints where needed. |
+| 5 | Shared-Team Governance 2.0 | `not_started` | `design/021-phase-5-team-quota-foundation.md` | Start with team-scoped quota foundation, then extend later toward audit/event visibility and human checkpoints where needed. |
 | 6 | Workflow Automation 2.0 | `not_started` | TBD | Extend workflow capability only after the outcome/state/governance layers are stronger. |
 
 ---

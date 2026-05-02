@@ -36,7 +36,7 @@ func buildTaskRunUpdates(status string, startedAt, endedAt *int64, output, error
 }
 
 // CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
-func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy string) (*TaskRun, error) {
+func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*TaskRun, error) {
 	var inProgress int64
 	err := s.db.WithContext(ctx).Model(&TaskRun{}).Where("task_id = ? AND status IN ?", taskID, []string{"PENDING", "SCHEDULED", "RUNNING"}).Count(&inProgress).Error
 	if err != nil {
@@ -46,11 +46,14 @@ func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy stri
 		return nil, ErrRunInProgress
 	}
 	run := &TaskRun{
-		TaskRunID: util.NewPrefixedID(util.PrefixTaskRun),
-		TaskID:    taskID,
-		Input:     input,
-		Status:    "PENDING",
-		CreatedAt: time.Now().Unix(),
+		TaskRunID:     util.NewPrefixedID(util.PrefixTaskRun),
+		TaskID:        taskID,
+		Input:         input,
+		CreatedBy:     createdBy,
+		CreatedByType: defaultString(createdByType, RunCreatedByTypeUser),
+		TriggerSource: defaultString(triggerSource, RunTriggerSourceTaskRerun),
+		Status:        "PENDING",
+		CreatedAt:     time.Now().Unix(),
 	}
 	if err := s.db.WithContext(ctx).Create(run).Error; err != nil {
 		return nil, err

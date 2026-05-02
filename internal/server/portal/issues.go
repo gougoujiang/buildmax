@@ -291,6 +291,8 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		Input:          input,
 		AgentID:        issue.AssigneeID,
 		IssueID:        &issueID,
+		CreatedByType:  entity.RunCreatedByTypeUser,
+		TriggerSource:  entity.RunTriggerSourceIssueAgentRun,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, issue.AssigneeID) {

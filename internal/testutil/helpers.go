@@ -141,11 +141,12 @@ func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]ent
 	return out, nil
 }
 
-func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy string) (*entity.Team, error) {
+func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*entity.Team, error) {
 	id := fmt.Sprintf("tm_%d", len(m.Teams)+1)
 	team := entity.Team{
 		TeamID:    id,
 		Name:      name,
+		QuotaTier: quotaTier,
 		CreatedBy: createdBy,
 		CreatedAt: time.Now().Unix(),
 		UpdatedAt: time.Now().Unix(),

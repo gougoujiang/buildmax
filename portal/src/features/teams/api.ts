@@ -6,7 +6,7 @@ import {
   throwIfNotOk,
 } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
-import type { ApiTeam, ApiTeamMember } from "../../lib/api/types"
+import type { ApiTeam, ApiTeamMember, ApiUsage } from "../../lib/api/types"
 
 export async function getTeams(token: string): Promise<ApiTeam[]> {
   return requestJson<ApiTeam[]>(`${getApiBase()}/api/teams`, {
@@ -45,6 +45,15 @@ export async function addTeamMember(
       method: "POST",
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
       body: JSON.stringify(body),
+    }
+  )
+}
+
+export async function getTeamUsage(teamId: string, token: string): Promise<ApiUsage> {
+  return requestJson<ApiUsage>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/usage`,
+    {
+      headers: authHeaders(token),
     }
   )
 }

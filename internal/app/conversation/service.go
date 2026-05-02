@@ -67,10 +67,18 @@ func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (Han
 	if s.TaskService == nil {
 		return HandleTurnResult{}, taskapp.ErrTaskRunsNotConfigured
 	}
+	createdByType := entity.RunCreatedByTypeUser
+	triggerSource := entity.RunTriggerSourcePortalTaskRerun
+	if cmd.Channel == coreconv.ChannelWebhook {
+		createdByType = entity.RunCreatedByTypeWebhook
+		triggerSource = entity.RunTriggerSourceWebhook
+	}
 	run, err := s.TaskService.CreateRun(ctx, taskapp.CreateRunCmd{
-		UserID: cmd.UserID,
-		TaskID: cmd.TaskID,
-		Input:  cmd.Message,
+		UserID:        cmd.UserID,
+		TaskID:        cmd.TaskID,
+		Input:         cmd.Message,
+		CreatedByType: createdByType,
+		TriggerSource: triggerSource,
 	})
 	if err != nil {
 		return HandleTurnResult{}, err
@@ -114,28 +122,40 @@ func (s *Service) conversationToolRunners(conversationID, userID string) *coreco
 }
 
 func (s *Service) startTaskRunner(conversationID, userID string) tools.StartTaskRunner {
-	if s.TaskService == nil {
+	if s.TaskService == nil || s.ConversationStore == nil {
 		return nil
 	}
 	return &startTaskRunner{
-		taskService:    s.TaskService,
-		userID:         userID,
-		conversationID: conversationID,
+		taskService:       s.TaskService,
+		conversationStore: s.ConversationStore,
+		userID:            userID,
+		conversationID:    conversationID,
 	}
 }
 
 type startTaskRunner struct {
-	taskService    *taskapp.Service
-	userID         string
-	conversationID string
+	taskService       *taskapp.Service
+	conversationStore entity.ConversationStore
+	userID            string
+	conversationID    string
 }
 
 func (r *startTaskRunner) StartTask(ctx context.Context, _, _, input string, agentID *string) (taskID, runID string, err error) {
+	conv, err := r.conversationStore.GetConversation(ctx, r.conversationID)
+	if err != nil {
+		return "", "", err
+	}
+	if conv == nil {
+		return "", "", fmt.Errorf("conversation not found")
+	}
 	result, err := r.taskService.StartBackgroundTask(ctx, taskapp.CreateTaskCmd{
 		ConversationID: r.conversationID,
 		UserID:         r.userID,
+		TeamID:         conv.TeamID,
 		Input:          input,
 		AgentID:        agentID,
+		CreatedByType:  entity.RunCreatedByTypeUser,
+		TriggerSource:  entity.RunTriggerSourcePortalConversation,
 	})
 	if err != nil {
 		return "", "", err
@@ -229,9 +249,11 @@ func (r *continueTaskRunner) ContinueTask(ctx context.Context, conversationID, u
 		return "", fmt.Errorf("task not found or not in this conversation")
 	}
 	run, err := r.taskService.CreateRun(ctx, taskapp.CreateRunCmd{
-		UserID: userID,
-		TaskID: taskID,
-		Input:  input,
+		UserID:        userID,
+		TaskID:        taskID,
+		Input:         input,
+		CreatedByType: entity.RunCreatedByTypeUser,
+		TriggerSource: entity.RunTriggerSourcePortalConversation,
 	})
 	if err != nil {
 		return "", err

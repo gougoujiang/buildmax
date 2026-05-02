@@ -71,6 +71,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		TeamID:            personalTeamID,
 		Name:              DefaultPersonalTeamName,
 		PersonalForUserID: &u.UserID,
+		QuotaTier:         defaultQuotaTier,
 		CreatedBy:         u.UserID,
 		CreatedAt:         u.CreatedAt,
 		UpdatedAt:         u.CreatedAt,

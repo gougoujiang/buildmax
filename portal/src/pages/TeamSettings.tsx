@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
 import { useAuth } from "../contexts/AuthContext"
 import { useTeam } from "../contexts/TeamContext"
-import { addTeamMember, getTeamMembers, removeTeamMember } from "../features/teams/api"
-import type { ApiTeamMember } from "../lib/api/types"
+import { addTeamMember, getTeamMembers, getTeamUsage, removeTeamMember } from "../features/teams/api"
+import type { ApiTeamMember, ApiUsage } from "../lib/api/types"
 import { getErrorMessage } from "../lib/errorMessage"
 
 function memberDisplayName(member: ApiTeamMember, currentUserId?: string): string {
@@ -20,7 +20,9 @@ export function TeamSettings() {
     currentTeamId,
   } = useTeam()
   const [members, setMembers] = useState<ApiTeamMember[]>([])
+  const [usage, setUsage] = useState<ApiUsage | null>(null)
   const [loadingMembers, setLoadingMembers] = useState(false)
+  const [loadingUsage, setLoadingUsage] = useState(false)
   const [savingMember, setSavingMember] = useState(false)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
   const [addMemberOpen, setAddMemberOpen] = useState(false)
@@ -44,9 +46,29 @@ export function TeamSettings() {
     }
   }, [token, currentTeamId])
 
+  const loadUsage = useCallback(async () => {
+    if (!token || !currentTeamId) {
+      setUsage(null)
+      return
+    }
+    setLoadingUsage(true)
+    setError(null)
+    try {
+      setUsage(await getTeamUsage(currentTeamId, token))
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to load team usage"))
+    } finally {
+      setLoadingUsage(false)
+    }
+  }, [token, currentTeamId])
+
   useEffect(() => {
     void loadMembers()
   }, [loadMembers])
+
+  useEffect(() => {
+    void loadUsage()
+  }, [loadUsage])
 
   const currentUserMember = useMemo(
     () => members.find((member) => member.user_id === user?.id) ?? null,
@@ -121,7 +143,36 @@ export function TeamSettings() {
               <dt>Your role</dt>
               <dd>{currentUserMember?.role ?? "member"}</dd>
             </div>
+            <div>
+              <dt>Quota tier</dt>
+              <dd>{loadingUsage ? "Loading..." : usage?.tier ?? "Unavailable"}</dd>
+            </div>
+            <div>
+              <dt>Runs this period</dt>
+              <dd>
+                {loadingUsage
+                  ? "Loading..."
+                  : usage?.max_runs_per_period != null
+                    ? `${usage.run_count} / ${usage.max_runs_per_period}`
+                    : (usage?.run_count ?? "Unavailable")}
+              </dd>
+            </div>
+            <div>
+              <dt>Tokens this period</dt>
+              <dd>
+                {loadingUsage
+                  ? "Loading..."
+                  : usage?.max_tokens_per_period != null
+                    ? `${usage.total_tokens.toLocaleString()} / ${usage.max_tokens_per_period.toLocaleString()}`
+                    : (usage?.total_tokens != null ? usage.total_tokens.toLocaleString() : "Unavailable")}
+              </dd>
+            </div>
           </dl>
+          {usage ? (
+            <p className="team-settings-page__muted">
+              Current usage window: last {usage.period_days} days.
+            </p>
+          ) : null}
         </section>
 
         <section className="team-settings-page__panel team-settings-page__wide">

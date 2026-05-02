@@ -97,7 +97,7 @@ func (h *Handler) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	team, err := h.cfg.TeamStore.CreateTeam(r.Context(), name, userID)
+	team, err := h.cfg.TeamStore.CreateTeam(r.Context(), name, userID, h.cfg.DefaultQuotaTier)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "portal handler error", "handler", "create_team", "user_id", userID)
 		return

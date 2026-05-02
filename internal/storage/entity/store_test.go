@@ -32,7 +32,7 @@ func TestCreateUser(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&User{}, "user_id = ?", existing.UserID)
 	}
 
-	u, err := s.CreateUser(ctx, email, "")
+	u, err := s.CreateUser(ctx, email, "free_trial")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
@@ -65,6 +65,9 @@ func TestCreateUser(t *testing.T) {
 	}
 	if team.Name != DefaultPersonalTeamName {
 		t.Errorf("personal team name = %q, want %q", team.Name, DefaultPersonalTeamName)
+	}
+	if team.QuotaTier != "free_trial" {
+		t.Errorf("personal team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
 	}
 
 	members, err := s.ListTeamMembers(ctx, team.TeamID)
@@ -127,7 +130,7 @@ func TestCreateTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	team, err := s.CreateTeam(ctx, "Ops", user.UserID)
+	team, err := s.CreateTeam(ctx, "Ops", user.UserID, "free_trial")
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
@@ -144,6 +147,9 @@ func TestCreateTeam(t *testing.T) {
 
 	if team.TeamID == "" || team.Name != "Ops" || team.CreatedBy != user.UserID {
 		t.Fatalf("created team = %+v", team)
+	}
+	if team.QuotaTier != "free_trial" {
+		t.Fatalf("created team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
 	}
 
 	list, err := s.ListTeamsByUser(ctx, user.UserID)
@@ -239,6 +245,74 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	itemsEmpty, _ := s.GetTaskRunOutputFiles(ctx, "nonexistent-run")
 	if len(itemsEmpty) != 0 {
 		t.Errorf("GetTaskRunOutputFiles(nonexistent): got %d, want 0", len(itemsEmpty))
+	}
+}
+
+func TestTaskRunProvenancePersistence(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	conv, err := s.CreateConversation(ctx, "provenance-user", "portal", "provenance-user")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&Conversation{}, "conversation_id = ?", conv.ConversationID)
+	}()
+	task, err := s.CreateTask(ctx, &CreateTaskInput{
+		ConversationID:          conv.ConversationID,
+		Input:                   "initial input",
+		Title:                   "initial title",
+		CreatedBy:               "provenance-user",
+		InitialRunCreatedBy:     "provenance-user",
+		InitialRunCreatedByType: RunCreatedByTypeUser,
+		InitialRunTriggerSource: RunTriggerSourcePortalTaskCreate,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if task.LastRunID == nil {
+		t.Fatal("CreateTask should set LastRunID")
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&TaskRun{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&Task{}, "task_id = ?", task.TaskID)
+	}()
+	initialRun, err := s.GetTaskRun(ctx, *task.LastRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun initial: %v", err)
+	}
+	if initialRun == nil {
+		t.Fatal("initial run not found")
+	}
+	if initialRun.CreatedBy != "provenance-user" {
+		t.Fatalf("initial run created_by = %q, want %q", initialRun.CreatedBy, "provenance-user")
+	}
+	if initialRun.CreatedByType != RunCreatedByTypeUser {
+		t.Fatalf("initial run created_by_type = %q, want %q", initialRun.CreatedByType, RunCreatedByTypeUser)
+	}
+	if initialRun.TriggerSource != RunTriggerSourcePortalTaskCreate {
+		t.Fatalf("initial run trigger_source = %q, want %q", initialRun.TriggerSource, RunTriggerSourcePortalTaskCreate)
+	}
+
+	rerun, err := s.CreateTaskRun(ctx, task.TaskID, "follow-up input", "reviewer-user", RunCreatedByTypeUser, RunTriggerSourcePortalConversation)
+	if err != nil {
+		t.Fatalf("CreateTaskRun: %v", err)
+	}
+	if rerun.CreatedBy != "reviewer-user" {
+		t.Fatalf("rerun created_by = %q, want %q", rerun.CreatedBy, "reviewer-user")
+	}
+	if rerun.CreatedByType != RunCreatedByTypeUser {
+		t.Fatalf("rerun created_by_type = %q, want %q", rerun.CreatedByType, RunCreatedByTypeUser)
+	}
+	if rerun.TriggerSource != RunTriggerSourcePortalConversation {
+		t.Fatalf("rerun trigger_source = %q, want %q", rerun.TriggerSource, RunTriggerSourcePortalConversation)
 	}
 }
 

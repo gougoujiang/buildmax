@@ -25,7 +25,7 @@ type TeamStore interface {
 	// ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
 	ListTeamsByUser(ctx context.Context, userID string) ([]Team, error)
 	// CreateTeam creates a new team and owner membership.
-	CreateTeam(ctx context.Context, name, createdBy string) (*Team, error)
+	CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*Team, error)
 	// AddTeamMember adds or updates a team membership.
 	AddTeamMember(ctx context.Context, teamID, userID, role string) (*TeamMember, error)
 	// RemoveTeamMember removes one membership from a team.
@@ -58,10 +58,10 @@ type QuotaTierStore interface {
 	GetQuotaTier(ctx context.Context, tierName string) (*QuotaTier, error)
 }
 
-// UsageInWindowReader provides usage aggregation for a user in a time window.
+// UsageInWindowReader provides usage aggregation for a team in a time window.
 type UsageInWindowReader interface {
-	// UserUsageInWindow returns run count and total tokens for the user in [sinceUnix, untilUnix].
-	UserUsageInWindow(ctx context.Context, userID string, sinceUnix, untilUnix int64) (runCount, totalTokens int, err error)
+	// TeamUsageInWindow returns run count and total tokens for the team in [sinceUnix, untilUnix].
+	TeamUsageInWindow(ctx context.Context, teamID string, sinceUnix, untilUnix int64) (runCount, totalTokens int, err error)
 }
 
 // AgentStore provides agent persistence. Agents are user-scoped.
@@ -152,7 +152,7 @@ var ErrRunInProgress = errors.New("task has a run already in progress")
 // TaskRunStore provides task run persistence.
 type TaskRunStore interface {
 	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING/SCHEDULED/RUNNING.
-	CreateTaskRun(ctx context.Context, taskID, input, createdBy string) (*TaskRun, error)
+	CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*TaskRun, error)
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error)
 	GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error)

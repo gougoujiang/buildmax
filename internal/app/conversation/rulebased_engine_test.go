@@ -7,6 +7,7 @@ import (
 
 	taskapp "buildmax/internal/app/task"
 	coreconv "buildmax/internal/conversation"
+	"buildmax/internal/testutil"
 )
 
 func TestRuleBasedEngine_Process_wrongChannel(t *testing.T) {
@@ -44,7 +45,10 @@ func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
 }
 
 func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
-	e := &RuleBasedEngine{Task: &taskapp.Service{}} // Task service has nil stores; CreateTask will fail later, but we validate message first
+	e := &RuleBasedEngine{
+		Task:          &taskapp.Service{},
+		Conversations: &testutil.MockConversationStore{},
+	} // Task service has nil stores; CreateTask will fail later, but we validate message first
 	ctx := context.Background()
 	turn := coreconv.ConversationTurn{
 		Channel: coreconv.ChannelWebhook,
@@ -54,5 +58,22 @@ func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
 	_, err := e.Process(ctx, "w_1", "", turn)
 	if err == nil {
 		t.Fatal("expected error for empty message")
+	}
+}
+
+func TestRuleBasedEngine_Process_requiresConversationStore(t *testing.T) {
+	e := &RuleBasedEngine{Task: &taskapp.Service{}}
+	ctx := context.Background()
+	turn := coreconv.ConversationTurn{
+		Channel: coreconv.ChannelWebhook,
+		Message: "task",
+		UserID:  "webhook",
+	}
+	_, err := e.Process(ctx, "w_1", "", turn)
+	if err == nil {
+		t.Fatal("expected error when Conversations is nil")
+	}
+	if err.Error() != "conversation store not configured" {
+		t.Fatalf("err = %v, want conversation store not configured", err)
 	}
 }

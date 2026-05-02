@@ -191,7 +191,7 @@ export interface UploadResponse {
   uploaded: string[]
 }
 
-/** Usage as returned by GET /api/usage */
+/** Usage as returned by team usage endpoints (and the legacy personal alias). */
 export interface ApiUsage {
   run_count: number
   total_tokens: number

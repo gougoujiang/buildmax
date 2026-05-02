@@ -194,7 +194,7 @@ func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunO
 // mockTaskRunStore is a minimal TaskRunStore for Scheduler constructor tests.
 type mockTaskRunStore struct{}
 
-func (mockTaskRunStore) CreateTaskRun(_ context.Context, _, _, _ string) (*entity.TaskRun, error) {
+func (mockTaskRunStore) CreateTaskRun(_ context.Context, _, _, _, _, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
 func (mockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) {

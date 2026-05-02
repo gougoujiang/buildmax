@@ -42,6 +42,7 @@ type Config struct {
 	PersistStorage           blob.PersistStorage
 	ArtifactStorage          blob.ArtifactStorage
 	WorkspacesDir            string
+	DefaultQuotaTier         string
 	QuotaChecker             *quota.Checker
 	TitleGenerator           TitleGenerator
 	ConversationStore        entity.ConversationStore

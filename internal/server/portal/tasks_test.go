@@ -187,7 +187,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		},
 	}
 	denyChecker := quota.NewChecker(
-		&testutil.DenyQuotaUserStore{User: &entity.User{UserID: "u1", QuotaTier: "free_trial"}},
+		&testutil.DenyQuotaTeamStore{Team: &entity.Team{TeamID: teamID, QuotaTier: "free_trial"}},
 		&testutil.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
 		&testutil.DenyQuotaTierStore{Tier: &entity.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		"free_trial",

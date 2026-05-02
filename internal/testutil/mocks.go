@@ -548,8 +548,19 @@ type MockTaskRunStore struct {
 	TaskList []entity.Task
 }
 
-func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy string) (*entity.TaskRun, error) {
-	return nil, nil
+func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*entity.TaskRun, error) {
+	run := entity.TaskRun{
+		TaskRunID:     fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
+		TaskID:        taskID,
+		Input:         input,
+		CreatedBy:     createdBy,
+		CreatedByType: createdByType,
+		TriggerSource: triggerSource,
+		Status:        string(entity.RunStatusPending),
+		CreatedAt:     time.Now().Unix(),
+	}
+	m.Runs = append(m.Runs, run)
+	return &m.Runs[len(m.Runs)-1], nil
 }
 func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*entity.TaskRun, error) {
 	return nil, nil

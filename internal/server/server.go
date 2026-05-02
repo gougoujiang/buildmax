@@ -142,6 +142,7 @@ func buildPortalConfig(cfg Config, hub streamhub.StreamHub, registry *portal.Con
 		PersistStorage:           cfg.Storage.PersistStorage,
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
+		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
 		QuotaChecker:             cfg.Auth.QuotaChecker,
 		TitleGenerator:           titleGenAdapter{cfg.Conv.TitleGenerator},
 		ConversationStore:        cfg.Conv.ConversationStore,
@@ -200,7 +201,7 @@ func New(cfg Config) *Server {
 		}
 		webhookHandler := webhook.NewHandler(webhook.Config{
 			Adapter:           conversation.NewWebhookAdapter(msgPath, userID),
-			Engine:            &convapp.RuleBasedEngine{Task: taskSvc},
+			Engine:            &convapp.RuleBasedEngine{Task: taskSvc, Conversations: cfg.Conv.ConversationStore},
 			ConversationStore: cfg.Conv.ConversationStore,
 			KeyStore:          cfg.Stores.UserWebhookKeyStore,
 			MessagePath:       msgPath,

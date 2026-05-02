@@ -60,11 +60,12 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]Team, err
 }
 
 // CreateTeam creates a new team and owner membership.
-func (s *Store) CreateTeam(ctx context.Context, name, createdBy string) (*Team, error) {
+func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*Team, error) {
 	now := time.Now().Unix()
 	team := &Team{
 		TeamID:    util.NewPrefixedID(util.PrefixTeam),
 		Name:      name,
+		QuotaTier: quotaTier,
 		CreatedBy: createdBy,
 		CreatedAt: now,
 		UpdatedAt: now,

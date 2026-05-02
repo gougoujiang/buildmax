@@ -43,7 +43,7 @@ func newSpyTaskRunStore(chatRunID string) *spyTaskRunStore {
 	}
 }
 
-func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _ string) (*entity.TaskRun, error) {
+func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _, _, _ string) (*entity.TaskRun, error) {
 	return nil, nil
 }
 

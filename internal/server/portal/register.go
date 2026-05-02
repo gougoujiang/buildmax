@@ -17,6 +17,7 @@ func NewHandler(cfg Config) *Handler {
 // Register adds all portal routes to mux.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/usage", h.usageHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)
 	mux.HandleFunc("GET /api/teams", h.listTeamsHandler)
 	mux.HandleFunc("POST /api/teams", h.createTeamHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/members", h.listTeamMembersHandler)

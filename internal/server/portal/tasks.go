@@ -165,6 +165,8 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 		TeamID:         teamID,
 		Input:          req.Input,
 		AgentID:        req.AgentID,
+		CreatedByType:  entity.RunCreatedByTypeUser,
+		TriggerSource:  entity.RunTriggerSourcePortalTaskCreate,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, req.AgentID) {

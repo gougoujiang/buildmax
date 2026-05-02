@@ -410,6 +410,8 @@ func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversati
 		TeamID:         teamID,
 		Input:          input,
 		AgentID:        &agentID,
+		CreatedByType:  entity.RunCreatedByTypeUser,
+		TriggerSource:  entity.RunTriggerSourceWorkflowStep,
 	})
 	if err != nil {
 		return nil, "", err

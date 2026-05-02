@@ -6,14 +6,14 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// MockUsageReader returns fixed run count and token total for UserUsageInWindow.
+// MockUsageReader returns fixed run count and token total for TeamUsageInWindow.
 type MockUsageReader struct {
 	RunCount    int
 	TotalTokens int
 	Err         error
 }
 
-func (m *MockUsageReader) UserUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
+func (m *MockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
 	if m.Err != nil {
 		return 0, 0, m.Err
 	}
@@ -33,22 +33,40 @@ func (m *MockTierStore) GetQuotaTier(_ context.Context, _ string) (*entity.Quota
 	return m.Tier, nil
 }
 
-// DenyQuotaUserStore is used by quota 429 tests to supply a user with tier.
-type DenyQuotaUserStore struct {
-	User *entity.User
+// DenyQuotaTeamStore is used by quota 429 tests to supply a team with tier.
+type DenyQuotaTeamStore struct {
+	Team *entity.Team
 }
 
-func (d *DenyQuotaUserStore) UserByEmail(_ context.Context, _ string) (*entity.User, error) {
+func (d *DenyQuotaTeamStore) GetTeam(_ context.Context, _ string) (*entity.Team, error) {
+	return d.Team, nil
+}
+
+func (d *DenyQuotaTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*entity.Team, error) {
+	return d.Team, nil
+}
+
+func (d *DenyQuotaTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]entity.Team, error) {
+	if d.Team == nil {
+		return nil, nil
+	}
+	return []entity.Team{*d.Team}, nil
+}
+
+func (d *DenyQuotaTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*entity.Team, error) {
 	return nil, nil
 }
-func (d *DenyQuotaUserStore) GetUser(_ context.Context, _ string) (*entity.User, error) {
-	return d.User, nil
-}
-func (d *DenyQuotaUserStore) CreateUser(_ context.Context, _, _ string) (*entity.User, error) {
+
+func (d *DenyQuotaTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*entity.TeamMember, error) {
 	return nil, nil
 }
-func (d *DenyQuotaUserStore) UpdateLoginMeta(_ context.Context, _ string, _ int64, _ string) error {
+
+func (d *DenyQuotaTeamStore) RemoveTeamMember(_ context.Context, _, _ string) error {
 	return nil
+}
+
+func (d *DenyQuotaTeamStore) ListTeamMembers(_ context.Context, _ string) ([]entity.TeamMember, error) {
+	return nil, nil
 }
 
 // DenyQuotaUsageReader is used by quota 429 tests.
@@ -57,7 +75,7 @@ type DenyQuotaUsageReader struct {
 	TotalTokens int
 }
 
-func (d *DenyQuotaUsageReader) UserUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
+func (d *DenyQuotaUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
 	return d.RunCount, d.TotalTokens, nil
 }
 

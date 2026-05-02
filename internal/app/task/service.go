@@ -20,7 +20,7 @@ var (
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
 type QuotaChecker interface {
-	Check(ctx context.Context, userID string, runsToAdd, tokensToAdd int) (allowed bool, reason string)
+	Check(ctx context.Context, teamID string, runsToAdd, tokensToAdd int) (allowed bool, reason string)
 }
 
 // TitleGenerator generates a title and token usage for a task input.
@@ -54,13 +54,17 @@ type CreateTaskCmd struct {
 	Input          string
 	AgentID        *string
 	IssueID        *string
+	CreatedByType  string
+	TriggerSource  string
 }
 
 // CreateRunCmd creates a new run on an existing task.
 type CreateRunCmd struct {
-	UserID string
-	TaskID string
-	Input  string
+	UserID        string
+	TaskID        string
+	Input         string
+	CreatedByType string
+	TriggerSource string
 }
 
 // StartBackgroundTaskResult is returned when a background task is created.
@@ -78,19 +82,23 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*entity.Ta
 	if err != nil {
 		return nil, err
 	}
+	createdByType, triggerSource := normalizeCreateTaskProvenance(cmd.CreatedByType, cmd.TriggerSource)
 	title, promptTokens, completionTokens := s.resolveTitle(ctx, input)
-	if err := s.checkQuota(ctx, cmd.UserID, promptTokens+completionTokens); err != nil {
+	if err := s.checkQuota(ctx, cmd.TeamID, promptTokens+completionTokens); err != nil {
 		return nil, err
 	}
 	return s.Tasks.CreateTask(ctx, &entity.CreateTaskInput{
-		ConversationID:        cmd.ConversationID,
-		Input:                 input,
-		Title:                 title,
-		CreatedBy:             cmd.UserID,
-		TitlePromptTokens:     promptTokens,
-		TitleCompletionTokens: completionTokens,
-		AgentID:               agentID,
-		IssueID:               cmd.IssueID,
+		ConversationID:          cmd.ConversationID,
+		Input:                   input,
+		Title:                   title,
+		CreatedBy:               cmd.UserID,
+		InitialRunCreatedBy:     cmd.UserID,
+		InitialRunCreatedByType: createdByType,
+		InitialRunTriggerSource: triggerSource,
+		TitlePromptTokens:       promptTokens,
+		TitleCompletionTokens:   completionTokens,
+		AgentID:                 agentID,
+		IssueID:                 cmd.IssueID,
 	})
 }
 
@@ -102,10 +110,19 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*entity.Task
 	if cmd.Input == "" {
 		return nil, ErrInputRequired
 	}
-	if err := s.checkQuota(ctx, cmd.UserID, 0); err != nil {
-		return nil, err
+	if s.QuotaChecker != nil && s.Tasks != nil {
+		task, err := s.Tasks.GetTask(ctx, cmd.TaskID)
+		if err != nil {
+			return nil, err
+		}
+		if task != nil {
+			if err := s.checkQuota(ctx, task.TeamID, 0); err != nil {
+				return nil, err
+			}
+		}
 	}
-	return s.TaskRuns.CreateTaskRun(ctx, cmd.TaskID, cmd.Input, cmd.UserID)
+	createdByType, triggerSource := normalizeCreateRunProvenance(cmd.CreatedByType, cmd.TriggerSource)
+	return s.TaskRuns.CreateTaskRun(ctx, cmd.TaskID, cmd.Input, cmd.UserID, createdByType, triggerSource)
 }
 
 // StartBackgroundTask creates a task and returns its task/run ids.
@@ -159,11 +176,14 @@ func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, 
 	return genTitle, promptTokens, completionTokens
 }
 
-func (s *Service) checkQuota(ctx context.Context, userID string, tokens int) error {
+func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) error {
 	if s.QuotaChecker == nil {
 		return nil
 	}
-	allowed, reason := s.QuotaChecker.Check(ctx, userID, 1, tokens)
+	if teamID == "" {
+		return nil
+	}
+	allowed, reason := s.QuotaChecker.Check(ctx, teamID, 1, tokens)
 	if allowed {
 		return nil
 	}
@@ -184,4 +204,24 @@ func truncateTaskTitle(input string, maxRunes int) string {
 		return input
 	}
 	return string(runes[:maxRunes]) + "…"
+}
+
+func normalizeCreateTaskProvenance(createdByType, triggerSource string) (string, string) {
+	if createdByType == "" {
+		createdByType = entity.RunCreatedByTypeUser
+	}
+	if triggerSource == "" {
+		triggerSource = entity.RunTriggerSourceTaskCreate
+	}
+	return createdByType, triggerSource
+}
+
+func normalizeCreateRunProvenance(createdByType, triggerSource string) (string, string) {
+	if createdByType == "" {
+		createdByType = entity.RunCreatedByTypeUser
+	}
+	if triggerSource == "" {
+		triggerSource = entity.RunTriggerSourceTaskRerun
+	}
+	return createdByType, triggerSource
 }

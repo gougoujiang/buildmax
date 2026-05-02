@@ -7,19 +7,19 @@ import (
 	"buildmax/internal/storage/entity"
 )
 
-// Checker enforces per-user quota (run count and token limits) using tier limits from the store.
+// Checker enforces team-scoped quota (run count and token limits) using tier limits from the store.
 type Checker struct {
-	UserStore    entity.UserStore
+	TeamStore    entity.TeamStore
 	UsageReader  entity.UsageInWindowReader
 	TierStore    entity.QuotaTierStore
 	DefaultTier  string
 	clock        func() time.Time
 }
 
-// NewChecker builds a Checker with the given dependencies. defaultTier is used when user.QuotaTier is empty.
-func NewChecker(userStore entity.UserStore, usageReader entity.UsageInWindowReader, tierStore entity.QuotaTierStore, defaultTier string) *Checker {
+// NewChecker builds a Checker with the given dependencies. defaultTier is used when team.QuotaTier is empty.
+func NewChecker(teamStore entity.TeamStore, usageReader entity.UsageInWindowReader, tierStore entity.QuotaTierStore, defaultTier string) *Checker {
 	return &Checker{
-		UserStore:   userStore,
+		TeamStore:   teamStore,
 		UsageReader: usageReader,
 		TierStore:   tierStore,
 		DefaultTier: defaultTier,
@@ -27,7 +27,7 @@ func NewChecker(userStore entity.UserStore, usageReader entity.UsageInWindowRead
 	}
 }
 
-// UsageInfo is a snapshot of a user's usage and tier limits for display (e.g. settings page).
+// UsageInfo is a snapshot of a team's usage and tier limits for display.
 type UsageInfo struct {
 	RunCount           int
 	TotalTokens        int
@@ -39,17 +39,17 @@ type UsageInfo struct {
 
 const defaultUsagePeriodDays = 30
 
-// GetUsage returns the current user's usage and tier info in the same rolling window used by Check.
-// When user or tier is not found, returns usage for a default 30-day window with limits nil.
-func (c *Checker) GetUsage(ctx context.Context, userID string) (*UsageInfo, error) {
-	user, err := c.UserStore.GetUser(ctx, userID)
+// GetUsage returns the current team's usage and tier info in the same rolling window used by Check.
+// When team or tier is not found, returns usage for a default 30-day window with limits nil.
+func (c *Checker) GetUsage(ctx context.Context, teamID string) (*UsageInfo, error) {
+	team, err := c.TeamStore.GetTeam(ctx, teamID)
 	if err != nil {
 		return &UsageInfo{}, nil
 	}
-	if user == nil {
+	if team == nil {
 		return &UsageInfo{}, nil
 	}
-	tierName := user.QuotaTier
+	tierName := team.QuotaTier
 	if tierName == "" {
 		tierName = c.DefaultTier
 	}
@@ -63,7 +63,7 @@ func (c *Checker) GetUsage(ctx context.Context, userID string) (*UsageInfo, erro
 	if tier == nil {
 		periodDays := defaultUsagePeriodDays
 		since := now - int64(periodDays)*86400
-		runCount, totalTokens, err := c.UsageReader.UserUsageInWindow(ctx, userID, since, now)
+		runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 		if err != nil {
 			return &UsageInfo{}, err
 		}
@@ -77,7 +77,7 @@ func (c *Checker) GetUsage(ctx context.Context, userID string) (*UsageInfo, erro
 
 	periodSec := int64(tier.PeriodDays) * 86400
 	since := now - periodSec
-	runCount, totalTokens, err := c.UsageReader.UserUsageInWindow(ctx, userID, since, now)
+	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 	if err != nil {
 		return nil, err
 	}
@@ -93,13 +93,13 @@ func (c *Checker) GetUsage(ctx context.Context, userID string) (*UsageInfo, erro
 	}, nil
 }
 
-// Check returns whether the user is allowed to add addRuns and addTokens. If not allowed, reason is the 429 message.
-func (c *Checker) Check(ctx context.Context, userID string, addRuns, addTokens int) (allowed bool, reason string) {
-	user, err := c.UserStore.GetUser(ctx, userID)
-	if err != nil || user == nil {
-		return true, "" // backward compatibility: no user or error => allow
+// Check returns whether the team is allowed to add addRuns and addTokens. If not allowed, reason is the 429 message.
+func (c *Checker) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string) {
+	team, err := c.TeamStore.GetTeam(ctx, teamID)
+	if err != nil || team == nil {
+		return true, "" // backward compatibility: no team or error => allow
 	}
-	tierName := user.QuotaTier
+	tierName := team.QuotaTier
 	if tierName == "" {
 		tierName = c.DefaultTier
 	}
@@ -113,7 +113,7 @@ func (c *Checker) Check(ctx context.Context, userID string, addRuns, addTokens i
 	now := c.clock().Unix()
 	periodSec := int64(tier.PeriodDays) * 86400
 	since := now - periodSec
-	runCount, totalTokens, err := c.UsageReader.UserUsageInWindow(ctx, userID, since, now)
+	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 	if err != nil {
 		return true, "" // aggregation error => allow to avoid blocking
 	}
