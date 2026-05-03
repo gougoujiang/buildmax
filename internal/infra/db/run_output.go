@@ -31,7 +31,7 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error) {
 	var items []taskRunArtifactRow
 	err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Order("relative_path ASC").Find(&items).Error
-	return toModelTaskRunArtifacts(items), err
+	return toTaskRunArtifacts(items), err
 }
 
 // TaskRunHasOutput returns true if the run has at least one output file (and thus is a valid "artifact" for content).

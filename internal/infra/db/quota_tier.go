@@ -17,7 +17,7 @@ type quotaTierRow struct {
 
 func (quotaTierRow) TableName() string { return "quota_tier" }
 
-func toModelQuotaTier(row *quotaTierRow) *model.QuotaTier {
+func toQuotaTier(row *quotaTierRow) *model.QuotaTier {
 	if row == nil {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*model.Quota
 		}
 		return nil, err
 	}
-	return toModelQuotaTier(&t), nil
+	return toQuotaTier(&t), nil
 }
 
 // SeedDefaultQuotaTiers inserts free_trial and pro tiers if the quota_tier table is empty.

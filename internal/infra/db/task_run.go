@@ -42,7 +42,7 @@ type taskRunArtifactRow struct {
 
 func (taskRunArtifactRow) TableName() string { return "task_run_artifact" }
 
-func toModelTaskRun(row *taskRunRow) *model.TaskRun {
+func toTaskRun(row *taskRunRow) *model.TaskRun {
 	if row == nil {
 		return nil
 	}
@@ -69,15 +69,15 @@ func toModelTaskRun(row *taskRunRow) *model.TaskRun {
 	}
 }
 
-func toModelTaskRuns(rows []taskRunRow) []model.TaskRun {
+func toTaskRuns(rows []taskRunRow) []model.TaskRun {
 	out := make([]model.TaskRun, len(rows))
 	for i := range rows {
-		out[i] = *toModelTaskRun(&rows[i])
+		out[i] = *toTaskRun(&rows[i])
 	}
 	return out
 }
 
-func fromModelTaskRun(m *model.TaskRun) *taskRunRow {
+func toTaskRunRow(m *model.TaskRun) *taskRunRow {
 	if m == nil {
 		return nil
 	}
@@ -104,7 +104,7 @@ func fromModelTaskRun(m *model.TaskRun) *taskRunRow {
 	}
 }
 
-func toModelTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
+func toTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
 	if row == nil {
 		return nil
 	}
@@ -115,10 +115,10 @@ func toModelTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
 	}
 }
 
-func toModelTaskRunArtifacts(rows []taskRunArtifactRow) []model.TaskRunArtifact {
+func toTaskRunArtifacts(rows []taskRunArtifactRow) []model.TaskRunArtifact {
 	out := make([]model.TaskRunArtifact, len(rows))
 	for i := range rows {
-		out[i] = *toModelTaskRunArtifact(&rows[i])
+		out[i] = *toTaskRunArtifact(&rows[i])
 	}
 	return out
 }
@@ -169,7 +169,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, cre
 		Status:        "PENDING",
 		CreatedAt:     time.Now().Unix(),
 	}
-	if err := s.db.WithContext(ctx).Create(fromModelTaskRun(run)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(toTaskRunRow(run)).Error; err != nil {
 		return nil, err
 	}
 	return run, nil
@@ -185,7 +185,7 @@ func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*model.TaskRun, erro
 		}
 		return nil, err
 	}
-	return toModelTaskRun(&r), nil
+	return toTaskRun(&r), nil
 }
 
 // GetTaskRun returns the run by task_run_id, or (nil, nil) if not found.
@@ -198,7 +198,7 @@ func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*model.TaskRu
 		}
 		return nil, err
 	}
-	return toModelTaskRun(&r), nil
+	return toTaskRun(&r), nil
 }
 
 // GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.

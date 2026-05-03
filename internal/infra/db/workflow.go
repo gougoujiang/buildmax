@@ -62,7 +62,7 @@ type workflowStepRunRow struct {
 
 func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
 
-func toModelWorkflow(row *workflowRow) *model.Workflow {
+func toWorkflow(row *workflowRow) *model.Workflow {
 	if row == nil {
 		return nil
 	}
@@ -80,15 +80,15 @@ func toModelWorkflow(row *workflowRow) *model.Workflow {
 	}
 }
 
-func toModelWorkflows(rows []workflowRow) []model.Workflow {
+func toWorkflows(rows []workflowRow) []model.Workflow {
 	out := make([]model.Workflow, len(rows))
 	for i := range rows {
-		out[i] = *toModelWorkflow(&rows[i])
+		out[i] = *toWorkflow(&rows[i])
 	}
 	return out
 }
 
-func fromModelWorkflow(m *model.Workflow) *workflowRow {
+func toWorkflowRow(m *model.Workflow) *workflowRow {
 	if m == nil {
 		return nil
 	}
@@ -106,7 +106,7 @@ func fromModelWorkflow(m *model.Workflow) *workflowRow {
 	}
 }
 
-func toModelWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
+func toWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
 	if row == nil {
 		return nil
 	}
@@ -125,15 +125,15 @@ func toModelWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
 	}
 }
 
-func toModelWorkflowRuns(rows []workflowRunRow) []model.WorkflowRun {
+func toWorkflowRuns(rows []workflowRunRow) []model.WorkflowRun {
 	out := make([]model.WorkflowRun, len(rows))
 	for i := range rows {
-		out[i] = *toModelWorkflowRun(&rows[i])
+		out[i] = *toWorkflowRun(&rows[i])
 	}
 	return out
 }
 
-func fromModelWorkflowRun(m *model.WorkflowRun) *workflowRunRow {
+func toWorkflowRunRow(m *model.WorkflowRun) *workflowRunRow {
 	if m == nil {
 		return nil
 	}
@@ -152,7 +152,7 @@ func fromModelWorkflowRun(m *model.WorkflowRun) *workflowRunRow {
 	}
 }
 
-func toModelWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
+func toWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
 	if row == nil {
 		return nil
 	}
@@ -176,10 +176,10 @@ func toModelWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
 	}
 }
 
-func toModelWorkflowStepRuns(rows []workflowStepRunRow) []model.WorkflowStepRun {
+func toWorkflowStepRuns(rows []workflowStepRunRow) []model.WorkflowStepRun {
 	out := make([]model.WorkflowStepRun, len(rows))
 	for i := range rows {
-		out[i] = *toModelWorkflowStepRun(&rows[i])
+		out[i] = *toWorkflowStepRun(&rows[i])
 	}
 	return out
 }
@@ -187,7 +187,7 @@ func toModelWorkflowStepRuns(rows []workflowStepRunRow) []model.WorkflowStepRun 
 func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model.Workflow, error) {
 	var list []workflowRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error
-	return toModelWorkflows(list), err
+	return toWorkflows(list), err
 }
 
 func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
@@ -203,7 +203,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := s.db.WithContext(ctx).Create(fromModelWorkflow(workflow)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(toWorkflowRow(workflow)).Error; err != nil {
 		return nil, err
 	}
 	return workflow, nil
@@ -218,7 +218,7 @@ func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Work
 		}
 		return nil, err
 	}
-	return toModelWorkflow(&workflow), nil
+	return toWorkflow(&workflow), nil
 }
 
 func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, in model.UpdateWorkflowInput) (*model.Workflow, error) {
@@ -262,7 +262,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRu
 		CreatedAt:      now,
 		StartedAt:      in.StartedAt,
 	}
-	if err := s.db.WithContext(ctx).Create(fromModelWorkflowRun(run)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(toWorkflowRunRow(run)).Error; err != nil {
 		return nil, err
 	}
 	return run, nil
@@ -282,7 +282,7 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return toModelWorkflowRuns(list), int(total), nil
+	return toWorkflowRuns(list), int(total), nil
 }
 
 func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
@@ -299,7 +299,7 @@ func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, lim
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return toModelWorkflowRuns(list), int(total), nil
+	return toWorkflowRuns(list), int(total), nil
 }
 
 func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*model.WorkflowRun, error) {
@@ -311,7 +311,7 @@ func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*mode
 		}
 		return nil, err
 	}
-	return toModelWorkflowRun(&run), nil
+	return toWorkflowRun(&run), nil
 }
 
 func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]model.WorkflowStepRun, error) {
@@ -320,7 +320,7 @@ func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) 
 		Where("workflow_run_id = ?", workflowRunID).
 		Order("step_index ASC, created_at ASC").
 		Find(&list).Error
-	return toModelWorkflowStepRuns(list), err
+	return toWorkflowStepRuns(list), err
 }
 
 func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []model.CreateWorkflowStepRunInput) ([]model.WorkflowStepRun, error) {
@@ -345,7 +345,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	if err := s.db.WithContext(ctx).Create(&rows).Error; err != nil {
 		return nil, err
 	}
-	return toModelWorkflowStepRuns(rows), nil
+	return toWorkflowStepRuns(rows), nil
 }
 
 func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in model.UpdateWorkflowRunInput) (*model.WorkflowRun, error) {
@@ -432,7 +432,7 @@ func (s *Store) getWorkflowStepRunByColumn(ctx context.Context, col, value strin
 		}
 		return nil, err
 	}
-	return toModelWorkflowStepRun(&step), nil
+	return toWorkflowStepRun(&step), nil
 }
 
 func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*model.WorkflowStepRun, error) {
@@ -444,5 +444,5 @@ func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*mode
 		}
 		return nil, err
 	}
-	return toModelWorkflowStepRun(&step), nil
+	return toWorkflowStepRun(&step), nil
 }

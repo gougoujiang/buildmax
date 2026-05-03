@@ -144,7 +144,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	return result, nil
 }
 
-func reportPersistedRunState(ctx context.Context, persist blob.PersistStorage, scope RunScope, dirs runDirs, result RunResult) {
+func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result RunResult) {
 	persistRunResult(dirs.runArtifacts, result.Output)
 	uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist)
 	uploadTaskRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
@@ -163,7 +163,7 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 	return nil
 }
 
-func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *model.TaskRun, runGlobalDir string, persist blob.PersistStorage) {
+func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *model.TaskRun, runGlobalDir string, persist blob.RunStorage) {
 	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.TaskRunID {
 		return
 	}
@@ -330,7 +330,7 @@ func walkAndUploadFiles(ctx context.Context, rootDir string, scope RunScope, ope
 }
 
 // uploadTaskRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).
-func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunScope, persist blob.PersistStorage) {
+func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunScope, persist blob.RunStorage) {
 	walkAndUploadFiles(
 		ctx,
 		artifactsDir,
@@ -372,7 +372,7 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 }
 
 // uploadTaskGlobal uploads the run's global dir (logs, sessions, settings) to blob storage for the run.
-func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.PersistStorage) {
+func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage) {
 	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.json"}
 	sessionsDir := filepath.Join(globalDir, "sessions")
 	entries, err := os.ReadDir(sessionsDir)

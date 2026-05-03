@@ -1,4 +1,4 @@
-// Package blob provides pluggable storage for team files and task-run artifact files.
+// Package objectstore provides pluggable blob storage for team workspace files and task-run artifacts.
 package objectstore
 
 import (
@@ -21,18 +21,30 @@ type RunRef struct {
 	TaskRunID      string
 }
 
-// PersistStorage reads/writes persistent team files and can materialize them to a local dir.
-// PutTaskGlobal/GetTaskGlobal use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/global/.
-// PutTaskRunArtifacts/GetTaskRunArtifacts use run-scoped path: conversations/<conversationID>/tasks/<taskID>/<taskRunID>/artifacts/.
-type PersistStorage interface {
+// HomeStorage reads and writes persistent team home files (Put/Get/ListFiles/MaterializeToDir).
+// Key space: <prefix>/<teamID>/home/<relPath>.
+type HomeStorage interface {
 	Put(ctx context.Context, teamID string, relPath string, r io.Reader) error
 	Get(ctx context.Context, teamID string, relPath string) ([]byte, error)
 	ListFiles(ctx context.Context, teamID string) ([]string, error)
 	MaterializeToDir(ctx context.Context, teamID string, dstDir string) error
+}
+
+// RunStorage reads and writes run-scoped files: the task run global dir (BUILDMAX_HOME state)
+// and the task run artifacts dir. Key space: conversations/<cID>/tasks/<tID>/<rID>/{global,artifacts}/.
+// For local-FS deployments these files live on worker disk; all methods are no-ops or return ErrNotFound.
+type RunStorage interface {
 	PutTaskGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetTaskGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
 	PutTaskRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetTaskRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error)
+}
+
+// PersistStorage is the composite interface for components that need both home-file and
+// run-scoped storage (e.g. the task-run worker). Most components only need HomeStorage or RunStorage.
+type PersistStorage interface {
+	HomeStorage
+	RunStorage
 }
 
 // ArtifactStorage reads/writes run output files. Path: artifacts/<conversationID>/<taskID>/<taskRunID>/<relPath>. One namespace per task run.

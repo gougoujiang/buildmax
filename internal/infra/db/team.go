@@ -33,7 +33,7 @@ type teamMemberRow struct {
 
 func (teamMemberRow) TableName() string { return "team_member" }
 
-func toModelTeam(row *teamRow) *model.Team {
+func toTeam(row *teamRow) *model.Team {
 	if row == nil {
 		return nil
 	}
@@ -49,15 +49,15 @@ func toModelTeam(row *teamRow) *model.Team {
 	}
 }
 
-func toModelTeams(rows []teamRow) []model.Team {
+func toTeams(rows []teamRow) []model.Team {
 	out := make([]model.Team, len(rows))
 	for i := range rows {
-		out[i] = *toModelTeam(&rows[i])
+		out[i] = *toTeam(&rows[i])
 	}
 	return out
 }
 
-func fromModelTeam(m *model.Team) *teamRow {
+func toTeamRow(m *model.Team) *teamRow {
 	if m == nil {
 		return nil
 	}
@@ -73,7 +73,7 @@ func fromModelTeam(m *model.Team) *teamRow {
 	}
 }
 
-func toModelTeamMember(row *teamMemberRow) *model.TeamMember {
+func toTeamMember(row *teamMemberRow) *model.TeamMember {
 	if row == nil {
 		return nil
 	}
@@ -86,15 +86,15 @@ func toModelTeamMember(row *teamMemberRow) *model.TeamMember {
 	}
 }
 
-func toModelTeamMembers(rows []teamMemberRow) []model.TeamMember {
+func toTeamMembers(rows []teamMemberRow) []model.TeamMember {
 	out := make([]model.TeamMember, len(rows))
 	for i := range rows {
-		out[i] = *toModelTeamMember(&rows[i])
+		out[i] = *toTeamMember(&rows[i])
 	}
 	return out
 }
 
-func fromModelTeamMember(m *model.TeamMember) *teamMemberRow {
+func toTeamMemberRow(m *model.TeamMember) *teamMemberRow {
 	if m == nil {
 		return nil
 	}
@@ -117,7 +117,7 @@ func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error)
 		}
 		return nil, err
 	}
-	return toModelTeam(&team), nil
+	return toTeam(&team), nil
 }
 
 // GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
@@ -130,7 +130,7 @@ func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*mode
 		}
 		return nil, err
 	}
-	return toModelTeam(&team), nil
+	return toTeam(&team), nil
 }
 
 // ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
@@ -143,7 +143,7 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 		Where("team_member.user_id = ?", userID).
 		Order("team.created_at ASC").
 		Find(&list).Error
-	return toModelTeams(list), err
+	return toTeams(list), err
 }
 
 // CreateTeam creates a new team and owner membership.
@@ -163,8 +163,8 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 		Role:      model.TeamRoleOwner,
 		CreatedAt: now,
 	}
-	teamDB := fromModelTeam(team)
-	memberDB := fromModelTeamMember(member)
+	teamDB := toTeamRow(team)
+	memberDB := toTeamMemberRow(member)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(teamDB).Error; err != nil {
 			return err
@@ -190,12 +190,12 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 		findErr := tx.Where("team_id = ? AND user_id = ?", teamID, userID).First(&existing).Error
 		switch {
 		case errors.Is(findErr, gorm.ErrRecordNotFound):
-			return tx.Create(fromModelTeamMember(member)).Error
+			return tx.Create(toTeamMemberRow(member)).Error
 		case findErr != nil:
 			return findErr
 		default:
 			existing.Role = role
-			member = toModelTeamMember(&existing)
+			member = toTeamMember(&existing)
 			return tx.Save(&existing).Error
 		}
 	})
@@ -219,7 +219,7 @@ func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]model.Tea
 		Where("team_id = ?", teamID).
 		Order("created_at ASC").
 		Find(&list).Error
-	return toModelTeamMembers(list), err
+	return toTeamMembers(list), err
 }
 
 func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (string, error) {

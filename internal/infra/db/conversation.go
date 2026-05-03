@@ -23,7 +23,7 @@ type conversationRow struct {
 
 func (conversationRow) TableName() string { return "conversation" }
 
-func toModelConversation(row *conversationRow) *model.Conversation {
+func toConversation(row *conversationRow) *model.Conversation {
 	if row == nil {
 		return nil
 	}
@@ -39,15 +39,15 @@ func toModelConversation(row *conversationRow) *model.Conversation {
 	}
 }
 
-func toModelConversations(rows []conversationRow) []model.Conversation {
+func toConversations(rows []conversationRow) []model.Conversation {
 	out := make([]model.Conversation, len(rows))
 	for i := range rows {
-		out[i] = *toModelConversation(&rows[i])
+		out[i] = *toConversation(&rows[i])
 	}
 	return out
 }
 
-func fromModelConversation(m *model.Conversation) *conversationRow {
+func toConversationRow(m *model.Conversation) *conversationRow {
 	if m == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 		CreatedBy:      createdBy,
 		CreatedAt:      now,
 	}
-	if err := s.db.WithContext(ctx).Create(fromModelConversation(conv)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(toConversationRow(conv)).Error; err != nil {
 		return nil, err
 	}
 	return conv, nil
@@ -99,7 +99,7 @@ func (s *Store) GetConversation(ctx context.Context, conversationID string) (*mo
 		}
 		return nil, err
 	}
-	return toModelConversation(&c), nil
+	return toConversation(&c), nil
 }
 
 // ListConversationsByUser returns conversations for the user ordered by created_at DESC.
@@ -114,7 +114,7 @@ func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limi
 		Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error
-	return toModelConversations(list), int(total), err
+	return toConversations(list), int(total), err
 }
 
 // ListConversationsByTeam returns conversations for the team ordered by created_at DESC.
@@ -128,7 +128,7 @@ func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limi
 		Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error
-	return toModelConversations(list), int(total), err
+	return toConversations(list), int(total), err
 }
 
 // UpdateConversationTitle sets the title for the conversation (e.g. after first-round LLM generation).

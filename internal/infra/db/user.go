@@ -23,7 +23,7 @@ type userRow struct {
 
 func (userRow) TableName() string { return "user" }
 
-func toModelUser(row *userRow) *model.User {
+func toUser(row *userRow) *model.User {
 	if row == nil {
 		return nil
 	}
@@ -39,15 +39,15 @@ func toModelUser(row *userRow) *model.User {
 	}
 }
 
-func toModelUsers(rows []userRow) []model.User {
+func toUsers(rows []userRow) []model.User {
 	out := make([]model.User, len(rows))
 	for i := range rows {
-		out[i] = *toModelUser(&rows[i])
+		out[i] = *toUser(&rows[i])
 	}
 	return out
 }
 
-func fromModelUser(m *model.User) *userRow {
+func toUserRow(m *model.User) *userRow {
 	if m == nil {
 		return nil
 	}
@@ -73,7 +73,7 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, err
 		}
 		return nil, err
 	}
-	return toModelUser(&u), nil
+	return toUser(&u), nil
 }
 
 // GetUser returns the user by user_id, or (nil, nil) when not found.
@@ -86,7 +86,7 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error)
 		}
 		return nil, err
 	}
-	return toModelUser(&u), nil
+	return toUser(&u), nil
 }
 
 // UpdateLoginMeta records the last login timestamp and platform for the user.
@@ -136,9 +136,9 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		Role:      model.TeamRoleOwner,
 		CreatedAt: u.CreatedAt,
 	}
-	userDB := fromModelUser(&u)
-	personalTeamDB := fromModelTeam(&personalTeam)
-	personalMemberDB := fromModelTeamMember(&personalMember)
+	userDB := toUserRow(&u)
+	personalTeamDB := toTeamRow(&personalTeam)
+	personalMemberDB := toTeamMemberRow(&personalMember)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(userDB).Error; err != nil {
 			return err

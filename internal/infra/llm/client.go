@@ -2,24 +2,16 @@
 package llm
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 
 	"buildmax/internal/core/model"
 
 	openai "github.com/sashabaranov/go-openai"
 )
-
-// contextKey type for stream usage context value.
-type contextKey struct{}
-
-var streamUsageKey = &contextKey{}
 
 // Config holds OpenAI-compatible LLM client settings.
 type Config struct {
@@ -220,93 +212,6 @@ func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []model.M
 		}
 	}
 	return fullContent.String(), toolCalls, streamUsage, nil
-}
-
-// streamRespUsage extracts usage from a stream response when the provider includes it.
-// go-openai ChatCompletionStreamResponse does not currently expose model.Usage; capture is done via usageCaptureTransport.
-func streamRespUsage(resp openai.ChatCompletionStreamResponse) model.Usage {
-	return model.Usage{}
-}
-
-// usageCaptureTransport wraps the response body for SSE streams to capture usage from raw chunks.
-type usageCaptureTransport struct {
-	base http.RoundTripper
-}
-
-func (t *usageCaptureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := t.base.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "text/event-stream") {
-		return resp, nil
-	}
-	if v := req.Context().Value(streamUsageKey); v != nil {
-		if usage, ok := v.(*model.Usage); ok && usage != nil {
-			resp.Body = &usageCaptureReader{body: resp.Body, usage: usage}
-		}
-	}
-	return resp, nil
-}
-
-// usageCaptureReader tees the stream and parses SSE "data:" lines for usage.
-type usageCaptureReader struct {
-	body  io.ReadCloser
-	usage *model.Usage
-	buf   []byte
-	mu    sync.Mutex
-}
-
-func (r *usageCaptureReader) Read(p []byte) (n int, err error) {
-	n, err = r.body.Read(p)
-	if n > 0 {
-		r.mu.Lock()
-		r.buf = append(r.buf, p[:n]...)
-		r.parseUsageLocked()
-		r.mu.Unlock()
-	}
-	return n, err
-}
-
-func (r *usageCaptureReader) Close() error {
-	return r.body.Close()
-}
-
-func (r *usageCaptureReader) parseUsageLocked() {
-	const dataPrefix = "data: "
-	for {
-		idx := bytes.Index(r.buf, []byte("\n\n"))
-		if idx < 0 {
-			break
-		}
-		event := r.buf[:idx]
-		r.buf = r.buf[idx+2:]
-		lines := bytes.Split(event, []byte("\n"))
-		for _, line := range lines {
-			line = bytes.TrimSpace(line)
-			if !bytes.HasPrefix(line, []byte(dataPrefix)) {
-				continue
-			}
-			jsonBytes := line[len(dataPrefix):]
-			if string(jsonBytes) == "[DONE]" {
-				continue
-			}
-			var obj struct {
-				Usage *struct {
-					PromptTokens     int `json:"prompt_tokens"`
-					CompletionTokens int `json:"completion_tokens"`
-					TotalTokens      int `json:"total_tokens"`
-				} `json:"usage,omitempty"`
-			}
-			if json.Unmarshal(jsonBytes, &obj) != nil || obj.Usage == nil {
-				continue
-			}
-			r.usage.PromptTokens = obj.Usage.PromptTokens
-			r.usage.CompletionTokens = obj.Usage.CompletionTokens
-			r.usage.TotalTokens = obj.Usage.TotalTokens
-		}
-	}
 }
 
 // Ensure *Client implements model.LLMClient.

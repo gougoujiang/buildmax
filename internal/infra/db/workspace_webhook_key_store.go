@@ -25,7 +25,7 @@ type userWebhookKeyRow struct {
 
 func (userWebhookKeyRow) TableName() string { return "user_webhook_key" }
 
-func toModelUserWebhookKey(row *userWebhookKeyRow) *model.UserWebhookKey {
+func toUserWebhookKey(row *userWebhookKeyRow) *model.UserWebhookKey {
 	if row == nil {
 		return nil
 	}
@@ -39,15 +39,15 @@ func toModelUserWebhookKey(row *userWebhookKeyRow) *model.UserWebhookKey {
 	}
 }
 
-func toModelUserWebhookKeys(rows []userWebhookKeyRow) []model.UserWebhookKey {
+func toUserWebhookKeys(rows []userWebhookKeyRow) []model.UserWebhookKey {
 	out := make([]model.UserWebhookKey, len(rows))
 	for i := range rows {
-		out[i] = *toModelUserWebhookKey(&rows[i])
+		out[i] = *toUserWebhookKey(&rows[i])
 	}
 	return out
 }
 
-func fromModelUserWebhookKey(m *model.UserWebhookKey) *userWebhookKeyRow {
+func toUserWebhookKeyRow(m *model.UserWebhookKey) *userWebhookKeyRow {
 	if m == nil {
 		return nil
 	}

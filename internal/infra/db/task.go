@@ -36,7 +36,7 @@ type taskRow struct {
 
 func (taskRow) TableName() string { return "task" }
 
-func toModelTask(row *taskRow) *model.Task {
+func toTask(row *taskRow) *model.Task {
 	if row == nil {
 		return nil
 	}
@@ -63,15 +63,15 @@ func toModelTask(row *taskRow) *model.Task {
 	}
 }
 
-func toModelTasks(rows []taskRow) []model.Task {
+func toTasks(rows []taskRow) []model.Task {
 	out := make([]model.Task, len(rows))
 	for i := range rows {
-		out[i] = *toModelTask(&rows[i])
+		out[i] = *toTask(&rows[i])
 	}
 	return out
 }
 
-func fromModelTask(m *model.Task) *taskRow {
+func toTaskRow(m *model.Task) *taskRow {
 	if m == nil {
 		return nil
 	}
@@ -109,7 +109,7 @@ func (s *Store) ListTasksByConversation(ctx context.Context, conversationID stri
 		q = q.Order("created_at DESC")
 	}
 	err := q.Find(&list).Error
-	return toModelTasks(list), err
+	return toTasks(list), err
 }
 
 // ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
@@ -130,7 +130,7 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
 	}
 	err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
-	return toModelTasks(list), int(total), err
+	return toTasks(list), int(total), err
 }
 
 func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
@@ -145,7 +145,7 @@ func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, off
 		q = q.Limit(limit).Offset(offset)
 	}
 	err := q.Find(&list).Error
-	return toModelTasks(list), int(total), err
+	return toTasks(list), int(total), err
 }
 
 // GetTask returns the task by task_id, or (nil, nil) if not found.
@@ -158,7 +158,7 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (*model.Task, error)
 		}
 		return nil, err
 	}
-	return toModelTask(&task), nil
+	return toTask(&task), nil
 }
 
 // GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
@@ -171,7 +171,7 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*mode
 		}
 		return nil, err
 	}
-	return toModelTask(&task), nil
+	return toTask(&task), nil
 }
 
 // CreateTask creates a new task and its first model.TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
@@ -217,10 +217,10 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		if task.TeamID == "" {
 			task.TeamID = conv.TeamID
 		}
-		if err := tx.Create(fromModelTask(task)).Error; err != nil {
+		if err := tx.Create(toTaskRow(task)).Error; err != nil {
 			return err
 		}
-		return tx.Create(fromModelTaskRun(run)).Error
+		return tx.Create(toTaskRunRow(run)).Error
 	})
 	if err != nil {
 		return nil, err

@@ -11,9 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-// ErrNotFound is returned when an S3 object does not exist.
-var ErrNotFound = errors.New("object not found")
-
 // s3ClientAdapter adapts *s3.Client to S3Client.
 type s3ClientAdapter struct {
 	client *s3.Client

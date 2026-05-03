@@ -27,7 +27,7 @@ type issueRow struct {
 
 func (issueRow) TableName() string { return "issue" }
 
-func toModelIssue(row *issueRow) *model.Issue {
+func toIssue(row *issueRow) *model.Issue {
 	if row == nil {
 		return nil
 	}
@@ -47,15 +47,15 @@ func toModelIssue(row *issueRow) *model.Issue {
 	}
 }
 
-func toModelIssues(rows []issueRow) []model.Issue {
+func toIssues(rows []issueRow) []model.Issue {
 	out := make([]model.Issue, len(rows))
 	for i := range rows {
-		out[i] = *toModelIssue(&rows[i])
+		out[i] = *toIssue(&rows[i])
 	}
 	return out
 }
 
-func fromModelIssue(m *model.Issue) *issueRow {
+func toIssueRow(m *model.Issue) *issueRow {
 	if m == nil {
 		return nil
 	}
@@ -102,7 +102,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 		AssigneeKind: nil,
 		AssigneeID:   nil,
 	}
-	if err := s.db.WithContext(ctx).Create(fromModelIssue(issue)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(toIssueRow(issue)).Error; err != nil {
 		return nil, err
 	}
 	return issue, nil
@@ -122,7 +122,7 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return toModelIssues(list), int(total), nil
+	return toIssues(list), int(total), nil
 }
 
 // ListIssuesByTeam returns issues for the team ordered by updated_at DESC.
@@ -139,7 +139,7 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, limit, offs
 	if err := q.Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	return toModelIssues(list), int(total), nil
+	return toIssues(list), int(total), nil
 }
 
 // GetIssue returns the issue by issue_id, or (nil, nil) if not found.
@@ -152,7 +152,7 @@ func (s *Store) GetIssue(ctx context.Context, issueID string) (*model.Issue, err
 		}
 		return nil, err
 	}
-	return toModelIssue(&issue), nil
+	return toIssue(&issue), nil
 }
 
 // UpdateIssue updates only provided fields. Returns (nil, nil) if not found or not owned by user.

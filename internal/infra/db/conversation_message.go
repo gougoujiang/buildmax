@@ -22,7 +22,7 @@ type conversationMessageRow struct {
 
 func (conversationMessageRow) TableName() string { return "conversation_message" }
 
-func toModelConversationMessage(row *conversationMessageRow) *model.ConversationMessage {
+func toConversationMessage(row *conversationMessageRow) *model.ConversationMessage {
 	if row == nil {
 		return nil
 	}
@@ -39,15 +39,15 @@ func toModelConversationMessage(row *conversationMessageRow) *model.Conversation
 	}
 }
 
-func toModelConversationMessages(rows []conversationMessageRow) []model.ConversationMessage {
+func toConversationMessages(rows []conversationMessageRow) []model.ConversationMessage {
 	out := make([]model.ConversationMessage, len(rows))
 	for i := range rows {
-		out[i] = *toModelConversationMessage(&rows[i])
+		out[i] = *toConversationMessage(&rows[i])
 	}
 	return out
 }
 
-func fromModelConversationMessage(m *model.ConversationMessage) *conversationMessageRow {
+func toConversationMessageRow(m *model.ConversationMessage) *conversationMessageRow {
 	if m == nil {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (s *Store) AppendMessage(ctx context.Context, conversationID, role, content
 		ToolCallsJSON:         toolCallsJSON,
 		CreatedAt:             time.Now().Unix(),
 	}
-	if err := s.db.WithContext(ctx).Create(fromModelConversationMessage(msg)).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(toConversationMessageRow(msg)).Error; err != nil {
 		return nil, err
 	}
 	return msg, nil
@@ -90,5 +90,5 @@ func (s *Store) ListMessages(ctx context.Context, conversationID string) ([]mode
 	err := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID).
 		Order("created_at ASC").
 		Find(&list).Error
-	return toModelConversationMessages(list), err
+	return toConversationMessages(list), err
 }
