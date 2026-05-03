@@ -10,6 +10,119 @@ import (
 	"gorm.io/gorm"
 )
 
+type taskRunRow struct {
+	ID               uint    `gorm:"primaryKey;autoIncrement"`
+	TaskRunID        string  `gorm:"column:task_run_id;type:varchar(64);uniqueIndex;not null"`
+	TaskID           string  `gorm:"column:task_id;type:varchar(64);not null;index"`
+	Input            string  `gorm:"type:text;not null"`
+	CreatedBy        string  `gorm:"type:varchar(64);index"`
+	CreatedByType    string  `gorm:"type:varchar(32)"`
+	TriggerSource    string  `gorm:"type:varchar(64)"`
+	Status           string  `gorm:"type:varchar(32);not null"`
+	Output           *string `gorm:"type:text"`
+	ErrorMessage     *string `gorm:"type:text"`
+	StartedAt        *int64  `gorm:""`
+	EndedAt          *int64  `gorm:""`
+	SessionID        *string `gorm:"type:varchar(36)"`
+	WorkerType       string  `gorm:"type:varchar(32)"`
+	K8sJobName       *string `gorm:"type:varchar(128)"`
+	K8sJobCreatedAt  *int64  `gorm:"column:k8s_job_created_at"`
+	PromptTokens     *int    `gorm:""`
+	CompletionTokens *int    `gorm:""`
+	CreatedAt        int64   `gorm:"autoCreateTime"`
+}
+
+func (taskRunRow) TableName() string { return "task_run" }
+
+type taskRunArtifactRow struct {
+	ID           uint   `gorm:"primaryKey;autoIncrement"`
+	TaskRunID    string `gorm:"type:varchar(64);not null;uniqueIndex:uq_task_run_artifact_run_path"`
+	RelativePath string `gorm:"type:varchar(512);not null;uniqueIndex:uq_task_run_artifact_run_path"`
+}
+
+func (taskRunArtifactRow) TableName() string { return "task_run_artifact" }
+
+func toModelTaskRun(row *taskRunRow) *model.TaskRun {
+	if row == nil {
+		return nil
+	}
+	return &model.TaskRun{
+		ID:               row.ID,
+		TaskRunID:        row.TaskRunID,
+		TaskID:           row.TaskID,
+		Input:            row.Input,
+		CreatedBy:        row.CreatedBy,
+		CreatedByType:    row.CreatedByType,
+		TriggerSource:    row.TriggerSource,
+		Status:           row.Status,
+		Output:           row.Output,
+		ErrorMessage:     row.ErrorMessage,
+		StartedAt:        row.StartedAt,
+		EndedAt:          row.EndedAt,
+		SessionID:        row.SessionID,
+		WorkerType:       row.WorkerType,
+		K8sJobName:       row.K8sJobName,
+		K8sJobCreatedAt:  row.K8sJobCreatedAt,
+		PromptTokens:     row.PromptTokens,
+		CompletionTokens: row.CompletionTokens,
+		CreatedAt:        row.CreatedAt,
+	}
+}
+
+func toModelTaskRuns(rows []taskRunRow) []model.TaskRun {
+	out := make([]model.TaskRun, len(rows))
+	for i := range rows {
+		out[i] = *toModelTaskRun(&rows[i])
+	}
+	return out
+}
+
+func fromModelTaskRun(m *model.TaskRun) *taskRunRow {
+	if m == nil {
+		return nil
+	}
+	return &taskRunRow{
+		ID:               m.ID,
+		TaskRunID:        m.TaskRunID,
+		TaskID:           m.TaskID,
+		Input:            m.Input,
+		CreatedBy:        m.CreatedBy,
+		CreatedByType:    m.CreatedByType,
+		TriggerSource:    m.TriggerSource,
+		Status:           m.Status,
+		Output:           m.Output,
+		ErrorMessage:     m.ErrorMessage,
+		StartedAt:        m.StartedAt,
+		EndedAt:          m.EndedAt,
+		SessionID:        m.SessionID,
+		WorkerType:       m.WorkerType,
+		K8sJobName:       m.K8sJobName,
+		K8sJobCreatedAt:  m.K8sJobCreatedAt,
+		PromptTokens:     m.PromptTokens,
+		CompletionTokens: m.CompletionTokens,
+		CreatedAt:        m.CreatedAt,
+	}
+}
+
+func toModelTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
+	if row == nil {
+		return nil
+	}
+	return &model.TaskRunArtifact{
+		ID:           row.ID,
+		TaskRunID:    row.TaskRunID,
+		RelativePath: row.RelativePath,
+	}
+}
+
+func toModelTaskRunArtifacts(rows []taskRunArtifactRow) []model.TaskRunArtifact {
+	out := make([]model.TaskRunArtifact, len(rows))
+	for i := range rows {
+		out[i] = *toModelTaskRunArtifact(&rows[i])
+	}
+	return out
+}
+
 func buildTaskRunUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) map[string]interface{} {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {

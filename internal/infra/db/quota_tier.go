@@ -8,6 +8,27 @@ import (
 	"gorm.io/gorm"
 )
 
+type quotaTierRow struct {
+	TierName           string `gorm:"column:tier_name;primaryKey;type:varchar(64)"`
+	MaxRunsPerPeriod   int    `gorm:"column:max_runs_per_period;not null"`
+	MaxTokensPerPeriod int    `gorm:"column:max_tokens_per_period;not null"`
+	PeriodDays         int    `gorm:"column:period_days;not null"`
+}
+
+func (quotaTierRow) TableName() string { return "quota_tier" }
+
+func toModelQuotaTier(row *quotaTierRow) *model.QuotaTier {
+	if row == nil {
+		return nil
+	}
+	return &model.QuotaTier{
+		TierName:           row.TierName,
+		MaxRunsPerPeriod:   row.MaxRunsPerPeriod,
+		MaxTokensPerPeriod: row.MaxTokensPerPeriod,
+		PeriodDays:         row.PeriodDays,
+	}
+}
+
 // GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
 func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*model.QuotaTier, error) {
 	var t quotaTierRow

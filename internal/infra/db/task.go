@@ -12,6 +12,92 @@ import (
 	"gorm.io/gorm"
 )
 
+type taskRow struct {
+	ID                    uint    `gorm:"primaryKey;autoIncrement"`
+	TaskID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null"`
+	ConversationID        string  `gorm:"type:varchar(64);not null;index"`
+	TeamID                string  `gorm:"type:varchar(64);index"`
+	IssueID               *string `gorm:"column:issue_id;type:varchar(64);index"`
+	Status                string  `gorm:"type:varchar(32);not null"`
+	Input                 string  `gorm:"type:text;not null"`
+	Title                 string  `gorm:"type:varchar(256)"`
+	TitlePromptTokens     int     `gorm:""`
+	TitleCompletionTokens int     `gorm:""`
+	Output                *string `gorm:"type:text"`
+	CreatedBy             string  `gorm:"type:varchar(64);not null"`
+	CreatedAt             int64   `gorm:"autoCreateTime"`
+	StartedAt             *int64  `gorm:""`
+	EndedAt               *int64  `gorm:""`
+	ErrorMessage          *string `gorm:"type:text"`
+	SessionID             *string `gorm:"type:varchar(36)"`
+	LastRunID             *string `gorm:"type:varchar(64);index"`
+	AgentID               *string `gorm:"type:varchar(64);index"`
+}
+
+func (taskRow) TableName() string { return "task" }
+
+func toModelTask(row *taskRow) *model.Task {
+	if row == nil {
+		return nil
+	}
+	return &model.Task{
+		ID:                    row.ID,
+		TaskID:                row.TaskID,
+		ConversationID:        row.ConversationID,
+		TeamID:                row.TeamID,
+		IssueID:               row.IssueID,
+		Status:                row.Status,
+		Input:                 row.Input,
+		Title:                 row.Title,
+		TitlePromptTokens:     row.TitlePromptTokens,
+		TitleCompletionTokens: row.TitleCompletionTokens,
+		Output:                row.Output,
+		CreatedBy:             row.CreatedBy,
+		CreatedAt:             row.CreatedAt,
+		StartedAt:             row.StartedAt,
+		EndedAt:               row.EndedAt,
+		ErrorMessage:          row.ErrorMessage,
+		SessionID:             row.SessionID,
+		LastRunID:             row.LastRunID,
+		AgentID:               row.AgentID,
+	}
+}
+
+func toModelTasks(rows []taskRow) []model.Task {
+	out := make([]model.Task, len(rows))
+	for i := range rows {
+		out[i] = *toModelTask(&rows[i])
+	}
+	return out
+}
+
+func fromModelTask(m *model.Task) *taskRow {
+	if m == nil {
+		return nil
+	}
+	return &taskRow{
+		ID:                    m.ID,
+		TaskID:                m.TaskID,
+		ConversationID:        m.ConversationID,
+		TeamID:                m.TeamID,
+		IssueID:               m.IssueID,
+		Status:                m.Status,
+		Input:                 m.Input,
+		Title:                 m.Title,
+		TitlePromptTokens:     m.TitlePromptTokens,
+		TitleCompletionTokens: m.TitleCompletionTokens,
+		Output:                m.Output,
+		CreatedBy:             m.CreatedBy,
+		CreatedAt:             m.CreatedAt,
+		StartedAt:             m.StartedAt,
+		EndedAt:               m.EndedAt,
+		ErrorMessage:          m.ErrorMessage,
+		SessionID:             m.SessionID,
+		LastRunID:             m.LastRunID,
+		AgentID:               m.AgentID,
+	}
+}
+
 // ListTasksByConversation returns tasks in the conversation, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
 func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]model.Task, error) {

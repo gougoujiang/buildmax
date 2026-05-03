@@ -10,6 +10,180 @@ import (
 	"gorm.io/gorm"
 )
 
+type workflowRow struct {
+	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	WorkflowID  string `gorm:"column:workflow_id;type:varchar(64);uniqueIndex;not null"`
+	TeamID      string `gorm:"column:team_id;type:varchar(64);not null;index"`
+	Name        string `gorm:"type:varchar(255);not null"`
+	Description string `gorm:"type:text;not null"`
+	Definition  string `gorm:"type:longtext;not null"`
+	Status      string `gorm:"type:varchar(32);not null;default:'draft'"`
+	CreatedBy   string `gorm:"type:varchar(64);not null"`
+	CreatedAt   int64  `gorm:"autoCreateTime"`
+	UpdatedAt   int64  `gorm:"autoUpdateTime"`
+}
+
+func (workflowRow) TableName() string { return "workflow" }
+
+type workflowRunRow struct {
+	ID             uint    `gorm:"primaryKey;autoIncrement"`
+	WorkflowRunID  string  `gorm:"column:workflow_run_id;type:varchar(64);uniqueIndex;not null"`
+	WorkflowID     string  `gorm:"column:workflow_id;type:varchar(64);not null;index"`
+	IssueID        *string `gorm:"column:issue_id;type:varchar(64);index"`
+	ConversationID string  `gorm:"column:conversation_id;type:varchar(64);not null;index"`
+	Status         string  `gorm:"type:varchar(32);not null"`
+	CreatedBy      string  `gorm:"type:varchar(64);not null"`
+	CreatedAt      int64   `gorm:"autoCreateTime"`
+	StartedAt      *int64  `gorm:""`
+	EndedAt        *int64  `gorm:""`
+	ErrorMessage   *string `gorm:"type:text"`
+}
+
+func (workflowRunRow) TableName() string { return "workflow_run" }
+
+type workflowStepRunRow struct {
+	ID            uint    `gorm:"primaryKey;autoIncrement"`
+	StepRunID     string  `gorm:"column:workflow_step_run_id;type:varchar(64);uniqueIndex;not null"`
+	WorkflowRunID string  `gorm:"column:workflow_run_id;type:varchar(64);not null;index"`
+	StepID        string  `gorm:"column:step_id;type:varchar(128);not null"`
+	StepIndex     int     `gorm:"column:step_index;not null"`
+	StepType      string  `gorm:"column:step_type;type:varchar(32);not null"`
+	TargetAgentID *string `gorm:"column:target_agent_id;type:varchar(64);index"`
+	Prompt        string  `gorm:"type:text;not null"`
+	Status        string  `gorm:"type:varchar(32);not null"`
+	TaskID        *string `gorm:"column:task_id;type:varchar(64);index"`
+	TaskRunID     *string `gorm:"column:task_run_id;type:varchar(64);index"`
+	OutputSummary *string `gorm:"type:text"`
+	ErrorMessage  *string `gorm:"type:text"`
+	CreatedAt     int64   `gorm:"autoCreateTime"`
+	StartedAt     *int64  `gorm:""`
+	EndedAt       *int64  `gorm:""`
+}
+
+func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
+
+func toModelWorkflow(row *workflowRow) *model.Workflow {
+	if row == nil {
+		return nil
+	}
+	return &model.Workflow{
+		ID:          row.ID,
+		WorkflowID:  row.WorkflowID,
+		TeamID:      row.TeamID,
+		Name:        row.Name,
+		Description: row.Description,
+		Definition:  row.Definition,
+		Status:      row.Status,
+		CreatedBy:   row.CreatedBy,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+}
+
+func toModelWorkflows(rows []workflowRow) []model.Workflow {
+	out := make([]model.Workflow, len(rows))
+	for i := range rows {
+		out[i] = *toModelWorkflow(&rows[i])
+	}
+	return out
+}
+
+func fromModelWorkflow(m *model.Workflow) *workflowRow {
+	if m == nil {
+		return nil
+	}
+	return &workflowRow{
+		ID:          m.ID,
+		WorkflowID:  m.WorkflowID,
+		TeamID:      m.TeamID,
+		Name:        m.Name,
+		Description: m.Description,
+		Definition:  m.Definition,
+		Status:      m.Status,
+		CreatedBy:   m.CreatedBy,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
+	}
+}
+
+func toModelWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
+	if row == nil {
+		return nil
+	}
+	return &model.WorkflowRun{
+		ID:             row.ID,
+		WorkflowRunID:  row.WorkflowRunID,
+		WorkflowID:     row.WorkflowID,
+		IssueID:        row.IssueID,
+		ConversationID: row.ConversationID,
+		Status:         row.Status,
+		CreatedBy:      row.CreatedBy,
+		CreatedAt:      row.CreatedAt,
+		StartedAt:      row.StartedAt,
+		EndedAt:        row.EndedAt,
+		ErrorMessage:   row.ErrorMessage,
+	}
+}
+
+func toModelWorkflowRuns(rows []workflowRunRow) []model.WorkflowRun {
+	out := make([]model.WorkflowRun, len(rows))
+	for i := range rows {
+		out[i] = *toModelWorkflowRun(&rows[i])
+	}
+	return out
+}
+
+func fromModelWorkflowRun(m *model.WorkflowRun) *workflowRunRow {
+	if m == nil {
+		return nil
+	}
+	return &workflowRunRow{
+		ID:             m.ID,
+		WorkflowRunID:  m.WorkflowRunID,
+		WorkflowID:     m.WorkflowID,
+		IssueID:        m.IssueID,
+		ConversationID: m.ConversationID,
+		Status:         m.Status,
+		CreatedBy:      m.CreatedBy,
+		CreatedAt:      m.CreatedAt,
+		StartedAt:      m.StartedAt,
+		EndedAt:        m.EndedAt,
+		ErrorMessage:   m.ErrorMessage,
+	}
+}
+
+func toModelWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
+	if row == nil {
+		return nil
+	}
+	return &model.WorkflowStepRun{
+		ID:            row.ID,
+		StepRunID:     row.StepRunID,
+		WorkflowRunID: row.WorkflowRunID,
+		StepID:        row.StepID,
+		StepIndex:     row.StepIndex,
+		StepType:      row.StepType,
+		TargetAgentID: row.TargetAgentID,
+		Prompt:        row.Prompt,
+		Status:        row.Status,
+		TaskID:        row.TaskID,
+		TaskRunID:     row.TaskRunID,
+		OutputSummary: row.OutputSummary,
+		ErrorMessage:  row.ErrorMessage,
+		CreatedAt:     row.CreatedAt,
+		StartedAt:     row.StartedAt,
+		EndedAt:       row.EndedAt,
+	}
+}
+
+func toModelWorkflowStepRuns(rows []workflowStepRunRow) []model.WorkflowStepRun {
+	out := make([]model.WorkflowStepRun, len(rows))
+	for i := range rows {
+		out[i] = *toModelWorkflowStepRun(&rows[i])
+	}
+	return out
+}
+
 func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model.Workflow, error) {
 	var list []workflowRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error

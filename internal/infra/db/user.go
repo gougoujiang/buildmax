@@ -10,6 +10,59 @@ import (
 	"gorm.io/gorm"
 )
 
+type userRow struct {
+	ID                uint    `gorm:"primaryKey;autoIncrement"`
+	UserID            string  `gorm:"type:varchar(64);uniqueIndex;not null"`
+	Email             string  `gorm:"type:varchar(255);uniqueIndex;not null"`
+	Name              string  `gorm:"type:varchar(255)"`
+	QuotaTier         string  `gorm:"type:varchar(64)"`
+	LastLoginAt       *int64  `gorm:""`
+	LastLoginPlatform *string `gorm:"type:varchar(32)"`
+	CreatedAt         int64   `gorm:"autoCreateTime"`
+}
+
+func (userRow) TableName() string { return "user" }
+
+func toModelUser(row *userRow) *model.User {
+	if row == nil {
+		return nil
+	}
+	return &model.User{
+		ID:                row.ID,
+		UserID:            row.UserID,
+		Email:             row.Email,
+		Name:              row.Name,
+		QuotaTier:         row.QuotaTier,
+		LastLoginAt:       row.LastLoginAt,
+		LastLoginPlatform: row.LastLoginPlatform,
+		CreatedAt:         row.CreatedAt,
+	}
+}
+
+func toModelUsers(rows []userRow) []model.User {
+	out := make([]model.User, len(rows))
+	for i := range rows {
+		out[i] = *toModelUser(&rows[i])
+	}
+	return out
+}
+
+func fromModelUser(m *model.User) *userRow {
+	if m == nil {
+		return nil
+	}
+	return &userRow{
+		ID:                m.ID,
+		UserID:            m.UserID,
+		Email:             m.Email,
+		Name:              m.Name,
+		QuotaTier:         m.QuotaTier,
+		LastLoginAt:       m.LastLoginAt,
+		LastLoginPlatform: m.LastLoginPlatform,
+		CreatedAt:         m.CreatedAt,
+	}
+}
+
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.
 func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, error) {
 	var u userRow

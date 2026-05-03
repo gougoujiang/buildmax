@@ -14,6 +14,53 @@ import (
 	"gorm.io/gorm"
 )
 
+type userWebhookKeyRow struct {
+	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	KeyID     string `gorm:"type:varchar(64);uniqueIndex;not null"`
+	UserID    string `gorm:"type:varchar(64);not null;index"`
+	KeyHash   string `gorm:"type:varchar(128);not null;uniqueIndex"`
+	Name      string `gorm:"type:varchar(255)"`
+	CreatedAt int64  `gorm:"autoCreateTime"`
+}
+
+func (userWebhookKeyRow) TableName() string { return "user_webhook_key" }
+
+func toModelUserWebhookKey(row *userWebhookKeyRow) *model.UserWebhookKey {
+	if row == nil {
+		return nil
+	}
+	return &model.UserWebhookKey{
+		ID:        row.ID,
+		KeyID:     row.KeyID,
+		UserID:    row.UserID,
+		KeyHash:   row.KeyHash,
+		Name:      row.Name,
+		CreatedAt: row.CreatedAt,
+	}
+}
+
+func toModelUserWebhookKeys(rows []userWebhookKeyRow) []model.UserWebhookKey {
+	out := make([]model.UserWebhookKey, len(rows))
+	for i := range rows {
+		out[i] = *toModelUserWebhookKey(&rows[i])
+	}
+	return out
+}
+
+func fromModelUserWebhookKey(m *model.UserWebhookKey) *userWebhookKeyRow {
+	if m == nil {
+		return nil
+	}
+	return &userWebhookKeyRow{
+		ID:        m.ID,
+		KeyID:     m.KeyID,
+		UserID:    m.UserID,
+		KeyHash:   m.KeyHash,
+		Name:      m.Name,
+		CreatedAt: m.CreatedAt,
+	}
+}
+
 const webhookKeyPrefix = "whsec_"
 const webhookKeyBytes = 32
 

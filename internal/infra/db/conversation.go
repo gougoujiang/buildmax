@@ -10,6 +10,59 @@ import (
 	"gorm.io/gorm"
 )
 
+type conversationRow struct {
+	ID             uint   `gorm:"primaryKey;autoIncrement"`
+	ConversationID string `gorm:"type:varchar(64);uniqueIndex;not null"`
+	UserID         string `gorm:"type:varchar(64);not null;index"`
+	TeamID         string `gorm:"type:varchar(64);index"`
+	Channel        string `gorm:"type:varchar(32);not null"`
+	Title          string `gorm:"type:varchar(256)"`
+	CreatedBy      string `gorm:"type:varchar(64);not null"`
+	CreatedAt      int64  `gorm:"autoCreateTime"`
+}
+
+func (conversationRow) TableName() string { return "conversation" }
+
+func toModelConversation(row *conversationRow) *model.Conversation {
+	if row == nil {
+		return nil
+	}
+	return &model.Conversation{
+		ID:             row.ID,
+		ConversationID: row.ConversationID,
+		UserID:         row.UserID,
+		TeamID:         row.TeamID,
+		Channel:        row.Channel,
+		Title:          row.Title,
+		CreatedBy:      row.CreatedBy,
+		CreatedAt:      row.CreatedAt,
+	}
+}
+
+func toModelConversations(rows []conversationRow) []model.Conversation {
+	out := make([]model.Conversation, len(rows))
+	for i := range rows {
+		out[i] = *toModelConversation(&rows[i])
+	}
+	return out
+}
+
+func fromModelConversation(m *model.Conversation) *conversationRow {
+	if m == nil {
+		return nil
+	}
+	return &conversationRow{
+		ID:             m.ID,
+		ConversationID: m.ConversationID,
+		UserID:         m.UserID,
+		TeamID:         m.TeamID,
+		Channel:        m.Channel,
+		Title:          m.Title,
+		CreatedBy:      m.CreatedBy,
+		CreatedAt:      m.CreatedAt,
+	}
+}
+
 // CreateConversation creates a new Tier 1 conversation. Returns the conversation with conversation_id set.
 func (s *Store) CreateConversation(ctx context.Context, userID, channel, createdBy string) (*model.Conversation, error) {
 	teamID, err := s.personalTeamIDForUser(ctx, userID)

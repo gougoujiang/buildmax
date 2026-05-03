@@ -10,6 +10,59 @@ import (
 	"gorm.io/gorm"
 )
 
+type agentRow struct {
+	ID           uint   `gorm:"primaryKey;autoIncrement"`
+	AgentID      string `gorm:"type:varchar(64);uniqueIndex;not null"`
+	UserID       string `gorm:"type:varchar(64);not null;index"`
+	TeamID       string `gorm:"type:varchar(64);index"`
+	Name         string `gorm:"type:varchar(255);not null"`
+	Description  string `gorm:"type:text"`
+	Instructions string `gorm:"type:text"`
+	CreatedAt    int64  `gorm:"autoCreateTime"`
+}
+
+func (agentRow) TableName() string { return "agent" }
+
+func toModelAgent(row *agentRow) *model.AgentDefinition {
+	if row == nil {
+		return nil
+	}
+	return &model.AgentDefinition{
+		ID:           row.ID,
+		AgentID:      row.AgentID,
+		UserID:       row.UserID,
+		TeamID:       row.TeamID,
+		Name:         row.Name,
+		Description:  row.Description,
+		Instructions: row.Instructions,
+		CreatedAt:    row.CreatedAt,
+	}
+}
+
+func toModelAgents(rows []agentRow) []model.AgentDefinition {
+	out := make([]model.AgentDefinition, len(rows))
+	for i := range rows {
+		out[i] = *toModelAgent(&rows[i])
+	}
+	return out
+}
+
+func fromModelAgent(m *model.AgentDefinition) *agentRow {
+	if m == nil {
+		return nil
+	}
+	return &agentRow{
+		ID:           m.ID,
+		AgentID:      m.AgentID,
+		UserID:       m.UserID,
+		TeamID:       m.TeamID,
+		Name:         m.Name,
+		Description:  m.Description,
+		Instructions: m.Instructions,
+		CreatedAt:    m.CreatedAt,
+	}
+}
+
 // GetAgent returns the agent by agent_id, or (nil, nil) when not found.
 func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.AgentDefinition, error) {
 	var a agentRow

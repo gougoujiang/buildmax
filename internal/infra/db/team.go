@@ -10,6 +10,103 @@ import (
 	"gorm.io/gorm"
 )
 
+type teamRow struct {
+	ID                uint    `gorm:"primaryKey;autoIncrement"`
+	TeamID            string  `gorm:"column:team_id;type:varchar(64);uniqueIndex;not null"`
+	Name              string  `gorm:"type:varchar(255);not null"`
+	PersonalForUserID *string `gorm:"column:personal_for_user_id;type:varchar(64);uniqueIndex"`
+	QuotaTier         string  `gorm:"column:quota_tier;type:varchar(64)"`
+	CreatedBy         string  `gorm:"type:varchar(64);not null"`
+	CreatedAt         int64   `gorm:"autoCreateTime"`
+	UpdatedAt         int64   `gorm:"autoUpdateTime"`
+}
+
+func (teamRow) TableName() string { return "team" }
+
+type teamMemberRow struct {
+	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	TeamID    string `gorm:"column:team_id;type:varchar(64);not null;uniqueIndex:uq_team_member_team_user"`
+	UserID    string `gorm:"column:user_id;type:varchar(64);not null;uniqueIndex:uq_team_member_team_user"`
+	Role      string `gorm:"type:varchar(32);not null"`
+	CreatedAt int64  `gorm:"autoCreateTime"`
+}
+
+func (teamMemberRow) TableName() string { return "team_member" }
+
+func toModelTeam(row *teamRow) *model.Team {
+	if row == nil {
+		return nil
+	}
+	return &model.Team{
+		ID:                row.ID,
+		TeamID:            row.TeamID,
+		Name:              row.Name,
+		PersonalForUserID: row.PersonalForUserID,
+		QuotaTier:         row.QuotaTier,
+		CreatedBy:         row.CreatedBy,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+	}
+}
+
+func toModelTeams(rows []teamRow) []model.Team {
+	out := make([]model.Team, len(rows))
+	for i := range rows {
+		out[i] = *toModelTeam(&rows[i])
+	}
+	return out
+}
+
+func fromModelTeam(m *model.Team) *teamRow {
+	if m == nil {
+		return nil
+	}
+	return &teamRow{
+		ID:                m.ID,
+		TeamID:            m.TeamID,
+		Name:              m.Name,
+		PersonalForUserID: m.PersonalForUserID,
+		QuotaTier:         m.QuotaTier,
+		CreatedBy:         m.CreatedBy,
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
+	}
+}
+
+func toModelTeamMember(row *teamMemberRow) *model.TeamMember {
+	if row == nil {
+		return nil
+	}
+	return &model.TeamMember{
+		ID:        row.ID,
+		TeamID:    row.TeamID,
+		UserID:    row.UserID,
+		Role:      row.Role,
+		CreatedAt: row.CreatedAt,
+	}
+}
+
+func toModelTeamMembers(rows []teamMemberRow) []model.TeamMember {
+	out := make([]model.TeamMember, len(rows))
+	for i := range rows {
+		out[i] = *toModelTeamMember(&rows[i])
+	}
+	return out
+}
+
+func fromModelTeamMember(m *model.TeamMember) *teamMemberRow {
+	if m == nil {
+		return nil
+	}
+	return &teamMemberRow{
+		ID:        m.ID,
+		TeamID:    m.TeamID,
+		UserID:    m.UserID,
+		Role:      m.Role,
+		CreatedAt: m.CreatedAt,
+	}
+}
+
 // GetTeam returns the team by team_id, or (nil, nil) when not found.
 func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error) {
 	var team teamRow

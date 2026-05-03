@@ -10,6 +10,71 @@ import (
 	"gorm.io/gorm"
 )
 
+type issueRow struct {
+	ID           uint    `gorm:"primaryKey;autoIncrement"`
+	IssueID      string  `gorm:"column:issue_id;type:varchar(64);uniqueIndex;not null"`
+	UserID       string  `gorm:"type:varchar(64);not null;index"`
+	TeamID       string  `gorm:"type:varchar(64);index"`
+	Title        string  `gorm:"type:varchar(255);not null"`
+	Description  string  `gorm:"type:text;not null"`
+	Status       string  `gorm:"type:varchar(32);not null"`
+	AssigneeKind *string `gorm:"type:varchar(32)"`
+	AssigneeID   *string `gorm:"type:varchar(64)"`
+	CreatedBy    string  `gorm:"type:varchar(64);not null"`
+	CreatedAt    int64   `gorm:"autoCreateTime"`
+	UpdatedAt    int64   `gorm:"autoUpdateTime"`
+}
+
+func (issueRow) TableName() string { return "issue" }
+
+func toModelIssue(row *issueRow) *model.Issue {
+	if row == nil {
+		return nil
+	}
+	return &model.Issue{
+		ID:           row.ID,
+		IssueID:      row.IssueID,
+		UserID:       row.UserID,
+		TeamID:       row.TeamID,
+		Title:        row.Title,
+		Description:  row.Description,
+		Status:       row.Status,
+		AssigneeKind: row.AssigneeKind,
+		AssigneeID:   row.AssigneeID,
+		CreatedBy:    row.CreatedBy,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toModelIssues(rows []issueRow) []model.Issue {
+	out := make([]model.Issue, len(rows))
+	for i := range rows {
+		out[i] = *toModelIssue(&rows[i])
+	}
+	return out
+}
+
+func fromModelIssue(m *model.Issue) *issueRow {
+	if m == nil {
+		return nil
+	}
+	return &issueRow{
+		ID:           m.ID,
+		IssueID:      m.IssueID,
+		UserID:       m.UserID,
+		TeamID:       m.TeamID,
+		Title:        m.Title,
+		Description:  m.Description,
+		Status:       m.Status,
+		AssigneeKind: m.AssigneeKind,
+		AssigneeID:   m.AssigneeID,
+		CreatedBy:    m.CreatedBy,
+		CreatedAt:    m.CreatedAt,
+		UpdatedAt:    m.UpdatedAt,
+	}
+}
+
 // CreateIssue creates an issue with default status todo. During the transition to
 // team ownership, issues created through user-scoped flows are attached to the
 // user's default personal team.
