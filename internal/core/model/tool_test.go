@@ -35,6 +35,13 @@ func TestToolRegistry(t *testing.T) {
 	if got := registry.Lookup("extra_tool"); got != extra {
 		t.Errorf("Lookup(extra_tool) = %v, want %v", got, extra)
 	}
+	gotTools := registry.Tools()
+	if len(gotTools) != 2 {
+		t.Fatalf("len(Tools()) = %d, want 2", len(gotTools))
+	}
+	if gotTools[0] != mock || gotTools[1] != extra {
+		t.Fatalf("Tools() = %v, want [%v %v]", gotTools, mock, extra)
+	}
 
 	empty := NewToolRegistry()
 	if len(empty.GetDefs()) != 0 {
@@ -42,6 +49,9 @@ func TestToolRegistry(t *testing.T) {
 	}
 	if empty.Lookup("missing") != nil {
 		t.Error("NewToolRegistry().Lookup(missing) != nil, want nil")
+	}
+	if len(empty.Tools()) != 0 {
+		t.Errorf("NewToolRegistry().Tools() length = %d, want 0", len(empty.Tools()))
 	}
 }
 

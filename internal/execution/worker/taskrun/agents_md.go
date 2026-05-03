@@ -3,7 +3,7 @@
 // agents_md.go: prepare AGENTS.md in the run directory so the CLI (buildmax -p)
 // reads it from cwd and the agent gets run context (directory layout + optional workspace AGENTS.md).
 
-package runtime
+package taskrun
 
 import (
 	"fmt"

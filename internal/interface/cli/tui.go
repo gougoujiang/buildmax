@@ -24,9 +24,9 @@ func runTUI(resumeID string, modelSelector string) error {
 		userEmail = creds.Email
 	}
 	opts := tui.TUIOpts{
-		Agent:       res.Runtime.Agent,
-		LLMClient:   res.Runtime.LLMClient,
-		Session:     res.Runtime.Session,
+		Agent:       res.Runtime.Agent(),
+		LLMClient:   res.Runtime.LLMClient(),
+		Session:     res.Runtime.Session(),
 		ModelName:   res.ModelName,
 		Workspace:   res.CWD,
 		Branch:      util.CurrentBranch(res.CWD),
