@@ -97,7 +97,7 @@ type conversationBuffer struct {
 	msgs           []model.Message
 }
 
-func (b *conversationBuffer) Messages() []model.Message {
+func (b *conversationBuffer) HistoryMessages() []model.Message {
 	return b.msgs
 }
 

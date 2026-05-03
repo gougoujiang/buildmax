@@ -46,8 +46,8 @@ func runPrintMode(prompt string, resumeID string, modelSelector string) error {
 	fmt.Fprintf(os.Stdout, "Tool calls: %d\n", out.ToolCalls)
 	fmt.Fprintf(os.Stdout, "Duration:   %s\n", agentrun.FormatDuration(out.Duration))
 	fmt.Fprintf(os.Stdout, "Workspace:  %s\n", out.Workspace)
-	if res.Runtime.Session.PromptTokens() > 0 || res.Runtime.Session.CompletionTokens() > 0 {
-		fmt.Fprintf(os.Stdout, "Usage:      %d prompt + %d completion tokens\n", res.Runtime.Session.PromptTokens(), res.Runtime.Session.CompletionTokens())
+	if res.Runtime.Session.PromptTokens > 0 || res.Runtime.Session.CompletionTokens > 0 {
+		fmt.Fprintf(os.Stdout, "Usage:      %d prompt + %d completion tokens\n", res.Runtime.Session.PromptTokens, res.Runtime.Session.CompletionTokens)
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ func TestGenerateTitle_Success(t *testing.T) {
 	s.Append(model.Message{Role: "user", Content: "How do I sort a slice in Go?"})
 	s.Append(model.Message{Role: "assistant", Content: "You can use sort.Slice..."})
 
-	title, _, err := GenerateTitle(context.Background(), fakeChatFunc("Sorting Slices in Go", nil), s.Messages())
+	title, _, err := GenerateTitle(context.Background(), fakeChatFunc("Sorting Slices in Go", nil), s.Messages)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestGenerateTitle_StripsQuotes(t *testing.T) {
 	s := NewSession("")
 	s.Append(model.Message{Role: "user", Content: "Hello"})
 
-	title, _, err := GenerateTitle(context.Background(), fakeChatFunc(`"My Chat Title"`, nil), s.Messages())
+	title, _, err := GenerateTitle(context.Background(), fakeChatFunc(`"My Chat Title"`, nil), s.Messages)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestGenerateTitle_LLMError_Fallthrough(t *testing.T) {
 	s := NewSession("")
 	s.Append(model.Message{Role: "user", Content: "Hello"})
 
-	_, _, err := GenerateTitle(context.Background(), fakeChatFunc("", errors.New("api error")), s.Messages())
+	_, _, err := GenerateTitle(context.Background(), fakeChatFunc("", errors.New("api error")), s.Messages)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -73,7 +73,7 @@ func TestGenerateTitle_TruncatesLongAssistantReply(t *testing.T) {
 		captured = msgs
 		return "A Short Story", model.Usage{}, nil
 	})
-	title, _, err := GenerateTitle(context.Background(), titleClient, s.Messages())
+	title, _, err := GenerateTitle(context.Background(), titleClient, s.Messages)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

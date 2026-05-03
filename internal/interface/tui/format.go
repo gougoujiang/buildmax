@@ -169,7 +169,7 @@ func buildViewportContent(sess *session.Session, opts ViewportContentOpts) strin
 	b.WriteString("\n\n")
 	b.WriteString(indentLines(bannerWithVersion(opts.Version), viewportLeftMargin))
 	b.WriteString("\n")
-	messages := sess.Messages()
+	messages := sess.Messages
 	if len(messages) > 0 {
 		b.WriteString("\n")
 	}

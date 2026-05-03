@@ -126,7 +126,7 @@ func resolveResumeID(resumeID string, cont bool) (string, error) {
 		return resumeID, nil
 	}
 	sessionsDir := config.SessionsDir()
-	list, err := session.LoadList(sessionsDir)
+	list, err := session.LoadSessions(sessionsDir)
 	if err != nil {
 		slog.Error("load session list failed", "err", err)
 		return "", fmt.Errorf("load session list: %w", err)

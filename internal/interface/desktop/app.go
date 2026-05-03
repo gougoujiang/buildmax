@@ -89,14 +89,14 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(ctx context.Context) {}
 
 // ListSessions returns the session list from disk (same as CLI).
-func (a *App) ListSessions() ([]session.ListEntry, error) {
+func (a *App) ListSessions() ([]session.SessionItem, error) {
 	dir := config.SessionsDir()
-	entries, err := session.LoadList(dir)
+	entries, err := session.LoadSessions(dir)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
 	if entries == nil {
-		entries = []session.ListEntry{}
+		entries = []session.SessionItem{}
 	}
 	return entries, nil
 }
@@ -114,15 +114,15 @@ func (a *App) GetSession(sessionID string) (SessionDetail, error) {
 		}
 		return SessionDetail{}, fmt.Errorf("load session: %w", err)
 	}
-	msgs := sess.Messages()
+	msgs := sess.Messages
 	display := make([]MessageDisplay, 0, len(msgs))
 	for _, m := range msgs {
 		display = append(display, MessageDisplay{Role: m.Role, Content: m.Content})
 	}
 	return SessionDetail{
-		ID:        sess.ID(),
-		Title:     sess.Title(),
-		CreatedAt: sess.CreatedAt().Format(time.RFC3339),
+		ID:        sess.ID,
+		Title:     sess.Title,
+		CreatedAt: sess.CreatedAt.Format(time.RFC3339),
 		Messages:  display,
 	}, nil
 }

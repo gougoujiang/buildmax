@@ -69,7 +69,7 @@ type RunStats struct {
 // MessageHistory is the minimal interface for the agent loop: read the conversation so far and append one message.
 // The loop uses it so the same logic works with in-memory session or DB-backed conversation.
 type MessageHistory interface {
-	Messages() []model.Message
+	HistoryMessages() []model.Message
 	Append(m model.Message) error
 }
 
@@ -89,7 +89,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	var totalToolCalls, totalPrompt, totalCompletion int
 	for i := 0; i < opts.MaxIter; i++ {
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
-		messages := append([]model.Message{{Role: "system", Content: opts.SystemPrompt}}, opts.History.Messages()...)
+		messages := append([]model.Message{{Role: "system", Content: opts.SystemPrompt}}, opts.History.HistoryMessages()...)
 		var content string
 		var toolCalls []model.ToolCall
 		var usage model.Usage
@@ -207,7 +207,7 @@ func (a *Agent) Process(ctx context.Context, history MessageHistory, userMessage
 // It does not append the user message; use this when the caller (e.g. TUI) has already appended it and refreshed the view.
 // Returns an error if history is empty or the last message is not from the user.
 func (a *Agent) ProcessAfterUserAppended(ctx context.Context, history MessageHistory, opts ...ProcessConfigurer) (reply string, stats RunStats, err error) {
-	msgs := history.Messages()
+	msgs := history.HistoryMessages()
 	if len(msgs) == 0 {
 		return "", RunStats{}, errors.New("agent: message history is empty")
 	}

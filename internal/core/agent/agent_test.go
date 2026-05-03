@@ -45,7 +45,7 @@ func newTestToolRegistry(tools ...model.Tool) model.ToolRegistry {
 	return registry
 }
 
-func (b *testBuffer) Messages() []model.Message {
+func (b *testBuffer) HistoryMessages() []model.Message {
 	if len(b.messages) == 0 {
 		return nil
 	}
@@ -379,10 +379,10 @@ func TestProcessWithSession(t *testing.T) {
 		t.Errorf("second reply = %q, want %q", reply2, secondReply)
 	}
 
-	msgs := sess.Messages()
+	msgs := sess.messages
 	// Expect: user1, assistant1, user2, assistant2 (4 messages)
 	if len(msgs) != 4 {
-		t.Fatalf("session Messages() length = %d, want 4", len(msgs))
+		t.Fatalf("session messages length = %d, want 4", len(msgs))
 	}
 	if msgs[0].Role != "user" || msgs[0].Content != "First message" {
 		t.Errorf("msgs[0] = %q %q", msgs[0].Role, msgs[0].Content)
@@ -463,7 +463,7 @@ func TestProcess_Streaming(t *testing.T) {
 	if got := strings.Join(deltas, ""); got != fullReply {
 		t.Errorf("deltas joined = %q, want %q", got, fullReply)
 	}
-	msgs := sess.Messages()
+	msgs := sess.messages
 	if len(msgs) != 2 {
 		t.Fatalf("session has %d messages, want 2", len(msgs))
 	}
@@ -492,7 +492,7 @@ func TestProcessAfterUserAppended(t *testing.T) {
 	if reply != "Reply to you." {
 		t.Errorf("reply = %q, want %q", reply, "Reply to you.")
 	}
-	msgs := sess.Messages()
+	msgs := sess.messages
 	if len(msgs) != 2 {
 		t.Fatalf("session has %d messages, want 2 (user + assistant)", len(msgs))
 	}

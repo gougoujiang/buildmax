@@ -128,7 +128,7 @@ func (m *Model) Init() tea.Cmd {
 func runAgentWithStream(opts TUIOpts, channel chan tea.Msg) tea.Cmd {
 	sink := &streamSinkToChannel{channel: channel}
 	go func() {
-		ctx := session.CtxWithSessionID(context.Background(), opts.Session.ID())
+		ctx := session.CtxWithSessionID(context.Background(), opts.Session.ID)
 		reply, stats, err := opts.Agent.ProcessAfterUserAppended(ctx, opts.Session, agent.WithStreamSink(sink))
 		channel <- agentDoneMsg{Reply: reply, Stats: stats, Err: err}
 		close(channel)
@@ -303,9 +303,10 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	m.viewportBlock.RefreshAndGotoBottom(m.opts.Session, ViewportContentOpts{Version: m.opts.Version, Width: m.width})
 
 	// Remember whether the session had no title before persist (i.e. first turn).
-	needsLLMTitle := m.opts.Session.Title() == ""
+	needsLLMTitle := m.opts.Session.Title == ""
 
-	m.opts.Session.AddUsage(msg.Stats.PromptTokens, msg.Stats.CompletionTokens)
+	m.opts.Session.PromptTokens += msg.Stats.PromptTokens
+	m.opts.Session.CompletionTokens += msg.Stats.CompletionTokens
 	if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
 		slog.Error("persist session failed", "err", err)
 		m.err = err.Error()
@@ -326,7 +327,7 @@ func generateTitleCmd(opts TUIOpts) tea.Cmd {
 			content, _, usage, err := opts.LLMClient.ChatCompletionBlocking(ctx, msgs, nil)
 			return content, usage, err
 		})
-		title, usage, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages())
+		title, usage, err := session.GenerateTitle(context.Background(), titleClient, opts.Session.Messages)
 		return titleGeneratedMsg{Title: title, PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens, Err: err}
 	}
 }
@@ -340,9 +341,10 @@ func handleTitleGenerated(m *Model, msg titleGeneratedMsg) (tea.Model, tea.Cmd) 
 		return m, nil
 	}
 	if msg.PromptTokens > 0 || msg.CompletionTokens > 0 {
-		m.opts.Session.AddUsage(msg.PromptTokens, msg.CompletionTokens)
+		m.opts.Session.PromptTokens += msg.PromptTokens
+		m.opts.Session.CompletionTokens += msg.CompletionTokens
 	}
-	m.opts.Session.SetTitle(msg.Title)
+	m.opts.Session.Title = msg.Title
 	// Re-persist with the LLM-generated title and title usage.
 	if err := session.PersistAfterReply(m.opts.Session, m.opts.SessionsDir, m.opts.Workspace, 100); err != nil {
 		slog.Error("re-persist session with LLM title failed", "err", err)

@@ -195,31 +195,33 @@ func toMCPConfig(cfg *config.MCPConfigRoot) *mcp.ConfigRoot {
 // RunPrompt executes one user prompt, persists the session, and returns run metadata.
 func (r *Runtime) RunPrompt(ctx context.Context, in RunInput) (RunOutput, error) {
 	start := time.Now()
-	ctx = session.CtxWithSessionID(ctx, r.Session.ID())
+	ctx = session.CtxWithSessionID(ctx, r.Session.ID)
 	reply, stats, err := r.Agent.Process(ctx, r.Session, in.Prompt, agent.WithStreamSink(in.Stream))
 	if err != nil {
 		return RunOutput{}, fmt.Errorf("agent: %w", err)
 	}
 
-	if r.Session.Title() == "" {
+	if r.Session.Title == "" {
 		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
 			content, _, usage, err := r.LLMClient.ChatCompletionBlocking(ctx, msgs, nil)
 			return content, usage, err
 		})
-		title, titleUsage, titleErr := session.GenerateTitle(ctx, titleClient, r.Session.Messages())
+		title, titleUsage, titleErr := session.GenerateTitle(ctx, titleClient, r.Session.Messages)
 		if titleErr != nil {
 			slog.Warn("LLM title generation failed, using fallback", "err", titleErr)
 		} else {
 			if titleUsage.PromptTokens > 0 || titleUsage.CompletionTokens > 0 {
-				r.Session.AddUsage(titleUsage.PromptTokens, titleUsage.CompletionTokens)
+				r.Session.PromptTokens += titleUsage.PromptTokens
+				r.Session.CompletionTokens += titleUsage.CompletionTokens
 			}
 			if title != "" {
-				r.Session.SetTitle(title)
+				r.Session.Title = title
 			}
 		}
 	}
 
-	r.Session.AddUsage(stats.PromptTokens, stats.CompletionTokens)
+	r.Session.PromptTokens += stats.PromptTokens
+	r.Session.CompletionTokens += stats.CompletionTokens
 	if err := session.PersistAfterReply(r.Session, r.SessionsDir, r.Workspace, 100); err != nil {
 		slog.Error("persist session failed", "err", err)
 		return RunOutput{}, fmt.Errorf("persist session: %w", err)
@@ -231,7 +233,7 @@ func (r *Runtime) RunPrompt(ctx context.Context, in RunInput) (RunOutput, error)
 		ToolCalls:        stats.ToolCalls,
 		PromptTokens:     stats.PromptTokens,
 		CompletionTokens: stats.CompletionTokens,
-		SessionID:        r.Session.ID(),
+		SessionID:        r.Session.ID,
 		Workspace:        r.Workspace,
 	}, nil
 }
@@ -362,7 +364,7 @@ func loadOrCreateSession(sessionsDir, sessionID string) (*session.Session, error
 	}
 	sess, err := session.LoadFromDir(sessionsDir, sessionID)
 	if err == nil {
-		slog.Info("resumed session", "id", sess.ID())
+		slog.Info("resumed session", "id", sess.ID)
 		return sess, nil
 	}
 	if !errors.Is(err, session.ErrSessionNotFound) {
@@ -370,6 +372,6 @@ func loadOrCreateSession(sessionsDir, sessionID string) (*session.Session, error
 		return nil, fmt.Errorf("load session: %w", err)
 	}
 	sess = session.NewSessionFromData(sessionID, "", time.Now(), nil, 0, 0)
-	slog.Info("created session with id", "id", sess.ID())
+	slog.Info("created session with id", "id", sess.ID)
 	return sess, nil
 }

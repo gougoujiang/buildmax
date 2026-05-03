@@ -340,11 +340,11 @@ func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
 	mod := m2.(*Model)
 	mod.inputBlock.SetValue("/nope")
 	mod.inputBlock.SyncHeight()
-	before := len(mod.opts.Session.Messages())
+	before := len(mod.opts.Session.Messages)
 	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	after := next.(*Model)
-	if len(after.opts.Session.Messages()) != before {
-		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages()))
+	if len(after.opts.Session.Messages) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages))
 	}
 	if after.err == "" {
 		t.Fatal("expected footer error for unknown slash command")
@@ -359,11 +359,11 @@ func TestSlashSessionListsNewestFirst(t *testing.T) {
 	dir := t.TempDir()
 	oldTime := "2026-01-01T10:00:00Z"
 	newTime := "2026-06-01T10:00:00Z"
-	if err := session.UpsertListEntry(dir, session.ListEntry{ID: "sess-old", Title: "older chat", CreatedAt: oldTime}); err != nil {
-		t.Fatalf("UpsertListEntry: %v", err)
+	if err := session.UpsertSessionItem(dir, session.SessionItem{ID: "sess-old", Title: "older chat", CreatedAt: oldTime}); err != nil {
+		t.Fatalf("UpsertSessionItem: %v", err)
 	}
-	if err := session.UpsertListEntry(dir, session.ListEntry{ID: "sess-new", Title: "newer chat", CreatedAt: newTime}); err != nil {
-		t.Fatalf("UpsertListEntry: %v", err)
+	if err := session.UpsertSessionItem(dir, session.SessionItem{ID: "sess-new", Title: "newer chat", CreatedAt: newTime}); err != nil {
+		t.Fatalf("UpsertSessionItem: %v", err)
 	}
 	m0 := NewModel(TUIOpts{
 		Session:     sess,
@@ -411,11 +411,11 @@ func TestSlashSkillsDoesNotAppendSession(t *testing.T) {
 	mod := m2.(*Model)
 	mod.inputBlock.SetValue("/skills")
 	mod.inputBlock.SyncHeight()
-	before := len(mod.opts.Session.Messages())
+	before := len(mod.opts.Session.Messages)
 	next, _ := mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	after := next.(*Model)
-	if len(after.opts.Session.Messages()) != before {
-		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages()))
+	if len(after.opts.Session.Messages) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages))
 	}
 	if after.skillsOverlay == nil {
 		t.Fatal("expected skills overlay after /skills")

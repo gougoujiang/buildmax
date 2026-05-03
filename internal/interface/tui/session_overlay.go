@@ -25,7 +25,7 @@ var sessionOverlayTitleStyle = mcpOverlayTitleStyle
 // openSessionListOverlay loads sessions.json, sorts newest-first, and shows a scrollable summary panel.
 func openSessionListOverlay(m *Model) (tea.Model, tea.Cmd) {
 	m.err = ""
-	entries, err := session.LoadList(m.opts.SessionsDir)
+	entries, err := session.LoadSessions(m.opts.SessionsDir)
 	if err != nil {
 		m.sessionOverlay = &sessionOverlayState{LoadError: err.Error()}
 		return m, nil
@@ -51,7 +51,7 @@ func openSessionListOverlay(m *Model) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func formatSessionListRow(index, maxWidth int, e *session.ListEntry) string {
+func formatSessionListRow(index, maxWidth int, e *session.SessionItem) string {
 	t, err := time.Parse(time.RFC3339, e.CreatedAt)
 	timeStr := e.CreatedAt
 	if err == nil {
