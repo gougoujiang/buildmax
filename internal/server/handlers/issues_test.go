@@ -37,7 +37,7 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	agents := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
+		Agents: []model.AgentDefinition{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
 	workflows := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: model.WorkflowStatusPublished}},

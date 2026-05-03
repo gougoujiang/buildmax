@@ -175,7 +175,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:      "create with agent_id composes input and returns 201",
 			taskStore: &mock.MockTaskStore{},
 			agentStore: &mock.MockAgentStore{
-				Agents: []model.Agent{
+				Agents: []model.AgentDefinition{
 					{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},

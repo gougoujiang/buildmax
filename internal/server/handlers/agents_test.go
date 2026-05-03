@@ -17,7 +17,7 @@ const agentTestSecret = "agent-test-secret"
 func TestPatchAgentHandler(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []model.AgentDefinition{
 			{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
 	}
@@ -152,7 +152,7 @@ func TestDeleteAgentHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &mock.MockAgentStore{
-				Agents: []model.Agent{
+				Agents: []model.AgentDefinition{
 					{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
 				},
 			}

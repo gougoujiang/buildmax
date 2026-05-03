@@ -69,7 +69,7 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []model.AgentDefinition{{AgentID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	kind := model.IssueAssigneeAgent
@@ -95,7 +95,7 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{AgentID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
+			Agents: []model.AgentDefinition{{AgentID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
 		},
 	}
 	kind := model.IssueAssigneeAgent

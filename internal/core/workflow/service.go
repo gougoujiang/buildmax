@@ -515,7 +515,7 @@ func ptrError(err error) *string {
 	return &msg
 }
 
-func buildWorkflowTaskInput(agent *model.Agent, prompt string) string {
+func buildWorkflowTaskInput(agent *model.AgentDefinition, prompt string) string {
 	base := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
 	if strings.TrimSpace(prompt) == "" {
 		return base

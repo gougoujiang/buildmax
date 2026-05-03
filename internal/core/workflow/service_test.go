@@ -13,7 +13,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 	svc := &WorkflowService{
 		Workflows: &mock.MockWorkflowStore{},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []model.AgentDefinition{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	workflow, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
@@ -46,7 +46,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []model.AgentDefinition{
 			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},

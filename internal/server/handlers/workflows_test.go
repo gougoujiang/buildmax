@@ -30,7 +30,7 @@ func TestWorkflowHandlers(t *testing.T) {
 		}},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
+		Agents: []model.AgentDefinition{{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
 	}
 	teamStore := &mock.MockTeamStore{
 		Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.PtrString("u1"), CreatedBy: "u1"}},

@@ -186,7 +186,7 @@ func (s *TaskService) checkQuota(ctx context.Context, teamID string, tokens int)
 	return &QuotaExceededError{Reason: reason}
 }
 
-func buildTaskInputFromAgent(agent *model.Agent, userInput string) string {
+func buildTaskInputFromAgent(agent *model.AgentDefinition, userInput string) string {
 	out := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
 	if userInput != "" {
 		out = out + "\n\n" + userInput

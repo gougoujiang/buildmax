@@ -31,7 +31,7 @@ type patchAgentRequest struct {
 	Instructions string `json:"instructions"`
 }
 
-func agentToResponse(a model.Agent) AgentResponse {
+func agentToResponse(a model.AgentDefinition) AgentResponse {
 	return AgentResponse{
 		ID:           a.AgentID,
 		UserID:       a.UserID,

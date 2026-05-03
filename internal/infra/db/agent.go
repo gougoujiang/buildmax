@@ -11,7 +11,7 @@ import (
 )
 
 // GetAgent returns the agent by agent_id, or (nil, nil) when not found.
-func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, error) {
+func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.AgentDefinition, error) {
 	var a agentRow
 	err := s.db.WithContext(ctx).Where("agent_id = ?", agentID).First(&a).Error
 	if err != nil {
@@ -24,21 +24,21 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, err
 }
 
 // ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
-func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Agent, error) {
+func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.AgentDefinition, error) {
 	var list []agentRow
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&list).Error
 	return toModelAgents(list), err
 }
 
 // ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
-func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Agent, error) {
+func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.AgentDefinition, error) {
 	var list []agentRow
 	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error
 	return toModelAgents(list), err
 }
 
 // CreateAgent inserts a new agent and returns it.
-func (s *Store) CreateAgent(ctx context.Context, userID, name, description, instructions string) (*model.Agent, error) {
+func (s *Store) CreateAgent(ctx context.Context, userID, name, description, instructions string) (*model.AgentDefinition, error) {
 	teamID, err := s.personalTeamIDForUser(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -47,8 +47,8 @@ func (s *Store) CreateAgent(ctx context.Context, userID, name, description, inst
 }
 
 // CreateAgentInTeam inserts a new team-scoped agent and returns it.
-func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
-	a := &model.Agent{
+func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*model.AgentDefinition, error) {
+	a := &model.AgentDefinition{
 		AgentID:      util.NewPrefixedID(util.PrefixAgent),
 		UserID:       userID,
 		TeamID:       teamID,
@@ -64,7 +64,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 }
 
 // UpdateAgent updates name, description, and instructions for the agent. Returns the updated agent, or (nil, nil) if not found or user does not match.
-func (s *Store) UpdateAgent(ctx context.Context, agentID, userID, name, description, instructions string) (*model.Agent, error) {
+func (s *Store) UpdateAgent(ctx context.Context, agentID, userID, name, description, instructions string) (*model.AgentDefinition, error) {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil || a == nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (s *Store) UpdateAgent(ctx context.Context, agentID, userID, name, descript
 }
 
 // UpdateAgentInTeam updates a team-scoped agent. Returns (nil, nil) if not found or team does not match.
-func (s *Store) UpdateAgentInTeam(ctx context.Context, agentID, teamID, name, description, instructions string) (*model.Agent, error) {
+func (s *Store) UpdateAgentInTeam(ctx context.Context, agentID, teamID, name, description, instructions string) (*model.AgentDefinition, error) {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil || a == nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (s *Store) UpdateAgentInTeam(ctx context.Context, agentID, teamID, name, de
 	return s.updateAgent(ctx, a, name, description, instructions)
 }
 
-func (s *Store) updateAgent(ctx context.Context, a *model.Agent, name, description, instructions string) (*model.Agent, error) {
+func (s *Store) updateAgent(ctx context.Context, a *model.AgentDefinition, name, description, instructions string) (*model.AgentDefinition, error) {
 	a.Name = name
 	a.Description = description
 	a.Instructions = instructions

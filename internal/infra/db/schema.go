@@ -685,11 +685,11 @@ func fromModelTaskRunArtifact(m *model.TaskRunArtifact) *taskRunArtifactRow {
 	}
 }
 
-func toModelAgent(row *agentRow) *model.Agent {
+func toModelAgent(row *agentRow) *model.AgentDefinition {
 	if row == nil {
 		return nil
 	}
-	return &model.Agent{
+	return &model.AgentDefinition{
 		ID:           row.ID,
 		AgentID:      row.AgentID,
 		UserID:       row.UserID,
@@ -701,15 +701,15 @@ func toModelAgent(row *agentRow) *model.Agent {
 	}
 }
 
-func toModelAgents(rows []agentRow) []model.Agent {
-	out := make([]model.Agent, len(rows))
+func toModelAgents(rows []agentRow) []model.AgentDefinition {
+	out := make([]model.AgentDefinition, len(rows))
 	for i := range rows {
 		out[i] = *toModelAgent(&rows[i])
 	}
 	return out
 }
 
-func fromModelAgent(m *model.Agent) *agentRow {
+func fromModelAgent(m *model.AgentDefinition) *agentRow {
 	if m == nil {
 		return nil
 	}
