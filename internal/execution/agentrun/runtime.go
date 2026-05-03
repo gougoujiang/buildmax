@@ -21,12 +21,12 @@ import (
 
 // Runtime holds the reusable agent execution state for one workspace and session.
 type Runtime struct {
-	Agent       *agent.Agent
-	LLMClient   *llm.Client
-	Session     *session.Session
-	SessionsDir string
-	Workspace   string
-	ModelName   string
+	agent       *agent.Agent
+	llmClient   *llm.Client
+	session     *session.Session
+	sessionsDir string
+	workspace   string
+	modelName   string
 
 	mcpCloseOnce sync.Once
 	mcpCleanup   func()
@@ -49,13 +49,15 @@ type RunInput struct {
 
 // RunOutput is the result of one agent run.
 type RunOutput struct {
-	Reply            string
-	Duration         time.Duration
-	ToolCalls        int
-	PromptTokens     int
-	CompletionTokens int
-	SessionID        string
-	Workspace        string
+	Reply                 string
+	Duration              time.Duration
+	ToolCalls             int
+	PromptTokens          int
+	CompletionTokens      int
+	TotalPromptTokens     int
+	TotalCompletionTokens int
+	SessionID             string
+	Workspace             string
 }
 
 // Open creates a runtime bound to a workspace and session.
@@ -68,96 +70,160 @@ func Open(in OpenInput) (*Runtime, error) {
 		return nil, fmt.Errorf("API key required. Set %s", config.EnvKeyBuildmaxAPIKey)
 	}
 
-	workspaceDir := in.WorkspaceDir
-	if workspaceDir == "" {
-		workspaceDir, err = os.Getwd()
-		if err != nil {
-			slog.Error("get working directory", "err", err)
-			return nil, fmt.Errorf("get working directory: %w", err)
-		}
+	workspaceDir, err := resolveWorkspaceDir(in.WorkspaceDir)
+	if err != nil {
+		return nil, err
 	}
-
 	ws, err := util.NewWorkspace(workspaceDir)
 	if err != nil {
 		slog.Error("create workspace", "err", err)
 		return nil, fmt.Errorf("create workspace: %w", err)
 	}
 	client := llm.NewClient(llm.Config{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, Model: cfg.Model})
-
-	baseTools, toolsByName, err := buildBaseTools(client, ws, config.SkillSearchPaths(workspaceDir))
+	a, mcpCleanup, err := buildRuntimeAgent(client, ws, workspaceDir, in.EnableMCP)
 	if err != nil {
-		slog.Error("build base tools", "err", err)
+		return nil, err
+	}
+	sessionsDir, sess, err := openSessionState(in.SessionID)
+	if err != nil {
 		return nil, err
 	}
 
-	var mcpCleanup func()
-	if in.EnableMCP {
-		mcpCfg, mcpErr := config.LoadMCPConfigForWorkspace(workspaceDir)
-		if mcpErr != nil {
-			slog.Error("load mcp config", "err", mcpErr)
-			return nil, mcpErr
-		}
-		if mcpCfg != nil && len(mcpCfg.MCPServers) > 0 {
-			ctx := context.Background()
-			reg, regErr := mcp.NewRegistry(ctx, toMCPConfig(mcpCfg), nil)
-			if regErr != nil {
-				slog.Error("mcp registry", "err", regErr)
-				return nil, fmt.Errorf("mcp: %w", regErr)
-			}
-			mcpCleanup = func() { _ = reg.Close() }
-			for _, t := range tools.GatewayTools(reg) {
-				baseTools = append(baseTools, t)
-				toolsByName[t.Name()] = t
-			}
-		}
+	return &Runtime{
+		agent:       a,
+		llmClient:   client,
+		session:     sess,
+		sessionsDir: sessionsDir,
+		workspace:   workspaceDir,
+		modelName:   modelName,
+		mcpCleanup:  mcpCleanup,
+	}, nil
+}
+
+func resolveWorkspaceDir(workspaceDir string) (string, error) {
+	if workspaceDir != "" {
+		return workspaceDir, nil
 	}
+	dir, err := os.Getwd()
+	if err != nil {
+		slog.Error("get working directory", "err", err)
+		return "", fmt.Errorf("get working directory: %w", err)
+	}
+	return dir, nil
+}
 
-	agentTypes := buildAgentTypes(baseTools, toolsByName, workspaceDir)
-
+func buildRuntimeAgent(client *llm.Client, ws *util.Workspace, workspaceDir string, enableMCP bool) (*agent.Agent, func(), error) {
+	baseTools, registry, err := buildBaseTools(client, ws, config.SkillSearchPaths(workspaceDir))
+	if err != nil {
+		slog.Error("build base tools", "err", err)
+		return nil, nil, err
+	}
+	mcpCleanup, err := enableMCPTools(workspaceDir, enableMCP, &baseTools, &registry)
+	if err != nil {
+		return nil, nil, err
+	}
+	agentTypes := buildAgentTypes(baseTools, registry, workspaceDir)
 	runner, err := NewDefaultSubAgentRunner(client)
 	if err != nil {
 		slog.Error("create sub-agent runner", "err", err)
-		return nil, fmt.Errorf("create sub-agent runner: %w", err)
+		return nil, nil, fmt.Errorf("create sub-agent runner: %w", err)
 	}
-
 	taskTool, err := tools.NewTask(runner, agentTypes)
 	if err != nil {
 		slog.Error("create task tool", "err", err)
-		return nil, fmt.Errorf("create task tool: %w", err)
+		return nil, nil, fmt.Errorf("create task tool: %w", err)
 	}
+	registry.AppendTools(taskTool)
+	return agent.NewAgent(client, registry, agent.WithSystemPrompt(buildEffectiveSystemPrompt(workspaceDir))), mcpCleanup, nil
+}
 
+func openSessionState(sessionID string) (string, *session.Session, error) {
+	sessionsDir := config.SessionsDir()
+	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
+		slog.Error("create sessions dir", "err", err)
+		return "", nil, fmt.Errorf("create sessions dir: %w", err)
+	}
+	sess, err := loadOrCreateSession(sessionsDir, sessionID)
+	if err != nil {
+		return "", nil, err
+	}
+	return sessionsDir, sess, nil
+}
+
+func (r *Runtime) Agent() *agent.Agent {
+	if r == nil {
+		return nil
+	}
+	return r.agent
+}
+
+func (r *Runtime) LLMClient() *llm.Client {
+	if r == nil {
+		return nil
+	}
+	return r.llmClient
+}
+
+func (r *Runtime) Session() *session.Session {
+	if r == nil {
+		return nil
+	}
+	return r.session
+}
+
+func (r *Runtime) SessionsDir() string {
+	if r == nil {
+		return ""
+	}
+	return r.sessionsDir
+}
+
+func (r *Runtime) WorkspaceDir() string {
+	if r == nil {
+		return ""
+	}
+	return r.workspace
+}
+
+func (r *Runtime) ModelName() string {
+	if r == nil {
+		return ""
+	}
+	return r.modelName
+}
+
+func enableMCPTools(workspaceDir string, enable bool, baseTools *[]model.Tool, registry *model.ToolRegistry) (func(), error) {
+	if !enable {
+		return nil, nil
+	}
+	mcpCfg, err := config.LoadMCPConfigForWorkspace(workspaceDir)
+	if err != nil {
+		slog.Error("load mcp config", "err", err)
+		return nil, err
+	}
+	if mcpCfg == nil || len(mcpCfg.MCPServers) == 0 {
+		return nil, nil
+	}
+	ctx := context.Background()
+	reg, err := mcp.NewRegistry(ctx, toMCPConfig(mcpCfg), nil)
+	if err != nil {
+		slog.Error("mcp registry", "err", err)
+		return nil, fmt.Errorf("mcp: %w", err)
+	}
+	mcpTools := tools.GatewayTools(reg)
+	*baseTools = append(*baseTools, mcpTools...)
+	registry.AppendTools(mcpTools...)
+	return func() { _ = reg.Close() }, nil
+}
+
+func buildEffectiveSystemPrompt(workspaceDir string) string {
 	effectivePrompt := agent.DefaultSystemPrompt
 	if extra, err := agent.ReadAgentsMd(workspaceDir); err != nil {
 		slog.Warn("read AGENTS.md", "err", err)
 	} else if extra != "" {
 		effectivePrompt = effectivePrompt + "\n\n" + extra
 	}
-
-	registry := model.NewToolRegistry()
-	registry.AppendTools(baseTools...)
-	registry.AppendTools(taskTool)
-	a := agent.NewAgent(client, registry, agent.WithSystemPrompt(effectivePrompt))
-
-	sessionsDir := config.SessionsDir()
-	if err = os.MkdirAll(sessionsDir, 0755); err != nil {
-		slog.Error("create sessions dir", "err", err)
-		return nil, fmt.Errorf("create sessions dir: %w", err)
-	}
-
-	sess, err := loadOrCreateSession(sessionsDir, in.SessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Runtime{
-		Agent:       a,
-		LLMClient:   client,
-		Session:     sess,
-		SessionsDir: sessionsDir,
-		Workspace:   workspaceDir,
-		ModelName:   modelName,
-		mcpCleanup:  mcpCleanup,
-	}, nil
+	return effectivePrompt
 }
 
 // Close releases resources held by the runtime (e.g. MCP client sessions when EnableMCP was used).
@@ -194,46 +260,48 @@ func toMCPConfig(cfg *config.MCPConfigRoot) *mcp.ConfigRoot {
 // RunPrompt executes one user prompt, persists the session, and returns run metadata.
 func (r *Runtime) RunPrompt(ctx context.Context, in RunInput) (RunOutput, error) {
 	start := time.Now()
-	ctx = session.CtxWithSessionID(ctx, r.Session.ID)
-	reply, stats, err := r.Agent.Process(ctx, r.Session, in.Prompt, agent.WithStreamSink(in.Stream))
+	ctx = session.CtxWithSessionID(ctx, r.session.ID)
+	reply, stats, err := r.agent.Process(ctx, r.session, in.Prompt, agent.WithStreamSink(in.Stream))
 	if err != nil {
 		return RunOutput{}, fmt.Errorf("agent: %w", err)
 	}
 
-	if r.Session.Title == "" {
+	if r.session.Title == "" {
 		titleClient := session.TitleChatFunc(func(ctx context.Context, msgs []model.Message) (string, model.Usage, error) {
-			content, _, usage, err := r.LLMClient.ChatCompletionBlocking(ctx, msgs, nil)
+			content, _, usage, err := r.llmClient.ChatCompletionBlocking(ctx, msgs, nil)
 			return content, usage, err
 		})
-		title, titleUsage, titleErr := session.GenerateTitle(ctx, titleClient, r.Session.Messages)
+		title, titleUsage, titleErr := session.GenerateTitle(ctx, titleClient, r.session.Messages)
 		if titleErr != nil {
 			slog.Warn("LLM title generation failed, using fallback", "err", titleErr)
 		} else {
 			if titleUsage.PromptTokens > 0 || titleUsage.CompletionTokens > 0 {
-				r.Session.PromptTokens += titleUsage.PromptTokens
-				r.Session.CompletionTokens += titleUsage.CompletionTokens
+				r.session.PromptTokens += titleUsage.PromptTokens
+				r.session.CompletionTokens += titleUsage.CompletionTokens
 			}
 			if title != "" {
-				r.Session.Title = title
+				r.session.Title = title
 			}
 		}
 	}
 
-	r.Session.PromptTokens += stats.PromptTokens
-	r.Session.CompletionTokens += stats.CompletionTokens
-	if err := session.PersistAfterReply(r.Session, r.SessionsDir, r.Workspace, 100); err != nil {
+	r.session.PromptTokens += stats.PromptTokens
+	r.session.CompletionTokens += stats.CompletionTokens
+	if err := session.PersistAfterReply(r.session, r.sessionsDir, r.workspace, 100); err != nil {
 		slog.Error("persist session failed", "err", err)
 		return RunOutput{}, fmt.Errorf("persist session: %w", err)
 	}
 
 	return RunOutput{
-		Reply:            reply,
-		Duration:         time.Since(start),
-		ToolCalls:        stats.ToolCalls,
-		PromptTokens:     stats.PromptTokens,
-		CompletionTokens: stats.CompletionTokens,
-		SessionID:        r.Session.ID,
-		Workspace:        r.Workspace,
+		Reply:                 reply,
+		Duration:              time.Since(start),
+		ToolCalls:             stats.ToolCalls,
+		PromptTokens:          stats.PromptTokens,
+		CompletionTokens:      stats.CompletionTokens,
+		TotalPromptTokens:     r.session.PromptTokens,
+		TotalCompletionTokens: r.session.CompletionTokens,
+		SessionID:             r.session.ID,
+		Workspace:             r.workspace,
 	}, nil
 }
 
@@ -250,73 +318,38 @@ func FormatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm%ds", m, s)
 }
 
-// toolBuilder collects tools and records the first construction error.
-type toolBuilder struct {
-	tools  []model.Tool
-	byName map[string]model.Tool
-	err    error
-}
-
-func newToolBuilder() *toolBuilder {
-	return &toolBuilder{byName: make(map[string]model.Tool)}
-}
-
-func (b *toolBuilder) add(t model.Tool, err error) {
-	if b.err != nil {
-		return
-	}
+func buildBaseTools(client *llm.Client, ws *util.Workspace, skillPaths []string) ([]model.Tool, model.ToolRegistry, error) {
+	registry := model.NewToolRegistry()
+	registry.AppendTools(
+		tools.NewReadFile(ws),
+		tools.NewWriteFile(ws),
+		tools.NewBash(ws),
+		tools.NewGlob(ws),
+		tools.NewEditFile(ws),
+		tools.NewGrep(ws),
+	)
+	webFetch, err := tools.NewWebFetch(client, 15*time.Minute)
 	if err != nil {
-		b.err = err
-		return
+		return nil, model.ToolRegistry{}, err
 	}
-	b.tools = append(b.tools, t)
-	b.byName[t.Name()] = t
-}
-
-func (b *toolBuilder) addTool(t model.Tool) {
-	if b.err != nil {
-		return
+	registry.AppendTools(webFetch)
+	todoWrite, err := tools.NewTodoWrite()
+	if err != nil {
+		return nil, model.ToolRegistry{}, err
 	}
-	b.tools = append(b.tools, t)
-	b.byName[t.Name()] = t
-}
-
-func (b *toolBuilder) result() ([]model.Tool, map[string]model.Tool, error) {
-	if b.err != nil {
-		return nil, nil, b.err
+	registry.AppendTools(todoWrite)
+	skillTool, err := tools.NewSkill(skillPaths)
+	if err != nil {
+		return nil, model.ToolRegistry{}, err
 	}
-	return b.tools, b.byName, nil
+	registry.AppendTools(skillTool)
+	return registry.Tools(), registry, nil
 }
 
-func buildBaseTools(client *llm.Client, ws *util.Workspace, skillPaths []string) ([]model.Tool, map[string]model.Tool, error) {
-	b := newToolBuilder()
-	b.addTool(tools.NewReadFile(ws))
-	b.addTool(tools.NewWriteFile(ws))
-	b.add(tools.NewWebFetch(client, 15*time.Minute))
-	b.add(tools.NewTodoWrite())
-	b.addTool(tools.NewBash(ws))
-	b.addTool(tools.NewGlob(ws))
-	b.addTool(tools.NewEditFile(ws))
-	b.addTool(tools.NewGrep(ws))
-	b.add(tools.NewSkill(skillPaths))
-	return b.result()
-}
-
-func buildAgentTypes(baseTools []model.Tool, toolsByName map[string]model.Tool, workspaceDir string) map[string]tools.AgentTypeConfig {
+func buildAgentTypes(baseTools []model.Tool, registry model.ToolRegistry, workspaceDir string) map[string]tools.AgentTypeConfig {
 	agentTypes := make(map[string]tools.AgentTypeConfig, len(tools.BuiltinAgentDefs))
 	for _, def := range tools.BuiltinAgentDefs {
-		var resolved []model.Tool
-		if def.ToolNames == nil {
-			resolved = baseTools
-		} else {
-			for _, tn := range def.ToolNames {
-				if t, ok := toolsByName[tn]; ok {
-					resolved = append(resolved, t)
-				} else {
-					slog.Warn("built-in agent references unknown tool", "agent", def.Name, "tool", tn)
-				}
-			}
-		}
+		resolved := resolveAgentTypeTools(def.Name, def.ToolNames, baseTools, registry, "built-in agent references unknown tool")
 		agentTypes[def.Name] = tools.AgentTypeConfig{
 			Tools:        resolved,
 			SystemPrompt: def.SystemPrompt,
@@ -333,15 +366,7 @@ func buildAgentTypes(baseTools []model.Tool, toolsByName map[string]model.Tool, 
 			slog.Warn("skip user-defined agent: name conflicts with built-in", "name", def.Name)
 			continue
 		}
-		var resolved []model.Tool
-		for _, tn := range def.ToolNames {
-			t, ok := toolsByName[tn]
-			if !ok {
-				slog.Warn("skip unknown tool in agent def", "agent", def.Name, "tool", tn)
-				continue
-			}
-			resolved = append(resolved, t)
-		}
+		resolved := resolveAgentTypeTools(def.Name, def.ToolNames, nil, registry, "skip unknown tool in agent def")
 		if len(resolved) == 0 {
 			slog.Warn("skip user-defined agent: no valid tools resolved", "name", def.Name)
 			continue
@@ -355,6 +380,22 @@ func buildAgentTypes(baseTools []model.Tool, toolsByName map[string]model.Tool, 
 	}
 
 	return agentTypes
+}
+
+func resolveAgentTypeTools(agentName string, toolNames []string, defaultTools []model.Tool, registry model.ToolRegistry, warnMsg string) []model.Tool {
+	if toolNames == nil {
+		return defaultTools
+	}
+	resolved := make([]model.Tool, 0, len(toolNames))
+	for _, name := range toolNames {
+		t := registry.Lookup(name)
+		if t == nil {
+			slog.Warn(warnMsg, "agent", agentName, "tool", name)
+			continue
+		}
+		resolved = append(resolved, t)
+	}
+	return resolved
 }
 
 func loadOrCreateSession(sessionsDir, sessionID string) (*session.Session, error) {

@@ -10,7 +10,7 @@ import (
 
 	"buildmax/internal/config"
 	"buildmax/internal/core/model"
-	execruntime "buildmax/internal/execution/runtime"
+	exectaskrun "buildmax/internal/execution/worker/taskrun"
 	execworker "buildmax/internal/execution/worker"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/session"
@@ -102,10 +102,10 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return fmt.Errorf("artifact storage: %w", err)
 	}
 
-	paths := execruntime.NewRuntimePathsFromRoot(workspacesDir)
+	paths := exectaskrun.NewRuntimePathsFromRoot(workspacesDir)
 	httpSender := &execworker.WorkerHTTPStreamSender{BaseURL: baseURL, Token: token}
 	streamSender := &execworker.DebouncedStreamSender{Inner: httpSender}
-	err = execruntime.RunTask(ctx, execruntime.RunTaskInput{
+	err = exectaskrun.RunTask(ctx, exectaskrun.RunTaskInput{
 		Task:               task,
 		Run:                run,
 		SessionID:          sessionID,

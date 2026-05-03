@@ -28,6 +28,13 @@ func (r *ToolRegistry) AppendTools(tools ...Tool) {
 	r.tools = append(r.tools, tools...)
 }
 
+// Tools returns the registered tools in append order.
+func (r ToolRegistry) Tools() []Tool {
+	out := make([]Tool, len(r.tools))
+	copy(out, r.tools)
+	return out
+}
+
 // GetDefs builds the LLM-facing tool definitions.
 func (r ToolRegistry) GetDefs() []ToolDef {
 	defs := make([]ToolDef, 0, len(r.tools))

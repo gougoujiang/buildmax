@@ -22,8 +22,8 @@ func setupAgentAndSession(sessionID string, modelSelector string) (setupResult, 
 	}
 	return setupResult{
 		Runtime:     rt,
-		SessionsDir: rt.SessionsDir,
-		CWD:         rt.Workspace,
-		ModelName:   rt.ModelName,
+		SessionsDir: rt.SessionsDir(),
+		CWD:         rt.WorkspaceDir(),
+		ModelName:   rt.ModelName(),
 	}, nil
 }

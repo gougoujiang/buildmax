@@ -2,7 +2,7 @@
 //
 // RunTask runs a single run: materialize workspace, optionally restore session,
 // run the shared agent runtime, persist outputs, and update run state through TaskRunUpdater.
-package runtime
+package taskrun
 
 import (
 	"context"
