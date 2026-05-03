@@ -35,8 +35,6 @@ type ChannelAdapter = convchannel.Adapter
 
 type WebhookRequest = convchannel.WebhookRequest
 
-type WebhookCallbackSender = convchannel.WebhookCallbackSender
-
 type WebhookAdapter = convchannel.WebhookAdapter
 
 const DefaultWebhookUserID = convchannel.DefaultWebhookUserID
