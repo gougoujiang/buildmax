@@ -1,5 +1,5 @@
 // Package tools provides concrete agent tools (e.g. read_file, write_file, webfetch, todowrite).
-package agenttool
+package builtintool
 
 import (
 	"context"

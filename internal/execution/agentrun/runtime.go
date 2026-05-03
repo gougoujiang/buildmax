@@ -12,8 +12,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/core/agent"
 	"buildmax/internal/core/model"
-	tools "buildmax/internal/execution/agenttool"
-	"buildmax/internal/execution/mcptool"
+	tools "buildmax/internal/execution/builtintool"
 	llm "buildmax/internal/infra/llm"
 	"buildmax/internal/infra/mcp"
 	"buildmax/internal/session"
@@ -106,7 +105,7 @@ func Open(in OpenInput) (*Runtime, error) {
 				return nil, fmt.Errorf("mcp: %w", regErr)
 			}
 			mcpCleanup = func() { _ = reg.Close() }
-			for _, t := range mcptool.GatewayTools(reg) {
+			for _, t := range tools.GatewayTools(reg) {
 				baseTools = append(baseTools, t)
 				toolsByName[t.Name()] = t
 			}

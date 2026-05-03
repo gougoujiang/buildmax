@@ -1,4 +1,4 @@
-package agenttool
+package builtintool
 
 // Tool name constants — single source of truth for every tool's Name(). Use camelCase for LLM-facing names.
 const (

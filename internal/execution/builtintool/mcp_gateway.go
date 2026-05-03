@@ -1,4 +1,4 @@
-package mcptool
+package builtintool
 
 import (
 	"context"
@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	ToolNameLoadMcpTools = "LoadMcpTools"
-	ToolNameCallMcpTool  = "CallMcpTool"
+	ToolNameLoadMCPTools = "LoadMcpTools"
+	ToolNameCallMCPTool  = "CallMcpTool"
 )
 
-var loadMcpToolsParams = map[string]any{
+var loadMCPToolsParams = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
 		"server": map[string]any{
@@ -29,7 +29,7 @@ var loadMcpToolsParams = map[string]any{
 	"required": []string{"server", "tool_name"},
 }
 
-var callMcpToolParams = map[string]any{
+var callMCPToolParams = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
 		"server": map[string]any{
@@ -48,33 +48,33 @@ var callMcpToolParams = map[string]any{
 	"required": []string{"server", "tool_name"},
 }
 
-const loadMcpToolsDescPrefix = `Load the full input JSON Schema and description for one MCP tool before calling CallMcpTool.
+const loadMCPToolsDescPrefix = `Load the full input JSON Schema and description for one MCP tool before calling CallMcpTool.
 
 Catalog of configured MCP servers and tools (name and short description only):`
 
-const callMcpToolDesc = `Invoke an MCP tool on a configured server. Use LoadMcpTools(server, tool_name) first when you need the exact argument schema. Pass tool-specific fields inside arguments (a JSON object).`
+const callMCPToolDesc = `Invoke an MCP tool on a configured server. Use LoadMcpTools(server, tool_name) first when you need the exact argument schema. Pass tool-specific fields inside arguments (a JSON object).`
 
 // GatewayTools returns LoadMcpTools and CallMcpTool bound to reg.
 func GatewayTools(reg *mcp.Registry) []model.Tool {
 	return []model.Tool{
-		&loadMcpToolsTool{reg: reg},
-		&callMcpToolTool{reg: reg},
+		&loadMCPToolsTool{reg: reg},
+		&callMCPToolTool{reg: reg},
 	}
 }
 
-type loadMcpToolsTool struct {
+type loadMCPToolsTool struct {
 	reg *mcp.Registry
 }
 
-func (t *loadMcpToolsTool) Name() string { return ToolNameLoadMcpTools }
+func (t *loadMCPToolsTool) Name() string { return ToolNameLoadMCPTools }
 
-func (t *loadMcpToolsTool) Description() string {
-	return loadMcpToolsDescPrefix + "\n\n" + t.reg.Catalog()
+func (t *loadMCPToolsTool) Description() string {
+	return loadMCPToolsDescPrefix + "\n\n" + t.reg.Catalog()
 }
 
-func (t *loadMcpToolsTool) Parameters() any { return loadMcpToolsParams }
+func (t *loadMCPToolsTool) Parameters() any { return loadMCPToolsParams }
 
-func (t *loadMcpToolsTool) Execute(ctx context.Context, args map[string]any) (string, error) {
+func (t *loadMCPToolsTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	srv, _ := args["server"].(string)
 	tn, _ := args["tool_name"].(string)
 	srv = strings.TrimSpace(srv)
@@ -85,17 +85,17 @@ func (t *loadMcpToolsTool) Execute(ctx context.Context, args map[string]any) (st
 	return t.reg.ToolSchemaDetail(srv, tn)
 }
 
-type callMcpToolTool struct {
+type callMCPToolTool struct {
 	reg *mcp.Registry
 }
 
-func (t *callMcpToolTool) Name() string { return ToolNameCallMcpTool }
+func (t *callMCPToolTool) Name() string { return ToolNameCallMCPTool }
 
-func (t *callMcpToolTool) Description() string { return callMcpToolDesc }
+func (t *callMCPToolTool) Description() string { return callMCPToolDesc }
 
-func (t *callMcpToolTool) Parameters() any { return callMcpToolParams }
+func (t *callMCPToolTool) Parameters() any { return callMCPToolParams }
 
-func (t *callMcpToolTool) Execute(ctx context.Context, args map[string]any) (string, error) {
+func (t *callMCPToolTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	srv, _ := args["server"].(string)
 	tn, _ := args["tool_name"].(string)
 	srv = strings.TrimSpace(srv)

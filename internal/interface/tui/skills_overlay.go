@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"buildmax/internal/config"
-	tools "buildmax/internal/execution/agenttool"
+	tools "buildmax/internal/execution/builtintool"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"

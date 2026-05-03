@@ -1,4 +1,4 @@
-package agenttool
+package builtintool
 
 import (
 	"errors"

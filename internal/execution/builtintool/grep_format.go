@@ -2,7 +2,7 @@
 //
 // grep_format.go — output formatting for the Grep tool.
 // Three modes: content (ripgrep-style with context), files_with_matches, count.
-package agenttool
+package builtintool
 
 import (
 	"fmt"

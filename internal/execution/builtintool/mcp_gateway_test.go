@@ -1,4 +1,4 @@
-package mcptool
+package builtintool
 
 import (
 	"slices"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestGatewayToolNames(t *testing.T) {
-	names := []string{ToolNameLoadMcpTools, ToolNameCallMcpTool}
+	names := []string{ToolNameLoadMCPTools, ToolNameCallMCPTool}
 	want := []string{"LoadMcpTools", "CallMcpTool"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("%v", names)

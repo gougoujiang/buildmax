@@ -1,5 +1,5 @@
 // Package tools provides concrete agent tools (e.g. read_file, glob).
-package agenttool
+package builtintool
 
 import (
 	"context"
