@@ -12,6 +12,7 @@ import (
 	"buildmax/internal/config"
 	"buildmax/internal/execution/agentrun"
 	"buildmax/internal/interface/auth"
+	"buildmax/internal/interface/client"
 	"buildmax/internal/session"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -146,13 +147,13 @@ func (a *App) GetAuthStatus() (*AuthStatus, error) {
 
 // RequestOTP calls the server's OTP endpoint. intent is "login" or "signup".
 func (a *App) RequestOTP(serverURL, email, intent string) error {
-	c := auth.NewClient(serverURL)
+	c := client.NewClient(serverURL)
 	return c.RequestOTP(context.Background(), email, intent)
 }
 
 // DoLogin authenticates against the server and saves credentials on success.
 func (a *App) DoLogin(serverURL, email, otp string) (*AuthStatus, error) {
-	c := auth.NewClient(serverURL)
+	c := client.NewClient(serverURL)
 	lr, err := c.Login(context.Background(), email, otp, "desktop")
 	if err != nil {
 		return nil, err
