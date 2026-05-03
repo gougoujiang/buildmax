@@ -6,8 +6,6 @@ import (
 	convchannel "buildmax/internal/core/conversation/channel"
 )
 
-type ConversationTurn = convchannel.Turn
-
 // ConversationResult is the output of processing one turn. The engine may return
 // a direct reply and/or one or more spawned task_run_ids.
 type ConversationResult struct {
@@ -31,19 +29,7 @@ func ValidChannel(ch string) bool {
 	return convchannel.ValidChannel(ch)
 }
 
-type ChannelAdapter = convchannel.Adapter
-
-type WebhookRequest = convchannel.WebhookRequest
-
-type WebhookAdapter = convchannel.WebhookAdapter
-
-const DefaultWebhookUserID = convchannel.DefaultWebhookUserID
-
-func NewWebhookAdapter(messagePath string, userID string) *WebhookAdapter {
-	return convchannel.NewWebhookAdapter(messagePath, userID)
-}
-
 // TurnEngine processes one turn; may create Tier 2 runs and/or return a direct reply.
 type TurnEngine interface {
-	Process(ctx context.Context, conversationID, taskID string, turn ConversationTurn) (ConversationResult, error)
+	Process(ctx context.Context, conversationID, taskID string, turn convchannel.Turn) (ConversationResult, error)
 }

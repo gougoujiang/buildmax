@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	convchannel "buildmax/internal/core/conversation/channel"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/task"
 )
@@ -17,7 +18,7 @@ type WebhookEngine struct {
 }
 
 // Process creates exactly one TaskRun for webhook turns. Rejects other channels.
-func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID string, turn ConversationTurn) (ConversationResult, error) {
+func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID string, turn convchannel.Turn) (ConversationResult, error) {
 	if turn.Channel != ChannelWebhook {
 		return ConversationResult{}, ErrWebhookChannelRequired
 	}
@@ -35,7 +36,7 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 	}
 	userID := turn.UserID
 	if userID == "" {
-		userID = DefaultWebhookUserID
+		userID = convchannel.DefaultWebhookUserID
 	}
 	conv, err := e.Conversations.GetConversation(ctx, conversationID)
 	if err != nil {

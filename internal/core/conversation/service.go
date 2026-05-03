@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	convruntime "buildmax/internal/core/conversation/runtime"
 	convtool "buildmax/internal/core/conversation/tool"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/task"
@@ -85,7 +86,7 @@ func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd Ha
 		runners.AgentSummaries = s.fetchAgentSummaries(ctx, cmd.UserID, cmd.ConversationID)
 	}
 
-	runInput := TurnRunInput{
+	runInput := convruntime.TurnRunInput{
 		ConversationID:      cmd.ConversationID,
 		Message:             cmd.Message,
 		Channel:             cmd.Channel,
@@ -96,15 +97,15 @@ func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd Ha
 		RecentTasksSnippet:  s.recentTasksSnippet(ctx, cmd.ConversationID),
 		StreamSink:          cmd.StreamSink,
 	}
-	reply, err := Run(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
+	reply, err := convruntime.Run(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
 	return ConversationResult{Reply: reply}, err
 }
 
-func (s *ConversationService) conversationToolRunners(conversationID, userID, channel string) *TurnToolRunners {
+func (s *ConversationService) conversationToolRunners(conversationID, userID, channel string) *convruntime.TurnToolRunners {
 	if channel == ChannelSystem {
 		return nil
 	}
-	return &TurnToolRunners{
+	return &convruntime.TurnToolRunners{
 		StartTask:    s.newStartTaskRunner(conversationID, userID),
 		ListTasks:    s.newListTasksRunner(),
 		GetTask:      s.newGetTaskRunner(),

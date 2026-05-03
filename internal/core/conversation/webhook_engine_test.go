@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	convchannel "buildmax/internal/core/conversation/channel"
 	"buildmax/internal/core/task"
 	"buildmax/internal/mock"
 )
@@ -12,7 +13,7 @@ import (
 func TestWebhookEngine_Process_wrongChannel(t *testing.T) {
 	e := &WebhookEngine{}
 	ctx := context.Background()
-	turn := ConversationTurn{
+	turn := convchannel.Turn{
 		Channel: ChannelPortal,
 		Message: "hi",
 		UserID:  "u_1",
@@ -29,7 +30,7 @@ func TestWebhookEngine_Process_wrongChannel(t *testing.T) {
 func TestWebhookEngine_Process_chatNil(t *testing.T) {
 	e := &WebhookEngine{TaskService: nil}
 	ctx := context.Background()
-	turn := ConversationTurn{
+	turn := convchannel.Turn{
 		Channel: ChannelWebhook,
 		Message: "task",
 		UserID:  "webhook",
@@ -49,7 +50,7 @@ func TestWebhookEngine_Process_webhookEmptyMessage(t *testing.T) {
 		Conversations: &mock.MockConversationStore{},
 	} // Task service has nil stores; CreateTask will fail later, but we validate message first
 	ctx := context.Background()
-	turn := ConversationTurn{
+	turn := convchannel.Turn{
 		Channel: ChannelWebhook,
 		Message: "",
 		UserID:  "webhook",
@@ -63,7 +64,7 @@ func TestWebhookEngine_Process_webhookEmptyMessage(t *testing.T) {
 func TestWebhookEngine_Process_requiresConversationStore(t *testing.T) {
 	e := &WebhookEngine{TaskService: &task.TaskService{}}
 	ctx := context.Background()
-	turn := ConversationTurn{
+	turn := convchannel.Turn{
 		Channel: ChannelWebhook,
 		Message: "task",
 		UserID:  "webhook",

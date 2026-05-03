@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"buildmax/internal/core/conversation"
+	convchannel "buildmax/internal/core/conversation/channel"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
 	blob "buildmax/internal/infra/objectstore"
@@ -60,7 +61,7 @@ type Config struct {
 	ConversationLLMClient model.LLMClient
 
 	// Inbound webhook
-	WebhookAdapter     conversation.ChannelAdapter
+	WebhookAdapter     convchannel.Adapter
 	WebhookEngine      conversation.TurnEngine
 	WebhookMessagePath string
 

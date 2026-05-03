@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"buildmax/internal/core/conversation"
+	convchannel "buildmax/internal/core/conversation/channel"
 	"buildmax/internal/core/model"
 	"buildmax/internal/server/httputil"
 )
@@ -39,7 +40,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "read_body")
 		return
 	}
-	req := &conversation.WebhookRequest{
+	req := &convchannel.WebhookRequest{
 		Body:   body,
 		Header: map[string][]string(r.Header.Clone()),
 	}

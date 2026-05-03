@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"buildmax/internal/core/conversation"
+	convchannel "buildmax/internal/core/conversation/channel"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
 	"buildmax/internal/core/task"
@@ -128,9 +129,9 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 	}
 	webhookUserID := cfg.Webhook.UserID
 	if webhookUserID == "" {
-		webhookUserID = conversation.DefaultWebhookUserID
+		webhookUserID = convchannel.DefaultWebhookUserID
 	}
-	var webhookAdapter conversation.ChannelAdapter
+	var webhookAdapter convchannel.Adapter
 	var webhookEngine conversation.TurnEngine
 	if cfg.Stores.UserWebhookKeyStore != nil {
 		taskSvc := &task.TaskService{
@@ -140,7 +141,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 			QuotaChecker:   cfg.Auth.QuotaService,
 			TitleGenerator: nil,
 		}
-		webhookAdapter = conversation.NewWebhookAdapter(msgPath, webhookUserID)
+		webhookAdapter = convchannel.NewWebhookAdapter(msgPath, webhookUserID)
 		webhookEngine = &conversation.WebhookEngine{TaskService: taskSvc, Conversations: cfg.Conv.ConversationStore}
 	}
 	return handlers.Config{

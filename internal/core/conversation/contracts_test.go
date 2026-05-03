@@ -2,11 +2,13 @@ package conversation
 
 import (
 	"testing"
+
+	convchannel "buildmax/internal/core/conversation/channel"
 )
 
 func TestConversationTurn_fields(t *testing.T) {
 	raw := map[string]any{"key": "val"}
-	turn := ConversationTurn{
+	turn := convchannel.Turn{
 		Channel:        ChannelPortal,
 		ConversationID: "c_xyz",
 		UserID:         "u_123",
