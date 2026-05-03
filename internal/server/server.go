@@ -131,7 +131,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		webhookUserID = conversation.DefaultWebhookUserID
 	}
 	var webhookAdapter conversation.ChannelAdapter
-	var webhookEngine conversation.ConversationEngine
+	var webhookEngine conversation.TurnEngine
 	if cfg.Stores.UserWebhookKeyStore != nil {
 		taskSvc := &task.TaskService{
 			Agents:         cfg.Stores.AgentStore,
@@ -141,7 +141,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 			TitleGenerator: nil,
 		}
 		webhookAdapter = conversation.NewWebhookAdapter(msgPath, webhookUserID)
-		webhookEngine = &conversation.RuleBasedEngine{TaskService: taskSvc, Conversations: cfg.Conv.ConversationStore}
+		webhookEngine = &conversation.WebhookEngine{TaskService: taskSvc, Conversations: cfg.Conv.ConversationStore}
 	}
 	return handlers.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,

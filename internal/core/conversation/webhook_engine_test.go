@@ -9,8 +9,8 @@ import (
 	"buildmax/internal/mock"
 )
 
-func TestRuleBasedEngine_Process_wrongChannel(t *testing.T) {
-	e := &RuleBasedEngine{}
+func TestWebhookEngine_Process_wrongChannel(t *testing.T) {
+	e := &WebhookEngine{}
 	ctx := context.Background()
 	turn := ConversationTurn{
 		Channel: ChannelPortal,
@@ -21,13 +21,13 @@ func TestRuleBasedEngine_Process_wrongChannel(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-webhook channel")
 	}
-	if !errors.Is(err, ErrChannelNotWebhook) {
-		t.Errorf("err = %v, want ErrChannelNotWebhook", err)
+	if !errors.Is(err, ErrWebhookChannelRequired) {
+		t.Errorf("err = %v, want ErrWebhookChannelRequired", err)
 	}
 }
 
-func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
-	e := &RuleBasedEngine{TaskService: nil}
+func TestWebhookEngine_Process_chatNil(t *testing.T) {
+	e := &WebhookEngine{TaskService: nil}
 	ctx := context.Background()
 	turn := ConversationTurn{
 		Channel: ChannelWebhook,
@@ -43,8 +43,8 @@ func TestRuleBasedEngine_Process_chatNil(t *testing.T) {
 	}
 }
 
-func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
-	e := &RuleBasedEngine{
+func TestWebhookEngine_Process_webhookEmptyMessage(t *testing.T) {
+	e := &WebhookEngine{
 		TaskService:   &task.TaskService{},
 		Conversations: &mock.MockConversationStore{},
 	} // Task service has nil stores; CreateTask will fail later, but we validate message first
@@ -60,8 +60,8 @@ func TestRuleBasedEngine_Process_webhookEmptyMessage(t *testing.T) {
 	}
 }
 
-func TestRuleBasedEngine_Process_requiresConversationStore(t *testing.T) {
-	e := &RuleBasedEngine{TaskService: &task.TaskService{}}
+func TestWebhookEngine_Process_requiresConversationStore(t *testing.T) {
+	e := &WebhookEngine{TaskService: &task.TaskService{}}
 	ctx := context.Background()
 	turn := ConversationTurn{
 		Channel: ChannelWebhook,

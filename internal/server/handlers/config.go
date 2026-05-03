@@ -61,7 +61,7 @@ type Config struct {
 
 	// Inbound webhook
 	WebhookAdapter     conversation.ChannelAdapter
-	WebhookEngine      conversation.ConversationEngine
+	WebhookEngine      conversation.TurnEngine
 	WebhookMessagePath string
 
 	// Hub is optional; if nil NewHandler creates one. Injectable for testing.

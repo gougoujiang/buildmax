@@ -1,5 +1,4 @@
-// GetTask is a Tier 1 conversation tool that returns detail for one task by id.
-package conversation
+package tool
 
 import (
 	"context"

@@ -94,6 +94,13 @@ BuildMax now uses a clear two-tier architecture:
 
 The core agent tool-calling loop lives in `internal/core/agent`; task-run runtime execution lives in `internal/execution/runtime`.
 
+`internal/core/conversation` should be read as a core application subsystem rather than a thin package. Its current internal shape is:
+
+- root package: service entrypoints, exported contracts, webhook turn policy, and runtime facade
+- `channel/`: channel-facing normalized turn types and adapters such as the webhook adapter
+- `runtime/`: Tier 1 turn-loop runtime mechanics such as message replay, tool assembly, prompt assembly, and streaming integration
+- `tool/`: Tier 1 conversation tools plus the task-service/store runner bridge used to expose task operations to the model
+
 ## Repository Layout
 
 ```text
@@ -112,7 +119,10 @@ buildmax/
 │   ├── core/                  # Business concepts, use cases, and contracts
 │   │   ├── model/             # Shared entities, repository contracts, LLM contracts, Tool contract
 │   │   ├── agent/             # Core agent loop and tool-calling logic
-│   │   ├── conversation/      # Tier 1 conversation orchestration and conversation tools
+│   │   ├── conversation/      # Tier 1 conversation subsystem (service, contracts, webhook policy, runtime facade)
+│   │   │   ├── channel/       # Channel-facing types and adapters
+│   │   │   ├── runtime/       # Tier 1 turn-loop runtime internals
+│   │   │   └── tool/          # Tier 1 conversation tools and task runner bridge
 │   │   ├── issue/             # Issue use cases
 │   │   ├── task/              # Task and task_run workflows
 │   │   ├── workflow/          # Workflow orchestration
@@ -228,6 +238,7 @@ As of the current main branch state:
 - governance foundation is landed: team roles support `owner/admin/member`, and workflows use `draft/published/archived`
 - Desktop already supports local chat backed by the shared runtime
 - shared GUI is used by both Portal and Desktop
+- `internal/core/conversation` is now internally split into `channel`, `runtime`, and `tool` sub-packages while remaining a core Tier 1 subsystem under `internal/core`
 - the previous Team / Issue / Workflow roadmap is effectively complete for its intended scope
 - the internal package refactor in `design/018-internal-package-refactor.md` is complete for the planned scope
 - the active product roadmap is `design/018-versioned-workspace-and-outcome-roadmap.md`

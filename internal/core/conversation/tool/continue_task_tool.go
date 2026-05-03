@@ -1,5 +1,4 @@
-// ContinueTask is a Tier 1 conversation tool that adds a follow-up run to an existing task.
-package conversation
+package tool
 
 import (
 	"context"

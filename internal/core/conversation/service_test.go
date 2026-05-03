@@ -2,7 +2,7 @@ package conversation
 
 import "testing"
 
-func TestConversationToolRunners_systemChannelDisablesTaskTools(t *testing.T) {
+func TestTurnToolRunners_systemChannelDisablesTaskTools(t *testing.T) {
 	svc := &ConversationService{}
 
 	runners := svc.conversationToolRunners("c_1", "u_1", ChannelSystem)
@@ -12,7 +12,7 @@ func TestConversationToolRunners_systemChannelDisablesTaskTools(t *testing.T) {
 	}
 }
 
-func TestConversationToolRunners_portalChannelAllowsTaskTools(t *testing.T) {
+func TestTurnToolRunners_portalChannelAllowsTaskTools(t *testing.T) {
 	svc := &ConversationService{}
 
 	runners := svc.conversationToolRunners("c_1", "u_1", ChannelPortal)

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	convtool "buildmax/internal/core/conversation/tool"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/task"
 )
@@ -67,7 +69,7 @@ func (s *ConversationService) handleTaskRunTurn(ctx context.Context, cmd HandleT
 	if err != nil {
 		return ConversationResult{}, err
 	}
-	return ConversationResult{TaskIDs: []string{run.TaskRunID}}, nil
+	return ConversationResult{TaskRunIDs: []string{run.TaskRunID}}, nil
 }
 
 func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
@@ -83,26 +85,26 @@ func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd Ha
 		runners.AgentSummaries = s.fetchAgentSummaries(ctx, cmd.UserID, cmd.ConversationID)
 	}
 
-	runInput := RunInput{
-		ConversationID:     cmd.ConversationID,
-		UserContent:        cmd.Message,
-		Channel:            cmd.Channel,
-		ScopeID:            cmd.ConversationID,
-		UserID:             cmd.UserID,
-		Runners:            runners,
-		TitleGenerator:     s.TitleGenerator,
-		RecentChatsSnippet: s.recentTasksSnippet(ctx, cmd.ConversationID),
-		StreamSink:         cmd.StreamSink,
+	runInput := TurnRunInput{
+		ConversationID:      cmd.ConversationID,
+		Message:             cmd.Message,
+		Channel:             cmd.Channel,
+		ConversationScopeID: cmd.ConversationID,
+		UserID:              cmd.UserID,
+		Runners:             runners,
+		TitleGenerator:      s.TitleGenerator,
+		RecentTasksSnippet:  s.recentTasksSnippet(ctx, cmd.ConversationID),
+		StreamSink:          cmd.StreamSink,
 	}
 	reply, err := Run(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
 	return ConversationResult{Reply: reply}, err
 }
 
-func (s *ConversationService) conversationToolRunners(conversationID, userID, channel string) *ConversationToolRunners {
+func (s *ConversationService) conversationToolRunners(conversationID, userID, channel string) *TurnToolRunners {
 	if channel == ChannelSystem {
 		return nil
 	}
-	return &ConversationToolRunners{
+	return &TurnToolRunners{
 		StartTask:    s.newStartTaskRunner(conversationID, userID),
 		ListTasks:    s.newListTasksRunner(),
 		GetTask:      s.newGetTaskRunner(),
@@ -110,40 +112,29 @@ func (s *ConversationService) conversationToolRunners(conversationID, userID, ch
 	}
 }
 
-func (s *ConversationService) newStartTaskRunner(conversationID, userID string) StartTaskRunner {
-	if s.TaskService == nil || s.ConversationStore == nil {
-		return nil
-	}
-	return &startTaskRunner{
-		taskService:       s.TaskService,
-		conversationStore: s.ConversationStore,
-		userID:            userID,
-		conversationID:    conversationID,
-	}
+func (s *ConversationService) newStartTaskRunner(conversationID, userID string) convtool.StartTaskRunner {
+	return convtool.NewStartTaskServiceRunner(s.TaskService, s.ConversationStore, conversationID, userID)
 }
 
-func (s *ConversationService) newListTasksRunner() ListTasksRunner {
-	if s.TaskService == nil || s.TaskService.Tasks == nil {
-		return nil
-	}
-	return &listTasksRunner{tasks: s.TaskService.Tasks}
-}
-
-func (s *ConversationService) newGetTaskRunner() GetTaskRunner {
-	if s.TaskService == nil || s.TaskService.Tasks == nil {
-		return nil
-	}
-	return &getTaskRunner{tasks: s.TaskService.Tasks}
-}
-
-func (s *ConversationService) newContinueTaskRunner() ContinueTaskRunner {
+func (s *ConversationService) newListTasksRunner() convtool.ListTasksRunner {
 	if s.TaskService == nil {
 		return nil
 	}
-	return &continueTaskRunner{taskService: s.TaskService}
+	return convtool.NewListTasksStoreRunner(s.TaskService.Tasks)
 }
 
-func (s *ConversationService) fetchAgentSummaries(ctx context.Context, userID, conversationID string) []AgentSummary {
+func (s *ConversationService) newGetTaskRunner() convtool.GetTaskRunner {
+	if s.TaskService == nil {
+		return nil
+	}
+	return convtool.NewGetTaskStoreRunner(s.TaskService.Tasks)
+}
+
+func (s *ConversationService) newContinueTaskRunner() convtool.ContinueTaskRunner {
+	return convtool.NewContinueTaskServiceRunner(s.TaskService)
+}
+
+func (s *ConversationService) fetchAgentSummaries(ctx context.Context, userID, conversationID string) []convtool.AgentSummary {
 	if s.AgentStore == nil {
 		return nil
 	}
@@ -157,9 +148,9 @@ func (s *ConversationService) fetchAgentSummaries(ctx context.Context, userID, c
 	if err != nil || len(agents) == 0 {
 		return nil
 	}
-	summaries := make([]AgentSummary, len(agents))
+	summaries := make([]convtool.AgentSummary, len(agents))
 	for i, a := range agents {
-		summaries[i] = AgentSummary{ID: a.AgentID, Name: a.Name, Description: a.Description}
+		summaries[i] = convtool.AgentSummary{ID: a.AgentID, Name: a.Name, Description: a.Description}
 	}
 	return summaries
 }
@@ -174,8 +165,27 @@ func (s *ConversationService) recentTasksSnippet(ctx context.Context, conversati
 	}
 	var lines []string
 	for _, c := range list {
-		snippet := taskTitleOrSnippet(&c, 60)
-		lines = append(lines, fmt.Sprintf("%s | %s | %s | %s", c.TaskID, snippet, c.Status, formatCreatedAt(c.CreatedAt)))
+		snippet := recentTaskTitleOrSnippet(&c, 60)
+		lines = append(lines, fmt.Sprintf("%s | %s | %s | %s", c.TaskID, snippet, c.Status, formatRecentTaskCreatedAt(c.CreatedAt)))
 	}
 	return "Recent tasks in this conversation (latest 5):\n" + strings.Join(lines, "\n")
+}
+
+func recentTaskTitleOrSnippet(taskItem *model.Task, maxRunes int) string {
+	if taskItem.Title != "" {
+		return truncateRecentTaskRunes(taskItem.Title, maxRunes)
+	}
+	return truncateRecentTaskRunes(taskItem.Input, maxRunes)
+}
+
+func truncateRecentTaskRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "…"
+}
+
+func formatRecentTaskCreatedAt(unixSec int64) string {
+	return time.Unix(unixSec, 0).Format("2006-01-02 15:04")
 }

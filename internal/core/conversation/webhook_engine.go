@@ -8,18 +8,18 @@ import (
 	"buildmax/internal/core/task"
 )
 
-var ErrChannelNotWebhook = errors.New("rule-based engine only accepts webhook channel")
+var ErrWebhookChannelRequired = errors.New("webhook engine only accepts webhook channel")
 
-// RuleBasedEngine implements ConversationEngine for webhook turns: no LLM, create one TaskRun.
-type RuleBasedEngine struct {
+// WebhookEngine implements TurnEngine for webhook turns: no LLM, create one TaskRun.
+type WebhookEngine struct {
 	TaskService   *task.TaskService
 	Conversations model.ConversationStore
 }
 
 // Process creates exactly one TaskRun for webhook turns. Rejects other channels.
-func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID string, turn ConversationTurn) (ConversationResult, error) {
+func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID string, turn ConversationTurn) (ConversationResult, error) {
 	if turn.Channel != ChannelWebhook {
-		return ConversationResult{}, ErrChannelNotWebhook
+		return ConversationResult{}, ErrWebhookChannelRequired
 	}
 	if e.TaskService == nil {
 		return ConversationResult{}, task.ErrTaskRunsNotConfigured
@@ -57,7 +57,7 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID st
 		if err != nil {
 			return ConversationResult{}, err
 		}
-		return ConversationResult{TaskIDs: []string{result.RunID}}, nil
+		return ConversationResult{TaskRunIDs: []string{result.RunID}}, nil
 	}
 	run, err := e.TaskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:        userID,
@@ -69,5 +69,5 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID st
 	if err != nil {
 		return ConversationResult{}, err
 	}
-	return ConversationResult{TaskIDs: []string{run.TaskRunID}}, nil
+	return ConversationResult{TaskRunIDs: []string{run.TaskRunID}}, nil
 }

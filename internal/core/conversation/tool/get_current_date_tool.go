@@ -1,5 +1,4 @@
-// Conversation tool: get_current_date. Returns the current date in YYYY-MM-DD format.
-package conversation
+package tool
 
 import (
 	"context"

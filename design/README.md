@@ -18,7 +18,7 @@ Start here if you want the current product and planning picture:
 - [001-about-portal.md](./001-about-portal.md)
   Long-range product vision reference for the AI-native workspace direction.
 - [007-two-tier-agent.md](./007-two-tier-agent.md)
-  Conceptual reference for the Tier 1 / Tier 2 split.
+  Conceptual reference for the Tier 1 / Tier 2 split. Read it together with the current `internal/core/conversation` package layout (`contracts.go`, `service.go`, `runtime_facade.go`, plus `channel/`, `runtime/`, and `tool/`) rather than assuming the older flat package sketch is still current.
 
 ## Current Foundations
 

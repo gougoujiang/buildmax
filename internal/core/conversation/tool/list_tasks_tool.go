@@ -1,5 +1,4 @@
-// ListTasks is a Tier 1 conversation tool that lists recent tasks in the conversation.
-package conversation
+package tool
 
 import (
 	"context"

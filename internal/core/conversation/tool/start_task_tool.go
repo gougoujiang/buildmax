@@ -1,5 +1,5 @@
-// Conversation tool: start_task. Creates and schedules a Tier 2 background task.
-package conversation
+// Package tool contains the Tier 1 conversation tools exposed to the model.
+package tool
 
 import (
 	"context"

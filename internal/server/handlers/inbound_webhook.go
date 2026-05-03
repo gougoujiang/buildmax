@@ -69,11 +69,11 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "process")
 		return
 	}
-	if len(result.TaskIDs) == 0 {
+	if len(result.TaskRunIDs) == 0 {
 		httputil.WriteInternalError(w, nil, "webhook handler", "handler", "no_task_id")
 		return
 	}
-	httputil.WriteJSON(w, http.StatusAccepted, map[string]string{"task_id": result.TaskIDs[0]})
+	httputil.WriteJSON(w, http.StatusAccepted, map[string]string{"task_id": result.TaskRunIDs[0]})
 }
 
 func (h *Handler) extractWebhookKey(r *http.Request) string {

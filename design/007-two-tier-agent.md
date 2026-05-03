@@ -3,6 +3,8 @@
 **Design Reference**  
 *Unified entrypoint (Tier 1) and task execution (Tier 2).*
 
+Implementation note as of 2026: this document is still the conceptual reference for the Tier 1 / Tier 2 split, but some concrete names in the examples below are historical. The current Tier 1 code lives in `internal/core/conversation` as a core subsystem with a root package plus `channel/`, `runtime/`, and `tool/` sub-packages. The exported orchestration contracts now use names such as `ConversationService` and `TurnEngine`.
+
 ---
 
 ## 1. Overview
@@ -148,8 +150,8 @@ type ConversationResult struct {
     TaskIDs []string // task_run_ids spawned (if any)
 }
 
-// ConversationEngine processes one turn; may respond and/or spawn Tier 2 tasks.
-type ConversationEngine interface {
+// TurnEngine processes one turn; may respond and/or spawn Tier 2 tasks.
+type TurnEngine interface {
     Process(ctx context.Context, workspaceID, chatID string, turn ConversationTurn) (ConversationResult, error)
 }
 ```
@@ -197,7 +199,7 @@ Option B is cleaner conceptually but adds migration and more concepts; Option A 
 
 ## 8. Implementation Phases (suggested)
 
-1. **Phase 1**: Define Tier 1 interfaces (`ConversationTurn`, `ChannelAdapter`, `ConversationEngine`, `ConversationResult`) and channel enum in a new package (e.g. `internal/core/conversation` or under `internal/server`).
+1. **Phase 1**: Define Tier 1 interfaces (`ConversationTurn`, `ChannelAdapter`, `TurnEngine`, `ConversationResult`) and channel enum in a new package (e.g. `internal/core/conversation` or under `internal/server`).
 2. **Phase 2**: Implement portal as first `ChannelAdapter`; conversation engine is pass-through (every message spawns one Tier 2 run). No new LLM call yet.
 3. **Phase 3**: Add Tier 1 LLM conversation for portal (and later IM): maintain conversation history, allow clarification and deferred task spawn.
 4. **Phase 4**: Add cron and webhook adapters with rule-based engine (no LLM).

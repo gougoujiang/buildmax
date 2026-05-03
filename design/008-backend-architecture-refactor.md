@@ -25,6 +25,8 @@ This document is now mostly historical. The active internal layout has moved to:
 
 The old compatibility/alias middle state has been removed. `internal/core/model` is now a pure core model/contract package, and the GORM schema rows live in `internal/infra/db`.
 
+The Tier 1 conversation area described below is now implemented as a core subsystem under `internal/core/conversation` with a root package plus `channel/`, `runtime/`, and `tool/` sub-packages. Some older sections in this document still refer to historical names such as `ConversationEngine`; the current exported turn-processing contract is `TurnEngine`.
+
 ---
 
 ## Current problems

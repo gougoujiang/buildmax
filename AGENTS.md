@@ -67,7 +67,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 - **Agent loop**: Shared tool-calling loop (LLM -> tool_calls -> execute tools -> re-call LLM -> reply) in `internal/core/agent`; default system prompt prepended by the core agent run.
 - **Agent runtime assembly**: Runtime wiring for CLI, worker, and desktop lives in `internal/execution/agentrun`; process bootstrapping lives in `internal/bootstrap/*`.
 - **Optional workspace AGENTS.md**: When running the CLI, if a file named `AGENTS.md` exists at the workspace root (current working directory), its contents are appended to the default system prompt so the agent receives project-specific instructions. See the [agents.md](https://agents.md/) convention. For remote runs, the worker prepares an `AGENTS.md` in the run directory (run directory layout plus optional workspace `AGENTS.md` from materialized home) so the same convention applies when the shared agent runtime runs with cwd = run dir.
-- **Runtime tools** (`internal/execution/agenttool`): `read_file`, `writefile`, `editfile`, `bash`, `glob`, `grep` (with format), `webfetch`, `todowrite`, `skill`, `agentdef`, `task`; path under configurable root (e.g. CWD). Tool output is LLM-oriented (meaningful on success and failure). Conversation-specific tools such as `StartTask`, `ContinueTask`, `ListTasks`, and `GetTask` live in `internal/core/conversation`.
+- **Runtime tools** (`internal/execution/agenttool`): `read_file`, `writefile`, `editfile`, `bash`, `glob`, `grep` (with format), `webfetch`, `todowrite`, `skill`, `agentdef`, `task`; path under configurable root (e.g. CWD). Tool output is LLM-oriented (meaningful on success and failure). Conversation-specific tools such as `StartTask`, `ContinueTask`, `ListTasks`, and `GetTask` live in the Tier 1 conversation subsystem under `internal/core/conversation/tool`.
 - **MCP tools**: MCP protocol/client transport lives in `internal/infra/mcp`; agent-facing MCP gateway tools live in `internal/execution/mcptool`.
 
 **Config & infra**
@@ -115,8 +115,9 @@ The `design/010-team-task-workflow-roadmap.md` program is effectively complete f
 
 ### 4.2 Tier 1 and Tier 2 architecture
 
-- **Tier 1 = Conversation application service (orchestrator).** The orchestrator lives in `internal/core/conversation`. It is the single entry point for portal turns: it receives the normalized request, decides whether to run a direct conversation turn or create/continue a background task run, and owns what the user sees. Tier 1 is the single voice to the user.
-- **Low-level Tier 1 loop = `internal/core/conversation` + `internal/core/agent`.** `internal/core/conversation` owns message persistence, tool selection, system-channel handoff, and optional streaming for one turn. `internal/core/agent` owns the shared tool-calling loop. System task-result turns do not expose task-creation tools, preventing task-run feedback loops.
+- **Tier 1 = Conversation application service (orchestrator).** The orchestrator lives in `internal/core/conversation`. It remains a `core/` sub-package, but it should be understood as a **core Tier 1 subsystem**, not a thin utility package. It is the single entry point for portal turns: it receives the normalized request, decides whether to run a direct conversation turn or create/continue a background task run, and owns what the user sees. Tier 1 is the single voice to the user.
+- **Internal shape of Tier 1.** `internal/core/conversation` currently contains: root package for exported contracts, `ConversationService`, webhook turn policy, and runtime façade; `channel/` for normalized turn/channel adapter types and webhook adapter; `runtime/` for turn-loop mechanics (message replay, tool assembly, prompt assembly, streaming); and `tool/` for Tier 1 tools plus the task-service/store runner bridge.
+- **Low-level Tier 1 loop = `internal/core/conversation/runtime` + `internal/core/agent`.** `internal/core/conversation/runtime` owns message persistence, tool selection, system-channel handoff, and optional streaming for one turn. `internal/core/agent` owns the shared tool-calling loop. System task-result turns do not expose task-creation tools, preventing task-run feedback loops.
 - **Tier 2 = Task + TaskRun (execution in the back).** A Task with one or more TaskRuns is Tier 2: the worker materializes a run directory, executes the shared agent runtime there, produces artifacts, and can take a long time. Tier 2 is “tools in the back” - it does not send messages directly to the user; it always reports back to Tier 1 (run status, result, artifacts). Tier 1 turns that into what the user sees.
 - **Tier 1 tools for Tier 2 (implemented via core services):** Tier 1 can (1) **create a Tier 2 task** through `internal/core/task` and the `StartTask` tool, which creates a Task and TaskRun for the worker; and (2) **rerun / follow-up on an existing task** by creating a new run for that task. In both cases Tier 2 reports back to Tier 1; Tier 1 orchestrates the reply to the user.
 
@@ -148,7 +149,10 @@ buildmax/
 │   ├── core/                  # Business concepts, use cases, contracts, and shared models
 │   │   ├── model/             # Shared entities, repository contracts, LLM contracts, Tool contract
 │   │   ├── agent/             # Core tool-calling loop and prompt/options
-│   │   ├── conversation/      # Tier 1 conversation orchestration and conversation tools
+│   │   ├── conversation/      # Tier 1 conversation subsystem (service, contracts, webhook policy, runtime façade)
+│   │   │   ├── channel/       # Channel-facing turn types and adapters
+│   │   │   ├── runtime/       # Tier 1 turn-loop runtime internals
+│   │   │   └── tool/          # Tier 1 tools and task runner bridge
 │   │   ├── issue/             # Issue use cases
 │   │   ├── task/              # Task and task_run workflows
 │   │   ├── workflow/          # Workflow and workflow-run orchestration
@@ -193,7 +197,7 @@ buildmax/
 - **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-run-id`; delegates to `internal/bootstrap` startup logic (get task run via API, blob storage, execution/runtime). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
 - **internal/bootstrap**: Process startup and dependency wiring for server, worker, and startup storage builders.
 - **internal/interface**: Local user-facing entry points: CLI, TUI, desktop, and local auth credential/client code.
-- **internal/core**: Business logic and contracts. `core/model` owns shared entities, repository contracts, LLM contracts, and the Tool contract.
+- **internal/core**: Business logic and contracts. `core/model` owns shared entities, repository contracts, LLM contracts, and the Tool contract. `core/conversation` is the Tier 1 conversation subsystem and remains under `core/` because it is still core orchestration logic rather than a separate top-level layer.
 - **internal/execution**: Agent runtime assembly, scheduler, worker client/updater, task-run execution, runtime tools, and MCP tool integration.
 - **internal/infra**: External-system implementations such as DB, object storage, LLM, Kubernetes, MCP transport, and logging.
 - **internal/server**: HTTP API for the Portal and worker callbacks. It depends on core services and execution worker contracts; it is bootstrapped by `internal/bootstrap`.
