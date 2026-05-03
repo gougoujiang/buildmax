@@ -90,27 +90,6 @@ func GenerateTitle(ctx context.Context, client TitleChatClient, messages []model
 	return title, usage, nil
 }
 
-// EnsureTitleFromFirstUserMessage sets the session title from the first user message
-// if the title is empty and at least one user message exists, truncated to maxLen runes.
-// No-op otherwise.
-func EnsureTitleFromFirstUserMessage(s *Session, maxLen int) {
-	if s.Title() != "" {
-		return
-	}
-	msgs := s.Messages()
-	for _, m := range msgs {
-		if m.Role == "user" {
-			content := m.Content
-			runes := []rune(content)
-			if len(runes) > maxLen {
-				content = string(runes[:maxLen])
-			}
-			s.SetTitle(content)
-			return
-		}
-	}
-}
-
 // cleanTitle strips surrounding whitespace, quotes, and trailing punctuation
 // from an LLM-generated title.
 func cleanTitle(s string) string {
