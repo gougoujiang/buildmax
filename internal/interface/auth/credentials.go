@@ -1,6 +1,5 @@
-// Package auth provides credential persistence and an HTTP client for
-// authenticating against the BuildMax server. It has no dependencies on
-// TUI, desktop, Cobra, or any other project package.
+// Package auth provides credential persistence for the BuildMax client.
+// It has no dependencies on TUI, desktop, Cobra, or any other project package.
 package auth
 
 import (

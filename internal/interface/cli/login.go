@@ -9,6 +9,7 @@ import (
 
 	"buildmax/internal/config"
 	"buildmax/internal/interface/auth"
+	"buildmax/internal/interface/client"
 
 	"github.com/spf13/cobra"
 )
@@ -66,9 +67,9 @@ func interactiveLogin() error {
 	}
 
 	ctx := context.Background()
-	client := auth.NewClient(serverURL)
+	c := client.NewClient(serverURL)
 
-	if err := client.RequestOTP(ctx, email, "login"); err != nil {
+	if err := c.RequestOTP(ctx, email, "login"); err != nil {
 		return fmt.Errorf("request OTP: %w", err)
 	}
 	fmt.Fprintln(os.Stdout, "OTP sent.")
@@ -79,7 +80,7 @@ func interactiveLogin() error {
 		return fmt.Errorf("OTP is required")
 	}
 
-	lr, err := client.Login(ctx, email, otp, "cli")
+	lr, err := c.Login(ctx, email, otp, "cli")
 	if err != nil {
 		return fmt.Errorf("login: %w", err)
 	}

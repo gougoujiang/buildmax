@@ -1,4 +1,5 @@
-package auth
+// Package client provides an HTTP client for the BuildMax server API.
+package client
 
 import (
 	"bytes"
@@ -23,13 +24,13 @@ type LoginResponse struct {
 	User  LoginUser `json:"user"`
 }
 
-// Client is a stateless HTTP client for the BuildMax server auth endpoints.
+// Client is a stateless HTTP client for the BuildMax server API.
 type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// NewClient creates an auth Client for the given server base URL.
+// NewClient creates a Client for the given server base URL.
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL:    strings.TrimRight(baseURL, "/"),
