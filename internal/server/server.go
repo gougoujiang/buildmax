@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/conversation"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
-	taskapp "buildmax/internal/core/task"
-	workflowapp "buildmax/internal/core/workflow"
+	"buildmax/internal/core/task"
+	"buildmax/internal/core/workflow"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/handlers"
 	"buildmax/internal/server/httputil"
@@ -34,10 +34,10 @@ type RunOutputLister interface {
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
-	JWTSecret        string         // Required for login when UserStore is set
-	CORSOrigin       string         // If set, enable CORS with this origin (e.g. "http://localhost:5173")
-	QuotaChecker     *quota.Checker // Optional; when set, create chat/run enforce quota and return 429 when exceeded
-	DefaultQuotaTier string         // Default quota tier for new users (e.g. signup); used when calling CreateUser
+	JWTSecret        string              // Required for login when UserStore is set
+	CORSOrigin       string              // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	QuotaService     *quota.QuotaService // Optional; when set, create chat/run enforce quota and return 429 when exceeded
+	DefaultQuotaTier string              // Default quota tier for new users (e.g. signup); used when calling CreateUser
 }
 
 // StoresConfig holds entity store interfaces used by handlers.
@@ -128,20 +128,20 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 	}
 	webhookUserID := cfg.Webhook.UserID
 	if webhookUserID == "" {
-		webhookUserID = convapp.DefaultWebhookUserID
+		webhookUserID = conversation.DefaultWebhookUserID
 	}
-	var webhookAdapter convapp.ChannelAdapter
-	var webhookEngine convapp.ConversationEngine
+	var webhookAdapter conversation.ChannelAdapter
+	var webhookEngine conversation.ConversationEngine
 	if cfg.Stores.UserWebhookKeyStore != nil {
-		taskSvc := &taskapp.Service{
+		taskSvc := &task.TaskService{
 			Agents:         cfg.Stores.AgentStore,
 			Tasks:          cfg.Stores.TaskStore,
 			TaskRuns:       cfg.Stores.TaskRunStore,
-			QuotaChecker:   cfg.Auth.QuotaChecker,
+			QuotaChecker:   cfg.Auth.QuotaService,
 			TitleGenerator: nil,
 		}
-		webhookAdapter = convapp.NewWebhookAdapter(msgPath, webhookUserID)
-		webhookEngine = &convapp.RuleBasedEngine{Task: taskSvc, Conversations: cfg.Conv.ConversationStore}
+		webhookAdapter = conversation.NewWebhookAdapter(msgPath, webhookUserID)
+		webhookEngine = &conversation.RuleBasedEngine{TaskService: taskSvc, Conversations: cfg.Conv.ConversationStore}
 	}
 	return handlers.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
@@ -162,7 +162,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
 		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
-		QuotaChecker:             cfg.Auth.QuotaChecker,
+		QuotaService:             cfg.Auth.QuotaService,
 		TitleGenerator:           cfg.Conv.TitleGenerator,
 		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
 		WebhookAdapter:           webhookAdapter,
@@ -176,19 +176,19 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.
 	if cfg.Stores.WorkflowStore == nil {
 		return nil
 	}
-	taskSvc := &taskapp.Service{
+	taskSvc := &task.TaskService{
 		Agents:         cfg.Stores.AgentStore,
 		Tasks:          cfg.Stores.TaskStore,
 		TaskRuns:       cfg.Stores.TaskRunStore,
-		QuotaChecker:   cfg.Auth.QuotaChecker,
+		QuotaChecker:   cfg.Auth.QuotaService,
 		TitleGenerator: nil,
 	}
-	workflowSvc := &workflowapp.Service{
+	workflowSvc := &workflow.WorkflowService{
 		Workflows:     cfg.Stores.WorkflowStore,
 		Agents:        cfg.Stores.AgentStore,
 		Issues:        cfg.Stores.IssueStore,
 		Conversations: cfg.Conv.ConversationStore,
-		Task:          taskSvc,
+		TaskService:   taskSvc,
 	}
 	return func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
 		workflowInfo := model.TaskRunTerminalInfo{
@@ -200,7 +200,7 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.
 			Output:         info.Output,
 			ErrorMessage:   info.ErrorMessage,
 		}
-		if err := workflowSvc.HandleTaskRunTerminal(ctx, workflowInfo); err != nil && !errors.Is(err, workflowapp.ErrWorkflowRunNotFound) {
+		if err := workflowSvc.HandleTaskRunTerminal(ctx, workflowInfo); err != nil && !errors.Is(err, workflow.ErrWorkflowRunNotFound) {
 			slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
 		}
 	}

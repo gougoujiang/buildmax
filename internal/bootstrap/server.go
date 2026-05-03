@@ -153,13 +153,18 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 
 func buildHTTPServerConfig(port int, serverEnv config.ServerEnv, workspacesDir string, st *db.Store, persistStorage blob.PersistStorage, artifactStorage blob.ArtifactStorage) httpserver.Config {
 	defaultQuotaTier := config.DefaultQuotaTier()
-	quotaChecker := quota.NewChecker(st, st, st, defaultQuotaTier)
+	quotaService := &quota.QuotaService{
+		TeamStore:   st,
+		UsageReader: st,
+		TierStore:   st,
+		DefaultTier: defaultQuotaTier,
+	}
 	cfg := httpserver.Config{
 		Addr: ":" + strconv.Itoa(port),
 		Auth: httpserver.AuthConfig{
 			JWTSecret:        serverEnv.JWTSecret,
 			CORSOrigin:       serverEnv.CORSOrigin,
-			QuotaChecker:     quotaChecker,
+			QuotaService:     quotaService,
 			DefaultQuotaTier: defaultQuotaTier,
 		},
 		Stores: httpserver.StoresConfig{

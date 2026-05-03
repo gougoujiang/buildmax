@@ -35,13 +35,18 @@ func TestUsageHandler(t *testing.T) {
 			PeriodDays:         30,
 		},
 	}
-	checker := quota.NewChecker(teamStore, usageReader, tierStore, "free_trial")
+	checker := &quota.QuotaService{
+		TeamStore:   teamStore,
+		UsageReader: usageReader,
+		TierStore:   tierStore,
+		DefaultTier: "free_trial",
+	}
 
 	tests := []struct {
 		name        string
 		authHeader  string
 		path        string
-		checker     *quota.Checker
+		checker     *quota.QuotaService
 		jwtSecret   string
 		wantStatus  int
 		wantBodyHas string
@@ -57,7 +62,7 @@ func TestUsageHandler(t *testing.T) {
 			wantBodyHas: "unauthorized",
 		},
 		{
-			name:        "no QuotaChecker returns 503",
+			name:        "no QuotaService returns 503",
 			authHeader:  "Bearer " + util.SignJWT(userID, secret),
 			path:        "/api/usage",
 			checker:     nil,
@@ -93,7 +98,7 @@ func TestUsageHandler(t *testing.T) {
 			h := NewHandler(Config{
 				JWTSecret:    tt.jwtSecret,
 				TeamStore:    teamStore,
-				QuotaChecker: tt.checker,
+				QuotaService: tt.checker,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)

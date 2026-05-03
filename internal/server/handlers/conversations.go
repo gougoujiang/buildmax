@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/conversation"
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 	"buildmax/internal/server/httputil"
 )
 
@@ -82,8 +82,8 @@ type runConversationTurnInput struct {
 	streamInitialPayload string
 }
 
-func (h *Handler) conversationService() *convapp.Service {
-	return &convapp.Service{
+func (h *Handler) conversationService() *conversation.ConversationService {
+	return &conversation.ConversationService{
 		TaskService:       h.taskService(),
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,
@@ -98,14 +98,14 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 		return true
 	}
 	switch {
-	case errors.Is(err, convapp.ErrInvalidTarget):
+	case errors.Is(err, conversation.ErrInvalidTarget):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid conversation target")
 		return true
-	case errors.Is(err, convapp.ErrLLMRequired):
+	case errors.Is(err, conversation.ErrLLMRequired):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return true
 	}
-	var quotaErr *taskapp.QuotaExceededError
+	var quotaErr *task.QuotaExceededError
 	if errors.As(err, &quotaErr) {
 		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
 		return true
@@ -114,7 +114,7 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in runConversationTurnInput) (reply string, err error) {
-	cmd := convapp.HandleTurnCmd{
+	cmd := conversation.HandleTurnCmd{
 		UserID:         in.userID,
 		Channel:        in.channel,
 		Message:        in.message,

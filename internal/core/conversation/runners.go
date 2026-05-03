@@ -8,12 +8,12 @@ import (
 	"unicode/utf8"
 
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 )
 
 // startTaskRunner implements StartTaskRunner by creating a background task via taskService.
 type startTaskRunner struct {
-	taskService       *taskapp.Service
+	taskService       *task.TaskService
 	conversationStore model.ConversationStore
 	userID            string
 	conversationID    string
@@ -27,7 +27,7 @@ func (r *startTaskRunner) StartTask(ctx context.Context, _, _, input string, age
 	if conv == nil {
 		return "", "", fmt.Errorf("conversation not found")
 	}
-	result, err := r.taskService.StartBackgroundTask(ctx, taskapp.CreateTaskCmd{
+	result, err := r.taskService.StartBackgroundTask(ctx, task.CreateTaskCmd{
 		ConversationID: r.conversationID,
 		UserID:         r.userID,
 		TeamID:         conv.TeamID,
@@ -95,21 +95,21 @@ func (r *getTaskRunner) GetTask(ctx context.Context, conversationID, taskID stri
 
 // continueTaskRunner implements ContinueTaskRunner by creating a new run on an existing task.
 type continueTaskRunner struct {
-	taskService *taskapp.Service
+	taskService *task.TaskService
 }
 
 func (r *continueTaskRunner) ContinueTask(ctx context.Context, conversationID, userID, taskID, input string) (runID string, err error) {
 	if r.taskService.Tasks == nil {
 		return "", fmt.Errorf("tasks not configured")
 	}
-	task, err := r.taskService.Tasks.GetTask(ctx, taskID)
+	taskItem, err := r.taskService.Tasks.GetTask(ctx, taskID)
 	if err != nil {
 		return "", err
 	}
-	if task == nil || task.ConversationID != conversationID {
+	if taskItem == nil || taskItem.ConversationID != conversationID {
 		return "", fmt.Errorf("task not found or not in this conversation")
 	}
-	run, err := r.taskService.CreateRun(ctx, taskapp.CreateRunCmd{
+	run, err := r.taskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:        userID,
 		TaskID:        taskID,
 		Input:         input,

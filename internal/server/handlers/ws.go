@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/conversation"
 	wsconn "buildmax/internal/server/websocket"
 
 	"github.com/gorilla/websocket"
@@ -288,14 +288,14 @@ func (wc *wsConn) runConversationTurn(ctx context.Context, conversationID, messa
 func (wc *wsConn) RunSystemConversationTurn(ctx context.Context, conversationID, message string) {
 	wc.turnMu.Lock()
 	defer wc.turnMu.Unlock()
-	wc.executeConversationTurn(ctx, conversationID, message, convapp.ChannelSystem)
+	wc.executeConversationTurn(ctx, conversationID, message, conversation.ChannelSystem)
 }
 
 func (wc *wsConn) executeConversationTurn(ctx context.Context, conversationID, message, channel string) {
 	slog.Info("ws turn start", "user_id", wc.userID, "conversation_id", conversationID, "channel", channel)
 	sink := &wsSink{c: wc, conversationID: conversationID}
 	svc := wc.h.conversationService()
-	_, err := svc.HandleTurn(ctx, convapp.HandleTurnCmd{
+	_, err := svc.HandleTurn(ctx, conversation.HandleTurnCmd{
 		UserID:         wc.userID,
 		Channel:        channel,
 		Message:        message,
@@ -323,4 +323,3 @@ func (wc *wsConn) cleanup() {
 	}
 	close(wc.writeCh)
 }
-

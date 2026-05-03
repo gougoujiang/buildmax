@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"buildmax/internal/core/model"
-	workflowapp "buildmax/internal/core/workflow"
+	"buildmax/internal/core/workflow"
 	"buildmax/internal/server/httputil"
 )
 
@@ -132,48 +132,48 @@ func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunRespon
 	}
 }
 
-func (h *Handler) workflowService() *workflowapp.Service {
-	return &workflowapp.Service{
+func (h *Handler) workflowService() *workflow.WorkflowService {
+	return &workflow.WorkflowService{
 		Workflows:     h.cfg.WorkflowStore,
 		Agents:        h.cfg.AgentStore,
 		Issues:        h.cfg.IssueStore,
 		Conversations: h.cfg.ConversationStore,
-		Task:          h.taskService(),
+		TaskService:   h.taskService(),
 	}
 }
 
 func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
 	switch {
-	case errors.Is(err, workflowapp.ErrWorkflowsNotConfigured):
+	case errors.Is(err, workflow.ErrWorkflowsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "workflows not configured")
-	case errors.Is(err, workflowapp.ErrConversationsNotConfigured):
+	case errors.Is(err, workflow.ErrConversationsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversations not configured")
-	case errors.Is(err, workflowapp.ErrIssuesNotConfigured):
+	case errors.Is(err, workflow.ErrIssuesNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "issues not configured")
-	case errors.Is(err, workflowapp.ErrTasksNotConfigured):
+	case errors.Is(err, workflow.ErrTasksNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-	case errors.Is(err, workflowapp.ErrWorkflowNameRequired):
+	case errors.Is(err, workflow.ErrWorkflowNameRequired):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow name required")
-	case errors.Is(err, workflowapp.ErrWorkflowDefinitionRequired):
+	case errors.Is(err, workflow.ErrWorkflowDefinitionRequired):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow definition required")
-	case errors.Is(err, workflowapp.ErrWorkflowNotFound):
+	case errors.Is(err, workflow.ErrWorkflowNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "workflow not found")
-	case errors.Is(err, workflowapp.ErrWorkflowRunNotFound):
+	case errors.Is(err, workflow.ErrWorkflowRunNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "workflow run not found")
-	case errors.Is(err, workflowapp.ErrIssueNotFound):
+	case errors.Is(err, workflow.ErrIssueNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
-	case errors.Is(err, workflowapp.ErrIssueWorkflowMismatch):
+	case errors.Is(err, workflow.ErrIssueWorkflowMismatch):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to workflow")
-	case errors.Is(err, workflowapp.ErrInvalidDefinition),
-		errors.Is(err, workflowapp.ErrInvalidStepType),
-		errors.Is(err, workflowapp.ErrInvalidStepID),
-		errors.Is(err, workflowapp.ErrInvalidTargetAgent):
+	case errors.Is(err, workflow.ErrInvalidDefinition),
+		errors.Is(err, workflow.ErrInvalidStepType),
+		errors.Is(err, workflow.ErrInvalidStepID),
+		errors.Is(err, workflow.ErrInvalidTargetAgent):
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, workflowapp.ErrInvalidWorkflowStatus):
+	case errors.Is(err, workflow.ErrInvalidWorkflowStatus):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid workflow status")
-	case errors.Is(err, workflowapp.ErrWorkflowNotPublished):
+	case errors.Is(err, workflow.ErrWorkflowNotPublished):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not published")
-	case errors.Is(err, workflowapp.ErrWorkflowArchived):
+	case errors.Is(err, workflow.ErrWorkflowArchived):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow archived")
 	default:
 		return false
@@ -213,7 +213,7 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	workflow, err := h.workflowService().CreateWorkflow(r.Context(), workflowapp.CreateWorkflowCmd{
+	createdWorkflow, err := h.workflowService().CreateWorkflow(r.Context(), workflow.CreateWorkflowCmd{
 		TeamID:      teamID,
 		UserID:      userID,
 		Name:        req.Name,
@@ -227,7 +227,7 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_workflow", "team_id", teamID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, workflowToResponse(*workflow))
+	httputil.WriteJSON(w, http.StatusCreated, workflowToResponse(*createdWorkflow))
 }
 
 func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +266,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	workflow, err := h.workflowService().UpdateWorkflow(r.Context(), workflowapp.UpdateWorkflowCmd{
+	updatedWorkflow, err := h.workflowService().UpdateWorkflow(r.Context(), workflow.UpdateWorkflowCmd{
 		TeamID:      teamID,
 		WorkflowID:  workflowID,
 		Name:        req.Name,
@@ -281,7 +281,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "patch_workflow", "team_id", teamID, "workflow_id", workflowID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*workflow))
+	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*updatedWorkflow))
 }
 
 func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request) {
@@ -351,7 +351,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflowapp.StartWorkflowRunCmd{
+	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflow.StartWorkflowRunCmd{
 		TeamID:     teamID,
 		UserID:     userID,
 		WorkflowID: workflowID,
@@ -399,7 +399,7 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to workflow")
 		return
 	}
-	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflowapp.StartWorkflowRunCmd{
+	run, steps, err := h.workflowService().StartWorkflowRun(r.Context(), workflow.StartWorkflowRunCmd{
 		TeamID:     teamID,
 		UserID:     userID,
 		WorkflowID: *issue.AssigneeID,

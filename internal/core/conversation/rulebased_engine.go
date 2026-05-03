@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 )
 
 var ErrChannelNotWebhook = errors.New("rule-based engine only accepts webhook channel")
 
 // RuleBasedEngine implements ConversationEngine for webhook turns: no LLM, create one TaskRun.
 type RuleBasedEngine struct {
-	Task          *taskapp.Service
+	TaskService   *task.TaskService
 	Conversations model.ConversationStore
 }
 
@@ -21,8 +21,8 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID st
 	if turn.Channel != ChannelWebhook {
 		return ConversationResult{}, ErrChannelNotWebhook
 	}
-	if e.Task == nil {
-		return ConversationResult{}, taskapp.ErrTaskRunsNotConfigured
+	if e.TaskService == nil {
+		return ConversationResult{}, task.ErrTaskRunsNotConfigured
 	}
 	if e.Conversations == nil {
 		return ConversationResult{}, errors.New("conversation store not configured")
@@ -45,7 +45,7 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID st
 		return ConversationResult{}, errors.New("conversation not found")
 	}
 	if taskID == "" {
-		result, err := e.Task.StartBackgroundTask(ctx, taskapp.CreateTaskCmd{
+		result, err := e.TaskService.StartBackgroundTask(ctx, task.CreateTaskCmd{
 			ConversationID: conversationID,
 			UserID:         userID,
 			TeamID:         conv.TeamID,
@@ -59,7 +59,7 @@ func (e *RuleBasedEngine) Process(ctx context.Context, conversationID, taskID st
 		}
 		return ConversationResult{TaskIDs: []string{result.RunID}}, nil
 	}
-	run, err := e.Task.CreateRun(ctx, taskapp.CreateRunCmd{
+	run, err := e.TaskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:        userID,
 		TaskID:        taskID,
 		Input:         turn.Message,

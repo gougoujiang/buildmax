@@ -18,7 +18,7 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	task := model.Task{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken:        "worker-token-123",
+		WorkerToken:  "worker-token-123",
 		TaskRunStore: mockRun,
 	}
 	h := NewHandler(cfg)
@@ -53,7 +53,7 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 
 func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
-		WorkerToken:        "token",
+		WorkerToken:  "token",
 		TaskRunStore: &mock.MockTaskRunStore{Runs: []model.TaskRun{}},
 	}
 	h := NewHandler(cfg)
@@ -76,7 +76,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	task := model.Task{TaskID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken:        "token",
+		WorkerToken:  "token",
 		TaskRunStore: mockRun,
 	}
 	h := NewHandler(cfg)
@@ -106,7 +106,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	task := model.Task{TaskID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken:        "token",
+		WorkerToken:  "token",
 		TaskRunStore: mockRun,
 	}
 	h := NewHandler(cfg)

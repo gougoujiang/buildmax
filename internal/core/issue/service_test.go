@@ -10,7 +10,7 @@ import (
 )
 
 func TestCreateIssue_TitleRequired(t *testing.T) {
-	svc := &Service{Issues: &mock.MockIssueStore{}}
+	svc := &IssueService{Issues: &mock.MockIssueStore{}}
 	_, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
 		UserID: "u1",
 		TeamID: "tm_1",
@@ -22,7 +22,7 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 }
 
 func TestUpdateIssue_InvalidStatus(t *testing.T) {
-	svc := &Service{
+	svc := &IssueService{
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1"}},
 		},
@@ -40,7 +40,7 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 }
 
 func TestUpdateIssue_AssignToPerson(t *testing.T) {
-	svc := &Service{
+	svc := &IssueService{
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
@@ -64,7 +64,7 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 }
 
 func TestUpdateIssue_AssignToAgent(t *testing.T) {
-	svc := &Service{
+	svc := &IssueService{
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
@@ -90,7 +90,7 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 }
 
 func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
-	svc := &Service{
+	svc := &IssueService{
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
@@ -113,7 +113,7 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 }
 
 func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
-	svc := &Service{
+	svc := &IssueService{
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
@@ -139,7 +139,7 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 }
 
 func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
-	svc := &Service{
+	svc := &IssueService{
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},

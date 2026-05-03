@@ -7,24 +7,13 @@ import (
 	"buildmax/internal/core/model"
 )
 
-// Checker enforces team-scoped quota (run count and token limits) using tier limits from the store.
-type Checker struct {
+// QuotaService enforces team-scoped quota (run count and token limits) using tier limits from the store.
+type QuotaService struct {
 	TeamStore   model.TeamStore
 	UsageReader model.UsageInWindowReader
 	TierStore   model.QuotaTierStore
 	DefaultTier string
 	clock       func() time.Time
-}
-
-// NewChecker builds a Checker with the given dependencies. defaultTier is used when team.QuotaTier is empty.
-func NewChecker(teamStore model.TeamStore, usageReader model.UsageInWindowReader, tierStore model.QuotaTierStore, defaultTier string) *Checker {
-	return &Checker{
-		TeamStore:   teamStore,
-		UsageReader: usageReader,
-		TierStore:   tierStore,
-		DefaultTier: defaultTier,
-		clock:       time.Now,
-	}
 }
 
 // UsageInfo is a snapshot of a team's usage and tier limits for display.
@@ -39,9 +28,16 @@ type UsageInfo struct {
 
 const defaultUsagePeriodDays = 30
 
+func (c *QuotaService) now() time.Time {
+	if c.clock != nil {
+		return c.clock()
+	}
+	return time.Now()
+}
+
 // GetUsage returns the current team's usage and tier info in the same rolling window used by Check.
 // When team or tier is not found, returns usage for a default 30-day window with limits nil.
-func (c *Checker) GetUsage(ctx context.Context, teamID string) (*UsageInfo, error) {
+func (c *QuotaService) GetUsage(ctx context.Context, teamID string) (*UsageInfo, error) {
 	team, err := c.TeamStore.GetTeam(ctx, teamID)
 	if err != nil {
 		return &UsageInfo{}, nil
@@ -53,7 +49,7 @@ func (c *Checker) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 	if tierName == "" {
 		tierName = c.DefaultTier
 	}
-	now := c.clock().Unix()
+	now := c.now().Unix()
 
 	// Resolve tier limits; if not found, still return usage for default window with limits nil
 	tier, err := c.TierStore.GetQuotaTier(ctx, tierName)
@@ -94,7 +90,7 @@ func (c *Checker) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 }
 
 // Check returns whether the team is allowed to add addRuns and addTokens. If not allowed, reason is the 429 message.
-func (c *Checker) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string) {
+func (c *QuotaService) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string) {
 	team, err := c.TeamStore.GetTeam(ctx, teamID)
 	if err != nil || team == nil {
 		return true, "" // backward compatibility: no team or error => allow
@@ -110,7 +106,7 @@ func (c *Checker) Check(ctx context.Context, teamID string, addRuns, addTokens i
 	if err != nil || tier == nil {
 		return true, "" // unknown tier => allow (no limit)
 	}
-	now := c.clock().Unix()
+	now := c.now().Unix()
 	periodSec := int64(tier.PeriodDays) * 86400
 	since := now - periodSec
 	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)

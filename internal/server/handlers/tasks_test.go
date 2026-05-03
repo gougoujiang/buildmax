@@ -187,12 +187,12 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			checkCreated: true,
 		},
 	}
-	denyChecker := quota.NewChecker(
-		&mock.DenyQuotaTeamStore{Team: &model.Team{TeamID: teamID, QuotaTier: "free_trial"}},
-		&mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
-		&mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
-		"free_trial",
-	)
+	denyChecker := &quota.QuotaService{
+		TeamStore:   &mock.DenyQuotaTeamStore{Team: &model.Team{TeamID: teamID, QuotaTier: "free_trial"}},
+		UsageReader: &mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
+		TierStore:   &mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		DefaultTier: "free_trial",
+	}
 	tests = append(tests, struct {
 		name         string
 		taskStore    model.TaskStore
@@ -223,7 +223,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 				ConversationStore: mockConversations,
 			}
 			if tt.name == "quota exceeded returns 429" {
-				cfg.QuotaChecker = denyChecker
+				cfg.QuotaService = denyChecker
 			}
 			h := NewHandler(cfg)
 			mux := http.NewServeMux()

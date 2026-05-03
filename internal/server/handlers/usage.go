@@ -53,11 +53,11 @@ func (h *Handler) teamUsageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeUsageForTeam(w http.ResponseWriter, r *http.Request, teamID string) {
-	if h.cfg.QuotaChecker == nil {
+	if h.cfg.QuotaService == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "usage not available")
 		return
 	}
-	info, err := h.cfg.QuotaChecker.GetUsage(r.Context(), teamID)
+	info, err := h.cfg.QuotaService.GetUsage(r.Context(), teamID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "usage", "team_id", teamID)
 		return

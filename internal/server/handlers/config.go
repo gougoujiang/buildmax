@@ -3,7 +3,7 @@ package handlers
 import (
 	"context"
 
-	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/conversation"
 	"buildmax/internal/core/model"
 	"buildmax/internal/core/quota"
 	blob "buildmax/internal/infra/objectstore"
@@ -53,15 +53,15 @@ type Config struct {
 
 	// Auth / quota
 	DefaultQuotaTier string
-	QuotaChecker     *quota.Checker
+	QuotaService     *quota.QuotaService
 
 	// Conversation / LLM
 	TitleGenerator        model.TitleGenerator
 	ConversationLLMClient model.LLMClient
 
 	// Inbound webhook
-	WebhookAdapter     convapp.ChannelAdapter
-	WebhookEngine      convapp.ConversationEngine
+	WebhookAdapter     conversation.ChannelAdapter
+	WebhookEngine      conversation.ConversationEngine
 	WebhookMessagePath string
 
 	// Hub is optional; if nil NewHandler creates one. Injectable for testing.

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	issueapp "buildmax/internal/core/issue"
+	"buildmax/internal/core/issue"
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 	"buildmax/internal/server/httputil"
 )
 
@@ -88,8 +88,8 @@ func buildIssueAgentRunInput(issue model.Issue) string {
 	return b.String()
 }
 
-func (h *Handler) issueService() *issueapp.Service {
-	return &issueapp.Service{
+func (h *Handler) issueService() *issue.IssueService {
+	return &issue.IssueService{
 		Issues:    h.cfg.IssueStore,
 		Agents:    h.cfg.AgentStore,
 		Teams:     h.cfg.TeamStore,
@@ -99,29 +99,29 @@ func (h *Handler) issueService() *issueapp.Service {
 
 func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool {
 	switch {
-	case errors.Is(err, issueapp.ErrIssuesNotConfigured):
+	case errors.Is(err, issue.ErrIssuesNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "issues not configured")
-	case errors.Is(err, issueapp.ErrTitleRequired):
+	case errors.Is(err, issue.ErrTitleRequired):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "title required")
-	case errors.Is(err, issueapp.ErrTeamsNotConfigured):
+	case errors.Is(err, issue.ErrTeamsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "teams not configured")
-	case errors.Is(err, issueapp.ErrInvalidStatus):
+	case errors.Is(err, issue.ErrInvalidStatus):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid status")
-	case errors.Is(err, issueapp.ErrInvalidAssigneeKind):
+	case errors.Is(err, issue.ErrInvalidAssigneeKind):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid assignee_kind")
-	case errors.Is(err, issueapp.ErrInvalidAssigneeID):
+	case errors.Is(err, issue.ErrInvalidAssigneeID):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid assignee_id")
-	case errors.Is(err, issueapp.ErrAgentsNotConfigured):
+	case errors.Is(err, issue.ErrAgentsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
-	case errors.Is(err, issueapp.ErrAgentNotFound):
+	case errors.Is(err, issue.ErrAgentNotFound):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
-	case errors.Is(err, issueapp.ErrWorkflowsNotConfigured):
+	case errors.Is(err, issue.ErrWorkflowsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "workflows not configured")
-	case errors.Is(err, issueapp.ErrWorkflowNotFound):
+	case errors.Is(err, issue.ErrWorkflowNotFound):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not found")
-	case errors.Is(err, issueapp.ErrWorkflowNotPublished):
+	case errors.Is(err, issue.ErrWorkflowNotPublished):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not published")
-	case errors.Is(err, issueapp.ErrIssueNotFound):
+	case errors.Is(err, issue.ErrIssueNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 	default:
 		return false
@@ -156,7 +156,7 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	issue, err := h.issueService().CreateIssue(r.Context(), issueapp.CreateIssueCmd{
+	createdIssue, err := h.issueService().CreateIssue(r.Context(), issue.CreateIssueCmd{
 		UserID:      userID,
 		TeamID:      teamID,
 		Title:       req.Title,
@@ -169,7 +169,7 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue", "user_id", userID, "team_id", teamID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, issueToResponse(*issue))
+	httputil.WriteJSON(w, http.StatusCreated, issueToResponse(*createdIssue))
 }
 
 func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +324,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 	if input == "" {
 		input = buildIssueAgentRunInput(*issue)
 	}
-	task, err := h.taskService().CreateTask(r.Context(), taskapp.CreateTaskCmd{
+	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
 		ConversationID: conv.ConversationID,
 		UserID:         userID,
 		TeamID:         teamID,
@@ -341,7 +341,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_task", "issue_id", issueID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*task))
+	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*createdTask))
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
@@ -362,7 +362,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	issue, err := h.issueService().UpdateIssue(r.Context(), issueapp.UpdateIssueCmd{
+	updatedIssue, err := h.issueService().UpdateIssue(r.Context(), issue.UpdateIssueCmd{
 		UserID:       userID,
 		TeamID:       teamID,
 		IssueID:      issueID,
@@ -379,5 +379,5 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "patch_issue", "issue_id", issueID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, issueToResponse(*issue))
+	httputil.WriteJSON(w, http.StatusOK, issueToResponse(*updatedIssue))
 }

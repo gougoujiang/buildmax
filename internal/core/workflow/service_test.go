@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 	"buildmax/internal/mock"
 )
 
 func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
-	svc := &Service{
+	svc := &WorkflowService{
 		Workflows: &mock.MockWorkflowStore{},
 		Agents: &mock.MockAgentStore{
 			Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
@@ -51,11 +51,11 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
 	}
-	svc := &Service{
+	svc := &WorkflowService{
 		Workflows:     workflowStore,
 		Agents:        agentStore,
 		Conversations: &mock.MockConversationStore{},
-		Task: &taskapp.Service{
+		TaskService: &task.TaskService{
 			Agents: agentStore,
 			Tasks:  taskStore,
 		},

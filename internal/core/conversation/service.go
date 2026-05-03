@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 )
 
 var (
@@ -15,9 +15,9 @@ var (
 	ErrLLMRequired   = errors.New("conversation LLM not configured")
 )
 
-// Service is the single Tier 1 orchestration entry point for portal turns.
-type Service struct {
-	TaskService       *taskapp.Service
+// ConversationService is the single Tier 1 orchestration entry point for portal turns.
+type ConversationService struct {
+	TaskService       *task.TaskService
 	ConversationStore model.ConversationStore
 	MessageStore      model.ConversationMessageStore
 	LLMClient         model.LLMClient
@@ -36,7 +36,7 @@ type HandleTurnCmd struct {
 }
 
 // HandleTurn routes the turn to either a task-run creation flow or a conversation LLM flow.
-func (s *Service) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
+func (s *ConversationService) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	switch {
 	case cmd.TaskID != "":
 		return s.handleTaskRunTurn(ctx, cmd)
@@ -47,9 +47,9 @@ func (s *Service) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (Conversati
 	}
 }
 
-func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
+func (s *ConversationService) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	if s.TaskService == nil {
-		return ConversationResult{}, taskapp.ErrTaskRunsNotConfigured
+		return ConversationResult{}, task.ErrTaskRunsNotConfigured
 	}
 	createdByType := model.RunCreatedByTypeUser
 	triggerSource := model.RunTriggerSourcePortalTaskRerun
@@ -57,7 +57,7 @@ func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (Con
 		createdByType = model.RunCreatedByTypeWebhook
 		triggerSource = model.RunTriggerSourceWebhook
 	}
-	run, err := s.TaskService.CreateRun(ctx, taskapp.CreateRunCmd{
+	run, err := s.TaskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:        cmd.UserID,
 		TaskID:        cmd.TaskID,
 		Input:         cmd.Message,
@@ -70,7 +70,7 @@ func (s *Service) handleTaskRunTurn(ctx context.Context, cmd HandleTurnCmd) (Con
 	return ConversationResult{TaskIDs: []string{run.TaskRunID}}, nil
 }
 
-func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
+func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	if s.ConversationStore == nil || s.MessageStore == nil {
 		return ConversationResult{}, fmt.Errorf("conversation stores not configured")
 	}
@@ -98,7 +98,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 	return ConversationResult{Reply: reply}, err
 }
 
-func (s *Service) conversationToolRunners(conversationID, userID, channel string) *ConversationToolRunners {
+func (s *ConversationService) conversationToolRunners(conversationID, userID, channel string) *ConversationToolRunners {
 	if channel == ChannelSystem {
 		return nil
 	}
@@ -110,7 +110,7 @@ func (s *Service) conversationToolRunners(conversationID, userID, channel string
 	}
 }
 
-func (s *Service) newStartTaskRunner(conversationID, userID string) StartTaskRunner {
+func (s *ConversationService) newStartTaskRunner(conversationID, userID string) StartTaskRunner {
 	if s.TaskService == nil || s.ConversationStore == nil {
 		return nil
 	}
@@ -122,28 +122,28 @@ func (s *Service) newStartTaskRunner(conversationID, userID string) StartTaskRun
 	}
 }
 
-func (s *Service) newListTasksRunner() ListTasksRunner {
+func (s *ConversationService) newListTasksRunner() ListTasksRunner {
 	if s.TaskService == nil || s.TaskService.Tasks == nil {
 		return nil
 	}
 	return &listTasksRunner{tasks: s.TaskService.Tasks}
 }
 
-func (s *Service) newGetTaskRunner() GetTaskRunner {
+func (s *ConversationService) newGetTaskRunner() GetTaskRunner {
 	if s.TaskService == nil || s.TaskService.Tasks == nil {
 		return nil
 	}
 	return &getTaskRunner{tasks: s.TaskService.Tasks}
 }
 
-func (s *Service) newContinueTaskRunner() ContinueTaskRunner {
+func (s *ConversationService) newContinueTaskRunner() ContinueTaskRunner {
 	if s.TaskService == nil {
 		return nil
 	}
 	return &continueTaskRunner{taskService: s.TaskService}
 }
 
-func (s *Service) fetchAgentSummaries(ctx context.Context, userID, conversationID string) []AgentSummary {
+func (s *ConversationService) fetchAgentSummaries(ctx context.Context, userID, conversationID string) []AgentSummary {
 	if s.AgentStore == nil {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (s *Service) fetchAgentSummaries(ctx context.Context, userID, conversationI
 	return summaries
 }
 
-func (s *Service) recentTasksSnippet(ctx context.Context, conversationID string) string {
+func (s *ConversationService) recentTasksSnippet(ctx context.Context, conversationID string) string {
 	if s.TaskService == nil || s.TaskService.Tasks == nil {
 		return ""
 	}
@@ -179,5 +179,3 @@ func (s *Service) recentTasksSnippet(ctx context.Context, conversationID string)
 	}
 	return "Recent tasks in this conversation (latest 5):\n" + strings.Join(lines, "\n")
 }
-
-

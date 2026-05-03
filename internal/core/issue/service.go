@@ -22,7 +22,7 @@ var (
 	ErrWorkflowNotPublished   = errors.New("workflow not published")
 )
 
-type Service struct {
+type IssueService struct {
 	Issues    model.IssueStore
 	Agents    model.AgentStore
 	Teams     model.TeamStore
@@ -47,7 +47,7 @@ type UpdateIssueCmd struct {
 	AssigneeID   *string
 }
 
-func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.Issue, error) {
+func (s *IssueService) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -63,7 +63,7 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.I
 	})
 }
 
-func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*model.Issue, error) {
+func (s *IssueService) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*model.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -101,7 +101,7 @@ func isValidStatus(status string) bool {
 	}
 }
 
-func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, kind, id *string) error {
+func (s *IssueService) validateAssignee(ctx context.Context, teamID, userID string, kind, id *string) error {
 	if kind == nil && id == nil {
 		return nil
 	}

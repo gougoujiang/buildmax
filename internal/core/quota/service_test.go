@@ -59,7 +59,12 @@ func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaT
 }
 
 func TestCheck_NoTeam_Allows(t *testing.T) {
-	c := NewChecker(&mockTeamStore{team: nil}, &mockUsageReader{}, &mockTierStore{}, "free_trial")
+	c := &QuotaService{
+		TeamStore:   &mockTeamStore{team: nil},
+		UsageReader: &mockUsageReader{},
+		TierStore:   &mockTierStore{},
+		DefaultTier: "free_trial",
+	}
 	allowed, _ := c.Check(context.Background(), "tm_any", 1, 0)
 	if !allowed {
 		t.Error("Check: expected allow when team is nil")
@@ -67,12 +72,12 @@ func TestCheck_NoTeam_Allows(t *testing.T) {
 }
 
 func TestCheck_UnknownTier_Allows(t *testing.T) {
-	c := NewChecker(
-		&mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "unknown"}},
-		&mockUsageReader{runCount: 0, totalTokens: 0},
-		&mockTierStore{tier: nil},
-		"free_trial",
-	)
+	c := &QuotaService{
+		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "unknown"}},
+		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 0},
+		TierStore:   &mockTierStore{tier: nil},
+		DefaultTier: "free_trial",
+	}
 	allowed, _ := c.Check(context.Background(), "tm_1", 1, 0)
 	if !allowed {
 		t.Error("Check: expected allow when tier not found")
@@ -80,12 +85,12 @@ func TestCheck_UnknownTier_Allows(t *testing.T) {
 }
 
 func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
-	c := NewChecker(
-		&mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
-		&mockUsageReader{runCount: 10, totalTokens: 0},
-		&mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
-		"free_trial",
-	)
+	c := &QuotaService{
+		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
+		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
+		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		DefaultTier: "free_trial",
+	}
 	allowed, reason := c.Check(context.Background(), "tm_1", 1, 0)
 	if allowed {
 		t.Error("Check: expected deny when run count would exceed limit")
@@ -96,12 +101,12 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 }
 
 func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
-	c := NewChecker(
-		&mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
-		&mockUsageReader{runCount: 0, totalTokens: 100000},
-		&mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
-		"free_trial",
-	)
+	c := &QuotaService{
+		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
+		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 100000},
+		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		DefaultTier: "free_trial",
+	}
 	allowed, reason := c.Check(context.Background(), "tm_1", 0, 1)
 	if allowed {
 		t.Error("Check: expected deny when token count would exceed limit")
@@ -112,12 +117,12 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 }
 
 func TestCheck_UnderLimit_Allows(t *testing.T) {
-	c := NewChecker(
-		&mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
-		&mockUsageReader{runCount: 5, totalTokens: 50000},
-		&mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
-		"free_trial",
-	)
+	c := &QuotaService{
+		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
+		UsageReader: &mockUsageReader{runCount: 5, totalTokens: 50000},
+		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		DefaultTier: "free_trial",
+	}
 	allowed, reason := c.Check(context.Background(), "tm_1", 1, 10000)
 	if !allowed {
 		t.Errorf("Check: expected allow; reason = %q", reason)
@@ -128,12 +133,12 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 }
 
 func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
-	c := NewChecker(
-		&mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: ""}},
-		&mockUsageReader{runCount: 10, totalTokens: 0},
-		&mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
-		"free_trial",
-	)
+	c := &QuotaService{
+		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: ""}},
+		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
+		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		DefaultTier: "free_trial",
+	}
 	allowed, _ := c.Check(context.Background(), "tm_1", 1, 0)
 	if allowed {
 		t.Error("Check: expected deny when default tier limit reached")

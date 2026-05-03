@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	convapp "buildmax/internal/core/conversation"
+	"buildmax/internal/core/conversation"
 	"buildmax/internal/core/model"
-	taskapp "buildmax/internal/core/task"
+	"buildmax/internal/core/task"
 	blob "buildmax/internal/infra/objectstore"
 	"buildmax/internal/server/httputil"
 )
@@ -56,12 +56,12 @@ func taskToResponse(task model.Task) TaskResponse {
 	}
 }
 
-func (h *Handler) taskService() *taskapp.Service {
-	var quotaChecker taskapp.QuotaChecker
-	if h.cfg.QuotaChecker != nil {
-		quotaChecker = h.cfg.QuotaChecker
+func (h *Handler) taskService() *task.TaskService {
+	var quotaChecker task.QuotaChecker
+	if h.cfg.QuotaService != nil {
+		quotaChecker = h.cfg.QuotaService
 	}
-	return &taskapp.Service{
+	return &task.TaskService{
 		Agents:         h.cfg.AgentStore,
 		Tasks:          h.cfg.TaskStore,
 		TaskRuns:       h.cfg.TaskRunStore,
@@ -72,22 +72,22 @@ func (h *Handler) taskService() *taskapp.Service {
 
 func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, err error, agentID *string) bool {
 	switch {
-	case errors.Is(err, taskapp.ErrInputRequired):
+	case errors.Is(err, task.ErrInputRequired):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
-	case errors.Is(err, taskapp.ErrAgentsNotConfigured):
+	case errors.Is(err, task.ErrAgentsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
-	case errors.Is(err, taskapp.ErrTasksNotConfigured):
+	case errors.Is(err, task.ErrTasksNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-	case errors.Is(err, taskapp.ErrTaskRunsNotConfigured):
+	case errors.Is(err, task.ErrTaskRunsNotConfigured):
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
-	case errors.Is(err, taskapp.ErrAgentNotFound):
+	case errors.Is(err, task.ErrAgentNotFound):
 		if agentID != nil && *agentID != "" {
 			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
 		} else {
 			httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		}
 	default:
-		var quotaErr *taskapp.QuotaExceededError
+		var quotaErr *task.QuotaExceededError
 		if errors.As(err, &quotaErr) {
 			httputil.WriteQuotaExceeded(w, quotaErr.Reason)
 			return true
@@ -200,7 +200,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	task, err := h.taskService().CreateTask(r.Context(), taskapp.CreateTaskCmd{
+	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
 		ConversationID: conversationID,
 		UserID:         userID,
 		TeamID:         teamID,
@@ -216,7 +216,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_task", "conversation_id", conversationID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*task))
+	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*createdTask))
 }
 
 func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +240,7 @@ type createTaskRunRequest struct {
 }
 
 func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Request, userID, conversationID, taskID, input string) bool {
-	result, err := h.conversationService().HandleTurn(r.Context(), convapp.HandleTurnCmd{
+	result, err := h.conversationService().HandleTurn(r.Context(), conversation.HandleTurnCmd{
 		UserID:  userID,
 		Channel: "portal",
 		Message: input,
