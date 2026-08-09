@@ -50,10 +50,14 @@ against the process environment plus one built-in:
 
 | Variable | Resolves to |
 |---|---|
-| `${BUILDMAX_WORKSPACE_ROOT}` | The workspace directory for this run |
+| `${WORKSPACE_ROOT}` | The workspace directory for this run |
 
 This is how you keep secrets out of a checked-in `mcp.json` — reference
 `$GITHUB_TOKEN` and let the environment supply it.
+
+Note that the name carries no `BUILDMAX_` prefix. An unrecognized variable
+expands to an empty string rather than failing, so a misspelled name shows up as
+a path that begins at `/` instead of an error.
 
 ## How The Agent Uses Them
 

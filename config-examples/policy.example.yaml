@@ -1,0 +1,73 @@
+# BuildMax operator policy (BUILDMAX_HOME/policy.yaml)
+#
+# This file exists for the case where the person who owns the machine and the
+# person using the agent are not the same. It OVERRIDES the matching block in
+# settings.yaml, so a user cannot loosen what an operator sets here by editing
+# their own settings.
+#
+# Resolution order, lowest to highest:
+#
+#   built-in default  <  settings.yaml  <  policy.yaml  <  environment variable
+#
+# `buildmax sandbox status` prints the resolved values and which layer set each
+# one, which is the fastest way to confirm a policy is taking effect.
+#
+# Only the sandbox block is read today. The file is reserved for other
+# operator-controlled subsystems later, so keep the top-level `sandbox:` key.
+#
+# Guide: docs/guide/sandbox.md
+# Reference: docs/reference/configuration.md
+# Design: docs/design/032-sandbox-and-execution-boundaries.md
+
+sandbox:
+  enabled: true
+
+  # Refuse to run Bash at all rather than run it unsandboxed. On a host where
+  # the sandbox backend is missing this turns a silent downgrade into a clear
+  # failure — usually what an operator wants, and usually not what a developer
+  # wants on their laptop.
+  fail_if_unavailable: true
+
+  # Leave the per-call escape hatch inert. With this false, a tool call asking
+  # for dangerously_disable_sandbox is ignored rather than honored.
+  allow_unsandboxed_commands: false
+
+  filesystem:
+    allow_write: ["."]
+    deny_write:
+      - "~/.ssh"
+      - "~/.aws"
+      - "~/.gnupg"
+      - "~/.buildmax"
+    deny_read:
+      - "~/.ssh"
+      - "~/.aws"
+      - "~/.gnupg"
+
+    # Make this layer authoritative: entries in a lower layer's allow_read are
+    # ignored, so a user cannot widen read access from their own settings.yaml.
+    allow_managed_read_paths_only: true
+
+  network:
+    # An allowlist an operator is willing to stand behind. Everything else is
+    # refused by the Go-side egress proxy.
+    allowed_domains:
+      - "api.github.com"
+      - "proxy.golang.org"
+      - "registry.npmjs.org"
+    denied_domains: []
+
+    allow_local_binding: false
+    allow_all_unix_sockets: false
+    # Granting a socket grants whatever is behind it — the Docker socket is
+    # effectively root on the host. List them one at a time, deliberately.
+    allow_unix_sockets: []
+
+    # Same idea as allow_managed_read_paths_only, for domains.
+    allow_managed_domains_only: true
+
+  # Known-harmless violations to silence, so the log stays worth reading.
+  # Prefer this over widening the boundary.
+  ignore_violations:
+    read:
+      - "/etc/ssl/**"

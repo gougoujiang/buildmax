@@ -12,6 +12,8 @@ the environment, because they must be known before any file can be read.
 | `<BUILDMAX_HOME>/server.yaml` | Server, Worker | Port, auth, database, storage, worker, Tier 1 model |
 | `<BUILDMAX_HOME>/policy.yaml` | CLI, Desktop, Worker | Operator sandbox policy that overrides `settings.yaml` |
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
+| `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
+| `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
 [`config-examples/`](../../config-examples/):
@@ -20,7 +22,12 @@ the environment, because they must be known before any file can be read.
 mkdir -p ~/.buildmax
 cp config-examples/settings.example.yaml ~/.buildmax/settings.yaml
 cp config-examples/server.example.yaml   ~/.buildmax/server.yaml   # server/worker only
+cp config-examples/policy.example.yaml   ~/.buildmax/policy.yaml   # operator policy, optional
+cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers, optional
 ```
+
+`mcp.example.json` carries a `_comment` key holding its own documentation; drop
+that key before use.
 
 ## Environment Variables
 

@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "BuildMax MCP server configuration.",
+    "",
+    "Copy to either location — both are read and MERGED, with the workspace file",
+    "winning when the same server id appears in both:",
+    "  <BUILDMAX_HOME>/mcp.json          every workspace on this machine",
+    "  <workspace>/.buildmax/mcp.json    that project only",
+    "",
+    "That is the useful split: shared servers global, project-specific servers",
+    "checked into the project.",
+    "",
+    "type is stdio, sse, or http. stdio requires command; sse and http require url.",
+    "$VAR and ${VAR} are expanded in command, args, env values, and url, against",
+    "the process environment plus ${WORKSPACE_ROOT}, which resolves to the",
+    "workspace directory for the run. Reference secrets that way instead of",
+    "writing them into a file you check in.",
+    "",
+    "Run /mcp in the TUI to see connected servers and their status.",
+    "Guide: docs/guide/mcp.md",
+    "",
+    "Remove this _comment key before use — it is documentation, not config."
+  ],
+
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_TOKEN"
+      }
+    },
+
+    "project-tools": {
+      "type": "stdio",
+      "command": "go",
+      "args": ["run", "${WORKSPACE_ROOT}/cmd/local-test-mcp-server"]
+    },
+
+    "internal-api": {
+      "type": "http",
+      "url": "https://mcp.internal.example.com/api"
+    },
+
+    "legacy-sse": {
+      "type": "sse",
+      "url": "https://mcp.internal.example.com/sse"
+    }
+  }
+}

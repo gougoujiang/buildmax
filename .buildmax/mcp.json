@@ -3,7 +3,7 @@
     "local-test": {
       "type": "stdio",
       "command": "go",
-      "args": ["run", "${BUILDMAX_WORKSPACE_ROOT}/cmd/local-test-mcp-server"],
+      "args": ["run", "${WORKSPACE_ROOT}/cmd/local-test-mcp-server"],
       "env": {
         "MCP_DEMO_CUSTOM": "$BUILDMAX_MCP_CUSTOM"
       }
