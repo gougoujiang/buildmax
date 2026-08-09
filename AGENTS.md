@@ -283,7 +283,8 @@ Use `./make <command>` at the repo root — on Windows, `make.bat <command>`. Bo
 **Windows:** `make.bat <command>` accepts every command `./make` does; build output is `bin/buildmax.exe` and friends. The exceptions are `setup`, `unsetup`, and `deploy`, which drive bash and Kubernetes tooling and fail with a clear message on Windows — run them from WSL2. Native Windows is not yet covered by CI end to end: the Windows job builds and vets, but the test suite there is advisory (see `.github/workflows/ci.yml`), and the bash tool falls back to `cmd /c` (`internal/tool/bash.go`) while the sandbox is unavailable (`docs/design/032-sandbox-and-execution-boundaries.md` §7).
 
 ## 8. Commit Message
-Do NOT include: Co-Authored-By and Claude-Session in commit message
+- Do NOT include: Co-Authored-By and Claude-Session in commit message
+- Keep it intact, simple and clear
 
 ---
 
