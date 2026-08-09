@@ -15,26 +15,90 @@ Portal, and worker execution.
   issue, pull request, test fixture, or commit.
 - Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-## Development
+## Prerequisites
 
-The primary local checks are:
+- **Go** — the version in `go.mod`. The CLI, server, worker, and desktop backend
+  are all Go; there is no Python or Node runtime dependency for the CLI.
+- **Node** — only for the frontends: the shared `gui/` package, `portal/`, and
+  `desktop/frontend/`.
+- **An LLM API key** — set `BUILDMAX_API_KEY` (and optionally `BUILDMAX_BASE_URL`
+  and `BUILDMAX_MODEL`). Development defaults to free OpenRouter models, which
+  rate-limit with HTTP 429 when called too frequently; if runs start failing in
+  bursts, that is usually why.
+- **Docker, kind, kubectl, helm** — only if you work on the server, worker, or
+  deployment path. `./make setup` installs the missing CLIs via Homebrew.
+
+## Build, Test, and Run
+
+The root `./make` script is the primary local workflow. It sources `./loadenv`
+if present.
 
 ```bash
-./make test
-./make build
+./make build          # CLI, server, worker, gui, desktop app
+./make build cli      # CLI only
+./make test           # go test ./... with BUILDMAX_HOME=./testing-sandbox
+./make run server     # build and run buildmax-server
+./make run portal     # Portal dev server (builds gui if needed)
+./make run desktop    # Wails desktop app in dev mode
+./make clean          # binaries, desktop build dir, node_modules, dist
 ```
 
-`./make test` runs Go tests with `BUILDMAX_HOME=./testing-sandbox`. Frontend
-packages can be built from their own directories; see [README.md](README.md),
-[portal/README.md](portal/README.md), and [gui/README.md](gui/README.md).
+`./make test` writes to `./testing-sandbox` instead of `~/.buildmax`, so tests
+never touch your real data directory. The sandbox is created on demand and is
+gitignored.
 
-Keep changes aligned with the existing boundaries:
+Frontend packages also build from their own directories; see
+[README.md](README.md), [portal/README.md](portal/README.md), and
+[gui/README.md](gui/README.md).
+
+`./make smoke` and `./make run server` are for manual local checks. Do not use
+them in automated CI.
+
+## Local Infrastructure
+
+Server and worker work needs MySQL, MinIO, and Redis. One idempotent command
+brings up a kind cluster with all of them:
+
+```bash
+./make setup      # kind cluster, ingress-nginx, MinIO, MySQL, Redis, port-forwards
+./make unsetup    # tear down the cluster and stop port-forwards
+```
+
+[setup/README.md](setup/README.md) documents what it installs, the `/etc/hosts`
+entries for Ingress, and the manual equivalents of each step. Override the
+cluster name with `BUILDMAX_KIND_CLUSTER` (default `buildmaxdev`).
+
+### Container Images
+
+Two Dockerfiles live at the repository root: `Dockerfile.buildmax` for the Go
+binaries and `Dockerfile.portal` for the Portal. To build both and load them
+into the kind cluster:
+
+```bash
+./make pub_images
+```
+
+Set `BUILDMAX_IMAGE_PLATFORM` to cross-build — for example
+`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make pub_images` on Apple Silicon.
+
+`./make deploy` builds, loads, and applies `deployment/buildmax-deploy.yaml`.
+That manifest carries no credentials: copy
+`deployment/buildmax-secret.example.yaml` to `buildmax-secret.local.yaml`,
+fill it in, and `./make deploy` applies it for you. The `.local.yaml` file is
+gitignored — never commit real values.
+
+## Code Boundaries
+
+Keep changes aligned with the existing layering:
 
 - shared agent behavior belongs in `internal/core/agent` or `internal/agentapp`
 - infrastructure adapters belong in `internal/infra`
 - user-facing orchestration belongs in `internal/service` or `internal/interface`
 - `internal/core` must not import application, infrastructure, or interface layers
 - persisted JSON uses explicit `snake_case` field names
+
+The layering rules are enforced by tests in `internal/architecture`, so a
+violating import fails the build rather than sliding through review.
 
 ## Pull Requests
 
@@ -51,6 +115,10 @@ Keep changes aligned with the existing boundaries:
   limitations in the pull request description.
 - Preserve existing public behavior unless the pull request explicitly documents
   a breaking change.
+
+CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, and the test
+suite for Go, then builds `gui` and `portal`. Running `./make test` and
+`./make build` locally catches nearly everything it does.
 
 ## Contribution License
 

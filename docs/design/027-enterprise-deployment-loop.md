@@ -323,7 +323,7 @@ override support for the other secret fields or a secret-file merge path.
 - Remove stale env vars from the Kubernetes manifest unless they are supported.
 - Add a `server.yaml.example` or documented sample.
 - Recreate or retire `.env.example` references.
-- Update `setup/README.md`, `README.md`, and `DEVELOPEMENT.md` to match the
+- Update `setup/README.md`, `README.md`, and `CONTRIBUTING.md` to match the
   current YAML-based config contract.
 
 Acceptance:
