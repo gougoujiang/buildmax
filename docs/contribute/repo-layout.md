@@ -46,10 +46,11 @@ internal/
 ├── config/             YAML + env config loading and path resolution
 │
 ├── core/               Pure domain layer — no infra imports
-│   ├── model/          Shared entities, repository contracts, LLM contracts, Tool contract
-│   ├── agent/          The tool-calling loop, prompts, options, sandbox contract
-│   ├── llm/            LLM contract helpers
-│   └── session/        Local session model and persistence helpers
+│   ├── model/          Domain entities and repository contracts
+│   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
+│   │                   the Tool contract, ToolRegistry, and tool policy
+│   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
+│   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
 │   │                   MCP, hooks, sandbox, traces, skills, sessions, workspace

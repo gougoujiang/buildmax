@@ -1,83 +1,113 @@
 # CLI
 
+> **Audience:** contributors · **Status:** current
+>
+> User-facing command and flag reference: [reference/cli.md](../../reference/cli.md)
+
 ## Purpose
 
-The `cmd/buildmax` package is the executable entry point. It uses Cobra for command-line parsing and dispatches to either the TUI or prompt mode based on flags.
+`internal/interface/cli` owns the Cobra command tree, print mode, and the Bubble
+Tea TUI. `cmd/buildmax/main.go` is a thin shell around it.
 
-## Key Types and Interfaces
-
-| Name | Kind | Role |
-|------|------|------|
-| **Version** | var | Application version string (e.g. "0.0.1") |
-| **newRootCommand()** | func | Creates the Cobra root command with all flags |
-| **setupAgentAndSession()** | func | Bootstraps agent, tools, and session for both modes |
-
-## How It Works
-
-### Entry Point (`main.go`)
+## Entry Point
 
 ```go
 func main() {
-    log.Init()
-    root := newRootCommand()
-    root.Execute()
+    s, _ := config.LoadSettings()
+    log.Init(log.LogConfig{
+        LogsDir: config.LogsDir(), Level: config.LogLevel(s.LogLevel), AlsoStdout: false,
+    })
+    root := cli.NewRootCommand()
+    if err := root.Execute(); err != nil {
+        os.Exit(cli.ExitCodeFor(err))   // ExitError is printed by the command, not here
+    }
 }
 ```
 
-### Command Structure
+`main` resolves the log level from settings and passes it in — `internal/infra/log`
+reads no configuration itself. `AlsoStdout: false` keeps the terminal clean for
+the TUI and for piped print-mode output.
 
+## Command Tree
+
+| Command | File |
+|---|---|
+| `buildmax` (root: TUI or print mode) | `root.go` |
+| `version` | `version.go` |
+| `login`, `logout`, `whoami` | `login.go` |
+| `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
+
+`NewRootCommand()` registers eleven flags on the root command; the user-facing
+table is in [reference/cli.md](../../reference/cli.md).
+
+## Dispatch (`runRoot`)
+
+1. `--version` short-circuits and prints.
+2. Parse `--output` into a format; a bad value is a **usage error**, not a crash.
+3. Validate `--session-id` as a UUID when given.
+4. Resolve the effective session id: explicit `--session-id`, else
+   `resolveResumeID(resumeID, cont)` for `--resume` / `--continue`.
+5. `checkModelConfig()` — fails early with a usage error naming the settings
+   path, rather than failing later at the LLM call.
+6. `--print` non-empty → `runPrintMode(printOptions{...})`. Otherwise → `runTUI`.
+
+## Exit Codes
+
+A stable contract for scripts wrapping `buildmax -p`. `ExitError` carries the
+code through Cobra's `RunE` so `main` can surface it:
+
+| Code | Meaning |
+|---|---|
+| 0 | OK |
+| 1 | Generic failure |
+| 2 | Usage — bad flag, or missing configuration such as no model |
+| 3 | Tool blocked by policy |
+| 4 | LLM or agent runtime error |
+| 5 | Reserved for tool errors |
+| 6 | Cancelled — SIGINT or context cancellation |
+
+## Print Mode
+
+`print.go` and `print_format.go`. Three output formats: `text` (human, with a
+stats footer unless `--quiet`), `json` (one object at the end), and `jsonl` (one
+event per line, streamed). `--include-deltas` adds `llm_delta` events to jsonl,
+which is verbose but shows token-level progress.
+
+The event stream comes from the agent loop's `EventSink`, the same seam the TUI
+and the run trace use.
+
+## TUI
+
+`tui.go`, `tui_model.go`, and the `chat_*.go` files. `NewModel(TUIOpts)` builds
+the root Bubble Tea model:
+
+```go
+type TUIOpts struct {
+    App          *agentapp.AgentApp
+    Session      *agentapp.SessionContext
+    ModelName    string
+    Workspace    string
+    SessionsDir  string
+    Approval     agent.ApprovalHandler
+    GlamourStyle string          // "dark" or "light", detected once at startup
+    RunStatus    agentapp.RunStatus
+}
 ```
-buildmax                     Start TUI (new session)
-buildmax -r ID               Start TUI with resumed session
-buildmax -c                  Resume most recent session
-buildmax -p PROMPT           Prompt mode (no TUI)
-buildmax -r ID -p PROMPT     Resume session, send prompt
-buildmax version             Print version
-```
 
-### Flags
+`Approval` is what makes tool approval prompts interactive — the same
+`agent.ApprovalHandler` slot the worker leaves nil.
 
-| Flag | Short | Type | Description |
-|------|-------|------|-------------|
-| `--prompt` | `-p` | string | Send prompt to LLM, print response, exit |
-| `--resume` | `-r` | string | Session ID to resume |
-| `--continue` | `-c` | bool | Resume most recent session (by creation time) |
-
-### Dispatch Logic (`runRoot`)
-
-1. If `--continue` is set and no `--resume`, load the session list and pick the most recent session.
-2. If `--prompt` is set → run prompt mode (`runPromptMode`).
-3. Otherwise → run TUI mode (`runTUI`).
-
-### Agent & Session Setup (`setupAgentAndSession`)
-
-This function is shared by both modes:
-
-1. `config.LoadLLM()` — load API key, base URL, model from env.
-2. `os.Getwd()` — get current working directory (used as tool root).
-3. Create all 8 tools: ReadFile, WriteFile, EditFile, WebFetch, TodoWrite, Bash, Glob, Grep — each with CWD as root.
-4. `agent.NewAgent(client, tools)` — build the agent.
-5. Ensure `DataDir()/sessions/` exists.
-6. If `resumeID` provided → `session.LoadFromDir()`. Otherwise → `session.NewSession("")`.
-
-### Prompt Mode (`runPromptMode`)
-
-1. Call `agent.Process(ctx, sess, prompt)`.
-2. Call `session.PersistAfterReply()` to save.
-3. Print the reply to stdout.
-
-### TUI Mode (`runTUI`)
-
-1. Build `tui.TUIOpts` with agent, session, model name, workspace, version, sessions dir.
-2. Start Bubble Tea program with `tea.WithAltScreen()`.
+See [tui.md](tui.md) for the model, focus handling, and slash commands.
 
 ## Dependencies
 
-- **Uses**: All `internal/` packages (agent, llm, config, session, tools, tui, app, log)
-- **External**: `github.com/spf13/cobra` (CLI framework), `github.com/charmbracelet/bubbletea` (TUI runner)
+- **Uses**: `internal/agentapp` (runtime assembly), `internal/config`,
+  `internal/core/agent` (the `ApprovalHandler` contract), `internal/core/session`
+- **External**: `github.com/spf13/cobra`, `github.com/charmbracelet/bubbletea`
 
 ## Notes
 
-- Both modes share the same `setupAgentAndSession` — changing tool registration or config logic only requires one change.
-- The `version` subcommand is added via `root.AddCommand(newVersionCommand())`.
-- See also: [Project Overview](overview.md), [Agent Loop](agent-loop.md), [TUI](tui.md), [Configuration](config.md).
+- The CLI never builds tools or LLM clients itself; `agentapp` does. That is why
+  the same behavior appears in the desktop app and the worker.
+- See also: [Overview](overview.md), [Agent Loop](agent-loop.md), [TUI](tui.md),
+  [Configuration](config.md).

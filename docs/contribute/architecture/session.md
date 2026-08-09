@@ -1,83 +1,102 @@
 # Session
 
+> **Audience:** contributors · **Status:** current
+>
+> User-facing view: [guide/sessions-and-traces.md](../../guide/sessions-and-traces.md)
+
 ## Purpose
 
-The `internal/core/session` package models local chat session state. Runtime
-session loading and saving is assembled by `internal/agentapp`, which stores
-session files under `config.SessionsDir()`.
+Local chat session state is split across two packages:
 
-## Key Types and Interfaces
+| Package | Owns |
+|---|---|
+| `internal/core/session` | The `Session` and `SessionItem` types, plus pure helpers. No file I/O beyond the types themselves. |
+| `internal/agentapp` (`session_manager.go`) | All persistence and lifecycle: create, load, save, list, rename, delete, pin, title generation |
 
-| Name | Kind | Role |
-|------|------|------|
-| **Session** | struct | In-memory session: id (UUID), title, created_at, message history |
-| **SessionItem** | struct | Session metadata in the list index: id, title, workspace, created_at |
-| **sessionFile** | struct (private) | JSON serialization format for individual session files |
+`SessionManager` is the entry point for anything that runs a session. The core
+package holds the shape; `agentapp` holds the behavior.
 
-## How It Works
+## Types
 
-### Session Lifecycle
+```go
+// internal/core/session — JSON tags match the on-disk format (snake_case).
+type Session struct {
+    ID                string
+    Title             string
+    CreatedAt         time.Time
+    Messages          []llm.Message
+    PromptTokens      int
+    CompletionTokens  int
+    CompactionIdx     int     // index into Messages where the latest compaction boundary falls
+    CompactionSummary string  // summary of everything before CompactionIdx
+}
 
-1. **Create**: `NewSession(title)` generates a UUID, sets `created_at` to now, initializes empty history.
-2. **Append messages**: `session.Append(msg)` adds user, assistant, or tool messages to history. System messages are not stored (prepended at call time by the agent).
-3. **Read messages**: `session.Messages()` returns a defensive copy of the history.
-4. **Persist**: `PersistAfterReply()` runs the full save flow after each assistant reply.
-
-### Persistence
-
-Sessions are stored as JSON files under `DataDir()/sessions/`:
-
-```
-~/.buildmax/sessions/
-  <uuid>.json          # individual session file
-  sessions.json        # session list index
-```
-
-**Individual session file** (`<uuid>.json`):
-```json
-{
-  "id": "uuid-string",
-  "title": "first user message...",
-  "created_at": "2026-01-15T10:30:00Z",
-  "messages": [
-    {"role": "user", "content": "..."},
-    {"role": "assistant", "content": "...", "tool_calls": [...]},
-    {"role": "tool", "content": "...", "tool_call_id": "..."}
-  ]
+type SessionItem struct {   // one row in the sessions.json index
+    ID, Title, Workspace string
+    CreatedAt            string  // RFC3339
+    Pinned               bool
 }
 ```
 
-**`PersistAfterReply` flow**:
-1. `EnsureTitleFromFirstUserMessage()` — sets title from first user message if empty (truncated to maxLen runes).
-2. `SaveToDir()` — serializes session to JSON, writes to `dir/<id>.json`.
-3. `UpsertListEntry()` — updates the session list index.
+Fields are **exported with explicit `json:"snake_case"` tags** — `Session` is
+its own serialization format, not a wrapper around a private one.
 
-### Session List Index
+`Session` implements the agent loop's `MessageHistory` through
+`HistoryMessages()` and `Append(msg)`, and its `CompactionHistory` extension
+through `AddCompaction(summary, n)`. That is the whole reason the type exists in
+`core`: the pure loop can drive it without importing anything above it.
 
-`sessions.json` is a flat JSON array of `SessionItem` objects for quick session lookup without reading each individual file:
+Note the method is `HistoryMessages()`, not `Messages()` — it returns the
+messages the LLM should see, which after a compaction is not the whole slice.
 
-- `agentapp.LoadSessionList(dir)` — reads the list; returns empty slice if file missing.
-- `agentapp` session helpers update or append entries when sessions are saved.
-- CLI `--continue` resolves the most recent entry by `created_at`.
+## Persistence
 
-### Context Helpers
+```text
+<BUILDMAX_HOME>/sessions/
+  <id>.json          one session
+  sessions.json      the index: []SessionItem
+```
 
-- `CtxWithSessionID(ctx, id)` — stores session ID in context.
-- `SessionIDFromContext(ctx)` — retrieves session ID from context. Used by tools that need the session ID.
+The index exists so the picker and `--continue` can list sessions without
+opening every file. Every write path updates both.
 
-### Loading a Session
+| Operation | Function |
+|---|---|
+| Create / load in a run | `SessionManager.Create`, `SessionManager.Load` |
+| Save after a turn | `SessionManager.Save` |
+| Finish a turn — title, usage, save | `SessionManager.Finalize` |
+| List | `SessionManager.List`, or `agentapp.LoadSessionList(dir)` |
+| Load one by id | `agentapp.LoadSession(dir, id)` |
+| Rename / delete / pin | `agentapp.RenameSession`, `DeleteSession`, `SetSessionPinned` |
+| Delete every session for a workspace | `agentapp.DeleteSessionsByWorkspace` |
+| Update one index row | `agentapp.UpsertSessionItem` |
 
-- `LoadFromDir(dir, sessionID)` — reads `dir/<sessionID>.json`, parses JSON, returns a `Session` via `NewSessionFromData()`.
-- `NewSessionFromData(id, title, createdAt, messages)` — constructs a Session from persisted data without exposing internal fields.
+`Finalize` is what a surface calls at the end of a turn: it generates a title
+when the session has none, folds `RunStats` token counts into the session, and
+persists both the file and the index row. Title generation is an LLM call, so
+its usage is added to the session too — that is how a session's token count
+stays complete rather than counting only the visible turns.
+
+`DeleteSessionsByWorkspace` matches through `workspaceAliases`, because the same
+directory can be recorded under different spellings (symlinks, `~` expansion,
+trailing slashes).
+
+## Session ID In Context
+
+`CtxWithSessionID(ctx, id)` and `SessionIDFromContext(ctx)` carry the session id
+through call stacks that should not take it as a parameter — tools and the trace
+recorder read it from the context rather than having it threaded down.
 
 ## Dependencies
 
-- **Uses**: `internal/core/llm` (Message type for history), `github.com/google/uuid` (ID generation)
-- **Used by**: `internal/agentapp`, `internal/interface/cli`, `internal/interface/desktop`, and worker task-run session restore
+- `internal/core/session` **uses**: `internal/core/llm` (the `Message` type),
+  `github.com/google/uuid`
+- **Used by**: `internal/agentapp`, `internal/interface/cli`,
+  `internal/interface/desktop`, and worker task-run session restore
 
 ## Notes
 
-- All JSON keys use `snake_case` per project convention.
-- Session fields are unexported — access only through methods and constructors.
-- `Messages()` returns a copy to prevent external mutation during the agent loop.
+- All JSON keys are `snake_case`, per the repository convention.
+- The system prompt is never stored in a session; it is built per run by
+  `agentapp.BuildEffectiveSystemPrompt`.
 - See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [TUI](tui.md).

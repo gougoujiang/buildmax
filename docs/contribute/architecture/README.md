@@ -14,9 +14,8 @@ tree, see [../repo-layout.md](../repo-layout.md).
 
 - [overview.md](overview.md) — system architecture, directory layout, and how
   the pieces fit together. Read this first.
-- [packages.md](packages.md) — package-boundary map for the
-  `interface` / `service` / `agentapp` / `core` layers and the import rules
-  between them.
+- [packages.md](packages.md) — which direction dependencies may point, and the
+  import rules the build enforces.
 
 ## Agent Runtime
 

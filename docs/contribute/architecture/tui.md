@@ -1,84 +1,112 @@
 # TUI
 
+> **Audience:** contributors · **Status:** current
+>
+> User-facing key and slash-command reference: [reference/cli.md](../../reference/cli.md)
+
 ## Purpose
 
-The TUI lives inside `internal/interface/cli` and uses Bubble Tea
-(charmbracelet). It provides an interactive chat experience with a scrollable
-viewport, text input, status footer, and built-in slash commands.
+The Bubble Tea terminal UI, inside `internal/interface/cli`. `tui.go` and
+`tui_model.go` hold the root model; the `chat_*.go` files hold the pieces —
+input, formatting, styles, approval, and one file per slash panel.
 
-## Key Types and Interfaces
+## Layout
 
-| Name | Kind | Role |
-|------|------|------|
-| **Model** | struct | Root Bubble Tea model: viewport, input, state (busy, focus, dimensions) |
-| **TUIOpts** | struct | Configuration: agent app/session, model name, workspace, version, sessions dir |
-| **ViewportBlock** | struct | Scrollable area displaying banner and chat history |
-| **InputBlock** | struct | Text input area at the bottom for user messages |
-| **agentDoneMsg** | struct | Internal message: agent reply or error |
-| **carouselTickMsg** | struct | Internal message: animate "..." while waiting for agent |
-
-## How It Works
-
-### Layout
-
-```
-┌──────────────────────────┐
-│  BUILDMAX v0.0.1         │  ← Banner (in viewport)
-│                          │
-│  user: Hello             │  ← Chat history (in viewport)
-│  assistant: Hi there!    │
-│                          │
-├──────────────────────────┤
-│ ╭──────────────────────╮ │  ← Input box (rounded border, light sky blue)
-│ │ Type here...         │ │
-│ ╰──────────────────────╯ │
-│ model: ... | @/path | .. │  ← Footer (one line)
-└──────────────────────────┘
+```text
+┌────────────────────────────────────────────┐
+│  BUILDMAX v1.2.3                           │  banner
+│  user: add pagination to the list endpoint │  history
+│  assistant: I'll start by reading…         │  live streaming text
+│  ⟳ Grep(pattern: "func List")              │  in-flight tool activity
+├────────────────────────────────────────────┤
+│ ╭────────────────────────────────────────╮ │
+│ │ Type here…                             │ │  input
+│ ╰────────────────────────────────────────╯ │
+│ model: gpt-4o | ~/proj (|-main) | sandbox… │  footer line 1
+│ 12.4k/128k · 2 tools | ctrl+c: quit | …    │  footer line 2
+└────────────────────────────────────────────┘
 ```
 
-### Message Flow (Bubble Tea Architecture)
+Footer line 1: model, workspace with git branch, sandbox tag when active, logged
+in email. Line 2: run status (context usage, token counts, tool calls), key
+hints, and a panel-specific hint when a slash panel is open.
 
-1. **User types and presses Enter**: `handleKeyMsg` captures the text, appends a user message to the session, refreshes the viewport, sets `busy = true`, and starts two concurrent commands:
-   - A **carousel tick** timer for the "..." animation.
-   - A **background goroutine** running the shared agent runtime through `internal/agentapp`.
+## Model State
 
-2. **While busy**: Input shows "Waiting for reply...", carousel dots animate in the viewport.
+`Model` (`tui_model.go`) carries the usual Bubble Tea state — dimensions, busy,
+focus — plus the parts that make a live run legible:
 
-3. **Agent finishes**: `agentDoneMsg` is received. The viewport refreshes with the assistant reply, session is persisted via `PersistAfterReply`, and `busy` is set to false.
+| Field | Role |
+|---|---|
+| `streamingBuffer` | Assistant text accumulated so far this turn |
+| `toolActivity` | The in-flight tool, cleared on tool end or denial |
+| `currentToolArgs` | Raw JSON args of the executing tool, used when rendering the end event |
+| `streamChannel` | `chan tea.Msg` carrying deltas, tool events, and completion |
+| `runStatus` | Context and token counters shown in the footer |
+| `pendingApproval` | An approval request awaiting a keypress |
+| `slash*` / `activePanel` | Slash panel state |
 
-### Focus Management
+## How A Turn Runs
 
-- **Input focus** (default): Keystrokes go to the textarea. Scroll keys (Up/Down/PgUp/PgDown) switch focus to viewport.
-- **Viewport focus**: Arrow keys scroll. Enter/Escape return focus to input. After `scrollIdleDelay` (1500ms) of no scrolling, focus auto-returns to input.
-- **Tab** toggles focus manually.
-- **Mouse wheel** scrolls the viewport (temporarily steals focus).
+The agent runs on a background goroutine; everything it produces reaches the UI
+through one channel, which keeps Bubble Tea's single-threaded update loop intact.
 
-### Key Bindings
+```text
+Enter ─▶ append user message ─▶ busy = true
+                                   │
+              ┌────────────────────┴─────────────────────┐
+              │ goroutine: agentapp run                  │
+              │   StreamSink  ──▶ streamDeltaMsg         │
+              │   EventSink   ──▶ tool / status messages │──▶ streamChannel ──▶ Update
+              │   returns     ──▶ agentDoneMsg           │
+              └──────────────────────────────────────────┘
+```
+
+- `streamSinkToChannel` implements `llm.StreamSink`, forwarding content deltas.
+- `eventSinkToChannel` translates `agent.Event` values into UI messages —
+  `EventLLMStart` becomes a run-status update, tool events become the activity
+  line.
+
+Both are adapters over the agent loop's existing seams; the TUI adds no
+agent-side machinery of its own.
+
+## Approval
+
+`TUIApprovalHandler` (`chat_approval.go`) implements `agent.ApprovalHandler`. When
+the tool policy returns "ask", the loop blocks on it, the model shows the pending
+request, and a keypress resolves it. `n`, `N`, or `esc` deny.
+
+This is the one place the TUI participates in the agent loop rather than
+observing it — and it is why print mode, which passes no handler, never hangs
+waiting for input.
+
+## Slash Panels
+
+`/model`, `/sessions`, `/tools`, `/skills`, `/mcp`, `/diff`. Each has a
+`chat_*.go` file and its own state struct, unified behind the `slashPanel`
+interface (`activePanel`, `openPanel`, `closeActivePanel`) so key handling and
+the footer hint work the same for all of them.
+
+## Keys
 
 | Key | Action |
-|-----|--------|
-| Enter | Submit message (input focus) / Return to input (viewport focus) |
-| Escape | Clear input (input focus) / Return to input (viewport focus) |
-| Ctrl+C or q | Quit |
+|---|---|
+| Enter | Submit, or confirm in a panel |
+| Esc | Clear input, dismiss a panel, or deny an approval |
 | Tab | Toggle focus between input and viewport |
-| Up/Down/PgUp/PgDown/Home/End | Scroll viewport |
-
-### Supporting Components
-
-- **ViewportBlock** (`viewport_block.go`): Wraps Bubble Tea's viewport. `RefreshAndGotoBottom()` rebuilds content from session history and scrolls to bottom.
-- **InputBlock** (`input_block.go`): Wraps Bubble Tea's textarea. Auto-syncs height based on content.
-- **Banner** (`banner.go`): Renders the "BUILDMAX" ASCII banner with version.
-- **Format** (`format.go`): `formatMessage()` renders chat messages, `buildViewportContent()` assembles banner + history, `wrapLine()` handles line wrapping.
+| Ctrl+C | Quit |
+| `/` then ↑↓ | Slash command completion |
 
 ## Dependencies
 
-- **Uses**: `internal/agentapp`, `internal/core/session`, `internal/core/llm`
-- **External**: `github.com/charmbracelet/bubbletea`, `github.com/charmbracelet/bubbles` (textarea, viewport), `github.com/charmbracelet/lipgloss` (styling)
-- **Used by**: `internal/interface/cli`, `cmd/buildmax` (starts TUI)
+- **Uses**: `internal/agentapp`, `internal/core/agent` (Event, StreamSink,
+  ApprovalHandler), `internal/core/session`
+- **External**: `bubbletea`, `bubbles`, `lipgloss`, `glamour` (markdown rendering,
+  styled by the theme detected once at startup)
 
 ## Notes
 
-- The TUI uses `tea.WithAltScreen()` for full-screen mode.
-- Session is persisted after every assistant reply (not on quit).
-- The CLI starts the TUI through `internal/interface/cli`.
-- See also: [Agent Loop](agent-loop.md), [Session](session.md), [CLI](cli.md).
+- Runs with `tea.WithAltScreen()`.
+- The session is persisted after each assistant reply, not on quit, so a crash
+  loses at most the turn in flight.
+- See also: [CLI](cli.md), [Agent Loop](agent-loop.md), [Session](session.md).

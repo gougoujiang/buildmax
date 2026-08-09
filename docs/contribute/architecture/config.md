@@ -53,12 +53,22 @@ in `trace.go`) and are registered into `EnvVars`.
 
 `DataDir()` returns `$BUILDMAX_HOME`, or `~/.buildmax`. Everything else derives
 from it: `SettingsPath()`, `ServerConfigPath()`, `SessionsDir()`, `LogsDir()`,
-`TracesDir()`, `PolicyPath()`. Path helpers **do not create directories** —
-callers `os.MkdirAll` as needed.
+`TracesDir()`, `PolicyPath()`, `AuthPath()`. Path helpers **do not create
+directories** — callers `os.MkdirAll` as needed.
 
-Run-scoped paths for the server and worker — `WorkspacesDir()`,
-`PersistentWorkspaceDir()`, `RuntimeWorkspaceDir()`, `ArtifactDir()` — resolve
-against the configured `workspaces_dir`.
+Discovery paths take the workspace and return an ordered search list, workspace
+first: `SkillSearchPaths(workspace)`, `AgentDefsSearchPaths(workspace)`.
+
+Run-scoped paths take `workspacesDir` explicitly rather than reading config, so
+the worker can compute them for any run:
+
+| Function | Returns |
+|---|---|
+| `PersistentWorkspaceDir(workspacesDir, workspaceID)` | The team's durable `home/` |
+| `RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID)` | The run directory |
+| `RuntimeTaskRunHomeDir(...)` | Materialized team home for that run |
+| `RuntimeTaskRunArtifactsDir(...)` | Where `result.md` and other outputs land |
+| `RuntimeTaskRunGlobalDir(...)` | `BUILDMAX_HOME` for that run |
 
 ## Precedence
 

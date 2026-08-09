@@ -1,56 +1,93 @@
 # LLM Client
 
+> **Audience:** contributors · **Status:** current
+
 ## Purpose
 
-The `internal/infra/llm` package provides the LLM client and message types for communicating with OpenAI-compatible APIs (default: OpenRouter). It translates between BuildMax's internal types and the OpenAI wire format.
+`internal/infra/llm` is the OpenAI-compatible implementation of the
+`llm.LLMClient` contract. It translates between BuildMax types and the OpenAI
+wire format, and owns everything that makes a real network call survivable:
+timeouts, retries, error classification, and usage capture.
 
-## Key Types and Interfaces
+The **contract** lives in `internal/core/llm`; this package is one
+implementation of it. The agent loop only ever sees the interface.
 
-| Name | Kind | Role |
-|------|------|------|
-| **Client** | struct | Wraps `go-openai` client; holds API client and model name |
-| **Message** | struct | Chat message with role, content, optional tool_call_id and tool_calls |
-| **ToolDef** | struct | Tool definition: name, description, JSON schema parameters |
-| **ToolCall** | struct | Tool invocation from the LLM: id, name, arguments (JSON string) |
-
-## How It Works
-
-### Client Creation
+## The Contract It Implements
 
 ```go
-client := llm.NewClient(cfg)  // cfg is config.LLM with APIKey, BaseURL, Model
+// internal/core/llm
+type LLMClient interface {
+    ChatCompletionBlocking(ctx, messages []Message, tools []ToolDef)
+        (content string, toolCalls []ToolCall, usage Usage, err error)
+    ChatCompletionStreaming(ctx, messages []Message, tools []ToolDef, onDelta func(string))
+        (content string, toolCalls []ToolCall, usage Usage, err error)
+    ContextWindow() int   // 0 = no windowing configured
+}
 ```
 
-`NewClient` configures the underlying `go-openai` client with the base URL and API key.
+`Message`, `ToolDef`, `ToolCall`, and `Usage` are all defined in
+`internal/core/llm` — not in this package, and not in `internal/core/model`,
+which holds domain entities and repository contracts instead.
 
-### ChatWithTools
-
-The main method — sends a conversation and tool definitions to the LLM:
+## Construction
 
 ```go
-func (c *Client) ChatWithTools(ctx, messages []Message, tools []ToolDef) (content string, toolCalls []ToolCall, err error)
+client := llm.NewClient(llm.Config{
+    APIKey:        m.APIKey,
+    BaseURL:       m.APIURL,
+    Model:         m.Model,
+    ContextWindow: m.ContextWindow,   // 0 = no windowing
+    CallTimeout:   d,                 // 0 = DefaultCallTimeoutSecs
+})
 ```
 
-1. **Convert messages**: Maps `llm.Message` → `openai.ChatCompletionMessage`, including tool calls on assistant messages and tool_call_id on tool messages.
-2. **Convert tools**: Maps `llm.ToolDef` → `openai.Tool` with function type.
-3. **Send request**: Calls `CreateChatCompletion` with the model, messages, and tools.
-4. **Parse response**: Extracts content and any tool calls from the first choice.
+`Config` is this package's own struct, populated from a `models:` entry in
+`settings.yaml` or the `conversation.model` block in `server.yaml`. When
+`ContextWindow` is zero, `lookupContextWindow` falls back to a built-in table of
+known model sizes.
 
-### Message Types
+## Retries
 
-- **Message**: Used throughout the system for conversation history. Fields: `Role` (user/assistant/system/tool), `Content`, `ToolCallID` (for tool results), `ToolCalls` (for assistant messages requesting tools).
-- **ToolDef**: Describes a tool for the LLM. `Parameters` is `any` — typically a JSON schema `map[string]any`.
-- **ToolCall**: Represents one function call from the LLM. `Arguments` is a raw JSON string.
+Both call methods retry up to `maxRetryAttempts` (3) with a backoff of 1s, 2s,
+4s:
 
-All types use `json:"snake_case"` tags for persistence consistency.
+| Retried | Never retried |
+|---|---|
+| Rate limit (429) | Context cancellation or deadline — the caller gave up |
+| Server errors (500, 502, 503, 504) | Auth errors (401, 403) — needs user action |
+| Network-level errors (connection refused, DNS) | Bad request (400) — retrying cannot help |
+
+**Streaming stops retrying once a delta has been emitted.** Retrying after the
+user has already seen partial output would duplicate it, so a mid-stream failure
+surfaces as an error rather than a second attempt.
+
+Errors are wrapped by `wrapLLMError` with a human-readable classification, which
+is why a bad key produces a comprehensible message instead of a raw HTTP error.
+
+## Usage Capture
+
+Providers do not always report token usage in a streaming response.
+`usageCaptureTransport` is an `http.RoundTripper` that inspects the response
+body as it streams past and parses the usage block when one appears. This is why
+streamed runs still report token counts.
+
+## Per-Call Timeout
+
+`CallTimeout` wraps each individual attempt in `context.WithTimeout` — it bounds
+one call, not the whole run. A run with many tool-calling iterations is bounded
+by `MaxIter` in the agent loop, not here.
 
 ## Dependencies
 
-- **Uses**: `internal/config` (LLM config struct), `github.com/sashabaranov/go-openai` (API client)
-- **Used by**: `internal/core/agent` (via LLMCaller interface), `cmd/buildmax` (creates Client)
+- **Uses**: `internal/core/llm` (contract and message types),
+  `github.com/sashabaranov/go-openai`
+- **Used by**: `internal/agentapp` (client cache), `internal/bootstrap`
+  (Tier 1 conversation client)
 
 ## Notes
 
-- The package defines types but the agent interacts via the `LLMCaller` interface — making it easy to mock in tests.
-- Compatible with any OpenAI-compatible API (OpenRouter, Azure OpenAI, local ollama, etc.) by changing `BaseURL`.
+- Any OpenAI-compatible endpoint works by changing `BaseURL` — OpenRouter,
+  OpenAI, Azure, a local vLLM or Ollama gateway.
+- Because the agent depends on the interface rather than this struct, tests
+  substitute a fake client without touching the network.
 - See also: [Agent Loop](agent-loop.md), [Configuration](config.md).

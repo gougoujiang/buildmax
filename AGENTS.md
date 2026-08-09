@@ -69,7 +69,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 - **Session**: In-memory session in `internal/core/session` (id, title, created_at, message history); multi-turn; save/load under `DataDir()/sessions/<id>.json`; list index in `sessions.json` via `session.LoadList`.
 
 **Agent & tools**
-- **LLM integration**: OpenAI-compatible implementation in `internal/infra/llm` (OpenRouter default); shared LLM contracts such as `Message`, `ToolCall`, `Usage`, and `LLMClient` live in `internal/core/model`; model config is loaded by `internal/config` from `<BUILDMAX_HOME>/settings.yaml` (`models:` list, first entry is the default).
+- **LLM integration**: OpenAI-compatible implementation in `internal/infra/llm` (OpenRouter default); shared LLM contracts such as `Message`, `ToolCall`, `Usage`, and `LLMClient` live in `internal/core/llm` (not `core/model`, which holds domain entities and repository contracts); model config is loaded by `internal/config` from `<BUILDMAX_HOME>/settings.yaml` (`models:` list, first entry is the default).
 - **Agent loop**: Shared tool-calling loop (LLM -> tool_calls -> execute tools -> re-call LLM -> reply) in `internal/core/agent`; default system prompt prepended by the core agent run.
 - **Agent runtime assembly**: Runtime wiring for CLI, worker, and desktop lives in `internal/agentapp`; process bootstrapping lives in `internal/bootstrap/*`. `AgentApp` owns the LLM client cache, tool registry construction, MCP manager, skill/subagent discovery, session persistence, and workspace resolution.
 - **Optional workspace AGENTS.md**: When running the CLI, if a file named `AGENTS.md` exists at the workspace root (current working directory), its contents are appended to the default system prompt so the agent receives project-specific instructions. See the [agents.md](https://agents.md/) convention. For remote runs, the worker prepares an `AGENTS.md` in the run directory (run directory layout plus optional workspace `AGENTS.md` from materialized home) so the same convention applies when the shared agent runtime runs with cwd = run dir.
@@ -81,7 +81,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 
 **Config & infra**
 - **Application data**: `config.DataDir()` — default `~/.buildmax`, override via `BUILDMAX_HOME`; `make test` uses `testing-sandbox`.
-- **Config**: YAML files plus a handful of bootstrap env vars. `internal/config` loads `<BUILDMAX_HOME>/settings.yaml` (`LoadSettings()`, CLI/desktop: models, hooks, sandbox, log level) and `<BUILDMAX_HOME>/server.yaml` (`LoadServerConfig()`, server/worker: port, jwt, database, webhook, worker, storage), and resolves paths (`DataDir()`, `SessionsDir()`, `LogsDir()`, `TracesDir()`, `SettingsPath()`, `PolicyPath()`, `WorkspacesDir()`, `PersistentWorkspaceDir()`, `RuntimeWorkspaceDir()`, `ArtifactDir()`). Startup wiring lives under `internal/bootstrap/*`; config does not import infra implementations. `env_spec.go` is the single source of truth for the few env vars that remain (`BUILDMAX_HOME`, `BUILDMAX_JWT_SECRET`, `BUILDMAX_DEV_LOGIN_OTP`, `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED`, `BUILDMAX_TEST_DSN`). There is no `.env.example`. See `config-examples/*.example.yaml` and `docs/reference/configuration.md`.
+- **Config**: YAML files plus a handful of bootstrap env vars. `internal/config` loads `<BUILDMAX_HOME>/settings.yaml` (`LoadSettings()`, CLI/desktop: models, hooks, sandbox, log level) and `<BUILDMAX_HOME>/server.yaml` (`LoadServerConfig()`, server/worker: port, jwt, database, webhook, worker, storage), and resolves paths — `DataDir()`, `SessionsDir()`, `LogsDir()`, `TracesDir()`, `SettingsPath()`, `ServerConfigPath()`, `PolicyPath()`, `AuthPath()`, plus run-scoped helpers that take `workspacesDir` explicitly (`PersistentWorkspaceDir`, `RuntimeTaskRunDir`, `RuntimeTaskRunHomeDir`, `RuntimeTaskRunArtifactsDir`, `RuntimeTaskRunGlobalDir`). Startup wiring lives under `internal/bootstrap/*`; config does not import infra implementations. `env_spec.go` is the single source of truth for the few env vars that remain (`BUILDMAX_HOME`, `BUILDMAX_JWT_SECRET`, `BUILDMAX_DEV_LOGIN_OTP`, `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED`, `BUILDMAX_TEST_DSN`). There is no `.env.example`. See `config-examples/*.example.yaml` and `docs/reference/configuration.md`.
 - **Logging**: `log/slog` via `internal/infra/log`; level from `log_level` in settings.yaml/server.yaml; file-only (rotated under `DataDir()/logs`, Lumberjack); TUI/prompt output stays clean.
 
 **HTTP server & Portal backend**
@@ -162,10 +162,10 @@ buildmax/
 │   │   └── objectstore.go     # Startup builders for object storage implementations
 │   ├── config/                # Env loading, paths, server/worker/storage config, env_spec.go
 │   ├── core/                  # Pure domain layer: entities, contracts, algorithms (no application logic)
-│   │   ├── model/             # Shared entities, repository contracts, LLM contracts, Tool contract
+│   │   ├── model/             # Domain entities and repository contracts
 │   │   ├── agent/             # Core tool-calling loop and prompt/options (no infra imports)
 │   │   ├── session/           # Local session model and persistence helpers
-│   │   └── llm/               # LLM contract helpers
+│   │   └── llm/               # LLM contracts, Tool contract, ToolRegistry, tool policy
 │   ├── service/               # Application services: coordinate stores, enforce rules, create runs
 │   │   ├── conversation/      # Tier 1 conversation service (contracts, webhook policy, runtime façade)
 │   │   │   ├── channel/       # Channel-facing turn types and adapters
@@ -225,7 +225,7 @@ buildmax/
 - **internal/architecture**: Architectural constraint tests (import boundary enforcement).
 - **internal/bootstrap**: Process startup and dependency wiring for server, worker, and startup storage builders.
 - **internal/interface**: Local user-facing entry points: CLI + TUI (`cli/`), HTTP client for server API (`client/`), desktop Wails bridge (`desktop/`), and local auth credential/client code (`auth/`).
-- **internal/core**: Pure domain layer. `core/model` owns shared entities, repository contracts, LLM contracts, and the Tool contract. `core/agent` is the pure tool-calling loop with no infra imports. No application services live here.
+- **internal/core**: Pure domain layer. `core/model` owns domain entities and repository contracts; `core/llm` owns the LLM contracts, the Tool contract, `ToolRegistry`, and tool policy. `core/agent` is the pure tool-calling loop with no infra imports. No application services live here.
 - **internal/service**: Application services that coordinate stores, enforce business rules, and manage run lifecycles. `service/conversation` is Tier 1 (orchestrator); `service/task`, `service/issue`, `service/workflow`, and `service/quota` are the remaining application services.
 - **internal/tool**: Runtime agent tool implementations — file I/O, bash, grep, glob, web fetch, MCP gateway, skill, subagent runner, task bridge. Imports `internal/infra/mcp` and other infra as needed; not a pure domain package.
 - **internal/infra**: External-system implementations such as DB, object storage, LLM, Kubernetes, MCP transport, hook transports, the bash sandbox, the run-trace recorder, git helpers, the worker API client, and logging.

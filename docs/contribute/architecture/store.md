@@ -1,5 +1,7 @@
 # Store
 
+> **Audience:** contributors · **Status:** current
+
 ## Purpose
 
 `internal/infra/db` provides the MySQL/GORM persistence implementation for the
@@ -14,10 +16,15 @@ The active persistence model is team-scoped for shared work:
 - agent
 - workflow / workflow_run / workflow_step_run
 - task / task_run / task_run_artifact
-- quota_tier / usage aggregation
-- webhook key
+- quota_tier
+- user_webhook_key
 
 Table names are singular per project convention.
+
+There is no usage table. `TeamUsageInWindow` aggregates on read: it counts
+`task_run` rows joined to `task` by team and sums their prompt and completion
+tokens, plus the title-generation tokens recorded on tasks created in the same
+window. Metering therefore has no separate write path to keep in sync.
 
 ## Key Boundaries
 
@@ -29,7 +36,11 @@ Table names are singular per project convention.
 
 ## Notes
 
-- Public entity IDs use prefixed IDs such as `u_`, `tm_`, `c_`, `t_`, and `r_`.
+- Public entity IDs use prefixed IDs — `u_` user, `tm_` team, `i_` issue, `a_` agent,
+  `w_`/`wr_`/`wsr_` workflow, workflow run, workflow step run, `c_` conversation,
+  `cm_` conversation message, `t_` task, `r_` task run, `ar_` artifact,
+  `f_` artifact item, `whk_` webhook key. Constants live in `internal/util/id.go`.
+- Session IDs are the exception: they are internal and use UUIDs.
 - JSON/API fields use `snake_case`.
 - `internal/bootstrap/server.go` opens the DB and injects the store into handlers and services.
 - See also: [Server](server.md), [Configuration](config.md).

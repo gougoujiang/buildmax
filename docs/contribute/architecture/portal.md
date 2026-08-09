@@ -1,5 +1,7 @@
 # Portal
 
+> **Audience:** contributors · **Status:** current
+
 ## Purpose
 
 The Portal is the team collaboration surface under `portal/`. It is a React 19
@@ -22,7 +24,11 @@ Portal owns the cloud/team lane:
 - Pages live under `portal/src/pages/*`.
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
-- Conversation streaming uses `portal/src/contexts/WebSocketContext.tsx`.
+- Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
+  `AuthContext`, `TeamContext`, and `WebSocketContext`, which carries
+  conversation streaming.
+- The HTTP layer is `portal/src/lib/api/` (`client`, `mappers`, `types`, plus
+  `sse` and `ws` for streaming transports).
 
 ## Product Boundary
 
