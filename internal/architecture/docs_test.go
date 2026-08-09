@@ -123,10 +123,31 @@ func TestToolNamesDocumented(t *testing.T) {
 // agentsMDPathRe matches repository paths written in backticks, e.g. `internal/config`.
 var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|portal|gui|desktop|config-examples|deployment|setup|eval|scripts)/[A-Za-z0-9_./-]*)`")
 
+// buildArtifactSegments name directories that only exist after a build. AGENTS.md
+// legitimately refers to them (gui/dist, portal/dist, gui/node_modules), but they
+// are absent from a fresh checkout, so their existence says nothing about whether
+// the document is accurate.
+var buildArtifactSegments = map[string]bool{
+	"dist": true, "node_modules": true, "bin": true, "build": true,
+}
+
+// isBuildArtifact reports whether any segment of p is a build output directory.
+func isBuildArtifact(p string) bool {
+	for _, seg := range strings.Split(p, "/") {
+		if buildArtifactSegments[seg] {
+			return true
+		}
+	}
+	return false
+}
+
 // TestAgentsMDPathsExist fails when AGENTS.md cites a repository path that does
 // not exist. AGENTS.md is loaded into every agent session, so a stale path there
 // misleads more often than a stale path in any single document — and it has
 // repeatedly been the source that other documents copied from.
+//
+// Build outputs are skipped: they are absent from a fresh checkout, and requiring
+// them made this test pass on a developer machine and fail in CI.
 func TestAgentsMDPathsExist(t *testing.T) {
 	root := repoRoot(t)
 	body, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
@@ -135,6 +156,9 @@ func TestAgentsMDPathsExist(t *testing.T) {
 	}
 	for _, m := range agentsMDPathRe.FindAllStringSubmatch(string(body), -1) {
 		p := strings.TrimSuffix(m[1], "/")
+		if isBuildArtifact(p) {
+			continue
+		}
 		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
 			t.Errorf("AGENTS.md cites %q, which does not exist", m[1])
 		}
