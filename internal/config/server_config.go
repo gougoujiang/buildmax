@@ -126,6 +126,13 @@ type ServerWorkerConfig struct {
 type ServerK8sConfig struct {
 	Namespace string `mapstructure:"namespace"`
 	Image     string `mapstructure:"image"`
+	// ConfigMap names a ConfigMap holding a server.yaml key. It is mounted into
+	// every worker pod so the worker reads the same configuration the server does.
+	// Empty means no config file is mounted and the worker relies on inherited
+	// environment variables alone, which is rarely enough.
+	ConfigMap string `mapstructure:"config_map"`
+	// HomeDir is BUILDMAX_HOME inside a worker pod; server.yaml is mounted there.
+	HomeDir string `mapstructure:"home_dir"`
 }
 
 // ServerStorageConfig holds blob storage backend selection and MinIO settings.
@@ -154,8 +161,25 @@ func ServerConfigPath() string {
 	return filepath.Join(DataDir(), "server.yaml")
 }
 
+// Environment overrides for secret-bearing server.yaml fields. The file stays the
+// source of truth for shape and non-secret values; these exist so a deployment can
+// inject credentials from a Kubernetes Secret, a Docker secret, or a CI variable
+// without writing them to disk. Same pattern as jwt_secret.
+const (
+	// BUILDMAX_DATABASE_PASSWORD overrides database.password.
+	EnvKeyBuildmaxDatabasePassword = "BUILDMAX_DATABASE_PASSWORD"
+	// BUILDMAX_STORAGE_MINIO_ACCESS_KEY overrides storage.minio.access_key.
+	EnvKeyBuildmaxMinIOAccessKey = "BUILDMAX_STORAGE_MINIO_ACCESS_KEY"
+	// BUILDMAX_STORAGE_MINIO_SECRET_KEY overrides storage.minio.secret_key.
+	EnvKeyBuildmaxMinIOSecretKey = "BUILDMAX_STORAGE_MINIO_SECRET_KEY"
+	// BUILDMAX_WORKER_TOKEN overrides worker.token, the shared secret for /api/worker/*.
+	EnvKeyBuildmaxWorkerToken = "BUILDMAX_WORKER_TOKEN"
+	// BUILDMAX_CONVERSATION_MODEL_API_KEY overrides conversation.model.api_key.
+	EnvKeyBuildmaxConversationAPIKey = "BUILDMAX_CONVERSATION_MODEL_API_KEY"
+)
+
 // LoadServerConfig reads BUILDMAX_HOME/server.yaml via Viper and applies defaults.
-// BUILDMAX_JWT_SECRET env var overrides the jwt_secret field (for production deploy).
+// Secret-bearing fields can be overridden by the environment variables above.
 // A missing file is not an error — returns a config with all defaults applied.
 func LoadServerConfig() (ServerConfig, error) {
 	v := viper.New()
@@ -172,6 +196,8 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("worker.run_mode", "local_process")
 	v.SetDefault("worker.k8s.namespace", "buildmax")
 	v.SetDefault("worker.k8s.image", "buildmax:local")
+	v.SetDefault("worker.k8s.config_map", "buildmax-config")
+	v.SetDefault("worker.k8s.home_dir", "/buildmax")
 	v.SetDefault("storage.persist_backend", ProviderLocalFS)
 	v.SetDefault("storage.artifact_backend", ProviderLocalFS)
 	v.SetDefault("storage.minio.endpoint", "http://localhost:9000")
@@ -187,10 +213,16 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("database.name", "buildmax")
 	v.SetDefault("conversation.model.context_window", 0)
 
-	// BUILDMAX_JWT_SECRET env var overrides jwt_secret in the file.
+	// Environment overrides for values that should not live in the file on disk.
+	// An explicit env name is passed, so SetEnvPrefix does not apply to these.
 	v.SetEnvPrefix("BUILDMAX")
 	_ = v.BindEnv("jwt_secret", EnvKeyBuildmaxJWTSecret)
 	_ = v.BindEnv("dev_login_otp", EnvKeyBuildmaxDevLoginOTP)
+	_ = v.BindEnv("database.password", EnvKeyBuildmaxDatabasePassword)
+	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
+	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)
+	_ = v.BindEnv("worker.token", EnvKeyBuildmaxWorkerToken)
+	_ = v.BindEnv("conversation.model.api_key", EnvKeyBuildmaxConversationAPIKey)
 
 	if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return ServerConfig{}, err
