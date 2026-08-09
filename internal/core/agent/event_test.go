@@ -113,7 +113,9 @@ func TestEvents_ToolCall(t *testing.T) {
 	if starts[0].ToolName != "echo" || starts[0].ToolCallID != "c1" {
 		t.Errorf("ToolStart = %+v", starts[0])
 	}
-	if ends[0].ToolResult != "echoed" || ends[0].ToolDuration <= 0 {
+	// Duration may legitimately be 0: the Windows clock ticks in ~15ms steps,
+	// so a mock tool can start and finish inside one tick.
+	if ends[0].ToolResult != "echoed" || ends[0].ToolDuration < 0 {
 		t.Errorf("ToolEnd = %+v", ends[0])
 	}
 

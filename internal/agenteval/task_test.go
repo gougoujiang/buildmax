@@ -42,6 +42,37 @@ test -f result.txt
 	}
 }
 
+// TestParseTask_CRLF covers task files checked out with Windows line endings:
+// the frontmatter and grader separators are LF-only, so parsing has to
+// normalize first or every section comes back empty.
+func TestParseTask_CRLF(t *testing.T) {
+	unix := `---
+id: test-task
+title: My Test Task
+---
+
+Do something useful in the workspace.
+
+---grader---
+
+test -f result.txt
+`
+	data := []byte(strings.ReplaceAll(unix, "\n", "\r\n"))
+	task, err := ParseTask(data, "/tmp/fixture")
+	if err != nil {
+		t.Fatalf("ParseTask: %v", err)
+	}
+	if task.ID != "test-task" {
+		t.Errorf("ID = %q, want test-task", task.ID)
+	}
+	if task.Prompt != "Do something useful in the workspace." {
+		t.Errorf("Prompt = %q, want the prompt section without CR", task.Prompt)
+	}
+	if task.Grader != "test -f result.txt" {
+		t.Errorf("Grader = %q, want the grader section without CR", task.Grader)
+	}
+}
+
 func TestParseTask_DefaultTimeout(t *testing.T) {
 	data := []byte(`---
 id: minimal

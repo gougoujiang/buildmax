@@ -38,7 +38,9 @@ type Task struct {
 // fixtureBase is the path to use for FixtureDir when the frontmatter does not
 // specify one explicitly (convention: same path as the .md file without extension).
 func ParseTask(data []byte, fixtureBase string) (Task, error) {
-	content := string(data)
+	// Normalize line endings first: task files checked out on Windows carry
+	// CRLF, and every separator below ("\n---", graderSeparator) is LF-only.
+	content := strings.ReplaceAll(string(data), "\r\n", "\n")
 	content = strings.TrimSpace(content)
 
 	if !strings.HasPrefix(content, "---") {

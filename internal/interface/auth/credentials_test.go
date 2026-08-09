@@ -3,6 +3,7 @@ package auth
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -90,6 +91,9 @@ func TestIsValid(t *testing.T) {
 }
 
 func TestFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not implement Unix file modes; os.Stat always reports 0666")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "auth.json")
 	_ = Save(&Credentials{Token: "secret"}, path)

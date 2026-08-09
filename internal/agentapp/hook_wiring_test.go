@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -223,6 +224,9 @@ func TestAgentApp_UserPromptSubmitBlockShortCircuits(t *testing.T) {
 // returns exit 2 to block; the absence of any global hook for the same
 // matcher proves the workspace layer is loaded.
 func TestAgentApp_WorkspaceHookCanBlock(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("hook command is sh syntax; cmd.exe does not honor ';' as a separator")
+	}
 	home := t.TempDir()
 	t.Setenv("BUILDMAX_HOME", home)
 

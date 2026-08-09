@@ -87,10 +87,10 @@ isolation.
 
 ## Bash tool behaves oddly on Windows
 
-Native Windows has no sandbox, and the bash tool falls back to `cmd /c`. Windows
-is not covered end to end by CI: the Windows job builds and vets, but the test
-suite there is advisory. WSL2 is the supported path for anything involving the
-shell, `./make setup`, or deployment.
+Native Windows has no sandbox, and the bash tool falls back to `cmd /c`. CI
+builds, vets, and runs the test suite on Windows, but shell-dependent tests are
+skipped there. WSL2 is the supported path for anything involving the shell,
+`./make setup`, or deployment.
 
 ## Something else
 
