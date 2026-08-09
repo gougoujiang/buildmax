@@ -1,27 +1,29 @@
-# 图书目录示例数据 (Books Example)
+# Book Catalog Example Data
 
-用于 Agent 工具做筛选、聚合、排序等操作的演示场景。
+A book catalog, for demonstrating filtering, aggregation, and sorting.
 
-## 文件说明
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `books.csv` | 图书目录：ISBN、书名、作者、分类、出版年、定价、库存 |
+| File | Contents |
+|---|---|
+| `books.csv` | ISBN, title, author, category, publication year, price, stock |
 
-## 字段说明
+## Columns
 
-- **isbn**: 国际标准书号
-- **title**: 书名
-- **author**: 作者
-- **category**: 分类（技术、文学、科幻、历史、科普、经管、推理）
-- **publish_year**: 出版年份
-- **price**: 定价（元）
-- **stock**: 库存数量
+- **isbn** — International Standard Book Number
+- **title** — book title (Chinese and English titles both appear)
+- **author** — author name
+- **category** — one of `技术` (technology), `文学` (literature), `科幻`
+  (science fiction), `历史` (history), `科普` (popular science), `经管`
+  (business), `推理` (mystery)
+- **publish_year** — year of publication
+- **price** — list price in CNY
+- **stock** — units on hand
 
-## 示例查询思路
+## Query ideas
 
-- 按分类统计数量或总库存
-- 按作者查找（如刘慈欣、余华）
-- 价格区间、出版年份筛选
-- 库存不足（如 &lt;50）预警
-- 按价格或出版年排序
+- Count titles or sum stock per `category`
+- Find every book by one author, for example `刘慈欣` or `余华`
+- Filter by price range or publication year
+- Low-stock alerts, for example `stock < 50`
+- Sort by price or publication year

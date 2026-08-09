@@ -1,0 +1,32 @@
+<!--
+CONTRIBUTING.md has the full guidance. The short version: one concern per PR,
+tests for behavioral changes, and documentation updated alongside the code.
+-->
+
+## What and why
+
+<!-- The problem this solves, and the approach taken. -->
+
+## Verification
+
+<!--
+What you actually ran, and what it showed. `./make test` and `./make build`
+cover nearly everything CI checks. Say so explicitly if a change is untested
+and why.
+-->
+
+## Notes for the reviewer
+
+<!--
+Remaining limitations, follow-up work, anything you are unsure about, and any
+behavior change a user would notice. Delete this section if there is nothing.
+-->
+
+---
+
+- [ ] Tests added or updated for behavioral changes
+- [ ] Documentation updated: `docs/architecture/` for behavior or boundary
+      changes, `docs/design/` for direction changes, README and
+      `config-examples/` for user-facing configuration
+- [ ] No credentials, customer data, or private deployment details in the diff
+- [ ] Breaking changes to existing public behavior are called out above

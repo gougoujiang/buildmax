@@ -1,25 +1,27 @@
-# 员工/HR 示例数据 (Employees)
+# Employees / HR Example Data
 
-用于按部门、职位、工龄、薪资档位做统计与筛选演示。
+A staff roster, for counting and filtering by department, position, tenure, and
+salary band.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `employees.csv` | 员工表：工号、姓名、部门、职位、入职日、薪资档位 |
+| File | Contents |
+|---|---|
+| `employees.csv` | Employee ID, name, department, position, hire date, salary band |
 
-## 字段
+## Columns
 
-- **employee_id**: 工号
-- **name**: 姓名
-- **department**: 部门（研发、产品、设计、市场、人事）
-- **position**: 职位
-- **hire_date**: 入职日期
-- **salary_band**: 薪资档位（A/B/C，A 最高）
+- **employee_id** — employee number
+- **name** — employee name
+- **department** — one of `研发` (engineering), `产品` (product), `设计`
+  (design), `市场` (marketing), `人事` (HR)
+- **position** — job title, for example `后端工程师` (backend engineer)
+- **hire_date** — date joined
+- **salary_band** — `A`, `B`, or `C`, where `A` is highest
 
-## 示例查询
+## Query ideas
 
-- 按部门统计人数
-- 按职位或薪资档位筛选
-- 工龄计算（基于 hire_date）
-- 某部门下的员工列表
+- Headcount per `department`
+- Filter by position or salary band
+- Compute tenure from `hire_date`
+- List everyone in a given department

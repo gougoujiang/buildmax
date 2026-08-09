@@ -1,25 +1,27 @@
-# 天气记录示例数据 (Weather)
+# Weather Records Example Data
 
-用于城市对比、温度趋势、降水统计等演示。
+Daily weather observations for several cities, for comparisons, temperature
+trends, and precipitation statistics.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `weather.csv` | 天气记录：日期、城市、最高温、最低温、降水(mm)、天气现象 |
+| File | Contents |
+|---|---|
+| `weather.csv` | Date, city, high, low, precipitation, conditions |
 
-## 字段
+## Columns
 
-- **date**: 日期
-- **city**: 城市（北京、上海、广州）
-- **temp_max**: 最高气温（℃）
-- **temp_min**: 最低气温（℃）
-- **precipitation_mm**: 降水量（毫米）
-- **conditions**: 天气现象（晴、多云、阴、小雨、中雨、雷阵雨）
+- **date** — observation date
+- **city** — `北京` (Beijing), `上海` (Shanghai), `广州` (Guangzhou)
+- **temp_max** — daily high in °C
+- **temp_min** — daily low in °C
+- **precipitation_mm** — precipitation in millimetres
+- **conditions** — one of `晴` (clear), `多云` (cloudy), `阴` (overcast),
+  `小雨` (light rain), `中雨` (moderate rain), `雷阵雨` (thunderstorms)
 
-## 示例查询
+## Query ideas
 
-- 某城市某时段温度趋势
-- 城市间温度或降水对比
-- 有降水日筛选（precipitation_mm > 0）
-- 按天气现象统计
+- Temperature trend for one city over a period
+- Compare temperature or rainfall across cities
+- Days with rain, where `precipitation_mm > 0`
+- Count days by `conditions`

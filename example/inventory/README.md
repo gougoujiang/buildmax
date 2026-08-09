@@ -1,24 +1,25 @@
-# 库存/仓储示例数据 (Inventory)
+# Inventory / Warehousing Example Data
 
-用于低库存预警、按仓库汇总、周转与补货分析演示。
+Stock levels across warehouses, for low-stock alerts, per-warehouse totals, and
+restocking analysis.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `inventory.csv` | 库存表：SKU、仓库、数量、最后入库日、安全库存 |
+| File | Contents |
+|---|---|
+| `inventory.csv` | SKU, warehouse, quantity, last restock date, safety stock |
 
-## 字段
+## Columns
 
-- **sku**: 商品 SKU
-- **warehouse**: 仓库（北京仓、上海仓、广州仓）
-- **quantity**: 当前数量
-- **last_restock_date**: 最后入库日期
-- **safety_stock**: 安全库存阈值
+- **sku** — stock keeping unit
+- **warehouse** — `北京仓` (Beijing), `上海仓` (Shanghai), `广州仓` (Guangzhou)
+- **quantity** — units currently on hand
+- **last_restock_date** — date of the most recent restock
+- **safety_stock** — threshold below which the SKU should be reordered
 
-## 示例查询
+## Query ideas
 
-- 低库存预警（quantity < safety_stock）
-- 缺货（quantity = 0）
-- 按仓库汇总数量
-- 超期未补货（last_restock_date 较早）
+- Low stock, where `quantity < safety_stock`
+- Out of stock, where `quantity = 0`
+- Total units per warehouse
+- SKUs not restocked for a long time, by `last_restock_date`

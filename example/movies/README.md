@@ -1,24 +1,26 @@
-# 电影/影评示例数据 (Movies)
+# Films Example Data
 
-用于排行、类型分布、年度 Top N、评分筛选等演示。
+A film list, for rankings, genre distribution, per-year top N, and rating
+filters.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `movies.csv` | 电影表：片名、类型、年份、评分、票房(亿元) |
+| File | Contents |
+|---|---|
+| `movies.csv` | Title, genre, year, rating, box office |
 
-## 字段
+## Columns
 
-- **title**: 片名
-- **genre**: 类型（科幻、剧情、喜剧、战争、动画、动作等）
-- **year**: 上映年份
-- **rating**: 评分（0-10）
-- **box_office_cny_m**: 票房（单位：百万元，即亿元×100）
+- **title** — film title
+- **genre** — one of `科幻` (sci-fi), `剧情` (drama), `喜剧` (comedy), `战争`
+  (war), `动画` (animation), `动作` (action), and others
+- **year** — release year
+- **rating** — 0 to 10
+- **box_office_cny_m** — box office in millions of CNY
 
-## 示例查询
+## Query ideas
 
-- 按类型统计数量或总票房
-- 按评分排序（高分/低分）
-- 某年度电影列表或 Top N
-- 票房过某阈值的电影
+- Count or total box office per `genre`
+- Sort by rating, highest or lowest
+- All films from one year, or the top N
+- Films above a box-office threshold

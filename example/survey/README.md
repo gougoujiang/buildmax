@@ -1,24 +1,26 @@
-# 问卷/调查示例数据 (Survey)
+# Survey Responses Example Data
 
-用于选项分布、多题交叉、完成率等演示。
+Survey answers in long format — one row per question per respondent — for
+option distributions, cross-tabulation, and completion rates.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `responses.csv` | 答卷表：答卷 id、题目 id、题目文本、选项、答卷人 |
+| File | Contents |
+|---|---|
+| `responses.csv` | Response ID, question ID, question text, selected option, respondent |
 
-## 字段
+## Columns
 
-- **response_id**: 答卷记录 ID
-- **question_id**: 题目 ID（Q1/Q2/Q3/Q4）
-- **question_text**: 题目文本
-- **option**: 所选选项（多选用分号分隔）
-- **respondent**: 答卷人（可匿名）
+- **response_id** — response record ID
+- **question_id** — `Q1` through `Q4`
+- **question_text** — the question as shown to the respondent
+- **option** — the chosen option; semicolon-separated when multiple choice
+- **respondent** — respondent name, possibly anonymous
 
-## 示例查询
+## Query ideas
 
-- 按题目统计各选项数量（分布）
-- 某题的平均分（如 Q3 满意度）
-- 多题交叉（如「选 Go 的人里选「是」的比例」）
-- 完成率（按 respondent 去重计数）
+- Count each option per question, for a distribution
+- Average score for a rating question such as `Q3`
+- Cross-tabulate two questions, for example the share of people who chose Go
+  who also answered yes
+- Completion rate, by counting distinct `respondent` values

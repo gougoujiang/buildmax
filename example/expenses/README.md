@@ -1,24 +1,28 @@
-# 记账/开支示例数据 (Expenses)
+# Personal Expenses Example Data
 
-用于按分类/月度汇总、支出趋势、账户统计等演示。
+A personal spending ledger, for totals by category or month, spending trends,
+and per-account breakdowns.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `expenses.csv` | 开支表：日期、分类、金额、账户、备注 |
+| File | Contents |
+|---|---|
+| `expenses.csv` | Date, category, amount, payment account, note |
 
-## 字段
+## Columns
 
-- **date**: 日期
-- **category**: 分类（餐饮、交通、购物、住房、娱乐、学习、医疗、通讯等）
-- **amount_cny**: 金额（元）
-- **account**: 支付账户（支付宝、微信、银行卡、无）
-- **note**: 备注
+- **date** — transaction date
+- **category** — one of `餐饮` (dining), `交通` (transport), `购物` (shopping),
+  `住房` (housing), `娱乐` (entertainment), `学习` (education), `医疗`
+  (medical), `通讯` (telecom), and others
+- **amount_cny** — amount in CNY
+- **account** — payment method: `支付宝` (Alipay), `微信` (WeChat Pay),
+  `银行卡` (bank card), or `无` (none)
+- **note** — free-text note
 
-## 示例查询
+## Query ideas
 
-- 按分类汇总金额
-- 按日期范围或月份汇总
-- 某账户支出合计
-- 单笔大额（amount_cny 大于某值）
+- Sum amounts per `category`
+- Totals over a date range or by month
+- Total spend on one account
+- Large single transactions, where `amount_cny` exceeds a threshold

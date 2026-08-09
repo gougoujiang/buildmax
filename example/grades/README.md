@@ -1,25 +1,27 @@
-# 学生成绩表示例数据 (Grades Example)
+# Student Grades Example Data
 
-用于 Agent 工具（read_file, grep, editfile 等）的测试与演示。
+Exam results, for statistics by class or subject and for finding failing
+students.
 
-## 文件说明
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `grades.csv` | 成绩明细：学号、姓名、班级、科目、分数、考试日期 |
+| File | Contents |
+|---|---|
+| `grades.csv` | Student ID, name, class, subject, score, exam date |
 
-## 字段说明
+## Columns
 
-- **student_id**: 学号
-- **name**: 姓名
-- **class**: 班级（高一(1)班 / 高一(2)班）
-- **subject**: 科目（语文、数学、英语、物理、化学）
-- **score**: 分数 (0–100)
-- **exam_date**: 考试日期
+- **student_id** — student number
+- **name** — student name
+- **class** — `高一(1)班` or `高一(2)班` (grade 10, classes 1 and 2)
+- **subject** — one of `语文` (Chinese), `数学` (maths), `英语` (English),
+  `物理` (physics), `化学` (chemistry)
+- **score** — 0 to 100
+- **exam_date** — date of the exam
 
-## 示例查询思路
+## Query ideas
 
-- 按班级统计平均分、最高分
-- 按科目找出不及格（&lt;60）学生
-- 按学号汇总某学生的各科成绩与总分
-- 按考试日期筛选
+- Mean and maximum score per class
+- Students failing a subject, `score < 60`
+- All subjects and the total for one `student_id`
+- Filter by exam date

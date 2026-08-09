@@ -1,24 +1,26 @@
-# 健身/运动示例数据 (Fitness)
+# Workout Log Example Data
 
-用于周/月汇总、运动类型分布、卡路里统计、目标完成率等演示。
+An exercise log, for weekly and monthly rollups, activity mix, calorie totals,
+and goal tracking.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `fitness.csv` | 运动记录：日期、运动类型、时长(分)、卡路里、备注 |
+| File | Contents |
+|---|---|
+| `fitness.csv` | Date, activity type, duration in minutes, calories, note |
 
-## 字段
+## Columns
 
-- **date**: 日期
-- **activity_type**: 运动类型（跑步、力量、游泳、骑行、瑜伽、休息）
-- **duration_min**: 时长（分钟）
-- **calories**: 消耗卡路里（估算）
-- **note**: 备注
+- **date** — date of the session
+- **activity_type** — one of `跑步` (running), `力量` (strength), `游泳`
+  (swimming), `骑行` (cycling), `瑜伽` (yoga), `休息` (rest day)
+- **duration_min** — duration in minutes
+- **calories** — estimated calories burned
+- **note** — free-text note
 
-## 示例查询
+## Query ideas
 
-- 按周/月汇总运动次数或总时长
-- 按运动类型统计
-- 卡路里合计或日均
-- 休息日与训练日分布
+- Sessions or total minutes per week or month
+- Distribution across `activity_type`
+- Total or daily-average calories
+- Ratio of rest days to training days

@@ -10,6 +10,7 @@ question a reader is trying to answer.
 | How the system works today | [architecture/](architecture/) | Per-subsystem reference for the current codebase |
 | Why it is built this way | [design/](design/) | Current design documents behind the roadmap |
 | How it used to work | [archive/](archive/) | Superseded designs, kept for history and rationale |
+| What the dependencies are licensed under | [dependency-licenses.md](dependency-licenses.md) | Go and npm license audit, and how to re-run it |
 | How to contribute | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Development checks, boundaries, pull request guidance |
 | How to report a vulnerability | [../SECURITY.md](../SECURITY.md) | Disclosure process and operator responsibilities |
 

@@ -1,0 +1,74 @@
+name: Bug report
+description: Something behaves differently than documented or expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report security vulnerabilities here — see
+        [SECURITY.md](https://github.com/gougoujiang/buildmax/blob/main/SECURITY.md)
+        for the private channel. Never paste API keys, tokens, or production
+        configuration into an issue.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      options:
+        - CLI / TUI
+        - Desktop app
+        - Portal (web)
+        - Server
+        - Worker / background task runs
+        - Agent runtime (tools, MCP, hooks, sandbox)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: |
+        The smallest sequence that shows the problem. Include the command you
+        ran and any relevant configuration, with secrets removed.
+      placeholder: |
+        1. ./make build
+        2. buildmax -p "..."
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `buildmax version`, or the commit SHA you built from.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and architecture
+      placeholder: macOS 15.4 arm64 / Ubuntu 24.04 amd64 / Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant lines from `~/.buildmax/logs/` (or `$BUILDMAX_HOME/logs/`).
+        Run traces under `traces/<session_id>/` are often the most useful.
+        Review them for credentials before pasting.
+      render: text

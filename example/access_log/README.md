@@ -1,24 +1,25 @@
-# 访问日志示例数据 (Access Log)
+# Access Log Example Data
 
-用于按路径/状态码统计、错误率、高频接口等演示。
+A simplified web access log, for counting by path or status code, computing
+error rates, and finding slow requests.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `access_log.csv` | 简化访问日志：时间、IP、路径、状态码、耗时(ms) |
+| File | Contents |
+|---|---|
+| `access_log.csv` | Timestamp, client IP, path, status code, duration in ms |
 
-## 字段
+## Columns
 
-- **timestamp**: 请求时间
-- **ip**: 客户端 IP
-- **path**: 请求路径
-- **status_code**: HTTP 状态码（200/401/404/500）
-- **duration_ms**: 响应耗时（毫秒）
+- **timestamp** — request time
+- **ip** — client IP address
+- **path** — request path
+- **status_code** — HTTP status: `200`, `401`, `404`, `500`
+- **duration_ms** — response time in milliseconds
 
-## 示例查询
+## Query ideas
 
-- 按 path 统计请求次数（高频接口）
-- 按 status_code 统计（错误率、4xx/5xx）
-- 按 ip 统计（活跃 IP）
-- 慢请求（duration_ms 大于某阈值）
+- Request counts per `path`, to find the busiest endpoints
+- Distribution of `status_code`, and the 4xx/5xx error rate
+- Requests per `ip`, to find the most active clients
+- Slow requests, where `duration_ms` exceeds a threshold

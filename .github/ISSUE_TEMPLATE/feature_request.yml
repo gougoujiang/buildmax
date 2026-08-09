@@ -1,0 +1,48 @@
+name: Feature request
+description: Propose a capability or a change in behavior
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything that adds a runtime provider or tool, or that touches
+        security, persistence, or a public API, please open this issue before
+        writing code — see [CONTRIBUTING.md](https://github.com/gougoujiang/buildmax/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation, not the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface would this land on?
+      description: |
+        Capability that belongs to every surface generally goes into the shared
+        agent runtime first. See docs/design/023-desktop-cli-portal-positioning.md.
+      multiple: true
+      options:
+        - Agent runtime (shared by all surfaces)
+        - CLI / TUI
+        - Desktop app
+        - Portal (web)
+        - Server / worker
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including doing nothing, or solving it outside BuildMax.

@@ -1,25 +1,34 @@
-# Example Data for Demo & Testing
+# Example Data for Demos and Testing
 
-本目录提供多场景示例数据，供 BuildMax Agent 工具（read_file、grep、editfile 等）做演示与测试。各子目录内含 CSV 数据与 README 说明。
+Sample datasets covering several scenarios, used to demonstrate and exercise the
+BuildMax agent tools (`read_file`, `grep`, `editfile`, and so on). Each
+subdirectory holds a CSV plus a README describing its columns.
 
-## 场景一览
+The data is deliberately Chinese-language in most files — product names,
+categories, city names. That is intentional: it keeps the fixtures honest about
+multibyte text, which is where naive line, column, and offset handling tends to
+break. The documentation is in English, and every README lists the literal
+values you need in order to write a query.
 
-| 目录 | 场景 | 主文件 | 典型用途 |
-|------|------|--------|----------|
-| [access_log](access_log/) | 访问日志 | access_log.csv | 按路径/状态码统计、错误率、慢请求 |
-| [books](books/) | 图书目录 | books.csv | 按作者/分类/价格筛选、库存预警 |
-| [employees](employees/) | 员工/HR | employees.csv | 按部门/职位/工龄统计 |
-| [expenses](expenses/) | 记账/开支 | expenses.csv | 按分类/月度汇总、支出趋势 |
-| [fitness](fitness/) | 健身/运动 | fitness.csv | 周月汇总、类型分布、卡路里统计 |
-| [grades](grades/) | 学生成绩 | grades.csv | 按班级/科目统计、不及格名单 |
-| [inventory](inventory/) | 库存/仓储 | inventory.csv | 低库存预警、按仓库汇总 |
-| [meetings](meetings/) | 会议/日程 | meetings.csv | 冲突检测、某人日程、会议室占用 |
-| [movies](movies/) | 电影 | movies.csv | 排行、类型分布、年度 Top N |
-| [orders](orders/) | 订单/电商 | orders.csv | 状态筛选、按日/月汇总、退款率 |
-| [recipes](recipes/) | 食谱/菜谱 | recipes.csv | 按食材查菜、按难度/分类筛选 |
-| [sales](sales/) | 销售 | sales_data.csv, sales/ | 区域/产品销量、收入汇总 |
-| [survey](survey/) | 问卷/调查 | responses.csv | 选项分布、多题交叉、完成率 |
-| [tasks](tasks/) | 项目任务/看板 | tasks.csv | 逾期任务、按人/项目统计、状态流转 |
-| [weather](weather/) | 天气记录 | weather.csv | 城市对比、温度趋势、降水统计 |
+## Scenarios
 
-根目录另有 `shakespeare.txt` 等文本示例，可用于 read_file / grep 等工具演示。
+| Directory | Scenario | Main file | Typical use |
+|---|---|---|---|
+| [access_log](access_log/) | Web access log | access_log.csv | Counts by path or status code, error rate, slow requests |
+| [books](books/) | Book catalog | books.csv | Filter by author, category, or price; low-stock alerts |
+| [employees](employees/) | Employees / HR | employees.csv | Counts by department, position, or tenure |
+| [expenses](expenses/) | Personal expenses | expenses.csv | Totals by category or month, spending trends |
+| [fitness](fitness/) | Workout log | fitness.csv | Weekly and monthly totals, activity mix, calories |
+| [grades](grades/) | Student grades | grades.csv | Stats by class or subject, failing lists |
+| [inventory](inventory/) | Stock / warehousing | inventory.csv | Low-stock alerts, totals by warehouse |
+| [meetings](meetings/) | Meetings / calendar | meetings.csv | Conflict detection, one person's schedule, room usage |
+| [movies](movies/) | Films | movies.csv | Rankings, genre mix, top N by year |
+| [orders](orders/) | E-commerce orders | orders.csv | Filter by status, daily or monthly totals, refund rate |
+| [recipes](recipes/) | Recipes | recipes.csv | Find dishes by ingredient, filter by difficulty or cuisine |
+| [sales](sales/) | Sales | sales_data.csv, sales/ | Volume and revenue by region or product |
+| [survey](survey/) | Survey responses | responses.csv | Option distribution, cross-tabulation, completion rate |
+| [tasks](tasks/) | Project tasks / board | tasks.csv | Overdue tasks, counts by assignee or project, status flow |
+| [weather](weather/) | Weather records | weather.csv | City comparison, temperature trends, precipitation |
+
+The top level also holds plain-text samples such as `shakespeare.txt`, useful
+for exercising `read_file` and `grep` on prose rather than tabular data.

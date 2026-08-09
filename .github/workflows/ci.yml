@@ -17,9 +17,9 @@ jobs:
     name: Go (build, vet, test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -51,13 +51,20 @@ jobs:
           BUILDMAX_HOME: ./testing-sandbox
         run: go test ./...
 
+      # Fails on copyleft that would conflict with redistributing under
+      # Apache-2.0. See docs/dependency-licenses.md.
+      - name: Check dependency licenses
+        run: |
+          go install github.com/google/go-licenses@latest
+          go-licenses check ./cmd/... --disallowed_types=forbidden,restricted
+
   frontend:
     name: Frontend (gui, portal)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 

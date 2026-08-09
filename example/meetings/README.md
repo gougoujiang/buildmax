@@ -1,25 +1,26 @@
-# 会议/日程示例数据 (Meetings)
+# Meetings / Calendar Example Data
 
-用于冲突检测、某人日程、会议室占用等演示。
+A meeting schedule, for conflict detection, per-person schedules, and room
+utilization.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `meetings.csv` | 会议表：开始、结束、会议室、参与人、主题、时长(分) |
+| File | Contents |
+|---|---|
+| `meetings.csv` | Start, end, room, attendees, title, duration in minutes |
 
-## 字段
+## Columns
 
-- **start_time**: 开始时间
-- **end_time**: 结束时间
-- **room**: 会议室（会议室A、会议室B）
-- **attendees**: 参与人（分号分隔）
-- **title**: 会议主题
-- **duration_min**: 时长（分钟）
+- **start_time** — start timestamp
+- **end_time** — end timestamp
+- **room** — `会议室A` (room A) or `会议室B` (room B)
+- **attendees** — semicolon-separated names
+- **title** — meeting subject
+- **duration_min** — duration in minutes
 
-## 示例查询
+## Query ideas
 
-- 某人参与的所有会议（grep attendees）
-- 某会议室某时段是否占用（时间区间重叠）
-- 按日期或会议室筛选
-- 会议时长统计
+- Every meeting one person attends — `grep` the `attendees` column
+- Whether a room is occupied during a window, by overlapping intervals
+- Filter by date or room
+- Total meeting time, per person or per room

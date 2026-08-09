@@ -1,24 +1,26 @@
-# 食谱/菜谱示例数据 (Recipes)
+# Recipes Example Data
 
-用于按食材查菜、按分类/难度筛选、烹饪时间排序等演示。
+A recipe list, for looking up dishes by ingredient, filtering by cuisine or
+difficulty, and sorting by cooking time.
 
-## 文件
+## Files
 
-| 文件 | 说明 |
-|------|------|
-| `recipes.csv` | 菜谱表：菜名、食材、分类、难度、烹饪时间(分) |
+| File | Contents |
+|---|---|
+| `recipes.csv` | Dish name, ingredients, category, difficulty, cook time |
 
-## 字段
+## Columns
 
-- **dish_name**: 菜名
-- **ingredients**: 主要食材（分号分隔）
-- **category**: 分类（家常、川菜、粤菜、素菜、凉菜、主食）
-- **difficulty**: 难度（easy / medium）
-- **cook_minutes**: 烹饪时间（分钟）
+- **dish_name** — name of the dish
+- **ingredients** — semicolon-separated main ingredients
+- **category** — one of `家常` (home cooking), `川菜` (Sichuan), `粤菜`
+  (Cantonese), `素菜` (vegetarian), `凉菜` (cold dishes), `主食` (staples)
+- **difficulty** — `easy` or `medium`
+- **cook_minutes** — cooking time in minutes
 
-## 示例查询
+## Query ideas
 
-- 按食材查菜（grep 某食材）
-- 按分类或难度筛选
-- 快手菜（cook_minutes 小于某值）
-- 按时间排序
+- Find dishes using an ingredient — `grep` the `ingredients` column
+- Filter by category or difficulty
+- Quick meals, where `cook_minutes` is below a threshold
+- Sort by cooking time
