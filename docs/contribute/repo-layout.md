@@ -20,7 +20,7 @@ buildmax/
 ├── deployment/           Kubernetes manifests and migrations
 ├── setup/                Local kind cluster scripts and manifests
 ├── eval/                 Agent benchmark task catalog
-├── example/              Sample data used in demos and manual testing
+├── sample-data/          Datasets for demoing and exercising the agent tools
 └── scripts/              Repository scripts (third-party notice generation)
 ```
 

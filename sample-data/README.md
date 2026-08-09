@@ -1,7 +1,7 @@
-# Example Data for Demos and Testing
+# Sample Data
 
-Sample datasets covering several scenarios, used to demonstrate and exercise the
-BuildMax agent tools (`read_file`, `grep`, `editfile`, and so on). Each
+Datasets covering several scenarios, used to demonstrate and exercise the
+BuildMax agent tools (`Read`, `Grep`, `Edit`, and so on). Each
 subdirectory holds a CSV plus a README describing its columns.
 
 The data is deliberately Chinese-language in most files — product names,
@@ -31,4 +31,4 @@ values you need in order to write a query.
 | [weather](weather/) | Weather records | weather.csv | City comparison, temperature trends, precipitation |
 
 The top level also holds plain-text samples such as `shakespeare.txt`, useful
-for exercising `read_file` and `grep` on prose rather than tabular data.
+for exercising `Read` and `Grep` on prose rather than tabular data.
