@@ -119,3 +119,58 @@ func TestToolNamesDocumented(t *testing.T) {
 		}
 	}
 }
+
+// agentsMDPathRe matches repository paths written in backticks, e.g. `internal/config`.
+var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|portal|gui|desktop|config-examples|deployment|setup|eval|scripts)/[A-Za-z0-9_./-]*)`")
+
+// TestAgentsMDPathsExist fails when AGENTS.md cites a repository path that does
+// not exist. AGENTS.md is loaded into every agent session, so a stale path there
+// misleads more often than a stale path in any single document — and it has
+// repeatedly been the source that other documents copied from.
+func TestAgentsMDPathsExist(t *testing.T) {
+	root := repoRoot(t)
+	body, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	for _, m := range agentsMDPathRe.FindAllStringSubmatch(string(body), -1) {
+		p := strings.TrimSuffix(m[1], "/")
+		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
+			t.Errorf("AGENTS.md cites %q, which does not exist", m[1])
+		}
+	}
+}
+
+// TestAgentsMDRoutesExist fails when AGENTS.md lists an HTTP route the server
+// does not register. The route list is a summary, so extra registered routes are
+// fine — a documented route that does not exist is not.
+func TestAgentsMDRoutesExist(t *testing.T) {
+	root := repoRoot(t)
+	routesSrc, err := os.ReadFile(filepath.Join(root, "internal", "server", "handlers", "routes.go"))
+	if err != nil {
+		t.Fatalf("read routes.go: %v", err)
+	}
+	registered := regexp.MustCompile(`mux\.Handle(?:Func)?\("[A-Z]+ ([^"]+)"`).
+		FindAllStringSubmatch(string(routesSrc), -1)
+	paths := map[string]bool{"/healthz": true, "/openapi.json": true, "/swagger/": true}
+	for _, m := range registered {
+		paths[m[1]] = true
+	}
+
+	body, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	cited := regexp.MustCompile("`(?:[A-Z/]+ )?(/api/[^`,;]+)`").FindAllStringSubmatch(string(body), -1)
+	for _, m := range cited {
+		route := strings.TrimSpace(m[1])
+		// Prose forms like /api/worker/* and /api/teams/{team_id}/... name a
+		// group of routes rather than one, and have nothing to match against.
+		if strings.HasSuffix(route, "*") || strings.HasSuffix(route, "...") {
+			continue
+		}
+		if !paths[route] {
+			t.Errorf("AGENTS.md documents route %q, which the server does not register", route)
+		}
+	}
+}
