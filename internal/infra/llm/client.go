@@ -43,14 +43,7 @@ func NewClient(cfg Config) *LLMClient {
 	if base == nil {
 		base = http.DefaultClient
 	}
-	transport := base.Transport
-	if transport == nil {
-		transport = http.DefaultTransport
-	}
-	clientConfig.HTTPClient = &http.Client{
-		Transport: &usageCaptureTransport{base: transport},
-		Timeout:   base.Timeout,
-	}
+	clientConfig.HTTPClient = &usageCaptureHTTPClient{base: base}
 	cw := cfg.ContextWindow
 	if cw == 0 {
 		cw = lookupContextWindow(cfg.Model)

@@ -16,14 +16,19 @@ type contextKey struct{}
 
 var streamUsageKey = &contextKey{}
 
-// usageCaptureTransport wraps an HTTP RoundTripper to intercept SSE streams and
-// extract token usage from raw "data:" chunks (providers that embed usage in SSE).
-type usageCaptureTransport struct {
-	base http.RoundTripper
+// httpDoer is the subset of http.Client used by go-openai's HTTP client hook.
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
 }
 
-func (t *usageCaptureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := t.base.RoundTrip(req)
+// usageCaptureHTTPClient wraps the configured HTTP client to intercept SSE
+// streams and extract token usage from raw "data:" chunks.
+type usageCaptureHTTPClient struct {
+	base httpDoer
+}
+
+func (c *usageCaptureHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	resp, err := c.base.Do(req)
 	if err != nil {
 		return nil, err
 	}
