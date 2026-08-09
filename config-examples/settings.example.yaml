@@ -23,26 +23,77 @@ models:
     api_key: your-openrouter-api-key
     context_window: 8192
 
+# Bash sandbox. Confines the subprocesses started by the Bash tool by filesystem
+# path and network domain. Covers Bash only — Read, Write, Edit, Glob, and Grep
+# keep their own workspace-root boundary either way.
+#
+# DISABLED BY DEFAULT on every surface, including workers. Requires Seatbelt on
+# macOS or bwrap on Linux/WSL2; unavailable on native Windows. Check the host
+# with `buildmax sandbox deps`, and the resolved config with
+# `buildmax sandbox status`.
+#
+# An operator can override this block from <BUILDMAX_HOME>/policy.yaml, and
+# BUILDMAX_SANDBOX_ENABLED overrides both.
+#
+# Guide: docs/guide/sandbox.md. Design: docs/design/032-sandbox-and-execution-boundaries.md.
+#
+# sandbox:
+#   enabled: true
+#   fail_if_unavailable: false          # true = refuse to run Bash rather than run it unsandboxed
+#   auto_allow_bash_if_sandboxed: true  # sandboxed commands skip the approval prompt
+#   allow_unsandboxed_commands: false   # gate for the per-call dangerously_disable_sandbox escape hatch
+#   excluded_commands: []               # commands that never get sandboxed
+#
+#   filesystem:
+#     allow_write: ["."]                # the workspace, and nothing else
+#     deny_write:  ["~/.ssh", "~/.aws", "~/.buildmax"]
+#     allow_read:  ["."]
+#     deny_read:   ["~/.ssh", "~/.aws"]
+#     allow_managed_read_paths_only: false   # true in policy.yaml ignores lower layers' allow_read
+#
+#   network:
+#     allowed_domains: ["api.github.com", "proxy.golang.org", "registry.npmjs.org"]
+#     denied_domains:  []
+#     allow_local_binding: false        # let sandboxed processes bind localhost ports
+#     allow_all_unix_sockets: false
+#     allow_unix_sockets: []            # e.g. ["/var/run/docker.sock"] — grants real power, list deliberately
+#     allow_managed_domains_only: false # true in policy.yaml ignores lower layers' allowed_domains
+#     # Pin the Go-side egress proxy ports; omit both to pick free ports.
+#     http_proxy_port: 0
+#     socks_proxy_port: 0
+#
+#   # Silence known-harmless violations instead of loosening the boundary.
+#   ignore_violations:
+#     read: ["/etc/ssl/**"]
+#
+#   # Escape hatches for constrained hosts (containers, nested sandboxes).
+#   # Both weaken isolation — set them only when the strict mode cannot start.
+#   enable_weaker_nested_sandbox: false
+#   enable_weaker_network_isolation: false
+
 # Runtime hooks (P0.5 trust harness). Hooks let you observe or block events in
 # the agent loop. Full design: design/031-hook-system-v2.md.
 #
 # Events:
-#   session_start             - session opened or resumed (advisory)
-#   session_end               - session closed (advisory)
-#   user_prompt_submit        - user prompt entering the agent (GATING)
-#   pre_tool_use              - before tool execution (GATING)
-#   post_tool_use             - tool succeeded (advisory)
-#   post_tool_use_failure     - tool returned an error (advisory)
-#   notification              - approval needed / permission denied (advisory)
-#   pre_compact / post_compact - context compaction (pre is GATING)
-#   subagent_start / subagent_stop - subagent lifecycle (advisory)
-#   stop / stop_failure       - main-agent finish (advisory)
+#   session_start:             session opened or resumed (advisory)
+#   session_end:               session closed (advisory)
+#   user_prompt_submit:        user prompt entering the agent (GATING)
+#   pre_tool_use:              before tool execution (GATING)
+#   post_tool_use:             tool succeeded (advisory)
+#   post_tool_use_failure:     tool returned an error (advisory)
+#   notification:              approval needed / permission denied (advisory)
+#   pre_compact:               before context compaction (GATING)
+#   post_compact:              after context compaction (advisory)
+#   subagent_start:            subagent started (advisory)
+#   subagent_stop:             subagent finished (advisory)
+#   stop:                      main agent finished (advisory)
+#   stop_failure:              main agent finished with an error (advisory)
 #
 # Each entry chooses a transport via "type":
-#   command   - run a shell command; HookInput JSON arrives on stdin
-#   http      - POST HookInput JSON to a URL
-#   mcp_tool  - invoke a tool on a connected MCP server
-#   prompt    - single-turn LLM call ($ARGUMENTS expands to the JSON payload)
+#   command:                   run a shell command; HookInput JSON arrives on stdin
+#   http:                      POST HookInput JSON to a URL
+#   mcp_tool:                  invoke a tool on a connected MCP server
+#   prompt:                    single-turn LLM call ($ARGUMENTS expands to the JSON payload)
 # Omitting "type" defaults to "command".
 #
 # "matcher" is a regex on the tool name (Read, Write, Edit, Glob, Grep, Bash,

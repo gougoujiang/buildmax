@@ -32,6 +32,7 @@ conversation:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 128000
+    call_timeout: 300            # per-call timeout in seconds (0 = default 300)
 
 database:
   host: localhost
@@ -52,6 +53,11 @@ worker:
   k8s:
     namespace: buildmax
     image: buildmax:local
+    # ConfigMap holding a server.yaml key, mounted into every worker pod so the
+    # worker reads the same configuration the server does. Empty means worker
+    # pods fall back to built-in defaults, which is almost never what you want.
+    config_map: buildmax-config
+    home_dir: /buildmax          # BUILDMAX_HOME inside a worker pod
 
 storage:
   persist_backend: local_fs   # or minio
