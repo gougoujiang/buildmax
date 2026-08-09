@@ -109,16 +109,54 @@ release:
   # A tag like v0.1.0-alpha marks the GitHub release as a pre-release.
   prerelease: auto
   header: |
-    ## BuildMax {{ .Version }}
+    BuildMax is an out-of-the-box, privately deployable Agent platform built on
+    one shared Go Agent Runtime. The same runtime backs a CLI/TUI for local
+    terminal work, a desktop app, and a team Portal served by the Go server,
+    with a scheduler and worker pipeline for background task runs.
 
-    Archives contain `buildmax`, `buildmax-server`, and `buildmax-worker`, plus
-    `config-examples/`. Container image: `ghcr.io/gougoujiang/buildmax:{{ .Version }}`.
+    ## Install
+
+    Download the archive for your platform below. Each one contains all three
+    binaries — `buildmax`, `buildmax-server`, `buildmax-worker` — plus
+    `config-examples/`, `LICENSE`, and `NOTICE-THIRD-PARTY`. Verify it against
+    `checksums.txt` first.
+
+    With a Go toolchain, for the CLI alone:
+
+    ```
+    go install github.com/gougoujiang/buildmax/cmd/buildmax@{{ .Tag }}
+    ```
+
+    As a container, for linux/amd64 and linux/arm64:
+
+    ```
+    docker pull ghcr.io/gougoujiang/buildmax:{{ .Version }}
+    ```
+
+    ## Getting started
+
+    Set `BUILDMAX_API_KEY` (and optionally `BUILDMAX_BASE_URL` and
+    `BUILDMAX_MODEL`), then run `buildmax` for the TUI, or
+    `buildmax -p "your prompt"` for a single non-interactive turn. Running the
+    server and Portal additionally needs MySQL and object storage; see the
+    README.
+
+    The desktop app is not published here. It needs code signing and
+    notarization to launch on macOS, so build it locally with `./make build`.
   footer: |
-    ---
+    ## Before you deploy this
 
-    **Alpha.** Server authentication is not production-ready — login is disabled
-    by default and the optional fixed development code authenticates any
-    registered address. The bash sandbox is off by default. See SECURITY.md for
-    the full list of known limitations before exposing a deployment.
+    This is an alpha, and two defaults deserve to be read as warnings rather
+    than footnotes:
 
-    Verify a download against `checksums.txt`.
+    - **Server authentication is not production-ready.** There is no OTP
+      delivery channel, so `POST /api/login` is disabled by default. The
+      optional `dev_login_otp` setting enables a single fixed code that
+      authenticates *any* registered email address. Putting the Portal on a
+      network you do not control requires wiring a real identity provider first.
+    - **The bash sandbox is off by default**, and worker hardening is
+      incomplete.
+
+    `SECURITY.md` lists both, along with how to report a vulnerability
+    privately. Interfaces and deployment guidance may change before a stable
+    release.
