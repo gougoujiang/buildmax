@@ -29,10 +29,10 @@ Sessions:
   Use -c/--continue to resume the most recent session (by creation time); -r takes precedence if both are set.
   Use --session-id <uuid> to use a specific session ID (load if exists, else create); value must be a valid UUID.
 
-Environment (for -p):
-  BUILDMAX_API_KEY   API key (required for -p)
-  BUILDMAX_BASE_URL                        Base URL (default: OpenRouter)
-  BUILDMAX_MODEL                          Model (default: %s)
+Configuration:
+  Models are configured in BUILDMAX_HOME/settings.yaml (default ~/.buildmax).
+  The first entry under models: is the default; select another with --model.
+  Default model when none is configured: %s
 `, config.DefaultModel)
 
 // NewRootCommand creates and returns the root cobra command for BuildMax.

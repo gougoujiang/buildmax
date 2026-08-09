@@ -145,7 +145,7 @@ func (p *slashModelState) Render(_ *Model, maxLineWidth int) string {
 	}
 	if len(p.Entries) == 0 {
 		b.WriteString("No models configured.\n\n")
-		b.WriteString("Add models in settings.yaml or set BUILDMAX_MODEL / BUILDMAX_API_KEY for the fallback model.")
+		b.WriteString("Add a models: entry to settings.yaml.")
 		out := strings.TrimRight(b.String(), "\n")
 		return out + "\n\nesc: close"
 	}

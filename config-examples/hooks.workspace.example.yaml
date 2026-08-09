@@ -19,14 +19,14 @@ pre_tool_use:
   # Block writes outside the project tree. policy-check.sh exits 2 with the
   # reason on stderr when a path escapes.
   - type: command
-    matcher: "writefile|editfile"
+    matcher: "Write|Edit"
     command: "./.buildmax/hooks/policy-check.sh"
     timeout: 5
 
 post_tool_use:
   # Run the repo's standard formatter after every edit.
   - type: command
-    matcher: "writefile|editfile"
+    matcher: "Write|Edit"
     command: "gofmt -w ."
     timeout: 30
 

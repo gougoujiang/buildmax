@@ -45,7 +45,8 @@ models:
 #   prompt    - single-turn LLM call ($ARGUMENTS expands to the JSON payload)
 # Omitting "type" defaults to "command".
 #
-# "matcher" is a regex on the tool name; only applies to pre_tool_use,
+# "matcher" is a regex on the tool name (Read, Write, Edit, Glob, Grep, Bash,
+# WebFetch, TodoWrite, Skill, Task, LoadMcpTools, CallMcpTool); only applies to pre_tool_use,
 # post_tool_use, and post_tool_use_failure. Empty matcher matches every
 # invocation. "timeout" is seconds (default 30).
 #
@@ -68,7 +69,7 @@ models:
 #     # Centralized HTTP policy service. POST receives the full HookInput; a
 #     # 200 response with {"decision":"block","reason":"..."} denies the call.
 #     - type: http
-#       matcher: "bash|writefile|editfile"
+#       matcher: "Bash|Write|Edit"
 #       url: "https://policy.internal/check"
 #       headers:
 #         Authorization: "Bearer $POLICY_TOKEN"
@@ -78,7 +79,7 @@ models:
 #     # LLM-based judge. Prefer the cheapest model — this fires on every tool
 #     # call. Returning JSON {"decision":"block","reason":"..."} blocks.
 #     - type: prompt
-#       matcher: "bash"
+#       matcher: "Bash"
 #       model: ""                      # empty = default model from this file
 #       prompt: |
 #         You are reviewing a tool call. Reply with one JSON object:
@@ -87,9 +88,9 @@ models:
 #         $ARGUMENTS
 #
 #   post_tool_use:
-#     # Formatter — always allows, just runs after writefile/editfile.
+#     # Formatter — always allows, just runs after Write/Edit.
 #     - type: command
-#       matcher: "writefile|editfile"
+#       matcher: "Write|Edit"
 #       command: "gofmt -w ."
 #
 #   post_tool_use_failure:
