@@ -1,0 +1,61 @@
+// Package objectstore provides pluggable blob storage for team workspace files and task-run artifacts.
+package objectstore
+
+import (
+	"context"
+	"errors"
+	"io"
+)
+
+// ErrNotFound is returned when a requested object does not exist in the store.
+var ErrNotFound = errors.New("object not found")
+
+type RunObjectRef struct {
+	CreatedBy      string
+	ConversationID string
+	TaskID         string
+	TaskRunID      string
+	RelPath        string
+}
+
+type RunRef struct {
+	CreatedBy      string
+	ConversationID string
+	TaskID         string
+	TaskRunID      string
+}
+
+// HomeStorage reads and writes persistent team home files (Put/Get/ListFiles/MaterializeToDir).
+// Key space: <prefix>/<teamID>/home/<relPath>.
+type HomeStorage interface {
+	Put(ctx context.Context, teamID string, relPath string, r io.Reader) error
+	Get(ctx context.Context, teamID string, relPath string) ([]byte, error)
+	ListFiles(ctx context.Context, teamID string) ([]string, error)
+	MaterializeToDir(ctx context.Context, teamID string, dstDir string) error
+}
+
+// RunStorage reads and writes run-scoped files: the task run global dir (BUILDMAX_HOME state)
+// and the task run artifacts dir. Key space: conversations/<cID>/tasks/<tID>/<rID>/{global,artifacts}/.
+// For local-FS deployments these files live on worker disk; all methods are no-ops or return ErrNotFound.
+type RunStorage interface {
+	PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
+	GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
+	PutRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error
+	GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error)
+}
+
+// PersistStorage is the composite interface for components that need both home-file and
+// run-scoped storage (e.g. the task-run worker). Most components only need HomeStorage or RunStorage.
+type PersistStorage interface {
+	HomeStorage
+	RunStorage
+}
+
+// ArtifactStorage reads/writes run output files. Path: artifacts/<conversationID>/<taskID>/<taskRunID>/<relPath>. One namespace per task run.
+// PutResult/GetResult are for result.md. PutArtifactFile/GetArtifactFile support multiple files per run.
+type ArtifactStorage interface {
+	PutResult(ctx context.Context, ref RunRef, data []byte) error
+	GetResult(ctx context.Context, ref RunRef) ([]byte, error)
+	PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error
+	GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error)
+}

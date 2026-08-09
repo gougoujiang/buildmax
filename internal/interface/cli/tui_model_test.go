@@ -1,0 +1,602 @@
+package cli
+
+import (
+	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/session"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	mcp "github.com/gougoujiang/buildmax/internal/infra/mcp"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+func testSessionContext() *agentapp.SessionContext {
+	return agentapp.NewSessionContext(session.NewSession(""), "")
+}
+
+func testAgentApp(t *testing.T, workspace string) *agentapp.AgentApp {
+	t.Helper()
+	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
+		WorkspaceDir: workspace,
+		EnableMCP:    true,
+	})
+	if err != nil {
+		t.Fatalf("NewAgentApp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := app.Close(); err != nil {
+			t.Fatalf("AgentApp.Close: %v", err)
+		}
+	})
+	return app
+}
+
+func writeTestSettings(t *testing.T, raw string) {
+	t.Helper()
+	path := config.SettingsPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("MkdirAll settings dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(raw), 0644); err != nil {
+		t.Fatalf("WriteFile settings: %v", err)
+	}
+}
+
+func TestModelFocusInput(t *testing.T) {
+	opts := TUIOpts{
+		Session: testSessionContext(),
+	}
+	m := NewModel(opts)
+	if !m.FocusInput() {
+		t.Error("initial focus should be on input")
+	}
+	// Tab is a no-op in transcript mode; focus stays on input.
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	mod, ok := m2.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m2)
+	}
+	if !mod.FocusInput() {
+		t.Error("after Tab, focus should still be on input (transcript mode has no viewport toggle)")
+	}
+}
+
+func TestViewFooterPresent(t *testing.T) {
+	sess := session.NewSession("")
+	sess.Append(llm.Message{Role: "assistant", Content: "short"})
+	m := NewModel(TUIOpts{
+		Session:   agentapp.NewSessionContext(sess, ""),
+		ModelName: "test-model",
+		Workspace: "/tmp/workspace",
+	})
+
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	mod, ok := m2.(*Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *Model", m2)
+	}
+
+	// In transcript mode the view is only the bottom strip, not terminal-height lines.
+	view := mod.View().Content
+	if !strings.Contains(view, "model: test-model") {
+		t.Fatalf("view should contain model name, got %q", view)
+	}
+	if !strings.Contains(view, "ctrl+c: quit") {
+		t.Fatalf("view should contain shortcuts, got %q", view)
+	}
+}
+
+func TestViewFooterShowsCompactTokenUsage(t *testing.T) {
+	m := NewModel(TUIOpts{
+		Session:   testSessionContext(),
+		ModelName: "test-model",
+		Workspace: "/tmp/workspace",
+		RunStatus: agentapp.RunStatus{
+			ContextTokens:         500,
+			ContextWindow:         1000,
+			PromptTokens:          100,
+			CompletionTokens:      20,
+			TotalPromptTokens:     3334,
+			TotalCompletionTokens: 998,
+		},
+	})
+
+	view := m.View().Content
+	if !strings.Contains(view, "tokens(in/out): 100/20 (3.3k/998)") {
+		t.Fatalf("view should contain compact token usage, got %q", view)
+	}
+	if strings.Contains(view, "input /") || strings.Contains(view, "output") {
+		t.Fatalf("view should not contain old token wording, got %q", view)
+	}
+}
+
+func TestEventSinkForwardsLLMBoundaries(t *testing.T) {
+	ch := make(chan tea.Msg, 3)
+	sink := eventSinkToChannel(ch)
+
+	sink(agent.Event{Kind: agent.EventLLMStart, ContextTokens: 100, ContextWindow: 1000})
+	sink(agent.Event{Kind: agent.EventLLMEnd, Content: "done", PromptTokens: 10, CompletionTokens: 5})
+
+	st, ok := (<-ch).(runStatusMsg)
+	if !ok {
+		t.Fatal("first forwarded message should be runStatusMsg")
+	}
+	if st.Status.ContextTokens != 100 || st.Status.ContextWindow != 1000 {
+		t.Fatalf("run status = %+v, want context 100/1000", st.Status)
+	}
+	if _, ok := (<-ch).(llmStartMsg); !ok {
+		t.Fatal("second forwarded message should be llmStartMsg")
+	}
+	end, ok := (<-ch).(llmEndMsg)
+	if !ok {
+		t.Fatal("third forwarded message should be llmEndMsg")
+	}
+	if end.Content != "done" {
+		t.Fatalf("llmEndMsg content = %q, want %q", end.Content, "done")
+	}
+	if end.PromptTokens != 10 || end.CompletionTokens != 5 {
+		t.Fatalf("llmEndMsg tokens = %d/%d, want 10/5", end.PromptTokens, end.CompletionTokens)
+	}
+}
+
+func TestFormatRunStatusIncludesSessionTotals(t *testing.T) {
+	got := formatRunStatus(agentapp.RunStatus{
+		ContextTokens:         500,
+		ContextWindow:         1000,
+		PromptTokens:          100,
+		CompletionTokens:      20,
+		TotalPromptTokens:     3334,
+		TotalCompletionTokens: 998,
+	})
+	want := "ctx: 50% (500/1k) | tokens(in/out): 100/20 (3.3k/998)"
+	if got != want {
+		t.Fatalf("formatRunStatus() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatTokenUsageValue(t *testing.T) {
+	if got := formatTokenUsageValue(100, 20, 3334, 998); got != "100/20 (3.3k/998)" {
+		t.Fatalf("formatTokenUsageValue() = %q", got)
+	}
+}
+
+func TestMergeRunStatusAccumulatesRunningTotals(t *testing.T) {
+	prev := agentapp.RunStatus{PromptTokens: 10, CompletionTokens: 5, TotalPromptTokens: 100, TotalCompletionTokens: 50}
+	got := mergeRunStatus(prev, agentapp.RunStatus{ContextTokens: 800, ContextWindow: 1000, PromptTokens: 25, CompletionTokens: 9})
+	if got.PromptTokens != 25 || got.CompletionTokens != 9 {
+		t.Fatalf("current tokens = %d/%d, want 25/9", got.PromptTokens, got.CompletionTokens)
+	}
+	if got.TotalPromptTokens != 115 || got.TotalCompletionTokens != 54 {
+		t.Fatalf("total tokens = %d/%d, want 115/54", got.TotalPromptTokens, got.TotalCompletionTokens)
+	}
+}
+
+func TestLLMEndRendersAndClearsCurrentResponseBuffer(t *testing.T) {
+	m := NewModel(TUIOpts{
+		Session:      testSessionContext(),
+		Workspace:    t.TempDir(),
+		GlamourStyle: "dark",
+	})
+	m.busy = true
+
+	next, _ := m.Update(llmStartMsg{})
+	mod := next.(*Model)
+	mod.streamingBuffer = "old text"
+	next, _ = mod.Update(llmStartMsg{})
+	mod = next.(*Model)
+	if mod.streamingBuffer != "" {
+		t.Fatalf("llmStartMsg should clear prior response buffer, got %q", mod.streamingBuffer)
+	}
+
+	next, _ = mod.Update(streamDeltaMsg{Delta: "## One"})
+	mod = next.(*Model)
+	if mod.streamingBuffer != "## One" {
+		t.Fatalf("streamingBuffer = %q, want %q", mod.streamingBuffer, "## One")
+	}
+
+	next, cmd := mod.Update(llmEndMsg{Content: "ignored fallback"})
+	mod = next.(*Model)
+	if mod.streamingBuffer != "" {
+		t.Fatalf("llmEndMsg should clear response buffer, got %q", mod.streamingBuffer)
+	}
+	if cmd == nil {
+		t.Fatal("llmEndMsg with content should return render command")
+	}
+	msg := cmd()
+	rendered, ok := msg.(assistantRenderedMsg)
+	if !ok {
+		t.Fatalf("render command returned %T, want assistantRenderedMsg", msg)
+	}
+	if !rendered.continueStream {
+		t.Fatal("rendered per-response message should continue stream after printing")
+	}
+	if !strings.Contains(rendered.line, "One") {
+		t.Fatalf("rendered line should contain response content, got %q", rendered.line)
+	}
+
+	next, cmd = mod.Update(agentDoneMsg{})
+	if cmd != nil {
+		t.Fatal("agentDoneMsg should not render again after llmEndMsg cleared the buffer")
+	}
+}
+
+func TestDispatchSlashModelOpensPanel(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
+	writeTestSettings(t, `{"models":[{"model":"openai/gpt-4o-mini","name":"Fast","api_url":"https://api.example.com","api_key":"sk-fast"},{"model":"google/gemini-2.5-flash-lite","name":"Default","api_url":"https://api.example.com","api_key":"sk-default"}]}`)
+
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, tmp),
+		Session:   testSessionContext(),
+		ModelName: "Default",
+	})
+
+	got, _ := dispatchSlashCommand(m, "/model")
+	mod, ok := got.(*Model)
+	if !ok {
+		t.Fatalf("dispatchSlashCommand returned %T, want *Model", got)
+	}
+	if mod.slashModel == nil {
+		t.Fatal("slash model panel should be open")
+	}
+	if mod.slashModel.Current != "Default" {
+		t.Fatalf("current model = %q, want %q", mod.slashModel.Current, "Default")
+	}
+	if mod.slashModel.Selected != 1 {
+		t.Fatalf("selected = %d, want 1 for current model", mod.slashModel.Selected)
+	}
+	if len(mod.slashModel.Entries) != 2 {
+		t.Fatalf("entries len = %d, want 2", len(mod.slashModel.Entries))
+	}
+	rendered := mod.buildSlashModelContent(80)
+	if !strings.Contains(rendered, "› * Default -> google/gemini-2.5-flash-lite") {
+		t.Fatalf("rendered panel should highlight current selection, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "  Fast -> openai/gpt-4o-mini") {
+		t.Fatalf("rendered panel should list named model and provider id, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "↑↓ select · enter switch") {
+		t.Fatalf("rendered panel should include usage hint, got %q", rendered)
+	}
+}
+
+func TestDispatchSlashModelPrefillsSelectionAndEnterSwitches(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
+	writeTestSettings(t, `{"models":[{"model":"openai/gpt-4o-mini","name":"Fast","api_url":"https://api.example.com","api_key":"sk-fast"},{"model":"google/gemini-2.5-flash-lite","name":"Default","api_url":"https://api.example.com","api_key":"sk-default"}]}`)
+
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, tmp),
+		Session:   testSessionContext(),
+		ModelName: "Default",
+	})
+
+	got, _ := dispatchSlashCommand(m, "/model", "Fast")
+	mod, ok := got.(*Model)
+	if !ok {
+		t.Fatalf("dispatchSlashCommand returned %T, want *Model", got)
+	}
+	if mod.slashModel == nil {
+		t.Fatal("slash model panel should be open")
+	}
+	if mod.slashModel.Selected != 0 {
+		t.Fatalf("selected = %d, want 0 for Fast", mod.slashModel.Selected)
+	}
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if gotName := after.opts.Session.ModelName(""); gotName != "Fast" {
+		t.Fatalf("session model = %q, want %q", gotName, "Fast")
+	}
+	if after.opts.ModelName != "Fast" {
+		t.Fatalf("opts model = %q, want %q", after.opts.ModelName, "Fast")
+	}
+	if after.slashModel != nil {
+		t.Fatalf("slash model panel should be closed after selection, got %+v", after.slashModel)
+	}
+}
+
+func TestSlashModelArrowSelectionSwitchesModel(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, tmp)
+	writeTestSettings(t, `{"models":[{"model":"openai/gpt-4o-mini","name":"Fast","api_url":"https://api.example.com","api_key":"sk-fast"},{"model":"google/gemini-2.5-flash-lite","name":"Default","api_url":"https://api.example.com","api_key":"sk-default"}]}`)
+
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, tmp),
+		Session:   testSessionContext(),
+		ModelName: "Default",
+	})
+
+	got, _ := dispatchSlashCommand(m, "/model")
+	mod := got.(*Model)
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	afterNav := next.(*Model)
+	if afterNav.slashModel == nil || afterNav.slashModel.Selected != 0 {
+		t.Fatalf("selected = %+v, want 0 after up", afterNav.slashModel)
+	}
+	confirmed, _ := afterNav.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	final := confirmed.(*Model)
+	if gotName := final.opts.Session.ModelName(""); gotName != "Fast" {
+		t.Fatalf("session model = %q, want %q", gotName, "Fast")
+	}
+	if final.slashModel != nil {
+		t.Fatalf("slash model panel should be closed after selection, got %+v", final.slashModel)
+	}
+}
+
+func TestSlashCompletionShowsPrefixMatch(t *testing.T) {
+	m0 := NewModel(TUIOpts{
+		Session:   testSessionContext(),
+		Workspace: t.TempDir(),
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/mc")
+	mod.inputBlock.SyncHeight()
+	mod.syncSlashPopupFromInput()
+	if mod.slashPopup == nil || len(mod.slashPopup.matches) != 1 || mod.slashPopup.matches[0] != "/mcp" {
+		t.Fatalf("slashPopup=%+v", mod.slashPopup)
+	}
+	v := mod.View().Content
+	if !strings.Contains(v, "/mcp") || !strings.Contains(v, "Commands") {
+		t.Fatalf("view should list command, got: %s", v[:min(500, len(v))])
+	}
+}
+
+func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
+	sess := session.NewSession("")
+	m := NewModel(TUIOpts{
+		Session:   agentapp.NewSessionContext(sess, ""),
+		Workspace: t.TempDir(),
+	})
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	mod := m2.(*Model)
+	mod.inputBlock.SetValue("/nope")
+	mod.inputBlock.SyncHeight()
+	before := len(mod.opts.Session.Messages)
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if len(after.opts.Session.Messages) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages))
+	}
+	if after.err == "" {
+		t.Fatal("expected footer error for unknown slash command")
+	}
+	if !strings.Contains(after.err, "/skills") || !strings.Contains(after.err, "/mcp") {
+		t.Fatalf("error should mention builtins, got %q", after.err)
+	}
+}
+
+func TestSlashSessionListsNewestFirst(t *testing.T) {
+	sess := session.NewSession("")
+	dir := t.TempDir()
+	oldTime := "2026-01-01T10:00:00Z"
+	newTime := "2026-06-01T10:00:00Z"
+	if err := agentapp.UpsertSessionItem(dir, session.SessionItem{ID: "sess-old", Title: "older chat", CreatedAt: oldTime}); err != nil {
+		t.Fatalf("UpsertSessionItem: %v", err)
+	}
+	if err := agentapp.UpsertSessionItem(dir, session.SessionItem{ID: "sess-new", Title: "newer chat", CreatedAt: newTime}); err != nil {
+		t.Fatalf("UpsertSessionItem: %v", err)
+	}
+	m0 := NewModel(TUIOpts{
+		Session:     agentapp.NewSessionContext(sess, ""),
+		Workspace:   t.TempDir(),
+		SessionsDir: dir,
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/sessions")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.slashSession == nil {
+		t.Fatal("expected session overlay after /session")
+	}
+	if after.slashSession.LoadError != "" || after.slashSession.Empty {
+		t.Fatalf("unexpected overlay state: %+v", after.slashSession)
+	}
+	if len(after.slashSession.Filtered) != 2 {
+		t.Fatalf("entries = %d, want 2: %v", len(after.slashSession.Filtered), after.slashSession.Filtered)
+	}
+	if after.slashSession.Filtered[0].ID != "sess-new" || after.slashSession.Filtered[0].Title != "newer chat" {
+		t.Errorf("first entry should be newer session, got %+v", after.slashSession.Filtered[0])
+	}
+	if after.slashSession.Filtered[1].ID != "sess-old" || after.slashSession.Filtered[1].Title != "older chat" {
+		t.Errorf("second entry should be older session, got %+v", after.slashSession.Filtered[1])
+	}
+	v := after.View().Content
+	if !strings.Contains(v, "Sessions") {
+		t.Fatalf("view missing title, got %q", v[:min(400, len(v))])
+	}
+}
+
+func TestSlashSkillsDoesNotAppendSession(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := session.NewSession("")
+	ws := t.TempDir()
+	m := NewModel(TUIOpts{
+		Session:   agentapp.NewSessionContext(sess, ""),
+		Workspace: ws,
+	})
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
+	mod := m2.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	before := len(mod.opts.Session.Messages)
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if len(after.opts.Session.Messages) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages))
+	}
+	if after.slashSkills == nil {
+		t.Fatal("expected skills overlay after /skills")
+	}
+	if after.busy {
+		t.Fatal("slash command must not start agent")
+	}
+}
+
+func TestSlashSkillsOpensOverlayAndEscCloses(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := session.NewSession("")
+	ws := t.TempDir()
+	skillRoot := filepath.Join(ws, ".buildmax", "skills", "listdemo")
+	if err := os.MkdirAll(skillRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := "# Listdemo\n\nA skill for the TUI list test.\n"
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m0 := NewModel(TUIOpts{
+		Session:   agentapp.NewSessionContext(sess, ""),
+		Workspace: ws,
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.slashSkills == nil {
+		t.Fatal("expected skills overlay")
+	}
+	if len(after.slashSkills.Entries) != 1 {
+		t.Fatalf("entries=%d want 1: %+v", len(after.slashSkills.Entries), after.slashSkills.Entries)
+	}
+	if after.slashSkills.Entries[0].Name != "listdemo" {
+		t.Errorf("skill name=%q", after.slashSkills.Entries[0].Name)
+	}
+	v := after.View().Content
+	if !strings.Contains(v, "Skills") || !strings.Contains(v, "listdemo") || !strings.Contains(v, "A skill for the TUI list test.") {
+		t.Fatalf("view missing expected content: %s", v[:min(600, len(v))])
+	}
+	next2, _ := after.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	closed := next2.(*Model)
+	if closed.slashSkills != nil {
+		t.Fatal("esc should close skills overlay")
+	}
+	if !closed.FocusInput() {
+		t.Fatal("esc should return focus to input")
+	}
+}
+
+func TestSlashSkillsEmptyOverlay(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := session.NewSession("")
+	ws := t.TempDir()
+	m0 := NewModel(TUIOpts{
+		Session:   agentapp.NewSessionContext(sess, ""),
+		Workspace: ws,
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.slashSkills == nil {
+		t.Fatal("expected skills overlay")
+	}
+	if len(after.slashSkills.Entries) != 0 {
+		t.Fatalf("expected no skills, got %d", len(after.slashSkills.Entries))
+	}
+	v := after.View().Content
+	if !strings.Contains(v, "No skills found") {
+		t.Fatalf("expected empty state in view: %s", v[:min(500, len(v))])
+	}
+}
+
+func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
+	sess := session.NewSession("")
+	workspace := t.TempDir()
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, workspace),
+		Session:   agentapp.NewSessionContext(sess, ""),
+		Workspace: workspace,
+	})
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	mod := m2.(*Model)
+	mod.inputBlock.SetValue("/mcp")
+	mod.inputBlock.SyncHeight()
+	next, cmd := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	fm := next.(*Model)
+	if cmd != nil {
+		t.Fatal("did not expect probe command")
+	}
+	if fm.slashMCP == nil {
+		t.Fatal("expected MCP overlay")
+	}
+	if len(fm.slashMCP.Servers) != 0 {
+		t.Fatal("expected empty MCP config in temp workspace")
+	}
+}
+
+func TestMCPOverlayEscClosesAndShowsServers(t *testing.T) {
+	sess := session.NewSession("")
+	m0 := NewModel(TUIOpts{
+		Session:   agentapp.NewSessionContext(sess, ""),
+		Workspace: t.TempDir(),
+	})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 18})
+	mod := m1.(*Model)
+	st := &slashMCPState{
+		Servers: []mcp.MCPServerStatus{
+			{ID: "a", Type: "stdio", OK: true, ToolCount: 2},
+		},
+	}
+	mod.slashMCP = st
+	mod.activePanel = st
+	fm := mod
+	if fm.slashMCP == nil {
+		t.Fatal("expected overlay with rows")
+	}
+	if len(fm.slashMCP.Servers) != 1 {
+		t.Fatalf("servers=%d", len(fm.slashMCP.Servers))
+	}
+	out := fm.View().Content
+	if !strings.Contains(out, "a") || !strings.Contains(out, "connected") {
+		t.Fatalf("view should list server, got: %s", out[:min(400, len(out))])
+	}
+	next2, _ := fm.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	closed := next2.(*Model)
+	if closed.slashMCP != nil {
+		t.Fatal("esc should close MCP overlay")
+	}
+	if !closed.FocusInput() {
+		t.Fatal("esc should return focus to input")
+	}
+}
+
+func TestWrapLine(t *testing.T) {
+	tests := []struct {
+		line   string
+		width  int
+		expect int // number of lines
+	}{
+		{"short", 80, 1},
+		{"", 10, 1},
+		{"abcdefghij", 5, 2},
+		{"abc", 3, 1},
+		{"abcd", 2, 2},
+	}
+	for _, tt := range tests {
+		got := wrapLine(tt.line, tt.width)
+		if len(got) != tt.expect {
+			t.Errorf("wrapLine(%q, %d) returned %d lines, want %d: %q", tt.line, tt.width, len(got), tt.expect, got)
+		}
+	}
+	// Word wrap: break at space so "**File " is first line; remainder wraps to "Operations:*" then "*" (3 lines total)
+	got := wrapLine("**File Operations:**", 12)
+	if len(got) != 3 {
+		t.Fatalf("wrapLine(\"**File Operations:**\", 12) want 3 lines, got %d: %q", len(got), got)
+	}
+	if got[0] != "**File " || got[1] != "Operations:*" || got[2] != "*" {
+		t.Errorf("wrapLine(\"**File Operations:**\", 12) = %q, want [\"**File \", \"Operations:*\", \"*\"]", got)
+	}
+}

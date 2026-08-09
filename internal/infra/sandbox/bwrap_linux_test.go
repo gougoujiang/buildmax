@@ -1,0 +1,78 @@
+//go:build linux
+
+package sandbox
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/config"
+)
+
+// TestBwrapArgs_Golden asserts the documented argv shape: ro-bind / first,
+// proc/dev/tmpfs, workspace bind, then allow_write and deny_write, then
+// --die-with-parent and the inner shell invocation.
+func TestBwrapArgs_Golden(t *testing.T) {
+	p := WrapParams{
+		Command:   "echo hi",
+		Shell:     "/bin/bash",
+		Workspace: "/home/dev/proj",
+		Cfg: config.SandboxConfig{
+			Enabled: true,
+			Filesystem: config.SandboxFSConfig{
+				AllowWrite: []string{"/tmp/build"},
+				DenyWrite:  []string{"/home/dev/proj/secrets"},
+				DenyRead:   []string{"/etc/shadow"},
+			},
+		},
+	}
+	args := buildBwrapArgs(p)
+	joined := strings.Join(args, " ")
+	mustContain := []string{
+		"--ro-bind / /",
+		"--proc /proc",
+		"--dev /dev",
+		"--tmpfs /tmp",
+		"--bind /home/dev/proj /home/dev/proj",
+		"--chdir /home/dev/proj",
+		"--bind /tmp/build /tmp/build",
+		"--ro-bind /home/dev/proj/secrets /home/dev/proj/secrets",
+		"--ro-bind /dev/null /etc/shadow",
+		"--die-with-parent",
+		"--unshare-pid",
+		"-- /bin/bash -c echo hi",
+	}
+	// Without ProxyAddr, no --setenv HTTP_PROXY should appear.
+	if strings.Contains(joined, "HTTP_PROXY") {
+		t.Errorf("argv unexpectedly set HTTP_PROXY without proxy:\n%s", joined)
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(joined, want) {
+			t.Errorf("argv missing %q\nfull: %s", want, joined)
+		}
+	}
+}
+
+// TestBwrapArgs_ShellDefault asserts /bin/sh is the default inner shell.
+func TestBwrapArgs_ShellDefault(t *testing.T) {
+	p := WrapParams{Command: "id", Workspace: "/tmp/ws"}
+	args := buildBwrapArgs(p)
+	last3 := strings.Join(args[len(args)-3:], " ")
+	if last3 != "/bin/sh -c id" {
+		t.Errorf("tail = %q, want \"/bin/sh -c id\"", last3)
+	}
+}
+
+// TestBwrapArgs_ProxyEnvNotInArgv asserts proxy env is **not** stamped
+// onto the bwrap argv (it's set on cmd.Env by the Bash tool itself).
+func TestBwrapArgs_ProxyEnvNotInArgv(t *testing.T) {
+	p := WrapParams{
+		Command:   "curl example.com",
+		Workspace: "/tmp/ws",
+		ProxyAddr: "127.0.0.1:54321",
+	}
+	joined := strings.Join(buildBwrapArgs(p), " ")
+	if strings.Contains(joined, "HTTP_PROXY") {
+		t.Errorf("argv unexpectedly carries HTTP_PROXY; expected cmd.Env path\n%s", joined)
+	}
+}

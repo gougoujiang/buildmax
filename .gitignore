@@ -1,0 +1,84 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# Local deployment credentials (see deployment/buildmax-secret.example.yaml)
+deployment/*.local.yaml
+
+# Editor/IDE
+# .idea/
+# .vscode/
+
+# Agent/assistant local working directories
+.claude/
+.cursor/
+
+# Internal task-note and scratch area used by the /vibe workflow.
+# Published documentation lives in docs/.
+.vibe/
+# Built binaries from ./make (do not ignore cmd/* source)
+/bin/
+/buildmax
+/buildmax-server
+/buildmax-worker
+/buildmax-eval
+/local-test-mcp-server
+
+testing-sandbox/
+testing-workspaces/
+
+# Server/portal workspace dirs created by tests or local runs when WorkspacesDir is unset
+internal/server/**/testing-workspaces/
+internal/server/**/ws-1/
+internal/server/**/ws1/
+
+# Shared GUI package (React / Node)
+gui/node_modules/
+gui/dist/
+gui/*.tsbuildinfo
+
+# Portal (React / Node)
+portal/node_modules/
+portal/dist/
+portal/*.tsbuildinfo
+
+# Desktop app (Wails) — frontend in desktop/frontend (React + Vite)
+cmd/buildmax-desktop/build/
+desktop/frontend/wailsjs/
+desktop/frontend/node_modules/
+desktop/frontend/dist/
+desktop/frontend/.env
+desktop/frontend/.env.*
+desktop/frontend/*.tsbuildinfo
+desktop/frontend/package.json.md5
+
+# Setup (kind/minio/mysql dev env)
+setup/.port-forward.pid
+setup/.port-forward-mysql.pid
+setup/.port-forward-redis.pid
+/eval-results

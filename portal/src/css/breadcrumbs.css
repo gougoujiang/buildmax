@@ -1,0 +1,34 @@
+/* Breadcrumbs */
+
+.breadcrumbs {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-subtle);
+  min-width: 0;
+}
+
+.breadcrumbs__segment {
+  display: inline;
+}
+
+.breadcrumbs__link {
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--color-link);
+  cursor: pointer;
+  padding: 0;
+}
+
+.breadcrumbs__link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumbs__separator {
+  margin: 0 0.35rem;
+  color: var(--color-text-subtle);
+}
+
+.breadcrumbs__current {
+  color: var(--color-text-muted);
+}

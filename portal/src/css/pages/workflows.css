@@ -1,0 +1,142 @@
+.workflow-page__form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.workflow-page__definition {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.workflow-page__builder {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.workflow-page__builder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.workflow-page__detail-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 1rem;
+}
+
+.workflow-page__detail-panel {
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.workflow-page__runs,
+.workflow-page__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.workflow-page__run-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+}
+
+.workflow-page__run-row--active {
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+}
+
+.workflow-page__run-row + .workflow-page__run-row,
+.workflow-page__step + .workflow-page__step {
+  margin-top: 0.5rem;
+}
+
+.workflow-page__step {
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+}
+
+.workflow-page__step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.workflow-page__step-body {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text);
+}
+
+.workflow-page__step-output {
+  margin: 0;
+  white-space: pre-wrap;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  padding: 0.65rem 0.75rem;
+}
+
+.workflow-page__inline-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.workflow-run-page__grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.workflow-detail-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  gap: 1rem;
+}
+
+.workflow-detail-page__run-id {
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.workflow-run-page__meta {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--color-text);
+}
+
+.workflow-run-page__step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 960px) {
+  .workflow-page__detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-page__builder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-detail-page__grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,271 @@
+/* Page: Task Detail — task conversation layout */
+
+.page-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-left: 5rem;
+  margin-right: 5rem;
+}
+
+/* Chat history — scrollable message list, takes remaining space */
+.page-chat__history {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.75rem;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.page-chat__text {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.page-chat__muted {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.page-chat__error {
+  color: #b91c1c;
+  margin-top: 0.5rem;
+}
+
+/* Message row: icon + bubble; icon aligned to top of bubble */
+.page-chat__msg-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.page-chat__msg-row--user {
+  align-self: flex-end;
+}
+
+.page-chat__msg-row--user .page-chat__msg-icon {
+  order: 2;
+}
+
+.page-chat__msg-row--user .page-chat__msg {
+  order: 1;
+}
+
+.page-chat__msg-icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-chat__msg-row--user .page-chat__msg-icon {
+  color: var(--color-text-muted);
+}
+
+.page-chat__msg-row--assistant .page-chat__msg-icon,
+.page-chat__msg-row--tool .page-chat__msg-icon {
+  color: var(--color-text-muted);
+}
+
+/* Tool messages are results of preceding assistant tool call — indent to align with assistant content (icon + gap) */
+.page-chat__msg-row--tool {
+  margin-left: 4rem;
+}
+
+/* When tool result is collapsed, make the row wider for easier click */
+.page-chat__msg--tool-collapsed {
+  max-width: 100%;
+  min-width: 12rem;
+}
+
+/* Message bubbles — user right, assistant/tool left */
+.page-chat__msg {
+  max-width: 85%;
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+}
+
+.page-chat__msg--user {
+  align-self: flex-end;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.page-chat__msg--assistant,
+.page-chat__msg--tool {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.page-chat__msg--assistant {
+  border: none;
+}
+
+.page-chat__tool-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.25rem 0;
+  margin: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.page-chat__tool-toggle:hover {
+  color: var(--color-text);
+}
+
+.page-chat__tool-toggle-label {
+  font-weight: 500;
+}
+
+.page-chat__tool-chevron {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+.page-chat__tool-content {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.page-chat__tool-content[hidden] {
+  display: none;
+}
+
+.page-chat__msg-content {
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.page-chat__msg-content p {
+  margin: 0.35rem 0;
+}
+
+.page-chat__msg-toolcalls {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.page-chat__msg-args {
+  margin: 0.2rem 0 0;
+  padding: 0.4rem 0.5rem;
+  background: var(--color-bg-muted);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--color-text);
+}
+
+/* Chat input — pinned to bottom of chat area */
+.page-chat__input {
+  flex-shrink: 0;
+}
+
+/* Markdown inside message content */
+.page-chat__markdown {
+  color: inherit;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.page-chat__markdown h1,
+.page-chat__markdown h2,
+.page-chat__markdown h3 {
+  margin: 1rem 0 0.5rem;
+  color: inherit;
+}
+
+.page-chat__markdown h1 { font-size: 1.25rem; }
+.page-chat__markdown h2 { font-size: 1.1rem; }
+.page-chat__markdown h3 { font-size: 1rem; }
+
+.page-chat__markdown p {
+  margin: 0.5rem 0;
+}
+
+.page-chat__markdown ul,
+.page-chat__markdown ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.page-chat__markdown code {
+  background: var(--color-bg-muted);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.88rem;
+}
+
+.page-chat__markdown pre {
+  background: var(--color-bg-muted);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.page-chat__markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.page-chat__markdown blockquote {
+  margin: 0.75rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--color-border);
+  opacity: 0.9;
+}
+
+.page-chat__markdown table {
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.page-chat__markdown th,
+.page-chat__markdown td {
+  border: 1px solid var(--color-border-subtle);
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.page-chat__markdown th {
+  background: rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+}
+
+.page-chat__markdown a {
+  color: var(--color-link);
+  text-decoration: none;
+}
+
+.page-chat__markdown a:hover {
+  text-decoration: underline;
+}

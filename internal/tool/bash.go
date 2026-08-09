@@ -1,0 +1,253 @@
+package tool
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"os/exec"
+	"runtime"
+	"strconv"
+	"time"
+
+	"os"
+
+	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
+)
+
+const (
+	defaultTimeoutMs = 120_000
+	maxTimeoutMs     = 600_000
+	maxOutputRunes   = 30_000
+)
+
+// Bash runs a shell command in the workspace (one command per call).
+type Bash struct {
+	workspaceTool
+	// sandbox wraps spawned commands when Enabled(). Defaults to
+	// NoopSandbox so existing callers (and tests) keep today's behavior.
+	sandbox agent.SandboxView
+}
+
+// NewBash creates a Bash tool that runs commands under the given workspace root.
+func NewBash(workspaceRoot string) *Bash {
+	return &Bash{
+		workspaceTool: workspaceTool{root: workspaceRoot},
+		sandbox:       agent.NoopSandbox{},
+	}
+}
+
+// WithSandbox returns a copy of b that wraps spawned commands through
+// the given SandboxView. Pass agent.NoopSandbox{} (or nil) to disable.
+// Returning a copy keeps Bash safe to share across goroutines.
+func (b *Bash) WithSandbox(v agent.SandboxView) *Bash {
+	out := *b
+	if v == nil {
+		out.sandbox = agent.NoopSandbox{}
+	} else {
+		out.sandbox = v
+	}
+	return &out
+}
+
+// Name returns the tool name for the LLM.
+func (b *Bash) Name() string { return ToolNameBash }
+
+// Description returns a short description so the LLM knows when to use this tool.
+func (b *Bash) Description() string {
+	return "Run a shell command in the workspace. Use for terminal operations (e.g. git, npm, docker). Optional timeout in ms (default 120000, max 600000); output is truncated if over 30000 characters. Prefer Read, Write, Glob, or Grep for file read/write/search."
+}
+
+// Parameters returns the OpenAI-style JSON schema for the tool arguments.
+func (b *Bash) Parameters() any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"command": map[string]any{
+				"type":        "string",
+				"description": "The shell command to execute",
+			},
+			"timeout": map[string]any{
+				"type":        "number",
+				"description": "Optional timeout in milliseconds (default 120000, max 600000)",
+			},
+			"dangerously_disable_sandbox": map[string]any{
+				"type":        "boolean",
+				"description": "If the sandbox is causing this command to fail (e.g. tool incompatible with isolation), set true to retry the command outside the sandbox. The retry goes through the regular permission flow. Ignored when sandbox.allow_unsandboxed_commands is false (strict sandbox mode).",
+			},
+		},
+		"required": []string{"command"},
+	}
+}
+
+// CheckArgs implements llm.ArgChecker.
+//
+// Decision order (each step short-circuits):
+//  1. Catastrophic patterns (rm -rf /, raw dd, mkfs on device) — always Deny.
+//  2. Risky patterns (curl, npm, sudo, …) — Ask, unless auto-allow applies.
+//
+// Auto-allow demotes Ask → Allow when:
+//   - the sandbox is enabled,
+//   - its mode is auto_allow (config.auto_allow_bash_if_sandboxed),
+//   - the command would actually be sandboxed (not in excluded_commands),
+//   - the caller did not pass dangerously_disable_sandbox=true.
+//
+// Matches Claude Code's documented behavior in /sandboxing: catastrophic
+// destructive commands still prompt even in auto-allow mode; everything
+// else is contained by the OS sandbox boundary.
+func (b *Bash) CheckArgs(args map[string]any) llm.ToolAction {
+	cmd, ok := args["command"].(string)
+	if !ok {
+		return llm.ToolActionAllow
+	}
+	if isCatastrophicBash(cmd) {
+		return llm.ToolActionDeny
+	}
+	if isRiskyBashCommand(cmd) {
+		if b.autoAllowApplies(args, cmd) {
+			return llm.ToolActionAllow
+		}
+		return llm.ToolActionAsk
+	}
+	return llm.ToolActionAllow
+}
+
+// autoAllowApplies reports whether auto-allow demotes Ask → Allow for cmd.
+// See CheckArgs comment for the gating rules.
+func (b *Bash) autoAllowApplies(args map[string]any, cmd string) bool {
+	if b == nil || b.sandbox == nil || !b.sandbox.Enabled() {
+		return false
+	}
+	if b.sandbox.Mode() != "auto_allow" {
+		return false
+	}
+	if disable, _ := args["dangerously_disable_sandbox"].(bool); disable && b.sandbox.AllowUnsandboxed() {
+		// The caller has asked to run outside the sandbox; auto-allow
+		// should NOT apply because the OS boundary isn't going to
+		// contain this call.
+		return false
+	}
+	return b.sandbox.ShouldSandboxCommand(cmd)
+}
+
+// Execute runs the command in b.root with the given timeout, captures combined stdout+stderr, and returns the result (truncated if needed).
+// On success (exit 0) returns output and nil error. On non-zero exit or timeout returns a clear message and nil error so the LLM receives a readable result.
+// Returns error only for argument validation (missing or empty command).
+func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error) {
+	command, err := parseRequiredString(args, "command")
+	if err != nil {
+		return "", err
+	}
+	timeout := parseTimeout(args)
+
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	disable, _ := args["dangerously_disable_sandbox"].(bool)
+	name, shellArgs, err := b.spawnArgs(runCtx, command, disable)
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.CommandContext(runCtx, name, shellArgs...)
+	cmd.Dir = b.root
+	// Compose child env. When the sandbox is active, secret-shaped vars
+	// are stripped before adding the proxy routing env. Untouched
+	// otherwise so existing behaviour is unchanged.
+	if b.sandbox != nil {
+		extra := b.sandbox.ChildEnv()
+		scrubbed := b.sandbox.ScrubEnv(os.Environ())
+		if len(extra) > 0 || len(scrubbed) != len(os.Environ()) {
+			cmd.Env = append(scrubbed, extra...)
+		}
+	}
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	runErr := cmd.Run()
+
+	output := out.String()
+	output = truncateOutput(output, maxOutputRunes)
+
+	if runErr != nil {
+		if runCtx.Err() == context.DeadlineExceeded {
+			return "Command timed out after " + timeout.String() + ".\n" + output, nil
+		}
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
+			return "Command failed with exit code " + strconv.Itoa(exitErr.ExitCode()) + ".\n" + output, nil
+		}
+		return "Command failed: " + runErr.Error() + ".\n" + output, nil
+	}
+	return output, nil
+}
+
+func parseTimeout(args map[string]any) time.Duration {
+	ms := defaultTimeoutMs
+	if v, ok := args["timeout"]; ok && v != nil {
+		if f, ok := toFloat64(v); ok && f > 0 {
+			if f > maxTimeoutMs {
+				f = maxTimeoutMs
+			}
+			ms = int(f)
+		}
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+// spawnArgs returns the (binary, argv) to exec for the given command. When
+// the sandbox is active and accepts the command, it returns the sandbox
+// wrap (e.g. bwrap argv on Linux); otherwise it returns the direct shell
+// invocation that has always been used.
+//
+// disable is the per-call dangerously_disable_sandbox arg from the LLM.
+// It is honored only when the sandbox's AllowUnsandboxed() reports true
+// ("strict sandbox mode" ignores the flag — matches Claude Code's
+// allowUnsandboxedCommands semantics).
+func (b *Bash) spawnArgs(ctx context.Context, command string, disable bool) (string, []string, error) {
+	if b.sandbox != nil {
+		if !(disable && b.sandbox.AllowUnsandboxed()) {
+			shell, _ := b.directShellInvocation(command)
+			name, args, err := b.sandbox.WrapBashCommand(ctx, command, shell)
+			if err != nil {
+				return "", nil, err
+			}
+			if name != "" {
+				return name, args, nil
+			}
+		}
+	}
+	name, args := b.directShellInvocation(command)
+	return name, args, nil
+}
+
+// directShellInvocation returns the executable name and args to run the
+// given command string without sandboxing. Unix: bash -c "cmd" or
+// sh -c "cmd"; Windows: cmd /c "cmd".
+func (b *Bash) directShellInvocation(command string) (name string, args []string) {
+	if runtime.GOOS == "windows" {
+		return "cmd", []string{"/c", command}
+	}
+	if path, err := exec.LookPath("bash"); err == nil {
+		return path, []string{"-c", command}
+	}
+	return "sh", []string{"-c", command}
+}
+
+// truncateOutput keeps the head and tail of content when it exceeds maxRunes.
+// Both ends are preserved because errors typically appear at the end while
+// context (e.g. which test ran) appears at the start.
+func truncateOutput(content string, maxRunes int) string {
+	runes := []rune(content)
+	total := len(runes)
+	if total <= maxRunes {
+		return content
+	}
+	head := maxRunes * 2 / 5 // 40 % at the start
+	tail := maxRunes * 2 / 5 // 40 % at the end
+	omitted := total - head - tail
+	return string(runes[:head]) +
+		"\n\n(output truncated — " + strconv.Itoa(total) + " characters total, " +
+		strconv.Itoa(omitted) + " characters omitted from middle)\n\n" +
+		string(runes[total-tail:])
+}

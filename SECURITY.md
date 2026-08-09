@@ -1,0 +1,48 @@
+# Security Policy
+
+## Supported Versions
+
+BuildMax is currently in alpha. Security fixes are applied to the `main`
+branch and included in the next release. Earlier builds may not receive fixes.
+
+## Reporting a Vulnerability
+
+Do not open a public issue for a suspected vulnerability, leaked credential, or
+security-sensitive configuration.
+
+Before the first public release, maintainers must enable GitHub's private
+vulnerability reporting for this repository. Once it is enabled, use that
+channel for reports. If it is not available, do not post the report publicly;
+contact the repository owner through GitHub instead. Include:
+
+- affected version or commit
+- a minimal reproduction or proof of concept
+- impact and any prerequisites
+- suggested mitigation, when known
+
+Please avoid accessing data that is not yours, disrupting service, or making
+changes to third-party systems while investigating. We will acknowledge a
+report, assess its impact, and coordinate a fix and disclosure with the reporter.
+
+## Known Limitations
+
+These are documented gaps, not vulnerabilities. Please do not file reports for
+them; they are tracked as roadmap work.
+
+- **No production authentication.** The server ships without an OTP delivery
+  channel, so `POST /api/login` is disabled by default. The optional
+  `dev_login_otp` setting enables a single fixed code that authenticates any
+  registered email address — a development convenience only. A deployment
+  reachable by untrusted users needs a real identity provider first.
+- **Sandboxing is off by default.** The bash sandbox exists but is not enabled
+  on any surface by default, and worker hardening is incomplete. See
+  `docs/design/032-sandbox-and-execution-boundaries.md` §13.1.
+
+## Deployment Responsibilities
+
+BuildMax can invoke tools and commands through configured agent runtimes.
+Operators are responsible for choosing the runtime permissions, sandbox policy,
+network policy, workspace access, and credentials appropriate for their
+environment. Do not commit API keys, tokens, passwords, private certificates,
+or production configuration to this repository. Rotate any credential that is
+ever committed or otherwise exposed.

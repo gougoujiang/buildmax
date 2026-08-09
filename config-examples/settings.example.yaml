@@ -1,0 +1,111 @@
+# BuildMax local settings (BUILDMAX_HOME/settings.yaml)
+# Used by the CLI and desktop app.
+
+log_level: info
+
+# Server URL shown as default when running `buildmax login`.
+# server_url: http://localhost:5678
+
+# LLM models available in the CLI and desktop app.
+# The first entry is the default model.
+# context_window: 0 uses the built-in default (32 000 tokens).
+models:
+  - model: openai/gpt-3.5-turbo
+    name: GPT-3.5-turbo
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 16385
+    # call_timeout: 300  # per-call timeout in seconds (default 300)
+
+  - model: google/gemma-3-27b-it:free
+    name: Gemma 3 27B (free)
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 8192
+
+# Runtime hooks (P0.5 trust harness). Hooks let you observe or block events in
+# the agent loop. Full design: design/031-hook-system-v2.md.
+#
+# Events:
+#   session_start             - session opened or resumed (advisory)
+#   session_end               - session closed (advisory)
+#   user_prompt_submit        - user prompt entering the agent (GATING)
+#   pre_tool_use              - before tool execution (GATING)
+#   post_tool_use             - tool succeeded (advisory)
+#   post_tool_use_failure     - tool returned an error (advisory)
+#   notification              - approval needed / permission denied (advisory)
+#   pre_compact / post_compact - context compaction (pre is GATING)
+#   subagent_start / subagent_stop - subagent lifecycle (advisory)
+#   stop / stop_failure       - main-agent finish (advisory)
+#
+# Each entry chooses a transport via "type":
+#   command   - run a shell command; HookInput JSON arrives on stdin
+#   http      - POST HookInput JSON to a URL
+#   mcp_tool  - invoke a tool on a connected MCP server
+#   prompt    - single-turn LLM call ($ARGUMENTS expands to the JSON payload)
+# Omitting "type" defaults to "command".
+#
+# "matcher" is a regex on the tool name; only applies to pre_tool_use,
+# post_tool_use, and post_tool_use_failure. Empty matcher matches every
+# invocation. "timeout" is seconds (default 30).
+#
+# Block contract: command exit 2 = block (stderr → reason); HTTP 422 = block
+# (body → reason); any transport may also return {"decision":"block","reason":"..."}
+# JSON on its response channel. Anything else fails open (allows).
+#
+# A per-workspace overlay at <workspace>/.buildmax/hooks.yaml can extend this
+# block; entries from both layers run, additively (global first, then workspace).
+#
+# hooks:
+#   user_prompt_submit:
+#     # Run a project-shipped script that scans for forbidden content. Exit 2
+#     # to block; the LLM never sees the prompt.
+#     - type: command
+#       command: "./.buildmax/hooks/redact.sh"
+#       timeout: 5
+#
+#   pre_tool_use:
+#     # Centralized HTTP policy service. POST receives the full HookInput; a
+#     # 200 response with {"decision":"block","reason":"..."} denies the call.
+#     - type: http
+#       matcher: "bash|writefile|editfile"
+#       url: "https://policy.internal/check"
+#       headers:
+#         Authorization: "Bearer $POLICY_TOKEN"
+#       allowed_env: [POLICY_TOKEN]   # only listed env vars are interpolated
+#       timeout: 5
+#
+#     # LLM-based judge. Prefer the cheapest model — this fires on every tool
+#     # call. Returning JSON {"decision":"block","reason":"..."} blocks.
+#     - type: prompt
+#       matcher: "bash"
+#       model: ""                      # empty = default model from this file
+#       prompt: |
+#         You are reviewing a tool call. Reply with one JSON object:
+#         {"decision":"allow"|"block","reason":"..."}
+#         Call:
+#         $ARGUMENTS
+#
+#   post_tool_use:
+#     # Formatter — always allows, just runs after writefile/editfile.
+#     - type: command
+#       matcher: "writefile|editfile"
+#       command: "gofmt -w ."
+#
+#   post_tool_use_failure:
+#     # Forward tool failures to an MCP-backed audit service.
+#     - type: mcp_tool
+#       server: "audit"
+#       tool: "record_failure"
+#       input:
+#         tool: "${tool_name}"
+#         error: "${tool_error}"
+#         path: "${tool_args.path}"
+#
+#   notification:
+#     - type: command
+#       command: "./.buildmax/hooks/notify-desktop.sh"
+#
+#   stop:
+#     - type: command
+#       command: "/usr/local/bin/audit.sh"

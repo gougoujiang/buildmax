@@ -1,0 +1,8 @@
+date,region,product,quantity,unit_price,total
+2024-04-10,West,Widget A,180,9.99,1798.20
+2024-04-25,North,Widget C,70,22.00,1540.00
+2024-05-08,South,Widget B,130,14.50,1885.00
+2024-05-19,East,Widget A,210,9.99,2097.90
+2024-06-02,West,Widget B,90,14.50,1305.00
+2024-06-15,North,Widget C,145,22.00,3190.00
+2024-06-30,South,Widget A,160,9.99,1598.40

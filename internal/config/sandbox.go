@@ -1,0 +1,405 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/viper"
+)
+
+// PolicyPath returns the operator-controlled policy file path.
+// Optional; missing file means "no operator lock-out."
+func PolicyPath() string {
+	return filepath.Join(DataDir(), "policy.yaml")
+}
+
+// SandboxConfig is the "sandbox" block of settings.yaml (and policy.yaml).
+// Key names mirror Claude Code's sandbox schema (snake_case per CLAUDE.md
+// §6.1) so users and operators familiar with that product can port
+// configuration directly. Detail design lives in
+// docs/design/032-sandbox-and-execution-boundaries.md.
+//
+// Phase A only loads and resolves these values — nothing enforces them yet.
+type SandboxConfig struct {
+	// Enabled is the master switch.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
+
+	// FailIfUnavailable: refuse to start (rather than fall back to
+	// unsandboxed) when the OS backend cannot run. Intended for managed
+	// deployments that require sandboxing as a hard gate.
+	FailIfUnavailable bool `mapstructure:"fail_if_unavailable" json:"fail_if_unavailable,omitempty" yaml:"fail_if_unavailable,omitempty"`
+
+	// AutoAllowBashIfSandboxed: when true and the sandbox wraps the bash
+	// call, skip the approval prompt. When false ("regular permissions
+	// mode"), sandboxed bash still goes through the regular approval
+	// flow.
+	AutoAllowBashIfSandboxed *bool `mapstructure:"auto_allow_bash_if_sandboxed" json:"auto_allow_bash_if_sandboxed,omitempty" yaml:"auto_allow_bash_if_sandboxed,omitempty"`
+
+	// AllowUnsandboxedCommands: honor the per-call
+	// dangerously_disable_sandbox arg. When false ("strict sandbox
+	// mode") the arg is ignored.
+	AllowUnsandboxedCommands *bool `mapstructure:"allow_unsandboxed_commands" json:"allow_unsandboxed_commands,omitempty" yaml:"allow_unsandboxed_commands,omitempty"`
+
+	// ExcludedCommands lists bash patterns that should run outside the
+	// sandbox (convenience, not a security boundary).
+	ExcludedCommands []string `mapstructure:"excluded_commands" json:"excluded_commands,omitempty" yaml:"excluded_commands,omitempty"`
+
+	Filesystem SandboxFSConfig  `mapstructure:"filesystem" json:"filesystem,omitempty" yaml:"filesystem,omitempty"`
+	Network    SandboxNetConfig `mapstructure:"network"    json:"network,omitempty"    yaml:"network,omitempty"`
+
+	// IgnoreViolations: per-tool list of violation kinds to hide from
+	// status/trace. Internal counts are still kept.
+	IgnoreViolations map[string][]string `mapstructure:"ignore_violations" json:"ignore_violations,omitempty" yaml:"ignore_violations,omitempty"`
+
+	// EnableWeakerNestedSandbox: allow running inside Docker without
+	// privileged namespaces by bind-mounting the container's existing
+	// /proc instead of mounting a fresh one. Documented as weaker.
+	EnableWeakerNestedSandbox bool `mapstructure:"enable_weaker_nested_sandbox" json:"enable_weaker_nested_sandbox,omitempty" yaml:"enable_weaker_nested_sandbox,omitempty"`
+
+	// EnableWeakerNetworkIsolation: macOS only; allow access to
+	// com.apple.trustd.agent so Go-based CLIs can verify TLS through a
+	// MITM proxy. Documented as weaker.
+	EnableWeakerNetworkIsolation bool `mapstructure:"enable_weaker_network_isolation" json:"enable_weaker_network_isolation,omitempty" yaml:"enable_weaker_network_isolation,omitempty"`
+}
+
+// SandboxFSConfig mirrors Claude Code's sandbox.filesystem schema. Paths
+// follow standard conventions documented in doc 032 §4.3.
+type SandboxFSConfig struct {
+	AllowWrite []string `mapstructure:"allow_write" json:"allow_write,omitempty" yaml:"allow_write,omitempty"`
+	DenyWrite  []string `mapstructure:"deny_write"  json:"deny_write,omitempty"  yaml:"deny_write,omitempty"`
+	AllowRead  []string `mapstructure:"allow_read"  json:"allow_read,omitempty"  yaml:"allow_read,omitempty"`
+	DenyRead   []string `mapstructure:"deny_read"   json:"deny_read,omitempty"   yaml:"deny_read,omitempty"`
+
+	// AllowManagedReadPathsOnly: policy-only knob. When set in
+	// policy.yaml, lower sources' allow_read entries are ignored;
+	// deny_read still merges from every source.
+	AllowManagedReadPathsOnly bool `mapstructure:"allow_managed_read_paths_only" json:"allow_managed_read_paths_only,omitempty" yaml:"allow_managed_read_paths_only,omitempty"`
+}
+
+// SandboxNetConfig mirrors Claude Code's sandbox.network schema.
+type SandboxNetConfig struct {
+	AllowedDomains      []string `mapstructure:"allowed_domains"        json:"allowed_domains,omitempty"        yaml:"allowed_domains,omitempty"`
+	DeniedDomains       []string `mapstructure:"denied_domains"         json:"denied_domains,omitempty"         yaml:"denied_domains,omitempty"`
+	AllowUnixSockets    []string `mapstructure:"allow_unix_sockets"     json:"allow_unix_sockets,omitempty"     yaml:"allow_unix_sockets,omitempty"`
+	AllowAllUnixSockets bool     `mapstructure:"allow_all_unix_sockets" json:"allow_all_unix_sockets,omitempty" yaml:"allow_all_unix_sockets,omitempty"`
+	AllowLocalBinding   bool     `mapstructure:"allow_local_binding"    json:"allow_local_binding,omitempty"    yaml:"allow_local_binding,omitempty"`
+	HTTPProxyPort       int      `mapstructure:"http_proxy_port"        json:"http_proxy_port,omitempty"        yaml:"http_proxy_port,omitempty"`
+	SOCKSProxyPort      int      `mapstructure:"socks_proxy_port"       json:"socks_proxy_port,omitempty"       yaml:"socks_proxy_port,omitempty"`
+
+	// AllowManagedDomainsOnly: policy-only knob. When set in
+	// policy.yaml, lower sources' allowed_domains are ignored;
+	// denied_domains still merges from every source.
+	AllowManagedDomainsOnly bool `mapstructure:"allow_managed_domains_only" json:"allow_managed_domains_only,omitempty" yaml:"allow_managed_domains_only,omitempty"`
+}
+
+// SandboxSurface names a runtime surface so ResolveSandbox can pick a
+// surface-appropriate default. Surfaces differ on:
+//   - default Enabled (off for interactive local, on for the worker)
+//   - default FailIfUnavailable (off for interactive, on for worker)
+//   - default AllowUnsandboxedCommands (on for interactive, off for worker)
+type SandboxSurface string
+
+const (
+	// SandboxSurfaceCLI is the local CLI/Desktop default surface. Defaults
+	// match today's behavior: sandbox off unless the user opts in.
+	SandboxSurfaceCLI SandboxSurface = "cli"
+	// SandboxSurfaceWorker is the buildmax-worker default surface.
+	// Defaults satisfy doc 030 §3.2's "stricter than trusted local."
+	SandboxSurfaceWorker SandboxSurface = "worker"
+)
+
+// PolicyFile is the on-disk shape of <BUILDMAX_HOME>/policy.yaml. Only the
+// sandbox block is read in Phase A; the file is reserved for other
+// operator-controlled subsystems in later phases.
+type PolicyFile struct {
+	Sandbox SandboxConfig `mapstructure:"sandbox" json:"sandbox,omitempty" yaml:"sandbox,omitempty"`
+}
+
+// LoadPolicySandbox reads <BUILDMAX_HOME>/policy.yaml. A missing file is
+// not an error — returns (SandboxConfig{}, nil) so callers can merge
+// unconditionally.
+func LoadPolicySandbox() (SandboxConfig, error) {
+	path := PolicyPath()
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return SandboxConfig{}, nil
+		}
+		return SandboxConfig{}, fmt.Errorf("stat policy: %w", err)
+	}
+	v := viper.New()
+	v.SetConfigFile(path)
+	if err := v.ReadInConfig(); err != nil {
+		return SandboxConfig{}, fmt.Errorf("read policy: %w", err)
+	}
+	var pf PolicyFile
+	if err := v.Unmarshal(&pf); err != nil {
+		return SandboxConfig{}, fmt.Errorf("parse policy: %w", err)
+	}
+	return pf.Sandbox, nil
+}
+
+// SandboxResolution is the resolved sandbox plus a per-field source map
+// for display via `buildmax sandbox status`.
+type SandboxResolution struct {
+	Config SandboxConfig
+
+	// Sources lists every layer that contributed a non-default value, in
+	// resolution order: "default", "settings", "policy", "env".
+	Sources []string
+}
+
+// Env override key. Phase A only honors BUILDMAX_SANDBOX_ENABLED; later
+// phases may add more.
+const EnvKeyBuildmaxSandboxEnabled = "BUILDMAX_SANDBOX_ENABLED"
+
+// ResolveSandbox merges settings + policy + env + surface defaults into a
+// final SandboxConfig. Mirrors the layering in doc 032 §4.1.
+//
+// Precedence (highest wins for scalars; arrays union):
+//  1. Env (BUILDMAX_SANDBOX_ENABLED).
+//  2. Policy file.
+//  3. Settings file.
+//  4. Surface default.
+//
+// For the managed-only flags (AllowManagedDomainsOnly,
+// AllowManagedReadPathsOnly) set in policy.yaml, the corresponding allow
+// array in lower sources is suppressed. Deny arrays always union.
+func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
+	base := defaultSandbox(surface)
+	res := SandboxResolution{Config: base, Sources: []string{"default:" + string(surface)}}
+
+	// Layer settings.yaml on top of defaults.
+	if !sandboxEmpty(global) {
+		res.Config = mergeSandbox(res.Config, global, false)
+		res.Sources = append(res.Sources, "settings")
+	}
+	// Layer policy.yaml on top of settings.
+	if !sandboxEmpty(policy) {
+		res.Config = mergeSandbox(res.Config, policy, true)
+		res.Sources = append(res.Sources, "policy")
+	}
+	// Env override for Enabled.
+	if v, ok := os.LookupEnv(EnvKeyBuildmaxSandboxEnabled); ok {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "1", "true", "yes", "on":
+			res.Config.Enabled = true
+			res.Sources = append(res.Sources, "env:"+EnvKeyBuildmaxSandboxEnabled+"=true")
+		case "0", "false", "no", "off":
+			res.Config.Enabled = false
+			res.Sources = append(res.Sources, "env:"+EnvKeyBuildmaxSandboxEnabled+"=false")
+		}
+	}
+	return res
+}
+
+// defaultSandbox returns the surface-appropriate baseline config.
+func defaultSandbox(surface SandboxSurface) SandboxConfig {
+	autoAllowOn := true
+	allowUnsandboxedOn := true
+	allowUnsandboxedOff := false
+
+	switch surface {
+	case SandboxSurfaceWorker:
+		return SandboxConfig{
+			Enabled:                  true,
+			FailIfUnavailable:        true,
+			AutoAllowBashIfSandboxed: &autoAllowOn,
+			AllowUnsandboxedCommands: &allowUnsandboxedOff,
+		}
+	default: // SandboxSurfaceCLI
+		return SandboxConfig{
+			Enabled:                  false,
+			FailIfUnavailable:        false,
+			AutoAllowBashIfSandboxed: &autoAllowOn,
+			AllowUnsandboxedCommands: &allowUnsandboxedOn,
+		}
+	}
+}
+
+// mergeSandbox layers src onto dst. When isPolicy is true, policy-only
+// flags (AllowManagedDomainsOnly, AllowManagedReadPathsOnly) are honored
+// and the corresponding allow arrays from dst are discarded.
+func mergeSandbox(dst, src SandboxConfig, isPolicy bool) SandboxConfig {
+	out := dst
+
+	// Scalars: src wins when explicitly set.
+	if src.Enabled {
+		out.Enabled = true
+	} else if isPolicy {
+		// Policy can disable explicitly only when its own scalar is set;
+		// we treat zero-value as "no opinion."
+	}
+	if src.FailIfUnavailable {
+		out.FailIfUnavailable = true
+	}
+	if src.AutoAllowBashIfSandboxed != nil {
+		v := *src.AutoAllowBashIfSandboxed
+		out.AutoAllowBashIfSandboxed = &v
+	}
+	if src.AllowUnsandboxedCommands != nil {
+		v := *src.AllowUnsandboxedCommands
+		out.AllowUnsandboxedCommands = &v
+	}
+	if src.EnableWeakerNestedSandbox {
+		out.EnableWeakerNestedSandbox = true
+	}
+	if src.EnableWeakerNetworkIsolation {
+		out.EnableWeakerNetworkIsolation = true
+	}
+
+	// Arrays: union (deduped). Allow arrays are dropped under managed-only
+	// lockdown.
+	if isPolicy && src.Network.AllowManagedDomainsOnly {
+		out.Network.AllowManagedDomainsOnly = true
+		out.Network.AllowedDomains = nil
+	}
+	if isPolicy && src.Filesystem.AllowManagedReadPathsOnly {
+		out.Filesystem.AllowManagedReadPathsOnly = true
+		out.Filesystem.AllowRead = nil
+	}
+
+	out.ExcludedCommands = unionStrings(out.ExcludedCommands, src.ExcludedCommands)
+	out.Filesystem.AllowWrite = unionStrings(out.Filesystem.AllowWrite, src.Filesystem.AllowWrite)
+	out.Filesystem.DenyWrite = unionStrings(out.Filesystem.DenyWrite, src.Filesystem.DenyWrite)
+	out.Filesystem.DenyRead = unionStrings(out.Filesystem.DenyRead, src.Filesystem.DenyRead)
+	if !(isPolicy && src.Filesystem.AllowManagedReadPathsOnly) && !out.Filesystem.AllowManagedReadPathsOnly {
+		out.Filesystem.AllowRead = unionStrings(out.Filesystem.AllowRead, src.Filesystem.AllowRead)
+	} else if isPolicy {
+		// Policy-only allow_read.
+		out.Filesystem.AllowRead = unionStrings(out.Filesystem.AllowRead, src.Filesystem.AllowRead)
+	}
+	out.Network.DeniedDomains = unionStrings(out.Network.DeniedDomains, src.Network.DeniedDomains)
+	if !(isPolicy && src.Network.AllowManagedDomainsOnly) && !out.Network.AllowManagedDomainsOnly {
+		out.Network.AllowedDomains = unionStrings(out.Network.AllowedDomains, src.Network.AllowedDomains)
+	} else if isPolicy {
+		out.Network.AllowedDomains = unionStrings(out.Network.AllowedDomains, src.Network.AllowedDomains)
+	}
+	out.Network.AllowUnixSockets = unionStrings(out.Network.AllowUnixSockets, src.Network.AllowUnixSockets)
+	if src.Network.AllowAllUnixSockets {
+		out.Network.AllowAllUnixSockets = true
+	}
+	if src.Network.AllowLocalBinding {
+		out.Network.AllowLocalBinding = true
+	}
+	if src.Network.HTTPProxyPort > 0 {
+		out.Network.HTTPProxyPort = src.Network.HTTPProxyPort
+	}
+	if src.Network.SOCKSProxyPort > 0 {
+		out.Network.SOCKSProxyPort = src.Network.SOCKSProxyPort
+	}
+
+	// ignore_violations: union per key.
+	if len(src.IgnoreViolations) > 0 {
+		if out.IgnoreViolations == nil {
+			out.IgnoreViolations = make(map[string][]string, len(src.IgnoreViolations))
+		}
+		for k, vs := range src.IgnoreViolations {
+			out.IgnoreViolations[k] = unionStrings(out.IgnoreViolations[k], vs)
+		}
+	}
+
+	return out
+}
+
+// sandboxEmpty reports whether a SandboxConfig contributed nothing the
+// caller cares about. Used to skip layering and source-tagging when a
+// config file did not include a sandbox block.
+func sandboxEmpty(c SandboxConfig) bool {
+	if c.Enabled || c.FailIfUnavailable || c.EnableWeakerNestedSandbox || c.EnableWeakerNetworkIsolation {
+		return false
+	}
+	if c.AutoAllowBashIfSandboxed != nil || c.AllowUnsandboxedCommands != nil {
+		return false
+	}
+	if len(c.ExcludedCommands) > 0 || len(c.IgnoreViolations) > 0 {
+		return false
+	}
+	if len(c.Filesystem.AllowWrite)+len(c.Filesystem.DenyWrite)+len(c.Filesystem.AllowRead)+len(c.Filesystem.DenyRead) > 0 {
+		return false
+	}
+	if c.Filesystem.AllowManagedReadPathsOnly {
+		return false
+	}
+	if len(c.Network.AllowedDomains)+len(c.Network.DeniedDomains)+len(c.Network.AllowUnixSockets) > 0 {
+		return false
+	}
+	if c.Network.AllowAllUnixSockets || c.Network.AllowLocalBinding || c.Network.AllowManagedDomainsOnly {
+		return false
+	}
+	if c.Network.HTTPProxyPort > 0 || c.Network.SOCKSProxyPort > 0 {
+		return false
+	}
+	return true
+}
+
+// unionStrings concatenates a and b, dropping duplicates. Order is preserved
+// (a entries first, then b's new entries).
+func unionStrings(a, b []string) []string {
+	if len(a) == 0 && len(b) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(a)+len(b))
+	seen := make(map[string]struct{}, len(a)+len(b))
+	for _, v := range a {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	for _, v := range b {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
+}
+
+// EffectiveAutoAllowBash returns the resolved AutoAllowBashIfSandboxed
+// flag, applying the documented default (true) when unset.
+func (c SandboxConfig) EffectiveAutoAllowBash() bool {
+	if c.AutoAllowBashIfSandboxed == nil {
+		return true
+	}
+	return *c.AutoAllowBashIfSandboxed
+}
+
+// EffectiveAllowUnsandboxed returns the resolved AllowUnsandboxedCommands
+// flag, applying the documented default (true) when unset.
+func (c SandboxConfig) EffectiveAllowUnsandboxed() bool {
+	if c.AllowUnsandboxedCommands == nil {
+		return true
+	}
+	return *c.AllowUnsandboxedCommands
+}
+
+// IgnoredViolationsFor returns the violation patterns suppressed for the
+// named tool. Lookup is case-insensitive because Viper lowercases map keys
+// when loading YAML; users may write "Bash:" matching the tool name.
+func (c SandboxConfig) IgnoredViolationsFor(toolName string) []string {
+	if c.IgnoreViolations == nil {
+		return nil
+	}
+	if v, ok := c.IgnoreViolations[toolName]; ok {
+		return v
+	}
+	lower := strings.ToLower(toolName)
+	return c.IgnoreViolations[lower]
+}
+
+// EffectiveMode returns "auto_allow" or "regular" based on the resolved
+// AutoAllowBashIfSandboxed flag. Returns "" when the sandbox is disabled.
+func (c SandboxConfig) EffectiveMode() string {
+	if !c.Enabled {
+		return ""
+	}
+	if c.EffectiveAutoAllowBash() {
+		return "auto_allow"
+	}
+	return "regular"
+}

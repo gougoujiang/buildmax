@@ -1,0 +1,42 @@
+/* BuildMax shared theme: CSS variables for light and dark */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #fafafa;
+  --color-bg-elevated: #fff;
+  --color-bg-muted: #f0f0f0;
+  --color-bg-hover: #e8e8e8;
+  --color-text: #1a1a1a;
+  --color-text-muted: #555;
+  --color-text-subtle: #888;
+  --color-border: #e0e0e0;
+  --color-border-subtle: #e5e5e5;
+  --color-link: #1a1a1a;
+  --color-input-bg: #fff;
+  --color-input-border: #ccc;
+  --color-focus-ring: rgba(26, 26, 26, 0.12);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.18);
+  --color-primary: #1a1a1a;
+  --color-primary-text: #fff;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #1a1a1a;
+  --color-bg-elevated: #2d2d2d;
+  --color-bg-muted: #252525;
+  --color-bg-hover: #3a3a3a;
+  --color-text: #c8c8c8;
+  --color-text-muted: #989898;
+  --color-text-subtle: #707070;
+  --color-border: #404040;
+  --color-border-subtle: #383838;
+  --color-link: #b8b8b8;
+  --color-input-bg: #252525;
+  --color-input-border: #505050;
+  --color-focus-ring: rgba(255, 255, 255, 0.12);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --color-primary: #e0e0e0;
+  --color-primary-text: #1a1a1a;
+}

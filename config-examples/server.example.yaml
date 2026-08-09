@@ -1,0 +1,65 @@
+# BuildMax server configuration (BUILDMAX_HOME/server.yaml)
+# Copy to BUILDMAX_HOME/server.yaml and fill in your values.
+# BUILDMAX_JWT_SECRET and BUILDMAX_LOG_LEVEL env vars override the fields below.
+
+log_level: info
+port: 5678
+
+# JWT signing secret for auth tokens.
+# Production: leave blank here and inject via BUILDMAX_JWT_SECRET env var.
+# Local dev: set directly.
+jwt_secret: your-jwt-secret-here
+
+# Development-only fixed login OTP. When set, POST /api/login accepts this one
+# code as the one-time password for EVERY registered account — anyone who knows
+# a registered email address can sign in. BuildMax has no OTP delivery channel
+# yet, so leaving this unset (the default) disables login entirely and the
+# endpoint returns 503.
+#
+# Set it only on a local or otherwise trusted deployment. Never set it on a
+# server reachable by untrusted users.
+# dev_login_otp: "123456"
+
+cors_origin: http://localhost:5173
+workspaces_dir: /data/buildmax/workspaces
+default_quota_tier: free_trial
+
+# Tier 1 conversation LLM used by the portal agent loop.
+conversation:
+  model:
+    model: openai/gpt-4o
+    name: GPT-4o
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 128000
+
+database:
+  host: localhost
+  port: 3306
+  user: buildmax
+  password: buildmax
+  name: buildmax
+
+webhook:
+  message_path: message
+  user_id: webhook
+
+worker:
+  binary: buildmax-worker
+  run_mode: local_process   # or k8s_job
+  server_url: http://localhost:5678
+  token: your-worker-token
+  k8s:
+    namespace: buildmax
+    image: buildmax:local
+
+storage:
+  persist_backend: local_fs   # or minio
+  artifact_backend: local_fs  # or minio
+  minio:
+    endpoint: http://localhost:9000
+    region: us-east-1
+    access_key: minio
+    secret_key: minio123
+    bucket: bmstore
+    prefix: workspaces

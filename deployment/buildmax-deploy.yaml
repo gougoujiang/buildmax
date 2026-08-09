@@ -1,0 +1,255 @@
+# BuildMax server deployment for kind cluster.
+# Prereq: ./make setup (cluster, MinIO, MySQL, ingress-nginx). Then: ./make deploy
+#
+# This file contains NO credentials. The buildmax-secret it references must be
+# created separately:
+#
+#   cp deployment/buildmax-secret.example.yaml deployment/buildmax-secret.local.yaml
+#   # fill in real values, then:
+#   kubectl apply -f deployment/buildmax-secret.local.yaml
+#
+# buildmax-secret.local.yaml is gitignored; ./make deploy applies it for you.
+#
+# Add to /etc/hosts: 127.0.0.1 buildmax-api.kind.local (API), 127.0.0.1 buildmax.kind.local (portal)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildmax
+---
+# ServiceAccount for server; used when BUILDMAX_WORKER_RUN_MODE=k8s_job to create worker Jobs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: buildmax-server
+subjects:
+  - kind: ServiceAccount
+    name: buildmax-server
+    namespace: buildmax
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+  labels:
+    app: buildmax-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-server
+  template:
+    metadata:
+      labels:
+        app: buildmax-server
+    spec:
+      serviceAccountName: buildmax-server
+      containers:
+        - name: server
+          image: buildmax:local
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/buildmax-server"]
+          ports:
+            - containerPort: 5678
+              name: http
+          env:
+            - name: BUILDMAX_DB_HOST
+              value: "mysql.db.svc.cluster.local"
+            - name: BUILDMAX_DB_PORT
+              value: "3306"
+            - name: BUILDMAX_DB_USER
+              value: "buildmax"
+            - name: BUILDMAX_DB_PASSWORD
+              value: "buildmax"
+            - name: BUILDMAX_DB_DATABASE
+              value: "buildmax"
+            - name: BUILDMAX_MINIO_ENDPOINT
+              value: "http://minio.storage.svc.cluster.local:9000"
+            - name: BUILDMAX_MINIO_ACCESS_KEY
+              value: "minio"
+            - name: BUILDMAX_MINIO_SECRET_KEY
+              value: "minio123"
+            - name: BUILDMAX_MINIO_BUCKET
+              value: "bmstore"
+            - name: BUILDMAX_MINIO_REGION
+              value: "us-east-1"
+            - name: BUILDMAX_MINIO_PREFIX
+              value: "workspaces"
+            - name: BUILDMAX_PERSIST_STORAGE
+              value: "minio"
+            - name: BUILDMAX_ARTIFACT_STORAGE
+              value: "minio"
+            - name: BUILDMAX_SERVER_PORT
+              value: "5678"
+            - name: BUILDMAX_WORKSPACES_DIR
+              value: "/buildmax/worker/workspaces"
+            - name: BUILDMAX_CORS_ORIGIN
+              value: "http://buildmax.kind.local"
+            - name: BUILDMAX_SERVER_URL
+              value: "http://buildmax.buildmax.svc.cluster.local:5678"
+            - name: BUILDMAX_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_JWT_SECRET
+            # Development fixed login OTP. Optional: when the secret has no
+            # BUILDMAX_DEV_LOGIN_OTP key, login stays disabled (503). This kind
+            # manifest is a local dev environment, not a deployment template for
+            # an internet-facing cluster.
+            - name: BUILDMAX_DEV_LOGIN_OTP
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_DEV_LOGIN_OTP
+                  optional: true
+            - name: BUILDMAX_WORKER_RUN_MODE
+              value: "k8s_job"
+            - name: BUILDMAX_WORKER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_WORKER_TOKEN
+            - name: BUILDMAX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_API_KEY
+          volumeMounts:
+            - name: worker-workspaces
+              mountPath: /buildmax/worker/workspaces
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      volumes:
+        - name: worker-workspaces
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-server
+  ports:
+    - name: http
+      port: 5678
+      targetPort: 5678
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildmax-api
+  namespace: buildmax
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: buildmax-api.kind.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+---
+# Portal (React app served by nginx). Image: buildmax-portal:local (./make pub_images).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+  labels:
+    app: buildmax-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-portal
+  template:
+    metadata:
+      labels:
+        app: buildmax-portal
+    spec:
+      containers:
+        - name: portal
+          image: buildmax-portal:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-portal
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: buildmax.kind.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax-portal
+                port:
+                  number: 80

@@ -1,0 +1,19 @@
+@import '@buildmax/gui/theme.css';
+@import '@buildmax/gui/widgets.css';
+@import './css/layout.css';
+@import './css/sidebar.css';
+@import './css/chat-detail.css';
+@import './css/login.css';
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  overflow: hidden;
+}

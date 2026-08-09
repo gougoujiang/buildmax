@@ -1,0 +1,21 @@
+order_id,user_id,product,quantity,amount_cny,status,order_date
+ORD001,U101,无线耳机,2,398.00,completed,2024-10-01
+ORD002,U102,机械键盘,1,599.00,completed,2024-10-02
+ORD003,U101,鼠标垫,3,87.00,shipped,2024-10-03
+ORD004,U103,显示器,1,1299.00,pending,2024-10-04
+ORD005,U102,USB 扩展坞,2,258.00,completed,2024-10-04
+ORD006,U104,笔记本支架,1,159.00,cancelled,2024-10-05
+ORD007,U101,机械键盘,1,599.00,completed,2024-10-06
+ORD008,U105,无线耳机,1,199.00,shipped,2024-10-07
+ORD009,U103,鼠标垫,2,58.00,pending,2024-10-08
+ORD010,U102,显示器,1,1299.00,completed,2024-10-09
+ORD011,U104,机械键盘,1,449.00,refunded,2024-10-10
+ORD012,U101,USB 扩展坞,1,129.00,completed,2024-10-11
+ORD013,U106,无线耳机,3,597.00,shipped,2024-10-12
+ORD014,U103,笔记本支架,2,318.00,pending,2024-10-13
+ORD015,U105,鼠标垫,5,145.00,completed,2024-10-14
+ORD016,U102,无线耳机,1,199.00,cancelled,2024-10-15
+ORD017,U101,显示器,1,899.00,completed,2024-10-16
+ORD018,U104,机械键盘,2,898.00,shipped,2024-10-17
+ORD019,U106,USB 扩展坞,1,129.00,pending,2024-10-18
+ORD020,U103,机械键盘,1,599.00,completed,2024-10-19

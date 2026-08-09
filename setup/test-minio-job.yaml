@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: s3-test
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: test
+          image: amazon/aws-cli
+          command: ["sh","-c"]
+          args:
+            - |
+              aws --endpoint-url http://minio.storage.svc.cluster.local:9000 \
+                  s3 ls
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: minio
+            - name: AWS_SECRET_ACCESS_KEY
+              value: minio123
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1

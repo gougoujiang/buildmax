@@ -1,0 +1,215 @@
+/* Base modal styles — requires theme.css (CSS variables) to be loaded first */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  animation: modal-fade-in 0.15s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.modal {
+  background: var(--color-bg-elevated);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+  width: 100%;
+  max-width: 440px;
+  margin: 1rem;
+  animation: modal-slide-up 0.2s ease-out;
+  overflow: hidden;
+}
+
+.modal--large {
+  max-width: 600px;
+  min-height: 320px;
+}
+
+.modal--large .modal__body {
+  padding: 1.5rem 1.75rem 1.75rem;
+  gap: 0.75rem;
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.modal__close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.modal__close:hover {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+
+.modal__body {
+  padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modal--large .modal__textarea {
+  min-height: 140px;
+}
+
+.modal__label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.modal__input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 6px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.modal__input:focus {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.modal__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal__textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 6px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  outline: none;
+  resize: vertical;
+  min-height: 3.5rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.modal__textarea:focus {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.modal__textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal__optional {
+  font-weight: 400;
+  color: var(--color-text-subtle);
+}
+
+.modal__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+  line-height: 1.4;
+}
+
+.modal__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #c00;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  margin-top: 0.75rem;
+}
+
+.modal__btn {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.5rem 1.125rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.modal__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal__btn--primary {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border: 1px solid var(--color-primary);
+}
+
+.modal__btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+  filter: brightness(1.1);
+}
+
+.modal__btn--secondary {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  border: 1px solid var(--color-input-border);
+}
+
+.modal__btn--secondary:hover:not(:disabled) {
+  background: var(--color-bg-muted);
+  border-color: var(--color-text-muted);
+}
+
+.modal__btn--danger {
+  background: var(--color-bg-elevated);
+  color: #b91c1c;
+  border: 1px solid #b91c1c;
+}
+
+.modal__btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #991b1b;
+}

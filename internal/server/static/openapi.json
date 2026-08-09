@@ -1,0 +1,514 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BuildMax API",
+    "version": "0.0.7"
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "instructions": { "type": "string" },
+          "created_at": { "type": "integer" }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "conversation_id": { "type": "string" },
+          "session_id": { "type": "string", "nullable": true },
+          "status": { "type": "string" },
+          "input": { "type": "string" },
+          "title": { "type": "string" },
+          "output": { "type": "string", "nullable": true },
+          "created_by": { "type": "string" },
+          "created_at": { "type": "integer" },
+          "started_at": { "type": "integer", "nullable": true },
+          "ended_at": { "type": "integer", "nullable": true },
+          "error_message": { "type": "string", "nullable": true },
+          "agent_id": { "type": "string", "nullable": true }
+        }
+      },
+      "Conversation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "channel": { "type": "string" },
+          "title": { "type": "string" },
+          "created_at": { "type": "integer" },
+          "created_by": { "type": "string" }
+        }
+      },
+      "ConversationMessage": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "role": { "type": "string" },
+          "content": { "type": "string" },
+          "channel": { "type": "string", "nullable": true },
+          "created_at": { "type": "integer" }
+        }
+      },
+      "Artifact": {
+        "type": "object",
+        "properties": {
+          "task_run_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "conversation_id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "created_at": { "type": "integer" },
+          "task_input_snippet": { "type": "string" }
+        }
+      },
+      "ArtifactItem": {
+        "type": "object",
+        "properties": {
+          "relative_path": { "type": "string" }
+        }
+      },
+      "FileNode": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["folder", "file"] },
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FileNode" }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/otp/request": {
+      "post": {
+        "summary": "Request OTP",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Login",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/usage": {
+      "get": {
+        "summary": "Get current user usage",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/agents": {
+      "get": {
+        "summary": "List agents",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Agent" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create agent",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Agent" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/agents/{agent_id}": {
+      "get": {
+        "summary": "Get agent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "agent_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Agent" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update agent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "agent_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Agent" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete agent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "agent_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "No Content" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/files": {
+      "get": {
+        "summary": "List team files",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FileNode" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/files/{path}": {
+      "get": {
+        "summary": "Get file content",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "path", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/upload": {
+      "post": {
+        "summary": "Upload files",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "team_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/webhook-keys": {
+      "get": {
+        "summary": "List webhook keys",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "summary": "Create webhook key",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/webhook-keys/{key_id}": {
+      "delete": {
+        "summary": "Delete webhook key",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "key_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "No Content" }
+        }
+      }
+    },
+    "/api/webhook": {
+      "post": {
+        "summary": "Trigger webhook",
+        "description": "Authenticated with Authorization: Bearer <webhook key> or X-Webhook-Key.",
+        "responses": {
+          "202": { "description": "Accepted" }
+        }
+      }
+    },
+    "/api/conversations": {
+      "get": {
+        "summary": "List conversations",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversations": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Conversation" }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create conversation",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/conversations/{conversation_id}/messages": {
+      "get": {
+        "summary": "List conversation messages",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "conversation_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ConversationMessage" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Append conversation message",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "conversation_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/conversations/{conversation_id}/tasks": {
+      "get": {
+        "summary": "List tasks in a conversation",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "conversation_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create task in a conversation",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "conversation_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/tasks/{task_id}": {
+      "get": {
+        "summary": "Get task",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/tasks/{task_id}/runs": {
+      "post": {
+        "summary": "Create task run",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "201": { "description": "Created" },
+          "409": { "description": "Run already in progress" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/tasks/{task_id}/conversation": {
+      "get": {
+        "summary": "Get task execution conversation",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/tasks/{task_id}/stream": {
+      "get": {
+        "summary": "Stream task run output",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/tasks/{task_id}/artifacts": {
+      "get": {
+        "summary": "List artifacts for a task",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Artifact" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items": {
+      "get": {
+        "summary": "List artifact files for a task run",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ArtifactItem" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content": {
+      "get": {
+        "summary": "Get artifact file content",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "path", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    }
+  }
+}

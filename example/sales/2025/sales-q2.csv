@@ -1,0 +1,8 @@
+date,region,product,quantity,unit_price,total
+2025-04-12,West,Widget C,115,23.00,2645.00
+2025-04-26,North,Widget B,170,15.00,2550.00
+2025-05-09,South,Widget A,195,10.49,2045.55
+2025-05-22,East,Widget C,140,23.00,3220.00
+2025-06-06,West,Widget B,125,15.00,1875.00
+2025-06-18,North,Widget A,210,10.49,2202.90
+2025-06-30,South,Widget C,160,23.00,3680.00

@@ -1,0 +1,52 @@
+/* Shared prompt-area (home & dashboard) */
+
+.prompt-area {
+  margin-bottom: 2rem;
+}
+
+.prompt-area__heading {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.prompt-area__input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  font: inherit;
+  font-size: 1rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 6px;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+}
+
+.prompt-area__input:focus {
+  outline: none;
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.prompt-area__button {
+  display: block;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-primary-text);
+  background-color: var(--color-primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.prompt-area__button:hover {
+  opacity: 0.9;
+  filter: brightness(1.1);
+}

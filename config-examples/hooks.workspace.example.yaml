@@ -1,0 +1,36 @@
+# Workspace-level hooks overlay.
+#
+# Save as <workspace>/.buildmax/hooks.yaml. Entries here are appended to the
+# user-level hooks block in <BUILDMAX_HOME>/settings.yaml (additive merge,
+# global first then workspace). Both layers run for the same event; the
+# dispatcher's first-block-wins rule still applies.
+#
+# Use this file to ship project-scoped rules in the repo. Example use cases:
+#   - run a project-specific formatter / linter after writes
+#   - block tool calls outside the project's allowed directories
+#   - audit privileged tools per project compliance requirements
+#
+# The full schema (events, transports, matcher, timeout, output contract)
+# is documented in:
+#   - config-examples/settings.example.yaml (annotated reference)
+#   - design/031-hook-system-v2.md (design + semantics)
+
+pre_tool_use:
+  # Block writes outside the project tree. policy-check.sh exits 2 with the
+  # reason on stderr when a path escapes.
+  - type: command
+    matcher: "writefile|editfile"
+    command: "./.buildmax/hooks/policy-check.sh"
+    timeout: 5
+
+post_tool_use:
+  # Run the repo's standard formatter after every edit.
+  - type: command
+    matcher: "writefile|editfile"
+    command: "gofmt -w ."
+    timeout: 30
+
+stop:
+  # Append a one-line audit record at the end of each main-agent turn.
+  - type: command
+    command: "./.buildmax/hooks/audit-log.sh"

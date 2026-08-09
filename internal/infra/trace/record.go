@@ -1,0 +1,153 @@
+package trace
+
+import (
+	"fmt"
+	"time"
+	"unicode/utf8"
+
+	"github.com/gougoujiang/buildmax/internal/core/agent"
+)
+
+// traceVersion is stamped on the run_start record so future readers can detect
+// the schema generation.
+const traceVersion = 1
+
+// defaultMaxFieldBytes bounds each free-text field (content/args/result) so a
+// single large tool result cannot bloat the trace file.
+const defaultMaxFieldBytes = 4096
+
+// Record is one line in a run's JSONL trace. Fields irrelevant to a given
+// record type are omitted. Keys are snake_case per CLAUDE.md §6.1.
+type Record struct {
+	TS   string `json:"ts"`
+	Type string `json:"type"`
+
+	// run_start
+	RunID        string `json:"run_id,omitempty"`
+	SessionID    string `json:"session_id,omitempty"`
+	Workspace    string `json:"workspace,omitempty"`
+	Model        string `json:"model,omitempty"`
+	IsSubagent   bool   `json:"is_subagent,omitempty"`
+	TraceVersion int    `json:"trace_version,omitempty"`
+
+	// iter_start, llm_start, llm_end
+	Iter int `json:"iter,omitempty"`
+
+	// llm_start, llm_end
+	ContextTokens int `json:"context_tokens,omitempty"`
+	ContextWindow int `json:"context_window,omitempty"`
+
+	// llm_end, run_end
+	HasToolCalls     bool `json:"has_tool_calls,omitempty"`
+	PromptTokens     int  `json:"prompt_tokens,omitempty"`
+	CompletionTokens int  `json:"completion_tokens,omitempty"`
+
+	// llm_end
+	Content string `json:"content,omitempty"`
+
+	// tool_start, tool_end, tool_denied
+	Tool       string `json:"tool,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	Args       string `json:"args,omitempty"`
+
+	// tool_end
+	Result     string `json:"result,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+
+	// tool_denied
+	DenyReason string `json:"deny_reason,omitempty"`
+
+	// context_compacted
+	Summarized int `json:"summarized,omitempty"`
+	Kept       int `json:"kept,omitempty"`
+
+	// run_end
+	ToolCalls int    `json:"tool_calls,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// recordTypes maps each agent.EventKind to its trace record type string.
+// EventLLMDelta has no entry: streaming deltas are not persisted (redundant
+// with llm_end content).
+var recordTypes = map[agent.EventKind]string{
+	agent.EventIterStart:        "iter_start",
+	agent.EventLLMStart:         "llm_start",
+	agent.EventLLMEnd:           "llm_end",
+	agent.EventToolStart:        "tool_start",
+	agent.EventToolEnd:          "tool_end",
+	agent.EventToolDenied:       "tool_denied",
+	agent.EventContextCompacted: "context_compacted",
+	agent.EventRunEnd:           "run_end",
+}
+
+// recordFromEvent maps a runtime event to a trace Record, applying bounding and
+// redaction to free-text fields. It returns ok=false for events that are not
+// persisted (e.g. EventLLMDelta).
+func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
+	typ, ok := recordTypes[e.Kind]
+	if !ok {
+		return Record{}, false
+	}
+	r := Record{TS: now(), Type: typ}
+	switch e.Kind {
+	case agent.EventIterStart:
+		r.Iter = e.Iter
+	case agent.EventLLMStart:
+		r.Iter = e.Iter
+		r.ContextTokens = e.ContextTokens
+		r.ContextWindow = e.ContextWindow
+	case agent.EventLLMEnd:
+		r.Iter = e.Iter
+		r.HasToolCalls = e.HasToolCalls
+		r.PromptTokens = e.PromptTokens
+		r.CompletionTokens = e.CompletionTokens
+		r.ContextTokens = e.ContextTokens
+		r.ContextWindow = e.ContextWindow
+		r.Content = bound(Redact(e.Content), maxField)
+	case agent.EventToolStart:
+		r.Tool = e.ToolName
+		r.ToolCallID = e.ToolCallID
+		r.Args = bound(Redact(e.ToolArgs), maxField)
+	case agent.EventToolEnd:
+		r.Tool = e.ToolName
+		r.ToolCallID = e.ToolCallID
+		r.Args = bound(Redact(e.ToolArgs), maxField)
+		r.Result = bound(Redact(e.ToolResult), maxField)
+		r.DurationMS = e.ToolDuration.Milliseconds()
+	case agent.EventToolDenied:
+		r.Tool = e.ToolName
+		r.ToolCallID = e.ToolCallID
+		r.DenyReason = e.DenyReason
+	case agent.EventContextCompacted:
+		r.Summarized = e.Summarized
+		r.Kept = e.Kept
+	case agent.EventRunEnd:
+		r.ToolCalls = e.Stats.ToolCalls
+		r.PromptTokens = e.Stats.PromptTokens
+		r.CompletionTokens = e.Stats.CompletionTokens
+		if e.Err != nil {
+			r.Error = e.Err.Error()
+		}
+	}
+	return r, true
+}
+
+// bound truncates s to at most max bytes, appending a marker noting how many
+// bytes were dropped. max <= 0 disables bounding. The cut backs off to a rune
+// boundary so a multi-byte character is never split in half — a partial rune
+// would be re-encoded as U+FFFD by the JSON encoder, mangling the last
+// character of any non-ASCII field.
+func bound(s string, max int) string {
+	if max <= 0 || len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	dropped := len(s) - cut
+	return s[:cut] + fmt.Sprintf(" … [truncated %d bytes]", dropped)
+}
+
+// now is overridable in tests.
+var now = func() string { return time.Now().UTC().Format(time.RFC3339Nano) }
