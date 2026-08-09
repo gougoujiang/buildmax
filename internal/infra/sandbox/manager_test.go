@@ -46,9 +46,11 @@ func TestManager_ExcludedCommand(t *testing.T) {
 		t.Fatalf("NewManager: %v", err)
 	}
 	defer m.Close()
-	if !m.Enabled() && !m.Unavailable() {
-		// On hosts without the backend, this test is a no-op.
-		t.Skip("backend unavailable on this host; skipping excluded test")
+	if !m.Enabled() {
+		// Enabled() is false whenever there is no usable backend — bwrap missing on
+		// Linux, Seatbelt missing elsewhere — and then ShouldSandboxCommand always
+		// returns false, so the assertions below say nothing. Skip rather than fail.
+		t.Skip("no sandbox backend on this host; skipping excluded-command test")
 	}
 	if m.ShouldSandboxCommand("docker ps") {
 		t.Error("docker ps should be excluded")

@@ -20,6 +20,11 @@ import (
 // action without producing a structured JSON response. Mirrors Claude Code.
 const BlockingExitCode = 2
 
+// waitDelayAfterKill bounds how long Run waits for a killed command's output
+// pipes to drain before forcing them closed. Without it a descendant process
+// holding those pipes can keep a hook running past its configured timeout.
+const waitDelayAfterKill = 500 * time.Millisecond
+
 // CommandDriver runs a shell command for each invocation. The HookInput is
 // serialized as JSON and written to the command's stdin. Communication
 // follows the Claude-Code-compatible contract:
@@ -58,6 +63,13 @@ func (CommandDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Because Stdout/Stderr are buffers rather than files, os/exec pipes them and
+	// Wait blocks until every writer closes. The context kills the shell we spawn,
+	// but any descendant it left running still holds the write end, so Wait would
+	// outlive the timeout — the hook would hang the run it was supposed to bound.
+	// WaitDelay caps that: after cancellation, allow a short grace for output to
+	// drain, then force the pipes closed and return.
+	cmd.WaitDelay = waitDelayAfterKill
 
 	start := time.Now()
 	runErr := cmd.Run()

@@ -152,8 +152,15 @@ func TestWorkerJobNameForTaskRunAt_TruncatesBase(t *testing.T) {
 }
 
 func TestFormatUnixMinute(t *testing.T) {
+	// FormatUnixMinute renders in the process's local zone, which is intentional:
+	// the result is shown to users. Pin the zone so the expectation does not
+	// depend on where the test runs — it previously only held in UTC+8.
+	orig := time.Local
+	time.Local = time.UTC
+	t.Cleanup(func() { time.Local = orig })
+
 	got := FormatUnixMinute(1700000000)
-	if got != "2023-11-15 06:13" {
-		t.Fatalf("FormatUnixMinute() = %q, want %q", got, "2023-11-15 06:13")
+	if want := "2023-11-14 22:13"; got != want {
+		t.Fatalf("FormatUnixMinute() = %q, want %q", got, want)
 	}
 }

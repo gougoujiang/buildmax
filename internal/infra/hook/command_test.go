@@ -84,6 +84,27 @@ func TestCommandDriver_FailsOpenOnTimeout(t *testing.T) {
 	}
 }
 
+// TestCommandDriver_TimeoutIgnoresBackgroundChild asserts the timeout holds even
+// when the hook leaves a child running. The shell exits immediately here, but the
+// backgrounded sleep inherits the stdout/stderr pipes, so Wait would block for the
+// child's full lifetime without a WaitDelay — letting a hook outlive its timeout.
+func TestCommandDriver_TimeoutIgnoresBackgroundChild(t *testing.T) {
+	skipOnWindows(t)
+	d := NewCommandDriver()
+	start := time.Now()
+	out := d.Run(context.Background(),
+		config.HookEntry{Command: "sleep 5 &", Timeout: 1},
+		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "leaky"},
+	)
+	dur := time.Since(start)
+	if out.Blocked() {
+		t.Errorf("expected allow, got %+v", out)
+	}
+	if dur > 3*time.Second {
+		t.Errorf("waited %v, want the 1s timeout to bound the call", dur)
+	}
+}
+
 // TestCommandDriver_FailsOpenOnMiscError asserts that a non-2 exit fails open.
 func TestCommandDriver_FailsOpenOnMiscError(t *testing.T) {
 	skipOnWindows(t)
