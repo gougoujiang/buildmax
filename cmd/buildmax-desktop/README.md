@@ -41,7 +41,8 @@ To build the React frontend only (e.g. for testing): `cd desktop/frontend && npm
 `go build ./...` keeps working on a checkout where the bundle has not been built
 yet. `wails build -tags desktop` produces the bundle first, and `./make build`
 does the same. A binary built without the tag refuses to start and prints how to
-rebuild it.
+rebuild it — except during Wails' binding generation, which strips the `desktop`
+tag by design; see [bindings_on.go](bindings_on.go).
 
 ## Run (dev mode)
 

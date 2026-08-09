@@ -74,6 +74,14 @@ so the `//go:embed` directive sits behind the `desktop` build tag:
 about it. A desktop binary built without the tag refuses to start and prints how
 to rebuild it, rather than opening a blank window.
 
+One exception is worth knowing before you touch this area: Wails treats
+`desktop` as one of its own reserved mode tags and strips it from the throwaway
+binary it compiles to generate JS/TS bindings. That binary therefore always sees
+`Embedded == false`, and the refuse-to-start guard in
+`cmd/buildmax-desktop/main.go` skips it via the `bindings` build tag. See
+`cmd/buildmax-desktop/bindings_on.go` — without it, every `wails build` fails
+during binding generation.
+
 ## Local Infrastructure
 
 Server and worker work needs MySQL, MinIO, and Redis. One idempotent command

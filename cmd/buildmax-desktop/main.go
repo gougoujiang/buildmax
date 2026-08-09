@@ -14,7 +14,11 @@ import (
 func main() {
 	// The frontend bundle is embedded only under the `desktop` build tag. Without
 	// it the app would open a blank window, so fail with an actionable message.
-	if !desktop.Embedded {
+	//
+	// Wails' binding generation is the one build where that is expected rather
+	// than broken: it strips the `desktop` tag and only dumps bindings, never
+	// showing a window. See bindings_on.go.
+	if !desktop.Embedded && !generatingBindings {
 		fmt.Fprintln(os.Stderr, "error: this binary was built without the embedded frontend.")
 		fmt.Fprintln(os.Stderr, "Build the desktop app with: ./make build")
 		fmt.Fprintln(os.Stderr, "Or directly with: cd cmd/buildmax-desktop && wails build -tags desktop")
