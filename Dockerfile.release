@@ -1,0 +1,15 @@
+# Release image. Unlike Dockerfile.buildmax, which compiles from source, this
+# one only packages binaries that GoReleaser has already cross-compiled, so the
+# published image and the published archives contain byte-identical builds.
+#
+# It is not meant to be run by hand — GoReleaser supplies the build context.
+# For a local image, use ./make pub_images, which uses Dockerfile.buildmax.
+FROM alpine:3.23
+
+RUN apk add --no-cache ca-certificates
+
+COPY buildmax buildmax-server buildmax-worker /usr/local/bin/
+COPY LICENSE NOTICE-THIRD-PARTY /usr/local/share/buildmax/
+
+# The server spawns the worker by name, so keep them on PATH together.
+ENTRYPOINT ["/usr/local/bin/buildmax"]

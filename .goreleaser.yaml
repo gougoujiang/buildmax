@@ -1,0 +1,124 @@
+# GoReleaser configuration. Triggered by pushing a v* tag; see
+# .github/workflows/release.yml.
+#
+# Scope note: the Wails desktop app is deliberately not released here. It needs
+# per-OS runners to produce a .app bundle and an .exe, and an unsigned, unnotarized
+# macOS bundle is refused by Gatekeeper — so shipping one would be worse than
+# shipping none. Build it locally with ./make build.
+version: 2
+
+project_name: buildmax
+
+before:
+  hooks:
+    - go mod tidy
+    # Apache-2.0 4(d): the binaries below statically link their dependencies, so
+    # every archive and image carries those dependencies' license texts.
+    - go install github.com/google/go-licenses@latest
+    - ./scripts/gen-third-party-notices.sh
+
+builds:
+  - id: buildmax
+    main: ./cmd/buildmax
+    binary: buildmax
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags: [-trimpath]
+    ldflags: &ldflags
+      - -s -w
+      - -X github.com/gougoujiang/buildmax/internal/config.Version={{ .Version }}
+      - -X github.com/gougoujiang/buildmax/internal/config.Commit={{ .ShortCommit }}
+
+  - id: buildmax-server
+    main: ./cmd/buildmax-server
+    binary: buildmax-server
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags: [-trimpath]
+    ldflags: *ldflags
+
+  - id: buildmax-worker
+    main: ./cmd/buildmax-worker
+    binary: buildmax-worker
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags: [-trimpath]
+    ldflags: *ldflags
+
+archives:
+  # One archive per platform holding all three binaries. The server spawns the
+  # worker by name and the CLI shares its data directory, so splitting them into
+  # separate downloads would only create ways to end up with a mismatched set.
+  - id: default
+    ids: [buildmax, buildmax-server, buildmax-worker]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE-THIRD-PARTY
+      - README.md
+      - SECURITY.md
+      - src: config-examples/*
+        dst: config-examples
+
+checksum:
+  name_template: checksums.txt
+
+dockers_v2:
+  - id: buildmax
+    ids: [buildmax, buildmax-server, buildmax-worker]
+    images: ["ghcr.io/gougoujiang/buildmax"]
+    dockerfile: Dockerfile.release
+    platforms: [linux/amd64, linux/arm64]
+    extra_files: [LICENSE, NOTICE-THIRD-PARTY]
+    tags:
+      - "{{ .Version }}"
+      # `latest` should not point at an alpha, so it only moves on a final release.
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    labels:
+      org.opencontainers.image.source: https://github.com/gougoujiang/buildmax
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: Apache-2.0
+      org.opencontainers.image.description: >-
+        Out-of-the-box, privately deployable Agent platform: CLI, server, and worker.
+
+changelog:
+  # The published history starts at a squashed initial commit, so generated
+  # changelogs would be noise for the first releases. Release notes are written
+  # by hand until there is a real commit history to summarize.
+  disable: true
+
+release:
+  # A tag like v0.1.0-alpha marks the GitHub release as a pre-release.
+  prerelease: auto
+  header: |
+    ## BuildMax {{ .Version }}
+
+    Archives contain `buildmax`, `buildmax-server`, and `buildmax-worker`, plus
+    `config-examples/`. Container image: `ghcr.io/gougoujiang/buildmax:{{ .Version }}`.
+  footer: |
+    ---
+
+    **Alpha.** Server authentication is not production-ready — login is disabled
+    by default and the optional fixed development code authenticates any
+    registered address. The bash sandbox is off by default. See SECURITY.md for
+    the full list of known limitations before exposing a deployment.
+
+    Verify a download against `checksums.txt`.

@@ -200,16 +200,32 @@ buildmax/
 
 The main dependency direction is `bootstrap -> interface/server/service/agentapp/infra -> core`, with `config` kept as env/path loading only. Core packages should not import `config`, `infra`, `service`, `server`, `agentapp`, or `interface`.
 
-## Build and Run
+## Install
 
-To install just the CLI:
+Download an archive from [Releases](https://github.com/gougoujiang/buildmax/releases).
+Each one contains `buildmax`, `buildmax-server`, and `buildmax-worker` for
+Linux, macOS, and Windows, plus `config-examples/`. Verify it against
+`checksums.txt`, then put the binaries on your `PATH`.
+
+With a Go toolchain, for the CLI alone:
 
 ```bash
 go install github.com/gougoujiang/buildmax/cmd/buildmax@latest
 ```
 
+As a container, carrying all three binaries:
+
+```bash
+docker pull ghcr.io/gougoujiang/buildmax:latest
+```
+
 Set `BUILDMAX_API_KEY` (and optionally `BUILDMAX_BASE_URL` / `BUILDMAX_MODEL`),
 then run `buildmax` for the TUI or `buildmax -p "your prompt"` for print mode.
+
+The desktop app is not published as a binary: it needs code signing and
+notarization to be launchable on macOS. Build it locally with `./make build`.
+
+## Build and Run
 
 For working on the project, the primary local workflow uses the root `./make`
 script.

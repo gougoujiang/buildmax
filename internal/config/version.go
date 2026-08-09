@@ -1,14 +1,23 @@
 package config
 
-// Version is the BuildMax application version.
-var Version = "0.0.7"
+// Version and Commit identify the build. Both are injected at link time so the
+// git tag stays the single source of truth for what a binary calls itself:
+//
+//	-ldflags "-X github.com/gougoujiang/buildmax/internal/config.Version=0.1.0 \
+//	          -X github.com/gougoujiang/buildmax/internal/config.Commit=abc1234"
+//
+// ./make build and the release pipeline both set them. A plain `go build`,
+// `go run`, or `go test` leaves the defaults, which is why they read "dev"
+// rather than a version number that would be wrong the moment it is committed.
+var (
+	// Version is the BuildMax application version, without a leading "v".
+	Version = "dev"
 
-// Commit is the short git commit SHA the binary was built from.
-// Injected at build time via -ldflags "-X buildmax/internal/config.Commit=<sha>".
-// Defaults to "dev" for non-build-script builds (e.g. plain `go build`, `go run`, `go test`).
-var Commit = "dev"
+	// Commit is the short git commit SHA the binary was built from.
+	Commit = "dev"
+)
 
-// VersionString returns the human-readable version string, e.g. "0.0.7 (abc1234)".
+// VersionString returns the human-readable version string, e.g. "0.1.0 (abc1234)".
 func VersionString() string {
 	if Commit == "" {
 		return Version

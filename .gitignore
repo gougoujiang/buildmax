@@ -30,6 +30,11 @@ go.work.sum
 # Local deployment credentials (see deployment/buildmax-secret.example.yaml)
 deployment/*.local.yaml
 
+# Release artifacts. Both are generated: dist/ by GoReleaser, NOTICE-THIRD-PARTY
+# by scripts/gen-third-party-notices.sh during the release build.
+/dist/
+/NOTICE-THIRD-PARTY
+
 # Editor/IDE
 # .idea/
 # .vscode/

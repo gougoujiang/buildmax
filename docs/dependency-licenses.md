@@ -63,8 +63,19 @@ module itself is Apache-2.0; the warning is not a finding.
 
 ## Attribution in releases
 
-Apache-2.0 §4(d) requires carrying forward the `NOTICE` files of Apache-2.0
-dependencies when you redistribute them. Compiled BuildMax binaries embed
-dependency code, so published release artifacts should ship an aggregated
-notice file. That is not yet wired into a release pipeline — see the release
-tooling work in [../ROADMAP.md](../ROADMAP.md).
+Apache-2.0 §4(d) requires carrying forward the attribution notices of
+Apache-2.0 dependencies when you redistribute them, and compiled BuildMax
+binaries contain that dependency code.
+
+[`scripts/gen-third-party-notices.sh`](../scripts/gen-third-party-notices.sh)
+collects the full license text of every module linked into the binaries into a
+single `NOTICE-THIRD-PARTY` file — 135 modules at the last run. GoReleaser runs
+it as a pre-build hook, so every release archive and the container image ship
+it. The file is generated, not committed.
+
+To produce it locally:
+
+```bash
+go install github.com/google/go-licenses@latest
+./scripts/gen-third-party-notices.sh
+```

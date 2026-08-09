@@ -281,6 +281,9 @@ buildmax/
 
 **Windows:** `make.bat` in the repo root provides `build` and `test` for Windows; prefer PowerShell over batch when running commands. Build output: `buildmax.exe`.
 
+## 8. Commit Message
+Do NOT include: Co-Authored-By and Claude-Session in commit message
+
 ---
 
 *This document is updated as the project evolves.*

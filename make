@@ -27,7 +27,7 @@ usage() {
   echo "  run cli       Run $CLI_BINARY with BUILDMAX_HOME=./testing-sandbox"
   echo "  run desktop   Run $DESKTOP_BINARY with BUILDMAX_HOME=./testing-sandbox"
   echo "  run portal    Start Portal dev server (Vite; installs deps if needed)"
-  echo "  bump          Bump Version in internal/config/version.go (arg: patch|minor|major, default: patch)"
+  echo "  bump          Create the next release tag locally (arg: patch|minor|major, default: patch)"
   echo "  install       Install buildmax, buildmax-server, buildmax-worker to ~/.local/bin"
   echo "  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent)"
   echo "  unsetup       Tear down kind cluster and MinIO port-forward (brew tools kept)"
@@ -38,8 +38,8 @@ usage() {
   echo "  ./make build"
   echo "  ./make build cli"
   echo "  ./make test"
-  echo "  ./make bump        # 0.0.2 -> 0.0.3"
-  echo "  ./make bump minor  # 0.0.2 -> 0.1.0"
+  echo "  ./make bump        # v0.1.0 -> v0.1.1 (tag only; push it to release)"
+  echo "  ./make bump minor  # v0.1.0 -> v0.2.0"
   echo "  ./make run server   # run server with BUILDMAX_HOME=./testing-sandbox"
   echo "  ./make run cli      # run CLI with BUILDMAX_HOME=./testing-sandbox"
   echo "  ./make run desktop  # run desktop binary with BUILDMAX_HOME=./testing-sandbox"
@@ -127,8 +127,22 @@ resolve_commit_sha() {
   echo "$sha"
 }
 
+resolve_version() {
+  # Emit the version this build should call itself, derived from git tags so the
+  # tag stays the single source of truth. On an exact tag: "0.1.0". Between tags:
+  # "0.1.0-3-gabc1234". With no tags or no git: "dev".
+  if ! command -v git &>/dev/null; then
+    echo "dev"
+    return
+  fi
+  local described
+  described=$(git -C "$SCRIPT_DIR" describe --tags --match 'v[0-9]*' 2>/dev/null) || { echo "dev"; return; }
+  echo "${described#v}"
+}
+
 go_build_ldflags() {
-  echo "-X github.com/gougoujiang/buildmax/internal/config.Commit=$(resolve_commit_sha)"
+  local pkg="github.com/gougoujiang/buildmax/internal/config"
+  echo "-X $pkg.Version=$(resolve_version) -X $pkg.Commit=$(resolve_commit_sha)"
 }
 
 cmd_build_cli() {
@@ -265,39 +279,54 @@ cmd_smoke() {
 }
 
 cmd_bump_version() {
-  local root_go="$SCRIPT_DIR/internal/config/version.go"
-  if [[ ! -f "$root_go" ]]; then
-    echo "Error: $root_go not found"
+  # Versions live in git tags, not in a source file: the binary's version is
+  # injected at link time from the tag (see resolve_version). This creates the
+  # next tag locally and leaves pushing to you, because pushing it is what
+  # triggers a release build.
+  if ! command -v git &>/dev/null; then
+    echo "Error: git is required to tag a release"
+    return 1
+  fi
+  if ! git -C "$SCRIPT_DIR" diff --quiet HEAD -- 2>/dev/null; then
+    echo "Error: working tree has uncommitted changes; commit them before tagging"
     return 1
   fi
   local bump="${1:-patch}"
-  local current
-  current=$(grep -E '^\s*var Version = ' "$root_go" | sed -n 's/.*"\([^"]*\)".*/\1/p')
-  if [[ -z "$current" ]]; then
-    echo "Error: could not find var Version in $root_go"
-    return 1
-  fi
-  local major minor patch
-  IFS='.' read -r major minor patch <<< "$current"
-  major="${major:-0}"
-  minor="${minor:-0}"
-  patch="${patch:-0}"
   case "$bump" in
-    patch) patch=$((patch + 1)); minor=$minor; major=$major ;;
-    minor) patch=0; minor=$((minor + 1)); major=$major ;;
-    major) patch=0; minor=0; major=$((major + 1)) ;;
+    patch|minor|major) ;;
     *)
       echo "Error: bump must be patch, minor, or major (got: $bump)"
       return 1
       ;;
   esac
-  local new_version="${major}.${minor}.${patch}"
-  if [[ "$(uname -s)" = Darwin ]]; then
-    sed -i '' "s/var Version = \"[^\"]*\"/var Version = \"$new_version\"/" "$root_go"
-  else
-    sed -i "s/var Version = \"[^\"]*\"/var Version = \"$new_version\"/" "$root_go"
+  local current
+  current=$(git -C "$SCRIPT_DIR" describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo "v0.0.0")
+  # Strip the leading "v" and any pre-release suffix: v0.1.0-alpha -> 0.1.0
+  local base="${current#v}"
+  base="${base%%-*}"
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "$base"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+  case "$bump" in
+    patch) patch=$((patch + 1)) ;;
+    minor) patch=0; minor=$((minor + 1)) ;;
+    major) patch=0; minor=0; major=$((major + 1)) ;;
+  esac
+  local new_tag="v${major}.${minor}.${patch}"
+  if git -C "$SCRIPT_DIR" rev-parse -q --verify "refs/tags/$new_tag" >/dev/null; then
+    echo "Error: tag $new_tag already exists"
+    return 1
   fi
-  echo "Bumped version: $current -> $new_version ($bump)"
+  if ! git -C "$SCRIPT_DIR" tag -a "$new_tag" -m "$new_tag"; then
+    echo "Error: could not create tag $new_tag"
+    return 1
+  fi
+  echo "Tagged: $current -> $new_tag ($bump)"
+  echo "Push it to build and publish the release:"
+  echo "  git push origin $new_tag"
+  echo "Undo with: git tag -d $new_tag"
 }
 
 cmd_setup() {
