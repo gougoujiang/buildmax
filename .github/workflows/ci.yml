@@ -87,7 +87,7 @@ jobs:
         run: .\make.bat test
 
   frontend:
-    name: Frontend (gui, portal)
+    name: Frontend (gui, portal, desktop)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -100,11 +100,17 @@ jobs:
       - name: Build gui
         working-directory: gui
         run: |
-          npm install
+          npm ci
           npm run build
 
       - name: Build portal
         working-directory: portal
         run: |
-          npm install
+          npm ci
+          npm run build
+
+      - name: Build desktop frontend
+        working-directory: desktop/frontend
+        run: |
+          npm ci
           npm run build
