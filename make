@@ -211,8 +211,10 @@ cmd_build() {
     fi
     echo "[desktop] Building frontend (React)..."
     (cd "$frontend_dir" && npm run build) || { echo "[desktop] Warning: frontend build failed; skipping."; return 0; }
+    # -tags desktop selects desktop/assets_embed.go, which embeds frontend/dist.
+    # Without it the stub is compiled and the app refuses to start.
     echo "[desktop] Running wails build..."
-    if (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails build); then
+    if (cd "$SCRIPT_DIR/$DESKTOP_DIR" && wails build -tags desktop); then
       echo "[desktop] Built at $SCRIPT_DIR/$DESKTOP_DIR/build/"
       # Copy desktop binary to ./bin for local testing (alongside server/worker)
       local src_bin=""

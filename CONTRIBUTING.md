@@ -54,6 +54,21 @@ Frontend packages also build from their own directories; see
 `./make smoke` and `./make run server` are for manual local checks. Do not use
 them in automated CI.
 
+### The `desktop` Build Tag
+
+The desktop frontend bundle lives in `desktop/frontend/dist/`, a Vite build
+artifact that is not checked in. Embedding it unconditionally would make
+`go build ./...`, `go vet ./...`, and `go test ./...` fail on a fresh clone,
+so the `//go:embed` directive sits behind the `desktop` build tag:
+
+- without the tag, `desktop/assets_stub.go` compiles and embeds nothing, which
+  is what every standard Go command and your editor use
+- with `-tags desktop`, `desktop/assets_embed.go` compiles and embeds the bundle
+
+`./make build` passes the tag and builds the frontend first, so you rarely think
+about it. A desktop binary built without the tag refuses to start and prints how
+to rebuild it, rather than opening a blank window.
+
 ## Local Infrastructure
 
 Server and worker work needs MySQL, MinIO, and Redis. One idempotent command
