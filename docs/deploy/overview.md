@@ -1,0 +1,137 @@
+# Deployment Overview
+
+> **Audience:** operators · **Status:** current
+>
+> **BuildMax is alpha.** Read [authentication.md](authentication.md) before
+> putting a server anywhere it can be reached by people you do not trust.
+
+Deploying BuildMax for a team means running two Go binaries plus two backing
+services. There is nothing to install into the agent runtime itself — the
+worker is the same runtime the CLI uses, started by the server.
+
+## Topology
+
+```text
+             ┌────────────┐
+  browser ──▶│   Portal   │  static React bundle
+             └─────┬──────┘
+                   │ HTTP + WebSocket
+             ┌─────▼────────────────────┐        ┌──────────┐
+             │     buildmax-server      │───────▶│  MySQL   │
+             │  HTTP API + scheduler    │        └──────────┘
+             └─────┬────────────────────┘
+                   │ spawns one process (or k8s Job) per run
+             ┌─────▼────────────────────┐        ┌──────────────────┐
+             │     buildmax-worker      │───────▶│ Blob storage     │
+             │  one task run, then exit │        │ local FS or S3   │
+             └──────────────────────────┘        └──────────────────┘
+```
+
+| Component | Role |
+|---|---|
+| `buildmax-server` | HTTP API, auth, team data, WebSocket fan-out, and the in-process scheduler that claims `PENDING` runs |
+| `buildmax-worker` | Executes exactly one task run and exits. Reads and writes blob storage **directly**, not through the server. |
+| MySQL | Teams, conversations, issues, workflows, tasks, runs, usage |
+| Blob storage | Team file uploads (`persist_backend`) and run artifacts (`artifact_backend`). Local filesystem or any S3-compatible service such as MinIO. |
+| Portal | Static frontend built from `portal/`; talks to the server over HTTP |
+
+## Requirements
+
+- MySQL reachable from the server
+- Blob storage reachable from **both** the server and every worker
+- A writable `workspaces_dir` shared by server and workers when running workers
+  as local processes
+- An LLM endpoint reachable from the server (Tier 1 conversation model) and
+  from workers (the model used for the actual run)
+
+## Configure
+
+Everything lives in `<BUILDMAX_HOME>/server.yaml`. Start from the example and
+fill in the four blocks that matter — `database`, `storage`, `worker`, and
+`conversation`:
+
+```bash
+mkdir -p /etc/buildmax
+export BUILDMAX_HOME=/etc/buildmax
+cp config-examples/server.example.yaml $BUILDMAX_HOME/server.yaml
+```
+
+Inject secrets at deploy time instead of writing them into the file:
+
+```bash
+export BUILDMAX_JWT_SECRET="$(openssl rand -hex 32)"
+```
+
+Field-by-field reference:
+[reference/configuration.md](../reference/configuration.md).
+
+## Run
+
+```bash
+buildmax-server                 # honours port from server.yaml, or --port
+```
+
+The scheduler starts with the server. It launches `worker.binary`, so
+`buildmax-worker` must be on `PATH` or next to the server binary, and workers
+must be able to reach `worker.server_url` with `worker.token`.
+
+Set `worker.run_mode: k8s_job` to have the scheduler create a Kubernetes Job per
+run instead of a local process, using `worker.k8s.namespace` and
+`worker.k8s.image`.
+
+In that mode a worker pod needs the same `server.yaml` the server has.
+`worker.k8s.config_map` names a ConfigMap with a `server.yaml` key, which the
+scheduler mounts into every worker pod at `worker.k8s.home_dir`, and the pod's
+`BUILDMAX_HOME` is set to that directory. Credentials reach worker pods through
+the inherited `BUILDMAX_*` environment. Leave `config_map` empty and worker pods
+fall back to built-in defaults, which is almost never what you want.
+
+> **Not covered by CI.** The in-cluster path is verified by unit tests over the
+> manifest and the generated Job spec, not by an end-to-end cluster run. It was
+> broken for a while without anyone noticing, so check the server and a first
+> task run explicitly after deploying.
+
+Check it is alive:
+
+```bash
+curl localhost:5678/healthz
+```
+
+The API describes itself at `/openapi.json`, with a browsable UI at `/swagger/`.
+
+## Portal
+
+```bash
+cd portal && npm install && npm run build     # → portal/dist
+```
+
+Serve `portal/dist` from any static host and point it at the server. The
+server's `cors_origin` must match the origin the Portal is served from
+(default `http://localhost:5173`, the Vite dev server).
+
+## Containers
+
+The repository ships `Dockerfile.buildmax` (all three Go binaries) and
+`Dockerfile.portal` (the static frontend). `deployment/buildmax-deploy.yaml` is
+a working Kubernetes manifest — namespace, Secret, Deployment, Service, and
+Ingress — used by `./make deploy`.
+
+## Operating Boundaries
+
+An agent runtime executes model-selected shell commands and file edits. Treat
+every deployment as an execution boundary:
+
+- give the server and workers dedicated, least-privilege credentials
+- keep `workspaces_dir` and blob storage off any host path that matters
+- decide the network policy for workers explicitly; the
+  [sandbox](../guide/sandbox.md) can restrict egress but is **off by default**
+- never commit credentials to `server.yaml` in version control
+
+Vulnerability disclosure: [SECURITY.md](../../SECURITY.md).
+
+## Related
+
+- [authentication.md](authentication.md) — why login is disabled by default
+- [local-kind.md](local-kind.md) — one-command local cluster for development
+- [reference/webhook.md](../reference/webhook.md) — triggering runs from
+  external systems

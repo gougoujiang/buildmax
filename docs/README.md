@@ -1,45 +1,73 @@
 # BuildMax Documentation
 
-This directory is the documentation set for BuildMax. It is organized by the
-question a reader is trying to answer.
+Organized by what you are trying to do.
 
-| If you want to know… | Go to | What it contains |
-|---|---|---|
-| What the project is and how to run it | [../README.md](../README.md) | Product overview, components, build and run instructions |
-| What we are building next | [../ROADMAP.md](../ROADMAP.md) | Active near-term roadmap and priority order |
-| How the system works today | [architecture/](architecture/) | Per-subsystem reference for the current codebase |
-| Why it is built this way | [design/](design/) | Current design documents behind the roadmap |
-| How it used to work | [archive/](archive/) | Superseded designs, kept for history and rationale |
-| What the dependencies are licensed under | [dependency-licenses.md](dependency-licenses.md) | Go and npm license audit, and how to re-run it |
-| How to contribute | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Development checks, boundaries, pull request guidance |
-| How to report a vulnerability | [../SECURITY.md](../SECURITY.md) | Disclosure process and operator responsibilities |
+## Start Here
 
-## Document Types
+| | |
+|---|---|
+| [start/install.md](start/install.md) | Get the binaries |
+| [start/quickstart.md](start/quickstart.md) | First agent run, in five minutes |
+| [start/concepts.md](start/concepts.md) | Surfaces, the agent loop, teams, and the two tiers |
 
-**Architecture reference** (`architecture/`) describes the system as it is
-implemented right now. Each document covers one package or subsystem and should
-be updated in the same change that moves a package boundary or alters a
-runtime contract.
+## Use It
 
-**Design documents** (`design/`) are numbered records of a decision or a planned
-piece of work: the problem, the options considered, the chosen approach, and the
-implementation phases. A design document is written before or alongside the
-work, and it keeps its number for life so that code comments and other documents
-can cite it stably (for example, `docs/design/032-sandbox-and-execution-boundaries.md`).
+| | |
+|---|---|
+| [guide/tools.md](guide/tools.md) | The built-in tools, their arguments, and the path boundary |
+| [guide/agents-md.md](guide/agents-md.md) | Give the agent project instructions on every run |
+| [guide/skills-and-subagents.md](guide/skills-and-subagents.md) | Reusable workflows, and delegating with a restricted tool set |
+| [guide/mcp.md](guide/mcp.md) | Connect MCP servers for tools BuildMax does not ship |
+| [guide/hooks.md](guide/hooks.md) | Observe or block prompts, tool calls, and compaction |
+| [guide/sandbox.md](guide/sandbox.md) | Confine `Bash` by filesystem path and network domain |
+| [guide/sessions-and-traces.md](guide/sessions-and-traces.md) | Resume conversations; inspect what a run actually did |
+| [guide/troubleshooting.md](guide/troubleshooting.md) | When something does not work |
 
-**Archive** (`archive/`) holds design documents that no longer describe the
-current direction. They are never edited to match new behavior; they are moved
-here so the reasoning behind a past decision remains inspectable.
+## Run It For A Team
+
+| | |
+|---|---|
+| [deploy/overview.md](deploy/overview.md) | Topology, requirements, configuration, containers |
+| [deploy/authentication.md](deploy/authentication.md) | **Read before exposing a server** — login is disabled by default |
+| [deploy/local-kind.md](deploy/local-kind.md) | One-command local cluster: kind, MinIO, MySQL, Redis |
+
+## Look It Up
+
+| | |
+|---|---|
+| [reference/configuration.md](reference/configuration.md) | Every config file field and environment variable |
+| [reference/cli.md](reference/cli.md) | Commands, flags, slash commands |
+| [reference/webhook.md](reference/webhook.md) | Triggering runs from external systems |
+
+The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
+
+## Change It
+
+| | |
+|---|---|
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | Prerequisites, build, test, code boundaries, pull requests |
+| [contribute/repo-layout.md](contribute/repo-layout.md) | The repository tree and dependency direction |
+| [contribute/architecture/](contribute/architecture/README.md) | How each subsystem works today |
+| [contribute/documentation.md](contribute/documentation.md) | Documentation conventions |
+| [contribute/dependency-licenses.md](contribute/dependency-licenses.md) | License audit and how to re-run it |
+
+## Why It Is Like This
+
+| | |
+|---|---|
+| [../ROADMAP.md](../ROADMAP.md) | Active priorities and sequencing |
+| [design/](design/README.md) | Numbered design records — specifications and roadmap plans |
+| [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure and operator responsibilities |
 
 ## Conventions
 
-- Design documents are named `NNN-kebab-case-title.md`. Numbers are allocated
-  once and never reused, including after a document is archived.
-- A design document that is completed, superseded, or no longer describes the
-  active direction moves to `archive/` rather than being deleted or rewritten.
-- When behavior described in `architecture/` changes, update that document in
-  the same pull request. When direction changes, add or archive a design
-  document instead.
-- Documentation is written in English so it is readable by all contributors.
-- Cite documents by repository-relative path so links survive being moved
-  between contexts.
+Every document opens with its audience and status, so you can tell in one line
+whether it can be trusted:
+
+```markdown
+> **Audience:** operators · **Status:** current
+```
+
+There is no archive directory — retired documents are deleted, and git history
+keeps them. The rules for writing and retiring documentation are in
+[contribute/documentation.md](contribute/documentation.md).

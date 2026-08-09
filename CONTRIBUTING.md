@@ -21,10 +21,10 @@ Portal, and worker execution.
   are all Go; there is no Python or Node runtime dependency for the CLI.
 - **Node** — only for the frontends: the shared `gui/` package, `portal/`, and
   `desktop/frontend/`.
-- **An LLM API key** — set `BUILDMAX_API_KEY` (and optionally `BUILDMAX_BASE_URL`
-  and `BUILDMAX_MODEL`). Development defaults to free OpenRouter models, which
-  rate-limit with HTTP 429 when called too frequently; if runs start failing in
-  bursts, that is usually why.
+- **An LLM API key** — add a model to `~/.buildmax/settings.yaml`; see
+  [docs/reference/configuration.md](docs/reference/configuration.md). Free
+  OpenRouter models rate-limit with HTTP 429 when called too frequently; if runs
+  start failing in bursts, that is usually why.
 - **Docker, kind, kubectl, helm** — only if you work on the server, worker, or
   deployment path. `./make setup` installs the missing CLIs via Homebrew.
 
@@ -92,9 +92,10 @@ brings up a kind cluster with all of them:
 ./make unsetup    # tear down the cluster and stop port-forwards
 ```
 
-[setup/README.md](setup/README.md) documents what it installs, the `/etc/hosts`
-entries for Ingress, and the manual equivalents of each step. Override the
-cluster name with `BUILDMAX_KIND_CLUSTER` (default `buildmaxdev`).
+[docs/deploy/local-kind.md](docs/deploy/local-kind.md) documents what it
+installs, the `/etc/hosts` entries for Ingress, and the manual equivalents of
+each step. Override the cluster name with `BUILDMAX_KIND_CLUSTER` (default
+`buildmaxdev`).
 
 ### Container Images
 
@@ -134,11 +135,17 @@ violating import fails the build rather than sliding through review.
 - Add or update focused tests for behavioral changes.
 - Update documentation alongside the code:
   - behavior or package boundaries change → update the matching document in
-    [docs/architecture/](docs/architecture/)
-  - direction changes → add a numbered document to [docs/design/](docs/design/),
-    or move the superseded one to [docs/archive/](docs/archive/)
-  - user-facing behavior or configuration changes → update the README and
-    `config-examples/`
+    [docs/contribute/architecture/](docs/contribute/architecture/README.md)
+  - a package moves → update
+    [docs/contribute/repo-layout.md](docs/contribute/repo-layout.md), which is
+    the only place the tree is written down
+  - direction changes → add a numbered document to
+    [docs/design/](docs/design/README.md), and delete the superseded one
+  - user-facing behavior or configuration changes → update `docs/guide/`,
+    `docs/reference/`, and `config-examples/`
+
+  The full rules are in
+  [docs/contribute/documentation.md](docs/contribute/documentation.md).
 - Explain the problem, the approach, verification performed, and any remaining
   limitations in the pull request description.
 - Preserve existing public behavior unless the pull request explicitly documents

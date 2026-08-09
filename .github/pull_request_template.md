@@ -25,8 +25,9 @@ behavior change a user would notice. Delete this section if there is nothing.
 ---
 
 - [ ] Tests added or updated for behavioral changes
-- [ ] Documentation updated: `docs/architecture/` for behavior or boundary
-      changes, `docs/design/` for direction changes, README and
+- [ ] Documentation updated: `docs/contribute/architecture/` for behavior or
+      boundary changes, `docs/contribute/repo-layout.md` if a package moved,
+      `docs/design/` for direction changes, `docs/guide/` + `docs/reference/` +
       `config-examples/` for user-facing configuration
 - [ ] No credentials, customer data, or private deployment details in the diff
 - [ ] Breaking changes to existing public behavior are called out above

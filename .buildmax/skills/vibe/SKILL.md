@@ -244,7 +244,7 @@ Analyzes code for smells and refactor opportunities. Produces a written proposal
 
 ## `/vibe kb` — Codebase Knowledge Base
 
-Analyzes the codebase and produces organized knowledge documents under `docs/architecture/`. Each document covers one topic — a package, a subsystem, a pattern, or an architectural concept.
+Analyzes the codebase and produces organized knowledge documents under `docs/contribute/architecture/`. Each document covers one topic — a package, a subsystem, a pattern, or an architectural concept.
 
 ### When to use
 
@@ -255,19 +255,19 @@ Analyzes the codebase and produces organized knowledge documents under `docs/arc
 ### Topic resolution
 
 1. If the user specifies a topic (e.g. `/vibe kb agent loop`, `/vibe kb internal/tools`), produce or update the document for that topic.
-2. If no topic is given (`/vibe kb`), scan the codebase and produce an **index** (`docs/architecture/README.md`) listing all packages and subsystems, with links to individual topic files. Then ask which topics to expand, or generate the most important ones.
+2. If no topic is given (`/vibe kb`), scan the codebase and produce an **index** (`docs/contribute/architecture/README.md`) listing all packages and subsystems, with links to individual topic files. Then ask which topics to expand, or generate the most important ones.
 
 ### Workflow
 
 1. **Identify topic** — Determine the scope: a package (e.g. `internal/agent`), a subsystem (e.g. "tool calling"), a cross-cutting concern (e.g. "configuration"), or the full project overview.
-2. **Inspect codebase** — Read the relevant source files, types, interfaces, and call patterns. Also check AGENTS.md and existing `docs/architecture/` docs to avoid duplication.
-3. **Write the knowledge doc** — Create or update `docs/architecture/<topic-slug>.md` using the [knowledge template](templates/kb-template.md). Fill: purpose, key types, how it works, dependencies, and examples.
-4. **Update the index** — If `docs/architecture/README.md` exists, add or update the entry for this topic. If it doesn't exist, create it with at least this one entry.
+2. **Inspect codebase** — Read the relevant source files, types, interfaces, and call patterns. Also check AGENTS.md and existing `docs/contribute/architecture/` docs to avoid duplication.
+3. **Write the knowledge doc** — Create or update `docs/contribute/architecture/<topic-slug>.md` using the [knowledge template](templates/kb-template.md). Fill: purpose, key types, how it works, dependencies, and examples.
+4. **Update the index** — If `docs/contribute/architecture/README.md` exists, add or update the entry for this topic. If it doesn't exist, create it with at least this one entry.
 
 ### Naming convention
 
 - File names use kebab-case slugs derived from the topic: e.g. `agent-loop.md`, `llm-client.md`, `tool-calling.md`, `project-overview.md`.
-- The index file is always `docs/architecture/README.md`.
+- The index file is always `docs/contribute/architecture/README.md`.
 
 ### Rules
 
@@ -279,7 +279,7 @@ Analyzes the codebase and produces organized knowledge documents under `docs/arc
 
 ### Output
 
-- **Primary**: One or more markdown files under `docs/architecture/` plus an updated `README.md`.
+- **Primary**: One or more markdown files under `docs/contribute/architecture/` plus an updated `README.md`.
 - **Optional**: Short summary in chat listing which docs were created or updated.
 
 ---

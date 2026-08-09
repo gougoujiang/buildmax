@@ -109,7 +109,7 @@ The product promise depends on private deployment being boring and repeatable.
 Focus:
 
 - recommended private deployment path for server, worker, Portal, MySQL, and MinIO/S3
-- synchronized `.env.example`, server config, storage config, and setup docs
+- synchronized server config, storage config, and deployment docs
 - clear startup errors and health checks
 - Docker/kind/k8s path that runs end to end
 - default admin/user/team/quota/model initialization story
@@ -182,4 +182,3 @@ Acceptance:
 - [docs/design/028-team-governance-foundation.md](docs/design/028-team-governance-foundation.md) — P4 Team governance foundation design
 - [docs/design/029-versioned-workspace-design.md](docs/design/029-versioned-workspace-design.md) — P5 Versioned workspace design
 - [docs/design/001-about-portal.md](docs/design/001-about-portal.md) — long-range AI-native workspace vision
-- [docs/archive/018-versioned-workspace-and-outcome-roadmap.md](docs/archive/018-versioned-workspace-and-outcome-roadmap.md) — archived outcome/versioned workspace roadmap, retained as background
