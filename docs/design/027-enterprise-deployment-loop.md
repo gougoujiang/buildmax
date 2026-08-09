@@ -3,8 +3,8 @@
 ## Status
 
 - roadmap_priority: `P3`
-- status: `ready_for_review`
-- follows: [026-portal-outcome-surface.md](./026-portal-outcome-surface.md)
+- status: `in_progress` — M1 (config contract cleanup) is done; M2–M5 are open
+- follows: P2 Portal outcome surface (complete; plan retired)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-17`
 
@@ -60,7 +60,7 @@ Current deployment assets:
   `deployment/buildmax-deploy.yaml`, and restarts server and Portal deployments.
 - `Dockerfile.buildmax` builds the Go binaries into a container image.
 - `Dockerfile.portal` builds and serves the Portal static app.
-- `setup/README.md` documents the local kind path.
+- `docs/deploy/local-kind.md` documents the local kind path.
 - `internal/bootstrap/server.go` starts DB, storage, HTTP server, and scheduler.
 - `internal/bootstrap/worker.go` loads `server.yaml`, gets a scheduled run from
   the server, executes the agent runtime, and uploads artifacts.
@@ -72,22 +72,33 @@ Current config reality:
 - `BUILDMAX_HOME/server.yaml` is the main server and worker config file.
 - `BUILDMAX_JWT_SECRET` can override `jwt_secret` in `server.yaml`.
 - `internal/config/env_spec.go` intentionally lists only bootstrap env vars.
-- Many older docs and some manifests still refer to pre-`server.yaml` env vars.
+- Docs and manifests were realigned to `server.yaml` (see §4.1).
 
 ## 4. Main Gaps
 
-### 4.1 Config Contract Drift
+### 4.1 Config Contract Drift — RESOLVED
 
-The active code expects `server.yaml`, but deployment manifests still set many
-older env vars such as DB, MinIO, worker, and API-key settings.
+**This gap is closed.** It was worse than described here: the manifest's env
+vars were not merely confusing, they were dead. Nothing read `BUILDMAX_DB_*`,
+`BUILDMAX_MINIO_*`, or `BUILDMAX_WORKSPACES_DIR` any more, no `server.yaml` was
+supplied to the container, and a deployed server fell back to built-in defaults
+and crash-looped against MySQL on `localhost`. Worker Jobs had the same problem.
 
-The result is confusing:
+What shipped:
 
-- readers cannot tell whether env vars or YAML are authoritative
-- Kubernetes deployments do not visibly mount a `server.yaml`
-- docs mention `.env.example`, but the current source of truth is
-  `internal/config/env_spec.go` plus YAML config
-- secrets and non-secret config are not separated cleanly
+- `deployment/buildmax-deploy.yaml` carries a `buildmax-config` ConfigMap with
+  `server.yaml`, mounted by subPath so the rest of `BUILDMAX_HOME` stays writable
+- credentials come from `buildmax-secret` through env overrides on
+  `database.password`, `storage.minio.access_key`/`secret_key`, `worker.token`,
+  and `conversation.model.api_key`
+- worker pods mount the same ConfigMap via `worker.k8s.config_map`, with
+  `BUILDMAX_HOME` set to `worker.k8s.home_dir`
+- `.env.example` references are gone; `docs/reference/configuration.md` is the
+  config reference
+- `TestDeploymentConfigMapLoads` fails the build if the manifest and
+  `internal/config/server_config.go` drift apart again
+
+Not verified against a live cluster — see §10.
 
 ### 4.2 Missing Recommended Deployment Shape
 
@@ -317,19 +328,22 @@ override support for the other secret fields or a secret-file merge path.
 
 ## 9. Implementation Plan
 
-### M1. Config Contract Cleanup
+### M1. Config Contract Cleanup — DONE
 
-- Update deployment manifests to mount `server.yaml`.
-- Remove stale env vars from the Kubernetes manifest unless they are supported.
-- Add a `server.yaml.example` or documented sample.
-- Recreate or retire `.env.example` references.
-- Update `setup/README.md`, `README.md`, and `CONTRIBUTING.md` to match the
-  current YAML-based config contract.
+- ✅ Deployment manifests mount `server.yaml` from a ConfigMap.
+- ✅ Stale env vars removed; the ones that remain are overrides the code binds.
+- ✅ Documented sample: `config-examples/server.example.yaml` plus
+  `docs/reference/configuration.md`.
+- ✅ `.env.example` references retired.
+- ✅ `README.md`, `CONTRIBUTING.md`, and the kind guide (now
+  `docs/deploy/local-kind.md`) match the YAML config contract.
 
-Acceptance:
+Acceptance, both met:
 
-- a new reader can tell exactly where each config value comes from
-- `deployment/buildmax-deploy.yaml` matches `internal/config/server_config.go`
+- a new reader can tell exactly where each config value comes from —
+  file for shape, environment for credentials
+- `deployment/buildmax-deploy.yaml` matches `internal/config/server_config.go`,
+  now enforced by a test rather than by review
 
 ### M2. Kind End-To-End Path
 

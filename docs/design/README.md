@@ -34,17 +34,20 @@ shipped with worker hardening open (see its §13.1); traces are at phase 1.
 
 Work planned under a [ROADMAP.md](../../ROADMAP.md) priority. **These expire** —
 when the work lands, its durable half moves to a specification or to the
-architecture reference, and the plan is retired.
+architecture reference, and the plan is retired. Every document below is
+therefore work that is designed but **not yet built**.
 
-| # | Document | Priority |
-|---|---|---|
-| 024 | [Agent Core stability](024-agent-core-stability.md) | P0 |
-| 030 | [Agent Core P0.5 trust harness](030-agent-core-p0-5-trust-harness.md) | P0.5 — 031/032/034 implement sections of it |
-| 025 | [Local agent experience](025-local-agent-experience.md) | P1 |
-| 026 | [Portal outcome surface](026-portal-outcome-surface.md) | P2 |
-| 027 | [Enterprise deployment loop](027-enterprise-deployment-loop.md) | P3 |
-| 028 | [Team governance foundation](028-team-governance-foundation.md) | P4 |
-| 029 | [Versioned workspace design](029-versioned-workspace-design.md) | P5 |
+| # | Document | Priority | Status |
+|---|---|---|---|
+| 030 | [Agent Core P0.5 trust harness](030-agent-core-p0-5-trust-harness.md) | P0.5 | Partly shipped — 031/032/034 implement sections of it |
+| 027 | [Enterprise deployment loop](027-enterprise-deployment-loop.md) | P3 | Designed, not implemented |
+| 028 | [Team governance foundation](028-team-governance-foundation.md) | P4 | Designed, not implemented |
+| 029 | [Versioned workspace design](029-versioned-workspace-design.md) | P5 | Designed, not implemented |
+
+P0 (Agent Core stability), P1 (Local agent experience), and P2 (Portal outcome
+surface) are complete; their plans were retired. Numbers 024, 025, and 026 stay
+retired and are not reused — recover the documents from git history if you need
+the reasoning behind a decision made then.
 
 ## Where The Designs Land
 

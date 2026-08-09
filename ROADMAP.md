@@ -27,9 +27,13 @@ The near-term goal is:
 
 ## Near-Term Priorities
 
-### P0. Agent Core Stability
+P0, P1, and P2 are **complete**. Active work starts at P0.5 and P3. The
+completed sections are kept because their focus and acceptance criteria are the
+standard the surfaces are held to, not because the work is outstanding.
 
-This is the highest priority because CLI, Desktop, worker execution, and Portal
+### P0. Agent Core Stability — complete
+
+This was the highest priority because CLI, Desktop, worker execution, and Portal
 all depend on it.
 
 Focus:
@@ -45,7 +49,7 @@ Acceptance:
 - the same task has comparable capability in CLI, Desktop, and worker execution
 - differences come from environment and permissions, not separate Agent implementations
 
-### P1. Local Agent Experience
+### P1. Local Agent Experience — complete
 
 CLI and Desktop are the direct expression of what one Agent can do for one user.
 They are not secondary to Portal.
@@ -62,7 +66,7 @@ Acceptance:
 
 - a user can get a complete useful Agent experience without deploying Portal
 
-### P2. Portal Outcome Surface
+### P2. Portal Outcome Surface — complete
 
 Portal already has issues, workflows, tasks, runs, and artifacts. The next step
 is to make results the first-class user surface.
@@ -151,15 +155,18 @@ Acceptance:
 
 - there is an executable design for agent-produced state changes and restore before broad implementation begins
 
-## Suggested 4-6 Week Order
+## Suggested Order
 
-1. Documentation, positioning, config, and deployment path cleanup.
-2. Agent Core stability: context windows, tool calling, runtime consistency.
-3. Portal outcome surface: issue/conversation results and outputs.
-4. Agent Core P0.5 trust harness: sandbox, memory, hooks, traces, activity, diagnostics.
-5. Desktop local workbench polish: sessions, project selection, local results.
-6. Enterprise deployment loop and team quota/governance basics.
-7. Versioned workspace design, ready for implementation planning.
+Steps 1-3 of the original sequence — documentation and config cleanup, Agent
+Core stability, and the Portal outcome surface — are done. What remains:
+
+1. Agent Core P0.5 trust harness: finish the sandbox worker profile, rlimits,
+   and hook-transport enforcement; extend traces beyond phase 1.
+2. Enterprise deployment loop: verify the Kubernetes path end to end, add health
+   and readiness diagnostics, write the production reference guide.
+3. Desktop local workbench polish: sessions, project selection, local results.
+4. Team governance: approvals and audit log on top of the existing roles and quota.
+5. Versioned workspace design, ready for implementation planning.
 
 ## Avoid For Now
 
@@ -174,9 +181,6 @@ Acceptance:
 - [README.md](README.md) — current system overview
 - [docs/design/README.md](docs/design/README.md) — design document index
 - [docs/design/023-desktop-cli-portal-positioning.md](docs/design/023-desktop-cli-portal-positioning.md) — product surface positioning
-- [docs/design/024-agent-core-stability.md](docs/design/024-agent-core-stability.md) — P0 Agent Core stability design
-- [docs/design/025-local-agent-experience.md](docs/design/025-local-agent-experience.md) — P1 Local Agent Experience design
-- [docs/design/026-portal-outcome-surface.md](docs/design/026-portal-outcome-surface.md) — P2 Portal outcome surface design
 - [docs/design/030-agent-core-p0-5-trust-harness.md](docs/design/030-agent-core-p0-5-trust-harness.md) — P0.5 Agent Core trust harness design
 - [docs/design/027-enterprise-deployment-loop.md](docs/design/027-enterprise-deployment-loop.md) — P3 Enterprise deployment loop design
 - [docs/design/028-team-governance-foundation.md](docs/design/028-team-governance-foundation.md) — P4 Team governance foundation design

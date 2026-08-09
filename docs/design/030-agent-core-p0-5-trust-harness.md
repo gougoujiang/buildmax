@@ -4,7 +4,7 @@
 
 - roadmap_priority: `P0.5`
 - status: `draft`
-- follows: [024-agent-core-stability.md](./024-agent-core-stability.md), [025-local-agent-experience.md](./025-local-agent-experience.md), [026-portal-outcome-surface.md](./026-portal-outcome-surface.md)
+- follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-23`
 

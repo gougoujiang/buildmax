@@ -3,7 +3,7 @@ package cli
 import "fmt"
 
 // Exit codes for the CLI. Stable contract for shell scripts wrapping
-// `buildmax -p`. See docs/design/025-local-agent-experience.md (P1-8).
+// `buildmax -p`. Documented for users in docs/reference/cli.md.
 const (
 	ExitOK            = 0
 	ExitGeneric       = 1
