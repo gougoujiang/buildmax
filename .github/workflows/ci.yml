@@ -58,6 +58,34 @@ jobs:
           go install github.com/google/go-licenses@latest
           go-licenses check ./cmd/... --disallowed_types=forbidden,restricted
 
+  go-windows:
+    name: Go (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # Runs through make.bat so the shim and the cmd/mk task runner are covered
+      # alongside the suite.
+      #
+      # Advisory for now: native Windows has never been exercised end to end, so
+      # this job exists to surface what breaks rather than to gate merges. Drop
+      # continue-on-error once it passes — an advisory job that stays red is
+      # worse than no job at all.
+      - name: Test
+        continue-on-error: true
+        run: .\make.bat test
+
   frontend:
     name: Frontend (gui, portal)
     runs-on: ubuntu-latest

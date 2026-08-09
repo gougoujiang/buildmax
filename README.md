@@ -228,7 +228,8 @@ notarization to be launchable on macOS. Build it locally with `./make build`.
 ## Build and Run
 
 For working on the project, the primary local workflow uses the root `./make`
-script.
+script — on Windows, `make.bat`. Both forward to the task runner in `cmd/mk`,
+so the commands below behave the same on every platform.
 
 - `./make build`
   Builds CLI, server, worker, shared GUI, and desktop app.

@@ -30,8 +30,9 @@ Portal, and worker execution.
 
 ## Build, Test, and Run
 
-The root `./make` script is the primary local workflow. It sources `./loadenv`
-if present.
+The root `./make` script is the primary local workflow — on Windows, `make.bat`.
+Both are one-line shims around the task runner in [`cmd/mk`](cmd/mk), so every
+platform runs the same code. `.env` at the repo root is loaded automatically.
 
 ```bash
 ./make build          # CLI, server, worker, gui, desktop app
@@ -42,6 +43,10 @@ if present.
 ./make run desktop    # Wails desktop app in dev mode
 ./make clean          # binaries, desktop build dir, node_modules, dist
 ```
+
+`./make help` lists every command. To add or change one, edit `cmd/mk` rather
+than the shims. `setup`, `unsetup`, and `deploy` drive bash and kubectl tooling
+and stay Unix-only; run them from WSL2 on Windows.
 
 `./make test` writes to `./testing-sandbox` instead of `~/.buildmax`, so tests
 never touch your real data directory. The sandbox is created on demand and is

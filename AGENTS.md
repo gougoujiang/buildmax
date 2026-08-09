@@ -148,7 +148,8 @@ buildmax/
 │   ├── buildmax/              # CLI/TUI binary
 │   ├── buildmax-server/       # Server binary (HTTP API + scheduler)
 │   ├── buildmax-worker/       # Worker binary (runs one task run via API + direct storage)
-│   └── buildmax-desktop/      # Desktop app (Wails); embeds desktop/frontend
+│   ├── buildmax-desktop/      # Desktop app (Wails); embeds desktop/frontend
+│   └── mk/                    # Task runner behind ./make and make.bat (dev only; not released)
 ├── desktop/                   # Desktop frontend (React 19 + Vite); depends on gui
 ├── internal/                  # Private Go packages (this project only)
 │   ├── agentapp/              # Agent runtime assembly: LLM client cache, tool registry, MCP, hooks, sandbox, skills, sessions, workspace
@@ -214,7 +215,7 @@ buildmax/
 └── README.md
 ```
 
-- **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `make.bat build`. Provides TUI, `-p` print mode, and `version`; delegates to `internal/interface/cli`.
+- **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `./make build cli`. Provides TUI, `-p` print mode, and `version`; delegates to `internal/interface/cli`.
 - **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Delegates to `internal/bootstrap`, which wires DB, storage, LLM, HTTP server, and scheduler.
 - **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-run-id`; delegates to `internal/bootstrap` startup logic (get task run via API, blob storage, `agentapp/taskrun`). Requires `BUILDMAX_SERVER_URL`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_WORKSPACES_DIR`, and storage env when running the worker.
 - **internal/agentapp**: Agent runtime assembly used by CLI, worker, and desktop. Owns `AgentApp` — LLM client cache, tool registry construction, MCP manager, hook manager, sandbox manager, run-trace wiring, skill/subagent discovery, session persistence, and workspace resolution. `agentapp/taskrun` runs one task run in its run-scoped directory.
@@ -267,19 +268,19 @@ buildmax/
 
 ## 7. Build & Test
 
-**Primary (macOS/Unix):** Use the `./make` script (bash) at the repo root. It sources `./loadenv` if present.
+Use `./make <command>` at the repo root — on Windows, `make.bat <command>`. Both are one-line shims that forward to the task runner in **`cmd/mk`** (`go run ./cmd/mk`), so macOS, Linux, and Windows run the same task code; there is no second implementation to keep in sync. `cmd/mk` depends only on the standard library, loads `.env` from the repo root itself (this replaced `loadenv`/`loadenv.bat`/`loadenv.ps1`), and appends `.exe` to binary names on Windows. Add or change commands in `cmd/mk`, never in the shims. `./make help` lists them all.
 
-- **Build**: `./make build` — builds the CLI (`./buildmax`), server (`./buildmax-server`), worker (`./buildmax-worker`), then the **gui** package (if `gui/` exists), then the desktop app (Wails). Portal is not built by default; run `cd portal && npm run build` for that. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
+- **Build**: `./make build` — builds the CLI (`bin/buildmax`), server (`bin/buildmax-server`), worker (`bin/buildmax-worker`), then the **gui** package (if `gui/` exists), then the desktop app (Wails). Frontend stages warn instead of failing, so a missing npm or wails still yields the Go binaries. Portal is not built by default; run `cd portal && npm run build` for that. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
 - **Clean**: `./make clean` — removes binaries, desktop build dir, **gui** (`gui/node_modules`, `gui/dist`), portal, and desktop frontend (`node_modules`, `dist`).
 - **Test**: `./make test` — sets `BUILDMAX_HOME=./testing-sandbox` and runs `go test ./...`. Use this after code changes.
 - **Smoke**: `./make smoke` — builds the CLI, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
 - **Run server**: `./make run server` — builds and runs `buildmax-server` (default port 5678). The server spawns `buildmax-worker` for each task; ensure `buildmax-worker` is on PATH or in the same directory, and set `BUILDMAX_SERVER_URL` and `BUILDMAX_WORKER_TOKEN` (and storage env) when running the worker.
 - **Run portal**: `./make run portal` — builds gui if missing, then starts the Portal dev server (Vite; installs npm deps if needed).
 - **Run desktop**: `./make run desktop` — builds gui if missing, then starts the desktop app in Wails dev mode (installs frontend deps if needed).
-- **Bump version**: `./make bump [patch|minor|major]` — updates `Version` in `internal/interface/cli/root.go` (default: patch).
+- **Bump version**: `./make bump [patch|minor|major]` — creates the next release tag locally (default: patch); pushing the tag is what triggers a release. Versions live in git tags, injected at link time, not in a source file.
 - **Setup / Unsetup**: `./make setup` runs `setup/setup.sh` (one-click local dev: kind cluster, MinIO, MySQL, port-forwards, test job; idempotent). `./make unsetup` runs `setup/unsetup.sh` to tear down. Requires Homebrew (kind, helm, kubectl, awscli). Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.
 
-**Windows:** `make.bat` in the repo root provides `build` and `test` for Windows; prefer PowerShell over batch when running commands. Build output: `buildmax.exe`.
+**Windows:** `make.bat <command>` accepts every command `./make` does; build output is `bin/buildmax.exe` and friends. The exceptions are `setup`, `unsetup`, and `deploy`, which drive bash and Kubernetes tooling and fail with a clear message on Windows — run them from WSL2. Native Windows is not yet covered by CI end to end: the Windows job builds and vets, but the test suite there is advisory (see `.github/workflows/ci.yml`), and the bash tool falls back to `cmd /c` (`internal/tool/bash.go`) while the sandbox is unavailable (`docs/design/032-sandbox-and-execution-boundaries.md` §7).
 
 ## 8. Commit Message
 Do NOT include: Co-Authored-By and Claude-Session in commit message

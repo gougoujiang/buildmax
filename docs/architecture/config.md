@@ -52,6 +52,6 @@ ModelGLM45AirFree    = "z-ai/glm-4.5-air:free"      // current default
 
 ## Notes
 
-- Setting `BUILDMAX_HOME` is useful for testing (`make.bat test` sets it to `./testing-sandbox`).
+- Setting `BUILDMAX_HOME` is useful for testing (`./make test`, or `make.bat test` on Windows, sets it to `./testing-sandbox`).
 - Config files (YAML/Viper) are planned but not yet implemented.
 - See also: [LLM Client](llm-client.md), [CLI](cli.md), [Project Overview](overview.md).
