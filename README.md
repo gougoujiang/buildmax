@@ -35,11 +35,13 @@ Configure a model — this writes `~/.buildmax/settings.yaml`:
 
 ```bash
 buildmax init --api-key sk-your-key-here
+buildmax doctor
 ```
 
 That sets up `openai/gpt-4o-mini` through OpenRouter. Any OpenAI-compatible
 endpoint works; `buildmax init --model llama3.1 --api-url http://localhost:11434/v1`
 points it at a local one instead. Omit `--api-key` to fill the key in later.
+`buildmax doctor` checks the local setup without contacting a model provider.
 
 Then run it against a directory:
 
