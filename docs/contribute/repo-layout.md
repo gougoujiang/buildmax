@@ -20,7 +20,6 @@ buildmax/
 ├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
 ├── eval/                 Agent benchmark task catalog
 ├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
-├── scripts/              License tooling run by CI and the release build
 ├── .github/              CI workflows, issue and PR templates, community health files
 ├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md
 ├── make, make.bat        One-line shims around the task runner in cmd/mk
@@ -55,10 +54,11 @@ one binary:
 | `deployment/migrations/` | One-off SQL migrations |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
 
-`scripts/` is neither deployment nor application code — it is repository tooling
-invoked from CI and the release process: third-party notice generation and npm
-license checks. Anything written in Go belongs in `cmd/mk` instead, reachable
-through `./make`; release-archive verification moved there for that reason.
+There is no `scripts/` directory. Repository tooling — release-archive
+verification, third-party notice generation, npm license checks — lives in
+`cmd/mk` as `./make` commands, so every task runs the same way on macOS, Linux,
+and Windows and is covered by the same tests. CI and GoReleaser invoke those
+commands as `go run ./cmd/mk <task>`, which needs no shell.
 
 ## Nested Go Modules
 
@@ -84,7 +84,7 @@ Two kinds of directory sit outside the root module, each with its own `go.mod`:
 | `cmd/buildmax-desktop` | — | Wails desktop app; embeds `desktop/frontend` |
 | `cmd/buildmax-eval` | `buildmax-eval` | Agent benchmark runner over `eval/` |
 | `cmd/local-test-mcp-server` | — | Small MCP server for testing MCP integration |
-| `cmd/mk` | — | Task runner behind `./make` and `make.bat`; dev only, not released |
+| `cmd/mk` | — | Task runner behind `./make` and `make.bat`, plus the repository tooling CI and GoReleaser call; dev only, not released |
 
 Every `cmd/*` package is a thin `main.go` that delegates to `internal/`.
 

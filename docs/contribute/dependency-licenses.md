@@ -52,10 +52,10 @@ The `check` command runs in CI on every pull request, so a dependency carrying
 a forbidden or restricted license fails the build rather than being noticed
 later.
 
-npm, per package directory:
+npm, across all three lockfiles:
 
 ```bash
-node scripts/check-npm-licenses.mjs
+./make npm-licenses
 ```
 
 The npm check reads all three committed lockfiles, ignores development-only and
@@ -74,15 +74,29 @@ Apache-2.0 §4(d) requires carrying forward the attribution notices of
 Apache-2.0 dependencies when you redistribute them, and compiled BuildMax
 binaries contain that dependency code.
 
-[`scripts/gen-third-party-notices.sh`](../../scripts/gen-third-party-notices.sh)
-collects the full license text of every module linked into the binaries into a
-single `NOTICE-THIRD-PARTY` file — 132 modules at the last run. GoReleaser runs
-it as a pre-build hook, so every release archive and the container image ship
-it. The file is generated, not committed.
+`./make notices` collects the full license text of every module linked into the
+binaries into a single `NOTICE-THIRD-PARTY` file — 132 modules at the last run.
+GoReleaser runs it as a pre-build hook, so every release archive and the
+container image ship it. The file is generated, not committed.
 
 To produce it locally:
 
 ```bash
 go install github.com/google/go-licenses@v1.6.0
-./scripts/gen-third-party-notices.sh
+./make notices
+```
+
+The document must be reproducible: the same dependency set has to produce the
+same bytes, so modules are concatenated in byte order and the header is fixed.
+`TestWriteNoticesBytes` and `TestLicenseFilesSortedByByteOrder` in `cmd/mk` hold
+that contract.
+
+`go-licenses` v1.6.0 fails to resolve the standard library when `GOROOT` points
+inside the module cache, which is where Go puts a toolchain it downloaded
+itself. If `go env GOROOT` shows a `golang.org/toolchain@...` path, install the
+matching Go release normally, or generate the file in a container:
+
+```bash
+docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.6 bash -c \
+  'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./cmd/mk notices'
 ```
