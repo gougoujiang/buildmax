@@ -7,7 +7,7 @@ import (
 )
 
 // Prefix constants for prefixed IDs. Use with NewPrefixedID.
-// Semantics: u=user, tm=team, a=agent, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, whk=user webhook key.
+// Semantics: u=user, tm=team, a=agent, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, whk=user webhook key, lc=managed LLM call.
 // Session IDs are internal (not user-facing) and use UUID.
 const (
 	PrefixUser                = "u"
@@ -24,6 +24,7 @@ const (
 	PrefixArtifactItem        = "f"
 	PrefixConversationMessage = "cm"
 	PrefixWebhookKey          = "whk"
+	PrefixLLMCall             = "lc"
 )
 
 const (

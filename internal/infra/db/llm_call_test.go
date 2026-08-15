@@ -1,0 +1,251 @@
+package db
+
+import (
+	"context"
+	"os"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
+)
+
+func ptrString(s string) *string { return &s }
+
+func sampleLLMCall() *model.LLMCall {
+	return &model.LLMCall{
+		TeamID:        "tm_ledger",
+		UserID:        ptrString("u_ledger"),
+		Surface:       model.LLMCallSurfaceCLI,
+		SessionID:     ptrString("session-1"),
+		Alias:         "fast",
+		TargetID:      "mt_fast",
+		ProviderType:  "openai_compatible",
+		UpstreamModel: "vendor/fast-1",
+		Streaming:     true,
+		AcceptedAt:    1_700_000_000,
+	}
+}
+
+// TestLLMCallRowRoundTrip runs without a database: it is the mapping that
+// silently drops a column when the model grows.
+func TestLLMCallRowRoundTrip(t *testing.T) {
+	call := sampleLLMCall()
+	call.ID = 7
+	call.LLMCallID = "lc_example"
+	call.ClientCallID = ptrString("client-key-1")
+	call.TaskID = ptrString("t_one")
+	call.TaskRunID = ptrString("r_one")
+	upstreamStarted := int64(1_700_000_001)
+	firstDelta := int64(1_700_000_002)
+	completed := int64(1_700_000_003)
+	call.UpstreamStartedAt = &upstreamStarted
+	call.FirstDeltaAt = &firstDelta
+	call.CompletedAt = &completed
+	call.Status = model.LLMCallStatusSucceeded
+	call.ErrorClass = ptrString("upstream_unavailable")
+	call.Attempts = 2
+	prompt, completion, total := 100, 20, 120
+	call.PromptTokens = &prompt
+	call.CompletionTokens = &completion
+	call.TotalTokens = &total
+	call.UsageSource = model.LLMUsageSourceReported
+
+	got := toLLMCall(toLLMCallRow(call))
+	if got == nil {
+		t.Fatal("round trip produced nil")
+	}
+	if *got != *call {
+		t.Errorf("round trip changed the record:\n got %+v\nwant %+v", *got, *call)
+	}
+
+	if toLLMCallRow(nil) != nil {
+		t.Error("toLLMCallRow(nil) must be nil")
+	}
+	if toLLMCall(nil) != nil {
+		t.Error("toLLMCall(nil) must be nil")
+	}
+}
+
+// TestLLMCallCarriesNoContent is a structural guard for the redaction rule in
+// docs/design/llm-gateway.md: the ledger records metadata, never prompts, tool
+// payloads, or generated content.
+func TestLLMCallCarriesNoContent(t *testing.T) {
+	forbidden := []string{"prompt", "message", "content", "tool", "input", "output", "text", "body"}
+	// PromptTokens is a count, not a payload.
+	allowed := map[string]bool{"PromptTokens": true}
+
+	rowType := reflect.TypeOf(llmCallRow{})
+	for i := range rowType.NumField() {
+		field := rowType.Field(i)
+		if allowed[field.Name] {
+			continue
+		}
+		name := strings.ToLower(field.Name)
+		for _, word := range forbidden {
+			if strings.Contains(name, word) {
+				t.Errorf("llm_call field %q looks like it carries call content", field.Name)
+			}
+		}
+	}
+}
+
+func TestOpenAndCompleteLLMCall(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	call := sampleLLMCall()
+	call.ClientCallID = ptrString(util.NewPrefixedID("clientkey"))
+	opened, err := s.OpenLLMCall(ctx, call)
+	if err != nil {
+		t.Fatalf("OpenLLMCall: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.LLMCallID)
+	}()
+
+	if !strings.HasPrefix(opened.LLMCallID, "lc_") {
+		t.Errorf("LLMCallID = %q, want an lc_ prefix", opened.LLMCallID)
+	}
+	if opened.Status != model.LLMCallStatusAccepted {
+		t.Errorf("Status = %q, want %q", opened.Status, model.LLMCallStatusAccepted)
+	}
+	if opened.UsageSource != model.LLMUsageSourceUnavailable {
+		t.Errorf("UsageSource = %q, want %q", opened.UsageSource, model.LLMUsageSourceUnavailable)
+	}
+	if opened.PromptTokens != nil {
+		t.Error("an accepted call must not carry token counts yet")
+	}
+
+	completedAt := opened.AcceptedAt + 3
+	upstreamStarted := opened.AcceptedAt + 1
+	err = s.CompleteLLMCall(ctx, opened.LLMCallID, model.LLMCallOutcome{
+		Status:            model.LLMCallStatusSucceeded,
+		Attempts:          1,
+		UpstreamStartedAt: &upstreamStarted,
+		CompletedAt:       completedAt,
+		Usage: &model.LLMCallUsage{
+			PromptTokens:     100,
+			CompletionTokens: 20,
+			TotalTokens:      120,
+			Source:           model.LLMUsageSourceReported,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CompleteLLMCall: %v", err)
+	}
+
+	got, err := s.GetLLMCall(ctx, opened.LLMCallID)
+	if err != nil {
+		t.Fatalf("GetLLMCall: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetLLMCall returned nothing for a stored call")
+	}
+	if got.Status != model.LLMCallStatusSucceeded {
+		t.Errorf("Status = %q, want %q", got.Status, model.LLMCallStatusSucceeded)
+	}
+	if got.TotalTokens == nil || *got.TotalTokens != 120 {
+		t.Errorf("TotalTokens = %v, want 120", got.TotalTokens)
+	}
+	if got.CompletedAt == nil || *got.CompletedAt != completedAt {
+		t.Errorf("CompletedAt = %v, want %d", got.CompletedAt, completedAt)
+	}
+
+	byClient, err := s.GetLLMCallByClientID(ctx, call.TeamID, *call.ClientCallID)
+	if err != nil {
+		t.Fatalf("GetLLMCallByClientID: %v", err)
+	}
+	if byClient == nil || byClient.LLMCallID != opened.LLMCallID {
+		t.Errorf("GetLLMCallByClientID returned %v, want %q", byClient, opened.LLMCallID)
+	}
+	// Another team's identical key must not resolve this call.
+	other, err := s.GetLLMCallByClientID(ctx, "tm_other", *call.ClientCallID)
+	if err != nil {
+		t.Fatalf("GetLLMCallByClientID for another team: %v", err)
+	}
+	if other != nil {
+		t.Error("a client call ID resolved across teams")
+	}
+}
+
+func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	opened, err := s.OpenLLMCall(ctx, sampleLLMCall())
+	if err != nil {
+		t.Fatalf("OpenLLMCall: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.LLMCallID)
+	}()
+
+	errorClass := "upstream_unavailable"
+	err = s.CompleteLLMCall(ctx, opened.LLMCallID, model.LLMCallOutcome{
+		Status:      model.LLMCallStatusFailed,
+		ErrorClass:  &errorClass,
+		Attempts:    3,
+		CompletedAt: opened.AcceptedAt + 5,
+	})
+	if err != nil {
+		t.Fatalf("CompleteLLMCall: %v", err)
+	}
+
+	got, err := s.GetLLMCall(ctx, opened.LLMCallID)
+	if err != nil {
+		t.Fatalf("GetLLMCall: %v", err)
+	}
+	// A failed call reports no tokens rather than zero tokens: they are
+	// different facts and only one of them may be billed.
+	if got.TotalTokens != nil {
+		t.Errorf("TotalTokens = %v, want nil", got.TotalTokens)
+	}
+	if got.UsageSource != model.LLMUsageSourceUnavailable {
+		t.Errorf("UsageSource = %q, want %q", got.UsageSource, model.LLMUsageSourceUnavailable)
+	}
+	if got.Attempts != 3 {
+		t.Errorf("Attempts = %d, want 3", got.Attempts)
+	}
+}
+
+func TestGetLLMCallMissing(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	got, err := s.GetLLMCall(ctx, "lc_does_not_exist")
+	if err != nil {
+		t.Fatalf("GetLLMCall: %v", err)
+	}
+	if got != nil {
+		t.Errorf("GetLLMCall = %v, want nil for a missing call", got)
+	}
+
+	// An empty key is a lookup with nothing to find, not an error.
+	if got, err := s.GetLLMCallByClientID(ctx, "tm_ledger", ""); err != nil || got != nil {
+		t.Errorf("GetLLMCallByClientID with an empty key = %v, %v", got, err)
+	}
+}
