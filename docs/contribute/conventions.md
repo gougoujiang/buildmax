@@ -63,6 +63,17 @@ attribution is noise in a history that anyone can read.
 - Commit subjects are a **single imperative line** — `Move the Dockerfiles into
   deployment/docker`, not `moved dockerfiles` or `fix stuff`. Add a body when
   the reason is not obvious from the diff.
+- **Pull requests are squash-merged, so the pull request title becomes the
+  commit subject on `main`.** Write the title to the rule above: one imperative
+  line, specific enough to read on its own in `git log --oneline`. `Fix the
+  worker artifact path` — not `Bug fix`, not `WIP`, not an issue number alone.
+  The commits on your branch are yours to organize however you like; only the
+  title survives.
+- Keep the branch to **one coherent change**. Squash merging collapses whatever
+  is on the branch into a single commit, so a pull request that does three
+  unrelated things becomes one commit that does three unrelated things, and
+  reverting one of them means reverting all three. Two changes, two pull
+  requests.
 - Do **not** add `Co-Authored-By` or `Claude-Session` trailers to commits.
 - Do **not** add a "Generated with …" footer or an assistant session link to a
   pull request description.

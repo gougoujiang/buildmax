@@ -200,11 +200,22 @@ prefixed entity IDs, LLM-facing tool output — are in
 
 ## Pull Requests
 
-- Keep each pull request focused on one user-visible outcome or engineering concern.
-- Write commit subjects as a **single imperative line** — `Add a login-code
-  expiry check`, not `fixed login stuff`. No `Co-Authored-By` or
-  `Claude-Session` trailers, and no "Generated with …" footer or assistant
-  session link in the description. The reasoning is in
+**Pull requests are squash-merged.** Two things follow from that, and they are
+the two most common review comments on a first contribution:
+
+- **The pull request title becomes the commit subject on `main`.** Write it as a
+  single imperative line that reads on its own in `git log --oneline` — `Add a
+  login-code expiry check`, not `fixed login stuff`, `WIP`, or a bare issue
+  number. How you organize the commits on your branch is up to you; only the
+  title survives the merge.
+- **One coherent change per pull request.** Everything on the branch collapses
+  into one commit, so three unrelated fixes become one commit that cannot be
+  reverted separately. Two changes, two pull requests.
+
+The rest:
+
+- No `Co-Authored-By` or `Claude-Session` trailers, and no "Generated with …"
+  footer or assistant session link in the description. The reasoning is in
   [conventions.md](docs/contribute/conventions.md#commit-messages-and-pull-requests).
 - Add or update focused tests for behavioral changes.
 - Add a `CHANGELOG.md` entry under `## [Unreleased]` when a user or operator

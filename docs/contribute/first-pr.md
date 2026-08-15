@@ -88,6 +88,10 @@ approach, how you verified it, and anything still missing. Small and verifiable
 beats large and thorough — a pull request that a maintainer can read in one
 sitting gets reviewed sooner.
 
+Spend a moment on the **title**. Pull requests here are squash-merged, so the
+title is what lands on `main` and what everyone reads in `git log` a year from
+now — one imperative line, specific enough to stand alone.
+
 ## What CI Will Run
 
 Everything in [CONTRIBUTING.md § Pull Requests](../../CONTRIBUTING.md#pull-requests):

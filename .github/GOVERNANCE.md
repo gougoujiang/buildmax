@@ -39,6 +39,12 @@ Maintainer-authored changes should receive independent review when another
 qualified reviewer is available. Urgent security fixes may merge before public
 review; the maintainer must document the exception when disclosure is safe.
 
+Merges are squashes: one commit on `main` per pull request, its subject taken
+from the pull request title. A maintainer merging a pull request is responsible
+for that subject reading well in `git log` — edit it at merge time rather than
+letting a vague title land. Keep the reviewer-facing half of the description out
+of the commit body.
+
 Direct pushes to `main` are reserved for repository administration or recovery.
 Normal code and documentation changes should use pull requests.
 
