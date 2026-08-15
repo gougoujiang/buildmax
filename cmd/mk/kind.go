@@ -53,7 +53,7 @@ func kindUp() error {
 		return err
 	}
 	if !succeeds("docker", "info") {
-		return errors.New("Docker is installed but the engine is not ready")
+		return errors.New("docker is installed but the engine is not ready")
 	}
 
 	cluster := kindClusterName()
@@ -88,7 +88,7 @@ func kindUp() error {
 	if err := kindKubectl("apply", "-f", "setup/kind-ingress-nginx.yaml"); err != nil {
 		return err
 	}
-	if err := kindKubectl("wait", "--for=condition=Available", "deployment/ingress-nginx-controller", "-n", "ingress-nginx", "--timeout=180s"); err != nil {
+	if err := waitForKindDeployment("ingress-nginx", "ingress-nginx-controller", "180s"); err != nil {
 		return err
 	}
 	if err := ensureKindNamespace("storage"); err != nil {
@@ -99,10 +99,10 @@ func kindUp() error {
 			return err
 		}
 	}
-	if err := kindKubectl("wait", "--for=condition=Available", "deployment/mysql", "-n", "db", "--timeout=180s"); err != nil {
+	if err := waitForKindDeployment("db", "mysql", "360s"); err != nil {
 		return err
 	}
-	if err := kindKubectl("wait", "--for=condition=Available", "deployment/minio", "-n", "storage", "--timeout=180s"); err != nil {
+	if err := waitForKindDeployment("storage", "minio", "360s"); err != nil {
 		return err
 	}
 	if err := initializeKindBucket(); err != nil {
@@ -174,19 +174,56 @@ func kindLogs() error {
 	if err := requireCommands("kubectl"); err != nil {
 		return err
 	}
-	commands := [][]string{
-		{"get", "pods,jobs,services,ingresses", "-n", "buildmax", "-o", "wide"},
-		{"get", "events", "-n", "buildmax", "--sort-by=.lastTimestamp"},
-		{"logs", "-n", "buildmax", "deployment/buildmax-server", "--all-containers", "--tail=200"},
-		{"logs", "-n", "buildmax", "deployment/buildmax-portal", "--all-containers", "--tail=100"},
-		{"logs", "-n", "buildmax", "-l", "job-name", "--all-containers", "--tail=200"},
+	for _, namespace := range []string{"ingress-nginx", "db", "storage", "buildmax"} {
+		dumpKindNamespace(namespace)
 	}
+	return nil
+}
+
+func waitForKindDeployment(namespace, name, timeout string) error {
+	err := kindKubectl("wait", "--for=condition=Available", "deployment/"+name, "-n", namespace, "--timeout="+timeout)
+	if err != nil {
+		dumpKindNamespace(namespace)
+	}
+	return err
+}
+
+func dumpKindNamespace(namespace string) {
+	commands := [][]string{
+		{"get", "pods,jobs,deployments,services,ingresses", "-n", namespace, "-o", "wide"},
+		{"get", "events", "-n", namespace, "--sort-by=.lastTimestamp"},
+	}
+
+	switch namespace {
+	case "ingress-nginx":
+		commands = append(commands,
+			[]string{"describe", "deployment/ingress-nginx-controller", "-n", namespace},
+			[]string{"logs", "-n", namespace, "deployment/ingress-nginx-controller", "--all-containers", "--tail=200"},
+		)
+	case "db":
+		commands = append(commands,
+			[]string{"describe", "deployment/mysql", "-n", namespace},
+			[]string{"logs", "-n", namespace, "deployment/mysql", "--all-containers", "--tail=200"},
+		)
+	case "storage":
+		commands = append(commands,
+			[]string{"describe", "deployment/minio", "-n", namespace},
+			[]string{"logs", "-n", namespace, "deployment/minio", "--all-containers", "--tail=200"},
+			[]string{"logs", "-n", namespace, "job/minio-init", "--all-containers", "--tail=200"},
+		)
+	case "buildmax":
+		commands = append(commands,
+			[]string{"logs", "-n", namespace, "deployment/buildmax-server", "--all-containers", "--tail=200"},
+			[]string{"logs", "-n", namespace, "deployment/buildmax-portal", "--all-containers", "--tail=100"},
+			[]string{"logs", "-n", namespace, "-l", "job-name", "--all-containers", "--tail=200"},
+		)
+	}
+
 	for _, args := range commands {
 		if err := kindKubectl(args...); err != nil {
 			fmt.Printf("Warning: %v\n", err)
 		}
 	}
-	return nil
 }
 
 func kindDown() error {

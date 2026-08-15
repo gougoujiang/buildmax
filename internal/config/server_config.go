@@ -51,14 +51,7 @@ type ServerModelEntry struct {
 // the model shape used by the shared agent runtime. Environment overrides have
 // already been applied before this conversion, so credentials stay in memory.
 func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
-	return ModelEntry{
-		Model:         m.Model,
-		Name:          m.Name,
-		APIURL:        m.APIURL,
-		APIKey:        m.APIKey,
-		ContextWindow: m.ContextWindow,
-		CallTimeout:   m.CallTimeout,
-	}
+	return ModelEntry(m)
 }
 
 // ServerDBConfig holds MySQL connection settings.
