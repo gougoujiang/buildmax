@@ -61,6 +61,9 @@ pre-releases and must be called out in release notes.
   are zero-warning gates.
 - `AGENTS.md` is now a compact, stable navigation and constraint guide backed
   by integrity tests for the repository's `.buildmax` agent configuration.
+- Release chores now live under `./make release`, and local image loading is
+  `./make kind images`. The old top-level commands remain as deprecated aliases
+  for one release cycle.
 
 - **Self-registration is closed by default.** `POST /api/otp/request` refuses
   `intent: signup` with 403 unless `server.yaml` sets `allow_signup: true`.

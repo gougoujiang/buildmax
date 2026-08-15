@@ -101,7 +101,7 @@ isolation.
 Native Windows has no sandbox, and the bash tool falls back to `cmd /c`. CI
 builds, vets, and runs the test suite on Windows, but shell-dependent tests are
 skipped there. WSL2 is the supported path for anything involving the shell,
-`./make setup`, or deployment.
+`./make kind up`, or deployment.
 
 ## Something else
 

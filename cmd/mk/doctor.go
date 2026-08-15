@@ -50,7 +50,7 @@ func cmdDoctor(args []string) error {
 
 	fmt.Println()
 	fmt.Println("Safe default commands: ./make build cli, ./make test, ./make lint, ./make check <scope>")
-	fmt.Println("External-effect commands: install, bump, compose, kind, deploy, and publication workflows")
+	fmt.Println("External-effect commands: install, release, compose, kind, and publication workflows")
 	if failures > 0 {
 		return fmt.Errorf("contributor doctor found %d required toolchain problem(s)", failures)
 	}

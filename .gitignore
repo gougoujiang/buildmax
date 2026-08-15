@@ -31,7 +31,7 @@ go.work.sum
 deployment/*.local.yaml
 
 # Release artifacts. Both are generated: dist/ by GoReleaser, NOTICE-THIRD-PARTY
-# by the `./make notices` task during the release build.
+# by the `./make release notices` task during the release build.
 /dist/
 /NOTICE-THIRD-PARTY
 

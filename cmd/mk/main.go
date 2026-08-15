@@ -75,28 +75,40 @@ func dispatch(args []string) error {
 		return cmdEval(rest)
 	case "run":
 		return cmdRun(rest)
-	case "bump":
-		return cmdBump(rest)
+	case "release":
+		return cmdRelease(rest)
 	case "install":
 		return cmdInstall()
-	case "verify-archive":
-		return cmdVerifyArchive(rest)
-	case "notices":
-		return cmdNotices(rest)
-	case "npm-licenses":
-		return cmdNPMLicenses(rest)
-	case "setup":
-		return cmdKind([]string{"up"})
-	case "unsetup":
-		return cmdKind([]string{"down"})
-	case "pub_images":
-		return cmdPubImages()
-	case "deploy":
-		return cmdKind([]string{"up"})
 	case "compose":
 		return cmdCompose(rest)
 	case "kind":
 		return cmdKind(rest)
+	// Deprecated compatibility aliases. Keep these through one release cycle
+	// so existing automation gets a migration message instead of breaking.
+	case "bump":
+		warnDeprecatedCommand("bump", "release bump")
+		return cmdBump(rest)
+	case "verify-archive":
+		warnDeprecatedCommand("verify-archive", "release verify")
+		return cmdVerifyArchive(rest)
+	case "notices":
+		warnDeprecatedCommand("notices", "release notices")
+		return cmdNotices(rest)
+	case "npm-licenses":
+		warnDeprecatedCommand("npm-licenses", "release licenses")
+		return cmdNPMLicenses(rest)
+	case "setup":
+		warnDeprecatedCommand("setup", "kind up")
+		return cmdKind([]string{"up"})
+	case "unsetup":
+		warnDeprecatedCommand("unsetup", "kind down")
+		return cmdKind([]string{"down"})
+	case "pub_images":
+		warnDeprecatedCommand("pub_images", "kind images")
+		return cmdKind([]string{"images"})
+	case "deploy":
+		warnDeprecatedCommand("deploy", "kind up")
+		return cmdKind([]string{"up"})
 	case "help", "-h", "--help":
 		return cmdHelp(rest)
 	default:
@@ -129,6 +141,29 @@ func command(name, format string, args ...any) {
 	fmt.Printf("  %-18s%s\n", name, fmt.Sprintf(format, args...))
 }
 
+func warnDeprecatedCommand(old, replacement string) {
+	fmt.Fprintf(os.Stderr, "Warning: %s %s is deprecated; use %s %s\n", mk(), old, mk(), replacement)
+}
+
+func cmdRelease(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: %s release <bump|verify|notices|licenses>", mk())
+	}
+	subcommand, rest := args[0], args[1:]
+	switch subcommand {
+	case "bump":
+		return cmdBump(rest)
+	case "verify":
+		return cmdVerifyArchive(rest)
+	case "notices":
+		return cmdNotices(rest)
+	case "licenses":
+		return cmdNPMLicenses(rest)
+	default:
+		return fmt.Errorf("unknown release command %q (want bump, verify, notices, or licenses)", subcommand)
+	}
+}
+
 type helpRow struct {
 	name        string
 	description string
@@ -147,7 +182,7 @@ func commonHelpRows() []helpRow {
 		{"check [scope]", "Run pre-PR checks (go|portal|desktop|docs|all)"},
 		{"run <target>", "Run cli, server, desktop, or Portal locally"},
 		{"clean", "Remove build outputs and installed frontend dependencies"},
-		{"help all", "Show advanced, deployment, release, and compatibility commands"},
+		{"help all", "Show advanced, deployment, release, and deprecated commands"},
 	}
 }
 
@@ -168,20 +203,21 @@ func allHelpSections() []helpSection {
 		}},
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke|logs|down)"},
-			{"kind <action>", "Manage local Kubernetes (up|smoke|logs|down)"},
-			{"pub_images", "Build images and load them into the kind cluster"},
+			{"kind <action>", "Manage local Kubernetes (up|images|smoke|logs|down)"},
 		}},
 		{"Release", []helpRow{
-			{"bump [level]", "Create a local release tag (patch|minor|major)"},
+			{"release <action>", "Run bump, verify, notices, or licenses"},
 			{"install", "Install binaries to ~/.local/bin"},
-			{"verify-archive", "Verify GoReleaser archives in dist"},
-			{"notices", "Generate NOTICE-THIRD-PARTY"},
-			{"npm-licenses", "Check npm production dependency licenses"},
 		}},
-		{"Compatibility aliases", []helpRow{
-			{"setup", "Alias for kind up"},
-			{"unsetup", "Alias for kind down"},
-			{"deploy", "Alias for kind up"},
+		{"Deprecated aliases", []helpRow{
+			{"bump", "Use release bump"},
+			{"verify-archive", "Use release verify"},
+			{"notices", "Use release notices"},
+			{"npm-licenses", "Use release licenses"},
+			{"pub_images", "Use kind images"},
+			{"setup", "Use kind up"},
+			{"unsetup", "Use kind down"},
+			{"deploy", "Use kind up"},
 		}},
 	}
 }

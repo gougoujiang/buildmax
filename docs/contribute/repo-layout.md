@@ -52,7 +52,7 @@ one binary:
 | `deployment/dev-kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
 | `deployment/migrations/` | One-off SQL migrations |
-| `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
+| `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make kind up` |
 
 **The `dev-` prefix means "not a deployment path".** `dev-kind` carries it
 because that cluster exists only so a contributor can exercise the Kubernetes

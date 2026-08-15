@@ -91,8 +91,8 @@ Two variables are read by the task runner itself rather than by BuildMax:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` and `./make pub_images` create and address. Every `kubectl` call uses that cluster's explicit context. |
-| `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make pub_images` — for example `linux/amd64` on Apple Silicon. |
+| `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` creates and addresses. Every `kubectl` call uses that cluster's explicit context. |
+| `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make kind images` — for example `linux/amd64` on Apple Silicon. |
 
 The Compose stack is separate and does not use the root `.env`. It reads
 `deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates

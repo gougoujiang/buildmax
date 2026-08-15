@@ -3,7 +3,7 @@ package architecture_test
 // Deployment-manifest constraints. The shipped Kubernetes manifest configures the
 // server through a server.yaml carried in a ConfigMap. Nothing else checks that
 // this file still matches what the code reads, and the last time the two drifted
-// the deployment crash-looped for every user of `./make deploy` without any test
+// the deployment crash-looped for every user of `./make kind up` without any test
 // noticing. These tests close that gap.
 
 import (

@@ -28,12 +28,12 @@ prerelease version.
    ```bash
    ./make test
    ./make build
-   ./make npm-licenses
+   ./make release licenses
    npm exec --yes --package=markdownlint-cli2@0.23.2 -- markdownlint-cli2
    goreleaser check
    goreleaser release --snapshot --clean --skip=publish,docker
-   ./make verify-archive --all
-   ./make verify-archive
+   ./make release verify --all
+   ./make release verify
    ```
 
 The snapshot requires GoReleaser `v2.17.1`, Syft `v1.51.0`, and

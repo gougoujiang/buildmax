@@ -55,7 +55,7 @@ later.
 npm, across all three lockfiles:
 
 ```bash
-./make npm-licenses
+./make release licenses
 ```
 
 The npm check reads all three committed lockfiles, ignores development-only and
@@ -74,7 +74,7 @@ Apache-2.0 §4(d) requires carrying forward the attribution notices of
 Apache-2.0 dependencies when you redistribute them, and compiled BuildMax
 binaries contain that dependency code.
 
-`./make notices` collects the full license text of every module linked into the
+`./make release notices` collects the full license text of every module linked into the
 binaries into a single `NOTICE-THIRD-PARTY` file — 132 modules at the last run.
 GoReleaser runs it as a pre-build hook, so every release archive and the
 container image ship it. The file is generated, not committed.
@@ -83,7 +83,7 @@ To produce it locally:
 
 ```bash
 go install github.com/google/go-licenses@v1.6.0
-./make notices
+./make release notices
 ```
 
 The document must be reproducible: the same dependency set has to produce the
@@ -98,5 +98,5 @@ matching Go release normally, or generate the file in a container:
 
 ```bash
 docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.6 bash -c \
-  'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./cmd/mk notices'
+  'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./cmd/mk release notices'
 ```

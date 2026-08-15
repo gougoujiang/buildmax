@@ -135,7 +135,7 @@ iterating. Before handoff, run every relevant scope. A full check requires no
 model API key. Tests must not write to a contributor's real `~/.buildmax`.
 
 Safe, local defaults include `doctor`, `build cli`, `test`, `lint`, and scoped
-`check`. Commands such as `install`, `bump`, `compose`, `kind`, `deploy`, and
+`check`. Commands such as `install`, `release`, `compose`, `kind`, and
 publication workflows change the machine, repository, or external systems;
 inspect their help and use them only when the task authorizes that effect.
 

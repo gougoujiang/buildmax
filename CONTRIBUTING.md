@@ -101,12 +101,12 @@ lists what is worth putting in it.
 ```
 
 `./make help` shows the common contributor path; `./make help all` groups the
-advanced, deployment, release, and compatibility commands. To add or change a
-command, edit `cmd/mk` rather than the shims. `setup` and `deploy` are
-compatibility aliases for `kind up`; `unsetup` aliases `kind down`.
+advanced, deployment, release, and deprecated aliases. To add or change a
+command, edit `cmd/mk` rather than the shims. Deprecated commands keep working
+for one release cycle and print their canonical replacement.
 
 `doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
-defaults. `install`, `bump`, `compose`, `kind`, `deploy`, and publication tasks
+defaults. `install`, `release`, `compose`, `kind`, and publication tasks
 change the machine, repository, or external systems; use them only when that
 effect is intended. `./make build` is strict: a GUI, Portal, Desktop frontend,
 Wails, or copy failure fails the command instead of producing a partial success.
@@ -189,11 +189,11 @@ GoReleaser-built published image. All three take the repository root as their
 build context. To build the first two and load them into the kind cluster:
 
 ```bash
-./make pub_images
+./make kind images
 ```
 
 Set `BUILDMAX_IMAGE_PLATFORM` to cross-build — for example
-`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make pub_images` on Apple Silicon.
+`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make kind images` on Apple Silicon.
 
 `deployment/buildmax-deploy.yaml` is the readable Kubernetes baseline. It
 carries no credentials: copy

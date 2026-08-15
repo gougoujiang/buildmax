@@ -44,12 +44,13 @@ single-use code for `deployment-smoke@buildmax.local` after verification.
 
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
+./make kind images  # rebuild and load local images without applying manifests
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind down    # delete the selected cluster
 ```
 
-`./make setup`, `./make deploy`, and `./make unsetup` remain compatibility
-aliases for `kind up`, `kind up`, and `kind down`.
+The former `setup`, `deploy`, `unsetup`, and `pub_images` commands remain as
+deprecated aliases for one release cycle and print the replacement to use.
 
 Use an isolated cluster name when another contributor or task owns the default:
 

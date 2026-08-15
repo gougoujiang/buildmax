@@ -8,7 +8,7 @@
 #   # fill in real values, then:
 #   kubectl apply -f deployment/buildmax-secret.local.yaml
 #
-# buildmax-secret.local.yaml is gitignored; ./make deploy applies it for you.
+# buildmax-secret.local.yaml is gitignored; ./make kind up applies it for you.
 #
 # The local kind path exposes Portal and API on http://localhost:8080.
 ---
@@ -227,7 +227,7 @@ spec:
 ---
 # Portal (React app served by nginx).
 #
-# Image: buildmax-portal:local, built by ./make pub_images. This manifest
+# Image: buildmax-portal:local, built by ./make kind images. This manifest
 # targets the local kind cluster; a real deployment pulls the published image,
 # ghcr.io/gougoujiang/buildmax-portal:<version>, and sets the same
 # BUILDMAX_API_BASE. See docs/deploy/overview.md.

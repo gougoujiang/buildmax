@@ -213,7 +213,7 @@ jobs:
         run: npm exec --yes --package=markdownlint-cli2@0.23.2 -- markdownlint-cli2
 
       - name: Check npm production dependency licenses
-        run: go run ./cmd/mk npm-licenses
+        run: go run ./cmd/mk release licenses
 
   release-snapshot:
     name: Release snapshot
@@ -258,7 +258,7 @@ jobs:
 
       - name: Verify all release archive contents
         if: github.event_name != 'pull_request'
-        run: go run ./cmd/mk verify-archive --all
+        run: go run ./cmd/mk release verify --all
 
       - name: Upload release archives
         if: github.event_name != 'pull_request'
@@ -301,4 +301,4 @@ jobs:
           path: dist
 
       - name: Verify native release archive
-        run: go run ./cmd/mk verify-archive
+        run: go run ./cmd/mk release verify

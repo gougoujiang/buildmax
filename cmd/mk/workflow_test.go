@@ -24,6 +24,34 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdHelp([]string{"release"}); err == nil {
 		t.Fatal("cmdHelp accepted an unknown view")
 	}
+	if err := cmdRelease(nil); err == nil {
+		t.Fatal("cmdRelease accepted a missing action")
+	}
+	if err := cmdRelease([]string{"publish"}); err == nil {
+		t.Fatal("cmdRelease accepted an unknown action")
+	}
+}
+
+func TestReleaseRoutesActions(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "bump", args: []string{"bump", "invalid"}, want: "bump must be"},
+		{name: "verify", args: []string{"verify", "--invalid"}, want: "flag provided but not defined"},
+		{name: "notices", args: []string{"notices", "--invalid"}, want: "flag provided but not defined"},
+		{name: "licenses", args: []string{"licenses", "--invalid"}, want: "flag provided but not defined"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := cmdRelease(tt.args)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("cmdRelease(%q) error = %v, want error containing %q", tt.args, err, tt.want)
+			}
+		})
+	}
 }
 
 func TestCommonHelpStaysFocused(t *testing.T) {
@@ -39,18 +67,19 @@ func TestCommonHelpStaysFocused(t *testing.T) {
 	}
 }
 
-func TestFullHelpKeepsCompatibilityAliases(t *testing.T) {
+func TestFullHelpKeepsDeprecatedAliases(t *testing.T) {
 	sections := allHelpSections()
 	last := sections[len(sections)-1]
-	if last.name != "Compatibility aliases" {
-		t.Fatalf("last help section = %q; want Compatibility aliases", last.name)
+	if last.name != "Deprecated aliases" {
+		t.Fatalf("last help section = %q; want Deprecated aliases", last.name)
 	}
 	got := make([]string, 0, len(last.rows))
 	for _, row := range last.rows {
 		got = append(got, row.name)
 	}
-	if strings.Join(got, ",") != "setup,unsetup,deploy" {
-		t.Fatalf("compatibility aliases = %v", got)
+	want := "bump,verify-archive,notices,npm-licenses,pub_images,setup,unsetup,deploy"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("deprecated aliases = %v", got)
 	}
 }
 
