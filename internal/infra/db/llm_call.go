@@ -18,7 +18,9 @@ type llmCallRow struct {
 	LLMCallID    string  `gorm:"type:varchar(64);uniqueIndex;not null"`
 	ClientCallID *string `gorm:"type:varchar(128);uniqueIndex:idx_llm_call_client,priority:2"`
 
-	TeamID    string  `gorm:"type:varchar(64);not null;index;uniqueIndex:idx_llm_call_client,priority:1"`
+	// The composite unique index leads with team_id, so team-scoped lookups do
+	// not need a second index on this column.
+	TeamID    string  `gorm:"type:varchar(64);not null;uniqueIndex:idx_llm_call_client,priority:1"`
 	UserID    *string `gorm:"type:varchar(64);index"`
 	TaskRunID *string `gorm:"type:varchar(64);index"`
 
