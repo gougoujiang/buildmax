@@ -8,6 +8,7 @@ Organized by what you are trying to do.
 |---|---|
 | [start/install.md](start/install.md) | Get the binaries |
 | [start/quickstart.md](start/quickstart.md) | First agent run, in five minutes |
+| [start/support.md](start/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
 | [start/concepts.md](start/concepts.md) | Surfaces, the agent loop, teams, and the two tiers |
 
 ## Use It

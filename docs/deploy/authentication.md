@@ -5,6 +5,9 @@
 **BuildMax server authentication is not production-ready. Read this before
 exposing a server.**
 
+For the broader alpha support boundaries, see the
+[support matrix](../start/support.md).
+
 ## Current State
 
 `POST /api/login` verifies a one-time password, but BuildMax has **no OTP
