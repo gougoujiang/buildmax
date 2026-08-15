@@ -1,0 +1,20 @@
+services:
+  mock-llm:
+    image: buildmax-smoke-llm:local
+    build:
+      context: ../..
+      dockerfile: deployment/smoke/mock-llm/Dockerfile
+    healthcheck:
+      test: ["CMD", "/mock-llm", "healthcheck"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
+
+  server:
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+    environment:
+      BUILDMAX_CONVERSATION_MODEL_API_KEY: smoke-key
+    volumes:
+      - ../smoke/server.compose.yaml:/buildmax/server.yaml:ro

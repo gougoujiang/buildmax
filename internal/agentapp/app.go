@@ -2,6 +2,7 @@ package agentapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -21,6 +22,10 @@ import (
 type AppConfig struct {
 	WorkspaceDir string
 	EnableMCP    bool
+	// ModelEntries overrides settings.yaml models for this AgentApp. Workers use
+	// this to receive the server's resolved model without writing credentials to
+	// a run directory that is later persisted as an artifact.
+	ModelEntries []config.ModelEntry
 	// Policy sets the tool permission policy for all runs in this AgentApp.
 	// Nil defaults to AllowAllPolicy for backward compatibility.
 	Policy agent.ToolPolicy
@@ -115,6 +120,9 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	settings, err := config.LoadSettings()
 	if err != nil {
 		return nil, fmt.Errorf("load settings: %w", err)
+	}
+	if len(cfg.ModelEntries) > 0 {
+		settings.Models = append([]config.ModelEntry(nil), cfg.ModelEntries...)
 	}
 	wsHooks, err := config.LoadWorkspaceHooks(workspaceRoot)
 	if err != nil {
@@ -358,6 +366,25 @@ func (a *AgentApp) OpenSession(sessionID string) (*SessionContext, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.fireSessionLifecycle(agent.HookSessionStart, sess, nil)
+	return sess, nil
+}
+
+// OpenOrCreateSession loads sessionID when it has been persisted, or creates a
+// new session with that ID. Remote task runs use this because the server assigns
+// a session ID before the worker has written the first session file.
+func (a *AgentApp) OpenOrCreateSession(sessionID string) (*SessionContext, error) {
+	if sessionID == "" {
+		return a.OpenSession("")
+	}
+	sess, err := a.OpenSession(sessionID)
+	if err == nil {
+		return sess, nil
+	}
+	if !errors.Is(err, session.ErrSessionNotFound) {
+		return nil, err
+	}
+	sess = NewSessionContext(session.NewSessionFromData(sessionID, "", time.Now(), nil, 0, 0), a.DefaultModelName())
 	a.fireSessionLifecycle(agent.HookSessionStart, sess, nil)
 	return sess, nil
 }

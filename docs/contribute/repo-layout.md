@@ -18,7 +18,7 @@ buildmax/
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
 ├── deployment/           Kubernetes manifests and migrations
-├── setup/                Local kind cluster scripts and manifests
+├── setup/                Local kind infrastructure manifests
 ├── eval/                 Agent benchmark task catalog
 ├── sample-data/          Datasets for demoing and exercising the agent tools
 └── scripts/              Repository scripts (third-party notice generation)

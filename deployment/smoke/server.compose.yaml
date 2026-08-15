@@ -1,0 +1,27 @@
+log_level: info
+port: 5678
+cors_origin: http://localhost:8080
+workspaces_dir: /data/workspaces
+default_quota_tier: free_trial
+
+database:
+  host: mysql
+  port: 3306
+  user: buildmax
+  name: buildmax
+
+conversation:
+  model:
+    model: buildmax-smoke
+    name: BuildMax smoke
+    api_url: http://mock-llm:8080/v1
+    context_window: 32000
+
+worker:
+  binary: buildmax-worker
+  run_mode: local_process
+  server_url: http://127.0.0.1:5678
+
+storage:
+  persist_backend: local_fs
+  artifact_backend: local_fs

@@ -115,3 +115,20 @@ func TestServerConfigSignupCanBeOpened(t *testing.T) {
 		t.Error("allow_signup: true did not bind")
 	}
 }
+
+func TestServerModelEntryRuntimeModelEntry(t *testing.T) {
+	serverModel := config.ServerModelEntry{
+		Model:         "provider/model",
+		Name:          "Worker model",
+		APIURL:        "https://models.example/v1",
+		APIKey:        "secret",
+		ContextWindow: 32000,
+		CallTimeout:   45,
+	}
+	got := serverModel.RuntimeModelEntry()
+	if got.Model != serverModel.Model || got.Name != serverModel.Name ||
+		got.APIURL != serverModel.APIURL || got.APIKey != serverModel.APIKey ||
+		got.ContextWindow != serverModel.ContextWindow || got.CallTimeout != serverModel.CallTimeout {
+		t.Fatalf("RuntimeModelEntry() = %+v, want all server model fields", got)
+	}
+}

@@ -1,7 +1,5 @@
-# Kind cluster for local dev. Control-plane exposes 80/443 for ingress-nginx.
-# If the cluster was created before this config had extraPortMappings, run:
-#   ./make unsetup && ./make setup
-# to recreate the cluster with Ingress support.
+# Kind cluster for the local deployment smoke. Port 8080 is the single origin
+# for both Portal and API; 8443 is reserved for a future local TLS path.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -14,9 +12,9 @@ nodes:
             node-labels: "ingress-ready=true"
     extraPortMappings:
       - containerPort: 80
-        hostPort: 80
+        hostPort: 8080
         protocol: TCP
       - containerPort: 443
-        hostPort: 443
+        hostPort: 8443
         protocol: TCP
   - role: worker

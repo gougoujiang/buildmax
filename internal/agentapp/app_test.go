@@ -72,3 +72,61 @@ func TestBuildEffectiveSystemPromptGlobalOnlyNoWorkspace(t *testing.T) {
 		t.Fatalf("prompt should include global AGENTS.md, got %q", got)
 	}
 }
+
+func TestNewAgentAppModelEntriesOverrideStaysInMemory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+
+	app, err := NewAgentApp(AppConfig{
+		WorkspaceDir: t.TempDir(),
+		ModelEntries: []config.ModelEntry{{
+			Model:  "smoke/model",
+			Name:   "Smoke model",
+			APIURL: "http://smoke-llm.test/v1",
+			APIKey: "memory-only-secret",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewAgentApp: %v", err)
+	}
+	defer func() { _ = app.Close() }()
+
+	if got := app.DefaultModelName(); got != "Smoke model" {
+		t.Fatalf("DefaultModelName() = %q, want %q", got, "Smoke model")
+	}
+	models := app.ModelConfigs()
+	if len(models) != 1 || models[0].APIKey != "memory-only-secret" {
+		t.Fatalf("ModelConfigs() = %+v, want the in-memory override", models)
+	}
+	if _, err := os.Stat(filepath.Join(home, "settings.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("runtime override wrote settings.yaml, stat err = %v", err)
+	}
+}
+
+func TestOpenOrCreateSessionUsesAssignedID(t *testing.T) {
+	t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir())
+	app, err := NewAgentApp(AppConfig{WorkspaceDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = app.Close() }()
+
+	const assignedID = "server-assigned-session"
+	sess, err := app.OpenOrCreateSession(assignedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.ID != assignedID {
+		t.Fatalf("session ID = %q, want %q", sess.ID, assignedID)
+	}
+	if err := app.sessionManager.Save(sess, app.WorkspaceRoot()); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := app.OpenOrCreateSession(assignedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.ID != assignedID {
+		t.Fatalf("reloaded session ID = %q, want %q", reloaded.ID, assignedID)
+	}
+}

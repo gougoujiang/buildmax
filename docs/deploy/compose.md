@@ -15,6 +15,21 @@ workers run elsewhere needs blob storage both can reach.
 
 ## Run It
 
+For contribution work, one command starts the stack with a deterministic mock
+model and proves the full flow through a real worker process:
+
+```bash
+./make compose smoke
+```
+
+That check covers Portal reachability, account bootstrap, team storage,
+conversation and TaskRun creation, scheduler execution, model response, and
+artifact retrieval. It requires no provider key. Inspect failures with
+`./make compose logs`, then stop the stack with `./make compose down`. On
+success it prints a fresh single-use Portal login code for the smoke account.
+
+For interactive evaluation with a real model, start the regular stack:
+
 ```bash
 cd deployment/compose
 ./generate-env.sh          # writes .env with generated secrets

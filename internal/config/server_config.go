@@ -47,6 +47,20 @@ type ServerModelEntry struct {
 	CallTimeout   int    `mapstructure:"call_timeout"` // seconds; 0 = uses DefaultCallTimeoutSecs
 }
 
+// RuntimeModelEntry converts the server's resolved model configuration into
+// the model shape used by the shared agent runtime. Environment overrides have
+// already been applied before this conversion, so credentials stay in memory.
+func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
+	return ModelEntry{
+		Model:         m.Model,
+		Name:          m.Name,
+		APIURL:        m.APIURL,
+		APIKey:        m.APIKey,
+		ContextWindow: m.ContextWindow,
+		CallTimeout:   m.CallTimeout,
+	}
+}
+
 // ServerDBConfig holds MySQL connection settings.
 type ServerDBConfig struct {
 	Host     string `mapstructure:"host"`

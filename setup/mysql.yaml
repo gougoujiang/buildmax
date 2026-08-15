@@ -1,6 +1,6 @@
 # MySQL 8.0 for local dev inside kind cluster.
 # Same defaults as former docker-compose: root=buildmax_dev, DB=buildmax, user=buildmax/buildmax_dev.
-# Connect: mysql.default.svc.cluster.local:3306 or via port-forward localhost:3306.
+# Connect in-cluster at mysql.db.svc.cluster.local:3306.
 apiVersion: v1
 kind: Namespace
 metadata:

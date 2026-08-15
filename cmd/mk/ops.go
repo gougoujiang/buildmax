@@ -87,24 +87,6 @@ func printPathHint(dir string) {
 	fmt.Println("Then start a new terminal session, or source the file you edited.")
 }
 
-// cmdSetupScript runs one of the setup/ shell scripts. These drive kind, helm,
-// kubectl, and awscli through bash, so they stay Unix-only; Windows users run
-// them from WSL2.
-func cmdSetupScript(name string) error {
-	script := filepath.Join("setup", name)
-	if !exists(script) {
-		return fmt.Errorf("%s not found", script)
-	}
-	if runtime.GOOS == "windows" {
-		return fmt.Errorf("%s is a bash script; run it from WSL2, macOS, or Linux", script)
-	}
-	abs, err := filepath.Abs(script)
-	if err != nil {
-		return err
-	}
-	return runCmd(abs)
-}
-
 // cmdPubImages builds the server and portal images and loads them into the
 // local kind cluster, which has no registry to pull from.
 func cmdPubImages() error {
@@ -112,6 +94,10 @@ func cmdPubImages() error {
 	if cluster == "" {
 		cluster = "buildmaxdev"
 	}
+	return buildAndLoadKindImages(cluster, false)
+}
+
+func buildAndLoadKindImages(cluster string, includeSmoke bool) error {
 	var platform []string
 	if p := os.Getenv("BUILDMAX_IMAGE_PLATFORM"); p != "" {
 		platform = []string{"--platform", p}
@@ -123,6 +109,12 @@ func cmdPubImages() error {
 	}{
 		{"buildmax:local", "Dockerfile.buildmax"},
 		{"buildmax-portal:local", "Dockerfile.portal"},
+	}
+	if includeSmoke {
+		images = append(images, struct {
+			tag        string
+			dockerfile string
+		}{"buildmax-smoke-llm:local", "deployment/smoke/mock-llm/Dockerfile"})
 	}
 	for _, image := range images {
 		fmt.Printf("Building image %s...\n", image.tag)
@@ -138,62 +130,6 @@ func cmdPubImages() error {
 			return fmt.Errorf("kind load of %s failed: %w", image.tag, err)
 		}
 	}
-	fmt.Println("Done. buildmax:local and buildmax-portal:local are available in kind.")
+	fmt.Println("Kind images are loaded.")
 	return nil
-}
-
-func cmdDeploy() error {
-	fmt.Println("Deploying buildmax server to kind cluster...")
-	if err := cmdBuild(nil); err != nil {
-		return err
-	}
-	if err := cmdPubImages(); err != nil {
-		return err
-	}
-	fmt.Println("Ensuring namespace buildmax...")
-	if err := ensureNamespace("buildmax"); err != nil {
-		return err
-	}
-	if err := applySecret(); err != nil {
-		return err
-	}
-	fmt.Println("Applying buildmax-deploy.yaml...")
-	if err := runCmd("kubectl", "apply", "-f", filepath.Join("deployment", "buildmax-deploy.yaml")); err != nil {
-		return err
-	}
-	fmt.Println("Restarting deployments...")
-	for _, deployment := range []string{"buildmax-server", "buildmax-portal"} {
-		if err := runCmd("kubectl", "rollout", "restart", "deployment", deployment, "-n", "buildmax"); err != nil {
-			return err
-		}
-	}
-	fmt.Println("Deployed. Add to /etc/hosts: 127.0.0.1 buildmax-api.kind.local buildmax.kind.local")
-	fmt.Println("Then open the portal: http://buildmax.kind.local")
-	return nil
-}
-
-// ensureNamespace is the idempotent `kubectl create --dry-run | kubectl apply`
-// pattern. It is written as an explicit pipe rather than tolerating an
-// "already exists" error, which would also hide real failures.
-func ensureNamespace(namespace string) error {
-	manifest, err := capture("kubectl", "create", "namespace", namespace, "--dry-run=client", "-o", "yaml")
-	if err != nil {
-		return fmt.Errorf("could not render namespace %s: %w", namespace, err)
-	}
-	return runStdin(manifest, "kubectl", "apply", "-f", "-")
-}
-
-func applySecret() error {
-	local := filepath.Join("deployment", "buildmax-secret.local.yaml")
-	if exists(local) {
-		fmt.Println("Applying buildmax-secret.local.yaml...")
-		return runCmd("kubectl", "apply", "-f", local)
-	}
-	if succeeds("kubectl", "get", "secret", "buildmax-secret", "-n", "buildmax") {
-		fmt.Println("Using the existing buildmax-secret in the cluster (no local secret file).")
-		return nil
-	}
-	return fmt.Errorf("no credentials for the deployment.\n"+
-		"  cp deployment/buildmax-secret.example.yaml %s\n"+
-		"  # fill in real values, then re-run %s deploy", local, mk())
 }

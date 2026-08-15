@@ -12,8 +12,8 @@ services. There is nothing to install into the agent runtime itself — the
 worker is the same runtime the CLI uses, started by the server.
 
 To see it working before reading any of this, use the
-[Compose quickstart](compose.md): three containers, one command, an account you
-create yourself.
+[Compose smoke](compose.md) for the fast local-process path or the
+[kind smoke](local-kind.md) for the Kubernetes Job path.
 
 ## Topology
 
@@ -92,10 +92,9 @@ scheduler mounts into every worker pod at `worker.k8s.home_dir`, and the pod's
 the inherited `BUILDMAX_*` environment. Leave `config_map` empty and worker pods
 fall back to built-in defaults, which is almost never what you want.
 
-> **Not covered by CI.** The in-cluster path is verified by unit tests over the
-> manifest and the generated Job spec, not by an end-to-end cluster run. It was
-> broken for a while without anyone noticing, so check the server and a first
-> task run explicitly after deploying.
+Deployment-related changes run an end-to-end kind check in CI. It creates a
+real worker Job and verifies the returned artifact, while unit tests continue
+to check the generated Job and manifest contracts.
 
 Check it is alive:
 

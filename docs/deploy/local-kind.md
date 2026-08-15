@@ -1,101 +1,83 @@
-# Local setup (kind + MinIO + MySQL + Redis + Ingress)
+# Local Kubernetes Deployment
 
-From the repo root, run:
+> **Audience:** contributors and operators · **Status:** beta
+>
+> Use this path for Kubernetes worker Jobs, RBAC, Ingress, MinIO, and manifest
+> changes. For ordinary server and Portal work, the faster
+> [Compose smoke](compose.md) covers the same product flow.
 
-```bash
-./make setup
-```
+## Requirements
 
-This script is idempotent and will:
+- Docker with at least 6 GB available
+- kind
+- kubectl
 
-- Install kind, helm, kubectl, awscli via Homebrew if missing
-- Create a kind cluster from `kind-config.yaml` (with Ingress port mapping 80/443)
-- Deploy ingress-nginx from local manifest `kind-ingress-nginx.yaml` (no network to GitHub required)
-- Deploy whoami in namespace `test` for ingress testing
-- Create namespace `storage`, deploy MinIO, create bucket `bmstore`
-- Deploy MySQL in namespace `db` and start port-forward to localhost:3306
-- Deploy Redis in namespace `db` and start port-forward to localhost:6379
-- Start MinIO port-forwards (9000, 9001) and create the S3 bucket
-- Run a small test job
+The command does not install system packages or start background
+port-forwards. It always addresses the selected cluster through an explicit
+kubectl context.
 
-Use `./make unsetup` to tear down the cluster and stop port-forwards.
-
-## Ingress and /etc/hosts
-
-The setup installs [ingress-nginx](https://kubernetes.github.io/ingress-nginx/) so you can expose services via Ingress on host ports 80 and 443.
-
-For Ingress hostnames under `*.kind.local`, add one line per host to `/etc/hosts` (there is no wildcard support). Example:
-
-```text
-127.0.0.1 buildmax-api.kind.local
-127.0.0.1 buildmax.kind.local
-127.0.0.1 whoami.kind.local
-```
-
-- **buildmax-api.kind.local** — API server (when deployed in cluster via `./make deploy`).
-- **buildmax.kind.local** — Reserved for the portal (React) app.
-
-Then apply the Ingress manifests for the hosts you use (see below).
-
-**Existing clusters:** If the kind cluster was created before Ingress was added to this setup, it will not have port 80/443 mapped. Run `./make unsetup` then `./make setup` to recreate the cluster with Ingress support.
-
-### Deploy buildmax server in cluster
-
-> Configuration comes from the `buildmax-config` ConfigMap in
-> `deployment/buildmax-deploy.yaml`, mounted as `/buildmax/server.yaml` in both
-> the server pod and every worker Job pod. Credentials come from
-> `buildmax-secret` as environment overrides — see
-> [overview.md](overview.md) and
-> [reference/configuration.md](../reference/configuration.md). Edit the
-> ConfigMap, not the container environment, when changing hosts or backends.
-
-To run the buildmax API server inside the kind cluster (using in-cluster MySQL and MinIO):
-
-1. **Prereq**: Run `./make setup` once (cluster, MinIO, MySQL, ingress-nginx, bucket must exist).
-2. **Deploy**: From repo root run `./make deploy`. This builds the binaries, builds and loads the `buildmax:local` image into kind, and applies `deployment/buildmax-deploy.yaml` (namespace `buildmax`, Secret, Deployment, Service, Ingress).
-3. **Secrets**: The manifest includes a dev Secret with placeholder values. For production, create your own before applying:
-
-   ```bash
-   kubectl create secret generic buildmax-secret -n buildmax \
-     --from-literal=BUILDMAX_JWT_SECRET="$(openssl rand -base64 32)" \
-     --from-literal=BUILDMAX_WORKER_TOKEN="$(openssl rand -hex 24)" \
-     --from-literal=BUILDMAX_DATABASE_PASSWORD=buildmax \
-     --from-literal=BUILDMAX_STORAGE_MINIO_ACCESS_KEY=minio \
-     --from-literal=BUILDMAX_STORAGE_MINIO_SECRET_KEY=minio123 \
-     --from-literal=BUILDMAX_CONVERSATION_MODEL_API_KEY=your-llm-api-key
-   ```
-
-   Or delete the Secret from the YAML and apply it separately.
-4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **<http://buildmax-api.kind.local>** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `Dockerfile.portal` image).
-
-To remove the buildmax app: `kubectl delete -f deployment/buildmax-deploy.yaml`
-
-### Test Ingress with whoami
-
-`./make setup` deploys whoami in namespace `test` automatically. Add to `/etc/hosts`:
-
-```text
-127.0.0.1 whoami.kind.local
-```
-
-Then request:
+## Start And Verify
 
 ```bash
-curl http://whoami.kind.local
+./make kind up
 ```
 
-You should see whoami’s response (hostname, headers, etc.). Remove the test resources with:
+This creates the `buildmaxdev` cluster, then:
+
+1. installs ingress-nginx, MySQL, and MinIO
+2. creates the `bmstore` bucket from an in-cluster Job
+3. builds and loads the server, Portal, and deterministic mock-model images
+4. generates an ephemeral local Secret and applies the BuildMax manifests
+5. waits for every Deployment to become ready
+6. creates a real TaskRun, executes it in a Kubernetes worker Job, and verifies
+   its artifact through the API
+
+Open <http://localhost:8080>. Portal and API share that origin, so no
+`/etc/hosts` entries or CORS pairing are needed. The command prints a fresh
+single-use code for `deployment-smoke@buildmax.local` after verification.
+
+## Daily Commands
 
 ```bash
-kubectl delete -f setup/test-ingress-whoami.yaml
+./make kind smoke   # rerun the end-to-end assertions without rebuilding
+./make kind logs    # pods, jobs, events, server, Portal, and worker logs
+./make kind down    # delete the selected cluster
 ```
 
-**If you get ERR_CONNECTION_RESET:** The ingress controller must run on the control-plane node (so host port 80 reaches it). Our manifest pins it with `nodeSelector: ingress-ready: "true"`. If your cluster was created before that fix, re-apply and restart the controller:
+`./make setup`, `./make deploy`, and `./make unsetup` remain compatibility
+aliases for `kind up`, `kind up`, and `kind down`.
+
+Use an isolated cluster name when another contributor or task owns the default:
 
 ```bash
-kubectl delete deployment ingress-nginx-controller -n ingress-nginx
-kubectl apply -f setup/kind-ingress-nginx.yaml
-kubectl wait --for=condition=Available deployment/ingress-nginx-controller -n ingress-nginx --timeout=120s
+BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind up
+BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind down
 ```
 
-If the cluster was created before `kind-config.yaml` had `extraPortMappings` (80/443), recreate the cluster: `./make unsetup` then `./make setup`.
+The cluster uses host ports `8080` and `8443`. Stop another local service on
+`8080`, or use Compose at a different `BUILDMAX_PORTAL_PORT`, before creating
+the cluster.
+
+## Smoke Versus Real Providers
+
+The local command deliberately overlays `deployment/smoke/server.kind.yaml`
+and an in-cluster OpenAI-compatible mock. This keeps contribution checks
+deterministic and ensures CI never needs a provider credential.
+
+For a private deployment, use `deployment/buildmax-deploy.yaml` as the readable
+baseline, create `buildmax-secret` from
+`deployment/buildmax-secret.example.yaml`, and configure a real model endpoint.
+Do not use the generated smoke Secret or mock model outside local verification.
+
+## Why Compose Still Exists
+
+Compose and kind verify the same user-visible flow but different execution
+contracts:
+
+| Path | Worker | Storage | Best for |
+|---|---|---|---|
+| Compose | local process in the server container | shared local filesystem | API, Portal, scheduler, and most backend changes |
+| kind | one Kubernetes Job per TaskRun | MinIO shared by server and workers | Jobs, RBAC, Ingress, object storage, and manifests |
+
+Keeping both makes the common contributor loop quick while preserving a real
+deployment check for the distributed path.
