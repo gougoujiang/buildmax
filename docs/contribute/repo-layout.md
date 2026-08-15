@@ -19,7 +19,7 @@ buildmax/
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
 ├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
 ├── eval/                 Agent benchmark task catalog
-├── sample-data/          Datasets for demoing and exercising the agent tools
+├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
 ├── scripts/              Release and license tooling run by CI
 ├── .github/              CI workflows, issue and PR templates, community health files
 ├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md

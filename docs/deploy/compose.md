@@ -71,6 +71,35 @@ BUILDMAX_CONVERSATION_MODEL_API_KEY=sk-your-key-here
 then `docker compose up -d` to apply it. The endpoint and model id are in
 `server.yaml` next to the compose file — any OpenAI-compatible provider works.
 
+## Put Something In The Workspace
+
+A new team starts empty, and an agent with nothing to read cannot show you much.
+Each team has a persistent file space — the workspace — that the worker
+materializes into every task run, so whatever you put there is what the agent
+sees when it works.
+
+Open the **Files** page at <http://localhost:8080/#/explore>. **Upload Files**
+takes individual files; **Upload Folder** preserves the directory structure,
+which is the one to use here.
+
+This repository ships a set of datasets for exactly this moment:
+
+```text
+sample-data/sales/       revenue by region and quarter, across nested year folders
+sample-data/access_log/  a web access log
+sample-data/orders/      e-commerce orders, with a README describing the columns
+```
+
+Upload `sample-data/sales/` as a folder, then start a conversation and ask for
+something that requires reading it — "which region grew fastest between 2024 and
+2025, and show the numbers you used". Work heavy enough to become a background
+task runs in a worker against a copy of this same workspace, and reports its
+result back into the conversation that started it.
+
+[sample-data/README.md](../../sample-data/README.md) lists all fifteen datasets.
+They are ordinary files with nothing special about them: any folder of your own
+works the same way.
+
 ## What To Change Before Trusting It
 
 This stack is shaped for a laptop. Before it faces anyone else:
