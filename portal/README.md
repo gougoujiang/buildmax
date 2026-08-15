@@ -76,3 +76,21 @@ After `npm run build`, serve the built files locally:
 ```bash
 npm run preview
 ```
+
+## Where The API URL Comes From
+
+`getApiBase()` in `src/lib/api/client.ts` reads, in order:
+
+1. `window.__BUILDMAX_CONFIG__.apiBase` — written into `config.js` at container
+   start from `BUILDMAX_API_BASE`. `public/config.js` is the empty default that
+   ships in the bundle.
+2. `VITE_API_BASE` — build time, for `npm run dev` and hand-built bundles.
+3. `http://localhost:5678` — where a local `buildmax-server` listens.
+
+The runtime step is what lets one published image serve any deployment. When
+changing this, keep `src/lib/api/client.test.ts` honest: a broken precedence is
+invisible in dev and total in a container.
+
+Container image: `Dockerfile.portal` at the repo root, published as
+`ghcr.io/gougoujiang/buildmax-portal`. Running it is documented in
+[deploy/overview.md](../docs/deploy/overview.md#portal).

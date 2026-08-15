@@ -18,6 +18,16 @@ export default tseslint.config(
     },
   },
   {
+    // Static assets copied into the bundle verbatim: classic browser scripts,
+    // not modules, and not type-checked by `tsc -b`.
+    files: ['public/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.browser,
+      sourceType: 'script',
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2022,

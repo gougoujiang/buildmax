@@ -101,20 +101,54 @@ The API describes itself at `/openapi.json`, with a browsable UI at `/swagger/`.
 
 ## Portal
 
+The Portal is a static bundle. Run the published image:
+
+```bash
+docker run -p 8080:80 \
+  -e BUILDMAX_API_BASE=https://api.example.com \
+  ghcr.io/gougoujiang/buildmax-portal:<version>
+```
+
+`BUILDMAX_API_BASE` is applied at container start, not at build time, so one
+image serves every deployment. Two things follow from that:
+
+- **The browser calls that URL directly.** It must be an address the user's
+  machine can reach — not a cluster-internal Service name.
+- **The server's `cors_origin` must name the Portal's own origin**, or the
+  browser blocks every request. Set both together.
+
+Put the Portal and the server behind one hostname with a reverse proxy and the
+problem disappears: set `BUILDMAX_API_BASE=/` and the Portal calls its own
+origin, with no cross-origin request to permit.
+
+The image tag matches the release it was built from, so
+`ghcr.io/gougoujiang/buildmax-portal:0.1.0` pairs with
+`ghcr.io/gougoujiang/buildmax:0.1.0`.
+
+To build the bundle yourself instead:
+
 ```bash
 cd portal && npm install && npm run build     # → portal/dist
 ```
 
-Serve `portal/dist` from any static host and point it at the server. The
-server's `cors_origin` must match the origin the Portal is served from
-(default `http://localhost:5173`, the Vite dev server).
+Serve `portal/dist` from any static host. A hand-built bundle takes its API URL
+from `VITE_API_BASE` at build time, or defaults to `http://localhost:5678`.
 
 ## Containers
 
-The repository ships `Dockerfile.buildmax` (all three Go binaries) and
-`Dockerfile.portal` (the static frontend). `deployment/buildmax-deploy.yaml` is
-a working Kubernetes manifest — namespace, Secret, Deployment, Service, and
-Ingress — used by `./make deploy`.
+| Image | Contents |
+|---|---|
+| `ghcr.io/gougoujiang/buildmax` | CLI, server, and worker binaries |
+| `ghcr.io/gougoujiang/buildmax-portal` | Static frontend served by nginx |
+
+Both are published per release tag, from `.goreleaser.yaml` and
+`.github/workflows/portal-image.yml` respectively. They are built by separate
+workflows so a frontend failure cannot hold up the binaries.
+
+`Dockerfile.buildmax` builds the Go binaries from source for local use;
+`deployment/buildmax-deploy.yaml` is a working Kubernetes manifest — namespace,
+Secret, Deployment, Service, and Ingress — used by `./make deploy` against a
+local kind cluster, and a starting point for a real one.
 
 ## Operating Boundaries
 

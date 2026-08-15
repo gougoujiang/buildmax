@@ -234,7 +234,12 @@ spec:
                 port:
                   number: 5678
 ---
-# Portal (React app served by nginx). Image: buildmax-portal:local (./make pub_images).
+# Portal (React app served by nginx).
+#
+# Image: buildmax-portal:local, built by ./make pub_images. This manifest
+# targets the local kind cluster; a real deployment pulls the published image,
+# ghcr.io/gougoujiang/buildmax-portal:<version>, and sets the same
+# BUILDMAX_API_BASE. See docs/deploy/overview.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -256,6 +261,13 @@ spec:
         - name: portal
           image: buildmax-portal:local
           imagePullPolicy: IfNotPresent
+          env:
+            # Applied to config.js at container start. The browser calls this
+            # URL directly, so it is the address the user's machine can reach,
+            # not a cluster-internal Service name — and the server's
+            # cors_origin must name the Portal's own origin in return.
+            - name: BUILDMAX_API_BASE
+              value: http://buildmax-api.kind.local
           ports:
             - containerPort: 80
               name: http

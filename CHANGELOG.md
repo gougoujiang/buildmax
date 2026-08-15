@@ -11,6 +11,13 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- The Portal is published as a container image,
+  `ghcr.io/gougoujiang/buildmax-portal`, tagged with the release it was built
+  from. A separate workflow builds it, so a frontend failure cannot hold up the
+  binaries.
+- `BUILDMAX_API_BASE` configures the Portal image's API URL at container start,
+  which is what lets one published image serve any deployment.
+
 - `buildmax init` writes a starter `settings.yaml`, optionally with the API key
   supplied on the command line.
 - golangci-lint, govulncheck, and `-race` tests in CI, plus CodeQL analysis for
@@ -27,6 +34,8 @@ pre-releases and must be called out in release notes.
 
 ### Changed
 
+- The Portal no longer hard-codes a developer's local kind hostname to pick its
+  API URL; the kind manifest sets `BUILDMAX_API_BASE` like any other deployment.
 - `buildmax version` falls back to the Go build info, so a binary installed with
   `go install` reports its module version instead of `dev`.
 - Startup tells a first-time user what to do: a missing configuration file, a

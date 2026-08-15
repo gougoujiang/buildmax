@@ -10,7 +10,7 @@ deployment described in [deploy/](../deploy/overview.md).
 |---|---|---|
 | CLI, server, worker | Linux amd64/arm64, macOS amd64/arm64, Windows amd64 | Release archives |
 | Server and worker container | Linux amd64/arm64 | GHCR image |
-| Portal | Modern browsers | Build from source |
+| Portal | Linux amd64/arm64 | GHCR image, or build from source |
 | Desktop | macOS and Windows development builds | Build from source; unsigned |
 
 ## Release Archive
@@ -53,11 +53,16 @@ report both.
 
 ## Container
 
-The image carries all three binaries:
+One image carries all three binaries; a second serves the Portal:
 
 ```bash
 docker pull ghcr.io/gougoujiang/buildmax:latest
+docker pull ghcr.io/gougoujiang/buildmax-portal:<version>
 ```
+
+Both are tagged with the release they were built from. Running the Portal image
+takes one environment variable — see
+[deploy/overview.md](../deploy/overview.md#portal).
 
 ## From Source
 

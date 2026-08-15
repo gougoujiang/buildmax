@@ -11,6 +11,9 @@
       (function(){var t=localStorage.getItem("buildmax_theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);})();
     </script>
     <div id="root"></div>
+    <!-- Runtime config, replaced by the container entrypoint. Must load before
+         the bundle: the first API call reads it. -->
+    <script src="/config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
