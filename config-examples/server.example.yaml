@@ -11,11 +11,24 @@ port: 5678
 # Local dev: set directly.
 jwt_secret: your-jwt-secret-here
 
+# Who may create an account. Closed by default: accounts are created by an
+# operator, on the server, with
+#
+#   buildmax-server user create alice@example.com
+#   buildmax-server user login-code alice@example.com
+#
+# The second command prints a single-use code, valid for an hour, that only that
+# account can use. Deliver it however you already talk to the person — BuildMax
+# has no mail channel. That is the supported way to sign in; no configuration is
+# needed to enable it.
+#
+# Setting this to true lets anyone who can reach the server register an address.
+# allow_signup: true
+
 # Development-only fixed login OTP. When set, POST /api/login accepts this one
 # code as the one-time password for EVERY registered account — anyone who knows
-# a registered email address can sign in. BuildMax has no OTP delivery channel
-# yet, so leaving this unset (the default) disables login entirely and the
-# endpoint returns 503.
+# a registered email address can sign in. It is a standing authentication
+# bypass, not a credential, and single-use codes above replace it.
 #
 # Set it only on a local or otherwise trusted deployment. Never set it on a
 # server reachable by untrusted users.

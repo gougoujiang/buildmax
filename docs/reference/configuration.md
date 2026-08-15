@@ -95,6 +95,7 @@ sandbox: {}                          # see guide/sandbox.md
 log_level: info
 port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
+# allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
 # dev_login_otp: "123456"            # development only; see deploy/authentication.md
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
@@ -144,6 +145,15 @@ storage:
 Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`),
 `database`, and `worker.token` if you run workers. Everything else has a usable
 default for local development.
+
+`allow_signup` defaults to **false**, so nobody can register themselves. Create
+accounts and issue login codes from the server instead — see
+[deploy/authentication.md](../deploy/authentication.md):
+
+```bash
+buildmax-server user create alice@example.com
+buildmax-server user login-code alice@example.com
+```
 
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob

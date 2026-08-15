@@ -39,11 +39,14 @@ support SLA.
 These are documented gaps, not vulnerabilities. Please do not file reports for
 them; they are tracked as roadmap work.
 
-- **No production authentication.** The server ships without an OTP delivery
-  channel, so `POST /api/login` is disabled by default. The optional
-  `dev_login_otp` setting enables a single fixed code that authenticates any
-  registered email address — a development convenience only. A deployment
-  reachable by untrusted users needs a real identity provider first.
+- **Bootstrap-level authentication.** The server has no mail channel, so signing
+  in means an operator issuing a single-use, expiring, per-account code with
+  `buildmax-server user login-code`. Self-registration is closed by default.
+  There is no password, second factor, SSO, or self-service recovery; a
+  deployment serving people outside your organization needs a real identity
+  provider in front of it. The optional `dev_login_otp` setting is a fixed code
+  that authenticates any registered email address — a development convenience,
+  off by default, and a full bypass when enabled.
 - **Sandboxing is off by default.** The bash sandbox exists but is not enabled
   on any surface by default, and worker hardening is incomplete. See
   `docs/design/032-sandbox-and-execution-boundaries.md` §13.1.

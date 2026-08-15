@@ -37,7 +37,8 @@ type RunOutputLister interface {
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
 	JWTSecret        string              // Required for login when UserStore is set
-	DevLoginOTP      string              // Development fixed login OTP; empty disables POST /api/login
+	DevLoginOTP      string              // Development fixed login OTP; authenticates any registered email
+	AllowSignup      bool                // Open POST /api/otp/request to self-registration; closed by default
 	CORSOrigin       string              // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	QuotaService     *quota.QuotaService // Optional; when set, create chat/run enforce quota and return 429 when exceeded
 	DefaultQuotaTier string              // Default quota tier for new users (e.g. signup); used when calling CreateUser
@@ -46,6 +47,7 @@ type AuthConfig struct {
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
 	UserStore           model.UserStore
+	LoginCodeStore      model.LoginCodeStore
 	TeamStore           model.TeamStore
 	WorkflowStore       model.WorkflowStore
 	AgentStore          model.AgentStore
@@ -149,9 +151,11 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 	return handlers.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
 		DevLoginOTP:              cfg.Auth.DevLoginOTP,
+		AllowSignup:              cfg.Auth.AllowSignup,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		WorkerToken:              cfg.Worker.WorkerToken,
 		UserStore:                cfg.Stores.UserStore,
+		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		TeamStore:                cfg.Stores.TeamStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

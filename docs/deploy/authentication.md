@@ -1,47 +1,88 @@
 # Authentication
 
-> **Audience:** operators · **Status:** current — this describes a known gap
+> **Audience:** operators · **Status:** current
 
-**BuildMax server authentication is not production-ready. Read this before
-exposing a server.**
+BuildMax has no way to send email. Everything below follows from that: accounts
+are created by an operator, and login codes are delivered by hand.
 
-## Current State
+## How Someone Signs In
 
-`POST /api/login` verifies a one-time password, but BuildMax has **no OTP
-delivery channel** — nothing sends the code to an email address or phone. As a
-result:
+Two commands on the server, and one code you pass along:
 
-- with no OTP verifier configured, `POST /api/login` is **disabled** and
-  returns `503`
-- the only supported verifier is a single fixed development code
-
-Once a user has logged in, the rest of the user API is ordinary JWT bearer auth,
-and team membership is the authorization boundary for every team-scoped route.
-
-## The Development Code
-
-Set `dev_login_otp` in `server.yaml`, or `BUILDMAX_DEV_LOGIN_OTP` in the
-environment:
-
-```yaml
-# <BUILDMAX_HOME>/server.yaml
-dev_login_otp: "123456"
+```bash
+buildmax-server user create alice@example.com
+buildmax-server user login-code alice@example.com
 ```
 
-Understand exactly what this does:
+The second prints a code, once:
+
+```text
+Login code for alice@example.com:
+
+  bmxlogin_5e9e03467d578f8c248175343d627e814bc3ed10a8a05655a1c500b27dbd17cd
+
+Valid until 2026-08-15T19:22:58+08:00, and only once.
+```
+
+Send it over whatever channel you already trust, and the person enters their
+email and that code in the Portal. `--ttl` changes the lifetime, which defaults
+to an hour.
+
+Both commands read the same `server.yaml` the server does, so inside a container
+they need no extra configuration:
+
+```bash
+kubectl exec -n buildmax deploy/buildmax-server -- \
+  buildmax-server user login-code alice@example.com
+```
+
+### What The Code Is
+
+- **Single-use.** Redeeming it spends it, whether or not the sign-in that
+  follows succeeds. Entering the wrong email address burns the code — issue
+  another; that is cheaper than leaving a window for someone to retry a code
+  they found.
+- **Expiring.** An hour by default.
+- **Bound to one account.** The code identifies the user, and the email in the
+  request must match it. A code cannot sign anyone into a different account.
+- **Stored as a SHA-256 hash.** A database backup yields no usable codes, and a
+  lost code cannot be read back — issue a new one.
+
+## Signup Is Closed By Default
+
+`POST /api/otp/request` refuses `intent: signup` with `403` unless `server.yaml`
+sets `allow_signup: true`. Accounts come from `buildmax-server user create`.
+
+Opening it means anyone who can reach the server can create an account. On a
+deployment reachable only from a trusted network that may be what you want; on
+anything else it is how a server becomes someone else's. The server logs a
+warning at startup whenever it is on.
+
+## The Development Fixed Code
+
+`dev_login_otp` in `server.yaml` (or `BUILDMAX_DEV_LOGIN_OTP`) makes one code
+work for every account:
+
+```yaml
+dev_login_otp: "123456"
+```
 
 > **One code signs in every registered account.** Anyone who knows a registered
 > email address can authenticate as that user.
 
-It is a full authentication bypass, not a weak password. Use it only on a
-laptop or an otherwise trusted network. The server logs a warning on every
-startup where it is enabled. Leave it unset in any deployment reachable by
-untrusted users — the resulting `503` is the safe state.
+It is an authentication bypass, not a credential — it exists so a developer can
+click through the Portal without issuing codes. Single-use codes replace it
+entirely; leave it unset. The server logs a warning on every startup where it is
+enabled.
 
-Putting the Portal on the public internet requires wiring a real identity
-provider first.
+## What Is Still Missing
 
-## The Other Two Credentials
+Login codes are a bootstrap mechanism, not an identity system. There is no
+password, no second factor, no SSO, and no self-service recovery — losing access
+means asking an operator for another code. A deployment serving people outside
+your organization wants a real identity provider in front of it.
+
+## The Other Credentials
 
 | Credential | Config | Guards |
 |---|---|---|

@@ -72,7 +72,13 @@ func RunServer(ctx context.Context, portOverride int) error {
 		slog.Warn("development fixed login OTP is enabled — any registered email can sign in with a single known code; do not use on an untrusted network",
 			"config", "dev_login_otp", "env", config.EnvKeyBuildmaxDevLoginOTP)
 	} else {
-		slog.Info("login disabled: no OTP verifier configured", "config", "dev_login_otp", "env", config.EnvKeyBuildmaxDevLoginOTP)
+		slog.Info("login accepts single-use codes only", "issue_with", "buildmax-server user login-code <email>")
+	}
+	// Self-registration and a reachable server together mean anyone can create
+	// an account. Say so at startup rather than in a document nobody opened.
+	if sc.AllowSignup {
+		slog.Warn("open signup is enabled — anyone who can reach this server can create an account",
+			"config", "allow_signup")
 	}
 
 	port := sc.Port
@@ -188,12 +194,14 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		Auth: httpserver.AuthConfig{
 			JWTSecret:        jwtSecret,
 			DevLoginOTP:      sc.DevLoginOTP,
+			AllowSignup:      sc.AllowSignup,
 			CORSOrigin:       sc.CORSOrigin,
 			QuotaService:     quotaService,
 			DefaultQuotaTier: sc.DefaultQuotaTier,
 		},
 		Stores: httpserver.StoresConfig{
 			UserStore:           st,
+			LoginCodeStore:      st,
 			TeamStore:           st,
 			WorkflowStore:       st,
 			AgentStore:          st,

@@ -11,6 +11,11 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- Single-use login codes. `buildmax-server user create` and
+  `buildmax-server user login-code` let an operator create an account and issue
+  a per-account, expiring code, which is how a deployment signs people in
+  without a mail channel. Codes are stored hashed and redeemed atomically.
+
 - The Portal is published as a container image,
   `ghcr.io/gougoujiang/buildmax-portal`, tagged with the release it was built
   from. A separate workflow builds it, so a frontend failure cannot hold up the
@@ -34,6 +39,10 @@ pre-releases and must be called out in release notes.
 
 ### Changed
 
+- **Self-registration is closed by default.** `POST /api/otp/request` refuses
+  `intent: signup` with 403 unless `server.yaml` sets `allow_signup: true`.
+  Together with `dev_login_otp`, open signup meant anyone who could reach a
+  server could create an account and then sign in as it.
 - The Portal no longer hard-codes a developer's local kind hostname to pick its
   API URL; the kind manifest sets `BUILDMAX_API_BASE` like any other deployment.
 - `buildmax version` falls back to the Go build info, so a binary installed with
