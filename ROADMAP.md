@@ -117,10 +117,15 @@ Focus:
 - clear startup errors and health checks
 - Docker/kind/k8s path that runs end to end
 - default admin/user/team/quota/model initialization story
+- optional managed LLM connection mode, so a deployment can supply approved
+  models without distributing provider credentials to users and workers
+- operator model catalog and team model aliases behind the shared LLM contract,
+  with per-call usage recorded before any spending limit is claimed
 
 Acceptance:
 
 - a new environment can reach login, create work, run a worker task, and view the result without reading code
+- a deployment can serve approved models to CLI, Desktop, and worker runs without distributing provider keys, while direct mode still runs with no server
 
 ### P4. Team Governance Foundation
 
@@ -184,5 +189,6 @@ Core stability, and the Portal outcome surface — are done. What remains:
 - [docs/design/surface-positioning.md](docs/design/surface-positioning.md) — product surface positioning
 - [docs/design/trust-harness.md](docs/design/trust-harness.md) — P0.5 Agent Core trust harness design
 - [docs/design/enterprise-deployment.md](docs/design/enterprise-deployment.md) — P3 Enterprise deployment design
+- [docs/design/llm-gateway.md](docs/design/llm-gateway.md) — P3 Managed LLM gateway design
 - [docs/design/team-governance.md](docs/design/team-governance.md) — P4 Team governance design
 - [docs/design/versioned-workspace.md](docs/design/versioned-workspace.md) — P5 Versioned workspace design
