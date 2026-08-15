@@ -1,6 +1,14 @@
 package model
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrDuplicateLLMCall is returned when a team reuses a client call ID. The
+// unique index is what actually decides it, so two concurrent requests with one
+// key cannot both open a record.
+var ErrDuplicateLLMCall = errors.New("llm call already exists for this client call id")
 
 // Managed LLM call lifecycle statuses.
 const (

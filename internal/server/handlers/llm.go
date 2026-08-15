@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
@@ -64,11 +65,6 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Stream {
-		httputil.WriteJSONError(w, http.StatusNotImplemented, "streaming is not implemented yet")
-		return
-	}
-
 	messages, err := toCoreMessages(req.Messages)
 	if err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
@@ -86,6 +82,11 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 	if req.Metadata != nil {
 		cmd.Surface = req.Metadata.Surface
 		cmd.SessionID = req.Metadata.SessionID
+	}
+
+	if req.Stream {
+		h.streamLLMCompletion(w, r, cmd, teamID)
+		return
 	}
 
 	result, err := h.cfg.LLMGateway.Complete(r.Context(), cmd)
@@ -169,6 +170,91 @@ func toCoreTools(in []llmwire.Tool) []cllm.ToolDef {
 	return out
 }
 
+// streamLLMCompletion serves a streaming managed call over SSE.
+//
+// Response headers are written on the first event, not up front. A call refused
+// before any output — an unknown alias, quota, a duplicate call ID — is still a
+// plain HTTP error with a status the client can act on; only a failure after
+// the stream has started becomes an error event.
+func (h *Handler) streamLLMCompletion(w http.ResponseWriter, r *http.Request, cmd llmgateway.CompleteRequest, teamID string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httputil.WriteJSONError(w, http.StatusInternalServerError, "streaming is not supported by this server")
+		return
+	}
+
+	stream := &sseWriter{w: w, flusher: flusher}
+	result, err := h.cfg.LLMGateway.Stream(r.Context(), cmd, func(delta string) {
+		if delta == "" {
+			return
+		}
+		_ = stream.send(llmwire.EventDelta, llmwire.DeltaEvent{Content: delta})
+	})
+
+	if err != nil {
+		if !stream.started {
+			h.writeLLMGatewayError(w, err, "llm_completions_stream", teamID)
+			return
+		}
+		class := llmgateway.ErrorClassFor(err)
+		_, message := llmGatewayStatus(class, err)
+		_ = stream.send(llmwire.EventError, llmwire.ErrorEvent{
+			Code:      class,
+			Error:     message,
+			Retryable: llmgateway.RetryableClass(class),
+		})
+		return
+	}
+
+	final := llmwire.CompletionResponse{
+		LLMCallID: result.LLMCallID,
+		Model:     result.Alias,
+		Content:   result.Content,
+		ToolCalls: fromCoreToolCalls(result.ToolCalls),
+	}
+	if result.UsageReported {
+		final.Usage = &llmwire.Usage{
+			PromptTokens:     result.Usage.PromptTokens,
+			CompletionTokens: result.Usage.CompletionTokens,
+			TotalTokens:      result.Usage.TotalTokens,
+		}
+	}
+	_ = stream.send(llmwire.EventResult, final)
+}
+
+// sseWriter emits typed server-sent events, flushing each one.
+//
+// It holds no buffer of its own: a delta reaches the network as soon as it
+// arrives, which is what makes a managed stream feel like a direct one.
+type sseWriter struct {
+	w       http.ResponseWriter
+	flusher http.Flusher
+	started bool
+}
+
+func (s *sseWriter) send(event string, payload any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	if !s.started {
+		s.started = true
+		header := s.w.Header()
+		header.Set("Content-Type", "text/event-stream")
+		header.Set("Cache-Control", "no-cache")
+		header.Set("Connection", "keep-alive")
+		// Reverse proxies in supported deployments must not buffer this
+		// response; nginx honours the header, others need configuration.
+		header.Set("X-Accel-Buffering", "no")
+		s.w.WriteHeader(http.StatusOK)
+	}
+	if _, err := fmt.Fprintf(s.w, "event: %s\ndata: %s\n\n", event, body); err != nil {
+		return err
+	}
+	s.flusher.Flush()
+	return nil
+}
+
 // requireLLMGateway reports whether managed inference is configured.
 func (h *Handler) requireLLMGateway(w http.ResponseWriter) bool {
 	if h.cfg.LLMGateway == nil {
@@ -204,6 +290,10 @@ func llmGatewayStatus(class string, err error) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	case llmgateway.ErrorClassQuotaExceeded:
 		return http.StatusTooManyRequests, err.Error()
+	case llmgateway.ErrorClassDuplicateCall:
+		// The caller does not know whether its first attempt landed. Saying
+		// "already used" answers that; it is not an invitation to retry.
+		return http.StatusConflict, err.Error()
 	case llmgateway.ErrorClassNotConfigured:
 		return http.StatusServiceUnavailable, "llm gateway not configured"
 	case llmgateway.ErrorClassCanceled:

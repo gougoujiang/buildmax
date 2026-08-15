@@ -220,15 +220,18 @@ designed in [design/llm-gateway.md](../design/llm-gateway.md). It is optional an
 **partly implemented**. What works today:
 
 - `GET /api/teams/{team_id}/llm/models` lists the aliases a team may use.
-- `POST /api/teams/{team_id}/llm/completions` runs one blocking call and records
-  it in the call ledger.
+- `POST /api/teams/{team_id}/llm/completions` runs one call, blocking or
+  streamed, and records it in the call ledger. Abandoning a streamed call
+  cancels the provider request.
 - `conversation.model_target` picks the server's own Tier 1 model.
 
-What does not exist yet: streaming (the route answers `501`), a managed client
-in CLI, Desktop, or the worker, and quota enforcement beyond refusing a team
-that is *already* over its limit. So CLI, Desktop, and workers still call
-providers directly with their own credentials, and the ledger is accounting
-data, not a spending ceiling.
+What does not exist yet: a managed client wired into CLI, Desktop, or the
+worker, and quota enforcement beyond refusing a team that is *already* over its
+limit. So those surfaces still call providers directly with their own
+credentials, and the ledger is accounting data, not a spending ceiling.
+
+A streaming reverse proxy in front of the server must have response buffering
+off and an idle timeout longer than the target's `call_timeout`.
 
 | Key | Meaning |
 |---|---|

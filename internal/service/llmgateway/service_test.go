@@ -3,6 +3,7 @@ package llmgateway_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 // scriptedClient returns a fixed reply, recording what it was asked.
 type scriptedClient struct {
 	content   string
+	deltas    []string
 	toolCalls []cllm.ToolCall
 	usage     cllm.Usage
 	err       error
@@ -32,8 +34,16 @@ func (c *scriptedClient) ChatCompletionBlocking(_ context.Context, messages []cl
 	return c.content, c.toolCalls, c.usage, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(context.Context, []cllm.Message, []cllm.ToolDef, func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
-	return "", nil, cllm.Usage{}, errors.New("not used")
+func (c *scriptedClient) ChatCompletionStreaming(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+	c.gotMessages = messages
+	c.gotTools = tools
+	for _, delta := range c.deltas {
+		onDelta(delta)
+	}
+	if c.err != nil {
+		return "", nil, cllm.Usage{}, c.err
+	}
+	return c.content, c.toolCalls, c.usage, nil
 }
 
 func (c *scriptedClient) ContextWindow() int { return 0 }
@@ -43,6 +53,7 @@ type fakeLedger struct {
 	mu       sync.Mutex
 	opened   []model.LLMCall
 	outcomes map[string]model.LLMCallOutcome
+	existing *model.LLMCall
 	openErr  error
 	closeErr error
 	nextID   int
@@ -78,7 +89,9 @@ func (l *fakeLedger) CompleteLLMCall(_ context.Context, llmCallID string, outcom
 func (l *fakeLedger) GetLLMCall(context.Context, string) (*model.LLMCall, error) { return nil, nil }
 
 func (l *fakeLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
-	return nil, nil
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.existing, nil
 }
 
 func (l *fakeLedger) only(t *testing.T) (model.LLMCall, model.LLMCallOutcome) {
@@ -358,6 +371,124 @@ func TestModelsDelegatesToTheRouter(t *testing.T) {
 	}
 	if _, err := svc.Models(context.Background(), "tm_unknown"); !errors.Is(err, llmgateway.ErrTeamNotAuthorized) {
 		t.Errorf("want ErrTeamNotAuthorized, got %v", err)
+	}
+}
+
+func TestStreamRecordsTheFirstDelta(t *testing.T) {
+	client := &scriptedClient{
+		content: "Hello",
+		deltas:  []string{"Hel", "lo"},
+		usage:   cllm.Usage{TotalTokens: 5},
+	}
+	ledger := newFakeLedger()
+	svc := serviceWith(t, client, ledger, nil)
+
+	var got []string
+	result, err := svc.Stream(context.Background(), userRequest(), func(d string) { got = append(got, d) })
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if strings.Join(got, "") != "Hello" || result.Content != "Hello" {
+		t.Errorf("deltas = %v, content = %q", got, result.Content)
+	}
+
+	call, outcome := ledger.only(t)
+	if !call.Streaming {
+		t.Error("the ledger did not record the call as streaming")
+	}
+	if outcome.FirstDeltaAt == nil {
+		t.Fatal("the ledger recorded no first-delta time")
+	}
+	if outcome.Status != model.LLMCallStatusSucceeded {
+		t.Errorf("status = %q", outcome.Status)
+	}
+}
+
+// TestStreamWithoutDeltasRecordsNoFirstDelta keeps the timing honest when a
+// provider returns everything at once.
+func TestStreamWithoutDeltasRecordsNoFirstDelta(t *testing.T) {
+	ledger := newFakeLedger()
+	svc := serviceWith(t, &scriptedClient{content: "all at once"}, ledger, nil)
+
+	if _, err := svc.Stream(context.Background(), userRequest(), nil); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	_, outcome := ledger.only(t)
+	if outcome.FirstDeltaAt != nil {
+		t.Errorf("FirstDeltaAt = %v, want nil", outcome.FirstDeltaAt)
+	}
+}
+
+func TestStreamRequiresTheStreamingCapability(t *testing.T) {
+	ledger := newFakeLedger()
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
+
+	req := userRequest()
+	req.Alias = "deep" // declares text_chat only
+
+	_, err := svc.Stream(context.Background(), req, nil)
+	if !errors.Is(err, llmgateway.ErrCapabilityUnsupported) {
+		t.Fatalf("want ErrCapabilityUnsupported, got %v", err)
+	}
+	if len(ledger.opened) != 0 {
+		t.Error("a capability rejection opened a ledger record")
+	}
+}
+
+func TestDuplicateClientCallIDIsRefused(t *testing.T) {
+	ledger := newFakeLedger()
+	ledger.existing = &model.LLMCall{LLMCallID: "lc_original", Status: model.LLMCallStatusAccepted}
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
+
+	req := userRequest()
+	key := "client-key-1"
+	req.ClientCallID = &key
+
+	_, err := svc.Complete(context.Background(), req)
+	if !errors.Is(err, llmgateway.ErrDuplicateCall) {
+		t.Fatalf("want ErrDuplicateCall, got %v", err)
+	}
+	var dup *llmgateway.DuplicateCallError
+	if !errors.As(err, &dup) || dup.LLMCallID != "lc_original" {
+		t.Errorf("want the original call named, got %v", err)
+	}
+	// A refused duplicate runs nothing and opens nothing.
+	if len(ledger.opened) != 0 {
+		t.Errorf("a duplicate opened %d ledger records", len(ledger.opened))
+	}
+}
+
+// TestDuplicateDetectedByTheIndexIsRefused covers the race the lookup cannot
+// close: two concurrent requests carrying one key, where the unique index is
+// what decides.
+func TestDuplicateDetectedByTheIndexIsRefused(t *testing.T) {
+	ledger := newFakeLedger()
+	ledger.openErr = model.ErrDuplicateLLMCall
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
+
+	req := userRequest()
+	key := "client-key-1"
+	req.ClientCallID = &key
+
+	if _, err := svc.Complete(context.Background(), req); !errors.Is(err, llmgateway.ErrDuplicateCall) {
+		t.Fatalf("want ErrDuplicateCall, got %v", err)
+	}
+}
+
+func TestRetryableClass(t *testing.T) {
+	if !llmgateway.RetryableClass(llmgateway.ErrorClassUpstream) {
+		t.Error("an upstream failure should be reported as retryable")
+	}
+	for _, class := range []string{
+		llmgateway.ErrorClassQuotaExceeded,
+		llmgateway.ErrorClassUnknownAlias,
+		llmgateway.ErrorClassDuplicateCall,
+		llmgateway.ErrorClassCapability,
+		llmgateway.ErrorClassInternal,
+	} {
+		if llmgateway.RetryableClass(class) {
+			t.Errorf("%s should not be reported as retryable", class)
+		}
 	}
 }
 

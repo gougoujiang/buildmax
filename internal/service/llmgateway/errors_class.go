@@ -19,6 +19,7 @@ const (
 	ErrorClassTargetDisabled    = "target_disabled"
 	ErrorClassCapability        = "capability_unsupported"
 	ErrorClassQuotaExceeded     = "quota_exceeded"
+	ErrorClassDuplicateCall     = "duplicate_call"
 	ErrorClassInvalidRequest    = "invalid_request"
 	ErrorClassNotConfigured     = "not_configured"
 	ErrorClassCanceled          = "canceled"
@@ -49,6 +50,8 @@ func ErrorClassFor(err error) string {
 		return ErrorClassCapability
 	case errors.Is(err, ErrQuotaExceeded):
 		return ErrorClassQuotaExceeded
+	case errors.Is(err, ErrDuplicateCall):
+		return ErrorClassDuplicateCall
 	case errors.Is(err, ErrMessagesRequired):
 		return ErrorClassInvalidRequest
 	case errors.Is(err, ErrCatalogNotConfigured),
@@ -61,4 +64,11 @@ func ErrorClassFor(err error) string {
 	default:
 		return ErrorClassInternal
 	}
+}
+
+// RetryableClass reports whether trying the same call again could plausibly
+// succeed. It describes the failure; it never authorizes a replay after the
+// caller has already seen output.
+func RetryableClass(class string) bool {
+	return class == ErrorClassUpstream
 }

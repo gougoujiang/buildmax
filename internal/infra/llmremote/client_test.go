@@ -20,9 +20,11 @@ type fakeGateway struct {
 
 	gotPath   string
 	gotAuth   string
+	gotAccept string
 	gotMethod string
 	gotBody   llmwire.CompletionRequest
 	gotRaw    []byte
+	requests  int
 
 	status int
 	body   string
@@ -32,8 +34,10 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 	t.Helper()
 	g := &fakeGateway{status: http.StatusOK}
 	g.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.requests++
 		g.gotPath = r.URL.Path
 		g.gotAuth = r.Header.Get("Authorization")
+		g.gotAccept = r.Header.Get("Accept")
 		g.gotMethod = r.Method
 		if r.Body != nil {
 			raw := make([]byte, 0)
@@ -242,18 +246,131 @@ func TestGatewayErrorsAreClassified(t *testing.T) {
 	}
 }
 
-func TestStreamingIsRefusedNotFakedWithABlockingCall(t *testing.T) {
+// sse renders typed events the way the handler does.
+func sse(events ...[2]string) string {
+	var b strings.Builder
+	for _, e := range events {
+		b.WriteString("event: " + e[0] + "\ndata: " + e[1] + "\n\n")
+	}
+	return b.String()
+}
+
+func TestStreamingDeliversDeltasThenTheResult(t *testing.T) {
 	gateway := newFakeGateway(t)
-	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
+	gateway.body = sse(
+		[2]string{"delta", `{"content":"Hel"}`},
+		[2]string{"delta", `{"content":"lo"}`},
+		[2]string{"result", `{"llm_call_id":"lc_1","model":"fast","content":"Hello","tool_calls":[{"id":"c1","name":"bash","arguments":"{}"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`},
+	)
+
+	var deltas []string
+	client := gateway.client(llmremote.Config{Token: "tok"})
+	content, toolCalls, usage, err := client.ChatCompletionStreaming(context.Background(),
+		[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
+		func(d string) { deltas = append(deltas, d) })
+	if err != nil {
+		t.Fatalf("ChatCompletionStreaming: %v", err)
+	}
+
+	if strings.Join(deltas, "") != "Hello" {
+		t.Errorf("deltas = %v", deltas)
+	}
+	if content != "Hello" {
+		t.Errorf("content = %q", content)
+	}
+	if len(toolCalls) != 1 || toolCalls[0].ID != "c1" {
+		t.Errorf("tool calls = %+v", toolCalls)
+	}
+	if usage.TotalTokens != 5 {
+		t.Errorf("usage = %+v", usage)
+	}
+	if !gateway.gotBody.Stream {
+		t.Error("the request did not ask for streaming")
+	}
+	if gateway.gotAccept != "text/event-stream" {
+		t.Errorf("Accept = %q", gateway.gotAccept)
+	}
+}
+
+func TestStreamingSurfacesAMidStreamError(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = sse(
+		[2]string{"delta", `{"content":"partial"}`},
+		[2]string{"error", `{"code":"upstream_error","error":"model provider unavailable","retryable":true}`},
+	)
+
+	var deltas []string
+	client := gateway.client(llmremote.Config{Token: "tok"})
+	_, _, _, err := client.ChatCompletionStreaming(context.Background(),
+		[]cllm.Message{{Role: "user"}}, nil, func(d string) { deltas = append(deltas, d) })
+	if err == nil {
+		t.Fatal("a mid-stream error event returned no error")
+	}
+
+	var gwErr *llmremote.GatewayError
+	if !errors.As(err, &gwErr) || gwErr.Code != "upstream_error" {
+		t.Fatalf("want an upstream GatewayError, got %v", err)
+	}
+	// The deltas already delivered stay delivered; nothing is replayed.
+	if len(deltas) != 1 || deltas[0] != "partial" {
+		t.Errorf("deltas = %v", deltas)
+	}
+	if gateway.requests != 1 {
+		t.Errorf("the client made %d requests; it must not retry after a delta", gateway.requests)
+	}
+}
+
+// TestStreamingRejectsATruncatedStream keeps a dropped connection from reading
+// as a model that had nothing to say.
+func TestStreamingRejectsATruncatedStream(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = sse([2]string{"delta", `{"content":"half an ans"}`})
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	_, _, _, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil, func(string) {})
-	if !errors.Is(err, llmremote.ErrStreamingNotSupported) {
-		t.Fatalf("want ErrStreamingNotSupported, got %v", err)
+		[]cllm.Message{{Role: "user"}}, nil, nil)
+	if err == nil {
+		t.Fatal("a stream with no result returned success")
 	}
-	if gateway.gotPath != "" {
-		t.Error("streaming silently fell back to a blocking request")
+	if !strings.Contains(err.Error(), "without a result") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStreamingIgnoresUnknownEvents(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = sse(
+		[2]string{"heartbeat", `{"t":1}`},
+		[2]string{"delta", `{"content":"ok"}`},
+		[2]string{"result", `{"llm_call_id":"lc_1","content":"ok"}`},
+	)
+
+	client := gateway.client(llmremote.Config{Token: "tok"})
+	content, _, _, err := client.ChatCompletionStreaming(context.Background(),
+		[]cllm.Message{{Role: "user"}}, nil, nil)
+	if err != nil {
+		t.Fatalf("an unknown event broke the stream: %v", err)
+	}
+	if content != "ok" {
+		t.Errorf("content = %q", content)
+	}
+}
+
+func TestStreamingRefusalBeforeAnyOutputIsAPlainError(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.status = http.StatusTooManyRequests
+	gateway.body = `{"error":"quota exceeded: token limit","code":"quota_exceeded"}`
+
+	client := gateway.client(llmremote.Config{Token: "tok"})
+	_, _, _, err := client.ChatCompletionStreaming(context.Background(),
+		[]cllm.Message{{Role: "user"}}, nil, nil)
+
+	var gwErr *llmremote.GatewayError
+	if !errors.As(err, &gwErr) || gwErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("want a 429 GatewayError, got %v", err)
+	}
+	if gwErr.Code != "quota_exceeded" {
+		t.Errorf("code = %q", gwErr.Code)
 	}
 }
 

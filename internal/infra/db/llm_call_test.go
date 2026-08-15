@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
 	"strings"
@@ -222,6 +223,60 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 	}
 	if got.Attempts != 3 {
 		t.Errorf("Attempts = %d, want 3", got.Attempts)
+	}
+}
+
+// TestOpenLLMCallRejectsADuplicateClientID proves the unique index, not a
+// look-before-insert, is what stops one client call ID running twice.
+func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	key := util.NewPrefixedID("clientkey")
+	first := sampleLLMCall()
+	first.ClientCallID = &key
+	opened, err := s.OpenLLMCall(ctx, first)
+	if err != nil {
+		t.Fatalf("OpenLLMCall: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "client_call_id = ?", key)
+	}()
+
+	second := sampleLLMCall()
+	second.ClientCallID = &key
+	if _, err := s.OpenLLMCall(ctx, second); !errors.Is(err, model.ErrDuplicateLLMCall) {
+		t.Fatalf("want ErrDuplicateLLMCall, got %v", err)
+	}
+
+	// Another team may use the same key: the constraint is team-scoped.
+	other := sampleLLMCall()
+	other.TeamID = "tm_other_ledger"
+	other.ClientCallID = &key
+	otherOpened, err := s.OpenLLMCall(ctx, other)
+	if err != nil {
+		t.Fatalf("another team was blocked by the key: %v", err)
+	}
+	if otherOpened.LLMCallID == opened.LLMCallID {
+		t.Error("two calls share one id")
+	}
+
+	// A call with no client key is never a duplicate.
+	for range 2 {
+		anonymous, err := s.OpenLLMCall(ctx, sampleLLMCall())
+		if err != nil {
+			t.Fatalf("a call with no client key was rejected: %v", err)
+		}
+		defer func() {
+			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", anonymous.LLMCallID)
+		}()
 	}
 }
 

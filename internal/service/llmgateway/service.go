@@ -16,10 +16,31 @@ var (
 	ErrLedgerNotConfigured = errors.New("call ledger is not configured")
 	ErrMessagesRequired    = errors.New("messages are required")
 	ErrQuotaExceeded       = errors.New("team quota exceeded")
+	ErrDuplicateCall       = errors.New("client call id has already been used")
 	// ErrUpstream wraps a provider failure. The wrapped error stays inside the
 	// server: callers receive the classification, not the provider's body.
 	ErrUpstream = errors.New("upstream model call failed")
 )
+
+// DuplicateCallError reports a client call ID the team has already used.
+//
+// The first version does not attach to a running call or replay a completed
+// one: it names the original call so the caller can stop guessing whether its
+// request landed. It satisfies errors.Is(err, ErrDuplicateCall).
+type DuplicateCallError struct {
+	LLMCallID string
+	Status    string
+}
+
+func (e *DuplicateCallError) Error() string {
+	if e.LLMCallID == "" {
+		return "this call id has already been used"
+	}
+	return fmt.Sprintf("call id already used by %s (%s)", e.LLMCallID, e.Status)
+}
+
+// Is reports whether the error matches the ErrDuplicateCall sentinel.
+func (e *DuplicateCallError) Is(target error) bool { return target == ErrDuplicateCall }
 
 // QuotaError reports why a team was refused. It satisfies
 // errors.Is(err, ErrQuotaExceeded).
@@ -105,6 +126,24 @@ func (s *Service) Models(ctx context.Context, teamID string) ([]AvailableModel, 
 // call that never returns still leaves an ACCEPTED row behind as evidence that
 // tokens may have been spent.
 func (s *Service) Complete(ctx context.Context, req CompleteRequest) (CompleteResult, error) {
+	return s.run(ctx, req, nil)
+}
+
+// Stream runs one managed call, delivering content deltas to onDelta as they
+// arrive and returning the assembled result.
+//
+// Retry policy belongs to the component that talks to the provider, which is
+// the server-side client underneath this call. It stops retrying once a delta
+// has been emitted, because the caller has already seen output. No layer above
+// this one may add a retry of its own.
+func (s *Service) Stream(ctx context.Context, req CompleteRequest, onDelta func(string)) (CompleteResult, error) {
+	if onDelta == nil {
+		onDelta = func(string) {}
+	}
+	return s.run(ctx, req, onDelta)
+}
+
+func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(string)) (CompleteResult, error) {
 	if s == nil || s.Router == nil {
 		return CompleteResult{}, ErrCatalogNotConfigured
 	}
@@ -118,10 +157,18 @@ func (s *Service) Complete(ctx context.Context, req CompleteRequest) (CompleteRe
 		return CompleteResult{}, ErrMessagesRequired
 	}
 
+	streaming := onDelta != nil
+
+	// A repeated client call ID means the caller does not know whether we
+	// accepted the first attempt. Say so instead of running the call twice.
+	if err := s.rejectDuplicate(ctx, req); err != nil {
+		return CompleteResult{}, err
+	}
+
 	routed, err := s.Router.ClientFor(ctx, ResolveRequest{
 		TeamID:   req.TeamID,
 		Alias:    req.Alias,
-		Requires: requiredCapabilities(req),
+		Requires: requiredCapabilities(req, streaming),
 	})
 	if err != nil {
 		return CompleteResult{}, err
@@ -150,20 +197,41 @@ func (s *Service) Complete(ctx context.Context, req CompleteRequest) (CompleteRe
 		TargetID:      routed.Resolution.Target.ID,
 		ProviderType:  routed.Resolution.Target.ProviderType,
 		UpstreamModel: routed.Resolution.Target.UpstreamModel,
-		Streaming:     false,
+		Streaming:     streaming,
 		AcceptedAt:    acceptedAt,
 		Status:        model.LLMCallStatusAccepted,
 	})
 	if err != nil {
+		if errors.Is(err, model.ErrDuplicateLLMCall) {
+			return CompleteResult{}, &DuplicateCallError{}
+		}
 		return CompleteResult{}, fmt.Errorf("open call ledger: %w", err)
 	}
 
 	upstreamStartedAt := s.now().Unix()
-	content, toolCalls, usage, callErr := routed.Client.ChatCompletionBlocking(ctx, req.Messages, req.Tools)
+	var firstDeltaAt *int64
+
+	var content string
+	var toolCalls []cllm.ToolCall
+	var usage cllm.Usage
+	var callErr error
+	if streaming {
+		observed := func(delta string) {
+			if firstDeltaAt == nil {
+				at := s.now().Unix()
+				firstDeltaAt = &at
+			}
+			onDelta(delta)
+		}
+		content, toolCalls, usage, callErr = routed.Client.ChatCompletionStreaming(ctx, req.Messages, req.Tools, observed)
+	} else {
+		content, toolCalls, usage, callErr = routed.Client.ChatCompletionBlocking(ctx, req.Messages, req.Tools)
+	}
 
 	outcome := model.LLMCallOutcome{
 		Attempts:          1,
 		UpstreamStartedAt: &upstreamStartedAt,
+		FirstDeltaAt:      firstDeltaAt,
 		CompletedAt:       s.now().Unix(),
 	}
 	if callErr != nil {
@@ -217,10 +285,29 @@ func (s *Service) closeLedger(ctx context.Context, llmCallID string, outcome mod
 
 // requiredCapabilities derives what this request needs from its shape, so a
 // target that cannot serve it fails before an upstream call.
-func requiredCapabilities(req CompleteRequest) []Capability {
+func requiredCapabilities(req CompleteRequest, streaming bool) []Capability {
 	capabilities := []Capability{CapabilityTextChat}
 	if len(req.Tools) > 0 {
 		capabilities = append(capabilities, CapabilityToolCalls)
 	}
+	if streaming {
+		capabilities = append(capabilities, CapabilityStreamingText)
+	}
 	return capabilities
+}
+
+// rejectDuplicate reports a client call ID this team has already used.
+//
+// The unique index is what actually decides duplication; this lookup exists to
+// answer with the original call ID instead of a bare constraint violation. A
+// lookup failure is not fatal: the index still closes the race.
+func (s *Service) rejectDuplicate(ctx context.Context, req CompleteRequest) error {
+	if req.ClientCallID == nil || *req.ClientCallID == "" {
+		return nil
+	}
+	existing, err := s.Ledger.GetLLMCallByClientID(ctx, req.TeamID, *req.ClientCallID)
+	if err != nil || existing == nil {
+		return nil
+	}
+	return &DuplicateCallError{LLMCallID: existing.LLMCallID, Status: existing.Status}
 }

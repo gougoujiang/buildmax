@@ -87,6 +87,37 @@ type CompletionResponse struct {
 	Usage *Usage `json:"usage,omitempty"`
 }
 
+// Server-sent event names for a streaming call.
+//
+// The stream carries BuildMax events, not upstream chunks: a delta is text to
+// hand a local stream sink, and tool calls arrive assembled in the result. That
+// keeps the protocol matched to core/llm.LLMClient, which exposes content
+// deltas during a call and returns assembled tool calls after it.
+const (
+	// EventDelta carries a DeltaEvent: text to deliver to the caller now.
+	EventDelta = "delta"
+	// EventResult carries a CompletionResponse and completes the call.
+	EventResult = "result"
+	// EventError carries an ErrorEvent and terminates the call.
+	EventError = "error"
+)
+
+// DeltaEvent is one increment of generated text.
+type DeltaEvent struct {
+	Content string `json:"content"`
+}
+
+// ErrorEvent terminates a streaming call.
+//
+// Retryable says whether trying again could plausibly succeed. It is advice
+// about the failure, not permission to replay: once a delta has reached the
+// caller, no layer retries, because the caller has already seen output.
+type ErrorEvent struct {
+	Code      string `json:"code"`
+	Error     string `json:"error"`
+	Retryable bool   `json:"retryable"`
+}
+
 // Model is one alias a team may use. It carries no endpoint, credential,
 // provider type, or upstream model identifier.
 type Model struct {

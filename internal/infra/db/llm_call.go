@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -136,10 +137,27 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 	}
 	row := toLLMCallRow(&stored)
 	if err := s.db.WithContext(ctx).Create(row).Error; err != nil {
+		if isDuplicateKey(err) {
+			return nil, model.ErrDuplicateLLMCall
+		}
 		return nil, err
 	}
 	return toLLMCall(row), nil
 }
+
+// isDuplicateKey reports whether the error is a unique-constraint violation.
+// Checking the constraint rather than looking before inserting is what closes
+// the window between two concurrent requests carrying the same client call ID.
+func isDuplicateKey(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	var mysqlErr *mysqldriver.MySQLError
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == mysqlDuplicateEntry
+}
+
+// mysqlDuplicateEntry is ER_DUP_ENTRY.
+const mysqlDuplicateEntry = 1062
 
 // CompleteLLMCall writes the terminal outcome of an open call. Usage is left as
 // recorded when the outcome carries none, so an unavailable count is never

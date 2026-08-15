@@ -26,6 +26,7 @@ const (
 // llmStubClient answers every call the same way.
 type llmStubClient struct {
 	content string
+	deltas  []string
 	usage   cllm.Usage
 	err     error
 }
@@ -37,8 +38,14 @@ func (c *llmStubClient) ChatCompletionBlocking(context.Context, []cllm.Message, 
 	return c.content, nil, c.usage, nil
 }
 
-func (c *llmStubClient) ChatCompletionStreaming(context.Context, []cllm.Message, []cllm.ToolDef, func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
-	return "", nil, cllm.Usage{}, errors.New("not used")
+func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, _ []cllm.Message, _ []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+	for _, delta := range c.deltas {
+		onDelta(delta)
+	}
+	if c.err != nil {
+		return "", nil, cllm.Usage{}, c.err
+	}
+	return c.content, nil, c.usage, nil
 }
 
 func (c *llmStubClient) ContextWindow() int { return 0 }
@@ -255,13 +262,6 @@ func TestLLMCompletionsErrorMapping(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "streaming not implemented",
-			body:       `{"messages":[{"role":"user","content":"hi"}],"stream":true}`,
-			gateway:    func(t *testing.T) *llmgateway.Service { return llmTestService(t, &llmStubClient{}, nil) },
-			auth:       true,
-			wantStatus: http.StatusNotImplemented,
-		},
-		{
 			name:       "no messages",
 			body:       `{"messages":[]}`,
 			gateway:    func(t *testing.T) *llmgateway.Service { return llmTestService(t, &llmStubClient{}, nil) },
@@ -372,6 +372,126 @@ func TestLLMModelsListing(t *testing.T) {
 			t.Errorf("models listing leaked %q: %s", secret, rec.Body)
 		}
 	}
+}
+
+const streamBody = `{"messages":[{"role":"user","content":"hello"}],"stream":true}`
+
+func TestLLMStreamingEmitsTypedEvents(t *testing.T) {
+	svc := llmTestService(t, &llmStubClient{
+		content: "Hello",
+		deltas:  []string{"Hel", "lo"},
+		usage:   cllm.Usage{PromptTokens: 3, CompletionTokens: 2, TotalTokens: 5},
+	}, nil)
+
+	rec := llmRequest(t, http.MethodPost, completionsPath(), streamBody, svc, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+	if rec.Header().Get("X-Accel-Buffering") != "no" {
+		t.Error("the response does not tell a reverse proxy to stop buffering")
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{
+		"event: delta\ndata: {\"content\":\"Hel\"}",
+		"event: delta\ndata: {\"content\":\"lo\"}",
+		"event: result\n",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("stream does not contain %q:\n%s", want, body)
+		}
+	}
+	if !strings.Contains(body, `"total_tokens":5`) {
+		t.Errorf("the result event carries no usage:\n%s", body)
+	}
+	if strings.Index(body, "event: delta") > strings.Index(body, "event: result") {
+		t.Error("the result arrived before the deltas")
+	}
+}
+
+// TestLLMStreamingRefusalBeforeOutputIsAPlainError keeps a call refused before
+// any output on the normal HTTP error path, where the status still means
+// something to a client.
+func TestLLMStreamingRefusalBeforeOutputIsAPlainError(t *testing.T) {
+	svc := llmTestService(t, &llmStubClient{content: "hi"}, llmDenyQuota{})
+
+	rec := llmRequest(t, http.MethodPost, completionsPath(), streamBody, svc, true)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429: %s", rec.Code, rec.Body)
+	}
+	if ct := rec.Header().Get("Content-Type"); strings.Contains(ct, "event-stream") {
+		t.Errorf("a pre-output refusal opened a stream: %q", ct)
+	}
+	if strings.Contains(rec.Body.String(), "event:") {
+		t.Errorf("a pre-output refusal emitted stream events: %s", rec.Body)
+	}
+}
+
+// TestLLMStreamingFailureAfterOutputBecomesAnErrorEvent covers the other half:
+// once deltas are on the wire the status is already 200, so the failure has to
+// travel as an event.
+func TestLLMStreamingFailureAfterOutputBecomesAnErrorEvent(t *testing.T) {
+	svc := llmTestService(t, &llmStubClient{
+		deltas: []string{"partial"},
+		err:    errors.New("provider died mid-stream at 10.0.0.7"),
+	}, nil)
+
+	rec := llmRequest(t, http.MethodPost, completionsPath(), streamBody, svc, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 once the stream started", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "event: delta") {
+		t.Errorf("the delivered delta is missing:\n%s", body)
+	}
+	if !strings.Contains(body, "event: error") {
+		t.Errorf("the failure did not arrive as an event:\n%s", body)
+	}
+	if !strings.Contains(body, `"code":"upstream_error"`) || !strings.Contains(body, `"retryable":true`) {
+		t.Errorf("the error event is missing its classification:\n%s", body)
+	}
+	if strings.Contains(body, "10.0.0.7") {
+		t.Errorf("the error event leaked the provider message:\n%s", body)
+	}
+}
+
+func TestLLMDuplicateCallIDIsRefused(t *testing.T) {
+	svc := llmTestService(t, &llmStubClient{content: "hi"}, nil)
+	body := `{"call_id":"client-key-1","messages":[{"role":"user","content":"hi"}]}`
+
+	// The stub ledger reports an existing call for any client call ID.
+	svc.Ledger = &llmDuplicateLedger{}
+
+	rec := llmRequest(t, http.MethodPost, completionsPath(), body, svc, true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409: %s", rec.Code, rec.Body)
+	}
+	var resp struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Code != llmgateway.ErrorClassDuplicateCall {
+		t.Errorf("code = %q, want %q", resp.Code, llmgateway.ErrorClassDuplicateCall)
+	}
+	// The answer names the original call, which is what the caller was unsure
+	// about in the first place.
+	if !strings.Contains(resp.Error, "lc_original") {
+		t.Errorf("error %q does not name the original call", resp.Error)
+	}
+}
+
+// llmDuplicateLedger reports that every client call ID is already in use.
+type llmDuplicateLedger struct{ llmStubLedger }
+
+func (l *llmDuplicateLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
+	return &model.LLMCall{LLMCallID: "lc_original", Status: model.LLMCallStatusAccepted}, nil
 }
 
 func TestLLMModelsUnconfigured(t *testing.T) {

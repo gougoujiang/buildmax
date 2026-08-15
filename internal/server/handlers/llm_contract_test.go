@@ -186,6 +186,118 @@ func TestManagedCallMatchesADirectCall(t *testing.T) {
 	}
 }
 
+// fakeStreamingUpstream is an OpenAI-compatible provider that streams.
+func fakeStreamingUpstream(t *testing.T, chunks []string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Error("the test server cannot flush")
+			return
+		}
+		for _, chunk := range chunks {
+			_, _ = w.Write([]byte("data: " + chunk + "\n\n"))
+			flusher.Flush()
+		}
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		flusher.Flush()
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestManagedStreamMatchesADirectStream(t *testing.T) {
+	chunks := []string{
+		`{"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"Hel"}}]}`,
+		`{"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"lo th"}}]}`,
+		`{"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"ere"}}]}`,
+		`{"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7}}`,
+	}
+	upstream := fakeStreamingUpstream(t, chunks)
+	messages := []cllm.Message{{Role: "user", Content: "hi"}}
+
+	var directDeltas []string
+	wantContent, _, wantUsage, err := directClient(upstream.URL).ChatCompletionStreaming(
+		context.Background(), messages, nil,
+		func(d string) { directDeltas = append(directDeltas, d) })
+	if err != nil {
+		t.Fatalf("direct stream: %v", err)
+	}
+
+	var managedDeltas []string
+	gotContent, _, gotUsage, err := managedGateway(t, upstream.URL).ChatCompletionStreaming(
+		context.Background(), messages, nil,
+		func(d string) { managedDeltas = append(managedDeltas, d) })
+	if err != nil {
+		t.Fatalf("managed stream: %v", err)
+	}
+
+	if gotContent != wantContent {
+		t.Errorf("content: managed %q, direct %q", gotContent, wantContent)
+	}
+	if gotUsage != wantUsage {
+		t.Errorf("usage: managed %+v, direct %+v", gotUsage, wantUsage)
+	}
+	// Deltas must survive the extra hop intact, not merely add up to the same
+	// text: a managed stream that batched everything would still pass a
+	// content-only check while feeling nothing like a direct one.
+	if len(managedDeltas) != len(directDeltas) {
+		t.Fatalf("delta count: managed %d %v, direct %d %v",
+			len(managedDeltas), managedDeltas, len(directDeltas), directDeltas)
+	}
+	for i := range directDeltas {
+		if managedDeltas[i] != directDeltas[i] {
+			t.Errorf("delta %d: managed %q, direct %q", i, managedDeltas[i], directDeltas[i])
+		}
+	}
+}
+
+// TestClientDisconnectCancelsTheUpstream is the whole point of propagating a
+// context through the gateway: an abandoned call must stop costing tokens, not
+// run to completion with nobody listening.
+func TestClientDisconnectCancelsTheUpstream(t *testing.T) {
+	upstreamCanceled := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher := w.(http.Flusher)
+		_, _ = w.Write([]byte(`data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"first"}}]}` + "\n\n"))
+		flusher.Flush()
+
+		// Hold the response open until the caller goes away.
+		<-r.Context().Done()
+		close(upstreamCanceled)
+	}))
+	t.Cleanup(upstream.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := managedGateway(t, upstream.URL)
+	done := make(chan error, 1)
+	go func() {
+		_, _, _, err := client.ChatCompletionStreaming(ctx,
+			[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
+			func(string) { cancel() })
+		done <- err
+	}()
+
+	select {
+	case <-upstreamCanceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the upstream request was never canceled")
+	}
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a canceled stream returned success")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the managed call did not return after cancellation")
+	}
+}
+
 // TestManagedClientSatisfiesTheAgentContract proves the two implementations are
 // interchangeable where the agent loop expects a client, not merely similar.
 func TestManagedClientSatisfiesTheAgentContract(t *testing.T) {

@@ -9,6 +9,7 @@
 package llmremote
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -23,14 +24,15 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 )
 
-// ErrStreamingNotSupported is returned until the managed protocol carries
-// streaming. Falling back to a blocking call would silently change where a
-// caller's tokens go and how long it waits, so this fails instead.
-var ErrStreamingNotSupported = errors.New("managed streaming is not implemented yet")
-
-// maxErrorBodyBytes bounds how much of a failure response is read. A gateway
-// should answer with a small JSON error; anything larger is not worth holding.
-const maxErrorBodyBytes = 64 << 10
+const (
+	// maxErrorBodyBytes bounds how much of a failure response is read. A
+	// gateway should answer with a small JSON error; anything larger is not
+	// worth holding.
+	maxErrorBodyBytes = 64 << 10
+	// maxSSEEventBytes bounds one stream event. A delta is text and a result is
+	// one completion, so a larger frame means a broken peer, not a big answer.
+	maxSSEEventBytes = 8 << 20
+)
 
 // Config holds managed client settings.
 type Config struct {
@@ -89,35 +91,9 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Mes
 		return "", nil, cllm.Usage{}, errors.New("managed llm client needs a server URL and a team")
 	}
 
-	body, err := json.Marshal(llmwire.CompletionRequest{
-		Model:    c.cfg.Alias,
-		Messages: toWireMessages(messages),
-		Tools:    toWireTools(tools),
-		Metadata: c.metadata(),
-	})
+	resp, err := c.post(ctx, false, messages, tools)
 	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("encode managed request: %w", err)
-	}
-
-	if c.cfg.CallTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.cfg.CallTimeout)
-		defer cancel()
-	}
-
-	url := c.cfg.ServerURL + fmt.Sprintf(llmwire.CompletionsPath, c.cfg.TeamID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("build managed request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if c.cfg.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("managed gateway unreachable: %w", err)
+		return "", nil, cllm.Usage{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -144,9 +120,172 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Mes
 	return out.Content, fromWireToolCalls(out.ToolCalls), usage, nil
 }
 
-// ChatCompletionStreaming is not implemented yet. See ErrStreamingNotSupported.
-func (c *Client) ChatCompletionStreaming(_ context.Context, _ []cllm.Message, _ []cllm.ToolDef, _ func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
-	return "", nil, cllm.Usage{}, ErrStreamingNotSupported
+// ChatCompletionStreaming runs one managed call, delivering content deltas to
+// onDelta as they arrive.
+//
+// It never retries. The server-side provider client owns retry policy and stops
+// once a delta has been emitted; adding a retry here would replay output the
+// caller has already seen.
+func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+	if c == nil {
+		return "", nil, cllm.Usage{}, errors.New("managed llm client is not configured")
+	}
+	resp, err := c.post(ctx, true, messages, tools)
+	if err != nil {
+		return "", nil, cllm.Usage{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, cllm.Usage{}, gatewayError(resp)
+	}
+	return consumeStream(resp.Body, onDelta)
+}
+
+// consumeStream reads typed events until the call completes.
+//
+// A stream that ends without a result or an error event is a failure, not an
+// empty answer: silently returning "" would hide a dropped connection as a
+// model that had nothing to say.
+func consumeStream(body io.Reader, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64<<10), maxSSEEventBytes)
+
+	var state streamState
+	var event string
+	var data []byte
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "event:"):
+			event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "data:"):
+			data = append(data, strings.TrimSpace(strings.TrimPrefix(line, "data:"))...)
+		case line == "":
+			if event == "" || len(data) == 0 {
+				event, data = "", nil
+				continue
+			}
+			done, err := state.apply(event, data, onDelta)
+			event, data = "", nil
+			if err != nil {
+				return "", nil, cllm.Usage{}, err
+			}
+			if done {
+				return state.finish()
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", nil, cllm.Usage{}, fmt.Errorf("managed stream interrupted: %w", err)
+	}
+	return "", nil, cllm.Usage{}, errors.New("managed stream ended without a result")
+}
+
+// streamState accumulates one call's events.
+type streamState struct {
+	content strings.Builder
+	result  llmwire.CompletionResponse
+}
+
+func (s *streamState) apply(event string, data []byte, onDelta func(string)) (bool, error) {
+	switch event {
+	case llmwire.EventDelta:
+		var delta llmwire.DeltaEvent
+		if err := json.Unmarshal(data, &delta); err != nil {
+			return false, fmt.Errorf("decode managed delta: %w", err)
+		}
+		s.content.WriteString(delta.Content)
+		if onDelta != nil && delta.Content != "" {
+			onDelta(delta.Content)
+		}
+		return false, nil
+
+	case llmwire.EventResult:
+		if err := json.Unmarshal(data, &s.result); err != nil {
+			return false, fmt.Errorf("decode managed result: %w", err)
+		}
+		return true, nil
+
+	case llmwire.EventError:
+		var failure llmwire.ErrorEvent
+		if err := json.Unmarshal(data, &failure); err != nil {
+			return false, fmt.Errorf("decode managed error: %w", err)
+		}
+		return false, &GatewayError{
+			StatusCode: http.StatusOK,
+			Code:       failure.Code,
+			Message:    failure.Error,
+		}
+
+	default:
+		// An unknown event is ignored rather than fatal, so the server can add
+		// one without breaking older clients.
+		return false, nil
+	}
+}
+
+func (s *streamState) finish() (string, []cllm.ToolCall, cllm.Usage, error) {
+	// The result carries the assembled content; fall back to the deltas we
+	// accumulated if a server ever omits it.
+	content := s.result.Content
+	if content == "" {
+		content = s.content.String()
+	}
+	var usage cllm.Usage
+	if s.result.Usage != nil {
+		usage = cllm.Usage{
+			PromptTokens:     s.result.Usage.PromptTokens,
+			CompletionTokens: s.result.Usage.CompletionTokens,
+			TotalTokens:      s.result.Usage.TotalTokens,
+		}
+	}
+	return content, fromWireToolCalls(s.result.ToolCalls), usage, nil
+}
+
+// post sends one completion request. The caller closes the response body.
+//
+// The client-side deadline, when set, covers the whole exchange including a
+// stream, so a hung connection cannot hold a caller forever.
+func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message, tools []cllm.ToolDef) (*http.Response, error) {
+	if c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
+		return nil, errors.New("managed llm client needs a server URL and a team")
+	}
+	body, err := json.Marshal(llmwire.CompletionRequest{
+		Model:    c.cfg.Alias,
+		Messages: toWireMessages(messages),
+		Tools:    toWireTools(tools),
+		Stream:   stream,
+		Metadata: c.metadata(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode managed request: %w", err)
+	}
+	if c.cfg.CallTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.cfg.CallTimeout)
+		// The deadline must outlive this function for a streamed body, so the
+		// cancel travels with the request rather than firing on return.
+		context.AfterFunc(ctx, cancel)
+	}
+	url := c.cfg.ServerURL + fmt.Sprintf(llmwire.CompletionsPath, c.cfg.TeamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build managed request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if stream {
+		req.Header.Set("Accept", "text/event-stream")
+	}
+	if c.cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("managed gateway unreachable: %w", err)
+	}
+	return resp, nil
 }
 
 func (c *Client) metadata() *llmwire.Metadata {
