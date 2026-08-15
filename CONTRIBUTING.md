@@ -101,9 +101,8 @@ lists what is worth putting in it.
 ```
 
 `./make help` shows the common contributor path; `./make help all` groups the
-advanced, deployment, release, and deprecated aliases. To add or change a
-command, edit `cmd/mk` rather than the shims. Deprecated commands keep working
-for one release cycle and print their canonical replacement.
+advanced, deployment, and release commands. To add or change a command, edit
+`cmd/mk` rather than the shims.
 
 `doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
 defaults. `install`, `release`, `compose`, `kind`, and publication tasks

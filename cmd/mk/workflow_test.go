@@ -67,19 +67,19 @@ func TestCommonHelpStaysFocused(t *testing.T) {
 	}
 }
 
-func TestFullHelpKeepsDeprecatedAliases(t *testing.T) {
+func TestFullHelpOmitsLegacyCommands(t *testing.T) {
 	sections := allHelpSections()
-	last := sections[len(sections)-1]
-	if last.name != "Deprecated aliases" {
-		t.Fatalf("last help section = %q; want Deprecated aliases", last.name)
+	legacy := map[string]bool{
+		"bump": true, "verify-archive": true, "notices": true,
+		"npm-licenses": true, "pub_images": true, "setup": true,
+		"unsetup": true, "deploy": true,
 	}
-	got := make([]string, 0, len(last.rows))
-	for _, row := range last.rows {
-		got = append(got, row.name)
-	}
-	want := "bump,verify-archive,notices,npm-licenses,pub_images,setup,unsetup,deploy"
-	if strings.Join(got, ",") != want {
-		t.Fatalf("deprecated aliases = %v", got)
+	for _, section := range sections {
+		for _, row := range section.rows {
+			if legacy[strings.Fields(row.name)[0]] {
+				t.Errorf("legacy command %q appears in full help", row.name)
+			}
+		}
 	}
 }
 

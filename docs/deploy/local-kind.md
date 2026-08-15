@@ -49,9 +49,6 @@ single-use code for `deployment-smoke@buildmax.local` after verification.
 ./make kind down    # delete the selected cluster
 ```
 
-The former `setup`, `deploy`, `unsetup`, and `pub_images` commands remain as
-deprecated aliases for one release cycle and print the replacement to use.
-
 Use an isolated cluster name when another contributor or task owns the default:
 
 ```bash

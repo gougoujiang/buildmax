@@ -83,32 +83,6 @@ func dispatch(args []string) error {
 		return cmdCompose(rest)
 	case "kind":
 		return cmdKind(rest)
-	// Deprecated compatibility aliases. Keep these through one release cycle
-	// so existing automation gets a migration message instead of breaking.
-	case "bump":
-		warnDeprecatedCommand("bump", "release bump")
-		return cmdBump(rest)
-	case "verify-archive":
-		warnDeprecatedCommand("verify-archive", "release verify")
-		return cmdVerifyArchive(rest)
-	case "notices":
-		warnDeprecatedCommand("notices", "release notices")
-		return cmdNotices(rest)
-	case "npm-licenses":
-		warnDeprecatedCommand("npm-licenses", "release licenses")
-		return cmdNPMLicenses(rest)
-	case "setup":
-		warnDeprecatedCommand("setup", "kind up")
-		return cmdKind([]string{"up"})
-	case "unsetup":
-		warnDeprecatedCommand("unsetup", "kind down")
-		return cmdKind([]string{"down"})
-	case "pub_images":
-		warnDeprecatedCommand("pub_images", "kind images")
-		return cmdKind([]string{"images"})
-	case "deploy":
-		warnDeprecatedCommand("deploy", "kind up")
-		return cmdKind([]string{"up"})
 	case "help", "-h", "--help":
 		return cmdHelp(rest)
 	default:
@@ -139,10 +113,6 @@ func exe(name string) string {
 // each line so a new command lands aligned without anyone counting spaces.
 func command(name, format string, args ...any) {
 	fmt.Printf("  %-18s%s\n", name, fmt.Sprintf(format, args...))
-}
-
-func warnDeprecatedCommand(old, replacement string) {
-	fmt.Fprintf(os.Stderr, "Warning: %s %s is deprecated; use %s %s\n", mk(), old, mk(), replacement)
 }
 
 func cmdRelease(args []string) error {
@@ -182,7 +152,7 @@ func commonHelpRows() []helpRow {
 		{"check [scope]", "Run pre-PR checks (go|portal|desktop|docs|all)"},
 		{"run <target>", "Run cli, server, desktop, or Portal locally"},
 		{"clean", "Remove build outputs and installed frontend dependencies"},
-		{"help all", "Show advanced, deployment, release, and deprecated commands"},
+		{"help all", "Show advanced, deployment, and release commands"},
 	}
 }
 
@@ -208,16 +178,6 @@ func allHelpSections() []helpSection {
 		{"Release", []helpRow{
 			{"release <action>", "Run bump, verify, notices, or licenses"},
 			{"install", "Install binaries to ~/.local/bin"},
-		}},
-		{"Deprecated aliases", []helpRow{
-			{"bump", "Use release bump"},
-			{"verify-archive", "Use release verify"},
-			{"notices", "Use release notices"},
-			{"npm-licenses", "Use release licenses"},
-			{"pub_images", "Use kind images"},
-			{"setup", "Use kind up"},
-			{"unsetup", "Use kind down"},
-			{"deploy", "Use kind up"},
 		}},
 	}
 }

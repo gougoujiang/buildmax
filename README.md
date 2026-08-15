@@ -102,7 +102,7 @@ More: [docs/start/concepts.md](docs/start/concepts.md) ·
 
 On Windows use `make.bat` with the same commands — both forward to the Go task
 runner in `cmd/mk`. `./make help` shows the common contributor path;
-`./make help all` shows deployment, release, and deprecated aliases. None
+`./make help all` shows advanced, deployment, and release commands. None
 of build, test, or lint needs a model API key.
 
 Two directories in the tree are fixtures rather than product code:
