@@ -22,15 +22,21 @@ type LoginRequest struct {
 	Platform string `json:"platform"`
 }
 
-// Login OTP verification is opt-in. BuildMax does not ship an OTP delivery
-// channel yet, so the only supported verifier is the development fixed code in
-// Config.DevLoginOTP (server.yaml `dev_login_otp` / BUILDMAX_DEV_LOGIN_OTP).
+// BuildMax ships no OTP delivery channel, so POST /api/login accepts two kinds
+// of code, in this order:
 //
-// When that value is empty — the default — POST /api/login is disabled and
-// returns 503. This is deliberate: a fixed code that is enabled by default is a
-// full authentication bypass for anyone who knows a registered email address.
-// Operators must opt in explicitly, and should only do so on deployments that
-// are not reachable by untrusted users.
+//  1. A single-use code from Config.LoginCodeStore, issued out of band with
+//     `buildmax-server user login-code <email>` and delivered by the operator.
+//     Each one belongs to a single user, expires, and cannot be replayed. This
+//     is the supported way to run a deployment.
+//
+//  2. Config.DevLoginOTP (server.yaml `dev_login_otp`), a fixed code that
+//     authenticates *any* registered email. It is a development convenience and
+//     a standing authentication bypass; it stays empty unless an operator opts
+//     in, and the server logs a warning on every startup where it is set.
+//
+// With neither configured there is no way to verify a code, and login returns
+// 503 rather than pretending to work.
 
 // LoginResponse is the JSON body for a successful login.
 type LoginResponse struct {
@@ -68,7 +74,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
-	if h.cfg.DevLoginOTP == "" {
+	if h.cfg.LoginCodeStore == nil && h.cfg.DevLoginOTP == "" {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured: no otp verifier")
 		return
 	}
@@ -85,17 +91,8 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "otp required")
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(req.Otp), []byte(h.cfg.DevLoginOTP)) != 1 {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
-		return
-	}
-	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "email", req.Email)
-		return
-	}
-	if user == nil {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "user not found")
+	user, ok := h.verifyLoginCode(w, r, req)
+	if !ok {
 		return
 	}
 	now := time.Now()
@@ -123,6 +120,55 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Token: tokenStr,
 		User:  LoginUser{ID: user.UserID, Email: user.Email, Name: user.Name},
 	})
+}
+
+// verifyLoginCode resolves the user the submitted code authenticates, writing
+// the response and returning ok=false when it does not authenticate anyone.
+//
+// A single-use code is tried first and, once redeemed, is spent whether or not
+// the rest of the request succeeds — that is what "single use" has to mean for
+// a replay to be impossible.
+func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
+	if h.cfg.LoginCodeStore != nil {
+		userID, err := h.cfg.LoginCodeStore.ConsumeLoginCode(r.Context(), req.Otp, time.Now().Unix())
+		if err != nil {
+			httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "consume_login_code")
+			return nil, false
+		}
+		if userID != "" {
+			user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
+			if err != nil {
+				httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "user_id", userID)
+				return nil, false
+			}
+			// The code already names the user; the email is checked so that
+			// signing in as someone else cannot happen by pasting the wrong
+			// code into the wrong browser.
+			if user == nil || !strings.EqualFold(user.Email, req.Email) {
+				httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
+				return nil, false
+			}
+			return user, true
+		}
+	}
+
+	// No stored code matched. Fall back to the fixed development code, which is
+	// only ever set on a deployment that has accepted what it means.
+	if h.cfg.DevLoginOTP == "" ||
+		subtle.ConstantTimeCompare([]byte(req.Otp), []byte(h.cfg.DevLoginOTP)) != 1 {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
+		return nil, false
+	}
+	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "email", req.Email)
+		return nil, false
+	}
+	if user == nil {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "user not found")
+		return nil, false
+	}
+	return user, true
 }
 
 func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +207,16 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// intent == "signup"
+	//
+	// Closed by default. Self-registration plus a shared dev code is what turns
+	// a reachable server into an open one: anyone could register an address and
+	// then sign in as it. Accounts are created by an operator instead, with
+	// `buildmax-server user create`.
+	if !h.cfg.AllowSignup {
+		httputil.WriteJSONError(w, http.StatusForbidden,
+			"signup is disabled on this server; ask an administrator for an account")
+		return
+	}
 	if user != nil {
 		httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 		return

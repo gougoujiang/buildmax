@@ -90,3 +90,28 @@ func TestServerConfigEnvOnly(t *testing.T) {
 		t.Errorf("worker.binary = %q, want the default to survive", cfg.Worker.Binary)
 	}
 }
+
+// A server that never mentions allow_signup must be closed. The default lives in
+// LoadServerConfig by omission, which is exactly the kind of thing a later
+// "let's set a default for everything" pass would flip without noticing.
+func TestServerConfigSignupIsClosedByDefault(t *testing.T) {
+	writeServerYAML(t, "port: 5678\n")
+	sc, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if sc.AllowSignup {
+		t.Error("allow_signup defaults to true; self-registration must be opt-in")
+	}
+}
+
+func TestServerConfigSignupCanBeOpened(t *testing.T) {
+	writeServerYAML(t, "allow_signup: true\n")
+	sc, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if !sc.AllowSignup {
+		t.Error("allow_signup: true did not bind")
+	}
+}

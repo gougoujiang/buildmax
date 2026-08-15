@@ -160,11 +160,12 @@ release:
     This is an alpha, and two defaults deserve to be read as warnings rather
     than footnotes:
 
-    - **Server authentication is not production-ready.** There is no OTP
-      delivery channel, so `POST /api/login` is disabled by default. The
-      optional `dev_login_otp` setting enables a single fixed code that
-      authenticates *any* registered email address. Putting the Portal on a
-      network you do not control requires wiring a real identity provider first.
+    - **Server authentication is bootstrap-level.** There is no mail channel, so
+      an operator creates accounts and issues single-use login codes with
+      `buildmax-server user create` and `user login-code`. Self-registration is
+      closed by default. There is no password, second factor, SSO, or recovery
+      flow; putting the Portal on a network you do not control requires wiring a
+      real identity provider first.
     - **The bash sandbox is off by default**, and worker hardening is
       incomplete.
 

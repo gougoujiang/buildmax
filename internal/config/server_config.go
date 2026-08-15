@@ -14,10 +14,14 @@ import (
 
 // ServerConfig is the root of BUILDMAX_HOME/server.yaml.
 type ServerConfig struct {
-	LogLevel         string              `mapstructure:"log_level"`
-	Port             int                 `mapstructure:"port"`
-	JWTSecret        string              `mapstructure:"jwt_secret"`
-	DevLoginOTP      string              `mapstructure:"dev_login_otp"`
+	LogLevel    string `mapstructure:"log_level"`
+	Port        int    `mapstructure:"port"`
+	JWTSecret   string `mapstructure:"jwt_secret"`
+	DevLoginOTP string `mapstructure:"dev_login_otp"`
+	// AllowSignup opens POST /api/otp/request to self-registration. It defaults
+	// to false, and the zero value is the safe one on purpose: a server that
+	// forgets to configure this is closed, not open.
+	AllowSignup      bool                `mapstructure:"allow_signup"`
 	CORSOrigin       string              `mapstructure:"cors_origin"`
 	WorkspacesDir    string              `mapstructure:"workspaces_dir"`
 	DefaultQuotaTier string              `mapstructure:"default_quota_tier"`

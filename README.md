@@ -17,8 +17,9 @@ subagent behavior. Use only the local surfaces, deploy only the Portal for your
 company, or both.
 
 > **Status: Alpha.** Interfaces, deployment guidance, and runtime behavior may
-> change before a stable release. Server login is **disabled by default** and
-> is not production-ready — read
+> change before a stable release. Server authentication is bootstrap-level —
+> an operator creates accounts and issues single-use login codes, and there is
+> no password, SSO, or recovery flow. Read
 > [docs/deploy/authentication.md](docs/deploy/authentication.md) before exposing
 > a server.
 
