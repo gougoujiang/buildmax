@@ -162,7 +162,7 @@ Orientation, so the rest of this document reads without a detour:
 | `internal/server/` | HTTP API, scheduler, websocket hub |
 | `gui/`, `portal/`, `desktop/` | Shared React package and the two frontends |
 | `docs/`, `config-examples/`, `deployment/` | Documentation, config examples, deployment |
-| `eval/`, `sample-data/`, `scripts/` | Benchmark fixtures, demo datasets, repo tooling |
+| `eval/`, `sample-data/`, `scripts/` | Benchmark fixtures, workspace seed datasets, repo tooling |
 | `.buildmax/` | This repository's own workspace agent config — see `.buildmax/README.md` |
 
 Dependency direction, enforced by tests in `internal/architecture`:

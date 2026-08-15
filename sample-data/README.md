@@ -1,8 +1,23 @@
 # Sample Data
 
-Datasets covering several scenarios, used to demonstrate and exercise the
-BuildMax agent tools (`Read`, `Grep`, `Edit`, and so on). Each
-subdirectory holds a CSV plus a README describing its columns.
+Ready-made datasets to give the agent something real to work on, in either
+surface:
+
+- **Portal** — upload them into a team workspace so a fresh deployment has
+  content to reason about from the first conversation. Files page →
+  **Upload Folder**, which preserves the directory structure.
+  [deploy/compose.md](../docs/deploy/compose.md#put-something-in-the-workspace)
+  walks through it.
+- **CLI** — point a run at one of them directly:
+  `buildmax --workspace sample-data/access_log`.
+
+Each subdirectory holds a CSV plus a README describing its columns, so the agent
+has both the data and its schema. Between them they exercise `Read`, `Grep`,
+`Glob`, and `Edit` over tabular data, nested directories, and prose.
+
+**Nothing in the project depends on this directory.** No test, build step, or
+release archive references it — it is here so that trying BuildMax does not
+start with "first, find some data". Deleting it breaks nothing.
 
 The data is deliberately Chinese-language in most files — product names,
 categories, city names. That is intentional: it keeps the fixtures honest about

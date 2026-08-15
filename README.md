@@ -104,9 +104,10 @@ runner in `cmd/mk`. `./make help` lists everything. None of build, test, or lint
 needs a model API key.
 
 Two directories in the tree are fixtures rather than product code:
-[`sample-data/`](sample-data/README.md) holds the demo datasets above, and
-`eval/` holds the agent benchmark's deliberately-broken Go modules, run by
-`./make eval`.
+[`sample-data/`](sample-data/README.md) holds the datasets above — upload them
+into a team workspace to give a fresh Portal deployment something to work on, or
+point the CLI at one — and `eval/` holds the agent benchmark's
+deliberately-broken Go modules, run by `./make eval`.
 
 New here? **[docs/contribute/first-pr.md](docs/contribute/first-pr.md)** is the
 whole path from clone to pull request. Repository tree:
