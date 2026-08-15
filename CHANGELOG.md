@@ -16,6 +16,9 @@ pre-releases and must be called out in release notes.
   scanning, and release snapshot checks in CI.
 - SPDX SBOM generation, GitHub artifact attestations, and release image
   vulnerability scanning.
+- Native Linux, macOS, and Windows release archive smoke checks, including
+  checksum and required-content validation.
+- A public launch checklist and documented issue triage policy.
 
 ### Changed
 

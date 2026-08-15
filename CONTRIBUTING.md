@@ -160,8 +160,9 @@ violating import fails the build rather than sliding through review.
 CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, and the test
 suite for Go on Linux and Windows. It builds all three frontends, runs Portal
 tests, scans Git history for secrets, checks Go and npm production dependency
-licenses, lints Markdown, and builds a non-publishing release snapshot. Running
-`./make test` and
+licenses, and lints Markdown. Pull requests validate the GoReleaser
+configuration; pushes to `main` and manual CI runs build and smoke-test a
+non-publishing release snapshot on Linux, macOS, and Windows. Running `./make test` and
 `./make build` locally catches the main code and build failures.
 
 ## Contribution License

@@ -175,3 +175,50 @@ jobs:
           args: release --snapshot --clean --skip=publish,docker
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify all release archive contents
+        if: github.event_name != 'pull_request'
+        run: go run ./scripts/verify-release-archive.go --all
+
+      - name: Upload release archives
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-snapshot
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  release-archive-smoke:
+    name: Release archive (${{ matrix.name }})
+    if: github.event_name != 'pull_request'
+    needs: release-snapshot
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: macOS
+            os: macos-latest
+          - name: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-snapshot
+          path: dist
+
+      - name: Verify native release archive
+        run: go run ./scripts/verify-release-archive.go
