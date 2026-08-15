@@ -77,7 +77,7 @@ Two kinds of directory sit outside the root module, each with its own `go.mod`:
   does for `testdata`, so without it every `go build ./...`, `go vet ./...`,
   `go test ./...`, and `go mod tidy` at the root compiles whatever Go sources
   npm packages happen to ship — the `flatted` package, pulled in transitively
-  by ESLint, ships one. Any directory that runs `npm install` needs one;
+  by ESLint, ships one. Any directory that installs npm dependencies needs one;
   `internal/architecture` has a test that enforces this.
 - **Each `eval/NNN-*/` fixture** is its own module so the benchmark's
   deliberately-broken code is never built or linted with the project's own.

@@ -62,7 +62,11 @@ func dispatch(args []string) error {
 	case "clean":
 		return cmdClean()
 	case "test":
-		return cmdTest()
+		return cmdTest(rest)
+	case "check":
+		return cmdCheck(rest)
+	case "doctor":
+		return cmdDoctor(rest)
 	case "lint":
 		return cmdLint()
 	case "smoke":
@@ -131,10 +135,13 @@ func usage() {
 	fmt.Printf("Usage: %s <command>\n", m)
 	fmt.Println()
 	fmt.Println("Commands:")
-	command("build", "Build %s, %s, %s, gui, and the desktop app", exe(cliBinary), exe(serverBinary), exe(workerBinary))
+	command("build", "Strictly build %s, %s, %s, gui, Portal, and desktop", exe(cliBinary), exe(serverBinary), exe(workerBinary))
 	command("build cli", "Build only %s", exe(cliBinary))
 	command("clean", "Remove binaries, %s/build, gui/portal/desktop frontend (node_modules, dist)", desktopDir)
 	command("test", "Run go test with BUILDMAX_HOME=%s", sandboxDir)
+	command("test race", "Run go test -race with BUILDMAX_HOME=%s", sandboxDir)
+	command("check", "Run scoped checks (go|portal|desktop|docs|all)")
+	command("doctor", "Inspect core toolchain (add 'all' for frontend requirements)")
 	command("lint", "Run golangci-lint and govulncheck (same pinned versions as CI)")
 	command("eval", "Build and run the agent benchmark (requires configured LLM API key)")
 	command("smoke", "Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=%s", sandboxDir)
@@ -158,6 +165,9 @@ func usage() {
 	fmt.Printf("  %s build\n", m)
 	fmt.Printf("  %s build cli\n", m)
 	fmt.Printf("  %s test\n", m)
+	fmt.Printf("  %s check go\n", m)
+	fmt.Printf("  %s doctor\n", m)
+	fmt.Printf("  %s doctor all  # include required frontend tool versions\n", m)
 	fmt.Printf("  %s bump        # v0.1.0 -> v0.1.1 (tag only; push it to release)\n", m)
 	fmt.Printf("  %s bump minor  # v0.1.0 -> v0.2.0\n", m)
 	fmt.Printf("  %s run server  # run the server against ./%s\n", m, sandboxDir)

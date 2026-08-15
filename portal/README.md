@@ -34,16 +34,19 @@ If you want to run pieces manually:
 1. Build the shared GUI package
 
 ```bash
-cd ../gui
-npm install
+cd gui
+npm ci
 npm run build
 ```
 
 1. Install Portal dependencies
 
 ```bash
-npm install
+cd ../portal
+npm ci
 ```
+
+The repository pins Node 22 in `.node-version` and npm 10 in `package.json`.
 
 ## Development
 
@@ -66,6 +69,9 @@ Produce a static build in `dist/`:
 ```bash
 npm run build
 ```
+
+Run `npm run lint` and `npm test` before submitting Portal changes; lint is a
+zero-warning gate.
 
 If the local `file:../gui` dependency is not built yet, build `../gui` first.
 

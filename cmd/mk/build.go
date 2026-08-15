@@ -7,7 +7,12 @@ import (
 	"runtime"
 )
 
+const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.13.0"
+
 func cmdBuild(args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("usage: %s build [cli]", mk())
+	}
 	target := "all"
 	if len(args) > 0 && args[0] != "" {
 		target = args[0]
@@ -18,7 +23,7 @@ func cmdBuild(args []string) error {
 		return buildGo("cli", cliBinary, "./cmd/buildmax")
 	default:
 		fmt.Printf("Usage: %s build [cli]\n", mk())
-		fmt.Println("  build      Build all local binaries, gui, and the desktop app")
+		fmt.Println("  build      Build all local binaries, gui, Portal, and the desktop app")
 		fmt.Printf("  build cli  Build only %s\n", exe(cliBinary))
 		return fmt.Errorf("unknown build target: %s", target)
 	}
@@ -32,13 +37,13 @@ func cmdBuild(args []string) error {
 	if err := buildGo("worker", workerBinary, "./cmd/buildmax-worker"); err != nil {
 		return err
 	}
-	// The frontend stages below report problems as warnings rather than
-	// failures: the Go binaries are what most contributors need, and npm or the
-	// wails CLI may simply not be installed on a fresh machine.
-	buildGUI()
-	installPortalDeps()
-	buildDesktop()
-	return nil
+	if err := buildGUI(); err != nil {
+		return err
+	}
+	if err := buildPortal(); err != nil {
+		return err
+	}
+	return buildDesktop()
 }
 
 func buildGo(tag, binary, pkg string) error {
@@ -54,85 +59,77 @@ func buildGo(tag, binary, pkg string) error {
 	return nil
 }
 
-func buildGUI() {
+func buildGUI() error {
 	if !isDir("gui") {
-		return
+		return fmt.Errorf("gui/ directory not found")
 	}
 	logf("gui", "Building @buildmax/gui package...")
 	if !isDir(filepath.Join("gui", "node_modules")) {
-		if err := runIn("gui", "npm", "install"); err != nil {
-			warnf("gui", "npm install failed; skipping gui.")
-			return
+		if err := runIn("gui", "npm", "ci"); err != nil {
+			return fmt.Errorf("gui npm ci: %w", err)
 		}
 	}
 	if err := runIn("gui", "npm", "run", "build"); err != nil {
-		warnf("gui", "build failed; portal/desktop may fail.")
+		return fmt.Errorf("gui build: %w", err)
 	}
+	return nil
 }
 
-// installPortalDeps only installs dependencies. Building the portal bundle is
-// not part of `build`; run `npm run build` in portal/ for that.
-func installPortalDeps() {
+func buildPortal() error {
 	if !isDir("portal") {
-		return
+		return fmt.Errorf("portal/ directory not found")
 	}
 	if isDir(filepath.Join("portal", "node_modules")) {
 		logf("portal", "node_modules present; skip install.")
-		return
+	} else {
+		logf("portal", "Installing dependencies (links @buildmax/gui via file:../gui)...")
+		if err := runIn("portal", "npm", "ci"); err != nil {
+			return fmt.Errorf("portal npm ci: %w", err)
+		}
 	}
-	logf("portal", "Installing dependencies (links @buildmax/gui via file:../gui)...")
-	if err := runIn("portal", "npm", "install"); err != nil {
-		warnf("portal", "npm install failed; %s run portal will retry.", mk())
-		return
+	logf("portal", "Building Portal bundle...")
+	if err := runIn("portal", "npm", "run", "build"); err != nil {
+		return fmt.Errorf("portal build: %w", err)
 	}
-	logf("portal", "Dependencies installed.")
+	return nil
 }
 
-func buildDesktop() {
+func buildDesktop() error {
 	logf("desktop", "Building desktop app (Wails)...")
 	frontend := filepath.Join("desktop", "frontend")
 	switch {
-	case !have("wails"):
-		warnf("desktop", "wails CLI not found; skipping. Run %s setup or: go install github.com/wailsapp/wails/v2/cmd/wails@latest", mk())
-		return
 	case !isDir(desktopDir):
-		warnf("desktop", "%s not found; skipping.", desktopDir)
-		return
+		return fmt.Errorf("%s not found", desktopDir)
 	case isDir("gui") && !exists(filepath.Join("gui", "dist", "index.js")):
-		warnf("desktop", "gui not built (missing gui/dist/index.js). Run: cd gui && npm install && npm run build")
-		return
+		return fmt.Errorf("gui not built (missing gui/dist/index.js)")
 	case !isDir(frontend):
-		warnf("desktop", "%s not found; skipping.", frontend)
-		return
+		return fmt.Errorf("%s not found", frontend)
 	}
 
 	if !isDir(filepath.Join(frontend, "node_modules")) {
 		logf("desktop", "Installing frontend dependencies...")
-		if err := runIn(frontend, "npm", "install"); err != nil {
-			warnf("desktop", "frontend npm install failed; skipping.")
-			return
+		if err := runIn(frontend, "npm", "ci"); err != nil {
+			return fmt.Errorf("desktop frontend npm ci: %w", err)
 		}
 	}
 	logf("desktop", "Building frontend (React)...")
 	if err := runIn(frontend, "npm", "run", "build"); err != nil {
-		warnf("desktop", "frontend build failed; skipping.")
-		return
+		return fmt.Errorf("desktop frontend build: %w", err)
 	}
 	// -tags desktop selects desktop/assets_embed.go, which embeds desktop/dist.
 	// Without it the stub is compiled and the app refuses to start.
-	logf("desktop", "Running wails build...")
-	if err := runIn(desktopDir, "wails", "build", "-tags", "desktop"); err != nil {
-		warnf("desktop", "wails build failed (see above).")
-		return
+	logf("desktop", "Running pinned Wails build...")
+	if err := runIn(desktopDir, "go", "run", wailsCLIPkg, "build", "-tags", "desktop"); err != nil {
+		return fmt.Errorf("wails build: %w", err)
 	}
 	logf("desktop", "Built at %s", filepath.Join(desktopDir, "build"))
-	copyDesktopBinary()
+	return copyDesktopBinary()
 }
 
 // copyDesktopBinary puts the wails output next to the server and worker, so
 // `run desktop` finds all local binaries in one place. macOS builds an .app
 // bundle, which nests the executable a few levels down.
-func copyDesktopBinary() {
+func copyDesktopBinary() error {
 	candidates := []string{filepath.Join(desktopDir, "build", "bin", exe(desktopBinary))}
 	if runtime.GOOS == "darwin" {
 		bundled := filepath.Join(desktopDir, "build", "bin", "BuildMax.app", "Contents", "MacOS", desktopBinary)
@@ -143,17 +140,16 @@ func copyDesktopBinary() {
 			continue
 		}
 		if err := os.MkdirAll(binDir, 0o755); err != nil {
-			warnf("desktop", "could not create %s: %v", binDir, err)
-			return
+			return fmt.Errorf("create %s: %w", binDir, err)
 		}
 		dst := filepath.Join(binDir, exe(desktopBinary))
 		if err := copyFile(src, dst, 0o755); err != nil {
-			warnf("desktop", "could not copy binary: %v", err)
-			return
+			return fmt.Errorf("copy desktop binary: %w", err)
 		}
 		logf("desktop", "Copied binary to %s", dst)
-		return
+		return nil
 	}
+	return fmt.Errorf("wails build completed but no desktop binary was found under %s", filepath.Join(desktopDir, "build", "bin"))
 }
 
 func cmdClean() error {
@@ -181,12 +177,21 @@ func cmdClean() error {
 	return nil
 }
 
-func cmdTest() error {
+func cmdTest(args []string) error {
+	if len(args) > 1 || (len(args) == 1 && args[0] != "race") {
+		return fmt.Errorf("usage: %s test [race]", mk())
+	}
 	if _, err := useSandboxHome(); err != nil {
 		return err
 	}
-	fmt.Printf("Running tests (BUILDMAX_HOME=%s)...\n", sandboxDir)
-	return runCmd("go", "test", "./...")
+	runArgs := []string{"test", "./..."}
+	label := "tests"
+	if len(args) > 0 {
+		runArgs = []string{"test", "-race", "./..."}
+		label = "race tests"
+	}
+	fmt.Printf("Running %s (BUILDMAX_HOME=%s)...\n", label, sandboxDir)
+	return runCmd("go", runArgs...)
 }
 
 // Pinned to the versions .github/workflows/ci.yml runs, so a local pass means
@@ -197,8 +202,16 @@ const (
 )
 
 func cmdLint() error {
+	sandbox, err := useSandboxHome()
+	if err != nil {
+		return err
+	}
+	lintCache := filepath.Join(sandbox, "cache", "golangci-lint")
+	if err := os.MkdirAll(lintCache, 0o755); err != nil {
+		return err
+	}
 	fmt.Println("Running golangci-lint (see .golangci.yml)...")
-	if err := runCmd("go", "run", golangciLintPkg, "run", "./..."); err != nil {
+	if err := runWith("", []string{"GOLANGCI_LINT_CACHE=" + lintCache}, "go", "run", golangciLintPkg, "run", "./..."); err != nil {
 		return err
 	}
 	fmt.Println("Checking for known vulnerabilities...")

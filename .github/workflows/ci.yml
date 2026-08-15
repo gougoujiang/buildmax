@@ -105,6 +105,44 @@ jobs:
       - name: Test
         run: .\make.bat test
 
+  contributor-quickstart:
+    name: Contributor quickstart (fresh clone)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            gui/package-lock.json
+            portal/package-lock.json
+            desktop/frontend/package-lock.json
+
+      - name: Use pinned npm
+        run: npm install --global npm@10.9.8
+
+      # These are the exact first commands in the contributor path. Running
+      # them in a pristine checkout catches missing generated files, inaccurate
+      # prerequisites, task-runner drift, and accidental writes to the repo.
+      - name: Diagnose toolchain
+        run: ./make doctor all
+
+      - name: Build CLI
+        run: ./make build cli
+
+      - name: Run tests
+        run: ./make test
+
+      - name: Verify quickstart leaves tracked files unchanged
+        run: git diff --exit-code
+
   frontend:
     name: Frontend (gui, portal, desktop)
     runs-on: ubuntu-latest
@@ -113,7 +151,15 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            gui/package-lock.json
+            portal/package-lock.json
+            desktop/frontend/package-lock.json
+
+      - name: Use pinned npm
+        run: npm install --global npm@10.9.8
 
       # portal depends on @buildmax/gui via a file: link, so gui builds first.
       # gui has no ESLint step: typescript-eslint does not support the
@@ -138,6 +184,10 @@ jobs:
           npm ci
           npm run lint
           npm run build
+          npm test
+
+      - name: Verify installs leave lockfiles unchanged
+        run: git diff --exit-code
 
   open-source-policy:
     name: Open source policy
@@ -149,7 +199,10 @@ jobs:
       # reads the lockfiles directly rather than through npm.
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: .node-version
+
+      - name: Use pinned npm
+        run: npm install --global npm@10.9.8
 
       - uses: actions/setup-go@v7
         with:

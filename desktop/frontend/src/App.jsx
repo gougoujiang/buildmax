@@ -473,7 +473,7 @@ export default function App() {
     app.GetRunStatus(currentProject.id, selectedId || '')
       .then((status) => setRunStatus(status ?? null))
       .catch(() => setRunStatus(null));
-  }, [wailsReady, app, currentProject?.id, selectedId]);
+  }, [wailsReady, app, currentProject, selectedId]);
 
   function handleLogout() {
     if (!app) return;
@@ -496,7 +496,7 @@ export default function App() {
         setSessionTitle(detail?.title?.trim() || 'Chat');
       })
       .catch((err) => setError(err?.message ?? String(err)));
-  }, [selectedId, app]);
+  }, [selectedId, app, newChatProject]);
 
   useEffect(() => {
     if (historyRef.current) {
@@ -1737,7 +1737,7 @@ function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentPr
       if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills ?? []);
       if (branchRes.status === 'fulfilled') setGitBranch(branchRes.value ?? '');
     });
-  }, [currentProject?.id, app]);
+  }, [currentProject, app]);
 
   // Close model dropdown on outside click.
   useEffect(() => {

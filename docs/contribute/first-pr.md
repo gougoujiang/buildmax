@@ -10,6 +10,7 @@ git, takes about fifteen minutes, and **does not need a model API key**.
 ```bash
 git clone https://github.com/gougoujiang/buildmax.git
 cd buildmax
+./make doctor
 ./make build cli
 ```
 
@@ -34,7 +35,7 @@ If you plan to touch Go code, also run what CI runs:
 
 ```bash
 ./make lint
-go test -race ./...
+./make test race
 ```
 
 ## 3. Pick Something Small
@@ -95,10 +96,11 @@ now — one imperative line, specific enough to stand alone.
 ## What CI Will Run
 
 Everything in [CONTRIBUTING.md § Pull Requests](../../CONTRIBUTING.md#pull-requests):
-formatting, `go mod tidy` cleanliness, build, vet, golangci-lint, govulncheck,
-the test suite with `-race`, the three frontend builds, a secret scan over git
-history, dependency license checks, and Markdown lint. None of it needs
-credentials, so it runs the same way on a fork.
+the documented fresh-clone commands, formatting, `go mod tidy` cleanliness,
+build, vet, golangci-lint, govulncheck, the test suite with `-race`, the three
+frontend builds and both frontend test suites, a secret scan over git history,
+dependency license checks, and Markdown lint. None of it needs credentials, so
+it runs the same way on a fork.
 
 ## If You Get Stuck
 

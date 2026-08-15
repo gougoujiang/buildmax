@@ -50,8 +50,17 @@ pre-releases and must be called out in release notes.
   project rather than its fixtures.
 - `.buildmax/README.md` explains why this repository checks in its own workspace
   agent configuration when `.claude/` and `.vibe/` stay ignored.
+- A contributor doctor, scoped `check` tasks, Node/npm/Wails version pins,
+  fresh-clone CI, Desktop frontend tests, and an implementation-task issue
+  template make both human and agent-assisted contributions reproducible.
 
 ### Changed
+
+- Full `./make build` is now strict and includes the Portal; frontend or Wails
+  failures no longer leave a successful partial build. Portal and Desktop lint
+  are zero-warning gates.
+- `AGENTS.md` is now a compact, stable navigation and constraint guide backed
+  by integrity tests for the repository's `.buildmax` agent configuration.
 
 - **Self-registration is closed by default.** `POST /api/otp/request` refuses
   `intent: signup` with 403 unless `server.yaml` sets `allow_signup: true`.
@@ -74,10 +83,10 @@ pre-releases and must be called out in release notes.
   Trademarks — moved to `.github/`, where GitHub surfaces them exactly as it does
   from the repository root. The root now carries only README, CONTRIBUTING,
   SECURITY, CHANGELOG, ROADMAP, LICENSE, and the agent instructions.
-- `AGENTS.md` no longer restates the repository tree, the build commands, or the
-  project conventions. Those have one home each:
+- `AGENTS.md` no longer duplicates the repository tree or detailed project
+  conventions. It keeps only a compact command/constraint guide and routes to
   `docs/contribute/repo-layout.md`, `CONTRIBUTING.md`, and the new
-  `docs/contribute/conventions.md`.
+  `docs/contribute/conventions.md` for the full sources of truth.
 
 ### Removed
 

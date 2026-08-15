@@ -138,7 +138,3 @@ func copyFile(src, dst string, perm fs.FileMode) error {
 func logf(tag, format string, args ...any) {
 	fmt.Printf("[%s] %s\n", tag, fmt.Sprintf(format, args...))
 }
-
-func warnf(tag, format string, args ...any) {
-	fmt.Printf("[%s] Warning: %s\n", tag, fmt.Sprintf(format, args...))
-}

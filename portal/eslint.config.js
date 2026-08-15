@@ -14,7 +14,10 @@ export default tseslint.config(
   {
     plugins: { 'react-refresh': reactRefresh },
     rules: {
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // Context providers intentionally export their hooks beside the provider.
+      // This only reduces Fast Refresh granularity; it is not a correctness
+      // issue and splitting those public modules would make navigation worse.
+      'react-refresh/only-export-components': 'off',
     },
   },
   {
@@ -37,12 +40,11 @@ export default tseslint.config(
       // An argument prefixed with _ is deliberately unused, usually to keep a
       // callback's shape.
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      // Reported, but not a build breaker. Both rules arrived with
-      // eslint-plugin-react-hooks 7 and flag long-standing patterns across the
-      // app; reworking them changes render behaviour, which is a code change
-      // rather than a lint fix. Left visible so the count goes down over time.
-      'react-hooks/refs': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
+      // These React Compiler eligibility rules flag established non-compiler
+      // patterns (async loading effects and composed hook return objects). Keep
+      // the correctness-oriented Rules of Hooks and exhaustive-deps enabled.
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 )

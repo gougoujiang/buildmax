@@ -8,6 +8,7 @@ package architecture_test
 // Conventions these enforce: docs/contribute/documentation.md.
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +43,8 @@ func markdownFiles(t *testing.T, root string) []string {
 		"ROADMAP.md",
 		"SECURITY.md",
 		"AGENTS.md",
+		"CLAUDE.md",
+		".buildmax/README.md",
 		// Community health files live in .github/, where GitHub still surfaces
 		// them; their links are checked from there.
 		".github/CODE_OF_CONDUCT.md",
@@ -209,6 +212,101 @@ func TestAgentsMDRoutesExist(t *testing.T) {
 		}
 		if !paths[route] {
 			t.Errorf("AGENTS.md documents route %q, which the server does not register", route)
+		}
+	}
+}
+
+// TestWorkspaceAgentConfigMatchesRepository guards the checked-in dogfooding
+// configuration against the same drift that affects human-facing docs. These
+// files are executable instructions: stale commands can make an agent dirty a
+// worktree or publish changes unexpectedly.
+func TestWorkspaceAgentConfigMatchesRepository(t *testing.T) {
+	root := repoRoot(t)
+	for _, rel := range []string{
+		".buildmax/skills/smoke/SKILL.md",
+		".buildmax/skills/vibe/SKILL.md",
+	} {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		for _, stale := range []string{"`go test ./...`", "module buildmax", "rm -rf"} {
+			if strings.Contains(string(body), stale) {
+				t.Errorf("%s contains stale or unsafe instruction %q", rel, stale)
+			}
+		}
+	}
+
+	module, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	moduleLine := strings.SplitN(string(module), "\n", 2)[0]
+	smoke, err := os.ReadFile(filepath.Join(root, ".buildmax", "skills", "smoke", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read smoke skill: %v", err)
+	}
+	if !strings.Contains(string(smoke), moduleLine) {
+		t.Errorf("smoke skill does not use current %q", moduleLine)
+	}
+}
+
+func TestWorkspaceSubagentToolsExist(t *testing.T) {
+	root := repoRoot(t)
+	known := map[string]bool{
+		tool.ToolNameRead: true, tool.ToolNameWrite: true, tool.ToolNameEdit: true,
+		tool.ToolNameGlob: true, tool.ToolNameGrep: true, tool.ToolNameBash: true,
+		tool.ToolNameWebFetch: true, tool.ToolNameTodoWrite: true,
+		tool.ToolNameSkill: true, tool.ToolNameTask: true,
+		tool.ToolNameLoadMCPTools: true, tool.ToolNameCallMCPTool: true,
+	}
+	files, err := filepath.Glob(filepath.Join(root, ".buildmax", "agents", "*.md"))
+	if err != nil {
+		t.Fatalf("list workspace agents: %v", err)
+	}
+	toolsLine := regexp.MustCompile(`(?m)^tools:\s*(.+)$`)
+	for _, file := range files {
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		match := toolsLine.FindStringSubmatch(string(body))
+		if match == nil {
+			t.Errorf("%s has no tools frontmatter", file)
+			continue
+		}
+		for _, name := range strings.Split(match[1], ",") {
+			name = strings.TrimSpace(name)
+			if !known[name] {
+				t.Errorf("%s cites unknown tool %q", file, name)
+			}
+		}
+	}
+}
+
+func TestWorkspaceMCPPathsExist(t *testing.T) {
+	root := repoRoot(t)
+	body, err := os.ReadFile(filepath.Join(root, ".buildmax", "mcp.json"))
+	if err != nil {
+		t.Fatalf("read .buildmax/mcp.json: %v", err)
+	}
+	var config struct {
+		Servers map[string]struct {
+			Args []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(body, &config); err != nil {
+		t.Fatalf("parse .buildmax/mcp.json: %v", err)
+	}
+	for server, cfg := range config.Servers {
+		for _, arg := range cfg.Args {
+			const prefix = "${WORKSPACE_ROOT}/"
+			if !strings.HasPrefix(arg, prefix) {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(root, strings.TrimPrefix(arg, prefix))); err != nil {
+				t.Errorf("MCP server %q cites missing workspace path %q", server, arg)
+			}
 		}
 	}
 }

@@ -1,6 +1,6 @@
 ---
 name: vibe
-description: "Full development lifecycle skill: create tasks, clarify requirements, design, implement, finish, detect code smells, build knowledge base, commit, push, and autopilot. Sub-commands: start, clarify, design, code, done, smell, kb, commit, push, go, help. All artifacts stored under .vibe/ directory."
+description: "Local development lifecycle skill: create tasks, clarify requirements, design, implement, verify, and finish. Commit and push are separate, explicit sub-commands. All working artifacts stay under the gitignored .vibe/ directory."
 ---
 
 # Vibe — Development Lifecycle
@@ -22,7 +22,7 @@ All task documents live under the `.vibe/` directory at the project root.
 | `/vibe kb [topic]` | Organize and maintain codebase knowledge base |
 | `/vibe commit` | Stage and commit changes with a generated message |
 | `/vibe push` | Push local commits to the remote branch |
-| `/vibe go <desc>` | Autopilot: run the full lifecycle non-interactively |
+| `/vibe go <desc>` | Autopilot locally: plan, implement, verify, and finish; never commit or push |
 | `/vibe help` | Show all sub-commands and brief descriptions |
 
 ## Resolving the target task
@@ -156,7 +156,7 @@ Takes the design document and writes the code.
 4. **Tests** — Add tests as specified. No real API calls in tests. Table-driven tests for multiple cases.
 5. **Verify**
    - Build: `go build ./...`
-   - Tests: `go test ./...`
+   - Tests: `./make test`
    - Confirm each acceptance criterion.
 
 ### Rules
@@ -286,7 +286,8 @@ Analyzes the codebase and produces organized knowledge documents under `docs/con
 
 ## `/vibe commit` — Stage and Commit Changes
 
-Inspects current changes, generates a conventional commit message, and commits.
+Inspects current changes, proposes an imperative commit subject, and commits
+only after the user explicitly chooses this command.
 
 ### When to use
 
@@ -297,29 +298,16 @@ Inspects current changes, generates a conventional commit message, and commits.
 
 1. **Inspect changes** — Run `git status` and `git diff` (or `git diff --staged` if already staged) to see what will be committed.
 2. **Check for problems** — Ensure no unintended files (e.g. secrets, build artifacts) are in the diff; adjust `.gitignore` or unstage if needed.
-3. **Generate commit message** — From the diff, write a single commit message in conventional format (see below).
+3. **Generate commit message** — From the diff, write a single imperative subject that follows `docs/contribute/conventions.md`.
 4. **Stage and commit** — Run `git add` as needed, then `git commit -m "<message>"`.
 
 ### Commit message format
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<type>(<scope>): <short description>
-
-[optional body]
-```
-
-**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`.
-
-**Examples:**
-
-- `feat(agent): add tool-call handling`
-- `fix(llm): correct API error mapping`
-- `docs: update README setup steps`
-- `chore(deps): bump go version`
-
-Keep the subject line under ~72 characters; start with a verb in imperative mood.
+Use one imperative subject line, specific enough to stand alone in
+`git log --oneline`. Examples: `Add tool-call handling`, `Correct API error
+mapping`, `Update the desktop build steps`. Add a body only when the reason is
+not obvious from the diff. Do not add a Conventional Commits type prefix unless
+the user explicitly requests one for a different repository.
 
 ### Rules
 
@@ -355,12 +343,15 @@ Pushes local commits to the remote branch.
 
 ## `/vibe go` — Autopilot (Full Lifecycle)
 
-Runs the entire lifecycle for a small, well-defined task **without pausing for confirmation** at each step. Equivalent to executing: **start → clarify → design → code → done → commit → push** in one shot.
+Runs the local lifecycle for a small, well-defined task **without pausing for
+confirmation** at each step. Equivalent to executing: **start → clarify →
+design → code → done** in one shot. It never commits or pushes; those remain
+separate commands that require an explicit user request.
 
 ### When to use
 
 - The user has a small, clearly-scoped task and wants it done end-to-end in one go
-- The user says "just do it", "handle this", or `/vibe go <description>`
+- The user explicitly invokes `/vibe go <description>`
 
 ### Workflow
 
@@ -371,15 +362,13 @@ Execute each phase sequentially. Use the same rules and workflows defined in eac
 3. **Design** — Produce the design doc (`/vibe design` workflow). For small tasks, the design can be brief.
 4. **Code** — Implement and verify (`/vibe code` workflow). Build and test must pass.
 5. **Done** — Move the task to Finished (`/vibe done` workflow).
-6. **Commit** — Stage and commit all changes (`/vibe commit` workflow). The commit message should cover both the `.vibe/` artifacts and the code changes.
-7. **Push** — Push to remote (`/vibe push` workflow).
 
 ### Abort conditions
 
 Stop the pipeline and report to the user if any of these occur:
 
 - **Build fails** — after the code phase, `go build ./...` does not succeed.
-- **Tests fail** — after the code phase, `go test ./...` does not succeed.
+- **Tests fail** — after the code phase, `./make test` does not succeed.
 - **Scope is too large** — during clarify, if the task clearly requires touching more than ~3-4 files or multiple packages, stop and suggest the user break it down or run each phase interactively.
 - **Ambiguity** — if the description is too vague to infer a single clear goal, stop and ask the user to clarify.
 
@@ -390,12 +379,17 @@ When aborting, report which phase failed and why, and leave all artifacts create
 - **No interactive prompts.** Make decisions autonomously based on the codebase and project conventions.
 - **Small tasks only.** This command is designed for focused, single-goal changes. Do not use it for large features.
 - **All sub-command rules still apply.** Each phase follows the same rules as its standalone sub-command.
-- **One commit for all changes.** Bundle `.vibe/` artifacts and code into a single commit.
+- **Keep working notes local.** `.vibe/` is gitignored scratch state and must not
+  be staged or committed.
+- **No repository publication.** Do not commit, push, open a pull request, or
+  publish anything as part of `/vibe go`.
 
 ### Output
 
-- **Primary**: A fully implemented, committed, and pushed task — code changes, `.vibe/` artifacts, and a git commit on the remote.
-- **In chat**: A brief end-to-end summary: task id, what was done, files changed, commit hash.
+- **Primary**: A fully implemented and locally verified task, with working notes
+  retained under `.vibe/`.
+- **In chat**: A brief summary: task id, what was done, files changed, and
+  verification results.
 
 ---
 
@@ -424,7 +418,7 @@ Vibe — Development Lifecycle
   /vibe kb [topic]      Organize and maintain codebase knowledge base
   /vibe commit          Stage and commit changes with a generated message
   /vibe push            Push local commits to the remote branch
-  /vibe go <desc>       Autopilot: full lifecycle non-interactively
+  /vibe go <desc>       Autopilot locally; never commit or push
   /vibe help            Show this help message
 
 [id] is optional — defaults to the last TODO task in .vibe/000-TOC.md.

@@ -4,7 +4,7 @@
   "outputfilename": "buildmax-desktop",
   "assetdir": "../../desktop/dist",
   "frontend:dir": "../../desktop/frontend",
-  "frontend:install": "npm install",
+  "frontend:install": "npm ci",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
