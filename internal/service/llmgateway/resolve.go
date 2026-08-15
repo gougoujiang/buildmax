@@ -112,17 +112,45 @@ func (r *Resolver) Resolve(ctx context.Context, req ResolveRequest) (Resolution,
 		return Resolution{}, ErrUnknownAlias
 	}
 
-	target, err := r.Catalog.Target(ctx, targetID)
+	target, err := r.targetByID(ctx, targetID, alias, req.Requires)
 	if err != nil {
 		return Resolution{}, err
 	}
-	if !target.Enabled {
-		return Resolution{}, ErrTargetDisabled
-	}
-	if missing := target.Capabilities.Missing(req.Requires); len(missing) > 0 {
-		return Resolution{}, &CapabilityError{Alias: alias, Missing: missing}
-	}
 	return Resolution{Alias: alias, Target: target}, nil
+}
+
+// ResolveTargetByID returns a catalog target the deployment itself selected,
+// without consulting team policy.
+//
+// Server-owned inference — Tier 1 conversation and title generation — is
+// configured by an operator rather than granted to a team, so it names a
+// catalog entry directly. Aliases stay a team-facing concept: nothing a
+// managed client submits reaches this path.
+func (r *Resolver) ResolveTargetByID(ctx context.Context, targetID string, requires []Capability) (Target, error) {
+	if r == nil || r.Catalog == nil {
+		return Target{}, ErrCatalogNotConfigured
+	}
+	if targetID == "" {
+		return Target{}, ErrTargetNotFound
+	}
+	return r.targetByID(ctx, targetID, targetID, requires)
+}
+
+// targetByID loads a target and applies the checks every caller needs. The
+// label names the target the way the caller asked for it, so an alias-based
+// failure talks about the alias and a deployment-owned one talks about the ID.
+func (r *Resolver) targetByID(ctx context.Context, targetID, label string, requires []Capability) (Target, error) {
+	target, err := r.Catalog.Target(ctx, targetID)
+	if err != nil {
+		return Target{}, err
+	}
+	if !target.Enabled {
+		return Target{}, ErrTargetDisabled
+	}
+	if missing := target.Capabilities.Missing(requires); len(missing) > 0 {
+		return Target{}, &CapabilityError{Alias: label, Missing: missing}
+	}
+	return target, nil
 }
 
 // Available lists the aliases a team may use, in a stable order.

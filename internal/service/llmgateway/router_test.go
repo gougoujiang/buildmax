@@ -271,6 +271,57 @@ func TestRouterNotConfigured(t *testing.T) {
 	}
 }
 
+func TestClientForTargetSharesTheClientCache(t *testing.T) {
+	factory := &countingFactory{}
+	router := testRouter(t, factory)
+	ctx := context.Background()
+
+	byAlias, err := router.ClientFor(ctx, llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "deep"})
+	if err != nil {
+		t.Fatalf("ClientFor: %v", err)
+	}
+	byTarget, err := router.ClientForTarget(ctx, "mt_deep", nil)
+	if err != nil {
+		t.Fatalf("ClientForTarget: %v", err)
+	}
+
+	// Server-owned inference and a team call on the same target must not open
+	// two clients, or the two paths can drift apart.
+	if byAlias.Client != byTarget.Client {
+		t.Error("alias and target resolution produced different clients")
+	}
+	if factory.count() != 1 {
+		t.Errorf("factory called %d times, want 1", factory.count())
+	}
+	if byTarget.Resolution.Alias != "" {
+		t.Errorf("Alias = %q, want empty for a deployment-owned target", byTarget.Resolution.Alias)
+	}
+}
+
+func TestClientForTargetErrors(t *testing.T) {
+	factory := &countingFactory{}
+	router := testRouter(t, factory)
+
+	if _, err := router.ClientForTarget(context.Background(), "mt_retired", nil); !errors.Is(err, llmgateway.ErrTargetDisabled) {
+		t.Errorf("want ErrTargetDisabled, got %v", err)
+	}
+	if _, err := router.ClientForTarget(context.Background(), "mt_gone", nil); !errors.Is(err, llmgateway.ErrTargetNotFound) {
+		t.Errorf("want ErrTargetNotFound, got %v", err)
+	}
+	if factory.count() != 0 {
+		t.Errorf("factory ran %d times for rejected targets, want 0", factory.count())
+	}
+
+	var nilRouter *llmgateway.Router
+	if _, err := nilRouter.ClientForTarget(context.Background(), "mt_fast", nil); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
+		t.Errorf("nil router: want ErrCatalogNotConfigured, got %v", err)
+	}
+	noFactory := &llmgateway.Router{Resolver: testResolver(t)}
+	if _, err := noFactory.ClientForTarget(context.Background(), "mt_fast", nil); !errors.Is(err, llmgateway.ErrFactoryNotConfigured) {
+		t.Errorf("want ErrFactoryNotConfigured, got %v", err)
+	}
+}
+
 func TestRouterAvailableDelegates(t *testing.T) {
 	router := testRouter(t, &countingFactory{})
 

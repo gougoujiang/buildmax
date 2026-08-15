@@ -90,6 +90,31 @@ func (r *Router) ClientFor(ctx context.Context, req ResolveRequest) (RoutedClien
 	return RoutedClient{Resolution: resolution, Client: client}, nil
 }
 
+// ClientForTarget returns a client for a catalog target the deployment itself
+// selected, bypassing team policy. Resolution.Alias is empty in the result
+// because no alias was involved.
+//
+// This is the path for Server-owned inference. It shares the resolver's
+// capability checks and the router's client cache with managed calls, so
+// in-process work and team calls cannot drift apart.
+func (r *Router) ClientForTarget(ctx context.Context, targetID string, requires []Capability) (RoutedClient, error) {
+	if r == nil {
+		return RoutedClient{}, ErrCatalogNotConfigured
+	}
+	if r.Factory == nil {
+		return RoutedClient{}, ErrFactoryNotConfigured
+	}
+	target, err := r.Resolver.ResolveTargetByID(ctx, targetID, requires)
+	if err != nil {
+		return RoutedClient{}, err
+	}
+	client, err := r.clientForTarget(ctx, target)
+	if err != nil {
+		return RoutedClient{}, err
+	}
+	return RoutedClient{Resolution: Resolution{Target: target}, Client: client}, nil
+}
+
 // Available lists the aliases a team may use. It delegates to the resolver so
 // callers depend on one type for both routing and discovery.
 func (r *Router) Available(ctx context.Context, teamID string) ([]AvailableModel, error) {

@@ -144,6 +144,23 @@ conversation:                        # Tier 1 model used by the Portal agent loo
     api_url: https://openrouter.ai/api/v1
     api_key: your-api-key
     context_window: 128000
+  # model_target: fast               # use an llm.targets id for Tier 1 instead
+
+# llm:                               # optional; see the table below
+#   aliases:
+#     default: fast
+#   default_alias: default
+#   targets:
+#     - id: fast
+#       name: Fast
+#       provider: openai_compatible
+#       model: openai/gpt-4o-mini
+#       api_url: https://openrouter.ai/api/v1
+#       api_key: your-api-key
+#       context_window: 128000
+#       call_timeout: 300
+#       capabilities: [text_chat, tool_calls, streaming_text, usage_reporting]
+#       disabled: false
 
 database:                            # MySQL
   host: localhost
@@ -195,6 +212,35 @@ buildmax-server user login-code alice@example.com
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
 storage directly rather than proxying through the server.
+
+### `llm` — model catalog
+
+The `llm` block is the operator-owned model catalog for the managed LLM gateway
+designed in [design/llm-gateway.md](../design/llm-gateway.md). It is optional and
+**partly implemented**: today it only changes which model the server itself uses.
+There is no gateway route and no managed client, so CLI, Desktop, and workers
+still call providers directly with their own credentials.
+
+| Key | Meaning |
+|---|---|
+| `llm.targets[].id` | Catalog ID referenced by `llm.aliases` and `conversation.model_target`. `conversation` is reserved. |
+| `llm.targets[].name` | Operator-facing display name. Defaults to the ID. |
+| `llm.targets[].provider` | Client implementation. `openai_compatible` is the only one implemented, and the default. |
+| `llm.targets[].model` | The provider's own model identifier. |
+| `llm.targets[].api_url` | Upstream base URL. Required. |
+| `llm.targets[].api_key` | Upstream credential. Required. |
+| `llm.targets[].context_window` | Usable context size; `0` uses the client default. |
+| `llm.targets[].call_timeout` | Per-call timeout in seconds; `0` uses the client default. |
+| `llm.targets[].capabilities` | `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting`. Omit to accept everything the provider's client contract guarantees. |
+| `llm.targets[].disabled` | Retires a target without deleting it. |
+| `llm.aliases` | Maps a team-facing alias to a target ID. **Leaving it empty means no team may use the gateway** — a catalog says which models exist, not who may call them. |
+| `llm.default_alias` | Alias used when a caller names none. Required when more than one alias exists. |
+| `conversation.model_target` | Runs Tier 1 on a catalog target instead of `conversation.model`. A catalog ID, not an alias: the server picks its own model rather than being granted one. |
+
+A server with no `llm` block behaves exactly as before: `conversation.model`
+serves Tier 1, and no team has managed access. A catalog that does not validate —
+an alias pointing at no target, an unknown capability, a target with no
+credential — fails startup rather than starting a server with no Tier 1 model.
 
 ## Data Directory Layout
 

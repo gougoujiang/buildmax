@@ -199,6 +199,54 @@ func TestResolveCapabilityErrorCarriesDetail(t *testing.T) {
 	}
 }
 
+func TestResolveTargetByIDBypassesTeamPolicy(t *testing.T) {
+	resolver := testResolver(t)
+
+	// "mt_deep" is in the catalog but reachable by no team alias here; the
+	// deployment can still select it for its own inference.
+	target, err := resolver.ResolveTargetByID(context.Background(), "mt_deep", []llmgateway.Capability{llmgateway.CapabilityTextChat})
+	if err != nil {
+		t.Fatalf("ResolveTargetByID: %v", err)
+	}
+	if target.UpstreamModel != "vendor/deep-1" {
+		t.Errorf("UpstreamModel = %q, want %q", target.UpstreamModel, "vendor/deep-1")
+	}
+}
+
+func TestResolveTargetByIDErrors(t *testing.T) {
+	resolver := testResolver(t)
+
+	tests := []struct {
+		name     string
+		targetID string
+		requires []llmgateway.Capability
+		want     error
+	}{
+		{name: "no id", want: llmgateway.ErrTargetNotFound},
+		{name: "unknown id", targetID: "mt_gone", want: llmgateway.ErrTargetNotFound},
+		{name: "disabled", targetID: "mt_retired", want: llmgateway.ErrTargetDisabled},
+		{
+			name:     "unsupported capability",
+			targetID: "mt_deep",
+			requires: []llmgateway.Capability{llmgateway.CapabilityToolCalls},
+			want:     llmgateway.ErrCapabilityUnsupported,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := resolver.ResolveTargetByID(context.Background(), tc.targetID, tc.requires); !errors.Is(err, tc.want) {
+				t.Fatalf("want %v, got %v", tc.want, err)
+			}
+		})
+	}
+
+	var nilResolver *llmgateway.Resolver
+	if _, err := nilResolver.ResolveTargetByID(context.Background(), "mt_fast", nil); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
+		t.Errorf("nil resolver: want ErrCatalogNotConfigured, got %v", err)
+	}
+}
+
 func TestResolveNotConfigured(t *testing.T) {
 	var nilResolver *llmgateway.Resolver
 	if _, err := nilResolver.Resolve(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {

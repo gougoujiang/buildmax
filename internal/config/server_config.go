@@ -26,6 +26,7 @@ type ServerConfig struct {
 	WorkspacesDir    string              `mapstructure:"workspaces_dir"`
 	DefaultQuotaTier string              `mapstructure:"default_quota_tier"`
 	Conversation     ServerConvConfig    `mapstructure:"conversation"`
+	LLM              ServerLLMConfig     `mapstructure:"llm"`
 	Database         ServerDBConfig      `mapstructure:"database"`
 	Webhook          ServerWebhookConfig `mapstructure:"webhook"`
 	Worker           ServerWorkerConfig  `mapstructure:"worker"`
@@ -35,6 +36,51 @@ type ServerConfig struct {
 // ServerConvConfig holds Tier 1 conversation LLM settings.
 type ServerConvConfig struct {
 	Model ServerModelEntry `mapstructure:"model"`
+	// ModelTarget names an llm.targets entry to use for Tier 1 inference
+	// instead of the model above. It is a catalog ID, not a team alias: the
+	// server picks its own model rather than being granted one.
+	ModelTarget string `mapstructure:"model_target"`
+}
+
+// ServerLLMConfig is the operator-owned model catalog and the deployment-wide
+// team model policy used by the managed LLM gateway.
+//
+// It is optional. A server with no llm section still serves Tier 1
+// conversations from conversation.model, and grants no team any managed model.
+type ServerLLMConfig struct {
+	// DefaultAlias is the alias used when a managed caller names none.
+	DefaultAlias string `mapstructure:"default_alias"`
+	// Aliases maps a stable alias such as "fast" to a target id in Targets.
+	// Leaving it empty means no team may call the gateway.
+	Aliases map[string]string `mapstructure:"aliases"`
+	// Targets is the catalog of operator-approved upstreams.
+	Targets []ServerLLMTarget `mapstructure:"targets"`
+}
+
+// ServerLLMTarget is one operator-approved upstream in the model catalog.
+type ServerLLMTarget struct {
+	// ID is referenced by Aliases and by conversation.model_target.
+	ID string `mapstructure:"id"`
+	// Name is the operator-facing display name shown to clients.
+	Name string `mapstructure:"name"`
+	// Provider selects the client implementation. Empty means OpenAI-compatible.
+	Provider string `mapstructure:"provider"`
+	// Model is the provider's own model identifier.
+	Model string `mapstructure:"model"`
+	// APIURL is the upstream base URL.
+	APIURL string `mapstructure:"api_url"`
+	// APIKey is the upstream credential.
+	APIKey string `mapstructure:"api_key"`
+	// ContextWindow is the usable context size; 0 uses the client default.
+	ContextWindow int `mapstructure:"context_window"`
+	// CallTimeout bounds one upstream call in seconds; 0 uses the client default.
+	CallTimeout int `mapstructure:"call_timeout"`
+	// Capabilities is what this target supports. Empty means the capability set
+	// the provider's client contract already guarantees.
+	Capabilities []string `mapstructure:"capabilities"`
+	// Disabled retires a target without deleting it. The zero value is usable on
+	// purpose: a configured target works unless an operator turns it off.
+	Disabled bool `mapstructure:"disabled"`
 }
 
 // ServerModelEntry is the LLM model used for Tier 1 conversation.
