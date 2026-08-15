@@ -1,0 +1,26 @@
+# BuildMax local settings, created by `buildmax init`.
+#
+# Reference:  https://github.com/gougoujiang/buildmax/blob/main/docs/reference/configuration.md
+# Every key: config-examples/settings.example.yaml in the repository.
+
+log_level: info
+
+# LLM models available to the CLI and the desktop app.
+# The first entry is the default; pick another with `buildmax --model <name>`.
+models:
+  - model: {{ q .Model }}
+    name: {{ q .Name }}
+    api_url: {{ q .APIURL }}
+    api_key: {{ q .APIKey }}
+    context_window: {{ .ContextWindow }}
+
+# Add more models by repeating the block above.
+
+# Optional blocks, both disabled by default:
+#
+#   sandbox:  confine Bash subprocesses by filesystem path and network domain.
+#             docs/guide/sandbox.md — check host support with `buildmax sandbox deps`.
+#   hooks:    observe or block events in the agent loop (13 events, 4 transports).
+#             docs/guide/hooks.md
+#
+# config-examples/settings.example.yaml carries both, fully commented.
