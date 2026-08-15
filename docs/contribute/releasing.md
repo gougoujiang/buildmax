@@ -77,6 +77,13 @@ After the workflow completes:
    [the installation guide](../start/install.md).
 5. Pull `ghcr.io/gougoujiang/buildmax:<version>` by digest and confirm the
    container starts. Alpha versions must not move the `latest` tag.
+6. Confirm `ghcr.io/gougoujiang/buildmax-portal:<version>` exists and carries
+   the **same** version. It is published by a separate workflow
+   (`.github/workflows/portal-image.yml`) triggered by the same tag, so a
+   failure there leaves the binaries released and the Portal image missing —
+   which is the intended trade, but it has to be checked rather than assumed.
+   Run it with `BUILDMAX_API_BASE` set and confirm `/config.js` carries the
+   value.
 
 The Wails desktop application is not part of the release workflow because its
 native bundles are not yet signed or notarized.
