@@ -122,7 +122,8 @@ internal/
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
-│   └── quota/          Team quota enforcement
+│   ├── quota/          Team quota enforcement
+│   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
 │
 ├── tool/               Runtime agent tools: Read, Write, Edit, Bash, Glob, Grep,
 │                       WebFetch, TodoWrite, Skill, Task, and the MCP gateway.
@@ -132,6 +133,8 @@ internal/
 │   ├── db/             MySQL/GORM implementation of the core repositories
 │   ├── objectstore/    Local FS and S3/MinIO persist + artifact storage
 │   ├── llm/            OpenAI-compatible LLM client
+│   ├── llmwire/        Versioned wire contract for managed inference
+│   ├── llmremote/      LLM client that calls a BuildMax managed gateway
 │   ├── mcp/            MCP protocol, client transport, registry
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
