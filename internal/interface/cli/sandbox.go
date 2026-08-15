@@ -20,13 +20,13 @@ func yamlMarshal(v any) ([]byte, error)                    { return yaml.Marshal
 
 // newSandboxCommand builds `buildmax sandbox` with its subcommands. Phase A
 // ships `status` only; later phases add `deps`, `mode`, `enable`, `disable`,
-// and `overrides`. See docs/design/032-sandbox-and-execution-boundaries.md §8.
+// and `overrides`. See docs/design/sandbox-boundaries.md §8.
 func newSandboxCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sandbox",
 		Short: "Inspect and manage the BuildMax sandbox",
 		Long: "Bash subprocess sandbox configuration. Mirrors the layout of Claude Code's /sandbox panel.\n" +
-			"See docs/design/032-sandbox-and-execution-boundaries.md for the full design.",
+			"See docs/design/sandbox-boundaries.md for the full design.",
 	}
 	cmd.AddCommand(newSandboxStatusCommand())
 	cmd.AddCommand(newSandboxDepsCommand())

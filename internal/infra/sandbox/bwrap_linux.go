@@ -99,7 +99,7 @@ func buildBwrapArgs(p WrapParams) []string {
 
 // expandPaths trims empty entries from a settings array. Phase B leaves
 // path semantics (`~/`, `./`, absolute) to the OS; Phase D moves to a
-// full resolver that honors doc 032 §4.3.
+// full resolver that honors docs/design/sandbox-boundaries.md §4.3.
 func expandPaths(in []string, _ string) []string {
 	out := make([]string, 0, len(in))
 	for _, p := range in {

@@ -43,7 +43,7 @@ func readTrace(t *testing.T, sessionID, traceID string) []map[string]any {
 }
 
 // TestAgentApp_RunPromptWritesTrace is the end-to-end check for the durable run
-// trace (docs/design/034 §9): after a RunPrompt on any surface, the reported
+// trace (docs/design/durable-run-trace.md §9): after a RunPrompt on any surface, the reported
 // TraceID resolves to a JSONL file that opens with run_start and closes with
 // run_end. It uses the hook-blocked turn because that path reaches the recorder
 // without needing a live LLM, and it also covers the early-return branch that

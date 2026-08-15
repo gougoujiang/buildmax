@@ -3,16 +3,17 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `draft`
-- follows: [030-agent-core-p0-5-trust-harness.md](./030-agent-core-p0-5-trust-harness.md)
+- status: `implemented` — 13 events and all four transports are shipped;
+  optional inspector and frontmatter integrations remain deferred
+- follows: [trust-harness.md](./trust-harness.md)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-23`
 
 ## 1. Purpose
 
-The current hook system (shipped alongside §3.1 of the trust-harness design)
-covers five events with a single shell transport and a single global
-configuration location. This document expands hooks to approximate parity with
+The predecessor hook system (shipped alongside §3.1 of the trust-harness
+design) covered five events with a single shell transport and a single global
+configuration location. This design expands hooks to approximate parity with
 Claude Code's documented hook design:
 
 - Workspace-scoped definitions in addition to the global `settings.yaml`.
@@ -544,7 +545,7 @@ D8. Tests for every new event using the existing `recordingHookRunner`
 E1. Expand `config-examples/settings.example.yaml` with one example per
     type.
 E2. New `config-examples/hooks.workspace.example.yaml` for workspace-level.
-E3. Update `design/030-agent-core-p0-5-trust-harness.md`: §3.1 marks hooks ✅
+E3. Update `design/trust-harness.md`: §3.1 marks hooks ✅
     with the shipped event list.
 E4. Update CLAUDE.md to point at the new events and locations.
 

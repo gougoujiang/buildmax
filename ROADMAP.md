@@ -180,9 +180,9 @@ Core stability, and the Portal outcome surface — are done. What remains:
 
 - [README.md](README.md) — current system overview
 - [docs/design/README.md](docs/design/README.md) — design document index
-- [docs/design/023-desktop-cli-portal-positioning.md](docs/design/023-desktop-cli-portal-positioning.md) — product surface positioning
-- [docs/design/030-agent-core-p0-5-trust-harness.md](docs/design/030-agent-core-p0-5-trust-harness.md) — P0.5 Agent Core trust harness design
-- [docs/design/027-enterprise-deployment-loop.md](docs/design/027-enterprise-deployment-loop.md) — P3 Enterprise deployment loop design
-- [docs/design/028-team-governance-foundation.md](docs/design/028-team-governance-foundation.md) — P4 Team governance foundation design
-- [docs/design/029-versioned-workspace-design.md](docs/design/029-versioned-workspace-design.md) — P5 Versioned workspace design
-- [docs/design/001-about-portal.md](docs/design/001-about-portal.md) — long-range AI-native workspace vision
+- [docs/design/product-vision.md](docs/design/product-vision.md) — long-range AI-native workspace vision
+- [docs/design/surface-positioning.md](docs/design/surface-positioning.md) — product surface positioning
+- [docs/design/trust-harness.md](docs/design/trust-harness.md) — P0.5 Agent Core trust harness design
+- [docs/design/enterprise-deployment.md](docs/design/enterprise-deployment.md) — P3 Enterprise deployment design
+- [docs/design/team-governance.md](docs/design/team-governance.md) — P4 Team governance design
+- [docs/design/versioned-workspace.md](docs/design/versioned-workspace.md) — P5 Versioned workspace design

@@ -7,7 +7,8 @@ import (
 )
 
 // Violation is one recorded sandbox decision (allow or deny) for status
-// display, trace export, and audit hooks. The schema mirrors doc 032 §11.3.
+// display, trace export, and audit hooks. The schema mirrors
+// docs/design/sandbox-boundaries.md §11.3.
 type Violation struct {
 	Time       time.Time `json:"time"`
 	Kind       string    `json:"kind"`           // "net_deny" | "net_allow" | "sandbox_disabled" | "backend_unavailable"

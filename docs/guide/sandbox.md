@@ -4,7 +4,7 @@
 > every surface**
 >
 > Design rationale, backend details, and remaining gaps:
-> [design/032-sandbox-and-execution-boundaries.md](../design/032-sandbox-and-execution-boundaries.md)
+> [design/sandbox-boundaries.md](../design/sandbox-boundaries.md)
 
 The sandbox confines the subprocesses started by the `Bash` tool: which paths
 they may read and write, and which network destinations they may reach. It is
@@ -110,7 +110,7 @@ The sandbox is genuinely useful today, but it is not finished:
 - hook transports are not themselves sandboxed
 
 Track the remaining work in
-[design/032 §13.1](../design/032-sandbox-and-execution-boundaries.md). Do not
+[sandbox design §13.1](../design/sandbox-boundaries.md). Do not
 treat the sandbox as a substitute for reviewing what a deployment is allowed to
 reach.
 

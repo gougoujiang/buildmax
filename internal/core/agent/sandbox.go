@@ -4,7 +4,7 @@ import "context"
 
 // SandboxView is the read-only contract tools see for sandbox state.
 //
-// Mirrors the design in docs/design/032-sandbox-and-execution-boundaries.md: the
+// Mirrors the design in docs/design/sandbox-boundaries.md: the
 // sandbox isolates Bash subprocesses; non-bash tools (Read/Write/Edit/etc.)
 // use the existing permission system, not this contract.
 //
@@ -20,7 +20,7 @@ type SandboxView interface {
 	// false, tools should fall back to current (pre-sandbox) behavior.
 	Enabled() bool
 
-	// Mode is "auto_allow" or "regular". See doc 032 §5 for semantics.
+	// Mode is "auto_allow" or "regular". See docs/design/sandbox-boundaries.md §5.
 	// Returns "" when Enabled() is false.
 	Mode() string
 

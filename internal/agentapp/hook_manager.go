@@ -50,7 +50,7 @@ func NewHookManager(cfg config.HooksConfig, drivers map[string]hook.Driver) *Hoo
 	}
 }
 
-// Run implements agent.HookRunner. See docs/design/031-hook-system-v2.md §8.2 for
+// Run implements agent.HookRunner. See docs/design/hook-system.md §8.2 for
 // the dispatch flow. The first matching entry that returns a block decision
 // wins for the gate; every other matching entry still executes so audit
 // hooks see every event.

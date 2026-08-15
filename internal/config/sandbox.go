@@ -20,7 +20,7 @@ func PolicyPath() string {
 // Key names mirror Claude Code's sandbox schema (snake_case per CLAUDE.md
 // §6.1) so users and operators familiar with that product can port
 // configuration directly. Detail design lives in
-// docs/design/032-sandbox-and-execution-boundaries.md.
+// docs/design/sandbox-boundaries.md.
 //
 // Phase A only loads and resolves these values — nothing enforces them yet.
 type SandboxConfig struct {
@@ -66,7 +66,7 @@ type SandboxConfig struct {
 }
 
 // SandboxFSConfig mirrors Claude Code's sandbox.filesystem schema. Paths
-// follow standard conventions documented in doc 032 §4.3.
+// follow standard conventions documented in docs/design/sandbox-boundaries.md §4.3.
 type SandboxFSConfig struct {
 	AllowWrite []string `mapstructure:"allow_write" json:"allow_write,omitempty" yaml:"allow_write,omitempty"`
 	DenyWrite  []string `mapstructure:"deny_write"  json:"deny_write,omitempty"  yaml:"deny_write,omitempty"`
@@ -107,7 +107,7 @@ const (
 	// match today's behavior: sandbox off unless the user opts in.
 	SandboxSurfaceCLI SandboxSurface = "cli"
 	// SandboxSurfaceWorker is the buildmax-worker default surface.
-	// Defaults satisfy doc 030 §3.2's "stricter than trusted local."
+	// Defaults satisfy docs/design/trust-harness.md §3.2's "stricter than trusted local."
 	SandboxSurfaceWorker SandboxSurface = "worker"
 )
 
@@ -156,7 +156,7 @@ type SandboxResolution struct {
 const EnvKeyBuildmaxSandboxEnabled = "BUILDMAX_SANDBOX_ENABLED"
 
 // ResolveSandbox merges settings + policy + env + surface defaults into a
-// final SandboxConfig. Mirrors the layering in doc 032 §4.1.
+// final SandboxConfig. Mirrors the layering in docs/design/sandbox-boundaries.md §4.1.
 //
 // Precedence (highest wins for scalars; arrays union):
 //  1. Env (BUILDMAX_SANDBOX_ENABLED).

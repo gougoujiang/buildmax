@@ -4,7 +4,7 @@
 
 - roadmap_priority: `P5`
 - status: `ready_for_review`
-- follows: [028-team-governance-foundation.md](./028-team-governance-foundation.md)
+- follows: [team-governance.md](./team-governance.md)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-17`
 
@@ -13,7 +13,7 @@
 P5 should define the minimum versioned workspace model before broad
 implementation begins.
 
-This is the long-term product center from [001-about-portal.md](./001-about-portal.md):
+This is the long-term product center from [product-vision.md](./product-vision.md):
 
 - user expresses intent
 - agent changes workspace state

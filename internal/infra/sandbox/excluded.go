@@ -1,6 +1,6 @@
 // Package sandbox provides the OS-level bash subprocess sandbox.
 //
-// See docs/design/032-sandbox-and-execution-boundaries.md. This file implements
+// See docs/design/sandbox-boundaries.md. This file implements
 // the excluded_commands matcher — commands the user has opted out of the
 // sandbox. Per upstream's NOTE in src/tools/BashTool/shouldUseSandbox.ts:
 // "excludedCommands is a user-facing convenience, not a security boundary."
