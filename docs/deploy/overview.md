@@ -150,7 +150,8 @@ Both are published per release tag, from `.goreleaser.yaml` and
 `.github/workflows/portal-image.yml` respectively. They are built by separate
 workflows so a frontend failure cannot hold up the binaries.
 
-`Dockerfile.buildmax` builds the Go binaries from source for local use;
+`deployment/docker/Dockerfile.buildmax` builds the Go binaries from source for
+local use;
 `deployment/buildmax-deploy.yaml` is a working Kubernetes manifest — namespace,
 Secret, Deployment, Service, and Ingress — used by `./make deploy` against a
 local kind cluster, and a starting point for a real one.

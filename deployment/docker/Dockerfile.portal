@@ -1,6 +1,8 @@
 # BuildMax Portal — React/Vite static build, served by nginx.
 #
-# Build: docker build -f Dockerfile.portal -t buildmax-portal:local .
+# The build context is the repository root, not this directory.
+#
+# Build: docker build -f deployment/docker/Dockerfile.portal -t buildmax-portal:local .
 # Run:   docker run -p 8080:80 -e BUILDMAX_API_BASE=http://localhost:5678 buildmax-portal:local
 #
 # The published image is ghcr.io/gougoujiang/buildmax-portal, built by

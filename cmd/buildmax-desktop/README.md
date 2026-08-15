@@ -37,7 +37,7 @@ Output: `build/bin/buildmax-desktop` (or platform-specific path under `build/`).
 To build the React frontend only (e.g. for testing): `cd desktop/frontend && npm install && npm run build`.
 
 **Note:** `-tags desktop` is required. The frontend bundle in
-`desktop/frontend/dist/` is embedded only under that tag, so that plain
+`desktop/dist/` is embedded only under that tag, so that plain
 `go build ./...` keeps working on a checkout where the bundle has not been built
 yet. `wails build -tags desktop` produces the bundle first, and `./make build`
 does the same. A binary built without the tag refuses to start and prints how to
@@ -67,5 +67,5 @@ The desktop app uses the same application data directory as the CLI: **`BUILDMAX
 ## Project layout
 
 - **`cmd/buildmax-desktop/`** — Entrypoint only: `main.go`, `wails.json`.
-- **`desktop/`** (repo root) — React + Vite app in `desktop/frontend/` (src/, index.html, package.json). `desktop/assets_embed.go` embeds `frontend/dist/` under the `desktop` build tag; `desktop/assets_stub.go` is compiled without it and embeds nothing. Wails runs `npm run build` to produce `dist/`, then the Go binary serves it.
+- **`desktop/`** (repo root) — React + Vite app in `desktop/frontend/` (src/, index.html, package.json). Wails runs `npm run build`, which writes the bundle to `desktop/dist/`; `desktop/assets_embed.go` embeds it under the `desktop` build tag, and `desktop/assets_stub.go` is compiled without the tag and embeds nothing. The bundle sits beside the Go package rather than inside `frontend/` because `frontend/` is a separate Go module and `//go:embed` cannot cross a module boundary.
 - **`internal/interface/desktop`** — App logic (App, Run, Startup/Shutdown).

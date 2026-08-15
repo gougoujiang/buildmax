@@ -15,7 +15,11 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: 'dist',
+    // Built one level up, into desktop/dist, rather than inside this directory.
+    // desktop/assets_embed.go embeds it, and //go:embed cannot cross a module
+    // boundary — this directory is its own Go module so that the node_modules
+    // it installs stays out of the root module. See ../../portal/go.mod.
+    outDir: '../dist',
     emptyOutDir: true,
   },
 });

@@ -85,6 +85,21 @@ done. Everything it did is recorded in a durable trace under
 working tree you can `git diff` and revert. For stronger isolation, enable the
 bash sandbox — see [guide/sandbox.md](../guide/sandbox.md).
 
+If you would rather not point it at your own code yet, clone the BuildMax
+repository and use the throwaway data it ships.
+[`sample-data/`](../../sample-data/README.md) has fifteen small datasets — an
+access log, an expense ledger, a book catalog — each with a README listing its
+columns:
+
+```bash
+git clone https://github.com/gougoujiang/buildmax
+buildmax --workspace buildmax/sample-data/access_log \
+  -p "Which paths return the most 5xx responses, and how slow are they?"
+```
+
+The data is mostly Chinese on purpose, so a run that mishandles multibyte text
+shows it there rather than in your own repository.
+
 ## 4. Use the TUI
 
 Running with no flags opens the terminal UI, which keeps a multi-turn

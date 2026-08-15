@@ -10,6 +10,7 @@ Organized by what you are trying to do.
 | [start/quickstart.md](start/quickstart.md) | First agent run, in five minutes |
 | [start/support.md](start/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
 | [start/concepts.md](start/concepts.md) | Surfaces, the agent loop, teams, and the two tiers |
+| [../sample-data/](../sample-data/README.md) | Fifteen throwaway datasets to try the agent's tools against |
 
 ## Use It
 

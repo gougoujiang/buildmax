@@ -17,12 +17,44 @@ buildmax/
 ├── gui/                  Shared React package @buildmax/gui, used by both
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
-├── deployment/           Kubernetes manifests and migrations
+├── deployment/           Kubernetes manifests, migrations, Compose, Dockerfiles
 ├── setup/                Local kind infrastructure manifests
 ├── eval/                 Agent benchmark task catalog
 ├── sample-data/          Datasets for demoing and exercising the agent tools
-└── scripts/              Repository scripts (third-party notice generation)
+└── scripts/              Release and license tooling run by CI
 ```
+
+`deployment/` holds everything needed to run a deployment rather than to build
+one binary:
+
+| Path | Contents |
+|---|---|
+| `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
+| `deployment/compose/` | Single-machine Compose stack; see [deploy/compose.md](../deploy/compose.md) |
+| `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
+| `deployment/migrations/` | One-off SQL migrations |
+| `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
+
+`setup/` is distinct from `deployment/`: it holds the manifests that stand up a
+**local development** kind cluster — the kind config, ingress-nginx, MySQL, and
+MinIO — and is never part of a real deployment. The orchestration that applies
+them lives in `cmd/mk/kind.go`, behind `./make kind up`. `scripts/` is neither —
+it is repository tooling invoked from CI and the release process: third-party
+notice generation, npm license checks, and release-archive verification.
+
+## Nested Go Modules
+
+Two kinds of directory sit outside the root module, each with its own `go.mod`:
+
+- **`gui/`, `portal/`, `desktop/frontend/`** contain no Go code. Their `go.mod`
+  is a boundary. The Go tool has no special case for `node_modules` the way it
+  does for `testdata`, so without it every `go build ./...`, `go vet ./...`,
+  `go test ./...`, and `go mod tidy` at the root compiles whatever Go sources
+  npm packages happen to ship — the `flatted` package, pulled in transitively
+  by ESLint, ships one. Any directory that runs `npm install` needs one;
+  `internal/architecture` has a test that enforces this.
+- **Each `eval/NNN-*/` fixture** is its own module so the benchmark's
+  deliberately-broken code is never built or linted with the project's own.
 
 ## Binaries
 

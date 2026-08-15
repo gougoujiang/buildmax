@@ -72,11 +72,14 @@ portal/node_modules/
 portal/dist/
 portal/*.tsbuildinfo
 
-# Desktop app (Wails) — frontend in desktop/frontend (React + Vite)
+# Desktop app (Wails) — frontend in desktop/frontend (React + Vite).
+# Vite writes its bundle to desktop/dist, not desktop/frontend/dist, so that
+# desktop/assets_embed.go can embed it: desktop/frontend is a separate Go module
+# and //go:embed cannot cross a module boundary.
 cmd/buildmax-desktop/build/
+desktop/dist/
 desktop/frontend/wailsjs/
 desktop/frontend/node_modules/
-desktop/frontend/dist/
 desktop/frontend/.env
 desktop/frontend/.env.*
 desktop/frontend/*.tsbuildinfo

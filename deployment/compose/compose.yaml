@@ -43,7 +43,7 @@ services:
     image: ghcr.io/gougoujiang/buildmax:${BUILDMAX_VERSION:-dev}
     build:
       context: ../..
-      dockerfile: Dockerfile.buildmax
+      dockerfile: deployment/docker/Dockerfile.buildmax
     entrypoint: ["/usr/local/bin/buildmax-server"]
     restart: unless-stopped
     depends_on:
@@ -74,7 +74,7 @@ services:
     image: ghcr.io/gougoujiang/buildmax-portal:${BUILDMAX_VERSION:-dev}
     build:
       context: ../..
-      dockerfile: Dockerfile.portal
+      dockerfile: deployment/docker/Dockerfile.portal
     restart: unless-stopped
     environment:
       # The browser calls this, not the container, so it is the address on the

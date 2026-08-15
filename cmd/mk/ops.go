@@ -107,8 +107,8 @@ func buildAndLoadKindImages(cluster string, includeSmoke bool) error {
 		tag        string
 		dockerfile string
 	}{
-		{"buildmax:local", "Dockerfile.buildmax"},
-		{"buildmax-portal:local", "Dockerfile.portal"},
+		{"buildmax:local", filepath.Join("deployment", "docker", "Dockerfile.buildmax")},
+		{"buildmax-portal:local", filepath.Join("deployment", "docker", "Dockerfile.portal")},
 	}
 	if includeSmoke {
 		images = append(images, struct {
