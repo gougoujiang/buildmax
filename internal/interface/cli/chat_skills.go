@@ -59,7 +59,7 @@ func (p *slashSkillsState) Render(_ *Model, maxLineWidth int) string {
 		if linesOut+2 > slashMCPInlinePanelMaxContentLines {
 			rem := len(p.Entries) - shown
 			if rem > 0 {
-				b.WriteString(fmt.Sprintf("… %d more\n", rem))
+				fmt.Fprintf(&b, "… %d more\n", rem)
 			}
 			break
 		}

@@ -156,20 +156,20 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		upstream.Close()
+		_ = upstream.Close()
 		http.Error(w, "sandbox proxy: hijack unsupported", http.StatusInternalServerError)
 		return
 	}
 	client, _, err := hj.Hijack()
 	if err != nil {
-		upstream.Close()
+		_ = upstream.Close()
 		return
 	}
 	// We have already not written any body yet; we must write the 200
 	// response on the raw conn ourselves.
 	if _, err := client.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
-		upstream.Close()
-		client.Close()
+		_ = upstream.Close()
+		_ = client.Close()
 		return
 	}
 	go pipe(upstream, client)
@@ -207,7 +207,7 @@ func (p *Proxy) handlePlainHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sandbox proxy: upstream error: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	for k, vs := range resp.Header {
 		if isHopByHop(k) {
 			continue
@@ -255,8 +255,8 @@ var proxyHTTPClient = &http.Client{
 // by closing the writer side. Used to bridge CONNECT tunnels.
 func pipe(dst io.WriteCloser, src io.ReadCloser) {
 	_, _ = io.Copy(dst, src)
-	dst.Close()
-	src.Close()
+	_ = dst.Close()
+	_ = src.Close()
 }
 
 // isHopByHop reports whether a header should be stripped per RFC 7230

@@ -39,33 +39,6 @@ type issueOutputResponse struct {
 	CreatedAt        int64                `json:"created_at"`
 }
 
-// outputKindForPath returns a short kind label for a relative path.
-// Returns "" if the file is not a previewable text-like kind.
-func outputKindForPath(relPath string) string {
-	ext := strings.ToLower(extOf(relPath))
-	switch ext {
-	case ".md", ".markdown":
-		return "markdown"
-	case ".txt":
-		return "text"
-	case ".json":
-		return "json"
-	case ".yaml", ".yml":
-		return "yaml"
-	case ".csv":
-		return "csv"
-	}
-	return ""
-}
-
-func extOf(p string) string {
-	i := strings.LastIndex(p, ".")
-	if i < 0 {
-		return ""
-	}
-	return p[i:]
-}
-
 func cleanOutputID(taskRunID, relPath string) string {
 	cleaned := strings.ReplaceAll(relPath, "/", "_")
 	cleaned = strings.ReplaceAll(cleaned, ".", "_")

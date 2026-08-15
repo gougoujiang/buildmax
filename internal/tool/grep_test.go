@@ -137,7 +137,9 @@ func TestGrep_Execute_pathNotFound(t *testing.T) {
 func TestGrep_Execute_pathIsFile(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "hello.go")
-	os.WriteFile(f, []byte("hello world\nfoo bar\n"), 0644)
+	if err := os.WriteFile(f, []byte("hello world\nfoo bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -155,9 +157,15 @@ func TestGrep_Execute_pathIsFile(t *testing.T) {
 func TestGrep_Execute_pathIsDirectory(t *testing.T) {
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "sub")
-	os.MkdirAll(sub, 0755)
-	os.WriteFile(filepath.Join(sub, "a.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644)
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "a.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	// Search only sub directory
@@ -178,10 +186,16 @@ func TestGrep_Execute_pathIsDirectory(t *testing.T) {
 
 func TestGrep_Execute_omittedPathSearchesRoot(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "root.txt"), []byte("findme\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "root.txt"), []byte("findme\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	sub := filepath.Join(dir, "sub")
-	os.MkdirAll(sub, 0755)
-	os.WriteFile(filepath.Join(sub, "nested.txt"), []byte("findme\n"), 0644)
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "nested.txt"), []byte("findme\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{"pattern": "findme"})
@@ -197,9 +211,15 @@ func TestGrep_Execute_omittedPathSearchesRoot(t *testing.T) {
 
 func TestGrep_Execute_filesWithMatches(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("func main() {}\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.go"), []byte("func test() {}\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("no match here\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("func main() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("func test() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("no match here\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -223,8 +243,12 @@ func TestGrep_Execute_filesWithMatches(t *testing.T) {
 
 func TestGrep_Execute_countMode(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("line1\nline2\nline3\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.go"), []byte("line1\nno match\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("line1\nline2\nline3\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("line1\nno match\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -246,7 +270,9 @@ func TestGrep_Execute_countMode(t *testing.T) {
 func TestGrep_Execute_contentMode(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "test.go")
-	os.WriteFile(f, []byte("alpha\nbeta\ngamma\ndelta\n"), 0644)
+	if err := os.WriteFile(f, []byte("alpha\nbeta\ngamma\ndelta\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -269,8 +295,12 @@ func TestGrep_Execute_contentMode(t *testing.T) {
 
 func TestGrep_Execute_globFilter(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -290,9 +320,15 @@ func TestGrep_Execute_globFilter(t *testing.T) {
 
 func TestGrep_Execute_typeFilter(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.py"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.py"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -313,11 +349,21 @@ func TestGrep_Execute_typeFilter(t *testing.T) {
 func TestGrep_Execute_globAndTypeFilter(t *testing.T) {
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "src")
-	os.MkdirAll(sub, 0755)
-	os.WriteFile(filepath.Join(sub, "a.go"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(sub, "b.go"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.go"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(sub, "d.py"), []byte("hello\n"), 0644)
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "a.go"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "b.go"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.go"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "d.py"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -345,7 +391,9 @@ func TestGrep_Execute_globAndTypeFilter(t *testing.T) {
 func TestGrep_Execute_beforeContext(t *testing.T) {
 	dir := t.TempDir()
 	content := "line1\nline2\nline3\ntarget\nline5\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -370,7 +418,9 @@ func TestGrep_Execute_beforeContext(t *testing.T) {
 func TestGrep_Execute_afterContext(t *testing.T) {
 	dir := t.TempDir()
 	content := "line1\ntarget\nline3\nline4\nline5\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -396,7 +446,9 @@ func TestGrep_Execute_contextOverlap(t *testing.T) {
 	dir := t.TempDir()
 	// Two matches close together: lines 2 and 4, with context=1
 	content := "line1\nmatchA\nline3\nmatchB\nline5\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -421,7 +473,9 @@ func TestGrep_Execute_contextSeparator(t *testing.T) {
 	dir := t.TempDir()
 	// Two matches far apart: lines 1 and 7, with context=0
 	content := "matchA\nline2\nline3\nline4\nline5\nline6\nmatchB\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -441,7 +495,9 @@ func TestGrep_Execute_contextSeparator(t *testing.T) {
 
 func TestGrep_Execute_caseInsensitive(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello World\nhello world\nHELLO WORLD\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello World\nhello world\nHELLO WORLD\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -459,7 +515,9 @@ func TestGrep_Execute_caseInsensitive(t *testing.T) {
 
 func TestGrep_Execute_lineNumbersFalse(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello world\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello world\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -483,7 +541,9 @@ func TestGrep_Execute_lineNumbersFalse(t *testing.T) {
 func TestGrep_Execute_multiline(t *testing.T) {
 	dir := t.TempDir()
 	content := "start\nhello\nworld\nend\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -507,9 +567,15 @@ func TestGrep_Execute_multiline(t *testing.T) {
 
 func TestGrep_Execute_headLimit_filesWithMatches(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -527,9 +593,15 @@ func TestGrep_Execute_headLimit_filesWithMatches(t *testing.T) {
 
 func TestGrep_Execute_offset_filesWithMatches(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -551,10 +623,18 @@ func TestGrep_Execute_offset_filesWithMatches(t *testing.T) {
 
 func TestGrep_Execute_offsetAndLimit(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "d.txt"), []byte("hello\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "d.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -574,7 +654,9 @@ func TestGrep_Execute_offsetAndLimit(t *testing.T) {
 func TestGrep_Execute_headLimit_contentMode(t *testing.T) {
 	dir := t.TempDir()
 	content := "match1\nmatch2\nmatch3\nmatch4\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -598,7 +680,9 @@ func TestGrep_Execute_headLimit_contentMode(t *testing.T) {
 
 func TestGrep_Execute_noMatches_allModes(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("nothing here\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("nothing here\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	modes := []string{"files_with_matches", "content", "count"}
 	g := NewGrep(testWorkspace(t, dir))
@@ -622,7 +706,9 @@ func TestGrep_Execute_noMatches_allModes(t *testing.T) {
 
 func TestGrep_Execute_defaultOutputMode(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("hello\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -645,9 +731,15 @@ func TestGrep_Execute_defaultOutputMode(t *testing.T) {
 
 func TestGrep_Execute_headLimit_countMode(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("x\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("x\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("x\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("x\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -669,7 +761,9 @@ func TestGrep_Execute_headLimit_countMode(t *testing.T) {
 func TestGrep_Execute_contextOverridesBeforeAfter(t *testing.T) {
 	dir := t.TempDir()
 	content := "line1\nline2\ntarget\nline4\nline5\n"
-	os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{
@@ -695,8 +789,12 @@ func TestGrep_Execute_contextOverridesBeforeAfter(t *testing.T) {
 
 func TestGrep_Execute_contentMode_multipleFiles(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello from a\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello from b\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello from a\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello from b\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	g := NewGrep(testWorkspace(t, dir))
 	result, err := g.Execute(context.Background(), map[string]any{

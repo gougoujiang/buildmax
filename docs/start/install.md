@@ -46,6 +46,11 @@ For the CLI alone:
 go install github.com/gougoujiang/buildmax/cmd/buildmax@latest
 ```
 
+A binary installed this way reports the module version it was built from —
+`buildmax version` prints `0.1.0-alpha`, not `dev`. It carries no commit hash,
+because `go install` records no VCS stamp; release archives and `./make build`
+report both.
+
 ## Container
 
 The image carries all three binaries:
@@ -76,4 +81,5 @@ produces it alongside the other binaries.
 
 ## Next
 
-Configure a model and run your first task: [quickstart.md](quickstart.md).
+Configure a model with `buildmax init` and run your first task:
+[quickstart.md](quickstart.md).

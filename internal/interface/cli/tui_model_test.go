@@ -69,7 +69,9 @@ func TestModelFocusInput(t *testing.T) {
 
 func TestViewFooterPresent(t *testing.T) {
 	sess := session.NewSession("")
-	sess.Append(llm.Message{Role: "assistant", Content: "short"})
+	if err := sess.Append(llm.Message{Role: "assistant", Content: "short"}); err != nil {
+		t.Fatal(err)
+	}
 	m := NewModel(TUIOpts{
 		Session:   agentapp.NewSessionContext(sess, ""),
 		ModelName: "test-model",
@@ -220,7 +222,7 @@ func TestLLMEndRendersAndClearsCurrentResponseBuffer(t *testing.T) {
 		t.Fatalf("rendered line should contain response content, got %q", rendered.line)
 	}
 
-	next, cmd = mod.Update(agentDoneMsg{})
+	_, cmd = mod.Update(agentDoneMsg{})
 	if cmd != nil {
 		t.Fatal("agentDoneMsg should not render again after llmEndMsg cleared the buffer")
 	}

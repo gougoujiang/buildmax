@@ -69,14 +69,6 @@ func toTaskRun(row *taskRunRow) *model.TaskRun {
 	}
 }
 
-func toTaskRuns(rows []taskRunRow) []model.TaskRun {
-	out := make([]model.TaskRun, len(rows))
-	for i := range rows {
-		out[i] = *toTaskRun(&rows[i])
-	}
-	return out
-}
-
 func toTaskRunRow(m *model.TaskRun) *taskRunRow {
 	if m == nil {
 		return nil

@@ -18,7 +18,9 @@ import (
 func TestSaveSession_CreatesFileWithValidJSON(t *testing.T) {
 	dir := t.TempDir()
 	s := session.NewSession("test title")
-	s.Append(llm.Message{Role: "user", Content: "hello"})
+	if err := s.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := saveSession(s, dir); err != nil {
 		t.Fatalf("saveSession: %v", err)
@@ -46,8 +48,12 @@ func TestSaveSession_CreatesFileWithValidJSON(t *testing.T) {
 func TestLoadSession_AfterSaveReturnsSameSession(t *testing.T) {
 	dir := t.TempDir()
 	s := session.NewSession("round-trip")
-	s.Append(llm.Message{Role: "user", Content: "a"})
-	s.Append(llm.Message{Role: "assistant", Content: "b"})
+	if err := s.Append(llm.Message{Role: "user", Content: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Append(llm.Message{Role: "assistant", Content: "b"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := saveSession(s, dir); err != nil {
 		t.Fatalf("saveSession: %v", err)
 	}
@@ -103,7 +109,9 @@ func TestLoadSession_InvalidJSONReturnsError(t *testing.T) {
 func TestSaveLoad_UsageRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s := session.NewSession("")
-	s.Append(llm.Message{Role: "user", Content: "Hi"})
+	if err := s.Append(llm.Message{Role: "user", Content: "Hi"}); err != nil {
+		t.Fatal(err)
+	}
 	s.PromptTokens, s.CompletionTokens = 50, 30
 	if err := saveSession(s, dir); err != nil {
 		t.Fatalf("saveSession: %v", err)

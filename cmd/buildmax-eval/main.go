@@ -81,7 +81,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error opening output file: %v\n", err)
 		os.Exit(1)
 	}
-	defer outFile.Close()
+	defer func() { _ = outFile.Close() }()
 
 	runner := &agenteval.Runner{ModelName: model}
 	fmt.Printf("Running %d task(s) with model %q\n", len(tasks), model)
@@ -96,7 +96,10 @@ func main() {
 		fmt.Println("  " + result.Summary())
 
 		line, _ := json.Marshal(result)
-		fmt.Fprintln(outFile, string(line))
+		if _, err := fmt.Fprintln(outFile, string(line)); err != nil {
+			fmt.Fprintf(os.Stderr, "error writing result: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Println("  " + strings.Repeat("─", 100))

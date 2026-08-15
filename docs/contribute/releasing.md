@@ -32,10 +32,25 @@ prerelease version.
    npm exec --yes --package=markdownlint-cli2@0.23.2 -- markdownlint-cli2
    goreleaser check
    goreleaser release --snapshot --clean --skip=publish,docker
+   go run ./scripts/verify-release-archive.go --all
+   go run ./scripts/verify-release-archive.go
    ```
 
 The snapshot requires GoReleaser `v2.17.1`, Syft `v1.51.0`, and
 `go-licenses v1.6.0`. CI installs those exact versions.
+
+## Signing And Provenance
+
+Alpha releases use GitHub Artifact Attestations for archives and SBOMs, plus
+the SBOM and provenance attestations produced by Docker Buildx for the GHCR
+image. They do not carry a separate Cosign signature. This keeps one documented
+keyless verification path for GitHub-hosted source and artifacts instead of
+asking users to understand two equivalent identity systems.
+
+Revisit Cosign if BuildMax publishes images outside GHCR, distributes artifacts
+outside GitHub Releases, or needs signatures that must be verified without
+GitHub's attestation service. Consumers should identify container images by
+digest rather than relying on a mutable tag.
 
 ## Publish
 

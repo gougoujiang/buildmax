@@ -225,12 +225,11 @@ func defaultSandbox(surface SandboxSurface) SandboxConfig {
 func mergeSandbox(dst, src SandboxConfig, isPolicy bool) SandboxConfig {
 	out := dst
 
-	// Scalars: src wins when explicitly set.
+	// Scalars: src wins when explicitly set. A zero value is "no opinion", not
+	// "disable" — including in policy.yaml, which therefore cannot turn the
+	// sandbox off by omitting the flag.
 	if src.Enabled {
 		out.Enabled = true
-	} else if isPolicy {
-		// Policy can disable explicitly only when its own scalar is set;
-		// we treat zero-value as "no opinion."
 	}
 	if src.FailIfUnavailable {
 		out.FailIfUnavailable = true

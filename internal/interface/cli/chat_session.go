@@ -397,7 +397,7 @@ func (p *slashSessionState) Render(_ *Model, maxLineWidth int) string {
 		b.WriteByte('\n')
 	}
 	if remaining := len(p.Filtered) - end; remaining > 0 {
-		b.WriteString(fmt.Sprintf("  … %d more\n", remaining))
+		fmt.Fprintf(&b, "  … %d more\n", remaining)
 	}
 	out := strings.TrimRight(b.String(), "\n")
 	if p.Renaming {

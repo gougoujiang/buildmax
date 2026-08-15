@@ -42,6 +42,23 @@ review; the maintainer must document the exception when disclosure is safe.
 Direct pushes to `main` are reserved for repository administration or recovery.
 Normal code and documentation changes should use pull requests.
 
+## Issue Triage
+
+Maintainers triage issues on a best-effort basis. Triage confirms that the
+report has enough information to act on, applies an appropriate type and area
+label, links duplicates, and records whether the issue fits the active roadmap.
+Security reports never enter public triage; they follow [SECURITY.md](SECURITY.md).
+
+Issues are not closed merely because they are old. A maintainer may close an
+issue when it is a duplicate, cannot be reproduced, falls outside project
+scope, or is waiting on requested reporter information for at least 30 days.
+The closing comment must explain why. An issue closed for missing information
+may be reopened when that information is supplied.
+
+Accepted work may remain open without an assigned milestone. Labels such as
+`good first issue` and `help wanted` mean that the scope is understood and
+outside contributions are welcome; they are not promises of a response time.
+
 ## Releases
 
 Only maintainers may create release tags or publish project artifacts. A

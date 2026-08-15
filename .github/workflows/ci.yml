@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -53,11 +54,24 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Configuration and rationale: .golangci.yml.
+      - name: Lint
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+
+      # Known vulnerabilities in the Go toolchain and in dependencies this code
+      # actually calls. Reachability-based, so it fails only on code paths that
+      # exist here.
+      - name: Check for known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      # -race here and not on Windows: the agent runtime, the scheduler, and the
+      # websocket hub are all concurrent, and this is the job that exercises
+      # them on the platform CI trusts most.
       - name: Test
         env:
           # Tests write their data directory here instead of ~/.buildmax.
           BUILDMAX_HOME: ./testing-sandbox
-        run: go test ./...
+        run: go test -race ./...
 
       # Fails on copyleft that would conflict with redistributing under
       # Apache-2.0. See docs/contribute/dependency-licenses.md.
@@ -99,6 +113,8 @@ jobs:
           node-version: '22'
 
       # portal depends on @buildmax/gui via a file: link, so gui builds first.
+      # gui has no ESLint step: typescript-eslint does not support the
+      # TypeScript 7 it builds with, and its own build type-checks it.
       - name: Build gui
         working-directory: gui
         run: |
@@ -109,6 +125,7 @@ jobs:
         working-directory: portal
         run: |
           npm ci
+          npm run lint
           npm run build
           npm test
 
@@ -116,6 +133,7 @@ jobs:
         working-directory: desktop/frontend
         run: |
           npm ci
+          npm run lint
           npm run build
 
   open-source-policy:
@@ -142,21 +160,82 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Pull requests only need to prove that the release configuration is
+      # valid. The full 15-binary snapshot remains a post-merge and manual
+      # check, where its runtime does not hold up review.
+      - name: Check release configuration
+        if: github.event_name == 'pull_request'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: v2.17.1
+          args: check
+
       - uses: actions/setup-go@v7
+        if: github.event_name != 'pull_request'
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Install release license tool
+        if: github.event_name != 'pull_request'
         run: go install github.com/google/go-licenses@v1.6.0
 
       - uses: anchore/sbom-action/download-syft@v0.24.0
+        if: github.event_name != 'pull_request'
         with:
           syft-version: v1.51.0
 
       - uses: goreleaser/goreleaser-action@v7
+        if: github.event_name != 'pull_request'
         with:
           version: v2.17.1
           args: release --snapshot --clean --skip=publish,docker
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify all release archive contents
+        if: github.event_name != 'pull_request'
+        run: go run ./scripts/verify-release-archive.go --all
+
+      - name: Upload release archives
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-snapshot
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  release-archive-smoke:
+    name: Release archive (${{ matrix.name }})
+    if: github.event_name != 'pull_request'
+    needs: release-snapshot
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: macOS
+            os: macos-latest
+          - name: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-snapshot
+          path: dist
+
+      - name: Verify native release archive
+        run: go run ./scripts/verify-release-archive.go

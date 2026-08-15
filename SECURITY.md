@@ -17,10 +17,10 @@ receive fixes.
 Do not open a public issue for a suspected vulnerability, leaked credential, or
 security-sensitive configuration.
 
-Before the first public release, maintainers must enable GitHub's private
-vulnerability reporting for this repository. Once it is enabled, use that
-channel for reports. If it is not available, do not post the report publicly;
-contact the repository owner through GitHub instead. Include:
+Report privately through GitHub: open the repository's **Security** tab and
+choose **Report a vulnerability**. If that form is not available to you, do not
+post the report publicly — contact the repository owner through GitHub instead.
+Include:
 
 - affected version or commit
 - a minimal reproduction or proof of concept

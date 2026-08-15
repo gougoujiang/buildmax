@@ -128,13 +128,14 @@ func (wc *wsConn) readLoop(ctx context.Context) {
 	defer func() {
 		slog.Info("ws disconnected", "user_id", wc.userID)
 		wc.cleanup()
-		wc.conn.Close()
+		_ = wc.conn.Close()
 	}()
 
-	wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
+	// Deadline and close-frame calls only fail on a connection that is already
+	// broken, which the next read or write reports anyway.
+	_ = wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
 	wc.conn.SetPongHandler(func(string) error {
-		wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
-		return nil
+		return wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
 	})
 
 	for {
@@ -145,7 +146,7 @@ func (wc *wsConn) readLoop(ctx context.Context) {
 			}
 			return
 		}
-		wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
+		_ = wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
 
 		env, err := wsconn.Decode(data)
 		if err != nil {
@@ -165,22 +166,22 @@ func (wc *wsConn) writeLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			wc.conn.WriteMessage(websocket.CloseMessage,
+			_ = wc.conn.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			return
 		case msg, ok := <-wc.writeCh:
 			if !ok {
-				wc.conn.WriteMessage(websocket.CloseMessage,
+				_ = wc.conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				return
 			}
-			wc.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			_ = wc.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 			if err := wc.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 				slog.Info("ws write error", "err", err, "user_id", wc.userID)
 				return
 			}
 		case <-ticker.C:
-			wc.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			_ = wc.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 			if err := wc.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

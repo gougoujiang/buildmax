@@ -157,12 +157,33 @@ violating import fails the build rather than sliding through review.
 - Preserve existing public behavior unless the pull request explicitly documents
   a breaking change.
 
-CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, and the test
-suite for Go on Linux and Windows. It builds all three frontends, runs Portal
-tests, scans Git history for secrets, checks Go and npm production dependency
-licenses, lints Markdown, and builds a non-publishing release snapshot. Running
-`./make test` and
-`./make build` locally catches the main code and build failures.
+CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, golangci-lint,
+govulncheck, and the test suite — with `-race` on Linux — for Go on Linux and
+Windows. It builds all three frontends, lints Portal and the desktop frontend,
+runs Portal tests, scans Git history for secrets, checks Go and npm production
+dependency licenses, and lints Markdown. CodeQL analyzes Go and TypeScript once
+the repository is public. Pull requests validate the GoReleaser configuration;
+pushes to `main` and manual CI runs build and smoke-test a non-publishing
+release snapshot on Linux, macOS, and Windows.
+
+Locally:
+
+```bash
+./make test              # go test with BUILDMAX_HOME=./testing-sandbox
+./make lint              # golangci-lint and govulncheck, CI's pinned versions
+./make build             # every binary, including the frontends
+go test -race ./...      # what CI runs on Linux
+```
+
+The linter set and the reasoning behind each exclusion are in
+[`.golangci.yml`](.golangci.yml). For the frontends, `npm run lint` in `portal/`
+and `desktop/frontend/`; `gui/` has no ESLint step because typescript-eslint
+does not yet support the TypeScript version it builds with, and its own build
+type-checks it.
+
+A govulncheck failure usually means the Go toolchain or a dependency needs a
+patch release. Bump the `go` directive in `go.mod` or the module, do not add a
+suppression.
 
 ## Contribution License
 

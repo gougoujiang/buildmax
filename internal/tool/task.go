@@ -133,7 +133,7 @@ func (t *TaskTool) Description() string {
 	b.WriteString("Launch a sub-agent to handle a complex subtask autonomously. The sub-agent processes the prompt using its own session and tools, then returns the final reply. Available agent types:\n")
 	for _, name := range t.typeOrder {
 		cfg := t.agentTypes[name]
-		b.WriteString(fmt.Sprintf("- %s: %s\n", name, cfg.Description))
+		fmt.Fprintf(&b, "- %s: %s\n", name, cfg.Description)
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }

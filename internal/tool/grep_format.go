@@ -73,7 +73,7 @@ func formatCount(results []fileResult, offset, limit int) string {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		sb.WriteString(fmt.Sprintf("%s: %d", r.path, len(r.matches)))
+		fmt.Fprintf(&sb, "%s: %d", r.path, len(r.matches))
 	}
 	return sb.String()
 }
@@ -171,9 +171,9 @@ func formatContent(results []fileResult, before, after int, showLineNumbers bool
 					sep = ":"
 				}
 				if showLineNumbers {
-					sb.WriteString(fmt.Sprintf("%d%s%s\n", ln, sep, lineText))
+					fmt.Fprintf(&sb, "%d%s%s\n", ln, sep, lineText)
 				} else {
-					sb.WriteString(fmt.Sprintf("%s%s\n", sep, lineText))
+					fmt.Fprintf(&sb, "%s%s\n", sep, lineText)
 				}
 			}
 		}

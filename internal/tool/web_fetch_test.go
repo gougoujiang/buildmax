@@ -46,7 +46,7 @@ func (m *mockWebFetchLLM) getCallCount() int {
 
 func TestWebFetch_NilLLMClient_FetchWithoutPromptOK(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("plain"))
+		_, _ = w.Write([]byte("plain"))
 	}))
 	defer server.Close()
 
@@ -66,7 +66,7 @@ func TestWebFetch_NilLLMClient_FetchWithoutPromptOK(t *testing.T) {
 
 func TestWebFetch_NilLLMClient_PromptRequiresClient(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("body"))
+		_, _ = w.Write([]byte("body"))
 	}))
 	defer server.Close()
 
@@ -126,7 +126,7 @@ func TestWebFetch_Execute_SameHostRedirect(t *testing.T) {
 		}
 		if r.URL.Path == "/content" {
 			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte("final content"))
+			_, _ = w.Write([]byte("final content"))
 			return
 		}
 		http.NotFound(w, r)
@@ -173,7 +173,7 @@ func TestWebFetch_Execute_CacheHit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqCount++
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("cached body"))
+		_, _ = w.Write([]byte("cached body"))
 	}))
 	defer server.Close()
 
@@ -209,7 +209,7 @@ func TestWebFetch_Execute_CacheExpiry(t *testing.T) {
 	reqCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqCount++
-		w.Write([]byte("body"))
+		_, _ = w.Write([]byte("body"))
 	}))
 	defer server.Close()
 
@@ -239,7 +239,7 @@ func TestWebFetch_Execute_CacheExpiry(t *testing.T) {
 func TestWebFetch_Execute_HTMLConverted(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte("<html><body><h1>Hello</h1><p>World</p></body></html>"))
+		_, _ = w.Write([]byte("<html><body><h1>Hello</h1><p>World</p></body></html>"))
 	}))
 	defer server.Close()
 
@@ -258,7 +258,7 @@ func TestWebFetch_Execute_HTMLConverted(t *testing.T) {
 
 func TestWebFetch_Execute_EmptyPromptReturnsRawContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("raw content"))
+		_, _ = w.Write([]byte("raw content"))
 	}))
 	defer server.Close()
 
@@ -279,7 +279,7 @@ func TestWebFetch_Execute_EmptyPromptReturnsRawContent(t *testing.T) {
 
 func TestWebFetch_Execute_NonEmptyPromptCallsLLM(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("page content"))
+		_, _ = w.Write([]byte("page content"))
 	}))
 	defer server.Close()
 
@@ -302,7 +302,7 @@ func TestWebFetch_Execute_OversizedContentTruncated(t *testing.T) {
 	// Create content larger than MaxContentRunes
 	big := strings.Repeat("x", MaxContentRunes+1000)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(big))
+		_, _ = w.Write([]byte(big))
 	}))
 	defer server.Close()
 
