@@ -1,5 +1,9 @@
-// Command verify-release-archive validates and smoke-tests the release archive
-// matching the current operating system and architecture.
+// Release-archive verification: validate a GoReleaser archive's checksum and
+// contents, and smoke-test the binary for the host platform.
+//
+// This ran as scripts/verify-release-archive.go until it moved here, so that
+// every binary entry point in the repository lives under cmd/ and a maintainer
+// can verify a release the same way CI does: `./make verify-archive`.
 package main
 
 import (
@@ -19,13 +23,16 @@ import (
 	"strings"
 )
 
-func main() {
-	dist := flag.String("dist", "dist", "directory containing GoReleaser archives")
-	all := flag.Bool("all", false, "validate every supported archive without executing binaries")
-	goos := flag.String("goos", runtime.GOOS, "target operating system")
-	goarch := flag.String("goarch", runtime.GOARCH, "target architecture")
-	skipExec := flag.Bool("skip-exec", false, "validate contents without executing the CLI")
-	flag.Parse()
+func cmdVerifyArchive(args []string) error {
+	fs := flag.NewFlagSet("verify-archive", flag.ContinueOnError)
+	dist := fs.String("dist", "dist", "directory containing GoReleaser archives")
+	all := fs.Bool("all", false, "validate every supported archive without executing binaries")
+	goos := fs.String("goos", runtime.GOOS, "target operating system")
+	goarch := fs.String("goarch", runtime.GOARCH, "target architecture")
+	skipExec := fs.Bool("skip-exec", false, "validate contents without executing the CLI")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *all {
 		targets := [][2]string{
 			{"linux", "amd64"},
@@ -36,16 +43,15 @@ func main() {
 		}
 		for _, target := range targets {
 			if err := verify(*dist, target[0], target[1], false); err != nil {
-				fmt.Fprintln(os.Stderr, "release archive verification failed:", err)
-				os.Exit(1)
+				return fmt.Errorf("release archive verification failed: %w", err)
 			}
 		}
-		return
+		return nil
 	}
 	if err := verify(*dist, *goos, *goarch, !*skipExec); err != nil {
-		fmt.Fprintln(os.Stderr, "release archive verification failed:", err)
-		os.Exit(1)
+		return fmt.Errorf("release archive verification failed: %w", err)
 	}
+	return nil
 }
 
 func verify(dist, goos, goarch string, execute bool) error {
@@ -75,9 +81,11 @@ func verify(dist, goos, goarch string, execute bool) error {
 		return err
 	}
 
-	exe := ""
+	// Not the package-level exe(), which answers for the host: the target
+	// platform here is a parameter, so a Linux runner can check the Windows zip.
+	exeSuffix := ""
 	if goos == "windows" {
-		exe = ".exe"
+		exeSuffix = ".exe"
 	}
 	required := []string{
 		"LICENSE",
@@ -86,9 +94,9 @@ func verify(dist, goos, goarch string, execute bool) error {
 		"SECURITY.md",
 		"CHANGELOG.md",
 		filepath.Join("config-examples", "settings.example.yaml"),
-		"buildmax" + exe,
-		"buildmax-server" + exe,
-		"buildmax-worker" + exe,
+		"buildmax" + exeSuffix,
+		"buildmax-server" + exeSuffix,
+		"buildmax-worker" + exeSuffix,
 	}
 	for _, name := range required {
 		if info, statErr := os.Stat(filepath.Join(target, name)); statErr != nil || info.IsDir() {
@@ -101,7 +109,7 @@ func verify(dist, goos, goarch string, execute bool) error {
 		if goos != runtime.GOOS || goarch != runtime.GOARCH {
 			return fmt.Errorf("cannot execute %s/%s archive on %s/%s", goos, goarch, runtime.GOOS, runtime.GOARCH)
 		}
-		cli := filepath.Join(target, "buildmax"+exe)
+		cli := filepath.Join(target, "buildmax"+exeSuffix)
 		if goos != "windows" {
 			if err := os.Chmod(cli, 0o755); err != nil {
 				return fmt.Errorf("make CLI executable: %w", err)

@@ -20,7 +20,7 @@ buildmax/
 ├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
 ├── eval/                 Agent benchmark task catalog
 ├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
-├── scripts/              Release and license tooling run by CI
+├── scripts/              License tooling run by CI and the release build
 ├── .github/              CI workflows, issue and PR templates, community health files
 ├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md
 ├── make, make.bat        One-line shims around the task runner in cmd/mk
@@ -56,8 +56,9 @@ one binary:
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
 
 `scripts/` is neither deployment nor application code — it is repository tooling
-invoked from CI and the release process: third-party notice generation, npm
-license checks, and release-archive verification.
+invoked from CI and the release process: third-party notice generation and npm
+license checks. Anything written in Go belongs in `cmd/mk` instead, reachable
+through `./make`; release-archive verification moved there for that reason.
 
 ## Nested Go Modules
 

@@ -32,8 +32,8 @@ prerelease version.
    npm exec --yes --package=markdownlint-cli2@0.23.2 -- markdownlint-cli2
    goreleaser check
    goreleaser release --snapshot --clean --skip=publish,docker
-   go run ./scripts/verify-release-archive.go --all
-   go run ./scripts/verify-release-archive.go
+   ./make verify-archive --all
+   ./make verify-archive
    ```
 
 The snapshot requires GoReleaser `v2.17.1`, Syft `v1.51.0`, and
