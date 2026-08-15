@@ -97,22 +97,6 @@ func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, 
 	return true
 }
 
-func (h *Handler) getTaskForConversation(w http.ResponseWriter, r *http.Request, conversationID, taskID string) (*model.Task, bool) {
-	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
-		return nil, false
-	}
-	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_task", "task_id", taskID)
-		return nil, false
-	}
-	if task == nil || task.ConversationID != conversationID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
-		return nil, false
-	}
-	return task, true
-}
-
 func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *model.Conversation, bool) {
 	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
 	if err != nil {

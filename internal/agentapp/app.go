@@ -3,7 +3,6 @@ package agentapp
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -715,17 +714,6 @@ func (a *AgentApp) toolRegistry(modelName string, client cllm.LLMClient) (cllm.T
 	}
 	a.toolRegistries[modelName] = registry
 	return registry, nil
-}
-
-func workspaceDirOrCwd(dir string) string {
-	if dir != "" {
-		return dir
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	return wd
 }
 
 func DefaultModelName(settings config.Settings) string {

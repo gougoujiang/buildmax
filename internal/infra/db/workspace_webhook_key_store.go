@@ -25,42 +25,6 @@ type userWebhookKeyRow struct {
 
 func (userWebhookKeyRow) TableName() string { return "user_webhook_key" }
 
-func toUserWebhookKey(row *userWebhookKeyRow) *model.UserWebhookKey {
-	if row == nil {
-		return nil
-	}
-	return &model.UserWebhookKey{
-		ID:        row.ID,
-		KeyID:     row.KeyID,
-		UserID:    row.UserID,
-		KeyHash:   row.KeyHash,
-		Name:      row.Name,
-		CreatedAt: row.CreatedAt,
-	}
-}
-
-func toUserWebhookKeys(rows []userWebhookKeyRow) []model.UserWebhookKey {
-	out := make([]model.UserWebhookKey, len(rows))
-	for i := range rows {
-		out[i] = *toUserWebhookKey(&rows[i])
-	}
-	return out
-}
-
-func toUserWebhookKeyRow(m *model.UserWebhookKey) *userWebhookKeyRow {
-	if m == nil {
-		return nil
-	}
-	return &userWebhookKeyRow{
-		ID:        m.ID,
-		KeyID:     m.KeyID,
-		UserID:    m.UserID,
-		KeyHash:   m.KeyHash,
-		Name:      m.Name,
-		CreatedAt: m.CreatedAt,
-	}
-}
-
 const webhookKeyPrefix = "whsec_"
 const webhookKeyBytes = 32
 

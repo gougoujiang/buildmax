@@ -1,0 +1,41 @@
+# golangci-lint configuration. Run locally with:
+#
+#   go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+#
+# CI runs the same pinned version. The linter set is golangci-lint's "standard"
+# default — errcheck, govet, ineffassign, staticcheck, unused — deliberately
+# kept small: every finding it reports should be worth fixing rather than worth
+# configuring away. gofmt is enforced separately in CI.
+version: "2"
+
+# Report everything. The defaults cap output at 50 issues per linter and 3
+# repeats of the same message, which hides how much of a class is left and
+# makes a run look clean when it is not.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  settings:
+    staticcheck:
+      checks:
+        - all
+        # QF* are opinionated rewrites rather than defect reports. These two
+        # make the code they touch harder to read, so they stay off.
+        - -QF1001 # "could apply De Morgan's law"
+        - -QF1008 # "could remove embedded field from selector"
+
+  exclusions:
+    # golangci-lint's stock exclusion presets. Declaring this block at all
+    # replaces the defaults, so they are listed back explicitly.
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+      - legacy
+    rules:
+      # A test that fails to close a handle fails loudly on its own, and the
+      # noise would drown the production Close findings that do matter.
+      - path: _test\.go
+        linters: [errcheck]
+        text: 'Close` is not checked'

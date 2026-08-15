@@ -2,7 +2,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"time"
@@ -30,6 +32,7 @@ Sessions:
   Use --session-id <uuid> to use a specific session ID (load if exists, else create); value must be a valid UUID.
 
 Configuration:
+  Run "buildmax init" to create a starter settings.yaml.
   Models are configured in BUILDMAX_HOME/settings.yaml (default ~/.buildmax).
   The first entry under models: is the default; select another with --model.
   Default model when none is configured: %s
@@ -57,6 +60,7 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().BoolP("quiet", "q", false, "suppress the stats footer in print text mode")
 	root.Flags().Bool("include-deltas", false, "include llm_delta events in --output jsonl (verbose)")
 	root.Flags().BoolP("version", "v", false, "print version and exit")
+	root.AddCommand(newInitCommand())
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newLoginCommand())
 	root.AddCommand(newLogoutCommand())
@@ -139,15 +143,33 @@ func parseOutputFormat(s string) (OutputFormat, error) {
 	}
 }
 
-// checkModelConfig returns an error when no model is configured in settings.
+// checkModelConfig returns an error when the CLI has no usable model. It
+// separates the three ways that happens — no file, a file with no models, and a
+// file still holding the placeholder key `buildmax init` writes — because each
+// one has a different next step, and "No model configured" answered none of
+// them for a first-time user.
 func checkModelConfig() error {
+	path := config.SettingsPath()
 	s, err := config.LoadSettings()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
 	if len(s.Models) == 0 {
-		fmt.Fprintf(os.Stderr, "No model configured. Add a model to %s\n", config.SettingsPath())
-		return fmt.Errorf("no model configured")
+		if _, statErr := os.Stat(path); errors.Is(statErr, fs.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "No configuration found.\n\n"+
+				"Run `buildmax init` to create %s, then add your API key.\n"+
+				"Quickstart: %s\n", path, quickstartURL)
+			return errors.New("no configuration file")
+		}
+		fmt.Fprintf(os.Stderr, "No model configured in %s.\n\n"+
+			"Add a models: entry, or run `buildmax init --force` to regenerate the file.\n"+
+			"Quickstart: %s\n", path, quickstartURL)
+		return errors.New("no model configured")
+	}
+	if s.Models[0].APIKey == APIKeyPlaceholder {
+		fmt.Fprintf(os.Stderr, "The first model in %s still has the placeholder API key.\n\n"+
+			"Replace %s on the api_key line with a real key.\n", path, APIKeyPlaceholder)
+		return errors.New("api key not set")
 	}
 	return nil
 }

@@ -59,7 +59,7 @@ func (s *SkillTool) Description() string {
 	}
 	b.WriteString("Available skills:\n")
 	for _, entry := range s.skills {
-		b.WriteString(fmt.Sprintf("- %s: %s\n", entry.Name, entry.Description))
+		fmt.Fprintf(&b, "- %s: %s\n", entry.Name, entry.Description)
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }

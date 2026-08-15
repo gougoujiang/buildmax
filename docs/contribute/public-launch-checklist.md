@@ -38,8 +38,10 @@ an owner decision and should not be delegated to release automation.
 - [ ] Confirm Dependabot alerts and automatic security updates remain enabled.
 - [ ] Confirm Discussions, issue templates, labels, topics, and the default
       branch are still correct.
-- [ ] Update `SECURITY.md` so vulnerability reporters are directed to the now
-      enabled private reporting form.
+- [ ] Confirm the private reporting form `SECURITY.md` points reporters to is
+      actually reachable from the Security tab.
+- [ ] Confirm the CodeQL workflow starts running; it skips itself while the
+      repository is private.
 - [ ] Clone the public repository without credentials and repeat the quickstart.
 
 ## First Alpha Release

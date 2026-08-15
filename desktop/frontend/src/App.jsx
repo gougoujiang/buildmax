@@ -115,7 +115,9 @@ function shortToolArgs(raw) {
     for (const v of Object.values(m)) {
       if (typeof v === 'string') return v.length > 40 ? v.slice(0, 37) + '…' : v;
     }
-  } catch {}
+  } catch {
+    // Not JSON — fall through to the raw truncation below.
+  }
   return raw.slice(0, 37) + '…';
 }
 

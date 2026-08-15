@@ -250,7 +250,25 @@ func extractZip(archivePath, target string) error {
 	return nil
 }
 
+// rootedOrDriveRelative reports whether an archive entry names a location that
+// is not relative to the extraction directory. filepath.IsAbs cannot answer
+// this on its own: on Windows `\name` is rooted but not absolute and `C:name`
+// is relative to a drive's working directory, while on Unix both are ordinary
+// filenames. The check is spelled out against the raw entry name so it behaves
+// identically on every platform — a release archive never contains either
+// shape, and a Windows-only rule is one nobody exercises until CI turns red.
+func rootedOrDriveRelative(name string) bool {
+	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, `\`) {
+		return true
+	}
+	return len(name) >= 2 && name[1] == ':' &&
+		(name[0] >= 'a' && name[0] <= 'z' || name[0] >= 'A' && name[0] <= 'Z')
+}
+
 func archiveDestination(target, name string) (string, error) {
+	if rootedOrDriveRelative(name) {
+		return "", fmt.Errorf("unsafe archive path %q", name)
+	}
 	clean := filepath.Clean(filepath.FromSlash(name))
 	if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("unsafe archive path %q", name)

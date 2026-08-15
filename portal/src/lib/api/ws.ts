@@ -5,6 +5,10 @@ export interface WsEnvelope {
   payload: unknown
 }
 
+// `any` rather than `unknown`: handlers are registered per event type with a
+// concrete payload type, and a parameter typed `unknown` would reject every one
+// of them under contravariance.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EventHandler = (payload: any) => void
 
 const RECONNECT_MIN = 1000

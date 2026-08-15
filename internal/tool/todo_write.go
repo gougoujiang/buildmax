@@ -122,7 +122,7 @@ func formatTodoList(items []todoItem) string {
 		itemWord = "item"
 	}
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Todo list (%d %s):\n", n, itemWord))
+	fmt.Fprintf(&b, "Todo list (%d %s):\n", n, itemWord)
 	for i, it := range items {
 		line := fmt.Sprintf("%d. [%s] %s", i+1, it.status, it.content)
 		if it.activeForm != "" {

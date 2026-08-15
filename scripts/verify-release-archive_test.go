@@ -20,10 +20,18 @@ func TestArchiveDestination(t *testing.T) {
 		t.Fatalf("destination %q escaped %q", valid, target)
 	}
 
+	// Spelled out rather than built from filepath.Separator, so every platform
+	// checks every shape. `\absolute` and `C:absolute` are the Windows forms
+	// filepath.IsAbs does not catch, and a Windows-only assertion is one no one
+	// runs until CI turns red.
 	unsafe := []string{
 		"../escape",
 		filepath.Join("..", "escape"),
-		filepath.Join(string(filepath.Separator), "absolute"),
+		"/absolute",
+		`\absolute`,
+		"C:/absolute",
+		`C:\absolute`,
+		"C:absolute",
 	}
 	for _, name := range unsafe {
 		if _, err := archiveDestination(target, name); err == nil {

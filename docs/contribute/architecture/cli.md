@@ -33,6 +33,7 @@ the TUI and for piped print-mode output.
 | Command | File |
 |---|---|
 | `buildmax` (root: TUI or print mode) | `root.go` |
+| `init` | `init.go` (template: `templates/settings.yaml.tmpl`) |
 | `version` | `version.go` |
 | `login`, `logout`, `whoami` | `login.go` |
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
@@ -47,8 +48,11 @@ table is in [reference/cli.md](../../reference/cli.md).
 3. Validate `--session-id` as a UUID when given.
 4. Resolve the effective session id: explicit `--session-id`, else
    `resolveResumeID(resumeID, cont)` for `--resume` / `--continue`.
-5. `checkModelConfig()` — fails early with a usage error naming the settings
-   path, rather than failing later at the LLM call.
+5. `checkModelConfig()` — fails early with a usage error, rather than failing
+   later at the LLM call. It distinguishes three states, because each has a
+   different next step: no settings file (point at `buildmax init`), a file
+   with no `models:` entry, and a first model still holding the
+   `APIKeyPlaceholder` that `init` writes.
 6. `--print` non-empty → `runPrintMode(printOptions{...})`. Otherwise → `runTUI`.
 
 ## Exit Codes

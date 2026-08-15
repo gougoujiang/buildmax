@@ -154,7 +154,7 @@ func (p *slashModelState) Render(_ *Model, maxLineWidth int) string {
 		if linesOut >= slashModelInlinePanelMaxContentLines {
 			remaining := len(p.Entries) - i
 			if remaining > 0 {
-				b.WriteString(fmt.Sprintf("… %d more\n", remaining))
+				fmt.Fprintf(&b, "… %d more\n", remaining)
 			}
 			break
 		}

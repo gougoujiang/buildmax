@@ -63,7 +63,7 @@ High-level direction for the Portal / Nexus-style workspace (detailed design: **
 ### 4.1 Implemented
 
 **CLI & TUI**
-- **CLI**: Cobra in `internal/interface/cli` — root command (TUI, or `-p` print mode) plus `version`, `login`/`logout`/`whoami`, `sandbox status|deps|mode|enable|disable`, and cobra's built-in `completion`; `cmd/buildmax/main.go` is the thin entry point. Exit codes are a stable contract (`exit_code.go`). The server and worker run as separate binaries.
+- **CLI**: Cobra in `internal/interface/cli` — root command (TUI, or `-p` print mode) plus `init`, `version`, `login`/`logout`/`whoami`, `sandbox status|deps|mode|enable|disable`, and cobra's built-in `completion`; `cmd/buildmax/main.go` is the thin entry point. Exit codes are a stable contract (`exit_code.go`). The server and worker run as separate binaries.
 - **TUI**: Bubble Tea via `internal/interface/cli` (`tui.go`); default when running `buildmax` with no flags. Layout: scrollable area (banner, chat history, streaming text, in-flight tool activity), input at bottom, two-line footer (model, workspace + git branch, sandbox tag, login; then run status and key hints). Slash panels: `/model`, `/sessions`, `/tools`, `/skills`, `/mcp`, `/diff`. Tool approval prompts run through `TUIApprovalHandler`. `--resume <id>`, `--continue`, `--session-id <uuid>` for session handling. Session persisted after each assistant reply.
 - **Local auth**: CLI/desktop-side login client and credential persistence live in `internal/interface/auth`; server-side auth handlers live in `internal/server/handlers/auth.go`.
 - **Session**: In-memory session in `internal/core/session` (id, title, created_at, message history); multi-turn; save/load under `DataDir()/sessions/<id>.json`; list index in `sessions.json`. Persistence and lifecycle (create, load, save, list, rename, delete, pin, title generation) live in `internal/agentapp` (`SessionManager`, `LoadSessionList`), not in `core/session`.
@@ -279,6 +279,7 @@ Use `./make <command>` at the repo root — on Windows, `make.bat <command>`. Bo
 - **Build**: `./make build` — builds the CLI (`bin/buildmax`), server (`bin/buildmax-server`), worker (`bin/buildmax-worker`), then the **gui** package (if `gui/` exists), then the desktop app (Wails). Frontend stages warn instead of failing, so a missing npm or wails still yields the Go binaries. Portal is not built by default; run `cd portal && npm run build` for that. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
 - **Clean**: `./make clean` — removes binaries, desktop build dir, **gui** (`gui/node_modules`, `gui/dist`), portal, and desktop frontend (`node_modules`, `dist`).
 - **Test**: `./make test` — sets `BUILDMAX_HOME=./testing-sandbox` and runs `go test ./...`. Use this after code changes.
+- **Lint**: `./make lint` — runs golangci-lint (config in `.golangci.yml`) and govulncheck, pinned to the same versions as CI. A govulncheck failure means the Go toolchain or a dependency needs a patch release; bump it rather than suppressing it. CI also runs `go test -race`, and lints the Portal and desktop frontends with ESLint (`npm run lint` in each); `gui/` has no ESLint because typescript-eslint does not support its TypeScript version yet.
 - **Smoke**: `./make smoke` — builds the CLI, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
 - **Run server**: `./make run server` — builds and runs `buildmax-server` (default port 5678). The server spawns `buildmax-worker` for each task; ensure `buildmax-worker` is on PATH or in the same directory, and that `server.yaml` has the `worker:` and `storage:` blocks filled in.
 - **Run portal**: `./make run portal` — builds gui if missing, then starts the Portal dev server (Vite; installs npm deps if needed).
@@ -289,9 +290,17 @@ Use `./make <command>` at the repo root — on Windows, `make.bat <command>`. Bo
 
 **Windows:** `make.bat <command>` accepts every command `./make` does; build output is `bin/buildmax.exe` and friends. The exceptions are `setup`, `unsetup`, and `deploy`, which drive bash and Kubernetes tooling and fail with a clear message on Windows — run them from WSL2. Native Windows is not yet covered by CI end to end: the Windows job builds, vets, and runs the suite through `make.bat` (see `.github/workflows/ci.yml`), but shell-dependent tests skip there, the bash tool falls back to `cmd /c` (`internal/tool/bash.go`), and the sandbox is unavailable (`docs/design/032-sandbox-and-execution-boundaries.md` §7).
 
-## 8. Commit Message
-- Do NOT include: Co-Authored-By and Claude-Session in commit message
-- Keep it intact, simple and clear
+## 8. Commit Messages And Pull Requests
+
+Anything written into the repository's public record — commit messages and pull
+request descriptions alike — carries project content only. Tooling attribution
+is noise in a history that is about to be public.
+
+- Do NOT include `Co-Authored-By` or `Claude-Session` trailers in commit messages.
+- Do NOT include a "Generated with ..." footer or an assistant session link in
+  pull request descriptions.
+- Keep both intact, simple, and clear. Commit subjects are a single imperative
+  line; `.github/pull_request_template.md` is the shape a PR description follows.
 
 ---
 

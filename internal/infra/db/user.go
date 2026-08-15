@@ -39,14 +39,6 @@ func toUser(row *userRow) *model.User {
 	}
 }
 
-func toUsers(rows []userRow) []model.User {
-	out := make([]model.User, len(rows))
-	for i := range rows {
-		out[i] = *toUser(&rows[i])
-	}
-	return out
-}
-
 func toUserRow(m *model.User) *userRow {
 	if m == nil {
 		return nil

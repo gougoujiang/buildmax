@@ -9,28 +9,41 @@
 
 BuildMax reads its configuration from `~/.buildmax/settings.yaml`. There is no
 `.env` file and no `BUILDMAX_API_KEY` variable — a model must be listed in the
-file before the agent will run.
+file before the agent will run. `buildmax init` writes that file for you:
 
 ```bash
-mkdir -p ~/.buildmax
-cat > ~/.buildmax/settings.yaml <<'YAML'
+buildmax init --api-key sk-your-key-here
+```
+
+That configures `openai/gpt-4o-mini` through OpenRouter. Point it somewhere
+else with `--model` and `--api-url`, which is how you reach OpenAI directly, a
+local vLLM, or an Ollama gateway — any OpenAI-compatible endpoint works:
+
+```bash
+buildmax init --model llama3.1 --api-url http://localhost:11434/v1
+```
+
+Run it without `--api-key` and the file lands with a placeholder to fill in.
+Either way the result is an ordinary YAML file you can keep editing:
+
+```yaml
 log_level: info
 
 models:
   - model: openai/gpt-4o-mini
-    name: GPT-4o-mini
+    name: GPT-4o mini
     api_url: https://openrouter.ai/api/v1
     api_key: sk-your-key-here
     context_window: 128000
-YAML
 ```
 
-Any OpenAI-compatible endpoint works — OpenRouter, OpenAI, a local vLLM or
-Ollama gateway. The **first entry is the default model**; list several and
-switch per run with `--model`.
+The **first entry is the default model**; list several and switch per run with
+`--model`. `buildmax init` refuses to overwrite an existing file unless you
+pass `--force`.
 
-If the key is missing you get `No model configured. Add a model to
-/home/you/.buildmax/settings.yaml` rather than a failed LLM call.
+Until a real key is in place, BuildMax tells you so before contacting a
+provider — a missing file points at `buildmax init`, and an unedited
+placeholder points at the line to change.
 
 Full field list: [reference/configuration.md](../reference/configuration.md).
 

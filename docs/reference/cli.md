@@ -12,6 +12,7 @@ buildmax <command> [flags]
 | Command | Purpose |
 |---|---|
 | `buildmax` | Open the terminal UI (default) |
+| `buildmax init` | Write a starter `settings.yaml` under `BUILDMAX_HOME` |
 | `buildmax version` | Print the version |
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
@@ -41,6 +42,20 @@ buildmax <command> [flags]
 `--output json` and `--output jsonl` make print mode machine-readable, which is
 what you want when calling BuildMax from a script or another program.
 
+### `buildmax init` Flags
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--api-key KEY` | a placeholder to edit | API key for the configured model |
+| `--model ID` | `openai/gpt-4o-mini` | Model id to configure as the default |
+| `--api-url URL` | `https://openrouter.ai/api/v1` | OpenAI-compatible base URL |
+| `--name NAME` | the model id | Display name shown in the TUI and `--model` |
+| `--context-window N` | provider-appropriate | Context window in tokens |
+| `--force` | off | Replace an existing `settings.yaml` |
+
+The file is written with mode `600` because it holds an API key. Without
+`--force`, an existing file is left untouched and the command exits `2`.
+
 ## TUI Slash Commands
 
 Typed into the input line:
@@ -57,6 +72,9 @@ Typed into the input line:
 ## Examples
 
 ```bash
+# first run: write ~/.buildmax/settings.yaml with a working key
+buildmax init --api-key sk-your-key-here
+
 # one-shot question, quiet, in another directory
 buildmax -p "list the exported symbols" --workspace ../lib -q
 

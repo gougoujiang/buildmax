@@ -57,12 +57,12 @@ func (s *seatbeltBackend) Wrap(_ context.Context, p WrapParams) (string, []strin
 		return "", nil, fmt.Errorf("sandbox: write profile: %w", err)
 	}
 	if _, err := f.WriteString(profile); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return "", nil, fmt.Errorf("sandbox: write profile: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return "", nil, err
 	}
 	// HTTP_PROXY env is set on cmd.Env by the bash tool itself

@@ -187,6 +187,22 @@ func cmdTest() error {
 	return runCmd("go", "test", "./...")
 }
 
+// Pinned to the versions .github/workflows/ci.yml runs, so a local pass means
+// the same thing CI does. Change them together.
+const (
+	golangciLintPkg = "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"
+	govulncheckPkg  = "golang.org/x/vuln/cmd/govulncheck@v1.7.0"
+)
+
+func cmdLint() error {
+	fmt.Println("Running golangci-lint (see .golangci.yml)...")
+	if err := runCmd("go", "run", golangciLintPkg, "run", "./..."); err != nil {
+		return err
+	}
+	fmt.Println("Checking for known vulnerabilities...")
+	return runCmd("go", "run", govulncheckPkg, "./...")
+}
+
 func cmdSmoke() error {
 	if _, err := useSandboxHome(); err != nil {
 		return err

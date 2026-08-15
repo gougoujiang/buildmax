@@ -68,17 +68,17 @@ func (p *slashMCPState) Render(_ *Model, maxLineWidth int) string {
 		b.WriteString("Add mcp.json in BuildMax home (~/.buildmax/mcp.json) and/or <workspace>/.buildmax/mcp.json. Workspace entries override global ones with the same server id.")
 		return b.String()
 	}
-	b.WriteString(fmt.Sprintf("%-16s  %-6s  %s\n", "id", "type", "status"))
+	fmt.Fprintf(&b, "%-16s  %-6s  %s\n", "id", "type", "status")
 	linesOut := 0
 	for _, row := range p.Servers {
 		if linesOut >= slashMCPInlinePanelMaxContentLines {
 			remaining := len(p.Servers) - linesOut
 			if remaining > 0 {
-				b.WriteString(fmt.Sprintf("… %d more\n", remaining))
+				fmt.Fprintf(&b, "… %d more\n", remaining)
 			}
 			break
 		}
-		status := "connected"
+		var status string
 		if row.OK {
 			if row.ToolCount != 1 {
 				status = fmt.Sprintf("connected (%d tools)", row.ToolCount)

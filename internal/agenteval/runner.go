@@ -87,7 +87,7 @@ func (r *Runner) runAgent(ctx context.Context, task Task, workspaceDir string) (
 	if err != nil {
 		return agentRunResult{}, fmt.Errorf("init agent: %w", err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 
 	if r.ModelName != "" {
 		app.SetDefaultModel(r.ModelName)
@@ -134,7 +134,7 @@ func prepareWorkspace(fixtureDir string) (string, func(), error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("create temp dir: %w", err)
 	}
-	cleanup := func() { os.RemoveAll(tmp) }
+	cleanup := func() { _ = os.RemoveAll(tmp) }
 
 	if fixtureDir == "" {
 		return tmp, cleanup, nil

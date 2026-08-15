@@ -216,7 +216,7 @@ func (c *LLMClient) doStreaming(ctx context.Context, messages []cllm.Message, to
 	if err != nil {
 		return "", nil, cllm.Usage{}, fmt.Errorf("chat completion stream: %w", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	var fullContent strings.Builder
 	// Accumulate tool calls from stream deltas (index -> id, name, arguments).
