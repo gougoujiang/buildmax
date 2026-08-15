@@ -1,4 +1,7 @@
 <!--
+This PR will be squash-merged, so the TITLE above becomes the commit subject on
+main: one imperative line that reads on its own in `git log --oneline`.
+
 CONTRIBUTING.md has the full guidance. The short version: one concern per PR,
 tests for behavioral changes, and documentation updated alongside the code.
 -->
