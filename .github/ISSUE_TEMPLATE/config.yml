@@ -9,6 +9,9 @@ contact_links:
   - name: Contributing guide
     url: https://github.com/gougoujiang/buildmax/blob/main/CONTRIBUTING.md
     about: Local checks, architectural boundaries, and pull request guidance.
+  - name: Support matrix
+    url: https://github.com/gougoujiang/buildmax/blob/main/docs/start/support.md
+    about: Supported platforms, deployment paths, current non-goals, and alpha boundaries.
   - name: Support guide
     url: https://github.com/gougoujiang/buildmax/blob/main/SUPPORT.md
     about: Choose the right channel and learn what details to include.

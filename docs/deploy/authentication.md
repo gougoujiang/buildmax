@@ -5,6 +5,9 @@
 BuildMax has no way to send email. Everything below follows from that: accounts
 are created by an operator, and login codes are delivered by hand.
 
+For the broader alpha support boundaries, see the
+[support matrix](../start/support.md).
+
 ## How Someone Signs In
 
 Two commands on the server, and one code you pass along:

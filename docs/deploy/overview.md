@@ -3,7 +3,9 @@
 > **Audience:** operators · **Status:** current
 >
 > **BuildMax is alpha.** Read [authentication.md](authentication.md) before
-> putting a server anywhere it can be reached by people you do not trust.
+> putting a server anywhere it can be reached by people you do not trust. The
+> current deployment support boundaries are in
+> [start/support.md](../start/support.md).
 
 Deploying BuildMax for a team means running two Go binaries plus two backing
 services. There is nothing to install into the agent runtime itself — the
