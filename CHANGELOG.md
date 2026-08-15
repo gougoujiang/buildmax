@@ -13,11 +13,16 @@ pre-releases and must be called out in release notes.
 
 - An optional `llm` block in `server.yaml`: an operator-owned model catalog,
   team model aliases, and `conversation.model_target` to run Tier 1 on a
-  catalog entry. Only the server's own model selection uses it so far — there is
-  no gateway route yet, so CLI, Desktop, and workers still call providers
-  directly. A catalog that does not validate now fails startup instead of
-  leaving the server with no Tier 1 model. See
-  `docs/design/llm-gateway.md`.
+  catalog entry. A catalog that does not validate now fails startup instead of
+  leaving the server with no Tier 1 model. See `docs/design/llm-gateway.md`.
+- A managed inference gateway: `GET /api/teams/{team_id}/llm/models` lists the
+  aliases a team may use, and `POST /api/teams/{team_id}/llm/completions` runs
+  one blocking call against an operator-approved model. Clients name an alias,
+  never an endpoint, a credential, or a provider model identifier. Every call is
+  recorded in a new `llm_call` ledger — identity, model, timing, outcome, and
+  token usage, with no prompts or generated content. Streaming answers `501` for
+  now, no BuildMax client uses the gateway yet, and a team already over quota is
+  refused, which is accounting rather than a spending ceiling.
 - A Compose stack under `deployment/compose/`: MySQL, the server, and the
   Portal, with a script that generates the secrets. `docs/deploy/compose.md`
   walks from nothing to a signed-in Portal.

@@ -334,14 +334,14 @@ func TestParseCapabilitiesDefaultsToProviderContract(t *testing.T) {
 	}
 }
 
-// TestWireConversationLLMPreservesExistingDeployments checks what the handler
+// TestWireLLMPreservesExistingDeployments checks what the handler
 // layer actually receives, not just the routing struct.
-func TestWireConversationLLMPreservesExistingDeployments(t *testing.T) {
+func TestWireLLMPreservesExistingDeployments(t *testing.T) {
 	var cfg httpserver.Config
 	sc := config.ServerConfig{Conversation: config.ServerConvConfig{Model: conversationModel()}}
 
-	if err := wireConversationLLM(&cfg, sc); err != nil {
-		t.Fatalf("wireConversationLLM: %v", err)
+	if err := wireLLM(&cfg, sc, nil, nil); err != nil {
+		t.Fatalf("wireLLM: %v", err)
 	}
 	if cfg.Conv.ConversationLLMClient == nil {
 		t.Error("the Tier 1 client was not wired")
@@ -352,17 +352,17 @@ func TestWireConversationLLMPreservesExistingDeployments(t *testing.T) {
 
 	// No model configured: Tier 1 stays unwired and startup still succeeds.
 	var unconfigured httpserver.Config
-	if err := wireConversationLLM(&unconfigured, config.ServerConfig{}); err != nil {
-		t.Fatalf("wireConversationLLM without a model: %v", err)
+	if err := wireLLM(&unconfigured, config.ServerConfig{}, nil, nil); err != nil {
+		t.Fatalf("wireLLM without a model: %v", err)
 	}
 	if unconfigured.Conv.ConversationLLMClient != nil || unconfigured.Conv.TitleGenerator != nil {
 		t.Error("Tier 1 was wired with no conversation model configured")
 	}
 }
 
-// TestWireConversationLLMFailsStartupOnBadCatalog keeps a misconfigured catalog
+// TestWireLLMFailsStartupOnBadCatalog keeps a misconfigured catalog
 // from starting a server that silently has no Tier 1 model.
-func TestWireConversationLLMFailsStartupOnBadCatalog(t *testing.T) {
+func TestWireLLMFailsStartupOnBadCatalog(t *testing.T) {
 	var cfg httpserver.Config
 	sc := config.ServerConfig{
 		Conversation: config.ServerConvConfig{Model: conversationModel()},
@@ -372,7 +372,7 @@ func TestWireConversationLLMFailsStartupOnBadCatalog(t *testing.T) {
 		},
 	}
 
-	if err := wireConversationLLM(&cfg, sc); err == nil {
+	if err := wireLLM(&cfg, sc, nil, nil); err == nil {
 		t.Fatal("a dangling alias did not fail startup")
 	}
 	if cfg.Conv.ConversationLLMClient != nil {

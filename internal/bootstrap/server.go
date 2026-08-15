@@ -232,21 +232,37 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			UserID:      sc.Webhook.UserID,
 		},
 	}
-	if err := wireConversationLLM(&cfg, sc); err != nil {
+	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {
 		return httpserver.Config{}, err
 	}
 	return cfg, nil
 }
 
-// wireConversationLLM routes Tier 1 conversation and title generation through
-// the model router, in process. The server resolves a catalog target it owns;
-// it does not call its own HTTP listener and is not subject to team policy.
-func wireConversationLLM(cfg *httpserver.Config, sc config.ServerConfig) error {
+// wireLLM builds the model router, routes Tier 1 conversation through it in
+// process, and exposes the managed gateway to authenticated clients.
+//
+// The server resolves a catalog target it owns for its own inference: it does
+// not call its own HTTP listener and is not subject to team model policy.
+func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.QuotaService) error {
 	routing, err := buildLLMRouting(sc)
 	if err != nil {
 		return err
 	}
-	if routing == nil || routing.Tier1TargetID == "" {
+	if routing == nil {
+		return nil
+	}
+
+	// The gateway needs a ledger. Without a store there is nowhere to account
+	// managed calls, so it stays off rather than serving unmetered inference.
+	if st != nil {
+		cfg.Conv.LLMGateway = &llmgateway.Service{
+			Router: routing.Router,
+			Ledger: st,
+			Quota:  quotaService,
+		}
+	}
+
+	if routing.Tier1TargetID == "" {
 		return nil
 	}
 	routed, err := routing.Router.ClientForTarget(context.Background(), routing.Tier1TargetID, llmgateway.BaselineCapabilities())

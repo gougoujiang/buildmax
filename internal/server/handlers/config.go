@@ -9,6 +9,7 @@ import (
 	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
+	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
 
@@ -68,6 +69,10 @@ type Config struct {
 	// Conversation / LLM
 	TitleGenerator        llm.TitleGenerator
 	ConversationLLMClient llm.LLMClient
+
+	// LLMGateway serves managed inference. Nil means the deployment offers no
+	// managed models and the /llm routes answer 503.
+	LLMGateway *llmgateway.Service
 
 	// Inbound webhook
 	WebhookAdapter     convchannel.Adapter

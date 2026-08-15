@@ -217,9 +217,18 @@ storage directly rather than proxying through the server.
 
 The `llm` block is the operator-owned model catalog for the managed LLM gateway
 designed in [design/llm-gateway.md](../design/llm-gateway.md). It is optional and
-**partly implemented**: today it only changes which model the server itself uses.
-There is no gateway route and no managed client, so CLI, Desktop, and workers
-still call providers directly with their own credentials.
+**partly implemented**. What works today:
+
+- `GET /api/teams/{team_id}/llm/models` lists the aliases a team may use.
+- `POST /api/teams/{team_id}/llm/completions` runs one blocking call and records
+  it in the call ledger.
+- `conversation.model_target` picks the server's own Tier 1 model.
+
+What does not exist yet: streaming (the route answers `501`), a managed client
+in CLI, Desktop, or the worker, and quota enforcement beyond refusing a team
+that is *already* over its limit. So CLI, Desktop, and workers still call
+providers directly with their own credentials, and the ledger is accounting
+data, not a spending ceiling.
 
 | Key | Meaning |
 |---|---|
@@ -241,6 +250,10 @@ A server with no `llm` block behaves exactly as before: `conversation.model`
 serves Tier 1, and no team has managed access. A catalog that does not validate —
 an alias pointing at no target, an unknown capability, a target with no
 credential — fails startup rather than starting a server with no Tier 1 model.
+
+Managed calls need a database, because every one of them is recorded in the
+`llm_call` ledger. Without a store the routes answer `503` rather than serving
+inference nobody can account for.
 
 ## Data Directory Layout
 

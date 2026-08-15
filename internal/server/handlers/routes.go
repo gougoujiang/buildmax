@@ -10,6 +10,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/otp/request", h.otpRequestHandler)
 	mux.HandleFunc("POST /api/login", h.loginHandler)
 
+	// Managed LLM gateway
+	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)
+
 	// Usage
 	mux.HandleFunc("GET /api/usage", h.usageHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)
