@@ -13,28 +13,28 @@
 | `deploy/` | Someone running it for a team | Topology, authentication, local cluster |
 | `reference/` | Someone looking something up | Configuration, CLI, webhook — tables, not prose |
 | `contribute/` | Someone changing the code | Layout, architecture, these conventions |
-| `design/` | Someone asking "why is it like this" | Numbered design records |
+| `design/` | Someone asking "why is it like this" | Semantic design records indexed by lifecycle |
 
 The test for where a document belongs is **who is stuck without it**, not what
 kind of document it is.
 
 ## Design Documents
 
-Numbered `NNN-kebab-case-title.md`. A number is allocated once and never
-reused, so code comments and other documents can cite it stably:
+Use a stable semantic filename such as `sandbox-boundaries.md`. The filename
+describes the subject, not chronology, roadmap priority, or lifecycle, so code
+comments and other documents can cite it without inheriting planning metadata:
 
 ```go
-// Mirrors the design in docs/design/032-sandbox-and-execution-boundaries.md.
+// Mirrors the design in docs/design/sandbox-boundaries.md.
 ```
 
-Gaps in the sequence are expected — they are documents that were removed.
+`design/README.md` separates three kinds of entry:
 
-`design/README.md` separates two kinds of entry:
-
-- **Specifications** — durable records of how a subsystem is designed. These
-  stay current.
-- **Roadmap plans** — work planned under a `ROADMAP.md` priority. These expire
-  when the work lands or the direction changes.
+- **Product direction** — durable decisions spanning roadmap phases.
+- **Active roadmap plans** — planned or partly implemented work under a
+  `ROADMAP.md` priority. These expire when the work lands or changes direction.
+- **Subsystem specifications** — durable records of how an implemented or
+  partly implemented subsystem is designed. These stay current.
 
 A design document is **rationale, not user documentation**. When a design ships
 a user-configurable feature, the user-facing half belongs in `guide/` or
@@ -103,7 +103,7 @@ Everything else is convention, upheld in review.
 |---|---|
 | Package boundary or runtime contract | The matching document in [architecture/](architecture/README.md), same pull request |
 | User-visible behavior or configuration | `guide/`, `reference/`, and `config-examples/` |
-| Direction | Add a numbered document to [../design/](../design/README.md) |
+| Direction | Add or update a semantic record in [../design/](../design/README.md) |
 | A package moves | [repo-layout.md](repo-layout.md) — and nowhere else |
 
 ## Style

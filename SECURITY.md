@@ -49,7 +49,7 @@ them; they are tracked as roadmap work.
   off by default, and a full bypass when enabled.
 - **Sandboxing is off by default.** The bash sandbox exists but is not enabled
   on any surface by default, and worker hardening is incomplete. See
-  `docs/design/032-sandbox-and-execution-boundaries.md` §13.1.
+  `docs/design/sandbox-boundaries.md` §13.1.
 
 ## Deployment Responsibilities
 

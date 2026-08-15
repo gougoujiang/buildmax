@@ -17,7 +17,7 @@
 #
 # Guide: docs/guide/sandbox.md
 # Reference: docs/reference/configuration.md
-# Design: docs/design/032-sandbox-and-execution-boundaries.md
+# Design: docs/design/sandbox-boundaries.md
 
 sandbox:
   enabled: true

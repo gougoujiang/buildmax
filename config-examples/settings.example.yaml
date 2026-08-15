@@ -35,7 +35,7 @@ models:
 # An operator can override this block from <BUILDMAX_HOME>/policy.yaml, and
 # BUILDMAX_SANDBOX_ENABLED overrides both.
 #
-# Guide: docs/guide/sandbox.md. Design: docs/design/032-sandbox-and-execution-boundaries.md.
+# Guide: docs/guide/sandbox.md. Design: docs/design/sandbox-boundaries.md.
 #
 # sandbox:
 #   enabled: true
@@ -72,7 +72,7 @@ models:
 #   enable_weaker_network_isolation: false
 
 # Runtime hooks (P0.5 trust harness). Hooks let you observe or block events in
-# the agent loop. Full design: design/031-hook-system-v2.md.
+# the agent loop. Full design: design/hook-system.md.
 #
 # Events:
 #   session_start:             session opened or resumed (advisory)

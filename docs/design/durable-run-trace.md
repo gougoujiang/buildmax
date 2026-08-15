@@ -4,14 +4,15 @@
 
 - roadmap_priority: `P0.5`
 - status: `phase 1 implemented` (§8 phase 1 landed; follow-ups in §7 still open)
-- implements: [030-agent-core-p0-5-trust-harness.md](./030-agent-core-p0-5-trust-harness.md) §3.3
-- follows: [031-hook-system-v2.md](./031-hook-system-v2.md)
+- implements: [trust-harness.md](./trust-harness.md) §3.3
+- follows: [hook-system.md](./hook-system.md)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-06-03`
 
 ## 1. Purpose
 
-030 §3.3 calls for a **durable run trace** that explains what happened during an
+[trust-harness.md](./trust-harness.md) §3.3 calls for a **durable run trace**
+that explains what happened during an
 Agent run: model calls, tool calls, approval decisions, hook execution, file
 changes, compaction, errors/retries, token usage and timing, subagent
 relationships, sandbox mode, and the memory/instruction sources used.
@@ -217,7 +218,8 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
    (bullet 4). They drive the hook-blocked turn, the one `RunPrompt` path that
    reaches the recorder without a live LLM.
 7. `./make test`.
-8. Docs: mark 030 §3.3 in progress/done with shipped record set; update CLAUDE.md and `design/README.md`.
+8. Docs: mark `trust-harness.md` §3.3 in progress/done with the shipped record
+   set; update `AGENTS.md` and `design/README.md`.
 
 ### Follow-ups (later passes)
 

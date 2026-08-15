@@ -1,7 +1,7 @@
 # Agent-Mediated AI-Native Workspace
 
-**Product Design Reference · Prototype v0**  
-*Design draft for BuildMax Portal / Nexus-style workspace.*
+**Product direction · current**
+*Long-range design reference for the BuildMax AI-native workspace.*
 
 ---
 

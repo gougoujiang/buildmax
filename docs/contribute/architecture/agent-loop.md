@@ -110,7 +110,7 @@ When `EventSink` is set the loop emits structured events — `EventIterStart`,
 goroutine and must not block**. Nil sink means zero overhead.
 
 This is the single seam the TUI, `--output jsonl`, and the durable run trace all
-hang off. See [design/034](../../design/034-durable-run-trace.md).
+hang off. See the [durable run trace design](../../design/durable-run-trace.md).
 
 ## Cancellation
 

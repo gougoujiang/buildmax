@@ -1,5 +1,5 @@
 // Package trace persists a durable, bounded, redacted record of a single Agent
-// run by consuming the core/agent event stream. See docs/design/034-durable-run-trace.md.
+// run by consuming the core/agent event stream. See docs/design/durable-run-trace.md.
 package trace
 
 import (

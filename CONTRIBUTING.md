@@ -246,7 +246,7 @@ The rest:
   - a package moves → update
     [docs/contribute/repo-layout.md](docs/contribute/repo-layout.md), which is
     the only place the tree is written down
-  - direction changes → add a numbered document to
+  - direction changes → add or update a semantic design record in
     [docs/design/](docs/design/README.md), and delete the superseded one
   - user-facing behavior or configuration changes → update `docs/guide/`,
     `docs/reference/`, and `config-examples/`

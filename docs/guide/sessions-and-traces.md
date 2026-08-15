@@ -3,7 +3,7 @@
 > **Audience:** users · **Status:** current
 >
 > Trace design and remaining phases:
-> [design/034-durable-run-trace.md](../design/034-durable-run-trace.md)
+> [design/durable-run-trace.md](../design/durable-run-trace.md)
 
 Two different records of what happened, for two different questions.
 

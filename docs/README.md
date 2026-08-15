@@ -62,7 +62,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 | | |
 |---|---|
 | [../ROADMAP.md](../ROADMAP.md) | Active priorities and sequencing |
-| [design/](design/README.md) | Numbered design records — specifications and roadmap plans |
+| [design/](design/README.md) | Product direction, active plans, and subsystem specifications |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure and operator responsibilities |
 
 ## Conventions

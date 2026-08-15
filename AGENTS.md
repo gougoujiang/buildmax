@@ -79,8 +79,8 @@ Read the relevant architecture document before making a cross-package change:
 - Durable specifications for hooks, sandbox boundaries, and traces are indexed
   in [`docs/design/README.md`](docs/design/README.md).
 - Portal product intent and surface positioning live in
-  [`docs/design/001-about-portal.md`](docs/design/001-about-portal.md) and
-  [`docs/design/023-desktop-cli-portal-positioning.md`](docs/design/023-desktop-cli-portal-positioning.md).
+  [`docs/design/product-vision.md`](docs/design/product-vision.md) and
+  [`docs/design/surface-positioning.md`](docs/design/surface-positioning.md).
 
 ## Runtime Invariants
 
@@ -90,7 +90,8 @@ Read the relevant architecture document before making a cross-package change:
   `<BUILDMAX_HOME>/server.yaml`. The default data directory is `~/.buildmax`.
 - An optional workspace-root `AGENTS.md` is appended to the core system prompt.
 - Runtime hooks merge global settings with `<workspace>/.buildmax/hooks.yaml`.
-  Hook failures fail open; gating contracts are documented in design 031.
+  Hook failures fail open; gating contracts are documented in
+  [`docs/design/hook-system.md`](docs/design/hook-system.md).
 - The Bash sandbox is available on macOS and Linux but currently defaults off
   on all surfaces. Do not claim the deferred worker hardening is active.
 - Every run records a bounded, redacted JSONL trace by default. Trace failure is

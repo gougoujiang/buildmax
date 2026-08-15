@@ -3,7 +3,8 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `draft`
+- status: `in_progress` — hooks are implemented; sandbox worker hardening and
+  trace follow-ups remain open
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -31,7 +32,7 @@ The goal is:
 ### 3.1 Runtime Hooks — shipped ✅
 
 The runtime hook system is implemented; detail design lives in
-[031-hook-system-v2.md](./031-hook-system-v2.md). Highlights:
+[hook-system.md](./hook-system.md). Highlights:
 
 **Configuration locations** — entries from both layers merge additively:
 - Global: `<BUILDMAX_HOME>/settings.yaml` under `hooks:`
@@ -69,12 +70,13 @@ hooks.
 
 **Deferred** to follow-ups: `agent` transport (CC experimental), skill /
 subagent frontmatter hooks (session-scoped lifetime), `async` command flag,
-`buildmax hooks` inspector. See doc 031 §10 (Implementation steps phase F).
+`buildmax hooks` inspector. See [hook-system.md](./hook-system.md) §10
+(implementation phase F).
 
 ### 3.2 Sandbox And Execution Boundaries — local sandbox shipped ✅, worker hardening open
 
 Explicit sandbox modes for command execution now exist. Detail design lives in
-[032-sandbox-and-execution-boundaries.md](./032-sandbox-and-execution-boundaries.md);
+[sandbox-boundaries.md](./sandbox-boundaries.md);
 its phases A–E are implemented. The sandbox isolates **bash subprocesses**
 (Seatbelt on macOS, `bwrap` on Linux/WSL2, unavailable elsewhere); non-bash
 tools keep their existing permission boundary. Config resolves from
@@ -88,21 +90,24 @@ Boundary coverage against the list above:
 - external directory access — ✅ `filesystem.allow_write` / `deny_read` etc.
 - network access — ✅ Go-side HTTP/SOCKS proxy with domain allow/deny
 - environment variable exposure — ✅ secret-shaped vars scrubbed from bash env
-- process execution limits — ❌ not implemented (no rlimits; 032 §13 phase D)
+- process execution limits — ❌ not implemented (no rlimits;
+  [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D)
 - worker/container execution mode — ❌ **the stricter worker default is not
   wired**: `agentapp/taskrun` builds its AgentApp without
   `SandboxSurface: SandboxSurfaceWorker`, so worker runs fall back to the
-  local CLI baseline (`enabled: false`). 032 §13 phase F.
+  local CLI baseline (`enabled: false`). See
+  [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase F.
 
-Also still open from 032: `command` / `http` hook transports do not consult
-`SandboxView` yet (032 §9, §12), and `buildmax sandbox overrides` (032 §8) is
-not implemented. §3.2 is therefore **not** closed — the enforcement engine
-landed, the operator-facing worker hardening did not.
+Also still open in [sandbox-boundaries.md](./sandbox-boundaries.md): `command` /
+`http` hook transports do not consult `SandboxView` yet (§9, §12), and
+`buildmax sandbox overrides` (§8) is not implemented. §3.2 is therefore **not**
+closed — the enforcement engine landed, the operator-facing worker hardening
+did not.
 
 ### 3.3 Durable Run Trace — phase 1 shipped ✅
 
 A durable run trace now persists the runtime event stream for every run. Detail
-design lives in [034-durable-run-trace.md](./034-durable-run-trace.md).
+design lives in [durable-run-trace.md](./durable-run-trace.md).
 Phase 1 shipped: a bounded, redacted JSONL trace written at the single
 `agentapp.RunPrompt` chokepoint, so CLI/TUI, Desktop, eval, and worker runs all
 produce traces with no per-surface code. Each run writes
@@ -128,25 +133,9 @@ Coverage against the full §3.3 target (✅ = in phase 1):
 - sandbox mode and boundary decisions — ❌ needs sandbox events (see §3.2)
 - memory and instruction sources used for the run — ❌ deferred
 
-Deferred to follow-ups (see 034 §7): activity-view UI, a `buildmax trace`
-inspector, the records marked ❌ above, and retention/GC of the traces
-directory.
-
-### 3.3 Durable Run Trace — phase 1 shipped ✅
-
-A durable run trace now persists the runtime event stream for every run. Detail
-design lives in [034-durable-run-trace.md](./034-durable-run-trace.md).
-Phase 1 shipped: a bounded, redacted JSONL trace written at the single
-`agentapp.RunPrompt` chokepoint, so CLI/TUI, Desktop, eval, and worker runs all
-produce traces with no per-surface code. Each run writes
-`<DataDir>/traces/<session_id>/<run_id>.jsonl` (run id prefix `rt_`) with a
-`run_start` record, per-iteration `llm_*`/`tool_*`/`context_compacted` records,
-and a terminal `run_end`. Disable via `BUILDMAX_TRACE_DISABLED`. Fail-open: a
-trace failure never breaks or slows a run.
-
-Deferred to follow-ups (see 034 §7): activity-view UI, a `buildmax trace`
-inspector, subagent child-trace linkage (`parent_run_id`), dedicated
-hook/approval/file-change/sandbox records (need new events), and retention/GC.
+Deferred to follow-ups (see [durable-run-trace.md](./durable-run-trace.md) §7):
+activity-view UI, a `buildmax trace` inspector, the records marked ❌ above,
+and retention/GC of the traces directory.
 
 ### 3.4 Activity Views
 

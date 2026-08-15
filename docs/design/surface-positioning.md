@@ -2,7 +2,7 @@
 
 ## Status
 
-- status: `decision`
+- status: `current_decision`
 - created_at: `2026-05-10`
 - context: product surface positioning for a shared Agent core, local entry points, and enterprise Portal deployment
 

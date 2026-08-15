@@ -7,47 +7,42 @@ documentation** — when a design ships something configurable, the user-facing
 half lives in [../guide/](../guide/) or [../reference/](../reference/), and the
 design record keeps the trade-offs and the open gaps.
 
-Documents keep their number for life so code comments can cite them stably.
-Numbers are never reused; gaps are documents that were retired.
-
-## Specifications
-
-Durable records of how a subsystem is designed. These stay current.
-
-| # | Document | Subsystem | User docs |
-|---|---|---|---|
-| 031 | [Hook system v2](031-hook-system-v2.md) | Lifecycle hooks — 13 events, 4 transports | [guide/hooks.md](../guide/hooks.md) |
-| 032 | [Sandbox and execution boundaries](032-sandbox-and-execution-boundaries.md) | Bash sandbox, egress proxy, policy layering | [guide/sandbox.md](../guide/sandbox.md) |
-| 034 | [Durable run trace](034-durable-run-trace.md) | Bounded, redacted JSONL trace per run | — |
-
-Shipped status, honestly: hooks are complete; the sandbox has phases A–E
-shipped with worker hardening open (see its §13.1); traces are at phase 1.
+Documents use stable, semantic filenames. The index supplies their lifecycle
+and reading order; filenames do not encode chronology or roadmap priority.
 
 ## Product Direction
 
-| # | Document | Scope |
+Durable product decisions that guide more than one roadmap phase.
+
+| Document | Scope |
+|---|---|
+| [Product vision](product-vision.md) | Long-range direction for the AI-native workspace |
+| [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
+
+## Active Roadmap Plans
+
+Work tracked by [ROADMAP.md](../../ROADMAP.md). Plans can be partly implemented;
+their status must say what is shipped and what remains. When a plan is complete,
+move durable decisions into a subsystem specification or the architecture
+reference, then delete the plan.
+
+| Document | Priority | Current state |
 |---|---|---|
-| 001 | [About Portal](001-about-portal.md) | Long-range vision for the AI-native workspace direction |
-| 023 | [Desktop, CLI, and Portal positioning](023-desktop-cli-portal-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate as surfaces |
+| [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
+| [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
+| [Team governance](team-governance.md) | P4 | Roles, quota, and workflow lifecycle shipped; audit/event visibility open |
+| [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 
-## Roadmap Plans
+## Subsystem Specifications
 
-Work planned under a [ROADMAP.md](../../ROADMAP.md) priority. **These expire** —
-when the work lands, its durable half moves to a specification or to the
-architecture reference, and the plan is retired. Every document below is
-therefore work that is designed but **not yet built**.
+Durable records for implemented or partly implemented subsystems. Keep these
+aligned with code and link user-facing behavior to `guide/` or `reference/`.
 
-| # | Document | Priority | Status |
-|---|---|---|---|
-| 030 | [Agent Core P0.5 trust harness](030-agent-core-p0-5-trust-harness.md) | P0.5 | Partly shipped — 031/032/034 implement sections of it |
-| 027 | [Enterprise deployment loop](027-enterprise-deployment-loop.md) | P3 | Designed, not implemented |
-| 028 | [Team governance foundation](028-team-governance-foundation.md) | P4 | Designed, not implemented |
-| 029 | [Versioned workspace design](029-versioned-workspace-design.md) | P5 | Designed, not implemented |
-
-P0 (Agent Core stability), P1 (Local agent experience), and P2 (Portal outcome
-surface) are complete; their plans were retired. Numbers 024, 025, and 026 stay
-retired and are not reused — recover the documents from git history if you need
-the reasoning behind a decision made then.
+| Document | Current state | User docs |
+|---|---|---|
+| [Hook system](hook-system.md) | 13 events and 4 transports implemented | [guide/hooks.md](../guide/hooks.md) |
+| [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; worker hardening open | [guide/sandbox.md](../guide/sandbox.md) |
+| [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
 
 ## Where The Designs Land
 
@@ -66,10 +61,9 @@ Full tree: [contribute/repo-layout.md](../contribute/repo-layout.md).
 
 ## Adding One
 
-1. Take the next unused number; name it `NNN-kebab-case-title.md`.
-2. State the problem, the options considered, the chosen approach, and the
-   phases.
-3. Add a row above — Specification or Roadmap Plan.
+1. Choose a short semantic filename such as `execution-policy.md`.
+2. State the problem, options considered, chosen approach, status, and phases.
+3. Add it to exactly one section above.
 4. If it ships something a user configures, write the user-facing half in
    `guide/` or `reference/` and link it from the table.
 

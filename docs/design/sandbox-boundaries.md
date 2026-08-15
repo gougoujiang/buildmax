@@ -6,7 +6,7 @@
 - status: `phases A–E implemented` (§13; phase F worker hardening + docs still
   open, plus the gaps listed there — modelled on
   [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
-- follows: [030-agent-core-p0-5-trust-harness.md](./030-agent-core-p0-5-trust-harness.md), [031-hook-system-v2.md](./031-hook-system-v2.md)
+- follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-23`
 
@@ -53,7 +53,7 @@ Three principles, lifted from the Claude Code docs:
 2. **Opt-in for users, opt-out for operators.** Default `enabled:
    false` on local CLI/Desktop (no regression). **Default `enabled:
    true` with `fail_if_unavailable: true` on the worker** to satisfy
-   doc 030's "stricter than trusted local."
+   the trust harness's "stricter than trusted local."
 3. **Visible failure beats silent fail-open.** When `enabled: true`
    but the backend can't start (missing `bwrap`, unsupported platform),
    show a clear startup message. On the worker, refuse to start.
@@ -238,7 +238,7 @@ failure and may retry the command with the `dangerouslyDisableSandbox`
 parameter."
 
 Every disabled call writes a `Violation{kind: sandbox_disabled}` to
-the violation store so audit hooks (doc 031) see it.
+the violation store so audit hooks described in [hook-system.md](./hook-system.md) see it.
 
 ## 7. How the OS backend works
 
@@ -348,7 +348,7 @@ through the sandbox."
 | Portal in-process turn | inherits worker defaults | yes |
 | TUI subagent | inherits parent | n/a |
 
-The worker config is the concrete realization of doc 030 §3.2's
+The worker config is the concrete realization of [trust-harness.md](./trust-harness.md) §3.2's
 "stricter default than trusted local." A worker that resolves to
 `enabled: false` because of an override emits a startup `WARN`,
 stamps the trace `sandbox.downgraded=true`, and exposes the
@@ -409,7 +409,7 @@ Sandbox and hooks are complementary:
 - Sandbox is a *contract-level deny*: deterministic, OS-enforced,
   shaped for the LLM (CLAUDE.md §6.4).
 - Hooks are *imperative checks*: policy callouts, audit, formatters
-  (doc 031). They run **after** sandbox accepts. A sandbox deny
+  ([hook-system.md](./hook-system.md)). They run **after** sandbox accepts. A sandbox deny
   fires `Notification{kind: sandbox_denied}` so audit hooks still
   see it.
 
@@ -491,11 +491,12 @@ Still open — these block §15 acceptance:
    exists and carries the hardened baseline, but nothing selects it:
    `agentapp/taskrun/runtime.go` builds its AgentApp with an empty
    `SandboxSurface`, which resolves to the CLI baseline (`enabled: false`).
-   This is the single most load-bearing gap — doc 030 §3.2's "stricter default
+   This is the single most load-bearing gap — [trust-harness.md](./trust-harness.md) §3.2's "stricter default
    on the worker" is currently not true.
 2. **Process limits are absent.** No `infra/sandbox/unix_rlimit.go`, no
    `Setrlimit` call anywhere. Phase D shipped without it, so the "process
-   execution limits" boundary in 030 §3.2 is unenforced.
+   execution limits" boundary in [trust-harness.md](./trust-harness.md) §3.2 is
+   unenforced.
 3. **Hook transports do not consult `SandboxView`.** §9 and §12 require the
    `command` and `http` drivers to honor the sandbox so hooks cannot be used
    to escape it; `infra/hook/command.go` and `infra/hook/http.go` have no

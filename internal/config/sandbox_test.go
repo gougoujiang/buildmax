@@ -70,7 +70,7 @@ sandbox:
 }
 
 // TestSandboxConfig_DefaultsForSurface asserts the per-surface baselines
-// from doc 032 §10.
+// from docs/design/sandbox-boundaries.md §10.
 func TestSandboxConfig_DefaultsForSurface(t *testing.T) {
 	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "")
 

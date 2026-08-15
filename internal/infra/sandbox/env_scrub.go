@@ -7,7 +7,7 @@ import (
 
 // secretEnvDenyExact lists env var names that always carry agent-process
 // secrets and must never reach a sandboxed child. Mirrors the design in
-// doc 032 §6.4.
+// docs/design/sandbox-boundaries.md §6.4.
 //
 // Operators who explicitly need to pass one of these to a subprocess can
 // re-introduce it via cmd.Env outside the sandbox path; the sandbox

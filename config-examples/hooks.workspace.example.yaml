@@ -13,7 +13,7 @@
 # The full schema (events, transports, matcher, timeout, output contract)
 # is documented in:
 #   - config-examples/settings.example.yaml (annotated reference)
-#   - design/031-hook-system-v2.md (design + semantics)
+#   - design/hook-system.md (design + semantics)
 
 pre_tool_use:
   # Block writes outside the project tree. policy-check.sh exits 2 with the

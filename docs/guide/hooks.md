@@ -3,7 +3,7 @@
 > **Audience:** users and operators · **Status:** current — shipped
 >
 > Design rationale and event payload details:
-> [design/031-hook-system-v2.md](../design/031-hook-system-v2.md)
+> [design/hook-system.md](../design/hook-system.md)
 
 Hooks let you observe — and for some events, **block** — what the agent does.
 They are the mechanism behind "never let it run `rm -rf`", "format after every

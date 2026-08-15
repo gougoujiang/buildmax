@@ -3,8 +3,9 @@
 ## Status
 
 - roadmap_priority: `P4`
-- status: `ready_for_review`
-- follows: [027-enterprise-deployment-loop.md](./027-enterprise-deployment-loop.md)
+- status: `partially_implemented` — roles, quota, and workflow lifecycle are
+  shipped; audit/event visibility remains open
+- follows: [enterprise-deployment.md](./enterprise-deployment.md)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-17`
 

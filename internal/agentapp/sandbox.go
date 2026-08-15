@@ -53,7 +53,7 @@ func (a *AgentApp) SandboxStatus() SandboxStatus {
 // buildSandboxManager constructs the platform sandbox manager from the
 // resolved config. Returns ErrSandboxUnavailable when the host backend is
 // missing and fail_if_unavailable is set, so the caller refuses to start
-// (per doc 030 §3.2 worker hardening).
+// (per docs/design/trust-harness.md §3.2 worker hardening).
 func buildSandboxManager(resolved config.SandboxResolution, workspace string) (*sandbox.Manager, error) {
 	m, err := sandbox.NewManager(resolved.Config, workspace, slog.Default())
 	if err != nil {
