@@ -162,7 +162,7 @@ Orientation, so the rest of this document reads without a detour:
 | `internal/server/` | HTTP API, scheduler, websocket hub |
 | `gui/`, `portal/`, `desktop/` | Shared React package and the two frontends |
 | `docs/`, `config-examples/`, `deployment/` | Documentation, config examples, deployment |
-| `eval/`, `sample-data/`, `scripts/` | Benchmark fixtures, workspace seed datasets, repo tooling |
+| `eval/`, `sample-data/` | Benchmark fixtures, workspace seed datasets |
 | `.buildmax/` | This repository's own workspace agent config — see `.buildmax/README.md` |
 
 Dependency direction, enforced by tests in `internal/architecture`:
@@ -187,7 +187,7 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
 - **This repository's own agent config**: `.buildmax/` holds the workspace skills, subagents, and MCP servers the CLI loads when the workspace is this repository — see [.buildmax/README.md](.buildmax/README.md).
 - **Local task notes**: the `/vibe` workflow keeps working notes in `.vibe/` at the repository root. That directory is gitignored — it is a local scratch area, not published documentation. Anything worth keeping belongs in `docs/`.
 - **Config reference**: [docs/reference/configuration.md](docs/reference/configuration.md), backed by `config-examples/*.example.yaml` and `internal/config/env_spec.go`.
-- Code and scripts: repository root, managed with Go modules.
+- **Repository tooling**: release-archive verification, third-party notices, and npm license checks are `cmd/mk` tasks (`./make verify-archive|notices|npm-licenses`), not shell scripts.
 
 ### 6.1 Code conventions
 

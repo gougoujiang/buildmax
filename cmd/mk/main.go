@@ -77,6 +77,10 @@ func dispatch(args []string) error {
 		return cmdInstall()
 	case "verify-archive":
 		return cmdVerifyArchive(rest)
+	case "notices":
+		return cmdNotices(rest)
+	case "npm-licenses":
+		return cmdNPMLicenses(rest)
 	case "setup":
 		return cmdKind([]string{"up"})
 	case "unsetup":
@@ -141,6 +145,8 @@ func usage() {
 	command("bump", "Create the next release tag locally (arg: patch|minor|major, default: patch)")
 	command("install", "Install the binaries to ~/.local/bin")
 	command("verify-archive", "Verify GoReleaser archives in dist/ (--all for every platform)")
+	command("notices", "Generate NOTICE-THIRD-PARTY from the modules the binaries link")
+	command("npm-licenses", "Check npm production dependency licenses in every lockfile")
 	command("kind", "Manage the full local Kubernetes stack (up|smoke|logs|down)")
 	command("setup", "Alias for kind up")
 	command("unsetup", "Alias for kind down")
