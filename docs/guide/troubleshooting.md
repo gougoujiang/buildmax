@@ -2,6 +2,17 @@
 
 > **Audience:** users and operators · **Status:** current
 
+## Start With Doctor
+
+```bash
+buildmax doctor
+```
+
+`doctor` checks local setup without contacting a model provider. It names the
+configuration file BuildMax is reading, catches placeholder API keys, warns when
+the workspace is not on a git branch, and points at sandbox dependency checks
+when sandboxing is enabled.
+
 ## `No model configured. Add a model to …`
 
 There is no `models:` entry in `settings.yaml`. BuildMax does **not** read an

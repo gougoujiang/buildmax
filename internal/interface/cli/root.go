@@ -33,6 +33,7 @@ Sessions:
 
 Configuration:
   Run "buildmax init" to create a starter settings.yaml.
+  Run "buildmax doctor" to check local setup before the first real run.
   Models are configured in BUILDMAX_HOME/settings.yaml (default ~/.buildmax).
   The first entry under models: is the default; select another with --model.
   Default model when none is configured: %s
@@ -61,6 +62,7 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().Bool("include-deltas", false, "include llm_delta events in --output jsonl (verbose)")
 	root.Flags().BoolP("version", "v", false, "print version and exit")
 	root.AddCommand(newInitCommand())
+	root.AddCommand(newDoctorCommand())
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newLoginCommand())
 	root.AddCommand(newLogoutCommand())

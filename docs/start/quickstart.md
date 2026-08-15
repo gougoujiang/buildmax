@@ -45,6 +45,16 @@ Until a real key is in place, BuildMax tells you so before contacting a
 provider — a missing file points at `buildmax init`, and an unedited
 placeholder points at the line to change.
 
+Check the local setup before the first real run:
+
+```bash
+buildmax doctor
+```
+
+`doctor` does not call the model provider. It verifies `BUILDMAX_HOME`,
+`settings.yaml`, model entries, git availability, the current workspace, and
+sandbox dependencies when sandboxing is enabled.
+
 Full field list: [reference/configuration.md](../reference/configuration.md).
 
 ## 2. Ask One Question

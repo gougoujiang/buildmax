@@ -13,6 +13,7 @@ buildmax <command> [flags]
 |---|---|
 | `buildmax` | Open the terminal UI (default) |
 | `buildmax init` | Write a starter `settings.yaml` under `BUILDMAX_HOME` |
+| `buildmax doctor` | Check local setup before the first run |
 | `buildmax version` | Print the version |
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
@@ -56,6 +57,19 @@ what you want when calling BuildMax from a script or another program.
 The file is written with mode `600` because it holds an API key. Without
 `--force`, an existing file is left untouched and the command exits `2`.
 
+### `buildmax doctor`
+
+`doctor` checks the local setup without contacting an LLM provider:
+
+- `BUILDMAX_HOME` and `settings.yaml`
+- configured models and placeholder API keys
+- current workspace and git availability
+- sandbox dependencies when `sandbox.enabled` is set
+
+It exits `2` when a required first-run prerequisite is missing. Warnings, such
+as running outside a git branch or leaving the local sandbox disabled, are
+reported but do not make the command fail.
+
 ## TUI Slash Commands
 
 Typed into the input line:
@@ -74,6 +88,7 @@ Typed into the input line:
 ```bash
 # first run: write ~/.buildmax/settings.yaml with a working key
 buildmax init --api-key sk-your-key-here
+buildmax doctor
 
 # one-shot question, quiet, in another directory
 buildmax -p "list the exported symbols" --workspace ../lib -q
