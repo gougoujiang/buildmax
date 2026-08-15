@@ -1,0 +1,48 @@
+name: Documentation
+description: Report missing, unclear, or outdated documentation
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for documentation gaps, unclear setup steps, stale examples, or
+        mismatches between docs and current behavior. For security-sensitive
+        documentation problems, follow SECURITY.md instead of opening a public
+        issue.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which documentation area?
+      options:
+        - Getting started
+        - Guides
+        - Deployment
+        - Reference
+        - Contributor docs
+        - Design docs
+        - README / repository metadata
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: page
+    attributes:
+      label: Page or file
+      description: Link the page, or name the file path if you know it.
+      placeholder: docs/start/quickstart.md
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is confusing, missing, or stale?
+      description: Describe what you were trying to do and where the docs stopped helping.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What would have helped?
+      description: A sentence, command, example, diagram, or link that would have made the path clearer.
