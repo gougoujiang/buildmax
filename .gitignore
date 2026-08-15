@@ -85,8 +85,4 @@ desktop/frontend/.env.*
 desktop/frontend/*.tsbuildinfo
 desktop/frontend/package.json.md5
 
-# Setup (kind/minio/mysql dev env)
-setup/.port-forward.pid
-setup/.port-forward-mysql.pid
-setup/.port-forward-redis.pid
 /eval-results

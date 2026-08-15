@@ -1,0 +1,104 @@
+# Your First Pull Request
+
+> **Audience:** new contributors · **Status:** current
+
+The shortest complete path from a clone to an open pull request. It needs Go and
+git, takes about fifteen minutes, and **does not need a model API key**.
+
+## 1. Clone And Build
+
+```bash
+git clone https://github.com/gougoujiang/buildmax.git
+cd buildmax
+./make build cli
+```
+
+On Windows, use `make.bat build cli`. `./make` is not GNU make — it is a
+one-line shim around the Go task runner in `cmd/mk`, so every platform runs the
+same task code. `./make help` lists every command.
+
+The binary lands in `bin/buildmax`. `./make build cli` skips the server, worker,
+and frontends, which is all you need for a first change.
+
+## 2. Run The Tests
+
+```bash
+./make test
+```
+
+This runs `go test ./...` with `BUILDMAX_HOME=./testing-sandbox`, so it writes
+to a gitignored directory in the repo instead of your real `~/.buildmax`. A
+clean run here means your toolchain is set up correctly.
+
+If you plan to touch Go code, also run what CI runs:
+
+```bash
+./make lint
+go test -race ./...
+```
+
+## 3. Pick Something Small
+
+In order of how easy they are to get merged:
+
+- An issue labeled `good first issue`, `help wanted`, or `documentation`.
+- A documentation fix. Every claim in `docs/` is supposed to match the code — if
+  you find one that does not, that is a real bug and a welcome pull request.
+- A missing test for behavior that already works.
+- A CLI or TUI rough edge you hit while trying the quickstart.
+
+Before starting anything larger, read [../start/support.md](../start/support.md).
+It says which surfaces and deployment paths the project supports today and which
+things are deliberately out of scope for the alpha, so your work does not land
+outside what maintainers can accept.
+
+Where code lives: [repo-layout.md](repo-layout.md). How a subsystem works:
+[architecture/](architecture/README.md).
+
+## 4. Make The Change
+
+```bash
+git switch -c short-topic-name
+# edit, then:
+./make test
+```
+
+Match the surrounding code. The rules that are not visible in the diff —
+`snake_case` persisted JSON, singular table names, prefixed entity IDs,
+LLM-facing tool output — are in [conventions.md](conventions.md).
+
+Documentation is part of the change, not a follow-up: if you changed behavior or
+configuration, update `docs/guide/`, `docs/reference/`, and `config-examples/`
+in the same pull request. [documentation.md](documentation.md) says what to
+update when.
+
+## 5. Commit And Open The Pull Request
+
+```bash
+git commit -m "Fix the workspace path in the sandbox guide"
+git push -u origin short-topic-name
+```
+
+A commit subject is a single imperative line. No tooling trailers, no
+"Generated with …" footer. Add a `CHANGELOG.md` entry under `## [Unreleased]`
+if a user or operator would notice the change.
+
+Open the pull request against `main` and fill in the template: the problem, the
+approach, how you verified it, and anything still missing. Small and verifiable
+beats large and thorough — a pull request that a maintainer can read in one
+sitting gets reviewed sooner.
+
+## What CI Will Run
+
+Everything in [CONTRIBUTING.md § Pull Requests](../../CONTRIBUTING.md#pull-requests):
+formatting, `go mod tidy` cleanliness, build, vet, golangci-lint, govulncheck,
+the test suite with `-race`, the three frontend builds, a secret scan over git
+history, dependency license checks, and Markdown lint. None of it needs
+credentials, so it runs the same way on a fork.
+
+## If You Get Stuck
+
+- [../guide/troubleshooting.md](../guide/troubleshooting.md) for runtime problems
+- [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions) for
+  questions — an unfinished pull request with a question in it is also fine
+- [../../.github/SUPPORT.md](../../.github/SUPPORT.md) for which channel to use

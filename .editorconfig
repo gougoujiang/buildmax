@@ -1,0 +1,24 @@
+# Editor defaults, so a contributor's editor matches what gofmt, ESLint, and the
+# Markdown linter already enforce. https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.go]
+indent_style = tab
+
+[Makefile]
+indent_style = tab
+
+[*.{md,markdown}]
+# Markdown uses trailing double-space for hard line breaks.
+trim_trailing_whitespace = false
+
+[*.bat]
+end_of_line = crlf

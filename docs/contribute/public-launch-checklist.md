@@ -13,13 +13,29 @@ tag until every post-switch setting has been verified.
 - [ ] Confirm the latest required CI run passes.
 - [ ] Scan the complete Git history for credentials and inspect author emails,
       private filesystem paths, internal hostnames, and customer identifiers.
-- [ ] Review `README.md`, `SECURITY.md`, `SUPPORT.md`, and the installation guide
+- [ ] Review `README.md`, `SECURITY.md`, `.github/SUPPORT.md`, and the installation guide
       for promises that are inappropriate for an alpha.
 - [ ] Review `docs/start/support.md` so the support matrix and non-goals match
       the release being published.
 - [ ] Run the non-publishing release snapshot and native archive smoke jobs.
 - [ ] Confirm the owner accepts that all commits, tags, issues, and repository
       metadata become publicly visible immediately.
+
+### Prepare The On-Ramp
+
+An empty issue tracker tells a first-time visitor there is nothing to do. Do
+this before the switch, not after:
+
+- [ ] Create the labels [CONTRIBUTING.md](../../CONTRIBUTING.md) points people
+      at: `good first issue`, `help wanted`, `documentation`. Add `bug`,
+      `enhancement`, and `question` if they are not already there.
+- [ ] Open five to ten genuinely small, independent issues and label them. Good
+      sources: documentation that has drifted from the code, missing tests for
+      behavior that already works, CLI or TUI rough edges found while running
+      the quickstart, and error messages that do not say what to do next.
+      Each one should name the file to change and how to verify the fix.
+- [ ] Walk [first-pr.md](first-pr.md) once on a clean clone and fix whatever
+      does not match reality.
 
 ## Change Visibility
 
@@ -40,6 +56,9 @@ an owner decision and should not be delegated to release automation.
 - [ ] Confirm Dependabot alerts and automatic security updates remain enabled.
 - [ ] Confirm Discussions, issue templates, labels, topics, and the default
       branch are still correct.
+- [ ] Confirm the community health files render from `.github/` — the Code of
+      Conduct and Support links should appear on the repository's Community
+      Standards page and in the new-issue chooser.
 - [ ] Confirm the private reporting form `SECURITY.md` points reporters to is
       actually reachable from the Security tab.
 - [ ] Confirm the CodeQL workflow starts running; it skips itself while the

@@ -142,101 +142,37 @@ The Team / Issue / Workflow program is complete for the currently planned scope.
 
 ## 5. Project Directory Structure
 
-Following common Golang project conventions, the current structure is:
+**The repository tree has one source of truth:
+[docs/contribute/repo-layout.md](docs/contribute/repo-layout.md).** It carries the
+top level, every `internal/` package, the nested Go modules, the binaries, and
+the dependency direction. Read it there and update it there — do not restate the
+tree in this file or anywhere else.
 
-```
-buildmax/
-├── gui/                       # Shared GUI package (React 19): theme + shared presentational widgets; consumed by portal & desktop
-├── cmd/
-│   ├── buildmax/              # CLI/TUI binary
-│   ├── buildmax-server/       # Server binary (HTTP API + scheduler)
-│   ├── buildmax-worker/       # Worker binary (runs one task run via API + direct storage)
-│   ├── buildmax-desktop/      # Desktop app (Wails); embeds desktop/frontend
-│   └── mk/                    # Task runner behind ./make and make.bat (dev only; not released)
-├── desktop/                   # Desktop frontend (React 19 + Vite); depends on gui
-├── internal/                  # Private Go packages (this project only)
-│   ├── agentapp/              # Agent runtime assembly: LLM client cache, tool registry, MCP, hooks, sandbox, skills, sessions, workspace
-│   │   └── taskrun/           # Task-run execution in run-scoped directories (used by the worker)
-│   ├── agenteval/             # Agent evaluation harness: task catalog and runner
-│   ├── architecture/          # Architectural constraint tests
-│   ├── bootstrap/             # Process startup and dependency wiring
-│   │   ├── server.go          # Server bootstrap; used by cmd/buildmax-server
-│   │   ├── worker.go          # Worker bootstrap; used by cmd/buildmax-worker
-│   │   └── objectstore.go     # Startup builders for object storage implementations
-│   ├── config/                # Env loading, paths, server/worker/storage config, env_spec.go
-│   ├── core/                  # Pure domain layer: entities, contracts, algorithms (no application logic)
-│   │   ├── model/             # Domain entities and repository contracts
-│   │   ├── agent/             # Core tool-calling loop and prompt/options (no infra imports)
-│   │   ├── session/           # Local session model and persistence helpers
-│   │   └── llm/               # LLM contracts, Tool contract, ToolRegistry, tool policy
-│   ├── service/               # Application services: coordinate stores, enforce rules, create runs
-│   │   ├── conversation/      # Tier 1 conversation service (contracts, webhook policy, runtime façade)
-│   │   │   ├── channel/       # Channel-facing turn types and adapters
-│   │   │   ├── runtime/       # Tier 1 turn-loop runtime internals
-│   │   │   └── tool/          # Tier 1 tools and task runner bridge
-│   │   ├── issue/             # Issue application service
-│   │   ├── task/              # Task and task_run application service
-│   │   ├── workflow/          # Workflow and workflow-run orchestration service
-│   │   └── quota/             # Team quota enforcement service
-│   ├── tool/                  # Runtime agent tool implementations (read, write, bash, grep, task, skill, mcp_gateway, etc.)
-│   ├── infra/                 # External-system implementations
-│   │   ├── db/                # MySQL/GORM implementation of core model repositories
-│   │   ├── objectstore/       # Local FS and S3/MinIO persist/artifact storage
-│   │   ├── llm/               # OpenAI-compatible LLM implementation
-│   │   ├── k8s/               # Kubernetes worker job launcher
-│   │   ├── mcp/               # MCP protocol/client transport and registry
-│   │   ├── hook/              # Hook transport drivers (command, http, mcp_tool, prompt)
-│   │   ├── sandbox/           # Bash sandbox: Seatbelt/bwrap backends, egress proxy, violations
-│   │   ├── trace/             # Durable run-trace recorder (JSONL, bounded + redacted)
-│   │   ├── git/               # Git branch/diff helpers
-│   │   ├── workerclient/      # Worker-side HTTP client for the server worker API
-│   │   └── log/               # slog/lumberjack logging implementation
-│   ├── interface/             # Local user-facing entry points
-│   │   ├── auth/              # CLI/desktop login client and credential persistence
-│   │   ├── cli/               # Cobra CLI, Bubble Tea TUI, prompt mode, version command
-│   │   ├── client/            # HTTP client for BuildMax server API
-│   │   └── desktop/           # Wails app bridge
-│   ├── server/                # HTTP API, auth handlers, portal API, webhook, worker API
-│   │   ├── handlers/          # Route handlers
-│   │   ├── httputil/          # Shared request/response helpers
-│   │   ├── scheduler/         # Polls pending task runs and spawns workers (runs in-process)
-│   │   ├── websocket/         # Team websocket hub and stream fan-out
-│   │   └── static/            # Embedded static assets (OpenAPI, Swagger)
-│   ├── mock/                  # Test-only mocks and helpers
-│   └── util/                  # ID generation, workspace helpers, git, argparse
-├── portal/                    # Web UI (React 19 + Vite + TypeScript); depends on gui
-├── docs/                      # Documentation
-│   ├── start/                 # Install, quickstart, concepts
-│   ├── guide/                 # Task-oriented user docs (hooks, sandbox)
-│   ├── deploy/                # Deployment, authentication, local kind cluster
-│   ├── reference/             # Configuration, CLI, webhook lookups
-│   ├── contribute/            # Repo layout, architecture reference, doc conventions
-│   └── design/                # Numbered design records (cited from code)
-├── config-examples/           # Config file examples (settings/server/hooks yaml)
-├── setup/                     # Local kind infrastructure manifests
-├── deployment/                # Application manifests
-├── go.mod
-├── go.sum
-├── ROADMAP.md                 # Active near-term product roadmap
-└── README.md
+Orientation, so the rest of this document reads without a detour:
+
+| Path | What lives there |
+|---|---|
+| `cmd/` | Binary entry points, `main.go` only |
+| `internal/core/` | Pure domain: entities, contracts, the tool-calling loop |
+| `internal/agentapp/` | Agent runtime assembly shared by CLI, desktop, and worker |
+| `internal/service/` | Application services; `service/conversation` is Tier 1 |
+| `internal/tool/` | Runtime agent tools (Read, Write, Bash, …) |
+| `internal/infra/` | External systems: DB, object store, LLM, MCP, hooks, sandbox |
+| `internal/interface/` | CLI/TUI, desktop bridge, API client |
+| `internal/server/` | HTTP API, scheduler, websocket hub |
+| `gui/`, `portal/`, `desktop/` | Shared React package and the two frontends |
+| `docs/`, `config-examples/`, `deployment/` | Documentation, config examples, deployment |
+| `eval/`, `sample-data/`, `scripts/` | Benchmark fixtures, demo datasets, repo tooling |
+| `.buildmax/` | This repository's own workspace agent config — see `.buildmax/README.md` |
+
+Dependency direction, enforced by tests in `internal/architecture`:
+
+```text
+bootstrap ──▶ interface / server / service / agentapp / infra ──▶ core
 ```
 
-- **cmd/buildmax**: CLI entry point; `main.go` only. Build with `go build -o buildmax ./cmd/buildmax` or `./make build cli`. Provides TUI, `-p` print mode, and `version`; delegates to `internal/interface/cli`.
-- **cmd/buildmax-server**: Server entry point; `main.go` only. Build with `go build -o buildmax-server ./cmd/buildmax-server`. Delegates to `internal/bootstrap`, which wires DB, storage, LLM, HTTP server, and scheduler. Also dispatches the operator subcommand `buildmax-server user create|login-code` (`internal/bootstrap/user_admin.go`), which reads the same `server.yaml` and database the server does.
-- **cmd/buildmax-worker**: Worker entry point; `main.go` only. Accepts `--task-run-id`; delegates to `internal/bootstrap` startup logic (get task run via API, blob storage, `agentapp/taskrun`). Reads `server.yaml` for `worker.server_url`, `worker.token`, `workspaces_dir`, and `storage`.
-- **internal/agentapp**: Agent runtime assembly used by CLI, worker, and desktop. Owns `AgentApp` — LLM client cache, tool registry construction, MCP manager, hook manager, sandbox manager, run-trace wiring, skill/subagent discovery, session persistence, and workspace resolution. `agentapp/taskrun` runs one task run in its run-scoped directory.
-- **internal/architecture**: Architectural constraint tests (import boundary enforcement).
-- **internal/bootstrap**: Process startup and dependency wiring for server, worker, and startup storage builders.
-- **internal/interface**: Local user-facing entry points: CLI + TUI (`cli/`), HTTP client for server API (`client/`), desktop Wails bridge (`desktop/`), and local auth credential/client code (`auth/`).
-- **internal/core**: Pure domain layer. `core/model` owns domain entities and repository contracts; `core/llm` owns the LLM contracts, the Tool contract, `ToolRegistry`, and tool policy. `core/agent` is the pure tool-calling loop with no infra imports. No application services live here.
-- **internal/service**: Application services that coordinate stores, enforce business rules, and manage run lifecycles. `service/conversation` is Tier 1 (orchestrator); `service/task`, `service/issue`, `service/workflow`, and `service/quota` are the remaining application services.
-- **internal/tool**: Runtime agent tool implementations — file I/O, bash, grep, glob, web fetch, MCP gateway, skill, subagent runner, task bridge. Imports `internal/infra/mcp` and other infra as needed; not a pure domain package.
-- **internal/infra**: External-system implementations such as DB, object storage, LLM, Kubernetes, MCP transport, hook transports, the bash sandbox, the run-trace recorder, git helpers, the worker API client, and logging.
-- **internal/server**: HTTP API for the Portal and worker callbacks, plus the in-process scheduler (`server/scheduler`) that polls pending task runs and spawns workers. It depends on core services and the worker client contracts; it is bootstrapped by `internal/bootstrap`.
-- **gui/**: Shared React package; build with `cd gui && npm install && npm run build` (output in `gui/dist/`). Portal and desktop depend on it via npm `file:`; `./make build` builds gui first when building desktop.
-- **portal/**: Frontend app; depends on `@buildmax/gui`. Run with `cd portal && npm install && npm run dev`; build with `npm run build` (output in `portal/dist/`).
-- **desktop/frontend/**: Desktop UI; depends on `@buildmax/gui`. Same React 19 and shared components as portal; app logic (Wails bindings, session) is desktop-specific.
-- **docs/**: All project documentation, organized by reader — `docs/start/`, `docs/guide/`, `docs/deploy/`, `docs/reference/`, `docs/contribute/` (including `contribute/architecture/`), and `docs/design/`. There is no archive directory; retired docs are deleted and live in git history. See section 6 and [docs/README.md](docs/README.md).
+`internal/core` imports nothing from `config`, `infra`, `service`, `server`,
+`agentapp`, or `interface`.
 
 ## 6. Documentation and Repository
 
@@ -247,60 +183,59 @@ buildmax/
 - **Documentation index**: [docs/README.md](docs/README.md) routes by reader — `start/`, `guide/`, `deploy/`, `reference/`, `contribute/`, `design/`.
 - **Architecture reference** (in `docs/contribute/architecture/`): how the system works today, one document per package or subsystem. Start with [docs/contribute/architecture/overview.md](docs/contribute/architecture/overview.md). The repository tree has a single source of truth in [docs/contribute/repo-layout.md](docs/contribute/repo-layout.md) — update that file and no other when a package moves.
 - **Design records** (in `docs/design/`): [docs/design/README.md](docs/design/README.md) splits them into durable specifications (031 hooks, 032 sandbox, 034 traces) and expiring roadmap plans (024–030). [docs/design/001-about-portal.md](docs/design/001-about-portal.md) is the Portal product vision; [docs/design/023-desktop-cli-portal-positioning.md](docs/design/023-desktop-cli-portal-positioning.md) records surface positioning. A design record is rationale, not user documentation — the user-facing half belongs in `docs/guide/` or `docs/reference/`. Conventions: [docs/contribute/documentation.md](docs/contribute/documentation.md).
+- **Contributor documentation**: [CONTRIBUTING.md](CONTRIBUTING.md) is the process; [docs/contribute/conventions.md](docs/contribute/conventions.md) is the naming, ID, tool-output, and commit rules; [docs/contribute/first-pr.md](docs/contribute/first-pr.md) is the clone-to-pull-request path.
+- **This repository's own agent config**: `.buildmax/` holds the workspace skills, subagents, and MCP servers the CLI loads when the workspace is this repository — see [.buildmax/README.md](.buildmax/README.md).
 - **Local task notes**: the `/vibe` workflow keeps working notes in `.vibe/` at the repository root. That directory is gitignored — it is a local scratch area, not published documentation. Anything worth keeping belongs in `docs/`.
 - **Config reference**: [docs/reference/configuration.md](docs/reference/configuration.md), backed by `config-examples/*.example.yaml` and `internal/config/env_spec.go`.
 - Code and scripts: repository root, managed with Go modules.
 
-### 6.1 Persistence naming style
+### 6.1 Code conventions
 
-- **Use the same naming style for all persisted data** (e.g. session files, config, any JSON on disk).
-- **Convention: snake_case** for JSON object keys (e.g. `created_at`, `tool_call_id`, `tool_calls`).
-- Ensure structs that are serialized to disk have explicit `json:"snake_case"` tags so the on-disk format is consistent; do not rely on Go’s default (PascalCase) for persisted fields.
+**Single source of truth:
+[docs/contribute/conventions.md](docs/contribute/conventions.md).** It carries
+the rules that used to live here, in full and with examples:
 
-### 6.2 Database table naming
+- persisted JSON uses `snake_case`, with explicit `json:` tags
+- database tables are singular (`task`, not `tasks`)
+- entity IDs are `<prefix>_<20 chars of base36>`, generated by `NewPrefixedID`
+  in `internal/util`
+- tool output is written for the LLM, and is meaningful on both success and failure
+- commit subjects are a single imperative line; no tooling trailers or
+  "Generated with ..." footers in commits or pull request descriptions
+- user-visible changes get a `CHANGELOG.md` entry under `## [Unreleased]`
 
-- **Use singular table names.** One table per entity type, named in the singular (e.g. `user`, `agent`, `conversation`, `task`, `task_run`). Do not use plural names (e.g. `users`, `tasks`). This applies to all database tables created or migrated by the project.
-
-### 6.3 Entity ID format
-
-- **Entity IDs use a prefixed format** `<prefix>_<body>`: prefix is a short type abbreviation — `u_` user, `tm_` team, `i_` issue, `a_` agent, `w_` workflow, `wr_` workflow run, `wsr_` workflow step run, `c_` conversation, `cm_` conversation message, `t_` task, `r_` task run, `ar_` artifact, `f_` artifact item, `whk_` webhook key — and body is 20 characters from `[a-z0-9]` (lowercase base36). Prefix constants live in `internal/util/id.go`; pass the prefix without the underscore. Session IDs are the exception: they are internal and use UUIDs. Generated via `internal/util.NewPrefixedID(prefix)`; ordering uses `created_at`, not ID. The generator and its tests in `internal/util/id.go` are the reference for the format.
-
-### 6.4 Tool output for LLM
-
-- **Tools are built for the LLM.** The agent passes tool results back to the model as tool-role messages.
-- **Output meaningful results on both success and failure** so the LLM can understand what happened and decide on next steps (e.g. retry, inform the user, or continue).
-- Success: return a clear, concise message (e.g. what was done or what was returned).
-- Failure: return a clear error message (e.g. "path outside allowed root", "file not found"); the agent prefixes tool errors with `error: ` when sending to the LLM.
+Follow that document; do not restate its rules here.
 
 ## 7. Build & Test
 
-Use `./make <command>` at the repo root — on Windows, `make.bat <command>`. Both are one-line shims that forward to the task runner in **`cmd/mk`** (`go run ./cmd/mk`), so macOS, Linux, and Windows run the same task code; there is no second implementation to keep in sync. `cmd/mk` depends only on the standard library, loads `.env` from the repo root itself (this replaced `loadenv`/`loadenv.bat`/`loadenv.ps1`), and appends `.exe` to binary names on Windows. Add or change commands in `cmd/mk`, never in the shims. `./make help` lists them all.
+`./make <command>` at the repo root — on Windows, `make.bat <command>`. Both are
+one-line shims that forward to the task runner in **`cmd/mk`** (`go run
+./cmd/mk`), so every platform runs the same task code. `cmd/mk` depends only on
+the standard library, loads `.env` from the repo root itself, and appends `.exe`
+to binary names on Windows. Add or change commands in `cmd/mk`, never in the
+shims.
 
-- **Build**: `./make build` — builds the CLI (`bin/buildmax`), server (`bin/buildmax-server`), worker (`bin/buildmax-worker`), then the **gui** package (if `gui/` exists), then the desktop app (Wails). Frontend stages warn instead of failing, so a missing npm or wails still yields the Go binaries. Portal is not built by default; run `cd portal && npm run build` for that. To build only one: `go build -o buildmax ./cmd/buildmax`, etc.
-- **Clean**: `./make clean` — removes binaries, desktop build dir, **gui** (`gui/node_modules`, `gui/dist`), portal, and desktop frontend (`node_modules`, `dist`).
-- **Test**: `./make test` — sets `BUILDMAX_HOME=./testing-sandbox` and runs `go test ./...`. Use this after code changes.
-- **Lint**: `./make lint` — runs golangci-lint (config in `.golangci.yml`) and govulncheck, pinned to the same versions as CI. A govulncheck failure means the Go toolchain or a dependency needs a patch release; bump it rather than suppressing it. CI also runs `go test -race`, and lints the Portal and desktop frontends with ESLint (`npm run lint` in each); `gui/` has no ESLint because typescript-eslint does not support its TypeScript version yet.
-- **Smoke**: `./make smoke` — builds the CLI, then runs `./buildmax -p "/smoke 0"` with `BUILDMAX_HOME=testing-sandbox` (manual sanity check).
-- **Run server**: `./make run server` — builds and runs `buildmax-server` (default port 5678). The server spawns `buildmax-worker` for each task; ensure `buildmax-worker` is on PATH or in the same directory, and that `server.yaml` has the `worker:` and `storage:` blocks filled in.
-- **Run portal**: `./make run portal` — builds gui if missing, then starts the Portal dev server (Vite; installs npm deps if needed).
-- **Run desktop**: `./make run desktop` — builds gui if missing, then starts the desktop app in Wails dev mode (installs frontend deps if needed).
-- **Bump version**: `./make bump [patch|minor|major]` — creates the next release tag locally (default: patch); pushing the tag is what triggers a release. Versions live in git tags, injected at link time, not in a source file.
-- **Eval / Install / Images**: `./make eval` builds and runs the agent benchmark over `eval/` (needs a configured model); `./make install` installs the binaries to `~/.local/bin`; `./make pub_images` builds the BuildMax and Portal images and loads them into kind.
-- **Deployment smoke**: `./make compose smoke` runs the local-process worker path with MySQL and local storage. `./make kind up` creates the full local Kubernetes path with Ingress, MySQL, MinIO, a worker Job, and artifact verification; `kind smoke|logs|down` reruns, diagnoses, or removes it. `setup` and `deploy` alias `kind up`; `unsetup` aliases `kind down`. The task runner requires Docker, kind, and kubectl as appropriate but does not install system tools. Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.
+```bash
+./make build          # CLI, server, worker, gui, desktop → bin/
+./make test           # go test ./... with BUILDMAX_HOME=./testing-sandbox
+./make lint           # golangci-lint and govulncheck, CI's pinned versions
+./make help           # every command
+```
 
-**Windows:** `make.bat <command>` accepts every command `./make` does; build output is `bin/buildmax.exe` and friends. Run the Docker and kind deployment commands from WSL2. Native Windows is not yet covered by CI end to end: the Windows job builds, vets, and runs the suite through `make.bat` (see `.github/workflows/ci.yml`), but shell-dependent tests skip there, the bash tool falls back to `cmd /c` (`internal/tool/bash.go`), and the sandbox is unavailable (`docs/design/032-sandbox-and-execution-boundaries.md` §7).
+Run `./make test` after code changes. Build, test, lint, and the deployment
+smokes need no model API key.
+
+The full command list, what each deployment smoke covers, the `desktop` build
+tag, and the Windows caveats are in
+[CONTRIBUTING.md](CONTRIBUTING.md); `./make help` prints the commands.
 
 ## 8. Commit Messages And Pull Requests
 
-Anything written into the repository's public record — commit messages and pull
-request descriptions alike — carries project content only. Tooling attribution
-is noise in a history that is about to be public.
-
-- Do NOT include `Co-Authored-By` or `Claude-Session` trailers in commit messages.
-- Do NOT include a "Generated with ..." footer or an assistant session link in
-  pull request descriptions.
-- Keep both intact, simple, and clear. Commit subjects are a single imperative
-  line; `.github/pull_request_template.md` is the shape a PR description follows.
+See [docs/contribute/conventions.md](docs/contribute/conventions.md#commit-messages-and-pull-requests).
+In short: single imperative commit subject, no `Co-Authored-By` or
+`Claude-Session` trailers, no "Generated with ..." footer or assistant session
+link in a pull request description, and a `CHANGELOG.md` entry under
+`## [Unreleased]` for user-visible changes.
 
 ---
 

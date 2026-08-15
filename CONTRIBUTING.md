@@ -14,14 +14,22 @@ Portal, and worker execution.
 - Never include credentials, customer data, or private deployment details in an
   issue, pull request, test fixture, or commit.
 - Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
-- Use [SUPPORT.md](SUPPORT.md) to choose the right channel, and follow
-  [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) in every project space.
+- Use [SUPPORT.md](.github/SUPPORT.md) to choose the right channel, and follow
+  [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md) in every project space.
 - Project decisions and maintainer responsibilities are described in
-  [GOVERNANCE.md](GOVERNANCE.md) and [MAINTAINERS.md](MAINTAINERS.md).
+  [GOVERNANCE.md](.github/GOVERNANCE.md) and [MAINTAINERS.md](.github/MAINTAINERS.md).
+- The rules review will hold a pull request to — persisted JSON naming, table
+  names, entity IDs, tool output, commit subjects, changelog entries — are in
+  [docs/contribute/conventions.md](docs/contribute/conventions.md). Read it once
+  before your first pull request.
 - Maintainers follow [docs/contribute/releasing.md](docs/contribute/releasing.md)
   for version tags, release verification, and recovery.
 
 ## First Contributions
+
+**[docs/contribute/first-pr.md](docs/contribute/first-pr.md) walks the whole
+path end to end** — clone, build, test, change one thing, open the pull request
+— in about fifteen minutes, without a model API key.
 
 Good first pull requests are small, easy to verify, and close to an existing
 issue. Look for issues labeled `good first issue`, `help wanted`, or
@@ -42,24 +50,31 @@ Use the issue templates to give maintainers the context they need:
 
 ## Prerequisites
 
-- **Go** — the version in `go.mod`. The CLI, server, worker, and desktop backend
-  are all Go; there is no Python or Node runtime dependency for the CLI.
-- **Node** — only for the frontends: the shared `gui/` package, `portal/`, and
-  `desktop/frontend/`.
-- **An LLM API key** — add a model to `~/.buildmax/settings.yaml`; see
-  [docs/reference/configuration.md](docs/reference/configuration.md). Free
-  OpenRouter models rate-limit with HTTP 429 when called too frequently; if runs
-  start failing in bursts, that is usually why.
-- **Docker** — for the Compose deployment smoke and container changes.
-- **kind and kubectl** — only for Kubernetes worker, RBAC, shared-storage, or
-  manifest changes. The task runner reports missing tools; it does not install
-  system packages for you.
+**You do not need a model API key to contribute.** `./make build`, `./make
+test`, `./make lint`, and both deployment smokes run without one — the smokes
+use a deterministic mock model in `deployment/smoke/mock-llm`, and CI has no
+model credentials at all. A key is needed only to actually talk to a model:
+running the agent yourself and `./make eval`.
+
+| Tool | Needed for |
+|---|---|
+| **Go** — the version in `go.mod` | Everything. The CLI, server, worker, and desktop backend are all Go; the CLI has no Python or Node runtime dependency. |
+| **Node** | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. |
+| **Docker** | The Compose deployment smoke and container changes. |
+| **kind and kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
+| **An LLM API key** | Running the agent for real, and `./make eval`. Add a model to `~/.buildmax/settings.yaml`; see [docs/reference/configuration.md](docs/reference/configuration.md). |
+
+The task runner reports missing tools; it does not install system packages for
+you. Free OpenRouter models rate-limit with HTTP 429 when called too frequently;
+if agent runs start failing in bursts, that is usually why.
 
 ## Build, Test, and Run
 
 The root `./make` script is the primary local workflow — on Windows, `make.bat`.
 Both are one-line shims around the task runner in [`cmd/mk`](cmd/mk), so every
-platform runs the same code. `.env` at the repo root is loaded automatically.
+platform runs the same code. `.env` at the repo root is loaded automatically —
+[docs/reference/configuration.md](docs/reference/configuration.md#local-development-env)
+lists what is worth putting in it.
 
 ```bash
 ./make build          # CLI, server, worker, gui, desktop app
@@ -142,8 +157,10 @@ dependency, and runs the same TaskRun and artifact assertions:
 ```
 
 [docs/deploy/local-kind.md](docs/deploy/local-kind.md) documents what it
-installs. Override the cluster name with `BUILDMAX_KIND_CLUSTER` (default
-`buildmaxdev`); every kubectl call uses that cluster's explicit context.
+installs; the manifests it applies are in `deployment/dev-kind/` and exist only
+for local development. Override the cluster name with `BUILDMAX_KIND_CLUSTER`
+(default `buildmaxdev`); every kubectl call uses that cluster's explicit
+context.
 
 ### Container Images
 
@@ -173,15 +190,27 @@ Keep changes aligned with the existing layering:
 - infrastructure adapters belong in `internal/infra`
 - user-facing orchestration belongs in `internal/service` or `internal/interface`
 - `internal/core` must not import application, infrastructure, or interface layers
-- persisted JSON uses explicit `snake_case` field names
 
 The layering rules are enforced by tests in `internal/architecture`, so a
 violating import fails the build rather than sliding through review.
 
+Naming and format rules — `snake_case` persisted JSON, singular table names,
+prefixed entity IDs, LLM-facing tool output — are in
+[docs/contribute/conventions.md](docs/contribute/conventions.md).
+
 ## Pull Requests
 
 - Keep each pull request focused on one user-visible outcome or engineering concern.
+- Write commit subjects as a **single imperative line** — `Add a login-code
+  expiry check`, not `fixed login stuff`. No `Co-Authored-By` or
+  `Claude-Session` trailers, and no "Generated with …" footer or assistant
+  session link in the description. The reasoning is in
+  [conventions.md](docs/contribute/conventions.md#commit-messages-and-pull-requests).
 - Add or update focused tests for behavioral changes.
+- Add a `CHANGELOG.md` entry under `## [Unreleased]` when a user or operator
+  would notice the change — new or changed behavior, new configuration,
+  removals, fixes to released behavior. Internal refactors, test-only changes,
+  and documentation edits do not need one.
 - Update documentation alongside the code:
   - behavior or package boundaries change → update the matching document in
     [docs/contribute/architecture/](docs/contribute/architecture/README.md)

@@ -64,7 +64,7 @@ func kindUp() error {
 	}
 	if !exists {
 		fmt.Printf("Creating kind cluster %q...\n", cluster)
-		if err := runCmd("kind", "create", "cluster", "--name", cluster, "--config", "setup/kind-config.yaml"); err != nil {
+		if err := runCmd("kind", "create", "cluster", "--name", cluster, "--config", "deployment/dev-kind/kind-config.yaml"); err != nil {
 			return err
 		}
 		// kind makes the new cluster globally current. Every command below uses
@@ -85,7 +85,7 @@ func kindUp() error {
 	}
 
 	fmt.Println("Installing ingress and backing services...")
-	if err := kindKubectl("apply", "-f", "setup/kind-ingress-nginx.yaml"); err != nil {
+	if err := kindKubectl("apply", "-f", "deployment/dev-kind/kind-ingress-nginx.yaml"); err != nil {
 		return err
 	}
 	if err := waitForKindDeployment("ingress-nginx", "ingress-nginx-controller", "180s"); err != nil {
@@ -94,7 +94,7 @@ func kindUp() error {
 	if err := ensureKindNamespace("storage"); err != nil {
 		return err
 	}
-	for _, manifest := range []string{"setup/mysql.yaml", "setup/minio.yaml"} {
+	for _, manifest := range []string{"deployment/dev-kind/mysql.yaml", "deployment/dev-kind/minio.yaml"} {
 		if err := kindKubectl("apply", "-f", manifest); err != nil {
 			return err
 		}
@@ -278,7 +278,7 @@ func ensureKindNamespace(namespace string) error {
 
 func initializeKindBucket() error {
 	_ = kindKubectl("delete", "job/minio-init", "-n", "storage", "--ignore-not-found")
-	if err := kindKubectl("apply", "-f", "setup/minio-init.yaml"); err != nil {
+	if err := kindKubectl("apply", "-f", "deployment/dev-kind/minio-init.yaml"); err != nil {
 		return err
 	}
 	if err := kindKubectl("wait", "--for=condition=complete", "job/minio-init", "-n", "storage", "--timeout=180s"); err != nil {

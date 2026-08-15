@@ -32,6 +32,10 @@ This creates the `buildmaxdev` cluster, then:
 6. creates a real TaskRun, executes it in a Kubernetes worker Job, and verifies
    its artifact through the API
 
+The cluster config and the dependency manifests it applies live in
+`deployment/dev-kind/`; the orchestration is `cmd/mk/kind.go`. They are
+development-only and are not part of a real deployment.
+
 Open <http://localhost:8080>. Portal and API share that origin, so no
 `/etc/hosts` entries or CORS pairing are needed. The command prints a fresh
 single-use code for `deployment-smoke@buildmax.local` after verification.

@@ -1,6 +1,6 @@
 # BuildMax Name and Logo
 
-The BuildMax source code is available under the [Apache License 2.0](LICENSE).
+The BuildMax source code is available under the [Apache License 2.0](../LICENSE).
 That license does not grant trademark rights.
 
 You may use the name "BuildMax" in a truthful, customary way to identify an

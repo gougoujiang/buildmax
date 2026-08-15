@@ -52,7 +52,9 @@ buildmax                                         # interactive TUI
 ```
 
 The current directory is the agent's workspace — it reads, greps, edits files,
-and runs shell commands there, for real. Start in a git tree you can revert.
+and runs shell commands there, for real. Start in a git tree you can revert, or
+in [`sample-data/`](sample-data/README.md) — fifteen throwaway datasets that
+exist so you can point the agent at something and watch it work.
 
 Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 
@@ -67,7 +69,7 @@ Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 | [Compose quickstart](docs/deploy/compose.md) · [Local kind](docs/deploy/local-kind.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a team |
 | [Configuration](docs/reference/configuration.md) · [CLI](docs/reference/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
 | [ROADMAP.md](ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
-| [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
+| [Contributing](CONTRIBUTING.md) · [Support](.github/SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
 
 ## How It Works
 
@@ -98,9 +100,17 @@ More: [docs/start/concepts.md](docs/start/concepts.md) ·
 ```
 
 On Windows use `make.bat` with the same commands — both forward to the Go task
-runner in `cmd/mk`. `./make help` lists everything.
+runner in `cmd/mk`. `./make help` lists everything. None of build, test, or lint
+needs a model API key.
 
-Repository tree: [docs/contribute/repo-layout.md](docs/contribute/repo-layout.md).
+Two directories in the tree are fixtures rather than product code:
+[`sample-data/`](sample-data/README.md) holds the demo datasets above, and
+`eval/` holds the agent benchmark's deliberately-broken Go modules, run by
+`./make eval`.
+
+New here? **[docs/contribute/first-pr.md](docs/contribute/first-pr.md)** is the
+whole path from clone to pull request. Repository tree:
+[docs/contribute/repo-layout.md](docs/contribute/repo-layout.md).
 
 ## Security
 
@@ -120,10 +130,10 @@ For setup questions and early ideas, use
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
 boundaries, and pull request guidance. Community participation follows the
-[Code of Conduct](CODE_OF_CONDUCT.md); support routes and project decision rules
-are documented in [SUPPORT.md](SUPPORT.md) and [GOVERNANCE.md](GOVERNANCE.md).
+[Code of Conduct](.github/CODE_OF_CONDUCT.md); support routes and project decision rules
+are documented in [SUPPORT.md](.github/SUPPORT.md) and [GOVERNANCE.md](.github/GOVERNANCE.md).
 
 ## License And Name
 
 Licensed under the [Apache License 2.0](LICENSE). The BuildMax name and logo are
-not granted by that license; see [TRADEMARKS.md](TRADEMARKS.md).
+not granted by that license; see [TRADEMARKS.md](.github/TRADEMARKS.md).
