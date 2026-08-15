@@ -47,8 +47,6 @@ type RunResult struct {
 	CompletionTokens *int
 }
 
-type pathUploader func(context.Context, RunScope, string, *os.File) error
-
 type runDirs struct {
 	runDir       string
 	runHome      string
@@ -203,7 +201,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		if err != nil {
 			return err
 		}
-		defer app.Close()
+		defer func() { _ = app.Close() }()
 		sess, err := app.OpenSession(sessionID)
 		if err != nil {
 			return err
@@ -389,7 +387,7 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 			TaskRunID:      scope.TaskRunID,
 			RelPath:        filepath.ToSlash(relPath),
 		}, f)
-		f.Close()
+		_ = f.Close()
 		if putErr != nil {
 			slog.Warn("runtime: upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
 		}

@@ -12,27 +12,6 @@ import (
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
 
-type testWorkspacePaths struct{ root string }
-
-func (p testWorkspacePaths) PersistentUserDir(userID string) string {
-	return filepath.Join(p.root, userID, "home")
-}
-func (p testWorkspacePaths) RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.root, userID, "conversations", conversationID, "tasks", taskID, taskRunID)
-}
-func (p testWorkspacePaths) RuntimeTaskRunHomeDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "home")
-}
-func (p testWorkspacePaths) RuntimeTaskRunArtifactsDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "artifacts")
-}
-func (p testWorkspacePaths) RuntimeTaskRunGlobalDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "global")
-}
-func (p testWorkspacePaths) RunOutputDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.root, userID, "artifacts", conversationID, taskID, taskRunID)
-}
-
 // fakePersistStorage is an in-memory PersistStorage for tests.
 type fakePersistStorage struct {
 	files      map[string]map[string][]byte // workspaceID -> relPath -> content (persist)
@@ -134,53 +113,6 @@ func (f *fakePersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunOb
 func (f *fakePersistStorage) GetRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
 	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
-	if !ok {
-		return nil, blob.ErrNotFound
-	}
-	return data, nil
-}
-
-// fakeArtifactStorage is an in-memory ArtifactStorage for tests (run output keyed by taskRunID only).
-type fakeArtifactStorage struct {
-	results map[string][]byte // "userID/conversationID/taskID/taskRunID" -> content (PutResult)
-	files   map[string][]byte // "userID/conversationID/taskID/taskRunID/relPath" -> content (PutArtifactFile)
-}
-
-func newFakeArtifactStorage() *fakeArtifactStorage {
-	return &fakeArtifactStorage{results: make(map[string][]byte)}
-}
-
-func (f *fakeArtifactStorage) PutResult(ctx context.Context, ref blob.RunRef, data []byte) error {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID
-	f.results[key] = append([]byte(nil), data...)
-	return nil
-}
-
-func (f *fakeArtifactStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID
-	data, ok := f.results[key]
-	if !ok {
-		return nil, blob.ErrNotFound
-	}
-	return data, nil
-}
-
-func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	if f.files == nil {
-		f.files = make(map[string][]byte)
-	}
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
-	data, _ := io.ReadAll(r)
-	f.files[key] = data
-	return nil
-}
-
-func (f *fakeArtifactStorage) GetArtifactFile(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	if f.files == nil {
-		return nil, blob.ErrNotFound
-	}
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
-	data, ok := f.files[key]
 	if !ok {
 		return nil, blob.ErrNotFound
 	}

@@ -56,17 +56,6 @@ func writeProjects(list []Project) error {
 	return os.WriteFile(projectsFilePath(), data, 0644)
 }
 
-// lastUsedProject returns the project with the most recent last_used_at, or nil if none.
-func lastUsedProject(list []Project) *Project {
-	var best *Project
-	for i := range list {
-		if best == nil || list[i].LastUsedAt > best.LastUsedAt {
-			best = &list[i]
-		}
-	}
-	return best
-}
-
 // touchProjectLastUsed updates last_used_at for a project in projects.json.
 // Best-effort: errors are silently ignored so they don't interrupt a chat reply.
 func touchProjectLastUsed(id string) {

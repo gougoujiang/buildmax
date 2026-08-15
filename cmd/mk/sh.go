@@ -116,7 +116,7 @@ func copyFile(src, dst string, perm fs.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	// O_TRUNC rather than a remove-then-create, so replacing a binary that is
 	// currently on PATH keeps the same inode permissions.
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
@@ -124,7 +124,7 @@ func copyFile(src, dst string, perm fs.FileMode) error {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close()
 		return err
 	}
 	if err := out.Close(); err != nil {

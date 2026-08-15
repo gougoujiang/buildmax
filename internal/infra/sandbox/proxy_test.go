@@ -90,7 +90,7 @@ func TestProxy_Connect_Allow(t *testing.T) {
 		// Echo the first 5 bytes back.
 		buf := make([]byte, 5)
 		_, _ = io.ReadFull(conn, buf)
-		conn.Write(buf)
+		_, _ = conn.Write(buf)
 	}()
 
 	host, _, _ := net.SplitHostPort(ln.Addr().String())
@@ -119,7 +119,7 @@ func TestProxy_Connect_Allow(t *testing.T) {
 		}
 	}
 	// Tunnel established — send 5 bytes, expect echo.
-	conn.Write([]byte("hello"))
+	_, _ = conn.Write([]byte("hello"))
 	buf := make([]byte, 5)
 	if _, err := io.ReadFull(conn, buf); err != nil {
 		t.Fatalf("read echoed bytes: %v", err)

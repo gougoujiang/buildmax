@@ -40,7 +40,7 @@ func dialWS(t *testing.T, server *httptest.Server, token string) *websocket.Conn
 
 func readEnvelope(t *testing.T, conn *websocket.Conn) wsconn.Envelope {
 	t.Helper()
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	_, data, err := conn.ReadMessage()
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -117,7 +117,9 @@ func TestWSConversationCreateFlow(t *testing.T) {
 		t.Fatalf("first event type = %q, want %q", env.Type, wsconn.TypeConversationCreated)
 	}
 	var created wsconn.ConversationCreated
-	json.Unmarshal(env.Payload, &created)
+	if err := json.Unmarshal(env.Payload, &created); err != nil {
+		t.Fatal(err)
+	}
 	if created.ConversationID == "" {
 		t.Error("conversation_id is empty")
 	}

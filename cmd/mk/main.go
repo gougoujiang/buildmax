@@ -63,6 +63,8 @@ func dispatch(args []string) error {
 		return cmdClean()
 	case "test":
 		return cmdTest()
+	case "lint":
+		return cmdLint()
 	case "smoke":
 		return cmdSmoke()
 	case "eval":
@@ -117,6 +119,7 @@ func usage() {
 	fmt.Printf("  build cli     Build only %s\n", exe(cliBinary))
 	fmt.Printf("  clean         Remove binaries, %s/build, gui/portal/desktop frontend (node_modules, dist)\n", desktopDir)
 	fmt.Printf("  test          Run go test with BUILDMAX_HOME=%s\n", sandboxDir)
+	fmt.Println("  lint          Run golangci-lint and govulncheck (same pinned versions as CI)")
 	fmt.Println("  eval          Build and run the agent benchmark (requires configured LLM API key)")
 	fmt.Printf("  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=%s\n", sandboxDir)
 	fmt.Printf("  run server    Run %s with BUILDMAX_HOME=./%s\n", exe(serverBinary), sandboxDir)

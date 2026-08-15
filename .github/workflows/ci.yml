@@ -54,11 +54,24 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Configuration and rationale: .golangci.yml.
+      - name: Lint
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+
+      # Known vulnerabilities in the Go toolchain and in dependencies this code
+      # actually calls. Reachability-based, so it fails only on code paths that
+      # exist here.
+      - name: Check for known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      # -race here and not on Windows: the agent runtime, the scheduler, and the
+      # websocket hub are all concurrent, and this is the job that exercises
+      # them on the platform CI trusts most.
       - name: Test
         env:
           # Tests write their data directory here instead of ~/.buildmax.
           BUILDMAX_HOME: ./testing-sandbox
-        run: go test ./...
+        run: go test -race ./...
 
       # Fails on copyleft that would conflict with redistributing under
       # Apache-2.0. See docs/contribute/dependency-licenses.md.
@@ -100,6 +113,8 @@ jobs:
           node-version: '22'
 
       # portal depends on @buildmax/gui via a file: link, so gui builds first.
+      # gui has no ESLint step: typescript-eslint does not support the
+      # TypeScript 7 it builds with, and its own build type-checks it.
       - name: Build gui
         working-directory: gui
         run: |
@@ -110,6 +125,7 @@ jobs:
         working-directory: portal
         run: |
           npm ci
+          npm run lint
           npm run build
           npm test
 
@@ -117,6 +133,7 @@ jobs:
         working-directory: desktop/frontend
         run: |
           npm ci
+          npm run lint
           npm run build
 
   open-source-policy:

@@ -61,16 +61,17 @@ func (s *SessionManager) GenerateTitle(ctx context.Context, client llm.LLMClient
 	}
 	const prompt = `Generate a short, descriptive title (3-8 words) for this conversation. Return ONLY the title text, nothing else. Do not use quotes or punctuation at the start or end.`
 	msgs := []llm.Message{{Role: "system", Content: prompt}}
-	var gotUser, gotAssistant bool
+	// The title comes from the first user message and the first assistant reply
+	// after it, so the loop stops as soon as it has both.
+	var gotUser bool
 	for _, m := range sess.Messages {
 		if !gotUser && m.Role == "user" {
 			msgs = append(msgs, llm.Message{Role: "user", Content: m.Content})
 			gotUser = true
 			continue
 		}
-		if gotUser && !gotAssistant && m.Role == "assistant" && m.Content != "" {
+		if gotUser && m.Role == "assistant" && m.Content != "" {
 			msgs = append(msgs, llm.Message{Role: "assistant", Content: util.ClipRunes(m.Content, 500)})
-			gotAssistant = true
 			break
 		}
 	}

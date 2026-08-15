@@ -19,7 +19,6 @@ var footerBranchStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)
 
 var messageBarStyle = lipgloss.NewStyle().Foreground(lightSkyBlue)
 var assistantGlyphStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA"))
-var toolActivityStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D97706"))
 var userMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#B8D4E3"))
 var toolGlyphSuccessStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E"))
 var toolGlyphFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))

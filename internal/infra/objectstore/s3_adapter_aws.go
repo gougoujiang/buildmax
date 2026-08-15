@@ -52,7 +52,7 @@ func (a *s3ClientAdapter) GetObject(ctx context.Context, bucket, key string) ([]
 		}
 		return nil, err
 	}
-	defer out.Body.Close()
+	defer func() { _ = out.Body.Close() }()
 	return io.ReadAll(out.Body)
 }
 
