@@ -48,11 +48,19 @@ one binary:
 | Path | Contents |
 |---|---|
 | `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
-| `deployment/compose/` | Single-machine Compose stack; see [deploy/compose.md](../deploy/compose.md) |
+| `deployment/compose/` | Single-machine Compose stack — a **real deployment path**, running published GHCR images; see [deploy/compose.md](../deploy/compose.md) |
 | `deployment/dev-kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
 | `deployment/migrations/` | One-off SQL migrations |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
+
+**The `dev-` prefix means "not a deployment path".** `dev-kind` carries it
+because that cluster exists only so a contributor can exercise the Kubernetes
+worker locally; `compose` does not, because an operator is meant to run it — its
+audience is operators, `README.md` files it under "Running it for a team", and
+`compose.yaml` pulls `ghcr.io/gougoujiang/buildmax`. Renaming `compose/` for
+symmetry would tell operators the opposite of the truth. `smoke/` is test
+scaffolding shared by both smokes and keeps its plain name for that reason.
 
 There is no `scripts/` directory. Repository tooling — release-archive
 verification, third-party notice generation, npm license checks — lives in
