@@ -21,6 +21,37 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdDoctor([]string{"frontend"}); err == nil {
 		t.Fatal("cmdDoctor accepted an unknown scope")
 	}
+	if err := cmdHelp([]string{"release"}); err == nil {
+		t.Fatal("cmdHelp accepted an unknown view")
+	}
+}
+
+func TestCommonHelpStaysFocused(t *testing.T) {
+	rows := commonHelpRows()
+	if len(rows) != 7 {
+		t.Fatalf("common help has %d rows; want 7", len(rows))
+	}
+	hidden := map[string]bool{"bump": true, "deploy": true, "setup": true, "npm-licenses": true}
+	for _, row := range rows {
+		if hidden[strings.Fields(row.name)[0]] {
+			t.Errorf("advanced command %q appears in common help", row.name)
+		}
+	}
+}
+
+func TestFullHelpKeepsCompatibilityAliases(t *testing.T) {
+	sections := allHelpSections()
+	last := sections[len(sections)-1]
+	if last.name != "Compatibility aliases" {
+		t.Fatalf("last help section = %q; want Compatibility aliases", last.name)
+	}
+	got := make([]string, 0, len(last.rows))
+	for _, row := range last.rows {
+		got = append(got, row.name)
+	}
+	if strings.Join(got, ",") != "setup,unsetup,deploy" {
+		t.Fatalf("compatibility aliases = %v", got)
+	}
 }
 
 func TestPinnedWailsVersionMatchesGoMod(t *testing.T) {

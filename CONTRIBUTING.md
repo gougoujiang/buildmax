@@ -100,9 +100,10 @@ lists what is worth putting in it.
 ./make clean          # binaries, desktop build dir, node_modules, dist
 ```
 
-`./make help` lists every command. To add or change one, edit `cmd/mk` rather
-than the shims. `setup` and `deploy` are compatibility aliases for `kind up`;
-`unsetup` aliases `kind down`.
+`./make help` shows the common contributor path; `./make help all` groups the
+advanced, deployment, release, and compatibility commands. To add or change a
+command, edit `cmd/mk` rather than the shims. `setup` and `deploy` are
+compatibility aliases for `kind up`; `unsetup` aliases `kind down`.
 
 `doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
 defaults. `install`, `bump`, `compose`, `kind`, `deploy`, and publication tasks

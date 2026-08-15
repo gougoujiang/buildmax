@@ -16,7 +16,8 @@ cd buildmax
 
 On Windows, use `make.bat build cli`. `./make` is not GNU make — it is a
 one-line shim around the Go task runner in `cmd/mk`, so every platform runs the
-same task code. `./make help` lists every command.
+same task code. `./make help` shows the common contributor path; use
+`./make help all` for deployment and release commands.
 
 The binary lands in `bin/buildmax`. `./make build cli` skips the server, worker,
 and frontends, which is all you need for a first change.

@@ -101,8 +101,9 @@ More: [docs/start/concepts.md](docs/start/concepts.md) ·
 ```
 
 On Windows use `make.bat` with the same commands — both forward to the Go task
-runner in `cmd/mk`. `./make help` lists everything. None of build, test, or lint
-needs a model API key.
+runner in `cmd/mk`. `./make help` shows the common contributor path;
+`./make help all` shows deployment, release, and compatibility commands. None
+of build, test, or lint needs a model API key.
 
 Two directories in the tree are fixtures rather than product code:
 [`sample-data/`](sample-data/README.md) holds the datasets above — upload them

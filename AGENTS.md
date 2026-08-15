@@ -119,7 +119,7 @@ Use the cross-platform task runner from the repository root:
 ./make test race       # the same suite with the race detector
 ./make lint            # pinned golangci-lint and govulncheck
 ./make check <scope>   # go, portal, desktop, docs, or all
-./make help            # complete command list
+./make help            # common contributor commands; add `all` for everything
 ```
 
 On Windows use `make.bat`. Add or change commands under `cmd/mk`; the `make`
