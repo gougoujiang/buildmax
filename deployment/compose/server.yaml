@@ -1,0 +1,58 @@
+# server.yaml for the Compose stack, mounted read-only at /buildmax/server.yaml.
+#
+# Every secret is deliberately absent: jwt_secret, worker.token,
+# database.password, and the conversation model API key arrive from the
+# environment (see compose.yaml and .env), which is the same override path a
+# Kubernetes Secret uses. Nothing here is sensitive enough to keep out of git.
+
+log_level: info
+port: 5678
+
+# Must name the origin the Portal is served from, or the browser blocks every
+# request. Change this together with BUILDMAX_PORTAL_PORT in .env.
+cors_origin: http://localhost:8080
+
+# Accounts are created with `buildmax-server user create`; see
+# docs/deploy/authentication.md. Setting allow_signup here would let anyone who
+# can reach the port register themselves.
+# allow_signup: true
+
+workspaces_dir: /data/workspaces
+default_quota_tier: free_trial
+
+database:
+  host: mysql
+  port: 3306
+  user: buildmax
+  name: buildmax
+  # password: from BUILDMAX_DATABASE_PASSWORD
+
+# Tier 1 conversation model — the one the Portal talks to directly. Any
+# OpenAI-compatible endpoint works; the key comes from
+# BUILDMAX_CONVERSATION_MODEL_API_KEY.
+conversation:
+  model:
+    model: openai/gpt-4o-mini
+    name: GPT-4o mini
+    api_url: https://openrouter.ai/api/v1
+    context_window: 128000
+
+worker:
+  # The server spawns this binary per run; it is on PATH in the same image.
+  binary: buildmax-worker
+  run_mode: local_process
+  # The worker calls the server back over the API, from inside this container.
+  server_url: http://127.0.0.1:5678
+  # token: from BUILDMAX_WORKER_TOKEN
+
+# The server and the workers it spawns share this container's filesystem, so
+# the local backend is enough. Workers running elsewhere need storage both can
+# reach — set these to minio and fill in the block below.
+storage:
+  persist_backend: localfs
+  artifact_backend: localfs
+  # minio:
+  #   endpoint: http://minio:9000
+  #   region: us-east-1
+  #   bucket: buildmax
+  #   prefix: workspaces

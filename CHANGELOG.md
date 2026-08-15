@@ -11,6 +11,9 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- A Compose stack under `deployment/compose/`: MySQL, the server, and the
+  Portal, with a script that generates the secrets. `docs/deploy/compose.md`
+  walks from nothing to a signed-in Portal.
 - Single-use login codes. `buildmax-server user create` and
   `buildmax-server user login-code` let an operator create an account and issue
   a per-account, expiring code, which is how a deployment signs people in
