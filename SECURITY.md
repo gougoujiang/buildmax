@@ -2,8 +2,15 @@
 
 ## Supported Versions
 
-BuildMax is currently in alpha. Security fixes are applied to the `main`
-branch and included in the next release. Earlier builds may not receive fixes.
+BuildMax is currently in alpha. Security fixes are applied to `main` and the
+most recent release line only. Earlier releases and unmaintained forks may not
+receive fixes.
+
+| Version | Supported |
+|---|---|
+| `main` | Yes |
+| Latest release | Yes |
+| Older releases | No |
 
 ## Reporting a Vulnerability
 
@@ -22,7 +29,10 @@ contact the repository owner through GitHub instead. Include:
 
 Please avoid accessing data that is not yours, disrupting service, or making
 changes to third-party systems while investigating. We will acknowledge a
-report, assess its impact, and coordinate a fix and disclosure with the reporter.
+report within seven calendar days, then assess its impact and coordinate a fix
+and disclosure with the reporter. Resolution time depends on severity and the
+complexity of a safe fix; the acknowledgement is a target, not a commercial
+support SLA.
 
 ## Known Limitations
 

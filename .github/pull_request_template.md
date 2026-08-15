@@ -25,9 +25,11 @@ behavior change a user would notice. Delete this section if there is nothing.
 ---
 
 - [ ] Tests added or updated for behavioral changes
+- [ ] Relevant local checks pass (`./make test`, frontend tests/builds, or both)
 - [ ] Documentation updated: `docs/contribute/architecture/` for behavior or
       boundary changes, `docs/contribute/repo-layout.md` if a package moved,
       `docs/design/` for direction changes, `docs/guide/` + `docs/reference/` +
       `config-examples/` for user-facing configuration
+- [ ] Dependency and license changes are explained above
 - [ ] No credentials, customer data, or private deployment details in the diff
 - [ ] Breaking changes to existing public behavior are called out above

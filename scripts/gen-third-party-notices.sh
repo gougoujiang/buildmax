@@ -5,7 +5,7 @@
 # Apache-2.0 section 4(d) requires carrying forward the attribution notices of
 # Apache-2.0 dependencies when redistributing them, and compiled Go binaries
 # contain that dependency code. The release archives and container images ship
-# the generated file for that reason. See docs/dependency-licenses.md.
+# the generated file for that reason. See docs/contribute/dependency-licenses.md.
 #
 # Usage: scripts/gen-third-party-notices.sh [output-file]
 set -euo pipefail
@@ -20,7 +20,7 @@ if ! command -v go-licenses &>/dev/null; then
     PATH="$PATH:$(go env GOPATH)/bin"
   else
     echo "error: go-licenses not found. Install it with:" >&2
-    echo "  go install github.com/google/go-licenses@latest" >&2
+    echo "  go install github.com/google/go-licenses@v1.6.0" >&2
     exit 1
   fi
 fi
@@ -40,7 +40,7 @@ go-licenses save ./cmd/... --save_path="$SAVE" --force 2>/dev/null
   echo "Each module's own license text follows, unmodified."
   echo
   echo "A summary of the license mix, and how to regenerate this file, is in"
-  echo "docs/dependency-licenses.md."
+  echo "docs/contribute/dependency-licenses.md in the source repository."
   echo
 } > "$OUT"
 

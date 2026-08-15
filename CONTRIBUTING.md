@@ -14,6 +14,12 @@ Portal, and worker execution.
 - Never include credentials, customer data, or private deployment details in an
   issue, pull request, test fixture, or commit.
 - Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+- Use [SUPPORT.md](SUPPORT.md) to choose the right channel, and follow
+  [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) in every project space.
+- Project decisions and maintainer responsibilities are described in
+  [GOVERNANCE.md](GOVERNANCE.md) and [MAINTAINERS.md](MAINTAINERS.md).
+- Maintainers follow [docs/contribute/releasing.md](docs/contribute/releasing.md)
+  for version tags, release verification, and recovery.
 
 ## Prerequisites
 
@@ -152,8 +158,11 @@ violating import fails the build rather than sliding through review.
   a breaking change.
 
 CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, and the test
-suite for Go, then builds `gui` and `portal`. Running `./make test` and
-`./make build` locally catches nearly everything it does.
+suite for Go on Linux and Windows. It builds all three frontends, runs Portal
+tests, scans Git history for secrets, checks Go and npm production dependency
+licenses, lints Markdown, and builds a non-publishing release snapshot. Running
+`./make test` and
+`./make build` locally catches the main code and build failures.
 
 ## Contribution License
 

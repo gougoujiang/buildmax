@@ -1,6 +1,7 @@
 # BuildMax server configuration (BUILDMAX_HOME/server.yaml)
 # Copy to BUILDMAX_HOME/server.yaml and fill in your values.
-# BUILDMAX_JWT_SECRET and BUILDMAX_LOG_LEVEL env vars override the fields below.
+# Secret-bearing fields can be overridden by the BUILDMAX_* variables documented
+# in docs/reference/configuration.md.
 
 log_level: info
 port: 5678

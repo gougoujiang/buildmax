@@ -26,7 +26,7 @@ The setup installs [ingress-nginx](https://kubernetes.github.io/ingress-nginx/) 
 
 For Ingress hostnames under `*.kind.local`, add one line per host to `/etc/hosts` (there is no wildcard support). Example:
 
-```
+```text
 127.0.0.1 buildmax-api.kind.local
 127.0.0.1 buildmax.kind.local
 127.0.0.1 whoami.kind.local
@@ -54,6 +54,7 @@ To run the buildmax API server inside the kind cluster (using in-cluster MySQL a
 1. **Prereq**: Run `./make setup` once (cluster, MinIO, MySQL, ingress-nginx, bucket must exist).
 2. **Deploy**: From repo root run `./make deploy`. This builds the binaries, builds and loads the `buildmax:local` image into kind, and applies `deployment/buildmax-deploy.yaml` (namespace `buildmax`, Secret, Deployment, Service, Ingress).
 3. **Secrets**: The manifest includes a dev Secret with placeholder values. For production, create your own before applying:
+
    ```bash
    kubectl create secret generic buildmax-secret -n buildmax \
      --from-literal=BUILDMAX_JWT_SECRET="$(openssl rand -base64 32)" \
@@ -63,8 +64,9 @@ To run the buildmax API server inside the kind cluster (using in-cluster MySQL a
      --from-literal=BUILDMAX_STORAGE_MINIO_SECRET_KEY=minio123 \
      --from-literal=BUILDMAX_CONVERSATION_MODEL_API_KEY=your-llm-api-key
    ```
+
    Or delete the Secret from the YAML and apply it separately.
-4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **http://buildmax-api.kind.local** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `Dockerfile.portal` image).
+4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **<http://buildmax-api.kind.local>** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `Dockerfile.portal` image).
 
 To remove the buildmax app: `kubectl delete -f deployment/buildmax-deploy.yaml`
 
@@ -72,7 +74,7 @@ To remove the buildmax app: `kubectl delete -f deployment/buildmax-deploy.yaml`
 
 `./make setup` deploys whoami in namespace `test` automatically. Add to `/etc/hosts`:
 
-```
+```text
 127.0.0.1 whoami.kind.local
 ```
 

@@ -64,6 +64,7 @@ Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 | [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a team |
 | [Configuration](docs/reference/configuration.md) · [CLI](docs/reference/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
 | [ROADMAP.md](ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
+| [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
 
 ## How It Works
 
@@ -109,10 +110,15 @@ reach. Never commit credentials.
 
 Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 
+For setup questions and early ideas, use
+[GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions).
+
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
-boundaries, and pull request guidance.
+boundaries, and pull request guidance. Community participation follows the
+[Code of Conduct](CODE_OF_CONDUCT.md); support routes and project decision rules
+are documented in [SUPPORT.md](SUPPORT.md) and [GOVERNANCE.md](GOVERNANCE.md).
 
 ## License And Name
 

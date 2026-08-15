@@ -76,6 +76,53 @@ func TestServerExampleCoversServerKeys(t *testing.T) {
 	assertKeysDocumented(t, "server.example.yaml", keysOf(config.ServerConfig{}), nil)
 }
 
+func installConfigExample(t *testing.T, exampleFile, targetFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, dir)
+	for _, envVar := range config.EnvVars {
+		if envVar.Name != config.EnvKeyBuildmaxHome {
+			t.Setenv(envVar.Name, "")
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), "config-examples", exampleFile))
+	if err != nil {
+		t.Fatalf("read %s: %v", exampleFile, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, targetFile), body, 0o600); err != nil {
+		t.Fatalf("install %s: %v", exampleFile, err)
+	}
+}
+
+func TestSettingsExampleLoads(t *testing.T) {
+	installConfigExample(t, "settings.example.yaml", "settings.yaml")
+	settings, err := config.LoadSettings()
+	if err != nil {
+		t.Fatalf("settings example does not load: %v", err)
+	}
+	if settings.LogLevel != "info" || len(settings.Models) == 0 || settings.Models[0].Model == "" {
+		t.Errorf("settings example did not bind expected values: %+v", settings)
+	}
+}
+
+func TestServerExampleLoads(t *testing.T) {
+	installConfigExample(t, "server.example.yaml", "server.yaml")
+	server, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("server example does not load: %v", err)
+	}
+	if server.Port != 5678 || server.Worker.ServerURL == "" || server.Storage.PersistBackend == "" {
+		t.Errorf("server example did not bind expected values: %+v", server)
+	}
+}
+
+func TestLegacyEnvExampleIsAbsent(t *testing.T) {
+	legacy := filepath.Join(repoRoot(t), "config-examples", ".env.example")
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Errorf("legacy %s must stay removed; internal/config/env_spec.go and YAML examples are the sources of truth", legacy)
+	}
+}
+
 // TestPolicyExampleLoads runs config-examples/policy.example.yaml through the
 // real operator-policy loader. The point of a policy file is that a user cannot
 // loosen it, so the authoritative fields must actually bind — a typo here would

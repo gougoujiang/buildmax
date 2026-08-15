@@ -31,35 +31,43 @@ results are sent back to the model as tool-role messages.
 ## Tool Inventory
 
 ### ReadFile (`Read`)
+
 - **Parameters**: `path` (required), `offset` (optional, 1-based line), `limit` (optional, default 1000)
 - **Behavior**: Reads file content with line numbers (`LINE|CONTENT` format). Supports offset/limit for large files. Path must be under the configured root.
 - **Error handling**: Returns clear errors for path-outside-root, file-not-found, etc.
 
 ### WriteFile (`Write`)
+
 - **Parameters**: `path` (required), `content` (required)
 - **Behavior**: Creates or overwrites a file. Creates parent directories as needed. Path must be under root.
 
 ### EditFile (`Edit`)
+
 - **Parameters**: `path` (required), `old_string` (required), `new_string` (required), `replace_all` (optional bool)
 - **Behavior**: Performs exact string replacement in a file. By default replaces the first unique match; `replace_all` replaces all occurrences. Fails if `old_string` is not found or is ambiguous (multiple matches without `replace_all`).
 
 ### WebFetch (`WebFetch`)
+
 - **Parameters**: `url` (required)
 - **Behavior**: Fetches a URL, converts HTML to markdown. Caches results (default 15 min TTL). Optionally uses LLM to process/summarize content.
 
 ### Bash (`Bash`)
+
 - **Parameters**: `command` (required), `timeout` (optional, default 120s, max 600s)
 - **Behavior**: Runs a shell command in the workspace root. Returns combined stdout+stderr. Output truncated at 30k characters.
 
 ### Glob (`Glob`)
+
 - **Parameters**: `pattern` (required)
 - **Behavior**: Lists files matching a glob pattern under the root. Returns paths sorted by modification time (newest first). Patterns not starting with `**/` are auto-prefixed for recursive search.
 
 ### Grep (`Grep`)
+
 - **Parameters**: `pattern` (required), plus optional `path`, `glob`, `type`, `output_mode`, `-A`, `-B`, `-C`, `-i`, `multiline`, `head_limit`, `offset`
 - **Behavior**: Searches file contents by regex pattern. Supports output modes: `content` (matching lines with context), `files_with_matches` (file paths only), `count` (match counts). Supports glob/type filters, context lines, case-insensitive, and multiline mode.
 
 ### TodoWrite (`TodoWrite`)
+
 - **Parameters**: `todos` (required array of {id, content, status})
 - **Behavior**: Formats a task list for progress tracking. Statuses: pending, in_progress, completed.
 

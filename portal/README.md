@@ -39,7 +39,7 @@ npm install
 npm run build
 ```
 
-2. Install Portal dependencies
+1. Install Portal dependencies
 
 ```bash
 npm install
@@ -47,7 +47,7 @@ npm install
 
 ## Development
 
-Start the dev server (default: http://localhost:5173):
+Start the dev server (default: <http://localhost:5173>):
 
 ```bash
 npm run dev

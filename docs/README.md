@@ -50,6 +50,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 | [contribute/architecture/](contribute/architecture/README.md) | How each subsystem works today |
 | [contribute/documentation.md](contribute/documentation.md) | Documentation conventions |
 | [contribute/dependency-licenses.md](contribute/dependency-licenses.md) | License audit and how to re-run it |
+| [contribute/releasing.md](contribute/releasing.md) | Versioning, publishing, verification, and release recovery |
 
 ## Why It Is Like This
 

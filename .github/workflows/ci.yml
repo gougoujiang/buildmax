@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v7
         with:
@@ -39,6 +41,12 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod go.sum
 
+      - name: Check GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+      - name: Scan Git history for secrets
+        run: go run github.com/zricethezav/gitleaks/v8@v8.30.1 git --redact --no-banner --exit-code 1
+
       - name: Build
         run: go build ./...
 
@@ -52,10 +60,10 @@ jobs:
         run: go test ./...
 
       # Fails on copyleft that would conflict with redistributing under
-      # Apache-2.0. See docs/dependency-licenses.md.
+      # Apache-2.0. See docs/contribute/dependency-licenses.md.
       - name: Check dependency licenses
         run: |
-          go install github.com/google/go-licenses@latest
+          go install github.com/google/go-licenses@v1.6.0
           go-licenses check ./cmd/... --disallowed_types=forbidden,restricted
 
   go-windows:
@@ -109,3 +117,46 @@ jobs:
         run: |
           npm ci
           npm run build
+
+  open-source-policy:
+    name: Open source policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Lint Markdown
+        run: npm exec --yes --package=markdownlint-cli2@0.23.2 -- markdownlint-cli2
+
+      - name: Check npm production dependency licenses
+        run: node scripts/check-npm-licenses.mjs
+
+  release-snapshot:
+    name: Release snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install release license tool
+        run: go install github.com/google/go-licenses@v1.6.0
+
+      - uses: anchore/sbom-action/download-syft@v0.24.0
+        with:
+          syft-version: v1.51.0
+
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: v2.17.1
+          args: release --snapshot --clean --skip=publish,docker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

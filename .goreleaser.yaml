@@ -14,7 +14,7 @@ before:
     - go mod tidy
     # Apache-2.0 4(d): the binaries below statically link their dependencies, so
     # every archive and image carries those dependencies' license texts.
-    - go install github.com/google/go-licenses@latest
+    - go install github.com/google/go-licenses@v1.6.0
     - ./scripts/gen-third-party-notices.sh
 
 builds:
@@ -74,11 +74,19 @@ archives:
       - NOTICE-THIRD-PARTY
       - README.md
       - SECURITY.md
+      - CHANGELOG.md
       - src: config-examples/*
         dst: config-examples
 
 checksum:
   name_template: checksums.txt
+
+sboms:
+  - id: archives
+    artifacts: archive
+
+docker_digest:
+  name_template: digests.txt
 
 dockers_v2:
   - id: buildmax
@@ -86,6 +94,9 @@ dockers_v2:
     images: ["ghcr.io/gougoujiang/buildmax"]
     dockerfile: Dockerfile.release
     platforms: [linux/amd64, linux/arm64]
+    # Buildx attaches an image SBOM and provenance attestation. Keep this
+    # explicit even though GoReleaser currently defaults it to true.
+    sbom: true
     extra_files: [LICENSE, NOTICE-THIRD-PARTY]
     tags:
       - "{{ .Version }}"
@@ -135,11 +146,11 @@ release:
 
     ## Getting started
 
-    Set `BUILDMAX_API_KEY` (and optionally `BUILDMAX_BASE_URL` and
-    `BUILDMAX_MODEL`), then run `buildmax` for the TUI, or
-    `buildmax -p "your prompt"` for a single non-interactive turn. Running the
-    server and Portal additionally needs MySQL and object storage; see the
-    README.
+    Copy `config-examples/settings.example.yaml` to
+    `~/.buildmax/settings.yaml`, configure at least one model, then run
+    `buildmax` for the TUI or `buildmax -p "your prompt"` for a single
+    non-interactive turn. Running the server and Portal additionally needs
+    MySQL and object storage; see the README.
 
     The desktop app is not published here. It needs code signing and
     notarization to launch on macOS, so build it locally with `./make build`.

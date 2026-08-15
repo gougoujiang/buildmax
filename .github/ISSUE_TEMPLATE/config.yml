@@ -1,8 +1,14 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Questions and discussion
+    url: https://github.com/gougoujiang/buildmax/discussions
+    about: Ask for setup help or discuss an idea before opening an issue.
   - name: Security vulnerability
     url: https://github.com/gougoujiang/buildmax/blob/main/SECURITY.md
     about: Report privately. Do not open a public issue.
   - name: Contributing guide
     url: https://github.com/gougoujiang/buildmax/blob/main/CONTRIBUTING.md
     about: Local checks, architectural boundaries, and pull request guidance.
+  - name: Support guide
+    url: https://github.com/gougoujiang/buildmax/blob/main/SUPPORT.md
+    about: Choose the right channel and learn what details to include.

@@ -3,22 +3,23 @@
 BuildMax ships under [Apache-2.0](../../LICENSE). This page records what its
 dependencies are licensed under, and how to re-check.
 
-Last audited 2026-08-09.
+Last audited 2026-08-15.
 
 ## Go
 
-133 modules reachable from the three binaries in `cmd/`:
+129 modules reported as reachable from the three binaries in `cmd/`:
 
 | License | Count |
 |---|---|
 | MIT | 59 |
-| Apache-2.0 | 43 |
-| BSD-3-Clause | 27 |
+| Apache-2.0 | 42 |
+| BSD-3-Clause | 24 |
 | BSD-2-Clause | 2 |
 | MPL-2.0 | 1 |
 | ISC | 1 |
 
-All are permissive and compatible with distributing BuildMax under Apache-2.0.
+All are compatible with distributing BuildMax under Apache-2.0. All except the
+single MPL-2.0 module use permissive licenses.
 
 The single MPL-2.0 dependency is `github.com/go-sql-driver/mysql`. MPL-2.0 is
 file-level copyleft: it obliges you to publish modifications **to that
@@ -42,7 +43,7 @@ Go, including a gate that fails on copyleft that would conflict with
 redistribution:
 
 ```bash
-go install github.com/google/go-licenses@latest
+go install github.com/google/go-licenses@v1.6.0
 go-licenses report ./cmd/...
 go-licenses check ./cmd/... --disallowed_types=forbidden,restricted
 ```
@@ -54,12 +55,18 @@ later.
 npm, per package directory:
 
 ```bash
-cd portal && npx license-checker-rseidelsohn --production --summary
+node scripts/check-npm-licenses.mjs
 ```
 
-`go-licenses` prints a warning for `github.com/modern-go/reflect2` because the
-module contains assembly it cannot follow for transitive dependencies. The
-module itself is Apache-2.0; the warning is not a finding.
+The npm check reads all three committed lockfiles, ignores development-only and
+local linked packages, and fails when a production dependency has missing or
+unapproved license metadata. Both Go and npm checks run in CI on every pull
+request.
+
+`go-licenses` may print warnings for modules that contain assembly it cannot
+follow while discovering further transitive dependencies. Those inspection
+warnings are not license findings; the modules' declared license files are
+still checked and collected.
 
 ## Attribution in releases
 
@@ -69,13 +76,13 @@ binaries contain that dependency code.
 
 [`scripts/gen-third-party-notices.sh`](../../scripts/gen-third-party-notices.sh)
 collects the full license text of every module linked into the binaries into a
-single `NOTICE-THIRD-PARTY` file — 135 modules at the last run. GoReleaser runs
+single `NOTICE-THIRD-PARTY` file — 132 modules at the last run. GoReleaser runs
 it as a pre-build hook, so every release archive and the container image ship
 it. The file is generated, not committed.
 
 To produce it locally:
 
 ```bash
-go install github.com/google/go-licenses@latest
+go install github.com/google/go-licenses@v1.6.0
 ./scripts/gen-third-party-notices.sh
 ```

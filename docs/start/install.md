@@ -6,6 +6,13 @@ BuildMax ships three binaries. `buildmax` is the local CLI/TUI and is all you
 need to start; `buildmax-server` and `buildmax-worker` are for the team
 deployment described in [deploy/](../deploy/overview.md).
 
+| Component | Release targets | Distribution |
+|---|---|---|
+| CLI, server, worker | Linux amd64/arm64, macOS amd64/arm64, Windows amd64 | Release archives |
+| Server and worker container | Linux amd64/arm64 | GHCR image |
+| Portal | Modern browsers | Build from source |
+| Desktop | macOS and Windows development builds | Build from source; unsigned |
+
 ## Release Archive
 
 Download an archive for your platform from
@@ -18,6 +25,18 @@ sha256sum -c checksums.txt          # verify before trusting the binaries
 sudo mv buildmax buildmax-server buildmax-worker /usr/local/bin/
 buildmax version
 ```
+
+Each release also publishes an SPDX SBOM for every archive. For releases made
+after the repository became public, verify GitHub's build provenance
+attestation with:
+
+```bash
+gh attestation verify --owner gougoujiang buildmax_<version>_<os>_<arch>.tar.gz
+```
+
+Windows archives use `.zip`. Checksums prove the downloaded bytes match the
+release; the attestation proves GitHub Actions built those bytes from this
+repository.
 
 ## Go Toolchain
 

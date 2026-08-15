@@ -35,7 +35,18 @@ func markdownFiles(t *testing.T, root string) []string {
 	if err != nil {
 		t.Fatalf("walk docs: %v", err)
 	}
-	for _, name := range []string{"README.md", "CONTRIBUTING.md", "ROADMAP.md", "AGENTS.md", "SECURITY.md"} {
+	for _, name := range []string{
+		"README.md",
+		"CHANGELOG.md",
+		"CODE_OF_CONDUCT.md",
+		"CONTRIBUTING.md",
+		"GOVERNANCE.md",
+		"MAINTAINERS.md",
+		"ROADMAP.md",
+		"SECURITY.md",
+		"SUPPORT.md",
+		"AGENTS.md",
+	} {
 		p := filepath.Join(root, name)
 		if _, err := os.Stat(p); err == nil {
 			files = append(files, p)

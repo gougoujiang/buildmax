@@ -4,8 +4,8 @@
 
 ## Purpose
 
-The Portal is the team collaboration surface under `portal/`. It is a React 19
-+ Vite + TypeScript app that talks to the Go server over HTTP and WebSocket.
+The Portal is the team collaboration surface under `portal/`. It is a React 19,
+Vite, and TypeScript app that talks to the Go server over HTTP and WebSocket.
 
 Portal owns the cloud/team lane:
 
