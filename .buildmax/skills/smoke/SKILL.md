@@ -49,7 +49,7 @@ At the end, print the summary table (see "Report Format" below).
 
 ### R0: Read known file
 - Call `Read` with `file_path=go.mod`
-- **Pass** if output contains `module buildmax`
+- **Pass** if output contains `module github.com/gougoujiang/buildmax`
 
 ### R1: Read with offset and limit
 - Call `Read` with `file_path=go.mod`, `offset=1`, `limit=2`
@@ -64,8 +64,8 @@ At the end, print the summary table (see "Report Format" below).
 - **Pass** if output is `No files matched the pattern.`
 
 ### P0: Grep finds pattern
-- Call `Grep` with `pattern=module buildmax`, `path=go.mod`, `output_mode=content`
-- **Pass** if output contains `module buildmax`
+- Call `Grep` with `pattern=module github.com/gougoujiang/buildmax`, `path=go.mod`, `output_mode=content`
+- **Pass** if output contains `module github.com/gougoujiang/buildmax`
 
 ### P1: Grep files_with_matches mode
 - Call `Grep` with `pattern=module`, `path=go.mod`, `output_mode=files_with_matches`
@@ -130,7 +130,7 @@ Run all Level 0 checks first, then:
 - **Pass** if output lists at least one `.txt` file
 
 ### Cleanup
-- Call `Bash` with command `rm -rf smoke-test-tmp`
+- Call `Bash` with command `find ./smoke-test-tmp -depth -delete`
 - **Pass** if command exits without error (output is empty or success)
 
 ---
@@ -171,7 +171,7 @@ Run all Level 0 and Level 1 checks first (including cleanup), then:
 - **Skip** (mark as SKIP, not FAIL) if network is unavailable or request times out
 
 ### Cleanup
-- Call `Bash` with command `rm -rf smoke-test-tmp`
+- Call `Bash` with command `find ./smoke-test-tmp -depth -delete`
 
 ---
 

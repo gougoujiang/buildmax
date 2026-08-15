@@ -93,15 +93,17 @@ More: [docs/start/concepts.md](docs/start/concepts.md) ·
 ## Build From Source
 
 ```bash
-./make build      # CLI, server, worker, shared GUI, desktop app → bin/
+./make doctor     # check contributor tool versions without changing anything
+./make build      # strict CLI, server, worker, GUI, Portal, Desktop build
 ./make test       # go test ./... against ./testing-sandbox
-./make run server # build and run buildmax-server
+./make run server # run the already-built buildmax-server
 ./make run portal # Portal dev server
 ```
 
 On Windows use `make.bat` with the same commands — both forward to the Go task
-runner in `cmd/mk`. `./make help` lists everything. None of build, test, or lint
-needs a model API key.
+runner in `cmd/mk`. `./make help` shows the common contributor path;
+`./make help all` shows advanced, deployment, and release commands. None
+of build, test, or lint needs a model API key.
 
 Two directories in the tree are fixtures rather than product code:
 [`sample-data/`](sample-data/README.md) holds the datasets above — upload them

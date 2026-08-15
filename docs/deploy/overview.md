@@ -153,7 +153,7 @@ workflows so a frontend failure cannot hold up the binaries.
 `deployment/docker/Dockerfile.buildmax` builds the Go binaries from source for
 local use;
 `deployment/buildmax-deploy.yaml` is a working Kubernetes manifest — namespace,
-Secret, Deployment, Service, and Ingress — used by `./make deploy` against a
+Secret, Deployment, Service, and Ingress — used by `./make kind up` against a
 local kind cluster, and a starting point for a real one.
 
 ## Operating Boundaries

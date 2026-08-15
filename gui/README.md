@@ -21,9 +21,10 @@ From `portal/` or `desktop/frontend/` add to `package.json`:
 
 From `desktop/frontend/` the path is `file:../../gui`.
 
-1. Build the package: `cd gui && npm install && npm run build`
-2. In the app: `npm install`
-3. Import: `import { ThemeProvider, useTheme, ThemeToggle, BaseModal } from '@buildmax/gui'`, `import '@buildmax/gui/theme.css'`, and (if using modals) `import '@buildmax/gui/modal.css'`
+1. Use Node 22 and npm 10 (see the root `.node-version`).
+2. Build the package: `cd gui && npm ci && npm run build`
+3. In the app: `npm ci`
+4. Import: `import { ThemeProvider, useTheme, ThemeToggle, BaseModal } from '@buildmax/gui'`, `import '@buildmax/gui/theme.css'`, and (if using modals) `import '@buildmax/gui/modal.css'`
 
 Consumers keep their own layout/sidebar and any `.theme-toggle` button styles; the package provides the component and theme variables.
 

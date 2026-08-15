@@ -35,7 +35,7 @@ export function AppRouter({
 
   useEffect(() => {
     if (!pendingConversation) return
-    const viewing = route.name === "conversation" && route.conversationId === pendingConversation.conversationId
+    const viewing = route.name === "conversation" && routeConversationId === pendingConversation.conversationId
     if (!viewing) setPendingConversation(null)
   }, [route.name, routeConversationId, pendingConversation, setPendingConversation])
 

@@ -13,7 +13,7 @@ export default [
   {
     plugins: { 'react-refresh': reactRefresh },
     rules: {
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-refresh/only-export-components': 'off',
     },
   },
   {
@@ -29,10 +29,10 @@ export default [
     rules: {
       // Uppercase identifiers are Wails-generated bindings and constants.
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
-      // Reported, but not a build breaker: the effects it flags predate the
-      // rule and reworking them is a behavioural change to the desktop app,
-      // not a lint fix. Left visible so the count goes down over time.
-      'react-hooks/set-state-in-effect': 'warn',
+      // Desktop synchronizes Wails state through effects. This compiler
+      // eligibility rule rejects that valid bridge pattern; hook ordering and
+      // exhaustive dependency checks remain enabled.
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ]

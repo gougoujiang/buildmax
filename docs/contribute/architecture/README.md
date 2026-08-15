@@ -32,6 +32,7 @@ tree, see [../repo-layout.md](../repo-layout.md).
 |---|---|
 | [cli.md](cli.md) | Cobra CLI entry point, flags, and command dispatch |
 | [tui.md](tui.md) | Bubble Tea terminal UI: viewport, input, keyboard handling |
+| [desktop.md](desktop.md) | Wails bridge, local projects, streaming, approvals, and frontend embedding |
 
 ## Server And Portal
 

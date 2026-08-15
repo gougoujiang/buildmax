@@ -40,7 +40,7 @@ docs/contribute/dependency-licenses.md in the source repository.
 // cmdNotices produces NOTICE-THIRD-PARTY: the license text of every module
 // linked into the released binaries.
 func cmdNotices(args []string) error {
-	fs := flag.NewFlagSet("notices", flag.ContinueOnError)
+	fs := flag.NewFlagSet("release notices", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ type npmPackage struct {
 // cmdNPMLicenses fails when a production npm dependency carries a license
 // outside the allowed set, or carries none at all.
 func cmdNPMLicenses(args []string) error {
-	fs := flag.NewFlagSet("npm-licenses", flag.ContinueOnError)
+	fs := flag.NewFlagSet("release licenses", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

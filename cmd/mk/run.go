@@ -90,8 +90,8 @@ func runPortal() error {
 	// to be built before Vite can resolve it.
 	if isDir("gui") && !exists(filepath.Join("gui", "dist", "index.js")) {
 		fmt.Println("Building gui package (required by portal)...")
-		if err := runIn("gui", "npm", "install"); err != nil {
-			return fmt.Errorf("gui npm install failed: %w", err)
+		if err := runIn("gui", "npm", "ci"); err != nil {
+			return fmt.Errorf("gui npm ci failed: %w", err)
 		}
 		if err := runIn("gui", "npm", "run", "build"); err != nil {
 			return fmt.Errorf("gui build failed: %w", err)
@@ -99,8 +99,8 @@ func runPortal() error {
 	}
 	if !isDir(filepath.Join("portal", "node_modules")) {
 		fmt.Println("Installing portal dependencies...")
-		if err := runIn("portal", "npm", "install"); err != nil {
-			return fmt.Errorf("portal npm install failed; try running 'cd portal && npm install' manually: %w", err)
+		if err := runIn("portal", "npm", "ci"); err != nil {
+			return fmt.Errorf("portal npm ci failed; try running 'cd portal && npm ci' manually: %w", err)
 		}
 	}
 	fmt.Println("Starting Portal dev server (Ctrl+C to stop)...")

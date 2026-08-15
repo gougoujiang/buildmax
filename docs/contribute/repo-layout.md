@@ -52,7 +52,7 @@ one binary:
 | `deployment/dev-kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
 | `deployment/migrations/` | One-off SQL migrations |
-| `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
+| `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make kind up` |
 
 **The `dev-` prefix means "not a deployment path".** `dev-kind` carries it
 because that cluster exists only so a contributor can exercise the Kubernetes
@@ -77,7 +77,7 @@ Two kinds of directory sit outside the root module, each with its own `go.mod`:
   does for `testdata`, so without it every `go build ./...`, `go vet ./...`,
   `go test ./...`, and `go mod tidy` at the root compiles whatever Go sources
   npm packages happen to ship — the `flatted` package, pulled in transitively
-  by ESLint, ships one. Any directory that runs `npm install` needs one;
+  by ESLint, ships one. Any directory that installs npm dependencies needs one;
   `internal/architecture` has a test that enforces this.
 - **Each `eval/NNN-*/` fixture** is its own module so the benchmark's
   deliberately-broken code is never built or linted with the project's own.

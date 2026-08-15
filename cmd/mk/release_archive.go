@@ -3,7 +3,7 @@
 //
 // This ran as scripts/verify-release-archive.go until it moved here, so that
 // every binary entry point in the repository lives under cmd/ and a maintainer
-// can verify a release the same way CI does: `./make verify-archive`.
+// can verify a release the same way CI does: `./make release verify`.
 package main
 
 import (
@@ -24,7 +24,7 @@ import (
 )
 
 func cmdVerifyArchive(args []string) error {
-	fs := flag.NewFlagSet("verify-archive", flag.ContinueOnError)
+	fs := flag.NewFlagSet("release verify", flag.ContinueOnError)
 	dist := fs.String("dist", "dist", "directory containing GoReleaser archives")
 	all := fs.Bool("all", false, "validate every supported archive without executing binaries")
 	goos := fs.String("goos", runtime.GOOS, "target operating system")

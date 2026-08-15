@@ -1,0 +1,79 @@
+name: Implementation task
+description: A contributor-ready task with explicit scope and verification
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for work that is ready to implement. The issue should
+        contain enough context for a new contributor—or their coding agent—to
+        make progress without guessing at product intent or repository rules.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: State the observable outcome and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: in-scope
+    attributes:
+      label: In scope
+      description: List the behavior and surfaces this task must cover.
+      placeholder: |
+        - Add ...
+        - Update ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Name adjacent work that should not be pulled into this change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: code-areas
+    attributes:
+      label: Likely code and documentation areas
+      description: Point to current source-of-truth files, packages, tests, and docs.
+      placeholder: |
+        - internal/...
+        - docs/contribute/architecture/...
+        - Existing test: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use checkable statements describing behavior, compatibility, and failure cases.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: List the repository commands and any manual scenario required for handoff.
+      placeholder: |
+        ./make test
+        ./make check go
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints, security, and dependencies
+      description: Note architectural boundaries, migration/compatibility concerns, security implications, blockers, or prerequisite issues. Write “None known” when empty.
+    validations:
+      required: true

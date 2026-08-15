@@ -47,6 +47,9 @@ Use the issue templates to give maintainers the context they need:
 - **Bug report:** reproducible behavior that differs from docs or expectations.
 - **Feature request:** a user problem and expected outcome, before implementation.
 - **Documentation:** missing, unclear, or stale docs.
+- **Implementation task:** scoped work with acceptance criteria, likely code
+  areas, and verification commands; this is the best template for work that is
+  ready for a contributor to pick up.
 
 ## Prerequisites
 
@@ -59,7 +62,7 @@ running the agent yourself and `./make eval`.
 | Tool | Needed for |
 |---|---|
 | **Go** — the version in `go.mod` | Everything. The CLI, server, worker, and desktop backend are all Go; the CLI has no Python or Node runtime dependency. |
-| **Node** | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. |
+| **Node 22 and npm 10** — pinned by `.node-version` and `packageManager` | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. Use `npm ci`; normal CLI work does not need Node. |
 | **Docker** | The Compose deployment smoke and container changes. |
 | **kind and kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
 | **An LLM API key** | Running the agent for real, and `./make eval`. Add a model to `~/.buildmax/settings.yaml`; see [docs/reference/configuration.md](docs/reference/configuration.md). |
@@ -67,6 +70,12 @@ running the agent yourself and `./make eval`.
 The task runner reports missing tools; it does not install system packages for
 you. Free OpenRouter models rate-limit with HTTP 429 when called too frequently;
 if agent runs start failing in bursts, that is usually why.
+
+Run `./make doctor` after cloning. It checks the Go/git path, reports optional
+tools, and warns about local changes without modifying the workspace. Use
+`./make doctor all` before full or frontend work to require the pinned Node/npm
+versions. A global Wails install is optional: production builds run the version
+pinned by `go.mod` through Go.
 
 ## Build, Test, and Run
 
@@ -77,20 +86,29 @@ platform runs the same code. `.env` at the repo root is loaded automatically —
 lists what is worth putting in it.
 
 ```bash
-./make build          # CLI, server, worker, gui, desktop app
+./make doctor         # read-only toolchain and workspace diagnosis
+./make build          # strict build: CLI, server, worker, gui, Portal, desktop
 ./make build cli      # CLI only
 ./make test           # go test ./... with BUILDMAX_HOME=./testing-sandbox
-./make run server     # build and run buildmax-server
+./make test race      # the same tests with the race detector
+./make check docs     # scoped gate: go, portal, desktop, docs, or all
+./make run server     # run the already-built buildmax-server
 ./make run portal     # Portal dev server (builds gui if needed)
-./make run desktop    # Wails desktop app in dev mode
+./make run desktop    # run the already-built Wails desktop app
 ./make compose smoke  # full local-process TaskRun and artifact smoke
 ./make kind up        # full Kubernetes stack plus the same smoke assertions
 ./make clean          # binaries, desktop build dir, node_modules, dist
 ```
 
-`./make help` lists every command. To add or change one, edit `cmd/mk` rather
-than the shims. `setup` and `deploy` are compatibility aliases for `kind up`;
-`unsetup` aliases `kind down`.
+`./make help` shows the common contributor path; `./make help all` groups the
+advanced, deployment, and release commands. To add or change a command, edit
+`cmd/mk` rather than the shims.
+
+`doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
+defaults. `install`, `release`, `compose`, `kind`, and publication tasks
+change the machine, repository, or external systems; use them only when that
+effect is intended. `./make build` is strict: a GUI, Portal, Desktop frontend,
+Wails, or copy failure fails the command instead of producing a partial success.
 
 `./make test` writes to `./testing-sandbox` instead of `~/.buildmax`, so tests
 never touch your real data directory. The sandbox is created on demand and is
@@ -170,11 +188,11 @@ GoReleaser-built published image. All three take the repository root as their
 build context. To build the first two and load them into the kind cluster:
 
 ```bash
-./make pub_images
+./make kind images
 ```
 
 Set `BUILDMAX_IMAGE_PLATFORM` to cross-build — for example
-`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make pub_images` on Apple Silicon.
+`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make kind images` on Apple Silicon.
 
 `deployment/buildmax-deploy.yaml` is the readable Kubernetes baseline. It
 carries no credentials: copy
@@ -240,10 +258,12 @@ The rest:
 - Preserve existing public behavior unless the pull request explicitly documents
   a breaking change.
 
-CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, golangci-lint,
+CI runs the documented fresh-clone quickstart, `gofmt`, a `go mod tidy`
+cleanliness check, build, vet, golangci-lint,
 govulncheck, and the test suite — with `-race` on Linux — for Go on Linux and
-Windows. It builds all three frontends, lints Portal and the desktop frontend,
-runs Portal tests, scans Git history for secrets, checks Go and npm production
+Windows. It builds all three frontends, requires zero lint warnings in Portal
+and Desktop, runs both frontend test suites, scans Git history for secrets,
+checks Go and npm production
 dependency licenses, and lints Markdown. CodeQL analyzes Go and TypeScript once
 the repository is public. Pull requests validate the GoReleaser configuration;
 pushes to `main` and manual CI runs build and smoke-test a non-publishing
@@ -254,9 +274,10 @@ Locally:
 
 ```bash
 ./make test              # go test with BUILDMAX_HOME=./testing-sandbox
+./make test race         # the CI race suite with the same isolated home
 ./make lint              # golangci-lint and govulncheck, CI's pinned versions
 ./make build             # every binary, including the frontends
-go test -race ./...      # what CI runs on Linux
+./make check all         # all local Go, frontend, and documentation gates
 ```
 
 When editing a workflow, lint it the way CI does. `go run

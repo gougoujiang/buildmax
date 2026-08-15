@@ -62,7 +62,11 @@ func dispatch(args []string) error {
 	case "clean":
 		return cmdClean()
 	case "test":
-		return cmdTest()
+		return cmdTest(rest)
+	case "check":
+		return cmdCheck(rest)
+	case "doctor":
+		return cmdDoctor(rest)
 	case "lint":
 		return cmdLint()
 	case "smoke":
@@ -71,31 +75,16 @@ func dispatch(args []string) error {
 		return cmdEval(rest)
 	case "run":
 		return cmdRun(rest)
-	case "bump":
-		return cmdBump(rest)
+	case "release":
+		return cmdRelease(rest)
 	case "install":
 		return cmdInstall()
-	case "verify-archive":
-		return cmdVerifyArchive(rest)
-	case "notices":
-		return cmdNotices(rest)
-	case "npm-licenses":
-		return cmdNPMLicenses(rest)
-	case "setup":
-		return cmdKind([]string{"up"})
-	case "unsetup":
-		return cmdKind([]string{"down"})
-	case "pub_images":
-		return cmdPubImages()
-	case "deploy":
-		return cmdKind([]string{"up"})
 	case "compose":
 		return cmdCompose(rest)
 	case "kind":
 		return cmdKind(rest)
 	case "help", "-h", "--help":
-		usage()
-		return nil
+		return cmdHelp(rest)
 	default:
 		usage()
 		return fmt.Errorf("unknown command: %s", args[0])
@@ -123,44 +112,116 @@ func exe(name string) string {
 // command prints one row of the help table. The width is here rather than in
 // each line so a new command lands aligned without anyone counting spaces.
 func command(name, format string, args ...any) {
-	fmt.Printf("  %-15s%s\n", name, fmt.Sprintf(format, args...))
+	fmt.Printf("  %-18s%s\n", name, fmt.Sprintf(format, args...))
+}
+
+func cmdRelease(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: %s release <bump|verify|notices|licenses>", mk())
+	}
+	subcommand, rest := args[0], args[1:]
+	switch subcommand {
+	case "bump":
+		return cmdBump(rest)
+	case "verify":
+		return cmdVerifyArchive(rest)
+	case "notices":
+		return cmdNotices(rest)
+	case "licenses":
+		return cmdNPMLicenses(rest)
+	default:
+		return fmt.Errorf("unknown release command %q (want bump, verify, notices, or licenses)", subcommand)
+	}
+}
+
+type helpRow struct {
+	name        string
+	description string
+}
+
+type helpSection struct {
+	name string
+	rows []helpRow
+}
+
+func commonHelpRows() []helpRow {
+	return []helpRow{
+		{"doctor [all]", "Check the contributor environment without changing it"},
+		{"build [cli]", "Build everything, or only the CLI"},
+		{"test [race]", "Run Go tests in the isolated testing sandbox"},
+		{"check [scope]", "Run pre-PR checks (go|portal|desktop|docs|all)"},
+		{"run <target>", "Run cli, server, desktop, or Portal locally"},
+		{"clean", "Remove build outputs and installed frontend dependencies"},
+		{"help all", "Show advanced, deployment, and release commands"},
+	}
+}
+
+func allHelpSections() []helpSection {
+	return []helpSection{
+		{"Development", []helpRow{
+			{"doctor [all]", "Inspect core tools; 'all' requires pinned frontend tools"},
+			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
+			{"test [race]", "Run Go tests, optionally with the race detector"},
+			{"check [scope]", "Run checks for go, portal, desktop, docs, or all"},
+			{"run <target>", "Run cli, server, desktop, or Portal locally"},
+			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
+		}},
+		{"Advanced", []helpRow{
+			{"lint", "Run pinned golangci-lint and govulncheck"},
+			{"smoke", "Run the local CLI tool smoke test"},
+			{"eval", "Run the agent benchmark (requires a model API key)"},
+		}},
+		{"Deployment", []helpRow{
+			{"compose <action>", "Manage the Compose quickstart (up|smoke|logs|down)"},
+			{"kind <action>", "Manage local Kubernetes (up|images|smoke|logs|down)"},
+		}},
+		{"Release", []helpRow{
+			{"release <action>", "Run bump, verify, notices, or licenses"},
+			{"install", "Install binaries to ~/.local/bin"},
+		}},
+	}
+}
+
+func printHelpRows(rows []helpRow) {
+	for _, row := range rows {
+		command(row.name, "%s", row.description)
+	}
+}
+
+func cmdHelp(args []string) error {
+	if len(args) == 0 {
+		usage()
+		return nil
+	}
+	if len(args) == 1 && args[0] == "all" {
+		usageAll()
+		return nil
+	}
+	return fmt.Errorf("usage: %s help [all]", mk())
 }
 
 func usage() {
 	m := mk()
 	fmt.Printf("Usage: %s <command>\n", m)
 	fmt.Println()
-	fmt.Println("Commands:")
-	command("build", "Build %s, %s, %s, gui, and the desktop app", exe(cliBinary), exe(serverBinary), exe(workerBinary))
-	command("build cli", "Build only %s", exe(cliBinary))
-	command("clean", "Remove binaries, %s/build, gui/portal/desktop frontend (node_modules, dist)", desktopDir)
-	command("test", "Run go test with BUILDMAX_HOME=%s", sandboxDir)
-	command("lint", "Run golangci-lint and govulncheck (same pinned versions as CI)")
-	command("eval", "Build and run the agent benchmark (requires configured LLM API key)")
-	command("smoke", "Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=%s", sandboxDir)
-	command("run server", "Run %s with BUILDMAX_HOME=./%s", exe(serverBinary), sandboxDir)
-	command("run cli", "Run %s with BUILDMAX_HOME=./%s", exe(cliBinary), sandboxDir)
-	command("run desktop", "Run %s with BUILDMAX_HOME=./%s", exe(desktopBinary), sandboxDir)
-	command("run portal", "Start Portal dev server (Vite; installs deps if needed)")
-	command("bump", "Create the next release tag locally (arg: patch|minor|major, default: patch)")
-	command("install", "Install the binaries to ~/.local/bin")
-	command("verify-archive", "Verify GoReleaser archives in dist/ (--all for every platform)")
-	command("notices", "Generate NOTICE-THIRD-PARTY from the modules the binaries link")
-	command("npm-licenses", "Check npm production dependency licenses in every lockfile")
-	command("kind", "Manage the full local Kubernetes stack (up|smoke|logs|down)")
-	command("setup", "Alias for kind up")
-	command("unsetup", "Alias for kind down")
-	command("pub_images", "Build BuildMax and Portal images and load them into the kind cluster")
-	command("deploy", "Alias for kind up")
-	command("compose", "Manage the Docker Compose quickstart (up|smoke|logs|down)")
+	fmt.Println("Common commands:")
+	printHelpRows(commonHelpRows())
 	fmt.Println()
-	fmt.Println("Examples:")
-	fmt.Printf("  %s build\n", m)
+	fmt.Println("Typical contribution path:")
+	fmt.Printf("  %s doctor\n", m)
 	fmt.Printf("  %s build cli\n", m)
 	fmt.Printf("  %s test\n", m)
-	fmt.Printf("  %s bump        # v0.1.0 -> v0.1.1 (tag only; push it to release)\n", m)
-	fmt.Printf("  %s bump minor  # v0.1.0 -> v0.2.0\n", m)
-	fmt.Printf("  %s run server  # run the server against ./%s\n", m, sandboxDir)
-	fmt.Printf("  %s run portal  # start the Portal dev server (Vite)\n", m)
-	fmt.Printf("  %s install     # install binaries to ~/.local/bin\n", m)
+	fmt.Printf("  %s check all\n", m)
+}
+
+func usageAll() {
+	m := mk()
+	fmt.Printf("Usage: %s <command>\n", m)
+	for _, section := range allHelpSections() {
+		fmt.Println()
+		fmt.Printf("%s:\n", section.name)
+		printHelpRows(section.rows)
+	}
+	fmt.Println()
+	fmt.Printf("Run %s help for the short contributor path.\n", m)
 }

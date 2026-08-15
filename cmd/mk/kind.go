@@ -16,11 +16,13 @@ const (
 
 func cmdKind(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: ./make kind <up|smoke|logs|down>")
+		return errors.New("usage: ./make kind <up|images|smoke|logs|down>")
 	}
 	switch args[0] {
 	case "up":
 		return kindUp()
+	case "images":
+		return cmdPubImages()
 	case "smoke":
 		return kindSmoke()
 	case "logs":
@@ -28,7 +30,7 @@ func cmdKind(args []string) error {
 	case "down":
 		return kindDown()
 	default:
-		return fmt.Errorf("unknown kind command %q (want up, smoke, logs, or down)", args[0])
+		return fmt.Errorf("unknown kind command %q (want up, images, smoke, logs, or down)", args[0])
 	}
 }
 

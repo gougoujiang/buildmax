@@ -4,12 +4,13 @@ Native desktop application for BuildMax (Wails + Go). Provides a local, first-ha
 
 ## Prerequisites
 
-- **Go** (for building and for Wails)
-- **Node.js** and **npm** (for the React frontend in `desktop/frontend/`)
-- **Wails CLI** — Run **`./make setup`** from the repo root (installs Wails if missing), or install manually:
+- **Go** — the version in `go.mod`
+- **Node 22** and **npm 10** — pinned by `.node-version` and `package.json`
+- **Wails CLI** is needed only for direct development commands. Install the
+  same version used by `go.mod`:
 
   ```bash
-  go install github.com/wailsapp/wails/v2/cmd/wails@latest
+  go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
   ```
 
   Ensure `$HOME/go/bin` (or `$GOPATH/bin`) is in your `PATH`.
@@ -18,23 +19,26 @@ Native desktop application for BuildMax (Wails + Go). Provides a local, first-ha
 
 ## Build
 
-**Production build** (Wails runs `npm install` and `npm run build` in `desktop/frontend/` first, then builds the Go app):
+**Production build** (strictly builds the shared GUI, Portal, Desktop frontend,
+and native app with the pinned Wails version):
 
 From the **repo root**:
 
 ```bash
-cd cmd/buildmax-desktop && wails build
+./make build
 ```
 
-Or from this directory:
+Or from this directory, after building `gui`:
 
 ```bash
-wails build -tags desktop
+go run github.com/wailsapp/wails/v2/cmd/wails@v2.13.0 build -tags desktop
 ```
 
 Output: `build/bin/buildmax-desktop` (or platform-specific path under `build/`).
 
-To build the React frontend only (e.g. for testing): `cd desktop/frontend && npm install && npm run build`.
+To check the React frontend only: `./make check desktop` from the repository
+root. The manual equivalent is `cd desktop/frontend && npm ci && npm run lint &&
+npm test && npm run build`.
 
 **Note:** `-tags desktop` is required. The frontend bundle in
 `desktop/dist/` is embedded only under that tag, so that plain
@@ -44,7 +48,7 @@ does the same. A binary built without the tag refuses to start and prints how to
 rebuild it — except during Wails' binding generation, which strips the `desktop`
 tag by design; see [bindings_on.go](bindings_on.go).
 
-## Run (dev mode)
+## Run
 
 From the **repo root**:
 
@@ -52,17 +56,21 @@ From the **repo root**:
 ./make run desktop
 ```
 
-Or from this directory:
+This starts the already-built binary from `bin/`. Run `./make build` first.
+
+For Wails/Vite hot reload, run from this directory:
 
 ```bash
-wails dev
+go run github.com/wailsapp/wails/v2/cmd/wails@v2.13.0 dev -tags desktop
 ```
 
-This starts the Vite dev server for the React frontend and opens the app window with hot reload.
+This starts the Vite dev server and opens the app window with hot reload.
 
 ## Configuration
 
-The desktop app uses the same application data directory as the CLI: **`BUILDMAX_HOME`** (default `~/.buildmax`). Sessions and logs will use that path when agent features are added.
+The desktop app uses the same application data directory as the CLI:
+**`BUILDMAX_HOME`** (default `~/.buildmax`). Local projects, sessions, traces,
+and logs use that path today.
 
 ## Project layout
 

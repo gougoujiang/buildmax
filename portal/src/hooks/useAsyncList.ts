@@ -19,20 +19,22 @@ export function useAsyncList<T, U>(
   enabled: boolean,
   options?: UseAsyncListOptions
 ): { data: U[]; loading: boolean; error: string | null; refetch: () => Promise<void> } {
+  const setExternalLoading = options?.setLoading
+  const errorMessage = options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed"))
   const [data, setData] = useState<U[]>([])
   const [loading, setLoadingState] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fetchFnRef = useRef(fetchFn)
   const mapRef = useRef(map)
-  const errorMessageRef = useRef(options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed")))
+  const errorMessageRef = useRef(errorMessage)
   fetchFnRef.current = fetchFn
   mapRef.current = map
-  errorMessageRef.current = options?.errorMessage ?? ((e: unknown) => getErrorMessage(e, "Request failed"))
+  errorMessageRef.current = errorMessage
 
   const runFetch = useCallback((): Promise<void> => {
     setLoadingState(true)
     setError(null)
-    options?.setLoading?.(true)
+    setExternalLoading?.(true)
     return fetchFnRef
       .current()
       .then((raw) => {
@@ -45,21 +47,21 @@ export function useAsyncList<T, U>(
       })
       .finally(() => {
         setLoadingState(false)
-        options?.setLoading?.(false)
+        setExternalLoading?.(false)
       })
-  }, [options?.setLoading])
+  }, [setExternalLoading])
 
   useEffect(() => {
     if (!enabled) {
       setData([])
       setError(null)
       setLoadingState(false)
-      options?.setLoading?.(false)
+      setExternalLoading?.(false)
       return
     }
     runFetch()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are intentional
-  }, [enabled, runFetch, ...deps])
+  }, [enabled, runFetch, setExternalLoading, ...deps])
 
   const refetch = useCallback((): Promise<void> => {
     if (!enabled) return Promise.resolve()
