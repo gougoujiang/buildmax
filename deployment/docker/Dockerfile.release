@@ -1,0 +1,27 @@
+# Release image. Unlike Dockerfile.buildmax next to it, which compiles from
+# source, this one only packages binaries that GoReleaser has already
+# cross-compiled, so the published image and the published archives contain
+# byte-identical builds.
+#
+# GoReleaser's dockers_v2 lays the build context out as <os>/<arch>/<binary> so
+# that one Dockerfile can serve every platform, which is why the COPY paths go
+# through TARGETOS and TARGETARCH. BuildKit sets both automatically.
+#
+# It is not meant to be run by hand — GoReleaser supplies the context. For a
+# local image, use ./make pub_images, which uses Dockerfile.buildmax.
+FROM alpine:3.23
+
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN apk add --no-cache ca-certificates
+
+# The server spawns the worker by name, so they have to share a PATH directory.
+COPY ${TARGETOS}/${TARGETARCH}/buildmax \
+     ${TARGETOS}/${TARGETARCH}/buildmax-server \
+     ${TARGETOS}/${TARGETARCH}/buildmax-worker \
+     /usr/local/bin/
+
+COPY LICENSE NOTICE-THIRD-PARTY /usr/local/share/buildmax/
+
+ENTRYPOINT ["/usr/local/bin/buildmax"]

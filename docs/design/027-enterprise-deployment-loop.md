@@ -58,8 +58,9 @@ Current deployment assets:
   loads them into kind.
 - `./make deploy` builds, loads images, applies
   `deployment/buildmax-deploy.yaml`, and restarts server and Portal deployments.
-- `Dockerfile.buildmax` builds the Go binaries into a container image.
-- `Dockerfile.portal` builds and serves the Portal static app.
+- `deployment/docker/Dockerfile.buildmax` builds the Go binaries into a
+  container image.
+- `deployment/docker/Dockerfile.portal` builds and serves the Portal static app.
 - `docs/deploy/local-kind.md` documents the local kind path.
 - `internal/bootstrap/server.go` starts DB, storage, HTTP server, and scheduler.
 - `internal/bootstrap/worker.go` loads `server.yaml`, gets a scheduled run from

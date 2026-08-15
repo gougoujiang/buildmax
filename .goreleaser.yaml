@@ -92,7 +92,7 @@ dockers_v2:
   - id: buildmax
     ids: [buildmax, buildmax-server, buildmax-worker]
     images: ["ghcr.io/gougoujiang/buildmax"]
-    dockerfile: Dockerfile.release
+    dockerfile: deployment/docker/Dockerfile.release
     platforms: [linux/amd64, linux/arm64]
     # Buildx attaches an image SBOM and provenance attestation. Keep this
     # explicit even though GoReleaser currently defaults it to true.

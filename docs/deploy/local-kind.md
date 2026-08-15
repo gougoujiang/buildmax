@@ -66,7 +66,7 @@ To run the buildmax API server inside the kind cluster (using in-cluster MySQL a
    ```
 
    Or delete the Secret from the YAML and apply it separately.
-4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **<http://buildmax-api.kind.local>** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `Dockerfile.portal` image).
+4. **Hosts**: Add to `/etc/hosts`: `127.0.0.1 buildmax-api.kind.local`. Then open **<http://buildmax-api.kind.local>** (e.g. `/healthz` or the Portal pointing its API base to this host). The portal host **buildmax.kind.local** is reserved for when you deploy the portal (e.g. via the `deployment/docker/Dockerfile.portal` image).
 
 To remove the buildmax app: `kubectl delete -f deployment/buildmax-deploy.yaml`
 

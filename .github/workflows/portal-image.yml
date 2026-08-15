@@ -17,7 +17,7 @@ on:
     paths:
       - 'portal/**'
       - 'gui/**'
-      - 'Dockerfile.portal'
+      - 'deployment/docker/Dockerfile.portal'
       - '.github/workflows/portal-image.yml'
   workflow_dispatch:
 
@@ -81,7 +81,7 @@ jobs:
         id: build
         with:
           context: .
-          file: Dockerfile.portal
+          file: deployment/docker/Dockerfile.portal
           platforms: ${{ steps.meta.outputs.platforms }}
           tags: ${{ steps.meta.outputs.tags }}
           push: ${{ steps.meta.outputs.publish == 'true' }}

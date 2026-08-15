@@ -129,9 +129,10 @@ each step. Override the cluster name with `BUILDMAX_KIND_CLUSTER` (default
 
 ### Container Images
 
-Two Dockerfiles live at the repository root: `Dockerfile.buildmax` for the Go
-binaries and `Dockerfile.portal` for the Portal. To build both and load them
-into the kind cluster:
+The Dockerfiles live in `deployment/docker/`: `Dockerfile.buildmax` for the Go
+binaries, `Dockerfile.portal` for the Portal, and `Dockerfile.release` for the
+GoReleaser-built published image. All three take the repository root as their
+build context. To build the first two and load them into the kind cluster:
 
 ```bash
 ./make pub_images
