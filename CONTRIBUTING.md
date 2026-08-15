@@ -86,7 +86,7 @@ them in automated CI.
 
 ### The `desktop` Build Tag
 
-The desktop frontend bundle lives in `desktop/frontend/dist/`, a Vite build
+The desktop frontend bundle lives in `desktop/dist/`, a Vite build
 artifact that is not checked in. Embedding it unconditionally would make
 `go build ./...`, `go vet ./...`, and `go test ./...` fail on a fresh clone,
 so the `//go:embed` directive sits behind the `desktop` build tag:
@@ -94,6 +94,11 @@ so the `//go:embed` directive sits behind the `desktop` build tag:
 - without the tag, `desktop/assets_stub.go` compiles and embeds nothing, which
   is what every standard Go command and your editor use
 - with `-tags desktop`, `desktop/assets_embed.go` compiles and embeds the bundle
+
+Vite writes to `desktop/dist/` rather than into `desktop/frontend/` because
+`desktop/frontend/` is a separate Go module — see
+[repo-layout.md](docs/contribute/repo-layout.md#nested-go-modules) — and
+`//go:embed` cannot reach across a module boundary.
 
 `./make build` passes the tag and builds the frontend first, so you rarely think
 about it. A desktop binary built without the tag refuses to start and prints how

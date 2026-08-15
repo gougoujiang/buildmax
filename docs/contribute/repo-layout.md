@@ -24,6 +24,20 @@ buildmax/
 └── scripts/              Repository scripts (third-party notice generation)
 ```
 
+## Nested Go Modules
+
+Two kinds of directory sit outside the root module, each with its own `go.mod`:
+
+- **`gui/`, `portal/`, `desktop/frontend/`** contain no Go code. Their `go.mod`
+  is a boundary. The Go tool has no special case for `node_modules` the way it
+  does for `testdata`, so without it every `go build ./...`, `go vet ./...`,
+  `go test ./...`, and `go mod tidy` at the root compiles whatever Go sources
+  npm packages happen to ship — the `flatted` package, pulled in transitively
+  by ESLint, ships one. Any directory that runs `npm install` needs one;
+  `internal/architecture` has a test that enforces this.
+- **Each `eval/NNN-*/` fixture** is its own module so the benchmark's
+  deliberately-broken code is never built or linted with the project's own.
+
 ## Binaries
 
 | Path | Binary | Role |

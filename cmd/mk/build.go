@@ -118,7 +118,7 @@ func buildDesktop() {
 		warnf("desktop", "frontend build failed; skipping.")
 		return
 	}
-	// -tags desktop selects desktop/assets_embed.go, which embeds frontend/dist.
+	// -tags desktop selects desktop/assets_embed.go, which embeds desktop/dist.
 	// Without it the stub is compiled and the app refuses to start.
 	logf("desktop", "Running wails build...")
 	if err := runIn(desktopDir, "wails", "build", "-tags", "desktop"); err != nil {
@@ -165,7 +165,9 @@ func cmdClean() error {
 		{"Removing desktop app build...", []string{filepath.Join(desktopDir, "build")}},
 		{"Removing gui (node_modules, dist)...", []string{"gui/node_modules", "gui/dist"}},
 		{"Removing portal (node_modules, dist)...", []string{"portal/node_modules", "portal/dist"}},
-		{"Removing desktop frontend (node_modules, dist)...", []string{"desktop/frontend/node_modules", "desktop/frontend/dist"}},
+		// desktop/frontend/dist is where Vite used to write; removing it too
+		// keeps a stale bundle from lingering untracked in older checkouts.
+		{"Removing desktop frontend (node_modules, dist)...", []string{"desktop/frontend/node_modules", "desktop/dist", "desktop/frontend/dist"}},
 	}
 	for _, stage := range stages {
 		logf("clean", "%s", stage.what)

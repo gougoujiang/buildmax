@@ -27,13 +27,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # gofmt walks the filesystem, not the module, so `gofmt -l .` also reads
+      # node_modules once anyone has run npm install. Formatting npm-shipped Go
+      # sources is not this repository's business; tracked files are.
       - name: Check formatting
         run: |
-          unformatted=$(gofmt -l .)
+          unformatted=$(git ls-files '*.go' -z | xargs -0 gofmt -l)
           if [ -n "$unformatted" ]; then
             echo "These files are not gofmt-formatted:"
             echo "$unformatted"
-            echo "Run: gofmt -w ."
+            echo "Run: git ls-files '*.go' -z | xargs -0 gofmt -w"
             exit 1
           fi
 
