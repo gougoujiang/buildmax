@@ -198,7 +198,7 @@ jobs:
 
       - name: Verify all release archive contents
         if: github.event_name != 'pull_request'
-        run: go run ./scripts/verify-release-archive.go --all
+        run: go run ./cmd/mk verify-archive --all
 
       - name: Upload release archives
         if: github.event_name != 'pull_request'
@@ -241,4 +241,4 @@ jobs:
           path: dist
 
       - name: Verify native release archive
-        run: go run ./scripts/verify-release-archive.go
+        run: go run ./cmd/mk verify-archive

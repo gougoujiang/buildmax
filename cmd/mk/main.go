@@ -75,6 +75,8 @@ func dispatch(args []string) error {
 		return cmdBump(rest)
 	case "install":
 		return cmdInstall()
+	case "verify-archive":
+		return cmdVerifyArchive(rest)
 	case "setup":
 		return cmdKind([]string{"up"})
 	case "unsetup":
@@ -114,30 +116,37 @@ func exe(name string) string {
 	return name
 }
 
+// command prints one row of the help table. The width is here rather than in
+// each line so a new command lands aligned without anyone counting spaces.
+func command(name, format string, args ...any) {
+	fmt.Printf("  %-15s%s\n", name, fmt.Sprintf(format, args...))
+}
+
 func usage() {
 	m := mk()
 	fmt.Printf("Usage: %s <command>\n", m)
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Printf("  build         Build %s, %s, %s, gui, and the desktop app\n", exe(cliBinary), exe(serverBinary), exe(workerBinary))
-	fmt.Printf("  build cli     Build only %s\n", exe(cliBinary))
-	fmt.Printf("  clean         Remove binaries, %s/build, gui/portal/desktop frontend (node_modules, dist)\n", desktopDir)
-	fmt.Printf("  test          Run go test with BUILDMAX_HOME=%s\n", sandboxDir)
-	fmt.Println("  lint          Run golangci-lint and govulncheck (same pinned versions as CI)")
-	fmt.Println("  eval          Build and run the agent benchmark (requires configured LLM API key)")
-	fmt.Printf("  smoke         Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=%s\n", sandboxDir)
-	fmt.Printf("  run server    Run %s with BUILDMAX_HOME=./%s\n", exe(serverBinary), sandboxDir)
-	fmt.Printf("  run cli       Run %s with BUILDMAX_HOME=./%s\n", exe(cliBinary), sandboxDir)
-	fmt.Printf("  run desktop   Run %s with BUILDMAX_HOME=./%s\n", exe(desktopBinary), sandboxDir)
-	fmt.Println("  run portal    Start Portal dev server (Vite; installs deps if needed)")
-	fmt.Println("  bump          Create the next release tag locally (arg: patch|minor|major, default: patch)")
-	fmt.Println("  install       Install the binaries to ~/.local/bin")
-	fmt.Println("  kind          Manage the full local Kubernetes stack (up|smoke|logs|down)")
-	fmt.Println("  setup         Alias for kind up")
-	fmt.Println("  unsetup       Alias for kind down")
-	fmt.Println("  pub_images    Build BuildMax and Portal images and load them into the kind cluster")
-	fmt.Println("  deploy        Alias for kind up")
-	fmt.Println("  compose       Manage the Docker Compose quickstart (up|smoke|logs|down)")
+	command("build", "Build %s, %s, %s, gui, and the desktop app", exe(cliBinary), exe(serverBinary), exe(workerBinary))
+	command("build cli", "Build only %s", exe(cliBinary))
+	command("clean", "Remove binaries, %s/build, gui/portal/desktop frontend (node_modules, dist)", desktopDir)
+	command("test", "Run go test with BUILDMAX_HOME=%s", sandboxDir)
+	command("lint", "Run golangci-lint and govulncheck (same pinned versions as CI)")
+	command("eval", "Build and run the agent benchmark (requires configured LLM API key)")
+	command("smoke", "Build, then run with -p \"/smoke 0\" and BUILDMAX_HOME=%s", sandboxDir)
+	command("run server", "Run %s with BUILDMAX_HOME=./%s", exe(serverBinary), sandboxDir)
+	command("run cli", "Run %s with BUILDMAX_HOME=./%s", exe(cliBinary), sandboxDir)
+	command("run desktop", "Run %s with BUILDMAX_HOME=./%s", exe(desktopBinary), sandboxDir)
+	command("run portal", "Start Portal dev server (Vite; installs deps if needed)")
+	command("bump", "Create the next release tag locally (arg: patch|minor|major, default: patch)")
+	command("install", "Install the binaries to ~/.local/bin")
+	command("verify-archive", "Verify GoReleaser archives in dist/ (--all for every platform)")
+	command("kind", "Manage the full local Kubernetes stack (up|smoke|logs|down)")
+	command("setup", "Alias for kind up")
+	command("unsetup", "Alias for kind down")
+	command("pub_images", "Build BuildMax and Portal images and load them into the kind cluster")
+	command("deploy", "Alias for kind up")
+	command("compose", "Manage the Docker Compose quickstart (up|smoke|logs|down)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Printf("  %s build\n", m)
