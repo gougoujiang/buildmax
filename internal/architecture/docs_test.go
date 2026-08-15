@@ -38,14 +38,17 @@ func markdownFiles(t *testing.T, root string) []string {
 	for _, name := range []string{
 		"README.md",
 		"CHANGELOG.md",
-		"CODE_OF_CONDUCT.md",
 		"CONTRIBUTING.md",
-		"GOVERNANCE.md",
-		"MAINTAINERS.md",
 		"ROADMAP.md",
 		"SECURITY.md",
-		"SUPPORT.md",
 		"AGENTS.md",
+		// Community health files live in .github/, where GitHub still surfaces
+		// them; their links are checked from there.
+		".github/CODE_OF_CONDUCT.md",
+		".github/GOVERNANCE.md",
+		".github/MAINTAINERS.md",
+		".github/SUPPORT.md",
+		".github/TRADEMARKS.md",
 	} {
 		p := filepath.Join(root, name)
 		if _, err := os.Stat(p); err == nil {
@@ -132,7 +135,7 @@ func TestToolNamesDocumented(t *testing.T) {
 }
 
 // agentsMDPathRe matches repository paths written in backticks, e.g. `internal/config`.
-var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|portal|gui|desktop|config-examples|deployment|setup|eval|scripts)/[A-Za-z0-9_./-]*)`")
+var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|portal|gui|desktop|config-examples|deployment|eval|scripts|\\.github|\\.buildmax)/[A-Za-z0-9_./-]*)`")
 
 // buildArtifactSegments name directories that only exist after a build. AGENTS.md
 // legitimately refers to them (gui/dist, portal/dist, gui/node_modules), but they

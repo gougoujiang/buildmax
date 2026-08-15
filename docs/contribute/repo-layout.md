@@ -17,12 +17,31 @@ buildmax/
 ├── gui/                  Shared React package @buildmax/gui, used by both
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
-├── deployment/           Kubernetes manifests, migrations, Compose, Dockerfiles
-├── setup/                Local kind infrastructure manifests
+├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
 ├── eval/                 Agent benchmark task catalog
 ├── sample-data/          Datasets for demoing and exercising the agent tools
-└── scripts/              Release and license tooling run by CI
+├── scripts/              Release and license tooling run by CI
+├── .github/              CI workflows, issue and PR templates, community health files
+├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md
+├── make, make.bat        One-line shims around the task runner in cmd/mk
+└── *.md, LICENSE         README, CONTRIBUTING, SECURITY, CHANGELOG, ROADMAP, AGENTS
 ```
+
+Generated and never committed: `bin/` (`./make build` output), `dist/`
+(GoReleaser), `NOTICE-THIRD-PARTY`, `testing-sandbox/` (`./make test` data
+directory), and every `node_modules/` and frontend `dist/`.
+
+Root Markdown, and who each file is for:
+
+| File | Audience |
+|---|---|
+| `README.md` | Anyone landing on the repository |
+| `CONTRIBUTING.md` | Contributors — prerequisites, build, test, pull requests |
+| `SECURITY.md` | Vulnerability reporters and operators |
+| `CHANGELOG.md` | Users and operators, per release |
+| `ROADMAP.md` | Anyone asking where the project is going |
+| `AGENTS.md` | The agent, on every run in this workspace ([agents.md](https://agents.md/) convention). `CLAUDE.md` points at it. |
+| `.github/CODE_OF_CONDUCT.md`, `SUPPORT.md`, `GOVERNANCE.md`, `MAINTAINERS.md`, `TRADEMARKS.md` | Community health files. GitHub surfaces them from `.github/` exactly as it does from the root. |
 
 `deployment/` holds everything needed to run a deployment rather than to build
 one binary:
@@ -31,16 +50,14 @@ one binary:
 |---|---|
 | `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
 | `deployment/compose/` | Single-machine Compose stack; see [deploy/compose.md](../deploy/compose.md) |
+| `deployment/dev-kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
 | `deployment/migrations/` | One-off SQL migrations |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
 
-`setup/` is distinct from `deployment/`: it holds the manifests that stand up a
-**local development** kind cluster — the kind config, ingress-nginx, MySQL, and
-MinIO — and is never part of a real deployment. The orchestration that applies
-them lives in `cmd/mk/kind.go`, behind `./make kind up`. `scripts/` is neither —
-it is repository tooling invoked from CI and the release process: third-party
-notice generation, npm license checks, and release-archive verification.
+`scripts/` is neither deployment nor application code — it is repository tooling
+invoked from CI and the release process: third-party notice generation, npm
+license checks, and release-archive verification.
 
 ## Nested Go Modules
 

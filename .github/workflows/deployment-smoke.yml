@@ -5,9 +5,9 @@ on:
     branches: [main]
     paths: &deployment-paths
       - '.github/workflows/deployment-smoke.yml'
-      # deployment/** covers the Dockerfiles, which live in deployment/docker.
+      # deployment/** covers the Dockerfiles in deployment/docker and the local
+      # kind manifests in deployment/dev-kind.
       - 'deployment/**'
-      - 'setup/**'
       - 'cmd/**'
       - 'internal/**'
       - 'portal/**'

@@ -22,7 +22,7 @@ record so alternatives and compatibility impact are visible before code lands.
 Maintainers seek consensus and explain decisions in the relevant issue or pull
 request. If consensus cannot be reached, the project owner makes the final
 decision and records the reasoning. Security reports follow
-[SECURITY.md](SECURITY.md) and are never decided in a public issue before a
+[SECURITY.md](../SECURITY.md) and are never decided in a public issue before a
 coordinated disclosure.
 
 ## Merging Changes
@@ -47,7 +47,7 @@ Normal code and documentation changes should use pull requests.
 Maintainers triage issues on a best-effort basis. Triage confirms that the
 report has enough information to act on, applies an appropriate type and area
 label, links duplicates, and records whether the issue fits the active roadmap.
-Security reports never enter public triage; they follow [SECURITY.md](SECURITY.md).
+Security reports never enter public triage; they follow [SECURITY.md](../SECURITY.md).
 
 Issues are not closed merely because they are old. A maintainer may close an
 issue when it is a duplicate, cannot be reproduced, falls outside project

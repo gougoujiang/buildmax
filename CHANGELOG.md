@@ -40,6 +40,17 @@ pre-releases and must be called out in release notes.
   checksum and required-content validation.
 - A public launch checklist and documented issue triage policy.
 
+- Contributor on-ramp documents: `docs/contribute/first-pr.md` walks clone to
+  pull request, and `docs/contribute/conventions.md` collects the naming, entity
+  ID, tool-output, commit, and changelog rules that review applies. Neither the
+  build, the tests, the lint, nor the deployment smokes need a model API key —
+  `CONTRIBUTING.md` now says so instead of listing one as a prerequisite.
+- `.gitattributes` and `.editorconfig`, so line endings and editor defaults match
+  what the toolchains already enforce, and the language statistics describe the
+  project rather than its fixtures.
+- `.buildmax/README.md` explains why this repository checks in its own workspace
+  agent configuration when `.claude/` and `.vibe/` stay ignored.
+
 ### Changed
 
 - **Self-registration is closed by default.** `POST /api/otp/request` refuses
@@ -57,6 +68,16 @@ pre-releases and must be called out in release notes.
   `goldmark` 1.7.17 — closing 23 vulnerabilities reachable from this code.
 - Release tools are pinned to exact versions for reproducible builds.
 - Release setup instructions now use the current YAML configuration flow.
+- The local kind manifests moved from `setup/` to `deployment/dev-kind/`, next to
+  the deployment files they resemble. `./make kind up` is unchanged.
+- Community health files — Code of Conduct, Support, Governance, Maintainers,
+  Trademarks — moved to `.github/`, where GitHub surfaces them exactly as it does
+  from the repository root. The root now carries only README, CONTRIBUTING,
+  SECURITY, CHANGELOG, ROADMAP, LICENSE, and the agent instructions.
+- `AGENTS.md` no longer restates the repository tree, the build commands, or the
+  project conventions. Those have one home each:
+  `docs/contribute/repo-layout.md`, `CONTRIBUTING.md`, and the new
+  `docs/contribute/conventions.md`.
 
 ### Removed
 

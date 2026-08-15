@@ -63,6 +63,43 @@ environment carries credentials.** That is exactly how
 `deployment/buildmax-deploy.yaml` is arranged — a ConfigMap for the file, a
 Secret for these variables.
 
+### Local development `.env`
+
+`./make` and `make.bat` load a `.env` file from the repository root before
+running anything, so a local `BUILDMAX_*` value applies to every task without
+exporting it in your shell. This is a **development convenience only** — a
+released binary never reads `.env`; it reads the environment it is given.
+
+The file is gitignored. There is deliberately no `.env.example`: the supported
+configuration surface is `settings.yaml` and `server.yaml`, and a second
+committed template would invite the two to disagree. Put in `.env` only what
+genuinely belongs to your machine:
+
+```bash
+# Point the local server and worker at a scratch data directory.
+BUILDMAX_HOME=./testing-sandbox
+
+# Run the MySQL-backed store tests instead of skipping them.
+BUILDMAX_TEST_DSN=root:pass@tcp(127.0.0.1:3306)/buildmax_test?parseTime=true
+
+# Anything from the tables above, for `./make run server`.
+BUILDMAX_JWT_SECRET=dev-only-secret
+BUILDMAX_DATABASE_PASSWORD=...
+```
+
+Two variables are read by the task runner itself rather than by BuildMax:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` and `./make pub_images` create and address. Every `kubectl` call uses that cluster's explicit context. |
+| `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make pub_images` — for example `linux/amd64` on Apple Silicon. |
+
+The Compose stack is separate and does not use the root `.env`. It reads
+`deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates
+with generated secrets and the host ports `BUILDMAX_SERVER_PORT` and
+`BUILDMAX_PORTAL_PORT`; `./make compose up` generates it on first run. See
+[deploy/compose.md](../deploy/compose.md).
+
 ## `settings.yaml` — CLI and Desktop
 
 ```yaml

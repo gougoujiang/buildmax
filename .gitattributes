@@ -1,0 +1,30 @@
+# Line endings. Every tracked file in this repository is LF today, and the Go,
+# Node, and shell toolchains all expect that — so normalize in the repository and
+# check out LF everywhere, regardless of a contributor's core.autocrlf setting.
+* text=auto eol=lf
+
+# cmd.exe is the one consumer that genuinely prefers CRLF.
+*.bat text eol=crlf
+
+# Binary assets: never touch, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# Language statistics. GitHub's language bar answers "what is this project
+# written in", so exclude fixtures that are not the project's own code: the
+# benchmark modules under eval/ are deliberately broken sample programs, and
+# sample-data/ is throwaway demo data. Both stay fully diffable and reviewable —
+# -linguist-detectable only removes them from the stats.
+eval/** -linguist-detectable
+sample-data/** -linguist-detectable
+
+# Generated at release time by scripts/gen-third-party-notices.sh. Untracked, but
+# marked so a local copy never shows up as a reviewable diff.
+NOTICE-THIRD-PARTY linguist-generated=true

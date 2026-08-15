@@ -212,9 +212,8 @@ func cmdSmoke() error {
 	if err := buildGo("cli", cliBinary, "./cmd/buildmax"); err != nil {
 		return err
 	}
-	if err := os.Setenv("BUILDMAX_LOG_LEVEL", "debug"); err != nil {
-		return err
-	}
+	// Log level comes from log_level in settings.yaml; there is no environment
+	// override, so the smoke run uses whatever the sandbox home is configured for.
 	fmt.Println("Running smoke test...")
 	return runCmd(filepath.Join(binDir, exe(cliBinary)), "-p", "/smoke 0")
 }
