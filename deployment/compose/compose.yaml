@@ -1,0 +1,89 @@
+# BuildMax on one machine: MySQL, the server (which spawns workers itself), and
+# the Portal. Enough to evaluate the team surface, and small enough to read.
+#
+#   cd deployment/compose
+#   ./generate-env.sh          # writes .env with two generated secrets
+#   docker compose up -d
+#   docker compose exec server buildmax-server user create you@example.com
+#   docker compose exec server buildmax-server user login-code you@example.com
+#
+# Then open http://localhost:8080 and sign in with that code.
+# Full walkthrough: docs/deploy/compose.md.
+#
+# What this is not: there is no MinIO here, because the server and the workers
+# it spawns share one container and one volume, so the local filesystem backend
+# is enough. A deployment where workers run elsewhere needs blob storage both
+# can reach — see docs/deploy/overview.md.
+
+name: buildmax
+
+services:
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: buildmax
+      MYSQL_USER: buildmax
+      MYSQL_PASSWORD: ${BUILDMAX_DATABASE_PASSWORD:?run ./generate-env.sh first}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # The server exits if it cannot open the database, so it waits for this.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ubuildmax", "-p${BUILDMAX_DATABASE_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  server:
+    # `image` names what to build and what to pull. Until a release publishes
+    # these tags, `docker compose up` builds them from this checkout; after one
+    # does, `docker compose pull` gets them instead.
+    image: ghcr.io/gougoujiang/buildmax:${BUILDMAX_VERSION:-dev}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.buildmax
+    entrypoint: ["/usr/local/bin/buildmax-server"]
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      BUILDMAX_HOME: /buildmax
+      # Secrets stay out of server.yaml and arrive from .env, the same override
+      # path a Kubernetes Secret uses.
+      BUILDMAX_JWT_SECRET: ${BUILDMAX_JWT_SECRET:?run ./generate-env.sh first}
+      BUILDMAX_WORKER_TOKEN: ${BUILDMAX_WORKER_TOKEN:?run ./generate-env.sh first}
+      BUILDMAX_DATABASE_PASSWORD: ${BUILDMAX_DATABASE_PASSWORD}
+      # Optional: without it the Portal loads but conversations cannot run.
+      BUILDMAX_CONVERSATION_MODEL_API_KEY: ${BUILDMAX_CONVERSATION_MODEL_API_KEY:-}
+    volumes:
+      - ./server.yaml:/buildmax/server.yaml:ro
+      - server-data:/data
+    ports:
+      - "${BUILDMAX_SERVER_PORT:-5678}:5678"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5678/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  portal:
+    image: ghcr.io/gougoujiang/buildmax-portal:${BUILDMAX_VERSION:-dev}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.portal
+    restart: unless-stopped
+    environment:
+      # The browser calls this, not the container, so it is the address on the
+      # host — and server.yaml's cors_origin has to name the Portal's own
+      # origin in return. Change one and you change both.
+      BUILDMAX_API_BASE: http://localhost:${BUILDMAX_SERVER_PORT:-5678}
+    ports:
+      - "${BUILDMAX_PORTAL_PORT:-8080}:80"
+
+volumes:
+  mysql-data:
+  server-data:

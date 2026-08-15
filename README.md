@@ -64,7 +64,7 @@ Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 |---|---|
 | [Install](docs/start/install.md) · [Quickstart](docs/start/quickstart.md) · [Concepts](docs/start/concepts.md) | Getting started |
 | [Hooks](docs/guide/hooks.md) · [Sandbox](docs/guide/sandbox.md) | Controlling what the agent may do |
-| [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a team |
+| [Compose quickstart](docs/deploy/compose.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a team |
 | [Configuration](docs/reference/configuration.md) · [CLI](docs/reference/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
 | [ROADMAP.md](ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
 | [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |

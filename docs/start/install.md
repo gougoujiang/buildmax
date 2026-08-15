@@ -56,13 +56,18 @@ report both.
 One image carries all three binaries; a second serves the Portal:
 
 ```bash
-docker pull ghcr.io/gougoujiang/buildmax:latest
+docker pull ghcr.io/gougoujiang/buildmax:<version>
 docker pull ghcr.io/gougoujiang/buildmax-portal:<version>
 ```
 
-Both are tagged with the release they were built from. Running the Portal image
-takes one environment variable — see
+Both are published per release tag and carry the same version. Alpha releases
+deliberately do not move `latest`, so name the version you want. Running the
+Portal image takes one environment variable — see
 [deploy/overview.md](../deploy/overview.md#portal).
+
+To run the whole team stack rather than one image, use the
+[Compose quickstart](../deploy/compose.md), which builds from source until a
+release publishes these tags.
 
 ## From Source
 

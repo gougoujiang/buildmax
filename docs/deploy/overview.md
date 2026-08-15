@@ -9,6 +9,10 @@ Deploying BuildMax for a team means running two Go binaries plus two backing
 services. There is nothing to install into the agent runtime itself — the
 worker is the same runtime the CLI uses, started by the server.
 
+To see it working before reading any of this, use the
+[Compose quickstart](compose.md): three containers, one command, an account you
+create yourself.
+
 ## Topology
 
 ```text
@@ -165,6 +169,7 @@ Vulnerability disclosure: [SECURITY.md](../../SECURITY.md).
 
 ## Related
 
+- [compose.md](compose.md) — the whole stack on one machine, for evaluating it
 - [authentication.md](authentication.md) — creating accounts and issuing login codes
 - [local-kind.md](local-kind.md) — one-command local cluster for development
 - [reference/webhook.md](../reference/webhook.md) — triggering runs from

@@ -27,8 +27,9 @@ Organized by what you are trying to do.
 
 | | |
 |---|---|
+| [deploy/compose.md](deploy/compose.md) | A team deployment on one machine, in about five minutes |
 | [deploy/overview.md](deploy/overview.md) | Topology, requirements, configuration, containers |
-| [deploy/authentication.md](deploy/authentication.md) | **Read before exposing a server** — login is disabled by default |
+| [deploy/authentication.md](deploy/authentication.md) | **Read before exposing a server** — accounts, login codes, what is missing |
 | [deploy/local-kind.md](deploy/local-kind.md) | One-command local cluster: kind, MinIO, MySQL, Redis |
 
 ## Look It Up
