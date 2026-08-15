@@ -175,6 +175,15 @@ Locally:
 go test -race ./...      # what CI runs on Linux
 ```
 
+When editing a workflow, lint it the way CI does. `go run
+github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` silently skips its
+shellcheck pass when shellcheck is not on your PATH, so a `run:` block can pass
+locally and fail on the runner. The published image carries shellcheck:
+
+```bash
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+```
+
 The linter set and the reasoning behind each exclusion are in
 [`.golangci.yml`](.golangci.yml). For the frontends, `npm run lint` in `portal/`
 and `desktop/frontend/`; `gui/` has no ESLint step because typescript-eslint
