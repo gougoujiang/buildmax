@@ -21,6 +21,25 @@ Portal, and worker execution.
 - Maintainers follow [docs/contribute/releasing.md](docs/contribute/releasing.md)
   for version tags, release verification, and recovery.
 
+## First Contributions
+
+Good first pull requests are small, easy to verify, and close to an existing
+issue. Look for issues labeled `good first issue`, `help wanted`, or
+`documentation`; if none are available, start with a bug report, documentation
+gap, or discussion instead of opening a large speculative PR.
+
+Before picking work, read the [support matrix](docs/start/support.md). It names
+the surfaces and deployment paths the project supports today, plus the alpha
+non-goals that should not become surprise PR scope. Documentation fixes, focused
+tests, small CLI/TUI usability fixes, and reproducible bug fixes are the best
+entry points.
+
+Use the issue templates to give maintainers the context they need:
+
+- **Bug report:** reproducible behavior that differs from docs or expectations.
+- **Feature request:** a user problem and expected outcome, before implementation.
+- **Documentation:** missing, unclear, or stale docs.
+
 ## Prerequisites
 
 - **Go** — the version in `go.mod`. The CLI, server, worker, and desktop backend

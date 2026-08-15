@@ -6,6 +6,10 @@ BuildMax ships three binaries. `buildmax` is the local CLI/TUI and is all you
 need to start; `buildmax-server` and `buildmax-worker` are for the team
 deployment described in [deploy/](../deploy/overview.md).
 
+Before choosing an install path, check the
+[support matrix](support.md) for the current alpha platform and deployment
+boundaries.
+
 | Component | Release targets | Distribution |
 |---|---|---|
 | CLI, server, worker | Linux amd64/arm64, macOS amd64/arm64, Windows amd64 | Release archives |

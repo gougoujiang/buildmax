@@ -15,6 +15,8 @@ tag until every post-switch setting has been verified.
       private filesystem paths, internal hostnames, and customer identifiers.
 - [ ] Review `README.md`, `SECURITY.md`, `SUPPORT.md`, and the installation guide
       for promises that are inappropriate for an alpha.
+- [ ] Review `docs/start/support.md` so the support matrix and non-goals match
+      the release being published.
 - [ ] Run the non-publishing release snapshot and native archive smoke jobs.
 - [ ] Confirm the owner accepts that all commits, tags, issues, and repository
       metadata become publicly visible immediately.
