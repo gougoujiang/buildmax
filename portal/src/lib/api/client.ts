@@ -4,7 +4,18 @@
  */
 
 const defaultApiBase = "http://localhost:5678"
-const kindApiBase = "http://buildmax-api.kind.local"
+
+declare global {
+  interface Window {
+    /**
+     * Runtime configuration. `public/config.js` ships an empty default and the
+     * container entrypoint overwrites it from BUILDMAX_API_BASE before nginx
+     * starts, which is what lets one published image serve every deployment:
+     * the API URL is not knowable when the bundle is built.
+     */
+    __BUILDMAX_CONFIG__?: { apiBase?: string }
+  }
+}
 
 /** Event dispatched when any API call returns 401. Listeners should clear auth and show login. */
 export const UNAUTHORIZED_EVENT = "buildmax:unauthorized"
@@ -50,14 +61,30 @@ export async function requestText(url: string, init?: RequestInit): Promise<stri
 }
 
 /**
- * API base URL.
- * - When the portal is served from buildmax.kind.local (deployed in kind), use http://buildmax-api.kind.local.
- * - Otherwise use VITE_API_BASE if set, or http://localhost:5678 for local dev.
+ * API base URL, most specific source first:
+ *
+ *  1. `window.__BUILDMAX_CONFIG__.apiBase` — written at container start from
+ *     BUILDMAX_API_BASE. The only source available to a prebuilt image.
+ *  2. `VITE_API_BASE` — baked in at build time, for `npm run dev` and for
+ *     anyone building the bundle themselves.
+ *  3. `http://localhost:5678` — the default a local server listens on.
+ *
+ * A trailing slash is trimmed, so `BUILDMAX_API_BASE=/` yields "" and every
+ * request goes to the origin serving the Portal — the setup to use when a
+ * reverse proxy puts the Portal and the server behind one hostname.
  */
 export function getApiBase(): string {
-  if (typeof window !== "undefined" && window.location?.host === "buildmax.kind.local") {
-    return kindApiBase
+  const runtime = typeof window !== "undefined" ? window.__BUILDMAX_CONFIG__?.apiBase : undefined
+  if (typeof runtime === "string" && runtime !== "") {
+    return trimTrailingSlash(runtime)
   }
-  const base = import.meta.env.VITE_API_BASE
-  return typeof base === "string" && base !== "" ? base : defaultApiBase
+  const build = import.meta.env.VITE_API_BASE
+  if (typeof build === "string" && build !== "") {
+    return trimTrailingSlash(build)
+  }
+  return defaultApiBase
+}
+
+function trimTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, "")
 }
