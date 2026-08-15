@@ -213,7 +213,7 @@ buildmax/
 │   ├── contribute/            # Repo layout, architecture reference, doc conventions
 │   └── design/                # Numbered design records (cited from code)
 ├── config-examples/           # Config file examples (settings/server/hooks yaml)
-├── setup/                     # Setup scripts
+├── setup/                     # Local kind infrastructure manifests
 ├── deployment/                # Application manifests
 ├── go.mod
 ├── go.sum
@@ -285,10 +285,10 @@ Use `./make <command>` at the repo root — on Windows, `make.bat <command>`. Bo
 - **Run portal**: `./make run portal` — builds gui if missing, then starts the Portal dev server (Vite; installs npm deps if needed).
 - **Run desktop**: `./make run desktop` — builds gui if missing, then starts the desktop app in Wails dev mode (installs frontend deps if needed).
 - **Bump version**: `./make bump [patch|minor|major]` — creates the next release tag locally (default: patch); pushing the tag is what triggers a release. Versions live in git tags, injected at link time, not in a source file.
-- **Eval / Install / Images / Deploy**: `./make eval` builds and runs the agent benchmark over `eval/` (needs a configured model); `./make install` installs the binaries to `~/.local/bin`; `./make pub_images` builds the BuildMax and Portal images and loads them into kind; `./make deploy` applies `deployment/buildmax-deploy.yaml` after applying the secret.
-- **Setup / Unsetup**: `./make setup` runs `setup/setup.sh` (one-click local dev: kind cluster, MinIO, MySQL, port-forwards, test job; idempotent). `./make unsetup` runs `setup/unsetup.sh` to tear down. Requires Homebrew (kind, helm, kubectl, awscli). Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.
+- **Eval / Install / Images**: `./make eval` builds and runs the agent benchmark over `eval/` (needs a configured model); `./make install` installs the binaries to `~/.local/bin`; `./make pub_images` builds the BuildMax and Portal images and loads them into kind.
+- **Deployment smoke**: `./make compose smoke` runs the local-process worker path with MySQL and local storage. `./make kind up` creates the full local Kubernetes path with Ingress, MySQL, MinIO, a worker Job, and artifact verification; `kind smoke|logs|down` reruns, diagnoses, or removes it. `setup` and `deploy` alias `kind up`; `unsetup` aliases `kind down`. The task runner requires Docker, kind, and kubectl as appropriate but does not install system tools. Do not use `./make run server` or `./make smoke` in automated CI; they are for local manual use.
 
-**Windows:** `make.bat <command>` accepts every command `./make` does; build output is `bin/buildmax.exe` and friends. The exceptions are `setup`, `unsetup`, and `deploy`, which drive bash and Kubernetes tooling and fail with a clear message on Windows — run them from WSL2. Native Windows is not yet covered by CI end to end: the Windows job builds, vets, and runs the suite through `make.bat` (see `.github/workflows/ci.yml`), but shell-dependent tests skip there, the bash tool falls back to `cmd /c` (`internal/tool/bash.go`), and the sandbox is unavailable (`docs/design/032-sandbox-and-execution-boundaries.md` §7).
+**Windows:** `make.bat <command>` accepts every command `./make` does; build output is `bin/buildmax.exe` and friends. Run the Docker and kind deployment commands from WSL2. Native Windows is not yet covered by CI end to end: the Windows job builds, vets, and runs the suite through `make.bat` (see `.github/workflows/ci.yml`), but shell-dependent tests skip there, the bash tool falls back to `cmd /c` (`internal/tool/bash.go`), and the sandbox is unavailable (`docs/design/032-sandbox-and-execution-boundaries.md` §7).
 
 ## 8. Commit Messages And Pull Requests
 

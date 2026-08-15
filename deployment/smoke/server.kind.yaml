@@ -1,0 +1,37 @@
+log_level: info
+port: 5678
+cors_origin: http://localhost:8080
+workspaces_dir: /buildmax/workspaces
+default_quota_tier: free_trial
+
+database:
+  host: mysql.db.svc.cluster.local
+  port: 3306
+  user: buildmax
+  name: buildmax
+
+conversation:
+  model:
+    model: buildmax-smoke
+    name: BuildMax smoke
+    api_url: http://buildmax-smoke-llm.buildmax.svc.cluster.local:8080/v1
+    context_window: 32000
+
+worker:
+  binary: buildmax-worker
+  run_mode: k8s_job
+  server_url: http://buildmax.buildmax.svc.cluster.local:5678
+  k8s:
+    namespace: buildmax
+    image: buildmax:local
+    config_map: buildmax-config
+    home_dir: /buildmax
+
+storage:
+  persist_backend: minio
+  artifact_backend: minio
+  minio:
+    endpoint: http://minio.storage.svc.cluster.local:9000
+    region: us-east-1
+    bucket: bmstore
+    prefix: workspaces

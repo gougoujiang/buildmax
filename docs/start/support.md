@@ -25,8 +25,8 @@
 | Local sessions and run traces | **Supported** | Session persistence and bounded JSONL traces under `BUILDMAX_HOME`. |
 | Desktop app | **Beta** | Local chat/session experience using the shared runtime. Built from source; unsigned; not distributed as an end-user installer. |
 | Portal frontend | **Beta** | Team UI for conversations, issues, workflows, agents, files, usage, and artifacts. Production auth is not done. |
-| Server + local-process worker | **Beta** | Useful for trusted private deployments and development. Requires MySQL, blob storage, worker token, and model config. |
-| Kubernetes worker mode | **Experimental** | Manifest and job generation are tested, but the in-cluster path is not covered by end-to-end CI. |
+| Server + local-process worker | **Beta** | Useful for trusted private deployments and development. The Compose path is covered by a full TaskRun and artifact smoke test. |
+| Kubernetes worker mode | **Beta** | The local kind path exercises MySQL, MinIO, Ingress, a worker Job, and artifact retrieval end to end. Deployment APIs may still change. |
 | Inbound webhooks | **Beta** | Authenticated by per-user webhook keys; payload extraction is configurable. |
 
 ## Operating Systems
@@ -68,6 +68,8 @@
 |---|---|---|
 | Local single-user CLI/TUI | **Supported** | Start in a git working tree you can diff and revert. |
 | Trusted private server deployment | **Beta** | Suitable for local labs or trusted networks after reading deployment docs. |
+| Docker Compose quickstart | **Beta** | Fast contributor and single-machine path. Uses a local-process worker and local filesystem storage. |
+| Local kind deployment | **Beta** | Kubernetes contribution path. Uses MinIO and one Kubernetes Job per TaskRun. |
 | Public internet server exposure | Not supported | `POST /api/login` is disabled by default and production auth is not wired. |
 | Development fixed OTP | **Experimental** | One code signs in every registered user. Use only on a laptop or trusted network. |
 | JWT user API and team membership authorization | **Beta** | User API uses JWT; team membership is the resource boundary. |

@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: storage
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: minio-client
+          image: quay.io/minio/mc
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              until mc alias set local http://minio.storage.svc.cluster.local:9000 minio minio123; do sleep 2; done;
+              mc mb --ignore-existing local/bmstore;
+              mc stat local/bmstore

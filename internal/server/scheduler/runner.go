@@ -32,6 +32,8 @@ func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun) (workerType st
 	slog.Info("scheduler: spawning worker", "task_run_id", run.TaskRunID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.TaskRunID)
 	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return "", nil, nil, err
 	}

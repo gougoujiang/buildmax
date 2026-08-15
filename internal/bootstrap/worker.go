@@ -122,6 +122,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		ArtifactStorage: artifactStorage,
 		Updater:         updater,
 		StreamSender:    streamSender,
+		Model:           sc.Conversation.Model.RuntimeModelEntry(),
 	})
 	if err != nil {
 		slog.Error("worker: run execution failed", "task_run_id", taskRunID, "err", err)

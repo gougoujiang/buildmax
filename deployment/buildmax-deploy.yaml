@@ -1,5 +1,5 @@
-# BuildMax server deployment for kind cluster.
-# Prereq: ./make setup (cluster, MinIO, MySQL, ingress-nginx). Then: ./make deploy
+# BuildMax server deployment for a Kubernetes cluster. `./make kind up` applies
+# a local smoke overlay; operators can use this file as the readable baseline.
 #
 # This file contains NO credentials. The buildmax-secret it references must be
 # created separately:
@@ -10,7 +10,7 @@
 #
 # buildmax-secret.local.yaml is gitignored; ./make deploy applies it for you.
 #
-# Add to /etc/hosts: 127.0.0.1 buildmax-api.kind.local (API), 127.0.0.1 buildmax.kind.local (portal)
+# The local kind path exposes Portal and API on http://localhost:8080.
 ---
 apiVersion: v1
 kind: Namespace
@@ -30,7 +30,7 @@ data:
   server.yaml: |
     log_level: info
     port: 5678
-    cors_origin: http://buildmax.kind.local
+    cors_origin: http://localhost:8080
     workspaces_dir: /buildmax/workspaces
     default_quota_tier: free_trial
 
@@ -133,6 +133,18 @@ spec:
           ports:
             - containerPort: 5678
               name: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
           env:
             # Locates server.yaml and holds sessions, logs, and traces.
             - name: BUILDMAX_HOME
@@ -213,27 +225,6 @@ spec:
       port: 5678
       targetPort: 5678
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: buildmax-api
-  namespace: buildmax
-  annotations:
-    kubernetes.io/ingress.class: nginx
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: buildmax-api.kind.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: buildmax
-                port:
-                  number: 5678
----
 # Portal (React app served by nginx).
 #
 # Image: buildmax-portal:local, built by ./make pub_images. This manifest
@@ -262,15 +253,25 @@ spec:
           image: buildmax-portal:local
           imagePullPolicy: IfNotPresent
           env:
-            # Applied to config.js at container start. The browser calls this
-            # URL directly, so it is the address the user's machine can reach,
-            # not a cluster-internal Service name — and the server's
-            # cors_origin must name the Portal's own origin in return.
+            # Portal and API share one Ingress origin. Runtime config.js keeps
+            # the image portable while avoiding local host aliases and CORS.
             - name: BUILDMAX_API_BASE
-              value: http://buildmax-api.kind.local
+              value: /
           ports:
             - containerPort: 80
               name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
           resources:
             requests:
               memory: 64Mi
@@ -302,9 +303,36 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: buildmax.kind.local
-      http:
+    - http:
         paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+          - path: /swagger
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
           - path: /
             pathType: Prefix
             backend:

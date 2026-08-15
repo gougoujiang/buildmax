@@ -50,8 +50,10 @@ Use the issue templates to give maintainers the context they need:
   [docs/reference/configuration.md](docs/reference/configuration.md). Free
   OpenRouter models rate-limit with HTTP 429 when called too frequently; if runs
   start failing in bursts, that is usually why.
-- **Docker, kind, kubectl, helm** — only if you work on the server, worker, or
-  deployment path. `./make setup` installs the missing CLIs via Homebrew.
+- **Docker** — for the Compose deployment smoke and container changes.
+- **kind and kubectl** — only for Kubernetes worker, RBAC, shared-storage, or
+  manifest changes. The task runner reports missing tools; it does not install
+  system packages for you.
 
 ## Build, Test, and Run
 
@@ -66,12 +68,14 @@ platform runs the same code. `.env` at the repo root is loaded automatically.
 ./make run server     # build and run buildmax-server
 ./make run portal     # Portal dev server (builds gui if needed)
 ./make run desktop    # Wails desktop app in dev mode
+./make compose smoke  # full local-process TaskRun and artifact smoke
+./make kind up        # full Kubernetes stack plus the same smoke assertions
 ./make clean          # binaries, desktop build dir, node_modules, dist
 ```
 
 `./make help` lists every command. To add or change one, edit `cmd/mk` rather
-than the shims. `setup`, `unsetup`, and `deploy` drive bash and kubectl tooling
-and stay Unix-only; run them from WSL2 on Windows.
+than the shims. `setup` and `deploy` are compatibility aliases for `kind up`;
+`unsetup` aliases `kind down`.
 
 `./make test` writes to `./testing-sandbox` instead of `~/.buildmax`, so tests
 never touch your real data directory. The sandbox is created on demand and is
@@ -109,18 +113,32 @@ during binding generation.
 
 ## Local Infrastructure
 
-Server and worker work needs MySQL, MinIO, and Redis. One idempotent command
-brings up a kind cluster with all of them:
+Choose the smallest deployment path that exercises your change.
+
+For server, Portal, API, scheduler, or local-process worker changes, use
+Compose. It runs MySQL, Portal, server, and a deterministic mock model; workers
+share the server container and local filesystem storage:
 
 ```bash
-./make setup      # kind cluster, ingress-nginx, MinIO, MySQL, Redis, port-forwards
-./make unsetup    # tear down the cluster and stop port-forwards
+./make compose smoke
+./make compose logs
+./make compose down
+```
+
+For Kubernetes Job, RBAC, Ingress, MinIO, or deployment manifest changes, use
+kind. `up` creates the cluster, builds and loads images, deploys every
+dependency, and runs the same TaskRun and artifact assertions:
+
+```bash
+./make kind up
+./make kind smoke
+./make kind logs
+./make kind down
 ```
 
 [docs/deploy/local-kind.md](docs/deploy/local-kind.md) documents what it
-installs, the `/etc/hosts` entries for Ingress, and the manual equivalents of
-each step. Override the cluster name with `BUILDMAX_KIND_CLUSTER` (default
-`buildmaxdev`).
+installs. Override the cluster name with `BUILDMAX_KIND_CLUSTER` (default
+`buildmaxdev`); every kubectl call uses that cluster's explicit context.
 
 ### Container Images
 
@@ -135,11 +153,11 @@ into the kind cluster:
 Set `BUILDMAX_IMAGE_PLATFORM` to cross-build — for example
 `BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make pub_images` on Apple Silicon.
 
-`./make deploy` builds, loads, and applies `deployment/buildmax-deploy.yaml`.
-That manifest carries no credentials: copy
+`deployment/buildmax-deploy.yaml` is the readable Kubernetes baseline. It
+carries no credentials: copy
 `deployment/buildmax-secret.example.yaml` to `buildmax-secret.local.yaml`,
-fill it in, and `./make deploy` applies it for you. The `.local.yaml` file is
-gitignored — never commit real values.
+fill it in, and apply it separately for a non-smoke deployment. The
+`.local.yaml` file is gitignored — never commit real values.
 
 ## Code Boundaries
 
@@ -183,7 +201,8 @@ runs Portal tests, scans Git history for secrets, checks Go and npm production
 dependency licenses, and lints Markdown. CodeQL analyzes Go and TypeScript once
 the repository is public. Pull requests validate the GoReleaser configuration;
 pushes to `main` and manual CI runs build and smoke-test a non-publishing
-release snapshot on Linux, macOS, and Windows.
+release snapshot on Linux, macOS, and Windows. Deployment-related changes also
+run the Compose and kind end-to-end smoke paths.
 
 Locally:
 

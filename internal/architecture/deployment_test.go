@@ -166,3 +166,42 @@ func TestDeploymentSecretKeysMatchEnvSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestDeploymentSmokeConfigsLoadWithoutSecrets(t *testing.T) {
+	root := repoRoot(t)
+	tests := []struct {
+		name    string
+		file    string
+		runMode string
+	}{
+		{name: "compose", file: "server.compose.yaml", runMode: "local_process"},
+		{name: "kind", file: "server.kind.yaml", runMode: "k8s_job"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := os.ReadFile(filepath.Join(root, "deployment", "smoke", tt.file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			home := t.TempDir()
+			if err := os.WriteFile(filepath.Join(home, "server.yaml"), body, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv(config.EnvKeyBuildmaxHome, home)
+			t.Setenv(config.EnvKeyBuildmaxConversationAPIKey, "")
+			cfg, err := config.LoadServerConfig()
+			if err != nil {
+				t.Fatalf("LoadServerConfig: %v", err)
+			}
+			if cfg.Worker.RunMode != tt.runMode {
+				t.Errorf("worker.run_mode = %q, want %q", cfg.Worker.RunMode, tt.runMode)
+			}
+			if !strings.Contains(cfg.Conversation.Model.APIURL, "smoke") && !strings.Contains(cfg.Conversation.Model.APIURL, "mock-llm") {
+				t.Errorf("conversation model URL %q does not target the smoke service", cfg.Conversation.Model.APIURL)
+			}
+			if cfg.Conversation.Model.APIKey != "" || cfg.Worker.Token != "" || cfg.JWTSecret != "" {
+				t.Error("smoke server config contains credentials; inject them at runtime")
+			}
+		})
+	}
+}
