@@ -64,6 +64,7 @@ type RunTaskInput struct {
 	ArtifactStorage blob.ArtifactStorage
 	Updater         TaskRunUpdater
 	StreamSender    workerclient.StreamSender
+	Model           config.ModelEntry
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
@@ -129,7 +130,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	output, promptTokens, completionTokens, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender)
+	output, promptTokens, completionTokens, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model)
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
 		OutputStr:        string(output),
@@ -185,7 +186,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *m
 	_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender) ([]byte, *int, *int, error) {
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry) ([]byte, *int, *int, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -193,16 +194,21 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 
 	var out agentapp.RunResult
 	err := withBuildmaxHome(runGlobalDir, func() error {
+		var modelEntries []config.ModelEntry
+		if runtimeModel.Model != "" {
+			modelEntries = []config.ModelEntry{runtimeModel}
+		}
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 			WorkspaceDir: runDir,
 			EnableMCP:    true,
 			Policy:       agentapp.NewNonInteractivePolicy(),
+			ModelEntries: modelEntries,
 		})
 		if err != nil {
 			return err
 		}
 		defer func() { _ = app.Close() }()
-		sess, err := app.OpenSession(sessionID)
+		sess, err := app.OpenOrCreateSession(sessionID)
 		if err != nil {
 			return err
 		}

@@ -76,13 +76,17 @@ func dispatch(args []string) error {
 	case "install":
 		return cmdInstall()
 	case "setup":
-		return cmdSetupScript("setup.sh")
+		return cmdKind([]string{"up"})
 	case "unsetup":
-		return cmdSetupScript("unsetup.sh")
+		return cmdKind([]string{"down"})
 	case "pub_images":
 		return cmdPubImages()
 	case "deploy":
-		return cmdDeploy()
+		return cmdKind([]string{"up"})
+	case "compose":
+		return cmdCompose(rest)
+	case "kind":
+		return cmdKind(rest)
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -128,10 +132,12 @@ func usage() {
 	fmt.Println("  run portal    Start Portal dev server (Vite; installs deps if needed)")
 	fmt.Println("  bump          Create the next release tag locally (arg: patch|minor|major, default: patch)")
 	fmt.Println("  install       Install the binaries to ~/.local/bin")
-	fmt.Println("  setup         One-click setup: kind cluster, MinIO, awscli, test job (idempotent; Unix only)")
-	fmt.Println("  unsetup       Tear down kind cluster and MinIO port-forward (Unix only)")
+	fmt.Println("  kind          Manage the full local Kubernetes stack (up|smoke|logs|down)")
+	fmt.Println("  setup         Alias for kind up")
+	fmt.Println("  unsetup       Alias for kind down")
 	fmt.Println("  pub_images    Build BuildMax and Portal images and load them into the kind cluster")
-	fmt.Printf("  deploy        Build, load images, and deploy the server to kind (run %s setup first)\n", m)
+	fmt.Println("  deploy        Alias for kind up")
+	fmt.Println("  compose       Manage the Docker Compose quickstart (up|smoke|logs|down)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Printf("  %s build\n", m)

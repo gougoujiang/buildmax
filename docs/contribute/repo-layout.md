@@ -18,7 +18,7 @@ buildmax/
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
 ├── deployment/           Kubernetes manifests, migrations, Compose, Dockerfiles
-├── setup/                Local kind cluster scripts and manifests
+├── setup/                Local kind infrastructure manifests
 ├── eval/                 Agent benchmark task catalog
 ├── sample-data/          Datasets for demoing and exercising the agent tools
 └── scripts/              Release and license tooling run by CI
@@ -31,14 +31,16 @@ one binary:
 |---|---|
 | `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
 | `deployment/compose/` | Single-machine Compose stack; see [deploy/compose.md](../deploy/compose.md) |
+| `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
 | `deployment/migrations/` | One-off SQL migrations |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make deploy` |
 
-`setup/` is distinct from `deployment/`: it builds a **local development**
-cluster (kind, MinIO, MySQL, Redis, port-forwards) and is never part of a real
-deployment. `scripts/` is neither — it is repository tooling invoked from CI and
-the release process: third-party notice generation, npm license checks, and
-release-archive verification.
+`setup/` is distinct from `deployment/`: it holds the manifests that stand up a
+**local development** kind cluster — the kind config, ingress-nginx, MySQL, and
+MinIO — and is never part of a real deployment. The orchestration that applies
+them lives in `cmd/mk/kind.go`, behind `./make kind up`. `scripts/` is neither —
+it is repository tooling invoked from CI and the release process: third-party
+notice generation, npm license checks, and release-archive verification.
 
 ## Nested Go Modules
 

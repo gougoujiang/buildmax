@@ -1,0 +1,65 @@
+name: Deployment smoke
+
+on:
+  push:
+    branches: [main]
+    paths: &deployment-paths
+      - '.github/workflows/deployment-smoke.yml'
+      # deployment/** covers the Dockerfiles, which live in deployment/docker.
+      - 'deployment/**'
+      - 'setup/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'portal/**'
+      - 'gui/**'
+  pull_request:
+    paths: *deployment-paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run deployment smoke
+        run: ./make compose smoke
+      - name: Collect logs
+        if: failure()
+        run: ./make compose logs
+      - name: Tear down
+        if: always()
+        run: ./make compose down
+
+  kind:
+    name: kind Kubernetes Job
+    runs-on: ubuntu-latest
+    env:
+      BUILDMAX_KIND_CLUSTER: buildmax-ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.31.0
+      - name: Run deployment smoke
+        run: ./make kind up
+      - name: Collect logs
+        if: failure()
+        run: ./make kind logs
+      - name: Tear down
+        if: always()
+        run: ./make kind down
