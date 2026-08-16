@@ -209,6 +209,54 @@ export interface ApiArtifactItem {
   relative_path: string
 }
 
+/** The execution boundary a run actually ran under. */
+export interface ApiTraceBoundary {
+  /** False means nothing confined the run's shell commands. Never assume true. */
+  sandboxed: boolean
+  mode?: string
+  backend?: string
+  /** The layer chain that decided the boundary, e.g. ["default:worker", "policy"]. */
+  sources?: string[]
+  downgraded?: boolean
+}
+
+/** One tool call in a run. */
+export interface ApiTraceToolCall {
+  name: string
+  duration_ms?: number
+  /** The call's file_path argument, when it had one. */
+  path?: string
+  denied?: boolean
+  deny_reason?: string
+}
+
+/**
+ * A task run's trace summary. The server deliberately omits model output, tool
+ * arguments, and tool results — this describes the shape of a run, not its
+ * content.
+ */
+export interface ApiTaskRunTrace {
+  task_run_id: string
+  run_id?: string
+  model?: string
+  started_at?: string
+  ended_at?: string
+  boundary?: ApiTraceBoundary
+  llm_calls: number
+  tool_calls: number
+  compactions: number
+  prompt_tokens: number
+  completion_tokens: number
+  tools?: ApiTraceToolCall[]
+  /** The tools list was bounded; tool_calls still counts them all. */
+  tools_truncated?: boolean
+  files_changed?: string[]
+  /** Terminal error; empty when the run succeeded. */
+  error?: string
+  /** False means the run wrote no terminal record. Do not read it as success. */
+  complete: boolean
+}
+
 /** Upload response from the team-scoped upload endpoint. */
 export interface UploadResponse {
   uploaded: string[]

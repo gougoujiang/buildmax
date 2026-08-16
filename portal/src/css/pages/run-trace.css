@@ -1,0 +1,169 @@
+/* Run trace modal: what a run used, touched, spent, and what confined it. */
+
+.run-trace__boundary {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* The unconfined case is the one a viewer must not skim past, so it carries the
+   warning treatment rather than the neutral one. It is also the common case
+   today — the sandbox is off by default — which is precisely why it is stated
+   rather than left to inference. */
+.run-trace__boundary--open {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.run-trace__boundary--sandboxed {
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+
+.run-trace__boundary--unknown {
+  color: var(--color-text-subtle);
+}
+
+.run-trace__sources {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--color-text-subtle);
+  font-size: 0.82rem;
+}
+
+.run-trace__incomplete {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.run-trace__error {
+  margin-bottom: 0.75rem;
+}
+
+.run-trace__label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-error);
+}
+
+.run-trace__error-text {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--color-bg-muted);
+  color: var(--color-error);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.run-trace__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.run-trace__stats > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.run-trace__stats dt {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+}
+
+.run-trace__stats dd {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-trace__section {
+  margin-top: 1rem;
+}
+
+.run-trace__heading {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.run-trace__files,
+.run-trace__tools {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.run-trace__files li {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.run-trace__tool {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.run-trace__tool-name {
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+
+.run-trace__tool-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-trace__tool-duration {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--color-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-trace__tool--denied .run-trace__tool-name {
+  color: var(--color-warning);
+}
+
+.run-trace__tool-denied {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--color-warning);
+}
+
+.run-trace__truncated {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
