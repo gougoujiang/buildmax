@@ -257,6 +257,28 @@ export interface ApiTaskRunTrace {
   complete: boolean
 }
 
+/**
+ * One recorded action. The server records that something happened and who did
+ * it — never prompts, generated content, tool output, or credentials.
+ */
+export interface ApiAuditEvent {
+  audit_event_id: string
+  team_id?: string
+  actor_type: string
+  actor_id: string
+  action: string
+  target_type?: string
+  target_id?: string
+  /** A short non-sensitive note — a role name, a model alias. */
+  detail?: string
+  created_at: number
+}
+
+export interface ApiAuditEventsResponse {
+  events: ApiAuditEvent[]
+  total: number
+}
+
 /** Upload response from the team-scoped upload endpoint. */
 export interface UploadResponse {
   uploaded: string[]

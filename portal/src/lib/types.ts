@@ -49,7 +49,7 @@ export type Route =
   | { name: "explore" }
   | { name: "agents" }
   | { name: "account"; section?: "general" | "usage" | "webhook" }
-  | { name: "space"; section?: "overview" | "members" | "memberNew" }
+  | { name: "space"; section?: "overview" | "members" | "audit" | "memberNew" }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }
   | { name: "workflowRun"; workflowRunId: string }

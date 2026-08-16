@@ -16,6 +16,7 @@ Portal owns the cloud/team lane:
 - workflows and workflow runs
 - run diagnostics: what a task run used, touched, spent, why it ended, and what
   confined it
+- the space audit trail, for owners
 - agents
 - team files
 - usage and webhook keys
@@ -31,12 +32,14 @@ Portal owns the cloud/team lane:
   conversation streaming.
 - The HTTP layer is `portal/src/lib/api/` (`client`, `mappers`, `types`, plus
   `sse` and `ws` for streaming transports).
-- `portal/src/features/runs/` reads a task run's trace summary. Its display
-  decisions live in `summary.ts` as pure functions rather than inside the
-  component, because Portal has no DOM test environment and the judgements
-  worth pinning — an unsandboxed run must say so, an unrecorded boundary is not
-  the same as an unconfined one — are exactly the ones that would otherwise go
-  untested.
+- `portal/src/features/runs/` reads a task run's trace summary, and
+  `portal/src/features/audit/` reads the space audit trail. Both keep their
+  display decisions in a pure module — `summary.ts` and `describe.ts` — rather
+  than inside the component, because Portal has no DOM test environment and the
+  judgements worth pinning are exactly the ones that would otherwise go
+  untested: an unsandboxed run must say so, an unrecorded boundary is not the
+  same as an unconfined one, and an audit action this Portal does not recognise
+  is shown verbatim rather than hidden.
 
 ## Product Boundary
 

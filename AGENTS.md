@@ -112,7 +112,7 @@ Read the relevant architecture document before making a cross-package change:
 - Portal and Desktop share presentational components from `@buildmax/gui`, not
   data/auth/routing logic. Both use React 19.
 
-The planned but not implemented areas include team approvals and audit log,
+The planned but not implemented areas include team approvals,
 versioned workspace/timeline restore, worker sandbox hardening, and complete CI
 coverage for Kubernetes and native Windows. Do not document them as shipped.
 
@@ -161,7 +161,9 @@ inspect their help and use them only when the task authorizes that effect.
 - Keep user documentation task-oriented. Keep contributor architecture factual.
   Keep rationale in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).
-- Add a `CHANGELOG.md` entry under `## [Unreleased]` for user-visible changes.
+- Add a `CHANGELOG.md` entry under `## [Unreleased]` for user-visible changes,
+  appended to the end of its section rather than the top so parallel branches
+  do not conflict on the same line.
 - Commit subjects are one imperative line. Do not add assistant attribution,
   session links, generated-with footers, or tooling trailers to commits or pull
   requests.

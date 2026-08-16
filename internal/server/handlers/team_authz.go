@@ -15,6 +15,7 @@ const (
 	actionManageWorkflows     teamAction = "manage_workflows"
 	actionAssignIssueWorkflow teamAction = "assign_issue_workflow"
 	actionRunWorkflow         teamAction = "run_workflow"
+	actionReadAuditTrail      teamAction = "read_audit_trail"
 )
 
 func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, userID, teamID string, action teamAction) (string, bool) {
@@ -34,10 +35,12 @@ func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, us
 		}
 	}
 	if role == "" {
+		h.cfg.Audit.Denied(r.Context(), userID, teamID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", false
 	}
 	if !isRoleAllowed(role, action) {
+		h.cfg.Audit.Denied(r.Context(), userID, teamID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", false
 	}
@@ -46,7 +49,7 @@ func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, us
 
 func isRoleAllowed(role string, action teamAction) bool {
 	switch action {
-	case actionManageTeamMembers:
+	case actionManageTeamMembers, actionReadAuditTrail:
 		return role == model.TeamRoleOwner
 	case actionManageAgents, actionManageWorkflows, actionAssignIssueWorkflow:
 		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin

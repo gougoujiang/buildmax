@@ -16,6 +16,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	// Usage
 	mux.HandleFunc("GET /api/usage", h.usageHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/audit-events", h.listAuditEventsHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)
 
 	// Teams and members

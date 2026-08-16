@@ -17,7 +17,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
 export type AccountSection = "general" | "usage" | "webhook"
-export type SpaceSection = "overview" | "members" | "memberNew"
+export type SpaceSection = "overview" | "members" | "audit" | "memberNew"
 
 interface SettingsNavItem<T extends string> {
   id: T
@@ -34,6 +34,10 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [
   { id: "overview", label: "Overview", icon: IssueIcon },
   { id: "members", label: "Members", icon: AgentsIcon },
+  // Owner-only content, but the tab stays visible for everyone: the section
+  // explains why a member cannot read it, which is more useful than a tab that
+  // silently exists for some people and not others.
+  { id: "audit", label: "Audit", icon: UsageIcon },
 ]
 
 function memberDisplayName(member: ApiTeamMember, currentUserId?: string): string {

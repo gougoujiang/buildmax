@@ -12,6 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
@@ -114,6 +115,12 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("create model: %w", err)
 	}
 
+	// The catalog holds provider credentials and decides where prompts go, so
+	// a change to it is worth a record. The actor is the operator at a shell on
+	// the server, which the process cannot name — this command already requires
+	// the database credentials, so being on that machine is the authorization.
+	recordModelAudit(ctx, store, model.AuditModelCreated, created.LLMModelID, created.Name)
+
 	fmt.Fprintf(out, "Added model %s (%s)\n", created.LLMModelID, created.Name)
 	fmt.Fprintf(out, "\nTo let a team use it, add an alias to server.yaml:\n\n"+
 		"  llm:\n    default_alias: default\n    aliases:\n      default: %s\n\nThen restart the server.\n",
@@ -168,6 +175,11 @@ func runModelSetEnabled(ctx context.Context, args []string, out io.Writer, enabl
 	if err := store.SetLLMModelEnabled(ctx, *id, enabled); err != nil {
 		return fmt.Errorf("model %s: %w", action, err)
 	}
+	auditAction := model.AuditModelDisabled
+	if enabled {
+		auditAction = model.AuditModelEnabled
+	}
+	recordModelAudit(ctx, store, auditAction, *id, "")
 	fmt.Fprintf(out, "Model %s is now %sd\n", *id, action)
 	return nil
 }
@@ -227,4 +239,20 @@ func openStoreFromConfig(ctx context.Context) (*db.Store, error) {
 		return nil, fmt.Errorf("server config: %w", err)
 	}
 	return openStore(ctx, sc.Database)
+}
+
+// recordModelAudit writes a catalog change to the audit trail.
+//
+// The actor is the system rather than a user: this runs from a shell on the
+// machine that already holds the database credentials, and inventing a user id
+// for it would put a name in the record that nothing verified.
+func recordModelAudit(ctx context.Context, store model.AuditStore, action, modelID, detail string) {
+	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
+		ActorType:  model.AuditActorSystem,
+		ActorID:    "buildmax-server",
+		Action:     action,
+		TargetType: "llm_model",
+		TargetID:   modelID,
+		Detail:     detail,
+	})
 }

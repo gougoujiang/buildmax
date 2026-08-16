@@ -40,6 +40,11 @@ pre-releases and must be called out in release notes.
   keeps existing deployments unbounded rather than handing them a limit nobody
   chose. `local_process` mode is unchanged and remains a development path.
 
+- The managed inference routes now authenticate before checking whether a
+  gateway is configured. They were the only team-scoped routes that answered
+  `503 managed inference not configured` to an anonymous caller, which told
+  anyone who asked whether a deployment offers managed models.
+
 ### Added
 
 - `deployment/production/`, a private deployment reference for a cluster that
@@ -242,6 +247,27 @@ pre-releases and must be called out in release notes.
 - A contributor doctor, scoped `check` tasks, Node/npm/Wails version pins,
   fresh-clone CI, Desktop frontend tests, and an implementation-task issue
   template make both human and agent-assisted contributions reproducible.
+
+- An audit trail for sensitive actions, in a new `audit_event` table with an
+  owner-only `GET /api/teams/{team_id}/audit-events`. It records logins, team
+  membership changes, model catalog changes, and refused team-scoped
+  requests — who did what to which object, and nothing else: no prompts, no
+  generated content, no tool output, no credentials. Run diagnostics stay in
+  the durable run trace and per-call accounting in `llm_call`, because the same
+  fact recorded twice gets two retention policies and two chances to disagree.
+  A failed audit write is logged and dropped rather than failing the action
+  that caused it, so a logging outage does not become an authentication outage;
+  the cost is that this records what happened while the database was reachable,
+  not a guarantee that every action was recorded.
+
+- An **Audit** tab in space settings, listing the trail for owners: sign-ins,
+  membership changes, model changes, and refused requests, newest first with
+  paging. Refusals are set apart from the successful actions around them, since
+  a refusal is the entry an owner is usually looking for. An action this Portal
+  does not recognise is shown verbatim rather than hidden, so a newer server's
+  events never silently disappear from the list. Members see the tab and an
+  explanation of why the contents are owner-only, rather than a tab that exists
+  for some people and not others.
 
 ### Changed
 

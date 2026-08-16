@@ -36,6 +36,7 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
 - Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
+- Audit trail (owner only): `/api/teams/{team_id}/audit-events`
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
 - WebSocket: `/api/teams/{team_id}/ws`
 - Worker API: `/api/worker/task-runs/{task_run_id}...`, including

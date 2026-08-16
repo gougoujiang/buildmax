@@ -254,6 +254,43 @@ read: it counts `task_run` rows joined to `task` by team, sums their
 recorded on tasks created in the same window. Metering therefore has no second
 write path that can drift out of sync with the runs themselves.
 
+### `audit_event`
+
+Governance evidence: that an action happened and who performed it. Append-only —
+there is no update or delete path in `internal/infra/db/audit.go`, because a
+record that can be edited is not evidence.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `audit_event_id` | `varchar(64)` | no | Public ID, `ae_` prefix, unique |
+| `team_id` | `varchar(64)` | yes | Empty for actions with no team, such as a login |
+| `created_at` | `bigint` | no | Unix seconds |
+| `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
+| `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
+| `action` | `varchar(64)` | no | `user.login`, `team.member_added`, `llm_model.created`, `access.denied`, … |
+| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on |
+| `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model alias |
+
+Indexes: PK `id`; unique `audit_event_id`; composite (`team_id`, `created_at`)
+because reading is always "this team, newest first"; index `actor_id`; index
+`action`.
+
+Action strings are persisted and therefore permanent: renaming one rewrites
+history for every reader that filters on it. They are declared in
+`internal/core/model/audit.go`.
+
+**No prompts, generated content, tool output, or credentials.** This table
+answers a governance question; run diagnostics belong to the durable run trace
+and per-call accounting to `llm_call`. Recording the same fact in two places
+would give it two retention policies and two chances to disagree.
+
+Writes go through `internal/service/audit`, which logs a failed insert rather
+than failing the action that caused it. That is a deliberate trade with a real
+cost: the table records what happened while the database was reachable, not
+every action that occurred. A deployment needing the stronger property has to
+make the write part of the same transaction as the action.
+
 ### `schema_migration`
 
 One row per applied migration. It is the record of what has been done to a

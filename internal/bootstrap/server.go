@@ -16,6 +16,7 @@ import (
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
@@ -216,6 +217,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			TaskRunStore:        st,
 			RunOutputLister:     st,
 			UserWebhookKeyStore: st,
+			AuditStore:          st,
 		},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:  persistStorage,
@@ -233,6 +235,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			MessagePath: sc.Webhook.MessagePath,
 			UserID:      sc.Webhook.UserID,
 		},
+		Audit:     audit.NewRecorder(st),
 		Readiness: readinessChecks(st, persistStorage),
 	}
 	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {

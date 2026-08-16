@@ -1,0 +1,77 @@
+/* Space audit trail: who did what, newest first. */
+
+.audit-list {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.audit-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-bg-subtle);
+  font-size: 0.9rem;
+}
+
+/* A refusal is what shows someone probing at a boundary, so it does not read
+   like the successful actions around it. */
+.audit-row--denied {
+  border-color: var(--color-warning);
+}
+
+.audit-row--denied .audit-row__summary {
+  color: var(--color-warning);
+}
+
+.audit-row__main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.audit-row__actor {
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+
+.audit-row__summary {
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audit-row__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  color: var(--color-text-subtle);
+  font-size: 0.82rem;
+}
+
+.audit-row__target {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+.audit-row__time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 40rem) {
+  .audit-row {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}
