@@ -116,6 +116,15 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if err := h.cfg.UserStore.UpdateLoginMeta(r.Context(), user.UserID, now.Unix(), platform); err != nil {
 		slog.Error("update login meta failed", "err", err, "handler", "login", "user_id", user.UserID)
 	}
+	// Recorded after the login succeeds, so the trail holds sessions that were
+	// actually issued rather than attempts. A login has no team.
+	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
+		ActorType:  model.AuditActorUser,
+		ActorID:    user.UserID,
+		Action:     model.AuditUserLogin,
+		TargetType: "platform",
+		TargetID:   platform,
+	})
 	httputil.WriteJSON(w, http.StatusOK, LoginResponse{
 		Token: tokenStr,
 		User:  LoginUser{ID: user.UserID, Email: user.Email, Name: user.Name},
@@ -325,6 +334,9 @@ func (h *Handler) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, 
 			return team.TeamID, true
 		}
 	}
+	// Every team-scoped route passes through here, so this one call covers
+	// reaching into a team you are not a member of, whatever the route.
+	h.cfg.Audit.Denied(r.Context(), userID, explicitTeamID, r.Pattern)
 	httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 	return "", false
 }

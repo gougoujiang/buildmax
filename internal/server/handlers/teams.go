@@ -199,6 +199,7 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "add_team_member", "team_id", teamID, "member_user_id", user.UserID)
 		return
 	}
+	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditTeamMemberAdded, "user", user.UserID, role)
 	httputil.WriteJSON(w, http.StatusCreated, teamMemberToResponse(*member, user))
 }
 
@@ -253,5 +254,6 @@ func (h *Handler) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "remove_team_member", "team_id", teamID, "member_user_id", targetUserID)
 		return
 	}
+	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditTeamMemberRemoved, "user", targetUserID, "")
 	w.WriteHeader(http.StatusNoContent)
 }

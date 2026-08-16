@@ -102,6 +102,9 @@ var teamRoutes = []authzCase{
 	{"POST", "/api/teams/{team_id}/upload", model.TeamRoleMember, false},
 
 	{"GET", "/api/teams/{team_id}/usage", model.TeamRoleMember, false},
+	// Owner only: the trail names who did what, including who was refused,
+	// which is administrative rather than collaborative information.
+	{"GET", "/api/teams/{team_id}/audit-events", model.TeamRoleOwner, false},
 	{"GET", "/api/teams/{team_id}/llm/models", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/llm/completions", model.TeamRoleMember, false},
 
@@ -143,6 +146,7 @@ func matrixMux(t *testing.T) *http.ServeMux {
 		RunOutputLister:          &mock.MockRunOutputLister{},
 		ConversationStore:        conversations,
 		ConversationMessageStore: &mockConversationMessageStore{},
+		AuditStore:               &mock.MockAuditStore{},
 		PersistStorage:           mock.NewMockPersistStorage(),
 		ArtifactStorage:          mock.NewMockArtifactStorage(),
 		WorkspacesDir:            t.TempDir(),

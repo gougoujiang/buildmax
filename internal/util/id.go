@@ -26,6 +26,7 @@ const (
 	PrefixWebhookKey          = "whk"
 	PrefixLLMCall             = "lc"
 	PrefixLLMModel            = "lm"
+	PrefixAuditEvent          = "ae"
 )
 
 const (

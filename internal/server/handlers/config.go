@@ -7,6 +7,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -56,6 +57,7 @@ type Config struct {
 	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
+	AuditStore               model.AuditStore
 
 	// Storage
 	PersistStorage  blob.PersistStorage
@@ -73,6 +75,10 @@ type Config struct {
 	// LLMGateway serves managed inference. Nil means the deployment offers no
 	// managed models and the /llm routes answer 503.
 	LLMGateway *llmgateway.Service
+
+	// Audit records sensitive actions. Nil discards them, so a deployment
+	// without a database still serves.
+	Audit *audit.Recorder
 
 	// Inbound webhook
 	WebhookAdapter     convchannel.Adapter

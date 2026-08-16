@@ -16,6 +16,7 @@ import (
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -57,6 +58,7 @@ type StoresConfig struct {
 	TaskRunStore        model.TaskRunStore
 	RunOutputLister     RunOutputLister
 	UserWebhookKeyStore model.UserWebhookKeyStore
+	AuditStore          model.AuditStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -97,6 +99,8 @@ type Config struct {
 	Worker  WorkerConfig
 	Conv    ConversationConfig
 	Webhook WebhookConfig
+	// Audit records sensitive actions. Nil discards them.
+	Audit *audit.Recorder
 	// Readiness lists the dependency probes GET /readyz runs. Empty means the
 	// endpoint reports ready without verifying anything, and says so by
 	// returning an empty check list.
@@ -164,6 +168,8 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		CORSOrigin:               cfg.Auth.CORSOrigin,
 		WorkerToken:              cfg.Worker.WorkerToken,
 		UserStore:                cfg.Stores.UserStore,
+		AuditStore:               cfg.Stores.AuditStore,
+		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		TeamStore:                cfg.Stores.TeamStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,

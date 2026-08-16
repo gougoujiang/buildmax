@@ -248,6 +248,18 @@ pre-releases and must be called out in release notes.
   fresh-clone CI, Desktop frontend tests, and an implementation-task issue
   template make both human and agent-assisted contributions reproducible.
 
+- An audit trail for sensitive actions, in a new `audit_event` table with an
+  owner-only `GET /api/teams/{team_id}/audit-events`. It records logins, team
+  membership changes, model catalog changes, and refused team-scoped
+  requests — who did what to which object, and nothing else: no prompts, no
+  generated content, no tool output, no credentials. Run diagnostics stay in
+  the durable run trace and per-call accounting in `llm_call`, because the same
+  fact recorded twice gets two retention policies and two chances to disagree.
+  A failed audit write is logged and dropped rather than failing the action
+  that caused it, so a logging outage does not become an authentication outage;
+  the cost is that this records what happened while the database was reachable,
+  not a guarantee that every action was recorded.
+
 ### Changed
 
 - `storage.minio` no longer defaults its endpoint, region, and credentials to a

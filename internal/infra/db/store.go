@@ -40,7 +40,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&userRow{}, &teamRow{}, &teamMemberRow{}, &workflowRow{}, &workflowRunRow{}, &workflowStepRunRow{}, &issueRow{}, &agentRow{}, &taskRow{}, &taskRunRow{}, &taskRunArtifactRow{}, &quotaTierRow{}, &conversationRow{}, &conversationMessageRow{}, &userWebhookKeyRow{}, &loginCodeRow{}, &llmCallRow{}, &llmModelRow{}, &schemaMigrationRow{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&userRow{}, &teamRow{}, &teamMemberRow{}, &workflowRow{}, &workflowRunRow{}, &workflowStepRunRow{}, &issueRow{}, &agentRow{}, &taskRow{}, &taskRunRow{}, &taskRunArtifactRow{}, &quotaTierRow{}, &conversationRow{}, &conversationMessageRow{}, &userWebhookKeyRow{}, &loginCodeRow{}, &llmCallRow{}, &llmModelRow{}, &auditEventRow{}, &schemaMigrationRow{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {
