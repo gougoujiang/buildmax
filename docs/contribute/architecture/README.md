@@ -40,6 +40,7 @@ tree, see [../repo-layout.md](../repo-layout.md).
 |---|---|
 | [server.md](server.md) | HTTP API, worker callbacks, WebSocket fan-out, and the scheduler |
 | [store.md](store.md) | Persistence for team, conversation, issue, agent, workflow, task, task_run, usage |
+| [data-model.md](data-model.md) | Every table, column, index, and relationship, and how to change the schema |
 | [portal.md](portal.md) | Web UI (React + Vite): auth, teams, conversations, issues, workflows, agents, files |
 
 ## Cross-Cutting

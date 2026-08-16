@@ -65,6 +65,10 @@ Important ownership boundaries:
 - `internal/server/handlers/routes.go` is the source of truth for HTTP routes.
 - `internal/config/env_spec.go` is the source of truth for bootstrap environment
   variables.
+- The `xxxRow` structs in `internal/infra/db` are the source of truth for the
+  database schema; `AutoMigrate` in `store.go` applies them. The full table
+  reference and the rules for changing them are in
+  [`docs/contribute/architecture/data-model.md`](docs/contribute/architecture/data-model.md).
 
 Team is the ownership and authorization boundary for Portal resources. Issue is
 the primary user-facing work object. Workflows are team-scoped reusable linear
