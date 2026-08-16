@@ -7,7 +7,7 @@
   open, plus the gaps listed there — modelled on
   [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
 - follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
 
 ## 1. Purpose

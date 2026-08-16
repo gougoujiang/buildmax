@@ -11,10 +11,10 @@ BuildMax is a general-purpose AI Agent runtime. It should be quick to run,
 portable, configurable across models and tools, and suitable for local or
 private deployment.
 
-The active priority order is in [`ROADMAP.md`](ROADMAP.md). Current code plus
-the roadmap wins when an older design record disagrees. Design records under
-[`docs/design/`](docs/design/README.md) explain rationale; current behavior
-belongs in user or contributor documentation.
+The active priority order is in [`docs/ROADMAP.md`](docs/ROADMAP.md). Current
+code plus the roadmap wins when an older design record disagrees. Design
+records under [`docs/design/`](docs/design/README.md) explain rationale;
+current behavior belongs in user or contributor documentation.
 
 The primary implementation language is Go. The CLI/TUI must remain usable as a
 single binary without Node. Portal and Desktop have React frontends; this is an

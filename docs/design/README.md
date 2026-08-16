@@ -21,7 +21,7 @@ Durable product decisions that guide more than one roadmap phase.
 
 ## Active Roadmap Plans
 
-Work tracked by [ROADMAP.md](../../ROADMAP.md). Plans can be partly implemented;
+Work tracked by [ROADMAP.md](../ROADMAP.md). Plans can be partly implemented;
 their status must say what is shipped and what remains. When a plan is complete,
 move durable decisions into a subsystem specification or the architecture
 reference, then delete the plan.

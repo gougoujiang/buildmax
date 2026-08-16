@@ -23,7 +23,7 @@ does not currently provide a guaranteed response or resolution time.
 ## Scope
 
 Maintainers prioritize reproducible defects, regressions, security issues, and
-work on the active [roadmap](../ROADMAP.md). General consulting, private deployment
+work on the active [roadmap](../docs/ROADMAP.md). General consulting, private deployment
 operation, and support for unmaintained forks are outside the project's current
 support scope.
 

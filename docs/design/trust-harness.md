@@ -6,7 +6,7 @@
 - status: `in_progress` — hooks are implemented; sandbox worker hardening and
   trace follow-ups remain open
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
 
 ## 1. Purpose

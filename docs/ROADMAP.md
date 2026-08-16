@@ -183,12 +183,12 @@ Core stability, and the Portal outcome surface — are done. What remains:
 
 ## Related Documents
 
-- [README.md](README.md) — current system overview
-- [docs/design/README.md](docs/design/README.md) — design document index
-- [docs/design/product-vision.md](docs/design/product-vision.md) — long-range AI-native workspace vision
-- [docs/design/surface-positioning.md](docs/design/surface-positioning.md) — product surface positioning
-- [docs/design/trust-harness.md](docs/design/trust-harness.md) — P0.5 Agent Core trust harness design
-- [docs/design/enterprise-deployment.md](docs/design/enterprise-deployment.md) — P3 Enterprise deployment design
-- [docs/design/llm-gateway.md](docs/design/llm-gateway.md) — P3 Managed LLM gateway design
-- [docs/design/team-governance.md](docs/design/team-governance.md) — P4 Team governance design
-- [docs/design/versioned-workspace.md](docs/design/versioned-workspace.md) — P5 Versioned workspace design
+- [../README.md](../README.md) — current system overview
+- [design/README.md](design/README.md) — design document index
+- [design/product-vision.md](design/product-vision.md) — long-range AI-native workspace vision
+- [design/surface-positioning.md](design/surface-positioning.md) — product surface positioning
+- [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
+- [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
+- [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
+- [design/team-governance.md](design/team-governance.md) — P4 Team governance design
+- [design/versioned-workspace.md](design/versioned-workspace.md) — P5 Versioned workspace design

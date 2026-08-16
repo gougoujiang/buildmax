@@ -6,7 +6,7 @@
 - status: `partially_implemented` — roles, quota, and workflow lifecycle are
   shipped; audit/event visibility remains open
 - follows: [enterprise-deployment.md](./enterprise-deployment.md)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
 
 ## 1. Decision
