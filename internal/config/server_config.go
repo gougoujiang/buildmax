@@ -293,10 +293,13 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("worker.k8s.home_dir", "/buildmax")
 	v.SetDefault("storage.persist_backend", ProviderLocalFS)
 	v.SetDefault("storage.artifact_backend", ProviderLocalFS)
-	v.SetDefault("storage.minio.endpoint", "http://localhost:9000")
-	v.SetDefault("storage.minio.region", "us-east-1")
-	v.SetDefault("storage.minio.access_key", "minio")
-	v.SetDefault("storage.minio.secret_key", "minio123")
+	// endpoint, region, and the two keys have no defaults on purpose.
+	//
+	// A default endpoint sends a deployment to localhost; default credentials
+	// send it as a MinIO development user. Both used to be set, which made
+	// "leave it empty and let the SDK resolve it" impossible to express — the
+	// value was never empty. Unset now means unset, which is what selects AWS
+	// endpoint resolution and the default credential chain.
 	v.SetDefault("storage.minio.bucket", "bmstore")
 	v.SetDefault("storage.minio.prefix", "workspaces")
 	v.SetDefault("database.host", "localhost")

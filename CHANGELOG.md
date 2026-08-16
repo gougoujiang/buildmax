@@ -35,6 +35,18 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- `deployment/production/`, a private deployment reference for a cluster that
+  already runs its own MySQL, object storage, ingress, and certificates. One
+  plain-YAML manifest and a README stating the contract each dependency has to
+  meet — DDL privileges, `utf8mb4`, a dedicated bucket, one origin for Portal
+  and API. It is written to be read and adapted rather than applied: every
+  dependency address is a placeholder, so an unedited `kubectl apply` fails
+  instead of coming up against the wrong database. Deliberately not a chart or
+  a kustomize base, so it converts to whatever a cluster is already managed
+  with. Nothing applies it, so `internal/architecture` parses its ConfigMap the
+  way the server parses its own config and asserts the settings that make it a
+  production reference rather than a copy of the development stack.
+
 - A deployment can now point BuildMax at a database and an object store it
   already runs, which the connection layer previously could not express.
   `database.tls` carries a TLS mode into the DSN, defaulting to `preferred` —
@@ -225,6 +237,15 @@ pre-releases and must be called out in release notes.
   template make both human and agent-assisted contributions reproducible.
 
 ### Changed
+
+- `storage.minio` no longer defaults its endpoint, region, and credentials to a
+  local MinIO and that server's development user. Those defaults made "unset"
+  unreachable, so a deployment that omitted them was silently pointed at
+  `localhost:9000` as user `minio` instead of falling through to AWS endpoint
+  resolution and the SDK credential chain. A credential should never have a
+  default. Nothing in the repository relied on them — Compose uses the local
+  filesystem backend and the kind manifest sets all of them explicitly — but a
+  deployment that did will now need to state them.
 
 - Full `./make build` is now strict and includes the Portal; frontend or Wails
   failures no longer leave a successful partial build. Portal and Desktop lint

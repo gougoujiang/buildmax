@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,4 +41,43 @@ func TestServerDBConfig_DSNUsesTLS(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestStorageHasNoCredentialOrEndpointDefaults guards what makes the AWS path
+// expressible at all.
+//
+// These four used to default to a local MinIO and its development credentials,
+// so "unset" was unreachable: a deployment omitting them got localhost:9000 as
+// user "minio" rather than the SDK's endpoint resolution and credential chain.
+// A default here is not a convenience, it is a deployment silently pointed
+// somewhere it did not ask for.
+func TestStorageHasNoCredentialOrEndpointDefaults(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, dir)
+	for _, name := range []string{
+		EnvKeyBuildmaxMinIOAccessKey,
+		EnvKeyBuildmaxMinIOSecretKey,
+	} {
+		t.Setenv(name, "")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "server.yaml"), []byte("storage:\n  persist_backend: minio\n"), 0o600); err != nil {
+		t.Fatalf("write server.yaml: %v", err)
+	}
+
+	cfg, err := LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if got := cfg.Storage.MinIO.AccessKey; got != "" {
+		t.Errorf("access_key defaults to %q; a credential must never have a default", got)
+	}
+	if got := cfg.Storage.MinIO.SecretKey; got != "" {
+		t.Errorf("secret_key defaults to %q; a credential must never have a default", got)
+	}
+	if got := cfg.Storage.MinIO.Endpoint; got != "" {
+		t.Errorf("endpoint defaults to %q; empty is what selects AWS endpoint resolution", got)
+	}
+	if got := cfg.Storage.MinIO.Region; got != "" {
+		t.Errorf("region defaults to %q; empty lets the SDK take it from the environment", got)
+	}
 }
