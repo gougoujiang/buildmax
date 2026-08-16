@@ -8,6 +8,9 @@ import {
   useSettingsData,
 } from "./shared"
 import { navigate } from "../../router"
+import { SpaceAuditSection } from "../../features/audit"
+import { useAuth } from "../../contexts/AuthContext"
+import { useTeam } from "../../contexts/TeamContext"
 
 export function SpaceSettings({ section }: { section: SpaceSection }) {
   const [addMemberOpen, setAddMemberOpen] = useState(section === "memberNew")
@@ -30,6 +33,8 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     handleAddMember,
     handleRemoveMember,
   } = useSettingsData()
+  const { token } = useAuth()
+  const { currentTeamId } = useTeam()
 
   useEffect(() => {
     setAddMemberOpen(section === "memberNew")
@@ -102,6 +107,14 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
             members={members}
             usage={teamUsage}
             currentUserRole={currentUserMember?.role ?? null}
+          />
+        ) : null}
+        {section === "audit" ? (
+          <SpaceAuditSection
+            teamId={currentTeamId}
+            token={token}
+            currentUserIsOwner={currentUserIsOwner}
+            currentUserId={user?.id}
           />
         ) : null}
         {section === "members" ? (

@@ -260,6 +260,15 @@ pre-releases and must be called out in release notes.
   the cost is that this records what happened while the database was reachable,
   not a guarantee that every action was recorded.
 
+- An **Audit** tab in space settings, listing the trail for owners: sign-ins,
+  membership changes, model changes, and refused requests, newest first with
+  paging. Refusals are set apart from the successful actions around them, since
+  a refusal is the entry an owner is usually looking for. An action this Portal
+  does not recognise is shown verbatim rather than hidden, so a newer server's
+  events never silently disappear from the list. Members see the tab and an
+  explanation of why the contents are owner-only, rather than a tab that exists
+  for some people and not others.
+
 ### Changed
 
 - `storage.minio` no longer defaults its endpoint, region, and credentials to a
