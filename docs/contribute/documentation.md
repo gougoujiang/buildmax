@@ -14,9 +14,29 @@
 | `reference/` | Someone looking something up | Configuration, CLI, webhook — tables, not prose |
 | `contribute/` | Someone changing the code | Layout, architecture, these conventions |
 | `design/` | Someone asking "why is it like this" | Semantic design records indexed by lifecycle |
+| `proposals/` | Someone evaluating a possible future direction | Exploratory cross-cutting papers that are not committed work |
 
 The test for where a document belongs is **who is stuck without it**, not what
 kind of document it is.
+
+## Proposals
+
+`proposals/` is for an idea that is consequential enough to need a written
+comparison before it becomes a roadmap commitment. It is not a second roadmap,
+an issue tracker, or an archive.
+
+A proposal must:
+
+- state its status as `proposal — under discussion`;
+- link the current roadmap plans and design records it may affect;
+- distinguish goals, non-goals, options, open questions, and the evidence
+  needed to make a decision;
+- avoid documenting behavior as though it has shipped.
+
+Keep a proposal while the decision is genuinely open. Once accepted, put the
+committed priority in `ROADMAP.md`, move durable rationale into `design/`, and
+create implementation issues as appropriate. Then delete the proposal. Delete
+rejected or superseded proposals too; git history preserves the discussion.
 
 ## Design Documents
 
