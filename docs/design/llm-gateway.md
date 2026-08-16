@@ -1,7 +1,23 @@
 # Managed LLM Gateway
 
-> **Audience:** contributors · **Status:** planned — the gateway, routes, model
-> catalog, remote client, and call ledger described here are not implemented
+> **Audience:** contributors · **Status:** partially shipped — the user-facing
+> managed path is implemented; the worker path is not
+>
+> Shipped: `internal/service/llmgateway` (catalog, team policy, alias
+> resolution, capability set, router, error classes), the `llm_model` catalog
+> and `llm_call` ledger rows in `internal/infra/db`, the
+> `internal/infra/llmremote` client, `buildmax-server model`, and the two user
+> routes in `internal/server/handlers/routes.go` including SSE streaming.
+> CLI, TUI, and Desktop reach managed models through `AppConfig.ManagedToken`.
+> Quota runs at the §10 visibility/soft-enforcement stage.
+>
+> Not shipped: the worker entry point
+> `POST /api/worker/task-runs/{task_run_id}/llm/completions` is not registered,
+> and `internal/agentapp/taskrun` sets no `ManagedToken` — so task runs still
+> need an upstream provider credential of their own. Team policy is the
+> deployment-wide `server.yaml` `llm.aliases` map described in §7, not the
+> per-team database policy. Reserved quota enforcement and concurrency control
+> (§10) do not exist; do not claim a strict spending ceiling.
 
 This is an active P3 design. It follows the deployment direction in
 [enterprise-deployment.md](enterprise-deployment.md), depends on worker trust
