@@ -62,6 +62,20 @@ data:
         image: buildmax:local
         config_map: buildmax-config
         home_dir: /buildmax
+        # Worker pods are always created non-root, with no service-account
+        # token, no added capabilities, and a read-only root filesystem —
+        # that containment is not configurable, because a worker runs
+        # model-chosen shell commands. Set run_as_user only on a cluster that
+        # assigns its own uid range, OpenShift most commonly.
+        # run_as_user: 1000700000
+        #
+        # Resource bounds are opt-in: unset means unbounded. These are a
+        # starting point, not a measurement — raise them if runs are killed.
+        resources:
+          cpu_request: 250m
+          cpu_limit: "2"
+          memory_request: 512Mi
+          memory_limit: 2Gi
 
     storage:
       persist_backend: minio

@@ -100,6 +100,20 @@ worker:
     # pods fall back to built-in defaults, which is almost never what you want.
     config_map: buildmax-config
     home_dir: /buildmax          # BUILDMAX_HOME inside a worker pod
+    # Worker pods are always non-root, with no service-account token, no added
+    # capabilities, and a read-only root filesystem. That containment is not
+    # configurable — a worker runs model-chosen shell commands. Set run_as_user
+    # only on a cluster that assigns its own uid range (OpenShift most
+    # commonly); 0 uses BuildMax's default of 65532.
+    run_as_user: 0
+    # Kubernetes quantity strings. An empty value leaves that request or limit
+    # unset, so an unconfigured deployment stays unbounded rather than
+    # inheriting a limit nobody chose.
+    resources:
+      cpu_request: ""
+      cpu_limit: ""
+      memory_request: ""
+      memory_limit: ""
 
 storage:
   persist_backend: local_fs   # or minio

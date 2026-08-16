@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -297,14 +298,24 @@ func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, er
 			wc.K8s.Namespace,
 			wc.K8s.Image,
 			k8s.WorkerEnvFromEnviron(),
-			k8s.PodConfig{ConfigMapName: wc.K8s.ConfigMap, HomeDir: wc.K8s.HomeDir},
+			k8s.PodConfig{
+				ConfigMapName: wc.K8s.ConfigMap,
+				HomeDir:       wc.K8s.HomeDir,
+				RunAsUser:     wc.K8s.RunAsUser,
+				Resources: k8s.PodResources{
+					CPURequest:    wc.K8s.Resources.CPURequest,
+					CPULimit:      wc.K8s.Resources.CPULimit,
+					MemoryRequest: wc.K8s.Resources.MemoryRequest,
+					MemoryLimit:   wc.K8s.Resources.MemoryLimit,
+				},
+			},
 			jobClient,
 		), nil
 	default:
 		if wc.Binary == "" {
 			return nil, fmt.Errorf("worker.binary is required in server.yaml for local_process mode")
 		}
-		return scheduler.NewLocalRunner(wc.Binary), nil
+		return scheduler.NewLocalRunner(wc.Binary, config.FilterWorkerEnv(os.Environ())), nil
 	}
 }
 
