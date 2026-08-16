@@ -45,9 +45,16 @@ single-use code for `deployment-smoke@buildmax.local` after verification.
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind images  # rebuild and load local images without applying manifests
+./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind down    # delete the selected cluster
 ```
+
+`status` changes nothing. It prints the selected cluster and context, probes
+<http://localhost:8080/healthz> through the ingress, and lists nodes plus the
+Deployments, Jobs, and Pods in `ingress-nginx`, `db`, `storage`, and
+`buildmax`. Use it to tell a missing cluster from an unhealthy one before
+reading the much longer `kind logs` output.
 
 Use an isolated cluster name when another contributor or task owns the default:
 

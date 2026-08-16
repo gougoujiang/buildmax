@@ -36,7 +36,7 @@ type smokeTarget struct {
 
 func cmdCompose(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: ./make compose <up|smoke|logs|down>")
+		return errors.New("usage: ./make compose <up|smoke|status|logs|down>")
 	}
 	switch args[0] {
 	case "up":
@@ -53,9 +53,9 @@ func cmdCompose(args []string) error {
 			return err
 		}
 		target := smokeTarget{
-			apiBase:              "http://localhost:" + envOr("BUILDMAX_SERVER_PORT", "5678"),
-			portalURL:            "http://localhost:" + envOr("BUILDMAX_PORTAL_PORT", "8080"),
-			portalRuntimeAPIBase: "http://localhost:" + envOr("BUILDMAX_SERVER_PORT", "5678"),
+			apiBase:              composeServerURL(),
+			portalURL:            composePortalURL(),
+			portalRuntimeAPIBase: composeServerURL(),
 			admin: func(args ...string) (string, error) {
 				cmdArgs := append(composeSmokeArgs(), "exec", "-T", "server", "buildmax-server")
 				return captureCombined("docker", append(cmdArgs, args...)...)
@@ -66,12 +66,14 @@ func cmdCompose(args []string) error {
 		}
 		printSmokeLogin(target)
 		return nil
+	case "status":
+		return composeStatus()
 	case "logs":
 		return runCmd("docker", append(composeSmokeArgs(), "logs", "--tail", "200")...)
 	case "down":
 		return runCmd("docker", append(composeSmokeArgs(), "down")...)
 	default:
-		return fmt.Errorf("unknown compose command %q (want up, smoke, logs, or down)", args[0])
+		return fmt.Errorf("unknown compose command %q (want up, smoke, status, logs, or down)", args[0])
 	}
 }
 
@@ -79,12 +81,60 @@ func composeSmokeArgs() []string {
 	return []string{"compose", "-f", composeFile, "-f", composeSmokeFile}
 }
 
+func composeEnvPath() string {
+	return filepath.Join("deployment", "compose", ".env")
+}
+
+func composeServerURL() string {
+	return "http://localhost:" + envOr("BUILDMAX_SERVER_PORT", "5678")
+}
+
+func composePortalURL() string {
+	return "http://localhost:" + envOr("BUILDMAX_PORTAL_PORT", "8080")
+}
+
+// composeStatus reports what the quickstart stack is running without starting,
+// building, or generating anything, so it stays safe to run against a stack
+// this invocation did not create.
+func composeStatus() error {
+	if err := requireCommands("docker"); err != nil {
+		return err
+	}
+	if !exists(composeEnvPath()) {
+		fmt.Printf("%s does not exist, so the stack has never been started. Run %s compose up.\n", composeEnvPath(), mk())
+		return nil
+	}
+	if !succeeds("docker", "info") {
+		return errors.New("docker is installed but the engine is not ready")
+	}
+
+	fmt.Println("Services")
+	// --all keeps exited containers visible: a server that crashed on startup is
+	// exactly what this command exists to show.
+	if err := runCmd("docker", append(composeSmokeArgs(), "ps", "--all")...); err != nil {
+		return err
+	}
+	fmt.Printf("\nServer: %s (%s)\n", composeServerURL(), httpHealth(composeServerURL()+"/healthz"))
+	fmt.Printf("Portal: %s (%s)\n", composePortalURL(), httpHealth(composePortalURL()))
+	fmt.Printf("\nRun %s compose logs for container logs.\n", mk())
+	return nil
+}
+
 func ensureComposeEnv() error {
-	envPath := filepath.Join("deployment", "compose", ".env")
-	if exists(envPath) {
+	if exists(composeEnvPath()) {
 		return nil
 	}
 	return runCmd(filepath.Join("deployment", "compose", "generate-env.sh"))
+}
+
+// httpHealth describes one endpoint in a single status line, because a running
+// container does not prove its published port still answers on the host.
+func httpHealth(endpoint string) string {
+	client := &http.Client{Timeout: 5 * time.Second}
+	if err := expectHTTPStatus(context.Background(), client, endpoint, http.StatusOK); err != nil {
+		return fmt.Sprintf("unreachable: %v", err)
+	}
+	return "healthy"
 }
 
 func envOr(key, fallback string) string {

@@ -159,6 +159,7 @@ share the server container and local filesystem storage:
 
 ```bash
 ./make compose smoke
+./make compose status
 ./make compose logs
 ./make compose down
 ```
@@ -170,6 +171,7 @@ dependency, and runs the same TaskRun and artifact assertions:
 ```bash
 ./make kind up
 ./make kind smoke
+./make kind status
 ./make kind logs
 ./make kind down
 ```

@@ -16,7 +16,7 @@ const (
 
 func cmdKind(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: ./make kind <up|images|smoke|logs|down>")
+		return errors.New("usage: ./make kind <up|images|smoke|status|logs|down>")
 	}
 	switch args[0] {
 	case "up":
@@ -25,12 +25,14 @@ func cmdKind(args []string) error {
 		return cmdPubImages()
 	case "smoke":
 		return kindSmoke()
+	case "status":
+		return kindStatus()
 	case "logs":
 		return kindLogs()
 	case "down":
 		return kindDown()
 	default:
-		return fmt.Errorf("unknown kind command %q (want up, images, smoke, logs, or down)", args[0])
+		return fmt.Errorf("unknown kind command %q (want up, images, smoke, status, logs, or down)", args[0])
 	}
 }
 
@@ -169,6 +171,44 @@ func kindSmokeTarget() smokeTarget {
 			cmdArgs := append([]string{"--context", kindContext(), "exec", "-n", "buildmax", "deployment/buildmax-server", "--", "buildmax-server"}, args...)
 			return captureCombined("kubectl", cmdArgs...)
 		},
+	}
+}
+
+// kindStatus reports what the selected cluster is running without changing it,
+// so a contributor can tell "nothing deployed" from "deployed but unhealthy"
+// before reaching for the much noisier kind logs.
+func kindStatus() error {
+	if err := requireCommands("kind", "kubectl"); err != nil {
+		return err
+	}
+	cluster := kindClusterName()
+	fmt.Printf("Cluster: %s (context %s)\n", cluster, kindContext())
+
+	exists, err := kindClusterExists(cluster)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		fmt.Printf("The cluster does not exist. Run %s kind up.\n", mk())
+		return nil
+	}
+	if err := validateKindPortMapping(cluster); err != nil {
+		fmt.Printf("Warning: %v\n", err)
+	}
+	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL, httpHealth(kindPortalURL+"/healthz"))
+
+	printKindSection("Nodes", "get", "nodes", "-o", "wide")
+	for _, namespace := range []string{"ingress-nginx", "db", "storage", "buildmax"} {
+		printKindSection("Namespace "+namespace, "get", "deployments,jobs,pods", "-n", namespace)
+	}
+	fmt.Printf("\nRun %s kind logs for events and container logs.\n", mk())
+	return nil
+}
+
+func printKindSection(title string, args ...string) {
+	fmt.Printf("\n%s\n", title)
+	if err := kindKubectl(args...); err != nil {
+		fmt.Printf("Warning: %v\n", err)
 	}
 }
 
