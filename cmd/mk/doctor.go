@@ -37,6 +37,10 @@ func cmdDoctor(args []string) error {
 	optionalPresence("Docker", "docker", "needed only for Compose/container work")
 	optionalPresence("kind", "kind", "needed only for local Kubernetes work")
 	optionalPresence("kubectl", "kubectl", "needed only for Kubernetes work")
+	// actionlint runs its shell script pass only when shellcheck is on PATH, and
+	// says nothing when it is not, so a `run:` block can pass ./make check ci and
+	// still fail on the runner. Reporting it here is the only warning available.
+	optionalPresence("shellcheck", "shellcheck", "actionlint's shell script pass in ./make check ci needs it")
 
 	status, err := capture("git", "status", "--porcelain")
 	if err != nil {
