@@ -34,6 +34,23 @@ jwt_secret: your-jwt-secret-here
 # server reachable by untrusted users.
 # dev_login_otp: "123456"
 
+# Token lifetimes. Signing in returns two credentials: a signed access token
+# sent with every request, and a refresh token exchanged for the next pair.
+#
+# The access token is not stored anywhere, so it cannot be revoked — its
+# lifetime is the window in which a leaked one still works. The refresh token
+# is a database row, so revoking a session takes effect at the next exchange.
+# Each exchange also rotates the refresh token, and presenting a spent one
+# revokes the whole session: that is how a copied credential is noticed.
+access_token_ttl: 168h
+refresh_token_ttl: 720h
+
+# How long a just-rotated refresh token may be exchanged again before that
+# counts as reuse. It exists because the CLI and Desktop share one credentials
+# file between processes, and two of them refreshing at once is normal. Raising
+# it widens the window in which a stolen token goes unnoticed.
+refresh_rotation_grace: 30s
+
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial

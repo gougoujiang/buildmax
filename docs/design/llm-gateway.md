@@ -103,10 +103,12 @@ produce a complete server-side LLM call ledger. A gateway does not fix that by
 itself; call-level persistence is part of the chosen design.
 
 Authentication also has limits that the design must not hide. CLI and Desktop
-can store the Server JWT in `auth.json`, but the token expires after 24 hours,
-there is no refresh flow, and there is no token revocation list. Team membership
-is checked server-side and can remove access to a team, but the current JWT must
-not be described as an independently revocable gateway credential.
+store the Server access token in `auth.json`. A refresh flow now exists, so a
+login survives longer than one access token, and a session can be revoked — but
+the access token itself still cannot be. There is no revocation list, so an
+issued access token works until it expires. Team membership is checked
+server-side and can remove access to a team, but the access token must not be
+described as an independently revocable gateway credential.
 
 ## 4. Why A BuildMax Gateway
 

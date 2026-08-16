@@ -25,7 +25,7 @@ callbacks, and scheduler startup. Business workflows are delegated to
 ## Main Route Groups
 
 - Health and API description: `/healthz`, `/openapi.json`, `/swagger/`
-- Auth: `/api/otp/request`, `/api/login`
+- Auth: `/api/otp/request`, `/api/login`, `/api/token/refresh`, `/api/logout`
 - Liveness and readiness: `/healthz`, `/readyz`
 - Teams and members: `/api/teams...`
 - Agents: `/api/teams/{team_id}/agents...`
@@ -47,6 +47,10 @@ callbacks, and scheduler startup. Business workflows are delegated to
 
 - User-facing Portal APIs are team-scoped wherever work ownership matters.
 - Worker APIs use worker-token auth rather than user JWT auth.
+- Signing in returns two credentials. The access token is a signed JWT the
+  server does not store; the refresh token is a `user_refresh_token` row, which
+  is what makes a session revocable. `auth.go` owns both, and every rotation
+  stays inside the session named by the access token's `sid` claim.
 - Team membership checks live in handler helpers such as `team_authz.go`.
 - `POST /api/login` is disabled unless a dev OTP is configured — see
   [deploy/authentication.md](../../deploy/authentication.md).

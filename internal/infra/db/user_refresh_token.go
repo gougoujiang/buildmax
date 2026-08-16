@@ -1,0 +1,251 @@
+package db
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+type userRefreshTokenRow struct {
+	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	TokenHash string `gorm:"type:varchar(128);uniqueIndex;not null"`
+	UserID    string `gorm:"type:varchar(64);not null;index"`
+	SessionID string `gorm:"type:varchar(64);not null;index"`
+	Platform  string `gorm:"type:varchar(32)"`
+	ExpiresAt int64  `gorm:"not null;index"`
+	UsedAt    *int64
+	RevokedAt *int64
+	// ReplacedBy holds the hash of the token most recently issued in exchange
+	// for this one. It is never read by the exchange itself — it exists so that
+	// an operator investigating a reuse report can walk the chain back to the
+	// login.
+	ReplacedBy string `gorm:"type:varchar(128)"`
+	CreatedAt  int64  `gorm:"autoCreateTime"`
+}
+
+func (userRefreshTokenRow) TableName() string { return "user_refresh_token" }
+
+const (
+	// Same reasoning as loginCodePrefix: a leaked credential should be
+	// recognizable on sight, and to a secret scanner.
+	refreshTokenPrefix = "bmxrefresh_"
+	refreshTokenBytes  = 32
+)
+
+// hashRefreshToken is the only representation that reaches the database.
+func hashRefreshToken(plaintext string) string {
+	sum := sha256.Sum256([]byte(plaintext))
+	return hex.EncodeToString(sum[:])
+}
+
+func newRefreshTokenPlaintext() (string, error) {
+	b := make([]byte, refreshTokenBytes)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return refreshTokenPrefix + hex.EncodeToString(b), nil
+}
+
+// CreateRefreshToken implements model.RefreshTokenStore.
+func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken) (string, int64, error) {
+	if in.UserID == "" {
+		return "", 0, errors.New("refresh token: user id required")
+	}
+	if in.SessionID == "" {
+		return "", 0, errors.New("refresh token: session id required")
+	}
+	ttl := in.TTL
+	if ttl <= 0 {
+		ttl = model.RefreshTokenTTLDefault
+	}
+	plaintext, err := newRefreshTokenPlaintext()
+	if err != nil {
+		return "", 0, err
+	}
+	expiresAt := time.Now().Add(ttl).Unix()
+	row := userRefreshTokenRow{
+		TokenHash: hashRefreshToken(plaintext),
+		UserID:    in.UserID,
+		SessionID: in.SessionID,
+		Platform:  in.Platform,
+		ExpiresAt: expiresAt,
+	}
+	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return "", 0, err
+	}
+	return plaintext, expiresAt, nil
+}
+
+// RotateRefreshToken implements model.RefreshTokenStore.
+//
+// The exchange opens with a conditional UPDATE, the same shape ConsumeLoginCode
+// uses and for the same reason: concurrent callers holding one token must not
+// both be treated as the first. Exactly one wins that UPDATE. Everyone else
+// falls through to the slower path below, which decides whether they are a
+// racing sibling process or a replay.
+func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now int64, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
+	if plaintext == "" {
+		return model.RotatedRefreshToken{}, model.ErrRefreshTokenInvalid
+	}
+	if ttl <= 0 {
+		ttl = model.RefreshTokenTTLDefault
+	}
+	if grace < 0 {
+		grace = 0
+	}
+	hash := hashRefreshToken(plaintext)
+
+	var out model.RotatedRefreshToken
+	// Reuse is reported after the transaction rather than from inside it.
+	// Returning an error from the closure rolls the transaction back, which
+	// would undo the very revocation that makes the report meaningful.
+	var reused bool
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&userRefreshTokenRow{}).
+			Where("token_hash = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?", hash, now).
+			Update("used_at", now)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		// A locking read, not a plain one. Under REPEATABLE READ a consistent
+		// read would answer from this transaction's snapshot, and the caller
+		// that just lost the UPDATE race would see the row as still unspent —
+		// which this function reads as "impossible" and refuses. Reading the
+		// current row instead is what lets the grace window below recognize a
+		// racing sibling for what it is.
+		var row userRefreshTokenRow
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token_hash = ?", hash).First(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return model.ErrRefreshTokenInvalid
+			}
+			return err
+		}
+
+		if res.RowsAffected == 0 {
+			// Not the winner. Work out why.
+			if row.RevokedAt != nil || row.ExpiresAt <= now {
+				return model.ErrRefreshTokenInvalid
+			}
+			if row.UsedAt == nil {
+				// Live, unexpired, unrevoked, unspent — yet the UPDATE matched
+				// nothing. Nothing should produce this; refuse rather than
+				// guess.
+				return model.ErrRefreshTokenInvalid
+			}
+			if now-*row.UsedAt > int64(grace.Seconds()) {
+				// Spent long enough ago that a second presentation is not a
+				// racing sibling. Retire the whole chain before reporting it:
+				// if there are two holders, neither keeps access.
+				if err := revokeSessionTx(tx, row.SessionID, now); err != nil {
+					return err
+				}
+				// No new token, but the caller still needs to know whose
+				// session was just revoked in order to record it. Commit, and
+				// let the wrapper turn this into ErrRefreshTokenReused.
+				out = model.RotatedRefreshToken{UserID: row.UserID, SessionID: row.SessionID}
+				reused = true
+				return nil
+			}
+			// Inside the grace window. Issue a second live token in the same
+			// session rather than failing, and leave used_at at the first
+			// exchange so the window does not slide forward on every retry.
+		}
+
+		next, err := newRefreshTokenPlaintext()
+		if err != nil {
+			return err
+		}
+		nextHash := hashRefreshToken(next)
+		nextRow := userRefreshTokenRow{
+			TokenHash: nextHash,
+			UserID:    row.UserID,
+			SessionID: row.SessionID,
+			Platform:  row.Platform,
+			ExpiresAt: time.Unix(now, 0).Add(ttl).Unix(),
+		}
+		if err := tx.Create(&nextRow).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&userRefreshTokenRow{}).
+			Where("token_hash = ?", hash).
+			Update("replaced_by", nextHash).Error; err != nil {
+			return err
+		}
+		out = model.RotatedRefreshToken{
+			UserID:    row.UserID,
+			SessionID: row.SessionID,
+			Plaintext: next,
+			ExpiresAt: nextRow.ExpiresAt,
+		}
+		return nil
+	})
+	if err != nil {
+		return out, err
+	}
+	if reused {
+		return out, model.ErrRefreshTokenReused
+	}
+	return out, nil
+}
+
+// RevokeRefreshTokenSession implements model.RefreshTokenStore.
+func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string, now int64) (string, string, error) {
+	if plaintext == "" {
+		return "", "", nil
+	}
+	hash := hashRefreshToken(plaintext)
+	var row userRefreshTokenRow
+	err := s.db.WithContext(ctx).Where("token_hash = ?", hash).First(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", "", nil
+		}
+		return "", "", err
+	}
+	if err := revokeSessionTx(s.db.WithContext(ctx), row.SessionID, now); err != nil {
+		return "", "", err
+	}
+	return row.UserID, row.SessionID, nil
+}
+
+// RevokeSession implements model.RefreshTokenStore.
+func (s *Store) RevokeSession(ctx context.Context, sessionID string, now int64) (int64, error) {
+	if sessionID == "" {
+		return 0, nil
+	}
+	res := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
+		Where("session_id = ? AND revoked_at IS NULL", sessionID).
+		Update("revoked_at", now)
+	return res.RowsAffected, res.Error
+}
+
+func revokeSessionTx(tx *gorm.DB, sessionID string, now int64) error {
+	if sessionID == "" {
+		return nil
+	}
+	return tx.Model(&userRefreshTokenRow{}).
+		Where("session_id = ? AND revoked_at IS NULL", sessionID).
+		Update("revoked_at", now).Error
+}
+
+// DeleteExpiredRefreshTokens implements model.RefreshTokenStore.
+//
+// Revoked rows are kept until they expire rather than deleted on revocation:
+// a reuse report is worth investigating, and the chain it points at should
+// still be there when someone looks.
+func (s *Store) DeleteExpiredRefreshTokens(ctx context.Context, before int64) (int64, error) {
+	res := s.db.WithContext(ctx).
+		Where("expires_at <= ?", before).
+		Delete(&userRefreshTokenRow{})
+	return res.RowsAffected, res.Error
+}

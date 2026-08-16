@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -44,9 +45,21 @@ type Config struct {
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool
 
+	// Token lifetimes. Zero means the model package's default. The access
+	// token is signed and unstored, so its lifetime is the window in which a
+	// stolen one still works; the refresh token is a row and can be revoked
+	// before it expires.
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	// RefreshRotationGrace is how long a just-rotated refresh token may be
+	// exchanged again before that counts as reuse. It exists because the CLI
+	// and Desktop share one credentials file between processes.
+	RefreshRotationGrace time.Duration
+
 	// Stores
 	UserStore                model.UserStore
 	LoginCodeStore           model.LoginCodeStore
+	RefreshTokenStore        model.RefreshTokenStore
 	TeamStore                model.TeamStore
 	WorkflowStore            model.WorkflowStore
 	AgentStore               model.AgentStore

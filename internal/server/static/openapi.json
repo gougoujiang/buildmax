@@ -204,8 +204,32 @@
     "/api/login": {
       "post": {
         "summary": "Login",
+        "description": "Returns an access token and, when the deployment stores them, a refresh token. `token` repeats `access_token` under the name it had before the two were split.",
         "responses": {
           "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/token/refresh": {
+      "post": {
+        "summary": "Exchange a refresh token for a new token pair",
+        "description": "Unauthenticated: possession of the refresh token is the proof. Each exchange spends the token presented and returns its replacement in the same session. Presenting a spent token past `refresh_rotation_grace` revokes the whole session.",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "refresh_token missing, or body invalid" },
+          "401": { "description": "Token unknown, expired, revoked, or reused" },
+          "503": { "description": "Deployment has no refresh token store" }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "summary": "Revoke one session",
+        "description": "Accepts either credential: a refresh_token in the body names its session, otherwise the session comes from the access token's sid claim. Revoking a session the server has already forgotten is a success.",
+        "responses": {
+          "204": { "description": "Session revoked, or already gone" },
+          "401": { "description": "Neither credential supplied" },
+          "503": { "description": "Deployment has no refresh token store" }
         }
       }
     },

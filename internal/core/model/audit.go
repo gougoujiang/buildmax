@@ -10,6 +10,15 @@ const (
 	// recording attempts keyed by a supplied email would turn the audit log
 	// into a place to write arbitrary strings.
 	AuditUserLogin = "user.login"
+	// AuditUserLogout records a session being revoked on purpose. It is the
+	// counterpart to AuditUserLogin: together they bound when a session could
+	// have been used.
+	AuditUserLogout = "user.logout"
+	// AuditRefreshReuse records a refresh token presented after it had already
+	// been exchanged. It means the credential existed in two places, and the
+	// session was revoked in response. Unlike the actions above this is not a
+	// user's intent — it is the server reporting what it saw.
+	AuditRefreshReuse = "auth.refresh_reuse"
 	// AuditTeamMemberAdded and AuditTeamMemberRemoved record changes to who
 	// can reach a team's resources.
 	AuditTeamMemberAdded   = "team.member_added"

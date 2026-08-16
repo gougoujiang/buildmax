@@ -9,6 +9,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Auth — unauthenticated
 	mux.HandleFunc("POST /api/otp/request", h.otpRequestHandler)
 	mux.HandleFunc("POST /api/login", h.loginHandler)
+	mux.HandleFunc("POST /api/token/refresh", h.refreshHandler)
+	mux.HandleFunc("POST /api/logout", h.logoutHandler)
 
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)

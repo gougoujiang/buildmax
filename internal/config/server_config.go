@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -18,6 +19,19 @@ type ServerConfig struct {
 	Port        int    `mapstructure:"port"`
 	JWTSecret   string `mapstructure:"jwt_secret"`
 	DevLoginOTP string `mapstructure:"dev_login_otp"`
+	// AccessTokenTTL is how long a signed access token stays valid. It is not
+	// stored anywhere, so this is also the window in which a leaked one still
+	// works — shortening it costs nothing but refresh traffic.
+	AccessTokenTTL time.Duration `mapstructure:"access_token_ttl"`
+	// RefreshTokenTTL is how long a login can be renewed without a new login
+	// code. Every rotation restarts it, so an active session lives on and an
+	// abandoned one expires.
+	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
+	// RefreshRotationGrace is how long a just-rotated refresh token may be
+	// exchanged again before the server treats it as reuse and revokes the
+	// session. It absorbs concurrent refreshes from processes sharing one
+	// credentials file; it is not a security setting to raise casually.
+	RefreshRotationGrace time.Duration `mapstructure:"refresh_rotation_grace"`
 	// AllowSignup opens POST /api/otp/request to self-registration. It defaults
 	// to false, and the zero value is the safe one on purpose: a server that
 	// forgets to configure this is closed, not open.
@@ -282,6 +296,9 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("log_level", "info")
 	v.SetDefault("port", 5678)
 	v.SetDefault("cors_origin", "http://localhost:5173")
+	v.SetDefault("access_token_ttl", "168h")
+	v.SetDefault("refresh_token_ttl", "720h")
+	v.SetDefault("refresh_rotation_grace", "30s")
 	v.SetDefault("default_quota_tier", "free_trial")
 	v.SetDefault("webhook.message_path", "message")
 	v.SetDefault("webhook.user_id", "webhook")

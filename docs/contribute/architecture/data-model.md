@@ -104,6 +104,7 @@ erDiagram
     quota_tier ||--o{ team : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
+    user ||--o{ user_refresh_token : "keeps sessions in"
     team ||--o{ llm_call : "billed to"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
@@ -212,6 +213,40 @@ Single-use email login codes. Rows are consumed, not deleted on use.
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `code_hash`; index `user_id`; index `expires_at`.
+
+### `user_refresh_token`
+
+The stored half of a login. Signing in returns a signed access token, which the
+server keeps no record of, plus a refresh token, which is a row here. That split
+is what makes a session revocable: the credential that lives for weeks is the
+one the server can retire.
+
+Each row belongs to a `session_id` — one login chain. Every exchange spends the
+presented token and issues a new one in the same session, so revoking a session
+retires the chain however many times it has been renewed.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `token_hash` | `varchar(128)` | no | Hash of the token, unique — the plaintext is returned once and never stored |
+| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `session_id` | `varchar(64)` | no | `as_` prefix; one login chain, preserved across every rotation |
+| `platform` | `varchar(32)` | yes | Which surface logged in — a label for the reader, not enforced |
+| `expires_at` | `bigint` | no | Unix seconds; default TTL is 30 days (`model.RefreshTokenTTLDefault`) |
+| `used_at` | `bigint` | yes | Non-`NULL` means already exchanged |
+| `revoked_at` | `bigint` | yes | Non-`NULL` means retired by a logout or a reuse report |
+| `replaced_by` | `varchar(128)` | yes | Hash of the token issued in exchange; lets an operator walk a chain back to its login |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `token_hash`; index `user_id`; index `session_id`;
+index `expires_at`.
+
+A token presented after it was already exchanged means two holders, so the
+store revokes the whole session rather than guessing which one is legitimate.
+The exception is a short grace window after an exchange, which exists because
+the CLI and Desktop share one credentials file between processes and refreshing
+twice at once is normal there. Rows are swept once they expire; revoked rows are
+kept until then, so a reuse report still has a chain to inspect.
 
 ### `user_webhook_key`
 

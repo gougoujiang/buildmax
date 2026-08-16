@@ -45,6 +45,31 @@ pre-releases and must be called out in release notes.
   `503 managed inference not configured` to an anonymous caller, which told
   anyone who asked whether a deployment offers managed models.
 
+- Signing in now returns two credentials instead of one. The access token is
+  still a signed JWT the server keeps no record of; alongside it comes a refresh
+  token, stored as a hash in the new `user_refresh_token` table and exchanged at
+  `POST /api/token/refresh` for the next pair. A single 24-hour token meant two
+  things at once: nothing could retire it early, and everyone had to sign in
+  again every day — which, with no mail channel, meant an operator issuing a
+  login code by hand each time. Splitting them separates those questions.
+  `access_token_ttl` (7 days) is now the only thing that governs how long a
+  leaked token works, and `refresh_token_ttl` (30 days) governs how long a
+  session can be renewed without a new login code.
+
+  Each exchange spends the token presented and issues its replacement in the
+  same session, so a token appearing twice means two holders. Past
+  `refresh_rotation_grace` that revokes the whole session and records an
+  `auth.refresh_reuse` audit event — the legitimate holder is signed out too,
+  because there is no way to tell the copies apart. The grace window exists
+  because the CLI and Desktop share one credentials file across processes, where
+  two simultaneous refreshes are ordinary rather than suspicious.
+
+  Every login opens its own session, and `POST /api/logout` revokes one of them
+  without touching the others. Expired login codes and refresh tokens are now
+  swept hourly; the sweep for login codes had been written but never wired up.
+  Existing tokens keep working until they expire, so upgrading does not sign
+  anyone out.
+
 ### Added
 
 - `deployment/production/`, a private deployment reference for a cluster that

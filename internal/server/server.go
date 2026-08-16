@@ -44,12 +44,17 @@ type AuthConfig struct {
 	CORSOrigin       string              // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	QuotaService     *quota.QuotaService // Optional; when set, create chat/run enforce quota and return 429 when exceeded
 	DefaultQuotaTier string              // Default quota tier for new users (e.g. signup); used when calling CreateUser
+	// Token lifetimes; zero means the default in internal/core/model.
+	AccessTokenTTL       time.Duration
+	RefreshTokenTTL      time.Duration
+	RefreshRotationGrace time.Duration
 }
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
 	UserStore           model.UserStore
 	LoginCodeStore      model.LoginCodeStore
+	RefreshTokenStore   model.RefreshTokenStore
 	TeamStore           model.TeamStore
 	WorkflowStore       model.WorkflowStore
 	AgentStore          model.AgentStore
@@ -166,11 +171,15 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		DevLoginOTP:              cfg.Auth.DevLoginOTP,
 		AllowSignup:              cfg.Auth.AllowSignup,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
+		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
+		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
+		RefreshRotationGrace:     cfg.Auth.RefreshRotationGrace,
 		WorkerToken:              cfg.Worker.WorkerToken,
 		UserStore:                cfg.Stores.UserStore,
 		AuditStore:               cfg.Stores.AuditStore,
 		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
+		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		TeamStore:                cfg.Stores.TeamStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

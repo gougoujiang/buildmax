@@ -230,6 +230,9 @@ port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
 # allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
 # dev_login_otp: "123456"            # development only; see deploy/authentication.md
+access_token_ttl: 168h               # signed, unstored — this is how long a leaked one works
+refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
+refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
@@ -284,6 +287,12 @@ storage:
 Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`),
 `database`, and `worker.token` if you run workers. Everything else has a usable
 default for local development.
+
+The two token lifetimes are not interchangeable. An access token is signed and
+never stored, so nothing can retire one early — `access_token_ttl` is the window
+in which a leaked one still works. A refresh token is a database row, so
+`refresh_token_ttl` is how long a session can be renewed, not how long it is
+beyond reach. See [deploy/authentication.md](../deploy/authentication.md).
 
 `allow_signup` defaults to **false**, so nobody can register themselves. Create
 accounts and issue login codes from the server instead — see

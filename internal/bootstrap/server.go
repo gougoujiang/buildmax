@@ -125,6 +125,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 	sched.Start()
 	defer sched.Stop()
 
+	cleaner := scheduler.NewCredentialCleaner(store, 0)
+	cleaner.Start()
+	defer cleaner.Stop()
+
 	s := httpserver.New(serverConfig)
 	slog.Info("server starting",
 		"addr", serverConfig.Addr,
@@ -199,16 +203,20 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
 		Auth: httpserver.AuthConfig{
-			JWTSecret:        jwtSecret,
-			DevLoginOTP:      sc.DevLoginOTP,
-			AllowSignup:      sc.AllowSignup,
-			CORSOrigin:       sc.CORSOrigin,
-			QuotaService:     quotaService,
-			DefaultQuotaTier: sc.DefaultQuotaTier,
+			JWTSecret:            jwtSecret,
+			DevLoginOTP:          sc.DevLoginOTP,
+			AllowSignup:          sc.AllowSignup,
+			CORSOrigin:           sc.CORSOrigin,
+			QuotaService:         quotaService,
+			DefaultQuotaTier:     sc.DefaultQuotaTier,
+			AccessTokenTTL:       sc.AccessTokenTTL,
+			RefreshTokenTTL:      sc.RefreshTokenTTL,
+			RefreshRotationGrace: sc.RefreshRotationGrace,
 		},
 		Stores: httpserver.StoresConfig{
 			UserStore:           st,
 			LoginCodeStore:      st,
+			RefreshTokenStore:   st,
 			TeamStore:           st,
 			WorkflowStore:       st,
 			AgentStore:          st,
