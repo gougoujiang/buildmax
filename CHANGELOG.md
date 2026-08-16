@@ -149,6 +149,17 @@ pre-releases and must be called out in release notes.
 - Dead code across the agent runtime, storage, handlers, and CLI that the new
   linter surfaced.
 
+### Fixed
+
+- `LICENSE` is the verbatim Apache License 2.0 again. The copy shipped in
+  `0.1.0-alpha` was missing the closing paragraph of section 5, the one that
+  keeps a separately executed license agreement in force over the default
+  contribution grant — the same grant `CONTRIBUTING.md` relies on to state that
+  BuildMax needs no CLA. Only the appendix copyright line is filled in, which
+  the license permits, so automated license detection now identifies the
+  repository and every release archive as Apache-2.0 rather than as an unknown
+  license.
+
 ## [0.1.0-alpha] - 2026-08-09
 
 ### Added
