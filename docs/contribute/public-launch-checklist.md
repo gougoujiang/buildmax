@@ -56,6 +56,7 @@ an owner decision and should not be delegated to release automation.
 - [ ] Confirm Dependabot alerts and automatic security updates remain enabled.
 - [ ] Confirm Discussions, issue templates, labels, topics, and the default
       branch are still correct.
+- [ ] Confirm GitHub's Documentation link resolves from the default branch.
 - [ ] Confirm the community health files render from `.github/` — the Code of
       Conduct and Support links should appear on the repository's Community
       Standards page and in the new-issue chooser.
