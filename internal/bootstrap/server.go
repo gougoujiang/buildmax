@@ -6,24 +6,25 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
-	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
+	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
 
 const taskTitlePrompt = `Generate a short task title (3-5 words) from this user request. Return ONLY the title, no quotes or punctuation.`
 
-// titleGenAdapter implements llm.TitleGenerator using an LLM client.
+// titleGenAdapter implements llm.TitleGenerator using an LLM client. It holds
+// the core interface, not a provider client, so the model router decides which
+// implementation generates titles.
 type titleGenAdapter struct {
-	client *llm.LLMClient
+	client cllm.LLMClient
 }
 
 func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (string, int, int, error) {
@@ -104,7 +105,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
-	serverConfig := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, persistStorage, artifactStorage)
+	serverConfig, err := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, persistStorage, artifactStorage)
+	if err != nil {
+		return err
+	}
 
 	runner, err := buildWorkerRunner(sc.Worker)
 	if err != nil {
@@ -182,7 +186,7 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 	return s3Client, nil
 }
 
-func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, persistStorage blob.PersistStorage, artifactStorage blob.ArtifactStorage) httpserver.Config {
+func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, persistStorage blob.PersistStorage, artifactStorage blob.ArtifactStorage) (httpserver.Config, error) {
 	quotaService := &quota.QuotaService{
 		TeamStore:   st,
 		UsageReader: st,
@@ -228,24 +232,46 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			UserID:      sc.Webhook.UserID,
 		},
 	}
-	wireConversationLLM(&cfg, sc.Conversation)
-	return cfg
+	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {
+		return httpserver.Config{}, err
+	}
+	return cfg, nil
 }
 
-func wireConversationLLM(cfg *httpserver.Config, conv config.ServerConvConfig) {
-	m := conv.Model
-	if m.APIKey == "" {
-		return
+// wireLLM builds the model router, routes Tier 1 conversation through it in
+// process, and exposes the managed gateway to authenticated clients.
+//
+// The server resolves a catalog target it owns for its own inference: it does
+// not call its own HTTP listener and is not subject to team model policy.
+func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.QuotaService) error {
+	routing, err := buildLLMRouting(sc)
+	if err != nil {
+		return err
 	}
-	client := llm.NewClient(llm.Config{
-		APIKey:        m.APIKey,
-		BaseURL:       m.APIURL,
-		Model:         m.Model,
-		ContextWindow: m.ContextWindow,
-		CallTimeout:   time.Duration(m.CallTimeout) * time.Second,
-	})
-	cfg.Conv.TitleGenerator = &titleGenAdapter{client: client}
-	cfg.Conv.ConversationLLMClient = client
+	if routing == nil {
+		return nil
+	}
+
+	// The gateway needs a ledger. Without a store there is nowhere to account
+	// managed calls, so it stays off rather than serving unmetered inference.
+	if st != nil {
+		cfg.Conv.LLMGateway = &llmgateway.Service{
+			Router: routing.Router,
+			Ledger: st,
+			Quota:  quotaService,
+		}
+	}
+
+	if routing.Tier1TargetID == "" {
+		return nil
+	}
+	routed, err := routing.Router.ClientForTarget(context.Background(), routing.Tier1TargetID, llmgateway.BaselineCapabilities())
+	if err != nil {
+		return fmt.Errorf("conversation model %q: %w", routing.Tier1TargetID, err)
+	}
+	cfg.Conv.TitleGenerator = &titleGenAdapter{client: routed.Client}
+	cfg.Conv.ConversationLLMClient = routed.Client
+	return nil
 }
 
 func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, error) {

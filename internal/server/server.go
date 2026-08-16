@@ -18,6 +18,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
+	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -76,6 +77,9 @@ type ConversationConfig struct {
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
 	ConversationLLMClient    llm.LLMClient
+	// LLMGateway serves managed inference to authenticated clients. Nil leaves
+	// the /llm routes answering 503.
+	LLMGateway *llmgateway.Service
 }
 
 // WebhookConfig holds webhook handler options (message path and optional user ID for created runs).
@@ -173,6 +177,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		QuotaService:             cfg.Auth.QuotaService,
 		TitleGenerator:           cfg.Conv.TitleGenerator,
 		ConversationLLMClient:    cfg.Conv.ConversationLLMClient,
+		LLMGateway:               cfg.Conv.LLMGateway,
 		WebhookAdapter:           webhookAdapter,
 		WebhookEngine:            webhookEngine,
 		WebhookMessagePath:       msgPath,

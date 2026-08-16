@@ -129,6 +129,34 @@
         }
       }
     },
+    "/api/teams/{team_id}/llm/models": {
+      "get": {
+        "summary": "List the model aliases this team may use",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "No model is available to this team" },
+          "503": { "description": "Managed inference is not configured" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/llm/completions": {
+      "post": {
+        "summary": "Run one managed model call. Names a team alias; upstream endpoints, credentials, and provider model identifiers are never accepted or returned. With stream=true the response is text/event-stream carrying delta, result, and error events",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK. A streamed call that fails after its first delta still answers 200 and reports the failure as an error event" },
+          "400": { "description": "Invalid request, unknown field, or a model the team may not use" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "No model is available to this team" },
+          "409": { "description": "This call_id has already been used by the team" },
+          "429": { "description": "Team quota exceeded" },
+          "502": { "description": "The model provider failed" },
+          "503": { "description": "Managed inference is not configured" }
+        }
+      }
+    },
     "/api/teams/{team_id}/agents": {
       "get": {
         "summary": "List agents",

@@ -1,0 +1,419 @@
+// Package llmremote implements the core LLM contract against a BuildMax
+// managed gateway instead of a provider.
+//
+// It is the client half of internal/infra/llmwire. The agent loop cannot tell
+// the difference between this and internal/infra/llm: both satisfy
+// core/llm.LLMClient, and the caller never learns which upstream served a call.
+//
+// Mirrors the design in docs/design/llm-gateway.md.
+package llmremote
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
+)
+
+const (
+	// maxErrorBodyBytes bounds how much of a failure response is read. A
+	// gateway should answer with a small JSON error; anything larger is not
+	// worth holding.
+	maxErrorBodyBytes = 64 << 10
+	// maxSSEEventBytes bounds one stream event. A delta is text and a result is
+	// one completion, so a larger frame means a broken peer, not a big answer.
+	maxSSEEventBytes = 8 << 20
+)
+
+// Config holds managed client settings.
+type Config struct {
+	// ServerURL is the BuildMax server base URL.
+	ServerURL string
+	// Token authenticates the caller. It is a BuildMax credential, never a
+	// provider key.
+	Token string
+	// TeamID scopes the call. The server verifies membership regardless.
+	TeamID string
+	// Alias is the team model alias to call. Empty uses the team default.
+	Alias string
+	// ContextWindow is the usable context size for this alias; 0 disables
+	// windowing. The protocol does not report it per call, so it comes from
+	// model discovery or local configuration.
+	ContextWindow int
+	// Surface labels where the call came from, for correlation only.
+	Surface string
+	// CallTimeout bounds one request; 0 means no client-side deadline, leaving
+	// the server's own per-target timeout in charge.
+	CallTimeout time.Duration
+	// HTTPClient is optional; http.DefaultClient is used when nil.
+	HTTPClient *http.Client
+}
+
+// Client calls a BuildMax managed gateway. It satisfies core/llm.LLMClient.
+type Client struct {
+	cfg        Config
+	httpClient *http.Client
+}
+
+// NewClient builds a managed client.
+func NewClient(cfg Config) *Client {
+	httpClient := cfg.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	cfg.ServerURL = strings.TrimRight(cfg.ServerURL, "/")
+	return &Client{cfg: cfg, httpClient: httpClient}
+}
+
+// ContextWindow returns the configured context window (0 = no windowing).
+func (c *Client) ContextWindow() int {
+	if c == nil {
+		return 0
+	}
+	return c.cfg.ContextWindow
+}
+
+// ChatCompletionBlocking runs one managed call.
+func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+	if c == nil {
+		return "", nil, cllm.Usage{}, errors.New("managed llm client is not configured")
+	}
+	if c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
+		return "", nil, cllm.Usage{}, errors.New("managed llm client needs a server URL and a team")
+	}
+
+	resp, err := c.post(ctx, false, messages, tools)
+	if err != nil {
+		return "", nil, cllm.Usage{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, cllm.Usage{}, gatewayError(resp)
+	}
+
+	var out llmwire.CompletionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", nil, cllm.Usage{}, fmt.Errorf("decode managed response: %w", err)
+	}
+
+	// An absent usage object means the provider reported none. The zero value
+	// here says "unknown", the same thing the local client reports when a
+	// provider omits usage.
+	var usage cllm.Usage
+	if out.Usage != nil {
+		usage = cllm.Usage{
+			PromptTokens:     out.Usage.PromptTokens,
+			CompletionTokens: out.Usage.CompletionTokens,
+			TotalTokens:      out.Usage.TotalTokens,
+		}
+	}
+	return out.Content, fromWireToolCalls(out.ToolCalls), usage, nil
+}
+
+// ChatCompletionStreaming runs one managed call, delivering content deltas to
+// onDelta as they arrive.
+//
+// It never retries. The server-side provider client owns retry policy and stops
+// once a delta has been emitted; adding a retry here would replay output the
+// caller has already seen.
+func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+	if c == nil {
+		return "", nil, cllm.Usage{}, errors.New("managed llm client is not configured")
+	}
+	resp, err := c.post(ctx, true, messages, tools)
+	if err != nil {
+		return "", nil, cllm.Usage{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, cllm.Usage{}, gatewayError(resp)
+	}
+	return consumeStream(resp.Body, onDelta)
+}
+
+// consumeStream reads typed events until the call completes.
+//
+// A stream that ends without a result or an error event is a failure, not an
+// empty answer: silently returning "" would hide a dropped connection as a
+// model that had nothing to say.
+func consumeStream(body io.Reader, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64<<10), maxSSEEventBytes)
+
+	var state streamState
+	var event string
+	var data []byte
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "event:"):
+			event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "data:"):
+			data = append(data, strings.TrimSpace(strings.TrimPrefix(line, "data:"))...)
+		case line == "":
+			if event == "" || len(data) == 0 {
+				event, data = "", nil
+				continue
+			}
+			done, err := state.apply(event, data, onDelta)
+			event, data = "", nil
+			if err != nil {
+				return "", nil, cllm.Usage{}, err
+			}
+			if done {
+				return state.finish()
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", nil, cllm.Usage{}, fmt.Errorf("managed stream interrupted: %w", err)
+	}
+	return "", nil, cllm.Usage{}, errors.New("managed stream ended without a result")
+}
+
+// streamState accumulates one call's events.
+type streamState struct {
+	content strings.Builder
+	result  llmwire.CompletionResponse
+}
+
+func (s *streamState) apply(event string, data []byte, onDelta func(string)) (bool, error) {
+	switch event {
+	case llmwire.EventDelta:
+		var delta llmwire.DeltaEvent
+		if err := json.Unmarshal(data, &delta); err != nil {
+			return false, fmt.Errorf("decode managed delta: %w", err)
+		}
+		s.content.WriteString(delta.Content)
+		if onDelta != nil && delta.Content != "" {
+			onDelta(delta.Content)
+		}
+		return false, nil
+
+	case llmwire.EventResult:
+		if err := json.Unmarshal(data, &s.result); err != nil {
+			return false, fmt.Errorf("decode managed result: %w", err)
+		}
+		return true, nil
+
+	case llmwire.EventError:
+		var failure llmwire.ErrorEvent
+		if err := json.Unmarshal(data, &failure); err != nil {
+			return false, fmt.Errorf("decode managed error: %w", err)
+		}
+		return false, &GatewayError{
+			StatusCode: http.StatusOK,
+			Code:       failure.Code,
+			Message:    failure.Error,
+		}
+
+	default:
+		// An unknown event is ignored rather than fatal, so the server can add
+		// one without breaking older clients.
+		return false, nil
+	}
+}
+
+func (s *streamState) finish() (string, []cllm.ToolCall, cllm.Usage, error) {
+	// The result carries the assembled content; fall back to the deltas we
+	// accumulated if a server ever omits it.
+	content := s.result.Content
+	if content == "" {
+		content = s.content.String()
+	}
+	var usage cllm.Usage
+	if s.result.Usage != nil {
+		usage = cllm.Usage{
+			PromptTokens:     s.result.Usage.PromptTokens,
+			CompletionTokens: s.result.Usage.CompletionTokens,
+			TotalTokens:      s.result.Usage.TotalTokens,
+		}
+	}
+	return content, fromWireToolCalls(s.result.ToolCalls), usage, nil
+}
+
+// post sends one completion request. The caller closes the response body.
+//
+// The client-side deadline, when set, covers the whole exchange including a
+// stream, so a hung connection cannot hold a caller forever.
+func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message, tools []cllm.ToolDef) (*http.Response, error) {
+	if c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
+		return nil, errors.New("managed llm client needs a server URL and a team")
+	}
+	body, err := json.Marshal(llmwire.CompletionRequest{
+		Model:    c.cfg.Alias,
+		Messages: toWireMessages(messages),
+		Tools:    toWireTools(tools),
+		Stream:   stream,
+		Metadata: c.metadata(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode managed request: %w", err)
+	}
+	if c.cfg.CallTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.cfg.CallTimeout)
+		// The deadline must outlive this function for a streamed body, so the
+		// cancel travels with the request rather than firing on return.
+		context.AfterFunc(ctx, cancel)
+	}
+	url := c.cfg.ServerURL + fmt.Sprintf(llmwire.CompletionsPath, c.cfg.TeamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build managed request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if stream {
+		req.Header.Set("Accept", "text/event-stream")
+	}
+	if c.cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("managed gateway unreachable: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) metadata() *llmwire.Metadata {
+	if c.cfg.Surface == "" {
+		return nil
+	}
+	return &llmwire.Metadata{Surface: c.cfg.Surface}
+}
+
+// GatewayError is a refusal from the managed gateway. Code is the server's
+// stable classification, so callers branch on it instead of matching prose.
+type GatewayError struct {
+	StatusCode int
+	Code       string
+	Message    string
+}
+
+func (e *GatewayError) Error() string {
+	switch {
+	case e.Message != "" && e.Code != "":
+		return fmt.Sprintf("managed gateway refused the call (%s): %s", e.Code, e.Message)
+	case e.Message != "":
+		return fmt.Sprintf("managed gateway refused the call (HTTP %d): %s", e.StatusCode, e.Message)
+	default:
+		return fmt.Sprintf("managed gateway refused the call (HTTP %d)", e.StatusCode)
+	}
+}
+
+// gatewayError reads a failure response into a classified error. The body is a
+// BuildMax error shape by contract; anything else is reported by status alone
+// rather than echoed back to the caller.
+func gatewayError(resp *http.Response) error {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
+	out := &GatewayError{StatusCode: resp.StatusCode}
+	if err != nil || len(body) == 0 {
+		return out
+	}
+	var parsed llmwire.ErrorResponse
+	if json.Unmarshal(body, &parsed) == nil {
+		out.Code = parsed.Code
+		out.Message = parsed.Error
+	}
+	return out
+}
+
+func toWireMessages(in []cllm.Message) []llmwire.Message {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]llmwire.Message, 0, len(in))
+	for _, m := range in {
+		out = append(out, llmwire.Message{
+			Role:       m.Role,
+			Content:    m.Content,
+			ToolCallID: m.ToolCallID,
+			ToolCalls:  toWireToolCalls(m.ToolCalls),
+		})
+	}
+	return out
+}
+
+func toWireToolCalls(in []cllm.ToolCall) []llmwire.ToolCall {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]llmwire.ToolCall, 0, len(in))
+	for _, tc := range in {
+		out = append(out, llmwire.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
+	}
+	return out
+}
+
+func fromWireToolCalls(in []llmwire.ToolCall) []cllm.ToolCall {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]cllm.ToolCall, 0, len(in))
+	for _, tc := range in {
+		out = append(out, cllm.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
+	}
+	return out
+}
+
+func toWireTools(in []cllm.ToolDef) []llmwire.Tool {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]llmwire.Tool, 0, len(in))
+	for _, t := range in {
+		tool := llmwire.Tool{Name: t.Name, Description: t.Description}
+		if t.Parameters != nil {
+			if raw, err := json.Marshal(t.Parameters); err == nil {
+				tool.Parameters = raw
+			}
+		}
+		out = append(out, tool)
+	}
+	return out
+}
+
+// Models lists the aliases this client's team may use.
+func (c *Client) Models(ctx context.Context) ([]llmwire.Model, error) {
+	if c == nil || c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
+		return nil, errors.New("managed llm client needs a server URL and a team")
+	}
+	url := c.cfg.ServerURL + fmt.Sprintf(llmwire.ModelsPath, c.cfg.TeamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build models request: %w", err)
+	}
+	if c.cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("managed gateway unreachable: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, gatewayError(resp)
+	}
+	var out llmwire.ModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode models response: %w", err)
+	}
+	return out.Models, nil
+}
+
+// Compile-time proof that the managed client is interchangeable with the
+// provider client everywhere the agent loop expects one.
+var _ cllm.LLMClient = (*Client)(nil)
