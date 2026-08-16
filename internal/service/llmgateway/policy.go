@@ -61,13 +61,34 @@ type StaticPolicySource struct {
 // NewStaticPolicySource validates the policy against the known catalog IDs and
 // builds the source. Passing the catalog IDs is what turns a dangling alias
 // into a startup error instead of a failed user call.
+//
+// Use it only with a catalog that cannot change while the server runs. For an
+// editable catalog use NewPolicySource.
 func NewStaticPolicySource(policy TeamPolicy, knownTargetIDs []string) (*StaticPolicySource, error) {
 	if err := ValidatePolicy(policy, knownTargetIDs); err != nil {
 		return nil, err
 	}
+	return newPolicySource(policy), nil
+}
+
+// NewPolicySource builds a source without cross-checking a catalog.
+//
+// An alias pointing at a model that does not exist yet is a normal state when
+// the catalog is edited independently of the policy: the model may be added a
+// minute later. Such an alias fails its own calls with ErrTargetNotFound and is
+// skipped in listings, rather than stopping a server that is serving every
+// other alias correctly.
+func NewPolicySource(policy TeamPolicy) (*StaticPolicySource, error) {
+	if err := ValidatePolicyShape(policy); err != nil {
+		return nil, err
+	}
+	return newPolicySource(policy), nil
+}
+
+func newPolicySource(policy TeamPolicy) *StaticPolicySource {
 	aliases := make(map[string]string, len(policy.Aliases))
 	maps.Copy(aliases, policy.Aliases)
-	return &StaticPolicySource{policy: TeamPolicy{DefaultAlias: policy.DefaultAlias, Aliases: aliases}}, nil
+	return &StaticPolicySource{policy: TeamPolicy{DefaultAlias: policy.DefaultAlias, Aliases: aliases}}
 }
 
 // PolicyForTeam returns the same policy for every team.
@@ -81,26 +102,18 @@ func (s *StaticPolicySource) PolicyForTeam(_ context.Context, teamID string) (Te
 	return s.policy, nil
 }
 
-// ValidatePolicy reports whether every alias points at a known target and the
-// default alias is one the policy actually grants.
-func ValidatePolicy(policy TeamPolicy, knownTargetIDs []string) error {
+// ValidatePolicyShape reports whether the policy makes sense on its own terms,
+// without reference to any catalog.
+func ValidatePolicyShape(policy TeamPolicy) error {
 	if policy.IsEmpty() {
 		return fmt.Errorf("%w: no aliases", ErrInvalidPolicy)
 	}
 	if _, blank := policy.Aliases[""]; blank {
 		return fmt.Errorf("%w: an alias name is empty", ErrInvalidPolicy)
 	}
-	known := make(map[string]struct{}, len(knownTargetIDs))
-	for _, id := range knownTargetIDs {
-		known[id] = struct{}{}
-	}
 	for _, alias := range policy.AliasNames() {
-		id := policy.Aliases[alias]
-		if id == "" {
+		if policy.Aliases[alias] == "" {
 			return fmt.Errorf("%w: alias %q maps to no target", ErrInvalidPolicy, alias)
-		}
-		if _, ok := known[id]; !ok {
-			return fmt.Errorf("%w: alias %q maps to unknown target %q", ErrInvalidPolicy, alias, id)
 		}
 	}
 	if policy.DefaultAlias == "" {
@@ -108,6 +121,25 @@ func ValidatePolicy(policy TeamPolicy, knownTargetIDs []string) error {
 	}
 	if _, ok := policy.Aliases[policy.DefaultAlias]; !ok {
 		return fmt.Errorf("%w: default alias %q is not granted", ErrInvalidPolicy, policy.DefaultAlias)
+	}
+	return nil
+}
+
+// ValidatePolicy adds a catalog cross-check to ValidatePolicyShape: every alias
+// must point at a target that exists.
+func ValidatePolicy(policy TeamPolicy, knownTargetIDs []string) error {
+	if err := ValidatePolicyShape(policy); err != nil {
+		return err
+	}
+	known := make(map[string]struct{}, len(knownTargetIDs))
+	for _, id := range knownTargetIDs {
+		known[id] = struct{}{}
+	}
+	for _, alias := range policy.AliasNames() {
+		id := policy.Aliases[alias]
+		if _, ok := known[id]; !ok {
+			return fmt.Errorf("%w: alias %q maps to unknown target %q", ErrInvalidPolicy, alias, id)
+		}
 	}
 	return nil
 }

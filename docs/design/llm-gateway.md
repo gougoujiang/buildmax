@@ -213,11 +213,18 @@ Resolution is therefore:
 (team_id, alias) -> authorized catalog entry -> LLMClient
 ```
 
-Initial catalog shape and credentials may live in `server.yaml` plus explicit
-environment overrides or deployment secrets. Team policy belongs in the
-database because Team is its ownership boundary. A deployment-wide default
-policy may expose a small operator-approved catalog to every team before a
-governance UI exists.
+The catalog is the `llm_model` table, edited with `buildmax-server model`. It is
+not configuration: it holds provider credentials, which must not travel in a
+file that a Kubernetes ConfigMap carries, and it changes while the server runs.
+Credentials are stored in the row and read by one query, the one that builds a
+provider client, so an operator's backup policy — not a config file — is what
+governs them at rest.
+
+Team policy belongs in the database too, because Team is its ownership boundary.
+Until that exists, a deployment-wide alias map in `server.yaml` exposes a small
+operator-approved set to every team. `conversation.model` remains the server's
+own bootstrap model, so a deployment answers conversations before its catalog
+has a single row.
 
 Provider capabilities must be explicit rather than inferred from provider
 names. The first capability set matches the current core contract: text chat,
@@ -601,8 +608,9 @@ These choices need resolution before their milestone begins:
 
 1. What refresh or scoped-token flow should CLI and Desktop use for managed
    calls longer than the current JWT lifecycle?
-2. What minimum database shape represents team aliases and catalog visibility
-   before the governance UI exists?
+2. What minimum database shape represents team aliases? The catalog is settled —
+   `llm_model`, credential in the row — but aliases are still a deployment-wide
+   map in `server.yaml`.
 3. Should the first quota milestone reserve an estimated maximum or explicitly
    ship as soft enforcement?
 4. How long should terminal call metadata be retained, and which team roles may

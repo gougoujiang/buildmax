@@ -48,43 +48,33 @@ conversation:
     context_window: 128000
     call_timeout: 300            # per-call timeout in seconds (0 = default 300)
 
-  # Use an llm.targets entry for Tier 1 instead of the model above. This is a
-  # catalog id, not a team alias: the server picks its own model rather than
+  # Use a catalog model for Tier 1 instead of the model above. This is an
+  # llm_model ID, not a team alias: the server picks its own model rather than
   # being granted one. Leave unset to use conversation.model.
-  # model_target: fast
+  # model_target: lm_xxxxxxxxxxxxxxxxxxxx
 
-# Operator-owned model catalog for the managed LLM gateway.
+# Team model policy for the managed LLM gateway.
 #
-# The whole section is optional. With no llm block, the server keeps serving
-# Tier 1 conversations from conversation.model and grants no team a managed
-# model, which is the shipped behavior today: CLI, Desktop, and workers call
-# providers directly with their own credentials.
+# The catalog itself is in the llm_model database table, not here, because it
+# holds provider credentials and changes while the server runs:
 #
-# See docs/design/llm-gateway.md. The client-facing half of this feature — the
-# gateway routes and the remote client — is not implemented yet, so configuring
-# a catalog here currently affects Tier 1 model selection only.
+#   buildmax-server model add --name Fast \
+#       --api-url https://openrouter.ai/api/v1 \
+#       --api-key your-openrouter-api-key \
+#       --model openai/gpt-4o-mini --context-window 128000
+#   buildmax-server model list
+#
+# This block only says which of those models each team may name, and under what
+# alias. Leaving it out means no team may call the gateway: a catalog says which
+# models exist, not who may use them.
+#
+# See docs/design/llm-gateway.md.
 # llm:
-#   # Aliases a managed client may name. Leaving this empty means no team may
-#   # call the gateway; the catalog says which models exist, not who may use them.
 #   aliases:
-#     default: fast
-#     deep: reasoning
-#   # Alias used when a caller names none. Required when more than one alias exists.
+#     default: lm_xxxxxxxxxxxxxxxxxxxx   # a model ID from `model list`
+#     deep: lm_yyyyyyyyyyyyyyyyyyyy
+#   # Alias used when a caller names none. Required when more than one exists.
 #   default_alias: default
-#   targets:
-#     - id: fast                 # referenced by aliases and conversation.model_target
-#       name: Fast
-#       provider: openai_compatible   # the only implemented provider type
-#       model: openai/gpt-4o-mini     # the provider's own model identifier
-#       api_url: https://openrouter.ai/api/v1
-#       api_key: your-openrouter-api-key
-#       context_window: 128000
-#       call_timeout: 300
-#       # What this target supports. Omit to accept everything the provider's
-#       # client contract already guarantees.
-#       capabilities: [text_chat, tool_calls, streaming_text, usage_reporting]
-#       # Retire a target without deleting it.
-#       disabled: false
 
 database:
   host: localhost
