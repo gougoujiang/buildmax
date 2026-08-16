@@ -11,6 +11,13 @@ pre-releases and must be called out in release notes.
 
 ### Security
 
+- The server pod is now created with the same containment as worker pods:
+  non-root with an explicit uid, no added capabilities, no privilege
+  escalation, `RuntimeDefault` seccomp, and a read-only root filesystem with a
+  writable `/tmp`. It is applied in the local kind manifest as well as the
+  production reference, so `./make kind up` exercises it rather than leaving it
+  a setting that only appears in a file nobody applies.
+
 - Task-run workers are no longer handed the JWT signing secret or the database
   password. Both reached workers by inheritance — a local worker got the
   server's whole environment, and a Kubernetes worker Job got every `BUILDMAX_*`
@@ -34,6 +41,33 @@ pre-releases and must be called out in release notes.
   chose. `local_process` mode is unchanged and remains a development path.
 
 ### Added
+
+- `deployment/production/`, a private deployment reference for a cluster that
+  already runs its own MySQL, object storage, ingress, and certificates. One
+  plain-YAML manifest and a README stating the contract each dependency has to
+  meet — DDL privileges, `utf8mb4`, a dedicated bucket, one origin for Portal
+  and API. It is written to be read and adapted rather than applied: every
+  dependency address is a placeholder, so an unedited `kubectl apply` fails
+  instead of coming up against the wrong database. Deliberately not a chart or
+  a kustomize base, so it converts to whatever a cluster is already managed
+  with. Nothing applies it, so `internal/architecture` parses its ConfigMap the
+  way the server parses its own config and asserts the settings that make it a
+  production reference rather than a copy of the development stack.
+
+- A deployment can now point BuildMax at a database and an object store it
+  already runs, which the connection layer previously could not express.
+  `database.tls` carries a TLS mode into the DSN, defaulting to `preferred` —
+  TLS whenever the server offers it, unverified — so an existing plaintext
+  connection keeps working while every server that supports TLS gets it; set
+  `true` for a managed database that should be verified. An empty
+  `storage.minio.endpoint` now means AWS S3 and lets the SDK resolve the
+  regional endpoint, instead of forcing a base endpoint at every store, and
+  bucket addressing follows from that rather than being pinned to path style,
+  which AWS S3 has not supported for buckets created since 2020;
+  `storage.minio.path_style` overrides it. Leaving both storage keys empty
+  falls through to the AWS SDK's default credential chain, so a pod can reach a
+  bucket through IRSA, workload identity, or an instance profile rather than a
+  long-lived key the deployment has to store and rotate.
 
 - Versioned schema migrations. Changes that `AutoMigrate` cannot express — a
   backfill, a drop, a rename — are now an ordered list recorded in a new
@@ -210,6 +244,15 @@ pre-releases and must be called out in release notes.
   template make both human and agent-assisted contributions reproducible.
 
 ### Changed
+
+- `storage.minio` no longer defaults its endpoint, region, and credentials to a
+  local MinIO and that server's development user. Those defaults made "unset"
+  unreachable, so a deployment that omitted them was silently pointed at
+  `localhost:9000` as user `minio` instead of falling through to AWS endpoint
+  resolution and the SDK credential chain. A credential should never have a
+  default. Nothing in the repository relied on them — Compose uses the local
+  filesystem backend and the kind manifest sets all of them explicitly — but a
+  deployment that did will now need to state them.
 
 - Full `./make build` is now strict and includes the Portal; frontend or Wails
   failures no longer leave a successful partial build. Portal and Desktop lint

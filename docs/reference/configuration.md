@@ -298,6 +298,36 @@ The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
 storage directly rather than proxying through the server.
 
+### Pointing At Dependencies You Already Run
+
+A private deployment usually has a database and an object store already. Three
+settings decide whether BuildMax reaches them the way that environment expects.
+
+**`database.tls`** is the go-sql-driver TLS mode. Unset means `preferred`: TLS
+whenever the server offers it, without verifying the certificate. That upgrades
+an in-cluster connection for free and behaves exactly as a plaintext connection
+against a server with no TLS at all.
+
+Point at a managed database — RDS, Aurora, Cloud SQL — and set it to `true`,
+which requires TLS and verifies the certificate against the system roots.
+`skip-verify` requires TLS and accepts any certificate; `false` never uses it.
+
+**`storage.minio.endpoint`** decides which kind of store BuildMax is talking to.
+Set it for something you run or a vendor's S3-compatible service. Leave it
+empty for AWS S3, so the SDK resolves the regional endpoint itself.
+
+That also decides bucket addressing, because the two cases need opposite
+answers: a compatible store needs bucket-in-path, and AWS S3 has not supported
+that form for buckets created since 2020. `storage.minio.path_style` overrides
+the derivation, which is only needed for a compatible store that uses
+virtual-host addressing.
+
+**`storage.minio.access_key` / `secret_key`** may both be left empty. The client
+then falls through to the AWS SDK's default credential chain, which is how a
+pod reaches a bucket through IRSA, workload identity, or an instance profile —
+no long-lived key for the deployment to store, ship to workers, or rotate. Set
+them for a store that has no such mechanism, such as MinIO.
+
 ### Managed models — the `llm_model` table and `llm` policy
 
 The managed LLM gateway designed in

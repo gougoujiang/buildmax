@@ -82,6 +82,12 @@ database:
   user: buildmax
   password: buildmax
   name: buildmax
+  # go-sql-driver tls mode. Unset means "preferred": TLS whenever the server
+  # offers it, certificate not verified. Use "true" to require TLS and verify
+  # against the system roots — the right setting when pointing at a managed
+  # database such as RDS, Aurora, or Cloud SQL. "skip-verify" requires TLS and
+  # accepts any certificate; "false" never uses it.
+  tls: ""
 
 webhook:
   message_path: message
@@ -119,9 +125,19 @@ storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio
   minio:
+    # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a vendor's
+    # service). Leave it empty for AWS S3 so the SDK resolves the regional
+    # endpoint itself.
     endpoint: http://localhost:9000
     region: us-east-1
+    # Leave both keys empty to use the SDK's default credential chain, which is
+    # how a pod reaches a bucket through IRSA, workload identity, or an
+    # instance profile instead of a long-lived key.
     access_key: minio
     secret_key: minio123
     bucket: bmstore
     prefix: workspaces
+    # Bucket addressing. Unset derives it from endpoint: set means a compatible
+    # store, which needs bucket-in-path; empty means AWS S3, which does not.
+    # Set it only for a compatible store that uses virtual-host addressing.
+    # path_style: true

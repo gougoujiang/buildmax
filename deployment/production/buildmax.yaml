@@ -1,0 +1,453 @@
+# BuildMax private deployment reference.
+#
+# This file is meant to be READ AND ADAPTED, not applied as-is. Every value
+# written REPLACE_ME must be replaced; a `kubectl apply` of this file unchanged
+# will fail to start, which is deliberate — a reference that half-works in the
+# wrong environment is worse than one that refuses.
+#
+# It assumes you already operate the dependencies: a MySQL, an S3-compatible
+# bucket, an ingress controller, and certificates. BuildMax brings the server,
+# the Portal, and the worker Jobs the server creates. Nothing here installs a
+# database or an object store; see deployment/buildmax-deploy.yaml for the
+# self-contained local path, which is a development environment and not this.
+#
+# Read deployment/production/README.md first. It states the contract each
+# dependency has to meet, which is the part a manifest cannot express.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildmax
+---
+# Non-secret configuration. Every credential comes from the Secret below, so
+# this document is safe to keep in version control alongside your other
+# manifests.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildmax-config
+  namespace: buildmax
+data:
+  server.yaml: |
+    port: 5678
+    log_level: info
+
+    # Where run state lives inside the pod before it is uploaded. This is an
+    # emptyDir: a run's working files are scratch, and the durable copies go to
+    # object storage.
+    workspaces_dir: /buildmax/workspaces
+
+    # Public origin of the Portal. Used to build links that leave the cluster.
+    cors_origin: https://REPLACE_ME_PORTAL_HOST
+
+    # Private deployments normally invite users rather than letting anyone in.
+    allow_signup: false
+
+    database:
+      host: REPLACE_ME_DB_HOST
+      port: 3306
+      user: REPLACE_ME_DB_USER
+      name: buildmax
+      # password comes from BUILDMAX_DATABASE_PASSWORD
+      #
+      # "true" requires TLS and verifies the certificate against the system
+      # roots, which is what a managed database should get. Lower it to
+      # "skip-verify" only for a server presenting a certificate your pods
+      # cannot verify, and prefer fixing the trust store over doing that.
+      tls: "true"
+
+    storage:
+      persist_backend: minio
+      artifact_backend: minio
+      minio:
+        # Leave endpoint empty for AWS S3: the SDK resolves the regional
+        # endpoint, and bucket addressing follows automatically. Set it to the
+        # base URL of an S3-compatible store you run, which also switches
+        # addressing to bucket-in-path.
+        endpoint: ""
+        region: REPLACE_ME_REGION
+        bucket: REPLACE_ME_BUCKET
+        prefix: workspaces
+        # access_key and secret_key are deliberately absent. Without them the
+        # AWS SDK's default credential chain applies, so the pod authenticates
+        # through IRSA, workload identity, or an instance profile — no
+        # long-lived key to store, ship to worker pods, or rotate.
+        #
+        # Set BUILDMAX_STORAGE_MINIO_ACCESS_KEY and _SECRET_KEY in the Secret
+        # only for a store with no such mechanism.
+
+    worker:
+      run_mode: k8s_job
+      # In-cluster address of the Service below. Workers call the server's
+      # worker API; they never reach the database.
+      server_url: http://buildmax.buildmax.svc.cluster.local:5678
+      # token comes from BUILDMAX_WORKER_TOKEN
+      k8s:
+        namespace: buildmax
+        image: REPLACE_ME_IMAGE
+        config_map: buildmax-config
+        home_dir: /buildmax
+        # Worker pods are always created non-root, with no service-account
+        # token, no added capabilities, and a read-only root filesystem. That
+        # containment is not configurable: a worker executes model-chosen shell
+        # commands. Set run_as_user only on a cluster that assigns its own uid
+        # range, OpenShift most commonly.
+        # run_as_user: 1000700000
+        #
+        # A worker runs one task. Size these for the work you expect it to do,
+        # not for the server; a build or a test suite needs considerably more
+        # than an agent answering a question.
+        resources:
+          cpu_request: 500m
+          cpu_limit: "2"
+          memory_request: 1Gi
+          memory_limit: 4Gi
+
+    conversation:
+      model:
+        name: default
+        api_url: https://REPLACE_ME_MODEL_ENDPOINT/v1
+        model: REPLACE_ME_MODEL
+        # api_key comes from BUILDMAX_CONVERSATION_MODEL_API_KEY
+---
+# Credentials.
+#
+# This is a shape, not something to commit filled in. Most deployments generate
+# it from their own secret manager — External Secrets, Vault, sealed-secrets —
+# and the only contract BuildMax has is the Secret's name and its keys.
+#
+# Omit BUILDMAX_STORAGE_MINIO_* entirely when using IRSA or workload identity.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: buildmax-secret
+  namespace: buildmax
+type: Opaque
+stringData:
+  # Signs user JWTs. Generate with: openssl rand -base64 32
+  # Rotating it invalidates every session, which is the intended effect.
+  BUILDMAX_JWT_SECRET: REPLACE_ME
+  # Shared secret for /api/worker/*. Generate with: openssl rand -hex 24
+  BUILDMAX_WORKER_TOKEN: REPLACE_ME
+  BUILDMAX_DATABASE_PASSWORD: REPLACE_ME
+  BUILDMAX_CONVERSATION_MODEL_API_KEY: REPLACE_ME
+  # BUILDMAX_STORAGE_MINIO_ACCESS_KEY: REPLACE_ME
+  # BUILDMAX_STORAGE_MINIO_SECRET_KEY: REPLACE_ME
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+  # On EKS, this is what grants the bucket without a stored key. The equivalent
+  # on GKE is iam.gke.io/gcp-service-account; on AKS, an azure.workload.identity
+  # label plus client-id annotation.
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::REPLACE_ME:role/REPLACE_ME
+---
+# The server creates worker Jobs, so it needs to manage them in its own
+# namespace. It needs nothing cluster-wide, and nothing outside this namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: buildmax-server
+subjects:
+  - kind: ServiceAccount
+    name: buildmax-server
+    namespace: buildmax
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+  labels:
+    app: buildmax-server
+spec:
+  # Two or more so a node drain or a rollout does not take the API down. The
+  # server keeps no local state that matters — sessions live in the database,
+  # run state in object storage — so replicas do not need affinity to a volume.
+  #
+  # The scheduler runs in every replica and claims runs by an atomic status
+  # transition, so more replicas mean more pollers, not duplicated work.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: buildmax-server
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: buildmax-server
+    spec:
+      serviceAccountName: buildmax-server
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          # Pin a version. :latest makes a rollback a guess about what was
+          # running, and this deployment's rollback story is "run the previous
+          # image", which needs the previous image to be nameable.
+          image: REPLACE_ME_IMAGE
+          command: ["/usr/local/bin/buildmax-server"]
+          ports:
+            - containerPort: 5678
+              name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Readiness reflects MySQL and object storage: a dependency outage
+          # takes the pod out of the Service instead of letting it accept
+          # requests it cannot serve.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          # Liveness checks nothing but the process. A liveness probe that
+          # failed on a dependency outage would restart a healthy server and
+          # turn a recoverable outage into a crash loop.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          # Schema migrations run at startup, so give the first pod of an
+          # upgrade room to finish before liveness starts counting.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          env:
+            - name: BUILDMAX_HOME
+              value: "/buildmax"
+            - name: BUILDMAX_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_JWT_SECRET
+            - name: BUILDMAX_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_DATABASE_PASSWORD
+            - name: BUILDMAX_WORKER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_WORKER_TOKEN
+            - name: BUILDMAX_CONVERSATION_MODEL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_CONVERSATION_MODEL_API_KEY
+            # Only when not using IRSA or workload identity.
+            # - name: BUILDMAX_STORAGE_MINIO_ACCESS_KEY
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: buildmax-secret
+            #       key: BUILDMAX_STORAGE_MINIO_ACCESS_KEY
+            # - name: BUILDMAX_STORAGE_MINIO_SECRET_KEY
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: buildmax-secret
+            #       key: BUILDMAX_STORAGE_MINIO_SECRET_KEY
+          volumeMounts:
+            - name: buildmax-home
+              mountPath: /buildmax
+            # subPath mounts the single file, leaving the rest of BUILDMAX_HOME
+            # writable for sessions, logs, and traces.
+            - name: buildmax-config
+              mountPath: /buildmax/server.yaml
+              subPath: server.yaml
+              readOnly: true
+            # The root filesystem is read-only; this is the writable path
+            # ordinary tooling assumes.
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+      volumes:
+        - name: buildmax-home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: buildmax-config
+          configMap:
+            name: buildmax-config
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: buildmax-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-server
+  ports:
+    - name: http
+      port: 5678
+      targetPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+  labels:
+    app: buildmax-portal
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: buildmax-portal
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: buildmax-portal
+    spec:
+      containers:
+        - name: portal
+          image: REPLACE_ME_PORTAL_IMAGE
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            # The Portal image ships one bundle for every deployment and reads
+            # this at container start. "/" means same-origin, which is what the
+            # Ingress below produces.
+            - name: BUILDMAX_API_BASE
+              value: "/"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-portal
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+# One origin serves the Portal and the API, which is what BUILDMAX_API_BASE="/"
+# above depends on. Splitting them across two hosts means setting an absolute
+# API base and configuring CORS instead.
+#
+# No ingress class is assumed. Set ingressClassName to whatever your cluster
+# runs; annotations differ by controller, so any you need go here too.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildmax
+  namespace: buildmax
+spec:
+  ingressClassName: REPLACE_ME_INGRESS_CLASS
+  tls:
+    - hosts:
+        - REPLACE_ME_PORTAL_HOST
+      # A Secret holding the certificate. cert-manager fills this in from an
+      # annotation; ACM and other cloud terminators do not use it at all.
+      secretName: buildmax-tls
+  rules:
+    - host: REPLACE_ME_PORTAL_HOST
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+          - path: /swagger
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax
+                port:
+                  number: 5678
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: buildmax-portal
+                port:
+                  number: 80

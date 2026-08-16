@@ -155,7 +155,14 @@ workflows so a frontend failure cannot hold up the binaries.
 local use;
 `deployment/buildmax-deploy.yaml` is a working Kubernetes manifest — namespace,
 Secret, Deployment, Service, and Ingress — used by `./make kind up` against a
-local kind cluster, and a starting point for a real one.
+local kind cluster. It brings its own MySQL and MinIO and hardcodes their
+in-cluster addresses, so it is a development environment rather than a template.
+
+For a private deployment against dependencies you already operate, start from
+[`deployment/production/`](../../deployment/production/README.md): one plain
+YAML manifest plus the contract each dependency has to meet. It is written to
+be read and adapted rather than applied, and it is plain YAML precisely so it
+converts into whatever your cluster is already managed with.
 
 ## Operating Boundaries
 

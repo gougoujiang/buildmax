@@ -37,13 +37,19 @@ func repoRoot(t *testing.T) string {
 }
 
 // manifestServerYAML extracts data["server.yaml"] from the buildmax-config
-// ConfigMap in the deployment manifest.
+// ConfigMap in the local kind manifest.
 func manifestServerYAML(t *testing.T, root string) string {
 	t.Helper()
-	path := filepath.Join(root, "deployment", "buildmax-deploy.yaml")
+	return configMapServerYAML(t, filepath.Join(root, "deployment", "buildmax-deploy.yaml"))
+}
+
+// configMapServerYAML extracts data["server.yaml"] from the buildmax-config
+// ConfigMap in the manifest at path.
+func configMapServerYAML(t *testing.T, path string) string {
+	t.Helper()
 	body, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read deployment manifest: %v", err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	dec := yaml.NewDecoder(strings.NewReader(string(body)))
 	for {
@@ -65,7 +71,7 @@ func manifestServerYAML(t *testing.T, root string) string {
 			return body
 		}
 	}
-	t.Fatal("no buildmax-config ConfigMap found in deployment/buildmax-deploy.yaml")
+	t.Fatalf("no buildmax-config ConfigMap found in %s", path)
 	return ""
 }
 
@@ -203,5 +209,87 @@ func TestDeploymentSmokeConfigsLoadWithoutSecrets(t *testing.T) {
 				t.Error("smoke server config contains credentials; inject them at runtime")
 			}
 		})
+	}
+}
+
+// TestProductionReferenceLoads keeps deployment/production/buildmax.yaml honest.
+//
+// Nothing applies that file — it is a reference an operator adapts — so this is
+// the only thing standing between it and silent rot. It parses the same way the
+// server parses its own config, which catches a key that was renamed in code
+// and left behind in the manifest.
+func TestProductionReferenceLoads(t *testing.T) {
+	root := repoRoot(t)
+	body := configMapServerYAML(t, filepath.Join(root, "deployment", "production", "buildmax.yaml"))
+
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "server.yaml"), []byte(body), 0o600); err != nil {
+		t.Fatalf("write server.yaml: %v", err)
+	}
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("the production reference does not load as a server config: %v", err)
+	}
+
+	// The settings that make it a production reference rather than a copy of
+	// the development manifest. Each one silently degrades to something that
+	// still starts, which is why they are asserted rather than trusted.
+	if cfg.Database.TLS != "true" {
+		t.Errorf("database.tls = %q; the reference must require a verified TLS connection", cfg.Database.TLS)
+	}
+	if cfg.AllowSignup {
+		t.Error("allow_signup is on; a private deployment invites users rather than accepting anyone")
+	}
+	if cfg.Storage.PersistBackend == config.ProviderLocalFS || cfg.Storage.ArtifactBackend == config.ProviderLocalFS {
+		t.Errorf("storage backends = %q/%q; run state on a pod filesystem does not survive the pod",
+			cfg.Storage.PersistBackend, cfg.Storage.ArtifactBackend)
+	}
+	if cfg.Storage.MinIO.AccessKey != "" || cfg.Storage.MinIO.SecretKey != "" {
+		t.Error("the reference must not carry static storage keys; the default credential chain is the point")
+	}
+	if cfg.Worker.RunMode != "k8s_job" {
+		t.Errorf("worker.run_mode = %q; local_process runs the worker beside the server with no boundary",
+			cfg.Worker.RunMode)
+	}
+	// Workers reach the server in-cluster. A public URL here would send worker
+	// traffic out through the ingress and back.
+	if !strings.Contains(cfg.Worker.ServerURL, ".svc.cluster.local") {
+		t.Errorf("worker.server_url = %q; workers should reach the server in-cluster", cfg.Worker.ServerURL)
+	}
+}
+
+// TestProductionReferenceRefusesToRunUnedited asserts the file cannot be
+// applied by accident. Every dependency address is a placeholder, so an
+// unedited apply fails loudly instead of coming up against the wrong database.
+func TestProductionReferenceRefusesToRunUnedited(t *testing.T) {
+	root := repoRoot(t)
+	path := filepath.Join(root, "deployment", "production", "buildmax.yaml")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read production reference: %v", err)
+	}
+	text := string(body)
+
+	for _, placeholder := range []string{
+		"REPLACE_ME_DB_HOST",
+		"REPLACE_ME_BUCKET",
+		"REPLACE_ME_IMAGE",
+		"REPLACE_ME_INGRESS_CLASS",
+		"REPLACE_ME_PORTAL_HOST",
+	} {
+		if !strings.Contains(text, placeholder) {
+			t.Errorf("%s is gone; a value that resolves by default is one an operator forgets to set", placeholder)
+		}
+	}
+
+	// The development stack's in-cluster addresses must never appear here.
+	// Copying them over is the specific mistake that turns this file into a
+	// second copy of the kind manifest.
+	for _, devOnly := range []string{"mysql.db.svc.cluster.local", "minio.storage.svc.cluster.local"} {
+		if strings.Contains(text, devOnly) {
+			t.Errorf("the production reference names %q, which only resolves in the kind stack", devOnly)
+		}
 	}
 }
