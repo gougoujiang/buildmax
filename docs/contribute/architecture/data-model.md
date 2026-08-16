@@ -254,6 +254,26 @@ read: it counts `task_run` rows joined to `task` by team, sums their
 recorded on tasks created in the same window. Metering therefore has no second
 write path that can drift out of sync with the runs themselves.
 
+### `schema_migration`
+
+One row per applied migration. It is the record of what has been done to a
+database, and the reason each migration runs at most once.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `varchar(191)` | no | Primary key; the migration's permanent identifier. 191 is MySQL's longest indexable `varchar` under `utf8mb4` |
+| `applied_at` | `bigint` | no | Unix seconds |
+
+Indexes: PK `id`.
+
+Rows are never deleted. A missing row means that migration runs again, which is
+what makes recovery from a crash mid-migration work and what makes deleting a
+row a way to corrupt a database.
+
+The table also tells a binary that the database is ahead of it: an ID here that
+the binary does not know is a migration from a later release. See
+[Forward Only, One Release Back](#forward-only-one-release-back).
+
 ## Work Objects
 
 ### `issue`
@@ -610,7 +630,9 @@ them. The two will not agree, by design.
 ## Changing The Schema
 
 `AutoMigrate` runs on every server start and is the whole migration story for
-the common cases. It is **additive only**: it creates missing tables, adds
+additive changes. Anything it cannot express — a backfill, a drop, a rename —
+is an entry in the ordered `migrations` list, recorded in `schema_migration` so
+it runs at most once per database. `AutoMigrate` is **additive only**: it creates missing tables, adds
 missing columns, and adds missing indexes. It does not drop a column, rename a
 column, narrow a type, or change a primary key.
 
@@ -627,20 +649,53 @@ repository interface in `internal/core/model`, and implement it in
 `internal/util/id.go`. Then add it to this document.
 
 **Removing, renaming, or retyping.** `AutoMigrate` will not do it, so it needs
-an explicit migration. There are two existing forms, and which one to use
-depends on whether the change needs to be automatic:
+an entry in the `migrations` list in `internal/infra/db/migration.go`. Each
+entry has a permanent ID and an `Apply` function, runs in list order, and is
+recorded in the `schema_migration` table so it executes at most once per
+database.
 
-- A Go function in `internal/infra/db/migration.go`, called from `New` after
-  `AutoMigrate`. Use this when every deployment must converge without operator
-  action. Follow the existing pattern: probe `information_schema` first, return
-  `nil` when there is nothing to do so the function is idempotent, then copy
-  data before dropping anything.
-- A dated SQL file under `deployment/migrations/`. Use this for a change an
-  operator should apply deliberately, such as
-  `20260315_rename_chat_to_task.sql`. Nothing runs these automatically.
+Three rules govern that list:
 
-**Do not** add a third mechanism, and do not reach for a migration framework
-for an additive change `AutoMigrate` already handles.
+- **Append only.** Existing IDs and their order are permanent. Renaming an ID
+  makes that migration run a second time on every deployed database; reordering
+  changes what an upgraded database gets relative to a fresh one.
+  `TestMigrationIDsAreStable` fails on either.
+- **`Apply` must tolerate re-running.** A crash between applying a change and
+  recording it leaves the migration pending, and the next start retries it.
+  Probe `information_schema` first and return `nil` when there is nothing to do.
+- **Copy before dropping.** Move the data in the same `Apply` that removes its
+  old home, so a half-applied migration never loses rows.
+
+A dated SQL file under `deployment/migrations/` remains available for a change
+an operator should apply deliberately. Nothing runs those automatically.
+
+**Do not** add a third automatic mechanism, and do not reach for a migration
+framework for an additive change `AutoMigrate` already handles.
+
+### Forward Only, One Release Back
+
+The schema moves forward only. There are no down migrations, and `Migration`
+has no `Down` field to write one in.
+
+What is supported is rolling the **binary** back one release. Schema version N
+must keep serving code from release N-1, which puts one requirement on every
+change:
+
+> Do not remove or rename anything in the same release that stops using it.
+
+A removal takes two releases. In the first, the code stops reading and writing
+the column or table but the schema keeps it. In the second, a migration drops
+it. Between the two, either release's binary runs against either schema.
+
+A binary that starts against a database carrying migrations it does not know
+logs a warning and continues, because that is the N-1 promise working: a server
+one release behind a migrated database is supposed to keep serving. A server
+several releases behind has no such promise, and that log line is the only
+signal an operator gets that they are in that position.
+
+Rolling a database *back* is not supported at all. Recovery from a bad upgrade
+is a restore from backup, and the deployment documentation says so rather than
+implying an undo exists.
 
 **After any schema change**, update this document in the same commit, and check
 whether [store.md](store.md) or the design record for the subsystem also needs
