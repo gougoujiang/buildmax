@@ -153,7 +153,13 @@ The credential is never written into `settings.yaml`. It comes from
 `server_url` — a mismatch fails rather than sending the token to whatever host
 the file names.
 
-Two limits worth knowing before you rely on this:
+Model selection is first-match by file order: `--model` and `/model` match a
+name or a model id against `models[]` top to bottom, and the first entry is the
+default. Two entries sharing a name are therefore not interchangeable — the
+lower one is unreachable — which is why `buildmax models` and the model pickers
+print each entry's destination.
+
+Three limits worth knowing before you rely on this:
 
 - **There is no fallback between the modes.** A managed entry does not quietly
   become a direct call when the server is down, because that would redirect
@@ -161,6 +167,9 @@ Two limits worth knowing before you rely on this:
 - **The login expires after 24 hours and there is no refresh.** A long run can
   outlive it; you get a clear error and re-run `buildmax login`. See
   [design/llm-gateway.md](../design/llm-gateway.md) section 11.
+- **Workers and the evaluation harness never use managed mode.** A worker runs
+  the server's own model with the server's own credential, and `eval/` stays
+  direct so benchmark results do not move with team model policy or quota.
 
 Prompts, tool schemas, and tool results pass through the server for a managed
 call. That is the point of the mode, and it is a real change in where your data
@@ -300,6 +309,14 @@ credential — fails startup rather than starting a server with no Tier 1 model.
 Managed calls need a database, because every one of them is recorded in the
 `llm_call` ledger. Without a store the routes answer `503` rather than serving
 inference nobody can account for.
+
+**The catalog cannot be configured in the Kubernetes topology yet.**
+`llm.targets[].api_key` has no `BUILDMAX_*` environment override, and worker
+pods read `server.yaml` from a ConfigMap, which must never hold a credential.
+Until the catalog moves to the database or gains an environment override, use
+the gateway on deployments where `server.yaml` is a private file — Compose or a
+single host. Existing Kubernetes deployments are unaffected: the `llm` block is
+optional and off.
 
 ## Data Directory Layout
 
