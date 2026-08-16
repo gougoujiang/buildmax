@@ -65,6 +65,12 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 | [design/](design/README.md) | Product direction, active plans, and subsystem specifications |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure and operator responsibilities |
 
+## Explore Future Directions
+
+| | |
+|---|---|
+| [proposals/](proposals/README.md) | Early cross-cutting directions that are open for discussion, not roadmap commitments |
+
 ## Conventions
 
 Every document opens with its audience and status, so you can tell in one line
