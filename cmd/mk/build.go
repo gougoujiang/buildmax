@@ -7,7 +7,7 @@ import (
 	"runtime"
 )
 
-const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.13.0"
+const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.14.0"
 
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
@@ -195,7 +195,7 @@ func cmdTest(args []string) error {
 }
 
 // Pinned to the versions .github/workflows/ci.yml runs, so a local pass means
-// the same thing CI does. Change them together.
+// the same thing CI does. TestCIToolPinsMatchWorkflow fails when they drift.
 const (
 	golangciLintPkg = "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"
 	govulncheckPkg  = "golang.org/x/vuln/cmd/govulncheck@v1.7.0"

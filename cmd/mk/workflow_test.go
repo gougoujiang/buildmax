@@ -98,6 +98,59 @@ func TestPinnedWailsVersionMatchesGoMod(t *testing.T) {
 	}
 }
 
+// The task runner and CI must run the same tool versions, or `./make check ci`
+// promises a parity it does not have. The workflow is the source of truth
+// because that is what a pull request actually executes.
+func TestCIToolPinsMatchWorkflow(t *testing.T) {
+	body, err := os.ReadFile("../../.github/workflows/ci.yml")
+	if err != nil {
+		t.Fatalf("read ci.yml: %v", err)
+	}
+	workflow := string(body)
+	for _, pkg := range []string{
+		golangciLintPkg,
+		govulncheckPkg,
+		actionlintPkg,
+		gitleaksPkg,
+		goLicensesPkg,
+	} {
+		module, _, _ := strings.Cut(pkg, "@")
+		match := regexp.MustCompile(regexp.QuoteMeta(module) + `@[^\s"']+`).FindString(workflow)
+		if match == "" {
+			t.Errorf("ci.yml no longer runs %s; drop or update the pin in cmd/mk", module)
+			continue
+		}
+		if match != pkg {
+			t.Errorf("cmd/mk pins %s; ci.yml runs %s", pkg, match)
+		}
+	}
+}
+
+// GoReleaser is pinned by the action's `version:` input rather than by a module
+// path, so it needs its own comparison. Every step must run what doctor tells
+// contributors to install.
+func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
+	// Lazy across lines because a step may carry `if:` between `uses:` and the
+	// version it pins.
+	step := regexp.MustCompile(`goreleaser/goreleaser-action@v\d+(?s:.*?)version:\s*(\S+)`)
+	for _, path := range []string{"../../.github/workflows/ci.yml", "../../.github/workflows/release.yml"} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		matches := step.FindAllStringSubmatch(string(body), -1)
+		if matches == nil {
+			t.Errorf("%s runs no pinned goreleaser-action step", path)
+			continue
+		}
+		for _, match := range matches {
+			if match[1] != goreleaserVersion {
+				t.Errorf("%s pins GoReleaser %s; cmd/mk reports %s", path, match[1], goreleaserVersion)
+			}
+		}
+	}
+}
+
 func TestFrontendToolchainPinsAgree(t *testing.T) {
 	root := filepath.Clean("../..")
 	node, err := os.ReadFile(filepath.Join(root, ".node-version"))
@@ -126,6 +179,24 @@ func TestFrontendToolchainPinsAgree(t *testing.T) {
 		if !strings.Contains(string(body), `"node": ">=22 <23"`) {
 			t.Errorf("%s/package.json does not constrain Node to major 22", dir)
 		}
+	}
+}
+
+func TestDriftedPathsIgnoresWorkAlreadyInProgress(t *testing.T) {
+	before := map[string]string{"internal/core/agent/loop.go": " M", "notes.md": "??"}
+	after := map[string]string{
+		"internal/core/agent/loop.go": " M", // unchanged by the checks
+		"notes.md":                    "??",
+		"go.sum":                      " M", // a check tidied the module
+		"portal/package-lock.json":    " M", // npm ci rewrote the lockfile
+	}
+	got := driftedPaths(before, after)
+	want := []string{"go.sum", "portal/package-lock.json"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("driftedPaths = %v; want %v", got, want)
+	}
+	if len(driftedPaths(after, after)) != 0 {
+		t.Fatal("driftedPaths reported drift for an unchanged worktree")
 	}
 }
 

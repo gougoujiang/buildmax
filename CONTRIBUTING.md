@@ -65,6 +65,8 @@ running the agent yourself and `./make eval`.
 | **Node 22 and npm 10** — pinned by `.node-version` and `packageManager` | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. Use `npm ci`; normal CLI work does not need Node. |
 | **Docker** | The Compose deployment smoke and container changes. |
 | **kind and kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
+| **shellcheck** | Workflow changes. actionlint skips its shell script pass without it, and says nothing; `./make doctor` reports whether you have it. |
+| **GoReleaser** | Release configuration changes. Nothing in `go.mod` pins it, so `./make doctor` reports your version against the one the workflows run. |
 | **An LLM API key** | Running the agent for real, and `./make eval`. Add a model to `~/.buildmax/settings.yaml`; see [docs/reference/configuration.md](docs/reference/configuration.md). |
 
 The task runner reports missing tools; it does not install system packages for
@@ -91,7 +93,7 @@ lists what is worth putting in it.
 ./make build cli      # CLI only
 ./make test           # go test ./... with BUILDMAX_HOME=./testing-sandbox
 ./make test race      # the same tests with the race detector
-./make check docs     # scoped gate: go, portal, desktop, docs, or all
+./make check docs     # scoped gate: go, portal, desktop, docs, all, or ci
 ./make run server     # run the already-built buildmax-server
 ./make run portal     # Portal dev server (builds gui if needed)
 ./make run desktop    # run the already-built Wails desktop app
@@ -280,12 +282,29 @@ Locally:
 ./make lint              # golangci-lint and govulncheck, CI's pinned versions
 ./make build             # every binary, including the frontends
 ./make check all         # all local Go, frontend, and documentation gates
+./make check ci          # everything a pull request runs, except Windows
 ```
 
-When editing a workflow, lint it the way CI does. `go run
-github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` silently skips its
-shellcheck pass when shellcheck is not on your PATH, so a `run:` block can pass
-locally and fail on the runner. The published image carries shellcheck:
+`check ci` is for when CI minutes are scarce or the feedback loop matters more
+than the wait. On top of `check all` it lints the workflows, scans Git history
+for secrets, checks Go and npm production dependency licenses, validates the
+GoReleaser configuration, and cross-compiles for Windows. It runs the tool
+versions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pins; a test
+fails if the two drift. Four gaps remain:
+
+- The Windows job runs the suite on Windows. The local step only cross-compiles.
+- GoReleaser is not a module dependency, so the step is skipped, out loud, when
+  `goreleaser` is not installed.
+- `npm ci` runs only when `node_modules` is missing, so lockfile drift needs an
+  explicit `npm ci` in the frontend you touched.
+- CI checks out clean and ends with `git diff --exit-code`. Locally that would
+  fail on unrelated work in progress, so `check ci` reports only files its own
+  steps changed.
+
+When editing a workflow, lint it the way CI does — `./make check ci` does this
+for you. `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` silently
+skips its shellcheck pass when shellcheck is not on your PATH, so a `run:` block
+can pass locally and fail on the runner. The published image carries shellcheck:
 
 ```bash
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
