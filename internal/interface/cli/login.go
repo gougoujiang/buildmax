@@ -86,11 +86,12 @@ func interactiveLogin() error {
 	}
 
 	creds := &auth.Credentials{
-		ServerURL: serverURL,
-		Token:     lr.Token,
-		UserID:    lr.User.ID,
-		Email:     lr.User.Email,
-		Name:      lr.User.Name,
+		ServerURL:    serverURL,
+		Token:        lr.Access(),
+		RefreshToken: lr.RefreshToken,
+		UserID:       lr.User.ID,
+		Email:        lr.User.Email,
+		Name:         lr.User.Name,
 	}
 	if err := auth.SaveCredentials(creds); err != nil {
 		return fmt.Errorf("save credentials: %w", err)
@@ -100,10 +101,13 @@ func interactiveLogin() error {
 }
 
 func runLogout(_ *cobra.Command, _ []string) error {
-	if err := auth.Logout(); err != nil {
-		return fmt.Errorf("clear credentials: %w", err)
-	}
+	err := auth.LogoutAndRevoke()
 	fmt.Fprintln(os.Stdout, "Logged out.")
+	if err != nil {
+		// The credentials are gone either way. Say what did not happen rather
+		// than reporting a failure for something that succeeded locally.
+		fmt.Fprintf(os.Stderr, "warning: the session may still be active on the server: %v\n", err)
+	}
 	return nil
 }
 

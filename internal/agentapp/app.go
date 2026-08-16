@@ -750,13 +750,16 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		if cfg.TeamID == "" {
 			return nil, fmt.Errorf("team_id is required for model %q in settings.yaml", cfg.Name)
 		}
-		token, err := r.managedToken(cfg.ServerURL)
-		if err != nil {
+		// Resolved once here so a model that cannot authenticate fails at
+		// selection rather than at the first prompt, and again per request
+		// below so a session outlasting its access token keeps working.
+		if _, err := r.managedToken(cfg.ServerURL); err != nil {
 			return nil, fmt.Errorf("model %q: %w", cfg.Name, err)
 		}
+		serverURL := cfg.ServerURL
 		return llmremote.NewClient(llmremote.Config{
 			ServerURL:     cfg.ServerURL,
-			Token:         token,
+			TokenFunc:     func() (string, error) { return r.managedToken(serverURL) },
 			TeamID:        cfg.TeamID,
 			Alias:         cfg.ProviderModel,
 			ContextWindow: cfg.ContextWindow,

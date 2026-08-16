@@ -70,6 +70,22 @@ pre-releases and must be called out in release notes.
   Existing tokens keep working until they expire, so upgrading does not sign
   anyone out.
 
+  Every client renews rather than expiring. The Portal refreshes when a call
+  comes back `401` and replays it, sharing one exchange between requests that
+  fail together — several refreshes of the same token would read as a replay
+  and revoke the session. Its WebSocket asks for a fresh token before each
+  connect, because a rejected upgrade arrives as a close event with nothing to
+  read. The CLI and Desktop renew inside `TokenForServer`, so `~/.buildmax/
+  auth.json` now holds both credentials and is written atomically; `buildmax
+  logout` revokes the session on the server rather than only forgetting it
+  locally. Being offline never discards a session — only the server rejecting
+  the refresh token does.
+
+  Managed model clients now read the credential per request instead of at
+  construction. A client is built once and cached for the life of the process,
+  so a token captured there was fine until it expired and useless afterwards,
+  with no way back short of a restart.
+
 ### Added
 
 - `deployment/production/`, a private deployment reference for a cluster that

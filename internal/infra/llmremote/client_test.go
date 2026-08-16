@@ -431,3 +431,74 @@ func TestServerURLTrailingSlashIsTolerated(t *testing.T) {
 		t.Errorf("path = %q, want no doubled slash", gateway.gotPath)
 	}
 }
+
+// The client is built once and cached for the life of the process, while an
+// access token expires on its own schedule. Reading the credential per request
+// is what keeps a week-old TUI session working; baking it in at construction
+// would authenticate until the token expired and fail every call after that.
+func TestTokenFuncIsReadOnEveryRequest(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
+
+	tokens := []string{"first", "second"}
+	var calls int
+	client := gateway.client(llmremote.Config{
+		TokenFunc: func() (string, error) {
+			token := tokens[min(calls, len(tokens)-1)]
+			calls++
+			return token, nil
+		},
+	})
+
+	for _, want := range tokens {
+		if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+			[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+			t.Fatalf("ChatCompletionBlocking: %v", err)
+		}
+		if gateway.gotAuth != "Bearer "+want {
+			t.Errorf("Authorization = %q, want %q", gateway.gotAuth, "Bearer "+want)
+		}
+	}
+}
+
+// A credential the client cannot obtain stops the call. Sending it anonymously
+// would trade a clear "not logged in" for a 401 from the gateway.
+func TestTokenFuncFailureStopsTheCall(t *testing.T) {
+	gateway := newFakeGateway(t)
+	client := gateway.client(llmremote.Config{
+		TokenFunc: func() (string, error) {
+			return "", errors.New("login has expired: run `buildmax login`")
+		},
+	})
+
+	_, _, _, err := client.ChatCompletionBlocking(context.Background(),
+		[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
+	if err == nil {
+		t.Fatal("a call with no usable credential was sent anyway")
+	}
+	if !strings.Contains(err.Error(), "login has expired") {
+		t.Errorf("error %q does not carry the reason the credential was refused", err)
+	}
+	if gateway.requests != 0 {
+		t.Errorf("%d requests reached the gateway without a credential", gateway.requests)
+	}
+}
+
+// TokenFunc wins over Token, so a caller that sets both does not silently send
+// the stale one.
+func TestTokenFuncTakesPrecedenceOverToken(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
+
+	client := gateway.client(llmremote.Config{
+		Token:     "static",
+		TokenFunc: func() (string, error) { return "dynamic", nil },
+	})
+	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	if gateway.gotAuth != "Bearer dynamic" {
+		t.Errorf("Authorization = %q, want the value from TokenFunc", gateway.gotAuth)
+	}
+}

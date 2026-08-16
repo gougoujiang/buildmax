@@ -1,5 +1,5 @@
 import {
-  checkUnauthorized,
+  apiFetch,
   getApiBase,
   parseErrorResponse,
   requestJson,
@@ -69,11 +69,10 @@ export async function getTaskConversation(
   taskId: string,
   token: string
 ): Promise<ApiSession | null> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/conversation`,
     { headers: authHeaders(token) }
   )
-  checkUnauthorized(res)
   if (res.status === 404) return null
   await throwIfNotOk(res)
   return res.json() as Promise<ApiSession>
@@ -98,7 +97,7 @@ export async function createTaskRun(
   body: { input: string },
   token: string
 ): Promise<CreateTaskRunResponse> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
     {
       method: "POST",
@@ -106,7 +105,6 @@ export async function createTaskRun(
       body: JSON.stringify(body),
     }
   )
-  checkUnauthorized(res)
   if (res.status === 409) {
     const msg = await parseErrorResponse(res, "A run is already in progress for this task")
     throw new Error(msg)
@@ -124,9 +122,8 @@ export function subscribeTaskStream(
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/stream`
   const controller = new AbortController()
 
-  void fetch(url, { headers: authHeaders(token), signal: controller.signal })
+  void apiFetch(url, { headers: authHeaders(token), signal: controller.signal })
     .then(async (res) => {
-      checkUnauthorized(res)
       if (!res.ok) {
         const msg = await parseErrorResponse(res, "Stream failed")
         callbacks.onError(new Error(msg))

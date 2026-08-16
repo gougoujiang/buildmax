@@ -31,7 +31,7 @@ export function Login() {
     setLoading(true)
     try {
       const res = await login(email, otp)
-      setAuth(res.token, res.user)
+      setAuth(res)
     } catch (err) {
       setError(getErrorMessage(err, "Login failed"))
     } finally {

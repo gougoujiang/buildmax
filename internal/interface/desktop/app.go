@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -412,11 +413,12 @@ func (a *App) DoLogin(serverURL, email, otp string) (*auth.AuthInfo, error) {
 		return nil, err
 	}
 	creds := &auth.Credentials{
-		ServerURL: serverURL,
-		Token:     lr.Token,
-		UserID:    lr.User.ID,
-		Email:     lr.User.Email,
-		Name:      lr.User.Name,
+		ServerURL:    serverURL,
+		Token:        lr.Access(),
+		RefreshToken: lr.RefreshToken,
+		UserID:       lr.User.ID,
+		Email:        lr.User.Email,
+		Name:         lr.User.Name,
 	}
 	if err := auth.SaveCredentials(creds); err != nil {
 		return nil, fmt.Errorf("save credentials: %w", err)
@@ -430,9 +432,16 @@ func (a *App) DoLogin(serverURL, email, otp string) (*auth.AuthInfo, error) {
 	}, nil
 }
 
-// Logout clears stored credentials.
+// Logout clears stored credentials and revokes the session on the server.
+//
+// A server that cannot be reached is not a failed logout: the credentials are
+// gone from this machine either way, and returning an error would leave the UI
+// showing someone as signed in when they are not.
 func (a *App) Logout() error {
-	return auth.Logout()
+	if err := auth.LogoutAndRevoke(); err != nil {
+		slog.Warn("logout could not revoke the session on the server", "err", err)
+	}
+	return nil
 }
 
 // --- Chat bindings ---

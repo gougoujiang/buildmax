@@ -3,7 +3,12 @@
  * Feature-owned API modules live under src/features/<feature>/api.ts.
  */
 
-export { UNAUTHORIZED_EVENT, parseErrorResponse, getApiBase } from "./client"
+export {
+  UNAUTHORIZED_EVENT,
+  TOKEN_REFRESHED_EVENT,
+  parseErrorResponse,
+  getApiBase,
+} from "./client"
 export type {
   LoginUser,
   LoginResponse,

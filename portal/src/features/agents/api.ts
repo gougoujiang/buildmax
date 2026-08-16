@@ -1,5 +1,5 @@
 import {
-  checkUnauthorized,
+  apiFetch,
   getApiBase,
   requestJson,
   throwIfNotOk,
@@ -48,7 +48,6 @@ export async function deleteAgent(
   token: string
 ): Promise<void> {
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}`
-  const res = await fetch(url, { method: "DELETE", headers: authHeaders(token) })
-  checkUnauthorized(res)
+  const res = await apiFetch(url, { method: "DELETE", headers: authHeaders(token) })
   await throwIfNotOk(res)
 }

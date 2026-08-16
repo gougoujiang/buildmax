@@ -6,12 +6,18 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { LoginUser } from "../lib/api"
-import { UNAUTHORIZED_EVENT } from "../lib/api"
+import type { LoginResponse, LoginUser } from "../lib/api"
+import { TOKEN_REFRESHED_EVENT, UNAUTHORIZED_EVENT } from "../lib/api"
+import { revokeSession } from "../features/auth/api"
+import {
+  clearSession,
+  currentAccessToken,
+  expiresAtFrom,
+  readStoredUser,
+  writeSession,
+  writeStoredUser,
+} from "../lib/api/session"
 import { clearStoredCurrentTeamId } from "../lib/storage/currentTeamStorage"
-
-const TOKEN_KEY = "buildmax_token"
-const USER_KEY = "buildmax_user"
 
 interface AuthState {
   token: string | null
@@ -19,36 +25,42 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (token: string, user: LoginUser) => void
+  login: (res: LoginResponse) => void
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function loadStored(): AuthState {
-  try {
-    const token = localStorage.getItem(TOKEN_KEY)
-    const userRaw = localStorage.getItem(USER_KEY)
-    if (!token || !userRaw) return { token: null, user: null }
-    const user = JSON.parse(userRaw) as LoginUser
-    return { token, user }
-  } catch {
-    return { token: null, user: null }
-  }
+  const token = currentAccessToken()
+  const user = readStoredUser<LoginUser>()
+  if (!token || !user) return { token: null, user: null }
+  return { token, user }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(loadStored)
 
-  const login = useCallback((token: string, user: LoginUser) => {
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
-    setState({ token, user })
+  const login = useCallback((res: LoginResponse) => {
+    // access_token is the current name; token is what the server called it
+    // before the credentials were split, and older servers send only that.
+    const accessToken = res.access_token ?? res.token
+    writeSession({
+      accessToken,
+      refreshToken: res.refresh_token ?? null,
+      expiresAt: expiresAtFrom(res.expires_in),
+    })
+    writeStoredUser(res.user)
+    setState({ token: accessToken, user: res.user })
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    // Tell the server first: clearing local state only makes this browser
+    // forget the session, while the refresh token stays usable for weeks.
+    // Best effort — a failed call must not strand someone in a session they
+    // asked to leave.
+    void revokeSession()
+    clearSession()
     clearStoredCurrentTeamId()
     setState({ token: null, user: null })
   }, [])
@@ -60,6 +72,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [logout])
+
+  useEffect(() => {
+    // A refresh can happen inside any request. Without this the context would
+    // keep handing out the replaced token, and every consumer that reconnects
+    // on a token change — the WebSocket above all — would keep using the old
+    // one until the next reload.
+    function onRefreshed(event: Event) {
+      const accessToken = (event as CustomEvent<{ accessToken?: string }>).detail?.accessToken
+      if (!accessToken) return
+      setState((prev) => (prev.token === accessToken ? prev : { ...prev, token: accessToken }))
+    }
+    window.addEventListener(TOKEN_REFRESHED_EVENT, onRefreshed)
+    return () => window.removeEventListener(TOKEN_REFRESHED_EVENT, onRefreshed)
+  }, [])
 
   const value: AuthContextValue = {
     ...state,

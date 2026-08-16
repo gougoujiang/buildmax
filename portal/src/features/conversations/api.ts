@@ -1,5 +1,5 @@
 import {
-  checkUnauthorized,
+  apiFetch,
   getApiBase,
   parseErrorResponse,
   requestJson,
@@ -65,12 +65,11 @@ export async function createConversationStream(
   callbacks: ConversationStreamCallbacks
 ): Promise<void> {
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations?stream=1`
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
   })
-  checkUnauthorized(res)
   if (!res.ok) {
     const msg = await parseErrorResponse(res, "Create conversation failed")
     callbacks.onError(new Error(msg))
@@ -108,13 +107,12 @@ export async function addConversationMessageStream(
   options?: { signal?: AbortSignal }
 ): Promise<void> {
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/messages?stream=1`
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
     signal: options?.signal,
   })
-  checkUnauthorized(res)
   if (!res.ok) {
     const msg = await parseErrorResponse(res, "Send message failed")
     callbacks.onError(new Error(msg))

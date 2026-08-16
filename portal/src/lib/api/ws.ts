@@ -1,4 +1,4 @@
-import { getApiBase, UNAUTHORIZED_EVENT } from "./client"
+import { ensureAccessToken, getApiBase, UNAUTHORIZED_EVENT } from "./client"
 
 export interface WsEnvelope {
   type: string
@@ -43,12 +43,30 @@ export class BuildMaxWebSocket {
   }
 
   private openSocket(): void {
+    void this.openSocketWithFreshToken()
+  }
+
+  /**
+   * Open the socket, refreshing the access token first if it is due.
+   *
+   * The token is not the one connect() was handed. A socket outlives its
+   * token: this one reconnects for as long as the tab is open, and the
+   * upgrade is the only moment the server checks. Reconnecting with the token
+   * from the original connect() would work all week and then fail every
+   * attempt, which reads as "the server is down" rather than "sign in again".
+   */
+  private async openSocketWithFreshToken(): Promise<void> {
     if (!this.token) return
+    if (!this.teamId) return
+
+    const token = (await ensureAccessToken()) ?? this.token
+    // close() may have been called while the refresh was in flight.
+    if (this.intentionalClose) return
+    this.token = token
 
     const httpBase = getApiBase()
     const wsBase = httpBase.replace(/^http/, "ws")
-    if (!this.teamId) return
-    const params = new URLSearchParams({ token: this.token })
+    const params = new URLSearchParams({ token })
     const url = `${wsBase}/api/teams/${encodeURIComponent(this.teamId)}/ws?${params.toString()}`
 
     console.log("[ws] connecting", wsBase)

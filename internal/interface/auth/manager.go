@@ -1,11 +1,16 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/interface/client"
 )
 
 // AuthInfo is the caller-facing authentication view.
@@ -23,7 +28,10 @@ func Info() (AuthInfo, error) {
 	if err != nil {
 		return AuthInfo{}, err
 	}
-	if creds == nil || !creds.IsValid() {
+	// Usable, not valid: a login whose access token has expired but whose
+	// refresh token has not is still a login. Reporting it as signed out would
+	// send someone to ask an operator for a code they do not need.
+	if creds == nil || !creds.IsUsable() {
 		return AuthInfo{LoggedIn: false}, nil
 	}
 	return AuthInfo{
@@ -56,7 +64,21 @@ func RequireLogin() error {
 	return nil
 }
 
-// TokenForServer returns the stored token for calls to serverURL.
+// refreshSkew is how long before expiry the access token is renewed. A managed
+// call can run for minutes, and it is authorized when it starts, so handing out
+// a token that expires in the middle of one is worse than renewing early.
+const refreshSkew = 2 * time.Minute
+
+// refreshMu serializes refreshes inside this process.
+//
+// The server tolerates a second exchange of the same refresh token for a few
+// seconds precisely because separate BuildMax processes share this file. That
+// tolerance is for processes; goroutines in one process have a mutex and should
+// use it rather than spend the allowance.
+var refreshMu sync.Mutex
+
+// TokenForServer returns a usable access token for calls to serverURL,
+// renewing it first if it is spent or nearly so.
 //
 // It refuses to hand the credential to any other host. A managed model entry
 // names its own server, and settings.yaml is editable by anything running as
@@ -66,21 +88,116 @@ func TokenForServer(serverURL string) (string, error) {
 	if serverURL == "" {
 		return "", errors.New("managed model entry has no server_url")
 	}
-	creds, err := Load(config.AuthPath())
+	creds, err := loadForServer(serverURL)
 	if err != nil {
-		return "", fmt.Errorf("load auth: %w", err)
+		return "", err
 	}
-	if creds == nil || creds.Token == "" {
-		return "", errors.New("not logged in: run `buildmax login`")
+	if !creds.needsRefresh(refreshSkew) {
+		return creds.Token, nil
 	}
-	if !sameServer(creds.ServerURL, serverURL) {
-		return "", fmt.Errorf("logged in to %s, but this model entry uses %s: run `buildmax login` against that server",
-			creds.ServerURL, serverURL)
-	}
-	if !creds.IsValid() {
+	if creds.RefreshToken == "" {
 		return "", errors.New("login has expired: run `buildmax login`")
 	}
-	return creds.Token, nil
+	return refreshTokenForServer(serverURL)
+}
+
+// CanAuthenticate reports whether a call to serverURL could authenticate,
+// without making one.
+//
+// TokenForServer answers the same question by renewing when it has to, which
+// contacts the server and rotates the stored refresh token. That is the wrong
+// thing for a diagnostic to do: `buildmax doctor` is read-only, and a check
+// that quietly spends a credential is not a check.
+func CanAuthenticate(serverURL string) error {
+	if serverURL == "" {
+		return errors.New("managed model entry has no server_url")
+	}
+	creds, err := loadForServer(serverURL)
+	if err != nil {
+		return err
+	}
+	if !creds.IsUsable() {
+		return errors.New("login has expired: run `buildmax login`")
+	}
+	return nil
+}
+
+func loadForServer(serverURL string) (*Credentials, error) {
+	creds, err := Load(config.AuthPath())
+	if err != nil {
+		return nil, fmt.Errorf("load auth: %w", err)
+	}
+	if creds == nil || creds.Token == "" {
+		return nil, errors.New("not logged in: run `buildmax login`")
+	}
+	if !sameServer(creds.ServerURL, serverURL) {
+		return nil, fmt.Errorf("logged in to %s, but this model entry uses %s: run `buildmax login` against that server",
+			creds.ServerURL, serverURL)
+	}
+	return creds, nil
+}
+
+// refreshTokenForServer exchanges the stored refresh token and persists the
+// result.
+//
+// The file is re-read under the lock. Another BuildMax process may have
+// refreshed while this one waited, in which case its token is already on disk
+// and spending another exchange would only race it.
+func refreshTokenForServer(serverURL string) (string, error) {
+	refreshMu.Lock()
+	defer refreshMu.Unlock()
+
+	creds, err := loadForServer(serverURL)
+	if err != nil {
+		return "", err
+	}
+	if !creds.needsRefresh(refreshSkew) {
+		return creds.Token, nil
+	}
+	if creds.RefreshToken == "" {
+		return "", errors.New("login has expired: run `buildmax login`")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
+	defer cancel()
+	rr, err := newClient(creds.ServerURL).Refresh(ctx, creds.RefreshToken)
+	if err != nil {
+		if errors.Is(err, client.ErrRefreshRejected) {
+			// The session is over: spent, revoked, or reported as reused.
+			// Clearing the file is what makes the next command say "not logged
+			// in" instead of retrying a credential the server has retired.
+			_ = Logout()
+			return "", errors.New("login has expired: run `buildmax login`")
+		}
+		return "", fmt.Errorf("refresh login: %w", err)
+	}
+
+	creds.Token = rr.AccessToken
+	if rr.RefreshToken != "" {
+		creds.RefreshToken = rr.RefreshToken
+	}
+	creds.SavedAt = time.Now().Unix()
+	if err := SaveCredentials(creds); err != nil {
+		// The exchange succeeded, so the token in hand is good even though the
+		// next process will not see it. Failing the call over a write error
+		// would be worse than losing one rotation.
+		slog.Warn("save refreshed credentials failed", "err", err)
+	}
+	return rr.AccessToken, nil
+}
+
+// refreshTimeout bounds the exchange. It runs inside whatever the caller was
+// doing, so it must not hang there.
+const refreshTimeout = 30 * time.Second
+
+// newClient is a variable so tests can point the refresh at a stub server.
+var newClient = func(serverURL string) refreshClient {
+	return client.NewClient(serverURL)
+}
+
+// refreshClient is the part of the API client this package needs.
+type refreshClient interface {
+	Refresh(ctx context.Context, refreshToken string) (*client.RefreshResponse, error)
 }
 
 // sameServer compares two server URLs ignoring a trailing slash.
@@ -96,4 +213,32 @@ func SaveCredentials(creds *Credentials) error {
 // Logout clears the stored credentials.
 func Logout() error {
 	return Clear(config.AuthPath())
+}
+
+// LogoutAndRevoke clears the stored credentials and asks the server to revoke
+// the session behind them.
+//
+// The local file is cleared whether or not the server can be reached. Someone
+// who typed `buildmax logout` on a machine with no network is signed out of
+// that machine; leaving the credentials behind because a call failed would be
+// the opposite of what they asked for. The returned error reports what could
+// not be revoked, and is worth printing but not worth failing on.
+func LogoutAndRevoke() error {
+	creds, loadErr := Load(config.AuthPath())
+	clearErr := Clear(config.AuthPath())
+	if clearErr != nil {
+		return clearErr
+	}
+	if loadErr != nil || creds == nil || creds.ServerURL == "" {
+		return nil
+	}
+	if creds.RefreshToken == "" && creds.Token == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
+	defer cancel()
+	if err := client.NewClient(creds.ServerURL).Logout(ctx, creds.RefreshToken, creds.Token); err != nil {
+		return fmt.Errorf("revoke session on %s: %w", creds.ServerURL, err)
+	}
+	return nil
 }

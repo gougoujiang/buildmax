@@ -208,8 +208,11 @@ Three limits worth knowing before you rely on this:
 - **There is no fallback between the modes.** A managed entry does not quietly
   become a direct call when the server is down, because that would redirect
   governed traffic to a personal provider key. Configure both entries and pick.
-- **The login expires after 24 hours and there is no refresh.** A long run can
-  outlive it; you get a clear error and re-run `buildmax login`. See
+- **The login renews itself, until it does not.** The access token is refreshed
+  automatically before each managed call that would otherwise use an expired
+  one, so a long-lived session keeps working without another login code. When
+  the refresh token itself expires or its session is revoked, calls fail with a
+  clear error and you re-run `buildmax login`. See
   [design/llm-gateway.md](../design/llm-gateway.md) section 11.
 - **Workers and the evaluation harness never use managed mode.** A worker runs
   the server's own model with the server's own credential, and `eval/` stays
