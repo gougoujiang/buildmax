@@ -66,6 +66,7 @@ running the agent yourself and `./make eval`.
 | **Docker** | The Compose deployment smoke and container changes. |
 | **kind and kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
 | **shellcheck** | Workflow changes. actionlint skips its shell script pass without it, and says nothing; `./make doctor` reports whether you have it. |
+| **GoReleaser** | Release configuration changes. Nothing in `go.mod` pins it, so `./make doctor` reports your version against the one the workflows run. |
 | **An LLM API key** | Running the agent for real, and `./make eval`. Add a model to `~/.buildmax/settings.yaml`; see [docs/reference/configuration.md](docs/reference/configuration.md). |
 
 The task runner reports missing tools; it does not install system packages for

@@ -134,6 +134,11 @@ const (
 	actionlintPkg = "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12"
 	gitleaksPkg   = "github.com/zricethezav/gitleaks/v8@v8.30.1"
 	goLicensesPkg = "github.com/google/go-licenses@v1.6.0"
+
+	// GoReleaser arrives through goreleaser-action rather than `go run`, so this
+	// is the `version:` those steps pass. TestGoReleaserPinMatchesWorkflows keeps
+	// it in step with both workflows.
+	goreleaserVersion = "v2.17.1"
 )
 
 // checkCI runs what a pull request runs, for contributors who would rather

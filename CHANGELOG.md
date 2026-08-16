@@ -19,7 +19,8 @@ pre-releases and must be called out in release notes.
   and the workflow's disagree. For contributors who would rather spend a
   laptop's time than the repository's Actions minutes. `./make doctor` now also
   reports shellcheck, because actionlint drops its shell script pass without it
-  and does not say so.
+  and does not say so, and GoReleaser, whose version it compares against the
+  one the workflows run since nothing in `go.mod` pins it.
 - `./make kind status` and `./make compose status`, read-only summaries of the
   two local deployment paths. `kind status` prints the selected cluster and
   context, probes the Portal ingress, and lists nodes plus the Deployments,

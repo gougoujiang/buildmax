@@ -126,6 +126,31 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 	}
 }
 
+// GoReleaser is pinned by the action's `version:` input rather than by a module
+// path, so it needs its own comparison. Every step must run what doctor tells
+// contributors to install.
+func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
+	// Lazy across lines because a step may carry `if:` between `uses:` and the
+	// version it pins.
+	step := regexp.MustCompile(`goreleaser/goreleaser-action@v\d+(?s:.*?)version:\s*(\S+)`)
+	for _, path := range []string{"../../.github/workflows/ci.yml", "../../.github/workflows/release.yml"} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		matches := step.FindAllStringSubmatch(string(body), -1)
+		if matches == nil {
+			t.Errorf("%s runs no pinned goreleaser-action step", path)
+			continue
+		}
+		for _, match := range matches {
+			if match[1] != goreleaserVersion {
+				t.Errorf("%s pins GoReleaser %s; cmd/mk reports %s", path, match[1], goreleaserVersion)
+			}
+		}
+	}
+}
+
 func TestFrontendToolchainPinsAgree(t *testing.T) {
 	root := filepath.Clean("../..")
 	node, err := os.ReadFile(filepath.Join(root, ".node-version"))
