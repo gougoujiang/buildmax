@@ -7,6 +7,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -300,6 +301,22 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	}
 	if initialRun.TriggerSource != model.RunTriggerSourcePortalTaskCreate {
 		t.Fatalf("initial run trigger_source = %q, want %q", initialRun.TriggerSource, model.RunTriggerSourcePortalTaskCreate)
+	}
+
+	// A task carries at most one run in flight, so a rerun follows a finished
+	// run. Asking for one while the first is still PENDING is what the Portal
+	// answers 409 to; see CreateTaskRun and model.ErrRunInProgress.
+	if _, err := s.CreateTaskRun(ctx, task.TaskID, "too soon", "reviewer-user", model.RunCreatedByTypeUser, model.RunTriggerSourcePortalConversation); !errors.Is(err, model.ErrRunInProgress) {
+		t.Fatalf("CreateTaskRun while the initial run is pending: want ErrRunInProgress, got %v", err)
+	}
+
+	endedAt := time.Now().Unix()
+	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
+		TaskRunID: initialRun.TaskRunID,
+		Status:    model.RunStatusSucceeded,
+		EndedAt:   &endedAt,
+	}); err != nil {
+		t.Fatalf("UpdateRun: %v", err)
 	}
 
 	rerun, err := s.CreateTaskRun(ctx, task.TaskID, "follow-up input", "reviewer-user", model.RunCreatedByTypeUser, model.RunTriggerSourcePortalConversation)
