@@ -161,6 +161,24 @@ Every user gets a personal team named `My Space`
 the authorization code, which is why quota and membership work identically for
 solo and shared use.
 
+That arrangement is deliberate and load-bearing. Before teams existed, issues,
+agents, and conversations hung off `user_id`, and a Portal request resolved as
+`JWT -> user_id -> store query -> ownership check`. Team replaced that in April
+2026 — before the public history was squashed, so `git log` does not show the
+transition — with one rule: every working resource belongs to a team, and a
+solo user simply owns a team of one. The point was to make sharing a
+membership change rather than a data migration.
+
+Two consequences bind new code:
+
+- **Do not add a user-scoped path around a team-scoped resource.** A handler
+  that resolves ownership from `user_id` alone reintroduces the model Team
+  replaced, and it will diverge from quota, membership, and every authorization
+  check that reads `team_member`.
+- **Solo users must never have to learn the concept.** The personal team is
+  created for them and named for them; surfacing team selection, invitations,
+  or roles on a path a single user must walk is a regression, not a feature.
+
 ### `team_member`
 
 The membership join table, and the row every authorization check looks for.
