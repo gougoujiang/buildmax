@@ -136,8 +136,14 @@ func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 		}
 	}
 	container := fake.lastJob.Spec.Template.Spec.Containers[0]
-	if len(container.VolumeMounts) != 1 || container.VolumeMounts[0].MountPath != "/buildmax" {
-		t.Errorf("mounts = %+v, want only the default home at /buildmax", container.VolumeMounts)
+	paths := make(map[string]bool, len(container.VolumeMounts))
+	for _, m := range container.VolumeMounts {
+		paths[m.MountPath] = true
+	}
+	// The default home plus the writable /tmp a read-only root filesystem
+	// requires. Nothing config-shaped.
+	if !paths["/buildmax"] || !paths["/tmp"] || len(paths) != 2 {
+		t.Errorf("mounts = %+v, want the default home at /buildmax and a writable /tmp", container.VolumeMounts)
 	}
 }
 
@@ -173,4 +179,114 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 	if _, ok := byName["PATH_LIKE_NON_BUILDMAX"]; ok {
 		t.Error("only BUILDMAX_ variables belong in the pod env built here")
 	}
+}
+
+// TestJobPodIsConfined asserts the containment a worker pod is created with.
+// A worker runs model-chosen shell commands, so each of these is load-bearing
+// rather than hygiene, and each has silently regressed elsewhere before.
+func TestJobPodIsConfined(t *testing.T) {
+	fake := &fakeJobCreator{}
+	r := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{ConfigMapName: "buildmax-config"}, fake)
+	if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if fake.lastJob == nil {
+		t.Fatal("no job created")
+	}
+	spec := fake.lastJob.Spec.Template.Spec
+
+	if spec.AutomountServiceAccountToken == nil || *spec.AutomountServiceAccountToken {
+		t.Error("a worker never calls the Kubernetes API; its token must not be mounted")
+	}
+	psc := spec.SecurityContext
+	if psc == nil {
+		t.Fatal("pod security context missing")
+	}
+	if psc.RunAsNonRoot == nil || !*psc.RunAsNonRoot {
+		t.Error("worker pods must not run as root")
+	}
+	if psc.RunAsUser == nil || *psc.RunAsUser != defaultWorkerUID {
+		t.Errorf("run as uid = %v, want %d", psc.RunAsUser, defaultWorkerUID)
+	}
+	if psc.FSGroup == nil || *psc.FSGroup != defaultWorkerUID {
+		t.Error("fsGroup must match the uid or the mounted volumes are unwritable")
+	}
+
+	csc := spec.Containers[0].SecurityContext
+	if csc == nil {
+		t.Fatal("container security context missing")
+	}
+	if csc.AllowPrivilegeEscalation == nil || *csc.AllowPrivilegeEscalation {
+		t.Error("privilege escalation must be denied")
+	}
+	if csc.ReadOnlyRootFilesystem == nil || !*csc.ReadOnlyRootFilesystem {
+		t.Error("the root filesystem must be read-only")
+	}
+	if len(csc.Capabilities.Drop) != 1 || csc.Capabilities.Drop[0] != "ALL" {
+		t.Errorf("capabilities drop = %v, want [ALL]", csc.Capabilities.Drop)
+	}
+
+	// A read-only root filesystem without a writable /tmp breaks ordinary
+	// tooling in ways that look like the tool is broken, so the two ship
+	// together or not at all.
+	var hasTmp bool
+	for _, m := range spec.Containers[0].VolumeMounts {
+		if m.MountPath == "/tmp" {
+			hasTmp = true
+		}
+	}
+	if !hasTmp {
+		t.Error("a read-only root filesystem needs a writable /tmp")
+	}
+}
+
+// TestJobPodResources covers both directions: configured limits reach the pod,
+// and an unconfigured deployment stays unbounded rather than inheriting a
+// number nobody chose.
+func TestJobPodResources(t *testing.T) {
+	t.Run("configured", func(t *testing.T) {
+		fake := &fakeJobCreator{}
+		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{
+			Resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi"},
+		}, fake)
+		if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
+		if got := res.Limits.Memory().String(); got != "4Gi" {
+			t.Errorf("memory limit = %s, want 4Gi", got)
+		}
+		if got := res.Requests.Cpu().String(); got != "250m" {
+			t.Errorf("cpu request = %s, want 250m", got)
+		}
+	})
+
+	t.Run("unset stays unbounded", func(t *testing.T) {
+		fake := &fakeJobCreator{}
+		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{}, fake)
+		if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
+		if len(res.Limits) != 0 || len(res.Requests) != 0 {
+			t.Errorf("an unconfigured deployment must stay unbounded, got %+v", res)
+		}
+	})
+
+	t.Run("unparseable value is dropped, not fatal", func(t *testing.T) {
+		fake := &fakeJobCreator{}
+		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{
+			Resources: PodResources{MemoryLimit: "4 gigabytes", CPULimit: "1"},
+		}, fake)
+		if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}); err != nil {
+			t.Fatalf("a typo in a limit must not stop a run: %v", err)
+		}
+		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
+		if _, ok := res.Limits["memory"]; ok {
+			t.Error("the unparseable memory limit should have been dropped")
+		}
+		if got := res.Limits.Cpu().String(); got != "1" {
+			t.Errorf("the valid cpu limit should survive, got %s", got)
+		}
+	})
 }

@@ -176,6 +176,23 @@ type ServerK8sConfig struct {
 	ConfigMap string `mapstructure:"config_map"`
 	// HomeDir is BUILDMAX_HOME inside a worker pod; server.yaml is mounted there.
 	HomeDir string `mapstructure:"home_dir"`
+	// RunAsUser is the uid a worker pod runs as. Zero uses BuildMax's default.
+	// Set it on clusters that assign their own uid ranges, OpenShift most
+	// commonly. The worker never needs a uid the image knows about — it writes
+	// only into mounted volumes.
+	RunAsUser int64 `mapstructure:"run_as_user"`
+	// Resources bounds a worker pod. Empty leaves the matching request or limit
+	// unset, so an existing deployment keeps running unbounded until an
+	// operator chooses values.
+	Resources ServerK8sResources `mapstructure:"resources"`
+}
+
+// ServerK8sResources holds Kubernetes quantity strings for a worker pod.
+type ServerK8sResources struct {
+	CPURequest    string `mapstructure:"cpu_request"`
+	CPULimit      string `mapstructure:"cpu_limit"`
+	MemoryRequest string `mapstructure:"memory_request"`
+	MemoryLimit   string `mapstructure:"memory_limit"`
 }
 
 // ServerStorageConfig holds blob storage backend selection and MinIO settings.

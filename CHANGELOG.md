@@ -24,6 +24,15 @@ pre-releases and must be called out in release notes.
   are still passed, because workers read and write run state directly; narrowing
   that needs a server-issued, run-scoped credential and is separate work.
 
+- Worker Job pods are now created confined: non-root with an explicit uid, no
+  automounted service-account token, all capabilities dropped, `RuntimeDefault`
+  seccomp, and a read-only root filesystem with a writable `/tmp`. None of it is
+  configurable, because a worker runs model-chosen shell commands. `run_as_user`
+  under `worker.k8s` covers clusters that assign their own uid ranges.
+  `worker.k8s.resources` adds optional CPU and memory bounds; leaving them unset
+  keeps existing deployments unbounded rather than handing them a limit nobody
+  chose. `local_process` mode is unchanged and remains a development path.
+
 ### Added
 
 - A `sandbox_boundary` record in every run trace, written immediately after

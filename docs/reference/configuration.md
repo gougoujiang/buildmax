@@ -87,6 +87,26 @@ the server without a decision about workers stays on the server.
 `WorkerNeeds` in `internal/config/env_spec.go` is the source of truth. Marking a
 variable there is what sends it to workers.
 
+### How A Worker Pod Is Confined
+
+Every worker Job pod is created non-root, with no service-account token, no
+added capabilities, `RuntimeDefault` seccomp, and a read-only root filesystem
+plus a writable `/tmp`. None of that is configurable: a worker executes
+model-chosen shell commands, so it is treated as running untrusted code even
+when the team that submitted the task is trusted — the prompt, the repository
+content, and the tool output steering those commands are not.
+
+Two settings under `worker.k8s` remain an operator's:
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `run_as_user` | `65532` | The uid the pod runs as. Set it on a cluster that assigns its own uid range, OpenShift most commonly. The image needs no matching user — the worker writes only into mounted volumes, and `fsGroup` makes them writable. |
+| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | unset | Kubernetes quantity strings. An empty value leaves that request or limit unset, so a deployment that has not chosen numbers keeps running unbounded rather than inheriting a limit nobody picked. An unparseable value is logged and skipped rather than failing the run. |
+
+This applies to `run_mode: k8s_job`. `local_process` runs the worker beside the
+server with no such boundary; it is a development path, not a deployment
+topology.
+
 ### Local development `.env`
 
 `./make` and `make.bat` load a `.env` file from the repository root before

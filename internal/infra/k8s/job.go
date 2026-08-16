@@ -8,6 +8,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -27,6 +28,7 @@ type JobCreator interface {
 const (
 	homeVolumeName   = "buildmax-home"
 	configVolumeName = "buildmax-config"
+	tmpVolumeName    = "tmp"
 	serverConfigFile = "server.yaml"
 )
 
@@ -43,13 +45,99 @@ type PodConfig struct {
 	// HomeDir becomes BUILDMAX_HOME in the pod and is where server.yaml lands.
 	// Empty defaults to /buildmax.
 	HomeDir string
+	// RunAsUser is the uid the worker runs as. Empty defaults to
+	// defaultWorkerUID. Clusters that assign their own uid ranges — OpenShift
+	// most commonly — set this to a value inside their range.
+	RunAsUser int64
+	// Resources bounds the pod's CPU and memory. Zero values leave the
+	// corresponding request or limit unset, which is what an unconfigured
+	// deployment gets: no limit, exactly as before this field existed. The
+	// reference manifest sets them.
+	Resources PodResources
 }
+
+// PodResources holds Kubernetes quantity strings, e.g. "500m" or "1Gi".
+type PodResources struct {
+	CPURequest    string
+	CPULimit      string
+	MemoryRequest string
+	MemoryLimit   string
+}
+
+// defaultWorkerUID is an unprivileged uid with no meaning to the image. The
+// worker writes only into mounted volumes, whose ownership fsGroup fixes up, so
+// nothing in the image needs to belong to this user.
+const defaultWorkerUID int64 = 65532
 
 func (p PodConfig) homeDir() string {
 	if p.HomeDir == "" {
 		return "/buildmax"
 	}
 	return p.HomeDir
+}
+
+func (p PodConfig) runAsUser() int64 {
+	if p.RunAsUser == 0 {
+		return defaultWorkerUID
+	}
+	return p.RunAsUser
+}
+
+// resourceRequirements converts the configured quantities. An unparseable value
+// is dropped with a warning rather than failing the run: a typo in a limit
+// should not stop a deployment from executing work.
+func (p PodConfig) resourceRequirements() corev1.ResourceRequirements {
+	out := corev1.ResourceRequirements{}
+	add := func(list *corev1.ResourceList, name corev1.ResourceName, value, field string) {
+		if value == "" {
+			return
+		}
+		q, err := resource.ParseQuantity(value)
+		if err != nil {
+			slog.Warn("k8s: ignoring unparseable worker resource value", "field", field, "value", value, "err", err)
+			return
+		}
+		if *list == nil {
+			*list = corev1.ResourceList{}
+		}
+		(*list)[name] = q
+	}
+	add(&out.Requests, corev1.ResourceCPU, p.Resources.CPURequest, "cpu_request")
+	add(&out.Requests, corev1.ResourceMemory, p.Resources.MemoryRequest, "memory_request")
+	add(&out.Limits, corev1.ResourceCPU, p.Resources.CPULimit, "cpu_limit")
+	add(&out.Limits, corev1.ResourceMemory, p.Resources.MemoryLimit, "memory_limit")
+	return out
+}
+
+// podSecurityContext confines the worker pod.
+//
+// A worker executes model-chosen shell commands, so the pod is treated as
+// running untrusted code even though the team that submitted the task is
+// trusted: the prompt, the repository content, and the tool output that steer
+// those commands are not.
+//
+// runAsNonRoot with an explicit uid needs no cooperation from the image, and
+// fsGroup makes the mounted volumes writable by it.
+func (p PodConfig) podSecurityContext() *corev1.PodSecurityContext {
+	uid := p.runAsUser()
+	return &corev1.PodSecurityContext{
+		RunAsNonRoot:   util.Ptr(true),
+		RunAsUser:      util.Ptr(uid),
+		RunAsGroup:     util.Ptr(uid),
+		FSGroup:        util.Ptr(uid),
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	}
+}
+
+// containerSecurityContext drops everything the worker does not need. The
+// binary writes only into mounted volumes, so the root filesystem is read-only;
+// tmpVolumeName restores the one writable path shell commands assume.
+func containerSecurityContext() *corev1.SecurityContext {
+	return &corev1.SecurityContext{
+		AllowPrivilegeEscalation: util.Ptr(false),
+		ReadOnlyRootFilesystem:   util.Ptr(true),
+		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+	}
 }
 
 // K8sJobRunner creates a Kubernetes Job per task. Run returns immediately after Job create.
@@ -88,8 +176,17 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 	volumes := []corev1.Volume{{
 		Name:         homeVolumeName,
 		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+	}, {
+		// The root filesystem is read-only, and shell commands assume a
+		// writable /tmp. Without this the worker runs but ordinary tooling
+		// fails in ways that look like the tool is broken.
+		Name:         tmpVolumeName,
+		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
 	}}
-	mounts := []corev1.VolumeMount{{Name: homeVolumeName, MountPath: home}}
+	mounts := []corev1.VolumeMount{
+		{Name: homeVolumeName, MountPath: home},
+		{Name: tmpVolumeName, MountPath: "/tmp"},
+	}
 
 	if r.pod.ConfigMapName == "" {
 		return volumes, mounts
@@ -128,14 +225,21 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun) (workerType s
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyOnFailure,
 					Volumes:       volumes,
+					// A worker never calls the Kubernetes API, so a mounted
+					// service-account token is only a credential for
+					// model-chosen commands to find.
+					AutomountServiceAccountToken: util.Ptr(false),
+					SecurityContext:              r.pod.podSecurityContext(),
 					Containers: []corev1.Container{
 						{
-							Name:         "worker",
-							Image:        r.image,
-							Command:      []string{"buildmax-worker"},
-							Args:         []string{"--task-run-id", run.TaskRunID},
-							Env:          r.podEnv(),
-							VolumeMounts: mounts,
+							Name:            "worker",
+							Image:           r.image,
+							Command:         []string{"buildmax-worker"},
+							Args:            []string{"--task-run-id", run.TaskRunID},
+							Env:             r.podEnv(),
+							VolumeMounts:    mounts,
+							SecurityContext: containerSecurityContext(),
+							Resources:       r.pod.resourceRequirements(),
 						},
 					},
 				},
