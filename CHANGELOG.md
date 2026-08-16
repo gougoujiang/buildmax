@@ -20,6 +20,13 @@ pre-releases and must be called out in release notes.
   it". The Bash sandbox still defaults off on every surface, so most runs record
   `false` today.
 
+- Worker task runs now upload their run trace and record where it landed, in a
+  new `task_run.trace_path` column. The trace was previously written inside the
+  run-scoped `BUILDMAX_HOME` and discarded with the run directory:
+  `uploadTaskGlobal` uploads a named allowlist, not the whole tree, so nothing
+  carried it out. The path is recorded on failure as well as success, since
+  diagnosing a failed run is what a trace is for.
+
 - `docs/contribute/architecture/data-model.md`, a full reference for the server
   database: every one of the 18 tables with its columns, types, nullability,
   indexes, and enumerated values, two entity-relationship diagrams, and the

@@ -37,6 +37,10 @@ type PatchTaskRunRequest struct {
 	Artifact         *ArtifactPayload `json:"artifact,omitempty"`
 	PromptTokens     *int             `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int             `json:"completion_tokens,omitempty"`
+	// TracePath locates the run's durable trace inside run-global storage, e.g.
+	// "traces/<session>/rt_….jsonl". Sent on both success and failure; omitted
+	// when no trace was written.
+	TracePath *string `json:"trace_path,omitempty"`
 }
 
 // ArtifactPayload is the artifact field in PATCH when status is SUCCEEDED (run output files).

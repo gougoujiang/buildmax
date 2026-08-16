@@ -388,6 +388,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `k8s_job_created_at` | `bigint` | yes | Reserved; see below |
 | `prompt_tokens` | `int` | yes | Quota input |
 | `completion_tokens` | `int` | yes | Quota input |
+| `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `task_run_id`; index `task_id`; index `created_by`.
@@ -395,6 +396,13 @@ Indexes: PK `id`; unique `task_run_id`; index `task_id`; index `created_by`.
 `worker_type`, `k8s_job_name`, and `k8s_job_created_at` have no writer in the
 current code — they round-trip through the store mapping and stay `NULL`. Do
 not build behavior on them without adding the write path first.
+
+`trace_path` is written by the worker on the terminal PATCH, on failure as well
+as success. It is stored rather than derived because the trace's file name is
+the agent run id, which is generated inside the run and appears nowhere else.
+The value is the same key `uploadTaskGlobal` uploads the file under, so it
+resolves directly against run-global storage — a test in
+`internal/agentapp/taskrun` couples the two computations so they cannot drift.
 
 The scheduler claims work by polling for the oldest pending run
 (`GetNextPendingTaskRun`); GORM's logger is configured to swallow

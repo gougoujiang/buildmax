@@ -35,6 +35,7 @@ type Meta struct {
 // dropped so tracing never breaks or slows a run.
 type Recorder struct {
 	runID string
+	path  string
 
 	mu        sync.Mutex
 	f         *os.File
@@ -67,6 +68,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 	}
 	r := &Recorder{
 		runID:     meta.RunID,
+		path:      path,
 		f:         f,
 		w:         bufio.NewWriter(f),
 		maxField:  defaultMaxFieldBytes,
@@ -93,6 +95,17 @@ func (r *Recorder) RunID() string {
 		return ""
 	}
 	return r.runID
+}
+
+// Path returns the trace file this recorder writes to, or "" when the recorder
+// is nil (tracing disabled). Callers that persist a pointer to the trace derive
+// it from this rather than rebuilding the layout, so a stored reference and the
+// written file cannot drift apart.
+func (r *Recorder) Path() string {
+	if r == nil {
+		return ""
+	}
+	return r.path
 }
 
 // Record maps a runtime event to a trace record and appends it. Events that are

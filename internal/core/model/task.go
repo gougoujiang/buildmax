@@ -73,7 +73,11 @@ type TaskRun struct {
 	K8sJobCreatedAt  *int64  `json:"k8s_job_created_at,omitempty"`
 	PromptTokens     *int    `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int    `json:"completion_tokens,omitempty"`
-	CreatedAt        int64   `json:"created_at"`
+	// TracePath locates this run's durable trace inside run-global storage,
+	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was written — the
+	// run failed before an agent started, or tracing was disabled.
+	TracePath *string `json:"trace_path,omitempty"`
+	CreatedAt int64   `json:"created_at"`
 }
 
 // TaskRunTerminalInfo describes a task run that reached a terminal state.
@@ -150,6 +154,7 @@ type UpdateTaskRunInput struct {
 	SessionID        *string
 	PromptTokens     *int
 	CompletionTokens *int
+	TracePath        *string
 }
 
 // TaskStore provides task persistence. Tasks belong to a conversation.
