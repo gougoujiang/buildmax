@@ -172,8 +172,8 @@ func allHelpSections() []helpSection {
 			{"eval", "Run the agent benchmark (requires a model API key)"},
 		}},
 		{"Deployment", []helpRow{
-			{"compose <action>", "Manage the Compose quickstart (up|smoke|logs|down)"},
-			{"kind <action>", "Manage local Kubernetes (up|images|smoke|logs|down)"},
+			{"compose <action>", "Manage the Compose quickstart (up|smoke|status|logs|down)"},
+			{"kind <action>", "Manage local Kubernetes (up|images|smoke|status|logs|down)"},
 		}},
 		{"Release", []helpRow{
 			{"release <action>", "Run bump, verify, notices, or licenses"},

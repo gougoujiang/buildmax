@@ -11,6 +11,14 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- `./make kind status` and `./make compose status`, read-only summaries of the
+  two local deployment paths. `kind status` prints the selected cluster and
+  context, probes the Portal ingress, and lists nodes plus the Deployments,
+  Jobs, and Pods in every namespace `kind up` installs. `compose status` lists
+  every service, including exited ones, and probes the server and Portal ports
+  on the host. Neither creates, builds, or generates anything, so a stack that
+  was never started is distinguishable from an unhealthy one without reading
+  full container logs.
 - A managed model catalog in the new `llm_model` table, edited with
   `buildmax-server model add|list|enable|disable` on the machine that already
   holds the database credentials. Credentials are read by exactly one query, the

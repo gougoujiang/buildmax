@@ -28,6 +28,11 @@ artifact retrieval. It requires no provider key. Inspect failures with
 `./make compose logs`, then stop the stack with `./make compose down`. On
 success it prints a fresh single-use Portal login code for the smoke account.
 
+`./make compose status` changes nothing. It lists every service in the stack,
+including exited ones, and probes the server and Portal ports on the host, so a
+stack that was never started is distinguishable from one whose server is
+crash-looping before you read any logs.
+
 For interactive evaluation with a real model, start the regular stack:
 
 ```bash
