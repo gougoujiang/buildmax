@@ -46,7 +46,7 @@ cd ../portal
 npm ci
 ```
 
-The repository pins Node 22 in `.node-version` and npm 10 in `package.json`.
+The repository pins Node 24 in `.node-version` and npm 11 in `package.json`.
 
 ## Development
 
