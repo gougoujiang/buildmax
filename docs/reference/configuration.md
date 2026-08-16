@@ -198,21 +198,10 @@ conversation:                        # Tier 1 model used by the Portal agent loo
     context_window: 128000
   # model_target: fast               # use an llm.targets id for Tier 1 instead
 
-# llm:                               # optional; see the table below
+# llm:                               # team model policy; catalog is in the DB
 #   aliases:
-#     default: fast
+#     default: lm_xxxxxxxxxxxxxxxxxxxx
 #   default_alias: default
-#   targets:
-#     - id: fast
-#       name: Fast
-#       provider: openai_compatible
-#       model: openai/gpt-4o-mini
-#       api_url: https://openrouter.ai/api/v1
-#       api_key: your-api-key
-#       context_window: 128000
-#       call_timeout: 300
-#       capabilities: [text_chat, tool_calls, streaming_text, usage_reporting]
-#       disabled: false
 
 database:                            # MySQL
   host: localhost
@@ -265,58 +254,54 @@ The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
 storage directly rather than proxying through the server.
 
-### `llm` — model catalog
+### Managed models — the `llm_model` table and `llm` policy
 
-The `llm` block is the operator-owned model catalog for the managed LLM gateway
-designed in [design/llm-gateway.md](../design/llm-gateway.md). It is optional and
-**partly implemented**. What works today:
+The managed LLM gateway designed in
+[design/llm-gateway.md](../design/llm-gateway.md) has two halves, kept apart on
+purpose:
 
-- `GET /api/teams/{team_id}/llm/models` lists the aliases a team may use.
-- `POST /api/teams/{team_id}/llm/completions` runs one call, blocking or
-  streamed, and records it in the call ledger. Abandoning a streamed call
-  cancels the provider request.
-- `conversation.model_target` picks the server's own Tier 1 model.
+- **The catalog** is the `llm_model` database table: which models exist, where
+  each is reached, and with what credential. It is not in `server.yaml` because
+  it holds provider keys and changes while the server runs.
+- **The policy** is the `llm` block below: which of those models each team may
+  name, and under what alias.
 
-What does not exist yet: a managed client wired into CLI, Desktop, or the
-worker, and quota enforcement beyond refusing a team that is *already* over its
-limit. So those surfaces still call providers directly with their own
-credentials, and the ledger is accounting data, not a spending ceiling.
+Edit the catalog with `buildmax-server model`, on the machine that already holds
+the database credentials:
 
-A streaming reverse proxy in front of the server must have response buffering
-off and an idle timeout longer than the target's `call_timeout`.
+```bash
+buildmax-server model add --name Fast \
+    --api-url https://openrouter.ai/api/v1 \
+    --api-key your-openrouter-api-key \
+    --model openai/gpt-4o-mini --context-window 128000
+buildmax-server model list
+buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
+```
 
 | Key | Meaning |
 |---|---|
-| `llm.targets[].id` | Catalog ID referenced by `llm.aliases` and `conversation.model_target`. `conversation` is reserved. |
-| `llm.targets[].name` | Operator-facing display name. Defaults to the ID. |
-| `llm.targets[].provider` | Client implementation. `openai_compatible` is the only one implemented, and the default. |
-| `llm.targets[].model` | The provider's own model identifier. |
-| `llm.targets[].api_url` | Upstream base URL. Required. |
-| `llm.targets[].api_key` | Upstream credential. Required. |
-| `llm.targets[].context_window` | Usable context size; `0` uses the client default. |
-| `llm.targets[].call_timeout` | Per-call timeout in seconds; `0` uses the client default. |
-| `llm.targets[].capabilities` | `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting`. Omit to accept everything the provider's client contract guarantees. |
-| `llm.targets[].disabled` | Retires a target without deleting it. |
-| `llm.aliases` | Maps a team-facing alias to a target ID. **Leaving it empty means no team may use the gateway** — a catalog says which models exist, not who may call them. |
+| `llm.aliases` | Maps a team-facing alias to an `llm_model` ID. **Leaving it empty means no team may use the gateway** — a catalog says which models exist, not who may call them. |
 | `llm.default_alias` | Alias used when a caller names none. Required when more than one alias exists. |
-| `conversation.model_target` | Runs Tier 1 on a catalog target instead of `conversation.model`. A catalog ID, not an alias: the server picks its own model rather than being granted one. |
+| `conversation.model_target` | Runs Tier 1 on a catalog model instead of `conversation.model`. An `llm_model` ID, not an alias: the server picks its own model rather than being granted one. |
 
 A server with no `llm` block behaves exactly as before: `conversation.model`
-serves Tier 1, and no team has managed access. A catalog that does not validate —
-an alias pointing at no target, an unknown capability, a target with no
-credential — fails startup rather than starting a server with no Tier 1 model.
+serves Tier 1, and no team has managed access. `conversation.model` also stays
+the bootstrap path — a fresh deployment answers conversations before its catalog
+has a single row.
 
-Managed calls need a database, because every one of them is recorded in the
-`llm_call` ledger. Without a store the routes answer `503` rather than serving
-inference nobody can account for.
+An alias naming a model that does not exist does **not** stop the server. The
+catalog is edited independently of the policy, so such an alias fails its own
+calls and is skipped in model listings while every other alias keeps working.
 
-**The catalog cannot be configured in the Kubernetes topology yet.**
-`llm.targets[].api_key` has no `BUILDMAX_*` environment override, and worker
-pods read `server.yaml` from a ConfigMap, which must never hold a credential.
-Until the catalog moves to the database or gains an environment override, use
-the gateway on deployments where `server.yaml` is a private file — Compose or a
-single host. Existing Kubernetes deployments are unaffected: the `llm` block is
-optional and off.
+Managed calls need a database for two reasons: the catalog lives there, and
+every call is recorded in the `llm_call` ledger. Without a store the routes
+answer `503` rather than serving inference nobody can account for.
+
+Credentials are stored in the `llm_model` table and read by exactly one query,
+the one that builds a provider client. They are never returned by a model
+listing, an API response, or an error. Note what that implies for operations:
+database backups and read replicas carry provider keys, so treat them the way
+you treat the database password.
 
 ## Data Directory Layout
 

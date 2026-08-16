@@ -29,6 +29,17 @@ func main() {
 		return
 	}
 
+	// `model` edits the managed model catalog, which holds provider
+	// credentials. It runs here, next to the database, rather than through any
+	// client.
+	if len(os.Args) > 1 && os.Args[1] == "model" {
+		if err := bootstrap.RunModelCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	portFlag := flag.Int("port", 0, "port to listen on (overrides server.yaml port, default 5678)")
 	flag.Usage = usage
 	flag.Parse()
@@ -43,6 +54,7 @@ func usage() {
 	out := flag.CommandLine.Output()
 	fmt.Fprint(out, `Usage: buildmax-server [flags]
        buildmax-server user <command> [flags]
+       buildmax-server model <command> [flags]
 
 Runs the BuildMax HTTP API and the task scheduler. Configuration comes from
 BUILDMAX_HOME/server.yaml.
@@ -51,4 +63,5 @@ Flags:
 `)
 	flag.PrintDefaults()
 	fmt.Fprint(out, "\n"+bootstrap.UserCommandUsage)
+	fmt.Fprint(out, "\n"+bootstrap.ModelCommandUsage)
 }

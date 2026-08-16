@@ -11,10 +11,16 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
-- An optional `llm` block in `server.yaml`: an operator-owned model catalog,
-  team model aliases, and `conversation.model_target` to run Tier 1 on a
-  catalog entry. A catalog that does not validate now fails startup instead of
-  leaving the server with no Tier 1 model. See `docs/design/llm-gateway.md`.
+- A managed model catalog in the new `llm_model` table, edited with
+  `buildmax-server model add|list|enable|disable` on the machine that already
+  holds the database credentials. Credentials are read by exactly one query, the
+  one that builds a provider client, and never appear in a listing, an API
+  response, or an error — but note that database backups now carry provider
+  keys. An optional `llm` block in `server.yaml` maps team aliases to catalog
+  models, and `conversation.model_target` runs Tier 1 on one. An alias naming a
+  model that does not exist fails its own calls rather than stopping the server,
+  because the catalog is edited independently of the policy. See
+  `docs/design/llm-gateway.md`.
 - A managed inference gateway: `GET /api/teams/{team_id}/llm/models` lists the
   aliases a team may use, and `POST /api/teams/{team_id}/llm/completions` runs
   one blocking call against an operator-approved model. Clients name an alias,

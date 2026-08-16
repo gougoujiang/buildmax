@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -244,7 +245,15 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 // The server resolves a catalog target it owns for its own inference: it does
 // not call its own HTTP listener and is not subject to team model policy.
 func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.QuotaService) error {
-	routing, err := buildLLMRouting(sc)
+	// A nil *db.Store put straight into an interface parameter is a non-nil
+	// interface holding a nil pointer, so the absence of a store has to be
+	// stated rather than passed along.
+	var models model.LLMModelStore
+	if st != nil {
+		models = st
+	}
+
+	routing, err := buildLLMRouting(sc, models)
 	if err != nil {
 		return err
 	}
