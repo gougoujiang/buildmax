@@ -98,6 +98,34 @@ func TestPinnedWailsVersionMatchesGoMod(t *testing.T) {
 	}
 }
 
+// The task runner and CI must run the same tool versions, or `./make check ci`
+// promises a parity it does not have. The workflow is the source of truth
+// because that is what a pull request actually executes.
+func TestCIToolPinsMatchWorkflow(t *testing.T) {
+	body, err := os.ReadFile("../../.github/workflows/ci.yml")
+	if err != nil {
+		t.Fatalf("read ci.yml: %v", err)
+	}
+	workflow := string(body)
+	for _, pkg := range []string{
+		golangciLintPkg,
+		govulncheckPkg,
+		actionlintPkg,
+		gitleaksPkg,
+		goLicensesPkg,
+	} {
+		module, _, _ := strings.Cut(pkg, "@")
+		match := regexp.MustCompile(regexp.QuoteMeta(module) + `@[^\s"']+`).FindString(workflow)
+		if match == "" {
+			t.Errorf("ci.yml no longer runs %s; drop or update the pin in cmd/mk", module)
+			continue
+		}
+		if match != pkg {
+			t.Errorf("cmd/mk pins %s; ci.yml runs %s", pkg, match)
+		}
+	}
+}
+
 func TestFrontendToolchainPinsAgree(t *testing.T) {
 	root := filepath.Clean("../..")
 	node, err := os.ReadFile(filepath.Join(root, ".node-version"))
@@ -126,6 +154,24 @@ func TestFrontendToolchainPinsAgree(t *testing.T) {
 		if !strings.Contains(string(body), `"node": ">=22 <23"`) {
 			t.Errorf("%s/package.json does not constrain Node to major 22", dir)
 		}
+	}
+}
+
+func TestDriftedPathsIgnoresWorkAlreadyInProgress(t *testing.T) {
+	before := map[string]string{"internal/core/agent/loop.go": " M", "notes.md": "??"}
+	after := map[string]string{
+		"internal/core/agent/loop.go": " M", // unchanged by the checks
+		"notes.md":                    "??",
+		"go.sum":                      " M", // a check tidied the module
+		"portal/package-lock.json":    " M", // npm ci rewrote the lockfile
+	}
+	got := driftedPaths(before, after)
+	want := []string{"go.sum", "portal/package-lock.json"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("driftedPaths = %v; want %v", got, want)
+	}
+	if len(driftedPaths(after, after)) != 0 {
+		t.Fatal("driftedPaths reported drift for an unchanged worktree")
 	}
 }
 
