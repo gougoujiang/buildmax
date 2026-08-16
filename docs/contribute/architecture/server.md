@@ -33,6 +33,7 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Files: `/api/teams/{team_id}/upload`, `/files...`
 - Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`
 - Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
+- Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
 - WebSocket: `/api/teams/{team_id}/ws`

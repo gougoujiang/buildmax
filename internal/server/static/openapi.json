@@ -91,6 +91,54 @@
             "items": { "$ref": "#/components/schemas/FileNode" }
           }
         }
+      },
+      "TraceBoundary": {
+        "type": "object",
+        "properties": {
+          "sandboxed": { "type": "boolean", "description": "False means nothing confined the run's Bash commands" },
+          "mode": { "type": "string" },
+          "backend": { "type": "string" },
+          "sources": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Layer chain that decided the boundary, e.g. default:worker, settings, policy"
+          },
+          "downgraded": { "type": "boolean" }
+        }
+      },
+      "TraceToolCall": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "duration_ms": { "type": "integer" },
+          "path": { "type": "string", "description": "The call's file_path argument, when it had one" },
+          "denied": { "type": "boolean" },
+          "deny_reason": { "type": "string" }
+        }
+      },
+      "TaskRunTrace": {
+        "type": "object",
+        "properties": {
+          "task_run_id": { "type": "string" },
+          "run_id": { "type": "string", "description": "Agent run id; also the trace file's name" },
+          "model": { "type": "string" },
+          "started_at": { "type": "string" },
+          "ended_at": { "type": "string" },
+          "boundary": { "$ref": "#/components/schemas/TraceBoundary" },
+          "llm_calls": { "type": "integer" },
+          "tool_calls": { "type": "integer" },
+          "compactions": { "type": "integer" },
+          "prompt_tokens": { "type": "integer" },
+          "completion_tokens": { "type": "integer" },
+          "tools": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TraceToolCall" }
+          },
+          "tools_truncated": { "type": "boolean", "description": "The tools list was bounded; tool_calls still counts them all" },
+          "files_changed": { "type": "array", "items": { "type": "string" } },
+          "error": { "type": "string", "description": "Terminal error; empty when the run succeeded" },
+          "complete": { "type": "boolean", "description": "False means the run wrote no terminal record — do not read as success" }
+        }
       }
     }
   },
@@ -535,6 +583,27 @@
         ],
         "responses": {
           "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/teams/{team_id}/task-runs/{task_run_id}/trace": {
+      "get": {
+        "summary": "Get a task run's trace summary",
+        "description": "What the run used, touched, spent, why it ended, and the execution boundary it ran under. Model output, tool arguments, and tool results are deliberately excluded.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TaskRunTrace" }
+              }
+            }
+          },
+          "404": { "description": "The run recorded no trace, or its trace is no longer in storage" }
         }
       }
     }

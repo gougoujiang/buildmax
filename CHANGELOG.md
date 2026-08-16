@@ -11,6 +11,30 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- A `sandbox_boundary` record in every run trace, written immediately after
+  `run_start`, carrying whether the run was sandboxed and — when it was — the
+  mode, backend, and the settings/policy/env source chain that decided it. It is
+  written for unsandboxed runs too, with an explicit `"sandboxed": false`:
+  traces are about to become the basis for answering what confined a run, and a
+  missing field would read as "nobody checked" rather than "nothing confined
+  it". The Bash sandbox still defaults off on every surface, so most runs record
+  `false` today.
+
+- `GET /api/teams/{team_id}/task-runs/{task_run_id}/trace`, which answers what
+  a run used, touched, spent, why it ended, and what confined it — the model,
+  the tool calls with their durations, the files it wrote, tokens, the terminal
+  error, and the resolved execution boundary. It returns a summary rather than
+  the raw trace: model output, tool arguments, and tool results stay in the
+  file. A run whose trace was never recorded and one whose trace has gone
+  missing from storage are both 404 but say which.
+
+- Worker task runs now upload their run trace and record where it landed, in a
+  new `task_run.trace_path` column. The trace was previously written inside the
+  run-scoped `BUILDMAX_HOME` and discarded with the run directory:
+  `uploadTaskGlobal` uploads a named allowlist, not the whole tree, so nothing
+  carried it out. The path is recorded on failure as well as success, since
+  diagnosing a failed run is what a trace is for.
+
 - `docs/contribute/architecture/data-model.md`, a full reference for the server
   database: every one of the 18 tables with its columns, types, nullability,
   indexes, and enumerated values, two entity-relationship diagrams, and the

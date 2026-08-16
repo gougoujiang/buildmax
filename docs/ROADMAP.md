@@ -106,6 +106,11 @@ Acceptance:
 - memory sources are visible, scoped, and user-controllable
 - local and worker runtime differences are explicit, not hidden in surface-specific code
 
+Enabling the OS sandbox on workers is not a Beta gate. It continues after Beta
+as defense in depth; see [Beta Gate](#beta-gate) for the boundary Beta does
+require and for what deferring the sandbox costs. The visibility half of this
+priority is still a gate: a run must report the boundary it actually ran under.
+
 ### P3. Enterprise Deployment Loop
 
 The product promise depends on private deployment being boring and repeatable.
@@ -118,9 +123,13 @@ Focus:
 - Docker/kind/k8s path that runs end to end
 - default admin/user/team/quota/model initialization story
 - optional managed LLM connection mode, so a deployment can supply approved
-  models without distributing provider credentials to users and workers
+  models without distributing provider credentials to users and workers —
+  shipped for CLI, TUI, and Desktop; the worker path is still open
 - operator model catalog and team model aliases behind the shared LLM contract,
-  with per-call usage recorded before any spending limit is claimed
+  with per-call usage recorded before any spending limit is claimed — the
+  catalog and call ledger exist; aliases are deployment-wide, not per-team
+  (see [design/llm-gateway.md](design/llm-gateway.md) for what is and is not
+  implemented)
 
 Acceptance:
 
@@ -160,18 +169,92 @@ Acceptance:
 
 - there is an executable design for agent-produced state changes and restore before broad implementation begins
 
+## Beta Gate
+
+Alpha to Beta is not more agent capability. It is one trusted team using the
+capability that already exists, stably, explainably, and recoverably.
+
+Beta is reached when this sentence is true and tested:
+
+> A new team deploys BuildMax to a private Kubernetes cluster by following the
+> documentation, then signs in safely, uses operator-approved models, submits
+> work, has it executed inside a constrained worker, and reads the result and
+> the audit record. Common dependency failures, timeouts, and upgrades can be
+> diagnosed, recovered, or rolled back.
+
+Five gates, each with the surface that proves it:
+
+| Gate | Proven by |
+|---|---|
+| Worker execution boundary is real, visible, and operator-controlled | A task run holds only the credentials that run needs, executes in a hardened pod with a bounded network egress, and records which boundary was actually in effect — including when it was not sandboxed |
+| The recommended private deployment is operable | Kubernetes reference with external MySQL, S3, TLS, secrets, resource limits, and a versioned schema migration with a rollback path |
+| A run explains itself | Portal answers model, tools, files, duration, tokens, and failure cause for any task run, with stable cancel/retry/timeout semantics |
+| The minimum governance loop closes | Role and team authorization covered end to end by tests; audit events for sign-in, configuration, model use, task execution, and credential change |
+| Beta claims are continuously verified | CI, Compose, and kind checks running again; Portal browser E2E; a published support and compatibility matrix |
+
+The first gate deliberately does not require the OS sandbox. Enabling it on
+workers is P0.5 work that continues past Beta; the Beta boundary is the pod and
+the credential scope. That trade is only defensible once the credential scope is
+actually small, because the fallback boundary is weak: without the sandbox, a
+worker's `Bash` is gated by the first-token deny list in `internal/tool/safety.go`,
+which stops an unintended `curl` but not a deliberate `bash -c` or `python -c`.
+Two consequences follow, and neither may be left implicit in documentation:
+
+- A run that is not sandboxed must say so — in its trace and in Portal. An
+  unreported boundary is worse than a missing one.
+- Workers stay unable to run `curl`, `npm`, `pip`, `rm`, and the rest of the
+  risky-prefix list: those resolve to Ask, and Ask collapses to Deny where no
+  approval handler exists. The sandbox is what would demote them to Allow, so
+  deferring it is a capability decision as much as a security one.
+
+Deliberately outside the Beta gate: Desktop polish, SSO, versioned workspace,
+plugin distribution, and additional model providers. None of them block a
+private server deployment reaching Beta.
+
 ## Suggested Order
 
 Steps 1-3 of the original sequence — documentation and config cleanup, Agent
-Core stability, and the Portal outcome surface — are done. What remains:
+Core stability, and the Portal outcome surface — are done. What remains is
+ordered so that each step can be verified when it lands, rather than verified
+at the end:
 
-1. Agent Core P0.5 trust harness: finish the sandbox worker profile, rlimits,
-   and hook-transport enforcement; extend traces beyond phase 1.
-2. Enterprise deployment loop: verify the Kubernetes path end to end, add health
-   and readiness diagnostics, write the production reference guide.
-3. Desktop local workbench polish: sessions, project selection, local results.
-4. Team governance: approvals and audit log on top of the existing roles and quota.
-5. Versioned workspace design, ready for implementation planning.
+0. Restore continuous verification: recover the GitHub Actions quota so `ci`,
+   `deployment-smoke`, Compose, and kind gate merges again. Not a Beta gate of
+   its own — a precondition, because every claim below is unverified without
+   it.
+1. Make the boundary observable before changing it: extend the run trace with
+   the resolved execution boundary, and give Portal a run view that joins trace,
+   artifacts, worker logs, and failure cause. A boundary nobody can see cannot
+   be trusted or audited, and P0.5's own acceptance requires the view. The event
+   must report an unsandboxed run as unsandboxed.
+2. Shrink what a task run can reach. This is the Beta boundary, and it comes
+   before any sandbox work because it is what makes deferring the sandbox
+   defensible. Today `scheduler.LocalRunner` passes the server's entire
+   environment to the worker, and `k8s.WorkerEnvFromEnviron` forwards every
+   `BUILDMAX_*` variable into the Job pod — including the JWT secret, the
+   database password, and the object-storage keys. A run should receive only
+   what that run needs, the Job pod needs a security context, resource limits,
+   no automounted service-account token, and bounded egress, and `LocalRunner`
+   must be documented as a development path rather than a deployment topology.
+3. Enterprise deployment loop: a production Kubernetes reference distinct from
+   the kind smoke overlay, dependency-aware readiness in place of the fixed-200
+   `/healthz`, the worker managed-LLM entry point, and versioned schema
+   migration with a rollback path. Migration is the hardest item here, not the
+   smallest: `AutoMigrate` has no down path today, so the rollback promise is
+   currently unbacked.
+4. Minimum team governance: role and team authorization tests, then the audit
+   event model. Quota display and alerting follow; for a trusted team quota is
+   cost control, not a security boundary.
+5. Close the trust harness, as defense in depth rather than the only boundary:
+   ship `bwrap` in the runtime image, confirm the pod permits unprivileged user
+   namespaces, then pass `SandboxSurfaceWorker` from the task-run runtime, add
+   process rlimits, ship `buildmax sandbox overrides`, and sandbox hook
+   transports. Order matters here: the worker baseline sets
+   `FailIfUnavailable: true`, so passing that surface before the image and pod
+   can support a backend turns every worker run into a refusal. This step also
+   restores `curl`, `npm`, and the rest of the risky-prefix list to workers.
+6. Desktop local workbench polish: sessions, project selection, local results.
+7. Versioned workspace design, ready for implementation planning.
 
 ## Avoid For Now
 

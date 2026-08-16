@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
@@ -45,6 +46,12 @@ type RunResult struct {
 	Output           []byte
 	PromptTokens     *int
 	CompletionTokens *int
+	// TracePath locates this run's durable trace inside run-global storage,
+	// e.g. "traces/<session>/rt_….jsonl". Empty when no trace was written.
+	// Recorded because the trace's file name is the agent run id, which is
+	// generated inside the run and is not otherwise persisted — without this
+	// the uploaded trace could not be found again.
+	TracePath string
 }
 
 type runDirs struct {
@@ -81,14 +88,14 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.TaskID, TaskRunID: run.TaskRunID}
 
 	if err := prepareRunWorkspace(ctx, input.Persist, task, run, dirs); err != nil {
-		reportRunFailure(ctx, run.TaskRunID, err, input.Updater)
+		reportRunFailure(ctx, run.TaskRunID, err, "", input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
 		slog.Error("runtime: run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
-		reportRunFailure(ctx, run.TaskRunID, err, input.Updater)
+		reportRunFailure(ctx, run.TaskRunID, err, result.TracePath, input.Updater)
 		return err
 	}
 
@@ -130,14 +137,15 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	output, promptTokens, completionTokens, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model)
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model)
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
-		OutputStr:        string(output),
+		OutputStr:        string(agentRun.output),
 		RunArtifactsDir:  dirs.runArtifacts,
-		Output:           output,
-		PromptTokens:     promptTokens,
-		CompletionTokens: completionTokens,
+		Output:           agentRun.output,
+		PromptTokens:     agentRun.promptTokens,
+		CompletionTokens: agentRun.completionTokens,
+		TracePath:        traceRelPath(dirs.runGlobal, agentRun.tracePath),
 	}
 	if err != nil {
 		return result, err
@@ -147,7 +155,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 
 func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result RunResult) {
 	persistRunResult(dirs.runArtifacts, result.Output)
-	uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist)
+	uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath)
 	uploadTaskRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
 }
 
@@ -186,7 +194,20 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *m
 	_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry) ([]byte, *int, *int, error) {
+// agentRunOutput is what one in-process agent run yields back to the task-run
+// reporting path. Grouped rather than returned positionally because a failed
+// run still carries a usable trace path, so the error and non-error paths need
+// the same fields.
+type agentRunOutput struct {
+	output           []byte
+	promptTokens     *int
+	completionTokens *int
+	// tracePath is the trace file's absolute path on the worker's disk, before
+	// it is made relative to the run global dir.
+	tracePath string
+}
+
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -220,12 +241,38 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 			slog.Warn("runtime: stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
 		}
 	}
+	// RunPrompt carries the trace path out on its error paths too, so a failed
+	// run stays diagnosable — which is when the trace matters most.
 	if err != nil {
-		return nil, nil, nil, err
+		return agentRunOutput{tracePath: out.TracePath}, err
 	}
 	promptTokens := out.PromptTokens
 	completionTokens := out.CompletionTokens
-	return []byte(out.Reply), &promptTokens, &completionTokens, nil
+	return agentRunOutput{
+		output:           []byte(out.Reply),
+		promptTokens:     &promptTokens,
+		completionTokens: &completionTokens,
+		tracePath:        out.TracePath,
+	}, nil
+}
+
+// traceRelPath converts a trace's absolute path into the key it is uploaded
+// under. It mirrors walkAndUploadFiles: relative to the run global dir, slash
+// separated. Returns "" when there is no trace, or when the file sits outside
+// the uploaded tree — a stored reference that cannot resolve is worse than
+// none, because a reader would report the trace as missing rather than as
+// never written.
+func traceRelPath(runGlobalDir, tracePath string) string {
+	if tracePath == "" {
+		return ""
+	}
+	rel, err := filepath.Rel(runGlobalDir, tracePath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		slog.Warn("runtime: trace written outside the uploaded run dir; not recording a path",
+			"trace_path", tracePath, "run_global_dir", runGlobalDir, "err", err)
+		return ""
+	}
+	return filepath.ToSlash(rel)
 }
 
 type streamSinkAdapter struct {
@@ -254,14 +301,21 @@ func persistRunResult(runArtifactsDir string, output []byte) {
 	}
 }
 
-func reportRunFailure(ctx context.Context, taskRunID string, err error, updater TaskRunUpdater) {
+// reportRunFailure records the failure. tracePath may be empty — the run can
+// fail before an agent ever starts — but when a trace exists it is recorded
+// here too: diagnosing a failure is the trace's main job.
+func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePath string, updater TaskRunUpdater) {
 	endTime := time.Now().Unix()
 	errMsg := fmt.Sprintf("%v", err)
-	_ = updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
+	req := &workerclient.PatchTaskRunRequest{
 		Status:       string(model.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,
-	})
+	}
+	if tracePath != "" {
+		req.TracePath = &tracePath
+	}
+	_ = updater.UpdateRunStatus(ctx, taskRunID, req)
 }
 
 func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
@@ -283,6 +337,9 @@ func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, art
 	}
 	if result.CompletionTokens != nil {
 		req.CompletionTokens = result.CompletionTokens
+	}
+	if result.TracePath != "" {
+		req.TracePath = &result.TracePath
 	}
 	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
 }
@@ -363,8 +420,19 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 }
 
 // uploadTaskGlobal uploads the run's global dir (logs, sessions, settings) to blob storage for the run.
-func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage) {
+// uploadTaskGlobal uploads the run's global dir to blob storage. It is an
+// allowlist, not a directory walk: the run-scoped BUILDMAX_HOME accumulates
+// state the server has no use for, so each upload is named.
+//
+// traceKey is this run's trace, relative to globalDir, or "" when none was
+// written. It is passed in rather than discovered because its file name is the
+// agent run id — a directory scan would find it, but only the caller knows
+// which file the run actually recorded a pointer to.
+func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, persist blob.RunStorage, traceKey string) {
 	relPaths := []string{"logs/buildmax.log", "logs/buildmax-worker.log", "settings.yaml"}
+	if traceKey != "" {
+		relPaths = append(relPaths, traceKey)
+	}
 	sessionsDir := filepath.Join(globalDir, "sessions")
 	entries, err := os.ReadDir(sessionsDir)
 	if err == nil {

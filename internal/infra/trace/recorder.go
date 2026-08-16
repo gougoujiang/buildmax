@@ -25,6 +25,9 @@ type Meta struct {
 	Workspace  string
 	Model      string
 	IsSubagent bool
+	// Sandbox is the execution boundary resolved for this run. Nil is recorded
+	// as unsandboxed rather than unknown — see boundaryRecord.
+	Sandbox *agent.SandboxInfo
 }
 
 // Recorder appends trace records for one run to a JSONL file. All methods are
@@ -32,6 +35,7 @@ type Meta struct {
 // dropped so tracing never breaks or slows a run.
 type Recorder struct {
 	runID string
+	path  string
 
 	mu        sync.Mutex
 	f         *os.File
@@ -43,8 +47,9 @@ type Recorder struct {
 }
 
 // NewRecorder opens <dir>/<session_id>/<run_id>.jsonl and writes the run_start
-// record. On any failure it logs a warning and returns a nil *Recorder, whose
-// methods are all no-ops — callers do not need to nil-check beyond normal use.
+// and sandbox_boundary records. On any failure it logs a warning and returns a
+// nil *Recorder, whose methods are all no-ops — callers do not need to
+// nil-check beyond normal use.
 func NewRecorder(dir string, meta Meta) *Recorder {
 	if meta.RunID == "" {
 		slog.Warn("trace: missing run id; tracing disabled for this run")
@@ -63,6 +68,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 	}
 	r := &Recorder{
 		runID:     meta.RunID,
+		path:      path,
 		f:         f,
 		w:         bufio.NewWriter(f),
 		maxField:  defaultMaxFieldBytes,
@@ -78,6 +84,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		IsSubagent:   meta.IsSubagent,
 		TraceVersion: traceVersion,
 	})
+	r.write(boundaryRecord(meta.Sandbox))
 	return r
 }
 
@@ -88,6 +95,17 @@ func (r *Recorder) RunID() string {
 		return ""
 	}
 	return r.runID
+}
+
+// Path returns the trace file this recorder writes to, or "" when the recorder
+// is nil (tracing disabled). Callers that persist a pointer to the trace derive
+// it from this rather than rebuilding the layout, so a stored reference and the
+// written file cannot drift apart.
+func (r *Recorder) Path() string {
+	if r == nil {
+		return ""
+	}
+	return r.path
 }
 
 // Record maps a runtime event to a trace record and appends it. Events that are

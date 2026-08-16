@@ -97,7 +97,11 @@ Read the relevant architecture document before making a cross-package change:
   Hook failures fail open; gating contracts are documented in
   [`docs/design/hook-system.md`](docs/design/hook-system.md).
 - The Bash sandbox is available on macOS and Linux but currently defaults off
-  on all surfaces. Do not claim the deferred worker hardening is active.
+  on all surfaces. `config.defaultSandbox` defines a stricter
+  `SandboxSurfaceWorker` baseline, but no worker path passes that surface —
+  `internal/agentapp/taskrun` leaves `AppConfig.SandboxSurface` empty, which
+  resolves to the CLI baseline. The baseline is written, not wired. Do not
+  claim the deferred worker hardening is active.
 - Every run records a bounded, redacted JSONL trace by default. Trace failure is
   fail-open and must not break an agent run.
 - Server authentication requires a JWT secret. Login codes are single-use;

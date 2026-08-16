@@ -73,6 +73,12 @@ omitted.
 {"ts":"2026-06-03T10:00:00Z","type":"run_start","run_id":"rt_…","session_id":"c_…",
  "workspace":"/path","model":"…","is_subagent":false,"trace_version":1}
 
+// sandbox_boundary — synthesized at construction; added after phase 1 so a run
+// states the boundary it ran under. Written even when nothing confined the run,
+// because an absent record reads as "not checked" rather than "not confined".
+{"ts":"…","type":"sandbox_boundary","sandboxed":false,"backend":"none",
+ "sandbox_mode":"auto_allow","sources":["default:worker","policy"]}
+
 // iter_start  (EventIterStart)
 {"ts":"…","type":"iter_start","iter":1}
 
@@ -153,7 +159,8 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   ├─ resolveRunContext → model, client, session
   │
   ├─ trace.NewRecorder(TracesDir, meta{run_id, session_id, workspace, model})
-  │     └─ writes run_start            (nil + warn on error → fail open)
+  │     └─ writes run_start,           (nil + warn on error → fail open)
+  │        then sandbox_boundary
   │
   ├─ sink := tee(recorder.Record, eventSink)   // recorder first, then caller
   │

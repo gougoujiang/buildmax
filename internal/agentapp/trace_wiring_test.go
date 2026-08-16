@@ -65,8 +65,8 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	}
 
 	records := readTrace(t, sess.ID, result.TraceID)
-	if len(records) != 2 {
-		t.Fatalf("got %d records, want run_start + run_end: %+v", len(records), records)
+	if len(records) != 3 {
+		t.Fatalf("got %d records, want run_start + sandbox_boundary + run_end: %+v", len(records), records)
 	}
 
 	start := records[0]
@@ -86,7 +86,17 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 		t.Error("run_start missing trace_version")
 	}
 
-	end := records[1]
+	// The boundary record is written even on a run the hook blocked before the
+	// first tool call: what confined a run is not conditional on how far it got.
+	boundary := records[1]
+	if boundary["type"] != "sandbox_boundary" {
+		t.Errorf("second record type = %v, want sandbox_boundary", boundary["type"])
+	}
+	if sandboxed, ok := boundary["sandboxed"].(bool); !ok || sandboxed {
+		t.Errorf("sandboxed = %v, want an explicit false on this unsandboxed surface", boundary["sandboxed"])
+	}
+
+	end := records[2]
 	if end["type"] != "run_end" {
 		t.Errorf("last record type = %v, want run_end", end["type"])
 	}

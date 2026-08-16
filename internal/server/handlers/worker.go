@@ -132,6 +132,7 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		SessionID:        req.SessionID,
 		PromptTokens:     req.PromptTokens,
 		CompletionTokens: req.CompletionTokens,
+		TracePath:        req.TracePath,
 	}); err != nil {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
 		return false

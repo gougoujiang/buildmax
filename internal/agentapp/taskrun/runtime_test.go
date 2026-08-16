@@ -167,7 +167,7 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake)
+	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake, "")
 
 	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
 	if len(got) != 3 {
@@ -191,7 +191,7 @@ func TestUploadTaskGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake)
+	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake, "")
 	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
@@ -235,5 +235,51 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dirs.runHome, "private.txt")); !os.IsNotExist(err) {
 		t.Fatalf("private creator file should not be materialized, stat err = %v", err)
+	}
+}
+
+// TestTraceRelPath_MatchesUploadedKey pins the invariant the stored path exists
+// for: what a run records must be exactly the key its trace was uploaded under.
+// The two are computed in different functions, so this test couples them —
+// a stored path that does not resolve would report every trace as missing.
+func TestTraceRelPath_MatchesUploadedKey(t *testing.T) {
+	ctx := context.Background()
+	globalDir := t.TempDir()
+	traceDir := filepath.Join(globalDir, "traces", "c_sess1")
+	if err := os.MkdirAll(traceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tracePath := filepath.Join(traceDir, "rt_abc123.jsonl")
+	if err := os.WriteFile(tracePath, []byte(`{"type":"run_start"}`+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	recorded := traceRelPath(globalDir, tracePath)
+	if recorded != "traces/c_sess1/rt_abc123.jsonl" {
+		t.Fatalf("traceRelPath = %q, want traces/c_sess1/rt_abc123.jsonl", recorded)
+	}
+
+	fake := newFakePersistStorage()
+	scope := RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}
+	uploadTaskGlobal(ctx, globalDir, scope, fake, recorded)
+	uploaded := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
+	for _, p := range uploaded {
+		if p == recorded {
+			return
+		}
+	}
+	t.Errorf("recorded trace path %q is not among the uploaded keys %v", recorded, uploaded)
+}
+
+// TestTraceRelPath_RefusesUnresolvablePaths asserts the two cases that must
+// record nothing rather than a path a reader cannot fetch.
+func TestTraceRelPath_RefusesUnresolvablePaths(t *testing.T) {
+	globalDir := t.TempDir()
+	if got := traceRelPath(globalDir, ""); got != "" {
+		t.Errorf("no trace should record no path, got %q", got)
+	}
+	outside := filepath.Join(t.TempDir(), "traces", "s", "rt_x.jsonl")
+	if got := traceRelPath(globalDir, outside); got != "" {
+		t.Errorf("trace outside the uploaded dir should record no path, got %q", got)
 	}
 }

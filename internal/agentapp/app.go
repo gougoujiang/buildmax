@@ -103,6 +103,11 @@ type RunResult struct {
 	// tracing is disabled or failed to start. Points at
 	// <DataDir>/traces/<session_id>/<trace_id>.jsonl.
 	TraceID string
+	// TracePath is that file's path on disk, or "" when no trace was written.
+	// Callers that persist a reference to the trace use this instead of
+	// rebuilding the layout from TraceID, so the stored path and the written
+	// file cannot disagree.
+	TracePath string
 }
 
 type RunStatus struct {
@@ -532,6 +537,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 			SessionID: sess.ID,
 			Workspace: a.workspaceRoot,
 			Model:     modelName,
+			Sandbox:   a.sandboxInfo(),
 		})
 		defer recorder.Close()
 	}
@@ -564,6 +570,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 			Workspace:             a.workspaceRoot,
 			ModelName:             modelName,
 			TraceID:               recorder.RunID(),
+			TracePath:             recorder.Path(),
 		}, nil
 	}
 
@@ -595,10 +602,10 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	// error), so carry TraceID out even on the error paths — a failed run is
 	// exactly when the caller most needs to point a viewer at the file.
 	if err != nil {
-		return RunResult{SessionID: sess.ID, TraceID: recorder.RunID()}, fmt.Errorf("agent: %w", err)
+		return RunResult{SessionID: sess.ID, TraceID: recorder.RunID(), TracePath: recorder.Path()}, fmt.Errorf("agent: %w", err)
 	}
 	if _, err := a.finalizeTurn(sess, client, stats); err != nil {
-		return RunResult{SessionID: sess.ID, TraceID: recorder.RunID()}, err
+		return RunResult{SessionID: sess.ID, TraceID: recorder.RunID(), TracePath: recorder.Path()}, err
 	}
 	status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
 	return RunResult{
@@ -615,6 +622,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		Workspace:             a.workspaceRoot,
 		ModelName:             modelName,
 		TraceID:               recorder.RunID(),
+		TracePath:             recorder.Path(),
 	}, nil
 }
 

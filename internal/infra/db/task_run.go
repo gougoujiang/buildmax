@@ -29,6 +29,7 @@ type taskRunRow struct {
 	K8sJobCreatedAt  *int64  `gorm:"column:k8s_job_created_at"`
 	PromptTokens     *int    `gorm:""`
 	CompletionTokens *int    `gorm:""`
+	TracePath        *string `gorm:"column:trace_path;type:varchar(512)"`
 	CreatedAt        int64   `gorm:"autoCreateTime"`
 }
 
@@ -65,6 +66,7 @@ func toTaskRun(row *taskRunRow) *model.TaskRun {
 		K8sJobCreatedAt:  row.K8sJobCreatedAt,
 		PromptTokens:     row.PromptTokens,
 		CompletionTokens: row.CompletionTokens,
+		TracePath:        row.TracePath,
 		CreatedAt:        row.CreatedAt,
 	}
 }
@@ -92,6 +94,7 @@ func toTaskRunRow(m *model.TaskRun) *taskRunRow {
 		K8sJobCreatedAt:  m.K8sJobCreatedAt,
 		PromptTokens:     m.PromptTokens,
 		CompletionTokens: m.CompletionTokens,
+		TracePath:        m.TracePath,
 		CreatedAt:        m.CreatedAt,
 	}
 }
@@ -115,28 +118,49 @@ func toTaskRunArtifacts(rows []taskRunArtifactRow) []model.TaskRunArtifact {
 	return out
 }
 
-func buildTaskRunUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string, promptTokens, completionTokens *int) map[string]interface{} {
-	updates := map[string]interface{}{"status": status}
-	if startedAt != nil {
-		updates["started_at"] = *startedAt
+// taskRunUpdate is the set of columns a run status transition may write. A
+// struct rather than positional parameters: four of the fields are *string, and
+// transposing two of them would still compile.
+type taskRunUpdate struct {
+	status           string
+	startedAt        *int64
+	endedAt          *int64
+	output           *string
+	errorMessage     *string
+	sessionID        *string
+	tracePath        *string
+	promptTokens     *int
+	completionTokens *int
+}
+
+// buildTaskRunUpdates renders the update into GORM's column map. A nil field
+// means "leave this column alone", so a later transition cannot blank a value
+// an earlier one wrote.
+func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
+	updates := map[string]interface{}{"status": in.status}
+	if in.startedAt != nil {
+		updates["started_at"] = *in.startedAt
 	}
-	if endedAt != nil {
-		updates["ended_at"] = *endedAt
+	if in.endedAt != nil {
+		updates["ended_at"] = *in.endedAt
 	}
-	if output != nil {
-		updates["output"] = *output
+	if in.output != nil {
+		updates["output"] = *in.output
 	}
-	if errorMessage != nil {
-		updates["error_message"] = *errorMessage
+	if in.errorMessage != nil {
+		updates["error_message"] = *in.errorMessage
 	}
-	if sessionID != nil {
-		updates["session_id"] = *sessionID
+	if in.sessionID != nil {
+		updates["session_id"] = *in.sessionID
 	}
-	if promptTokens != nil {
-		updates["prompt_tokens"] = *promptTokens
+	if in.tracePath != nil {
+		updates["trace_path"] = *in.tracePath
 	}
-	if completionTokens != nil {
-		updates["completion_tokens"] = *completionTokens
+	if in.promptTokens != nil {
+		updates["prompt_tokens"] = *in.promptTokens
+	}
+	if in.completionTokens != nil {
+		updates["completion_tokens"] = *in.completionTokens
 	}
 	return updates
 }
@@ -209,7 +233,14 @@ func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*mode
 // ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
 func (s *Store) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
 	result := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_run_id = ? AND status = ?", in.TaskRunID, string(in.ExpectedStatus)).Updates(
-		buildTaskRunUpdates(string(in.NewStatus), in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID, nil, nil),
+		buildTaskRunUpdates(taskRunUpdate{
+			status:       string(in.NewStatus),
+			startedAt:    in.StartedAt,
+			endedAt:      in.EndedAt,
+			output:       in.Output,
+			errorMessage: in.ErrorMessage,
+			sessionID:    in.SessionID,
+		}),
 	)
 	if result.Error != nil {
 		return false, result.Error
@@ -223,7 +254,17 @@ func (s *Store) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (b
 // UpdateRun updates a run's status and optional fields.
 func (s *Store) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
 	if err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_run_id = ?", in.TaskRunID).Updates(
-		buildTaskRunUpdates(string(in.Status), in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID, in.PromptTokens, in.CompletionTokens),
+		buildTaskRunUpdates(taskRunUpdate{
+			status:           string(in.Status),
+			startedAt:        in.StartedAt,
+			endedAt:          in.EndedAt,
+			output:           in.Output,
+			errorMessage:     in.ErrorMessage,
+			sessionID:        in.SessionID,
+			tracePath:        in.TracePath,
+			promptTokens:     in.PromptTokens,
+			completionTokens: in.CompletionTokens,
+		}),
 	).Error; err != nil {
 		return err
 	}
