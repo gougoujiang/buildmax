@@ -63,6 +63,30 @@ environment carries credentials.** That is exactly how
 `deployment/buildmax-deploy.yaml` is arranged — a ConfigMap for the file, a
 Secret for these variables.
 
+### What A Worker Receives
+
+A task-run worker is given only the variables it reads, whether it runs as a
+local process or a Kubernetes Job:
+
+| Variable | Why a worker needs it |
+|---|---|
+| `BUILDMAX_HOME` | Run-scoped data directory |
+| `BUILDMAX_WORKER_TOKEN` | Authenticates its own `/api/worker/*` calls |
+| `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | Reads and writes run state and artifacts |
+| `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls the model directly; managed inference has no worker path yet |
+| `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
+
+`BUILDMAX_JWT_SECRET` and `BUILDMAX_DATABASE_PASSWORD` are deliberately
+withheld. A worker never reads them — it reaches the server over HTTP with its
+worker token and never touches the database — and it executes model-chosen
+shell commands, so holding the signing secret would let one mint a token for
+any user, and holding the database password would give it every team's data.
+An unrecognized `BUILDMAX_` variable is withheld too, so a variable added to
+the server without a decision about workers stays on the server.
+
+`WorkerNeeds` in `internal/config/env_spec.go` is the source of truth. Marking a
+variable there is what sends it to workers.
+
 ### Local development `.env`
 
 `./make` and `make.bat` load a `.env` file from the repository root before

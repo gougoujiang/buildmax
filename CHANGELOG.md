@@ -9,6 +9,21 @@ pre-releases and must be called out in release notes.
 
 ## [Unreleased]
 
+### Security
+
+- Task-run workers are no longer handed the JWT signing secret or the database
+  password. Both reached workers by inheritance — a local worker got the
+  server's whole environment, and a Kubernetes worker Job got every `BUILDMAX_*`
+  variable the server held — even though a worker reads neither: it talks to the
+  server over HTTP with its own worker token and never opens the database. Since
+  a worker executes model-chosen shell commands, holding the signing secret
+  meant a prompt could mint a token for any user, and holding the database
+  password meant it could read every team's data. A worker now receives only the
+  variables marked `WorkerNeeds` in `internal/config/env_spec.go`, and an
+  unrecognized `BUILDMAX_` variable is withheld by default. Object-storage keys
+  are still passed, because workers read and write run state directly; narrowing
+  that needs a server-issued, run-scoped credential and is separate work.
+
 ### Added
 
 - A `sandbox_boundary` record in every run trace, written immediately after

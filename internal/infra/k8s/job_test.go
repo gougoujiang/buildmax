@@ -140,3 +140,37 @@ func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 		t.Errorf("mounts = %+v, want only the default home at /buildmax", container.VolumeMounts)
 	}
 }
+
+// TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials asserts the Job pod
+// gets what a worker reads and nothing else. The server process holds the JWT
+// signing secret and the database password; forwarding them would give every
+// model-chosen command in the pod the ability to mint tokens for any user and
+// read the whole database.
+func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
+	t.Setenv(config.EnvKeyBuildmaxWorkerToken, "wt-secret")
+	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "minio-key")
+	t.Setenv(config.EnvKeyBuildmaxJWTSecret, "jwt-secret")
+	t.Setenv(config.EnvKeyBuildmaxDatabasePassword, "db-secret")
+	t.Setenv("BUILDMAX_ADDED_LATER", "unknown")
+	t.Setenv("PATH_LIKE_NON_BUILDMAX", "ignored")
+
+	got := WorkerEnvFromEnviron()
+	byName := make(map[string]string, len(got))
+	for _, e := range got {
+		byName[e.Name] = e.Value
+	}
+
+	for _, name := range []string{config.EnvKeyBuildmaxJWTSecret, config.EnvKeyBuildmaxDatabasePassword, "BUILDMAX_ADDED_LATER"} {
+		if _, ok := byName[name]; ok {
+			t.Errorf("%s must not be forwarded to a worker pod", name)
+		}
+	}
+	for _, name := range []string{config.EnvKeyBuildmaxWorkerToken, config.EnvKeyBuildmaxMinIOAccessKey} {
+		if _, ok := byName[name]; !ok {
+			t.Errorf("%s is read by a worker but was not forwarded", name)
+		}
+	}
+	if _, ok := byName["PATH_LIKE_NON_BUILDMAX"]; ok {
+		t.Error("only BUILDMAX_ variables belong in the pod env built here")
+	}
+}

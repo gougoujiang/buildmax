@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -304,7 +305,7 @@ func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, er
 		if wc.Binary == "" {
 			return nil, fmt.Errorf("worker.binary is required in server.yaml for local_process mode")
 		}
-		return scheduler.NewLocalRunner(wc.Binary), nil
+		return scheduler.NewLocalRunner(wc.Binary, config.FilterWorkerEnv(os.Environ())), nil
 	}
 }
 

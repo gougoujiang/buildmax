@@ -161,7 +161,14 @@ func (c *jobCreatorImpl) CreateJob(ctx context.Context, namespace string, job *b
 	return err
 }
 
-// WorkerEnvFromEnviron returns BUILDMAX_* environment variables from the current process as corev1.EnvVar for Job pods.
+// WorkerEnvFromEnviron returns the environment a worker Job pod is given: the
+// BUILDMAX_* variables from this process that a worker actually reads.
+//
+// The server holds credentials a worker has no use for — the JWT signing
+// secret, the database password — and forwarding them would hand every
+// model-chosen command the ability to mint tokens for any user and read the
+// whole database. config.WorkerNeedsEnv decides; see its comment for how to
+// extend the set.
 func WorkerEnvFromEnviron() []corev1.EnvVar {
 	env := os.Environ()
 	var out []corev1.EnvVar
@@ -171,6 +178,9 @@ func WorkerEnvFromEnviron() []corev1.EnvVar {
 		}
 		idx := strings.IndexByte(e, '=')
 		if idx <= 0 {
+			continue
+		}
+		if !config.WorkerNeedsEnv(e[:idx]) {
 			continue
 		}
 		out = append(out, corev1.EnvVar{Name: e[:idx], Value: e[idx+1:]})
