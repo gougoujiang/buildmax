@@ -46,13 +46,17 @@ deployment/*.local.yaml
 # Internal task-note and scratch area used by the /vibe workflow.
 # Published documentation lives in docs/.
 .vibe/
-# Built binaries from ./make (do not ignore cmd/* source)
+# Built binaries. `./make build` writes to bin/; a bare `go build ./cmd/<x>`
+# writes <x> to the repository root instead, so every cmd package is listed
+# here whether or not ./make ever produces it. Do not ignore cmd/* source.
 /bin/
 /buildmax
+/buildmax-desktop
 /buildmax-server
 /buildmax-worker
 /buildmax-eval
 /local-test-mcp-server
+/mk
 
 testing-sandbox/
 testing-workspaces/
