@@ -9,7 +9,7 @@ repository contracts defined in `internal/core/model`.
 
 The active persistence model is team-scoped for shared work:
 
-- user
+- user / login_code / user_webhook_key
 - team / team_member
 - conversation / conversation_message
 - issue
@@ -17,9 +17,11 @@ The active persistence model is team-scoped for shared work:
 - workflow / workflow_run / workflow_step_run
 - task / task_run / task_run_artifact
 - quota_tier
-- user_webhook_key
+- llm_model / llm_call
 
-Table names are singular per project convention.
+Table names are singular per project convention. For every column, index, and
+relationship, and for the rules on changing them, see
+[data-model.md](data-model.md).
 
 There is no usage table. `TeamUsageInWindow` aggregates on read: it counts
 `task_run` rows joined to `task` by team and sums their prompt and completion

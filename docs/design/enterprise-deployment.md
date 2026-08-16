@@ -5,7 +5,7 @@
 - roadmap_priority: `P3`
 - status: `in_progress` — M1 (config contract cleanup) is done; M2–M5 are open
 - follows: P2 Portal outcome surface (complete; plan retired)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
 
 ## 1. Decision

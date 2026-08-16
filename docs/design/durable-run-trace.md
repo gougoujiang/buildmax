@@ -6,7 +6,7 @@
 - status: `phase 1 implemented` (§8 phase 1 landed; follow-ups in §7 still open)
 - implements: [trust-harness.md](./trust-harness.md) §3.3
 - follows: [hook-system.md](./hook-system.md)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-06-03`
 
 ## 1. Purpose

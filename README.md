@@ -68,7 +68,7 @@ Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 | [Hooks](docs/guide/hooks.md) · [Sandbox](docs/guide/sandbox.md) | Controlling what the agent may do |
 | [Compose quickstart](docs/deploy/compose.md) · [Local kind](docs/deploy/local-kind.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a team |
 | [Configuration](docs/reference/configuration.md) · [CLI](docs/reference/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
-| [ROADMAP.md](ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
+| [docs/ROADMAP.md](docs/ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
 | [Contributing](CONTRIBUTING.md) · [Support](.github/SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
 
 ## How It Works

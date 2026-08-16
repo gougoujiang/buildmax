@@ -5,7 +5,7 @@
 - roadmap_priority: `P5`
 - status: `ready_for_review`
 - follows: [team-governance.md](./team-governance.md)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
 
 ## 1. Decision

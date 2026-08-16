@@ -11,6 +11,13 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- `docs/contribute/architecture/data-model.md`, a full reference for the server
+  database: every one of the 18 tables with its columns, types, nullability,
+  indexes, and enumerated values, two entity-relationship diagrams, and the
+  procedure for adding, renaming, or dropping schema. The schema had only ever
+  existed as GORM tags on unexported structs, so a newcomer had to read
+  `internal/infra/db` file by file to learn the data model.
+
 - `./make check ci`, which runs everything a pull request runs except the
   Windows job: `check all` plus workflow linting, a Git history secret scan, Go
   and npm production dependency license checks, GoReleaser configuration
@@ -117,6 +124,8 @@ pre-releases and must be called out in release notes.
   by integrity tests for the repository's `.buildmax` agent configuration.
 - Release chores now live under `./make release`, and local image loading is
   `./make kind images`.
+- `ROADMAP.md` moved to `docs/ROADMAP.md`, so the repository root keeps only the
+  files GitHub and packaging tools expect there.
 
 - **Self-registration is closed by default.** `POST /api/otp/request` refuses
   `intent: signup` with 403 unless `server.yaml` sets `allow_signup: true`.

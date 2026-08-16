@@ -23,7 +23,7 @@ buildmax/
 ├── .github/              CI workflows, issue and PR templates, community health files
 ├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md
 ├── make, make.bat        One-line shims around the task runner in cmd/mk
-└── *.md, LICENSE         README, CONTRIBUTING, SECURITY, CHANGELOG, ROADMAP, AGENTS
+└── *.md, LICENSE         README, CONTRIBUTING, SECURITY, CHANGELOG, AGENTS
 ```
 
 Generated and never committed: `bin/` (`./make build` output), `dist/`
@@ -38,7 +38,6 @@ Root Markdown, and who each file is for:
 | `CONTRIBUTING.md` | Contributors — prerequisites, build, test, pull requests |
 | `SECURITY.md` | Vulnerability reporters and operators |
 | `CHANGELOG.md` | Users and operators, per release |
-| `ROADMAP.md` | Anyone asking where the project is going |
 | `AGENTS.md` | The agent, on every run in this workspace ([agents.md](https://agents.md/) convention). `CLAUDE.md` points at it. |
 | `.github/CODE_OF_CONDUCT.md`, `SUPPORT.md`, `GOVERNANCE.md`, `MAINTAINERS.md`, `TRADEMARKS.md` | Community health files. GitHub surfaces them from `.github/` exactly as it does from the root. |
 

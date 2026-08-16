@@ -80,6 +80,6 @@ gui/                     Shared React component package
 - The full repository tree lives in [../repo-layout.md](../repo-layout.md); the
   abbreviated version above is for orientation only.
 - Current product planning starts in [../../design/README.md](../../design/README.md)
-  and [ROADMAP.md](../../../ROADMAP.md).
+  and [ROADMAP.md](../../ROADMAP.md).
 - The product-level picture — what BuildMax is and who each surface is for —
   is in [../../start/concepts.md](../../start/concepts.md).

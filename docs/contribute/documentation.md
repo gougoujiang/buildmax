@@ -78,7 +78,7 @@ Repeating a fact in two documents guarantees that one of them becomes wrong.
 | Environment variables | `internal/config/env_spec.go` → [reference/configuration.md](../reference/configuration.md) | links |
 | Config file fields | `config-examples/*.example.yaml` → [reference/configuration.md](../reference/configuration.md) | links |
 | HTTP routes | `internal/server/handlers/routes.go` → `/openapi.json` | links |
-| Roadmap priorities | [ROADMAP.md](../../ROADMAP.md) | links |
+| Roadmap priorities | [ROADMAP.md](../ROADMAP.md) | links |
 
 ## What Is Enforced
 

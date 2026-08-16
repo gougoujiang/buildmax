@@ -40,7 +40,6 @@ func markdownFiles(t *testing.T, root string) []string {
 		"README.md",
 		"CHANGELOG.md",
 		"CONTRIBUTING.md",
-		"ROADMAP.md",
 		"SECURITY.md",
 		"AGENTS.md",
 		"CLAUDE.md",

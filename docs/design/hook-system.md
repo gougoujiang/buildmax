@@ -6,7 +6,7 @@
 - status: `implemented` — 13 events and all four transports are shipped;
   optional inspector and frontmatter integrations remain deferred
 - follows: [trust-harness.md](./trust-harness.md)
-- roadmap: [../ROADMAP.md](../../ROADMAP.md)
+- roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
 
 ## 1. Purpose
