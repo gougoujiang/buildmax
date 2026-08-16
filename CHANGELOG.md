@@ -35,6 +35,19 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- Versioned schema migrations. Changes that `AutoMigrate` cannot express — a
+  backfill, a drop, a rename — are now an ordered list recorded in a new
+  `schema_migration` table, so each runs at most once per database instead of
+  probing `information_schema` on every server start forever. The two existing
+  one-time migrations became the first two entries and are recorded on upgrade.
+  The schema moves **forward only**: `Migration` has no `Down` field, and the
+  compatibility promise is that schema version N keeps serving code from
+  release N-1 — so a removal takes two releases, one that stops using the
+  column and one that drops it. A binary that meets migrations from a later
+  release warns and continues, because that is the promise working rather than
+  a fault. Rolling a database back is not supported; recovery from a bad
+  upgrade is a restore from backup.
+
 - `POST /api/worker/task-runs/{task_run_id}/llm/completions`, the managed
   inference entry point for workers — the last route needed before a task run
   can use operator-approved models without holding an upstream provider key.
