@@ -118,14 +118,26 @@ We need one blessed architecture:
 
 ### 4.3 Health And Startup Diagnostics Are Thin
 
-The server exposes `/healthz`, but P3 needs more explicit readiness:
+Resolved in part. `GET /readyz` now reports whether the server can serve
+traffic, and `/healthz` keeps its liveness meaning — see open question 2 below.
+The reference manifest points the readiness probe at `/readyz` and leaves
+liveness on `/healthz`.
+
+Shipped:
 
 - database reachable
 - object storage reachable
+
+Still open:
+
 - worker launch mode valid
 - worker token configured
 - LLM config available for conversation title/runtime paths where required
-- storage bucket/prefix readable and writable
+- storage bucket/prefix **writable** — the probe only reads
+
+The last one is the notable gap: a storage backend that accepts reads but
+refuses writes reports ready and then fails every run. Closing it means writing
+a probe object on an interval, which needs a retention answer first.
 
 ### 4.4 Worker End-To-End Path Needs A Single Verification
 
@@ -460,8 +472,12 @@ Manual product validation:
 
 1. Should BuildMax support env overrides for all secret fields in `server.yaml`,
    or should Kubernetes mount a rendered secret-backed config file?
-2. Should P3 introduce `GET /readyz`, or should `/healthz` become dependency
-   aware?
+2. ~~Should P3 introduce `GET /readyz`, or should `/healthz` become dependency
+   aware?~~ **Decided: a separate `/readyz`.** Making `/healthz` dependency
+   aware would have fed the same answer to both probes, and Kubernetes acts on
+   them very differently: a failed readiness check stops traffic, while a
+   failed liveness check restarts the container. A shared endpoint would have
+   turned every database blip into a restart of a server that was working.
 3. Should Redis remain in setup if the current server path does not require it?
 4. Should the recommended production path use Kubernetes Jobs only, or document
    `local_process` as a single-node option?

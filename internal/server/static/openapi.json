@@ -92,6 +92,23 @@
           }
         }
       },
+      "Readiness": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["ready", "unavailable"] },
+          "checks": {
+            "type": "array",
+            "description": "Every dependency probed. An empty array means nothing was verified.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "description": "Which dependency, never where it lives" },
+                "status": { "type": "string", "enum": ["ok", "failed"] }
+              }
+            }
+          }
+        }
+      },
       "TraceBoundary": {
         "type": "object",
         "properties": {
@@ -145,9 +162,34 @@
   "paths": {
     "/healthz": {
       "get": {
-        "summary": "Health check",
+        "summary": "Liveness check",
+        "description": "Reports that the process is running. Checks no dependencies by design — a liveness probe that failed on a dependency outage would restart a healthy server.",
         "responses": {
           "200": { "description": "OK" }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "summary": "Readiness check",
+        "description": "Reports whether the server can serve traffic, probing each configured dependency. Names the failing check but never the reason, which goes to the server log: this endpoint is unauthenticated and connection errors carry DSNs and endpoints.",
+        "responses": {
+          "200": {
+            "description": "Ready",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Readiness" }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Readiness" }
+              }
+            }
+          }
         }
       }
     },

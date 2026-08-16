@@ -97,6 +97,10 @@ type Config struct {
 	Worker  WorkerConfig
 	Conv    ConversationConfig
 	Webhook WebhookConfig
+	// Readiness lists the dependency probes GET /readyz runs. Empty means the
+	// endpoint reports ready without verifying anything, and says so by
+	// returning an empty check list.
+	Readiness []ReadinessCheck
 }
 
 // Server wraps the HTTP server and runs it.
@@ -105,12 +109,13 @@ type Server struct {
 	cfg Config
 }
 
-// New builds an HTTP server with routes for healthz, openapi, swagger, and all API handlers.
+// New builds an HTTP server with routes for healthz, readyz, openapi, swagger, and all API handlers.
 func New(cfg Config) *Server {
 	s := &Server{cfg: cfg}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
+	mux.HandleFunc("GET /readyz", s.readyzHandler)
 	mux.HandleFunc("GET /openapi.json", openAPIHandler)
 	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
@@ -244,10 +249,6 @@ func (s *Server) Run() error {
 	}
 	slog.Info("server stopped")
 	return nil
-}
-
-func healthzHandler(w http.ResponseWriter, _ *http.Request) {
-	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func serveStatic(w http.ResponseWriter, path, contentType string) {

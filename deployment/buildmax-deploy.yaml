@@ -147,12 +147,21 @@ spec:
           ports:
             - containerPort: 5678
               name: http
+          # Readiness reflects MySQL and object storage, so a dependency outage
+          # takes this pod out of the Service instead of letting it accept
+          # requests it cannot serve.
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: http
             initialDelaySeconds: 3
-            periodSeconds: 3
+            periodSeconds: 5
+            # Failing readiness only stops traffic, so tolerate a brief blip
+            # rather than flapping the endpoint on one slow query.
+            failureThreshold: 3
+          # Liveness stays on /healthz, which checks nothing. A liveness probe
+          # that failed on a dependency outage would restart a healthy server
+          # and turn a recoverable outage into a crash loop.
           livenessProbe:
             httpGet:
               path: /healthz

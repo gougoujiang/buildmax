@@ -26,6 +26,7 @@ callbacks, and scheduler startup. Business workflows are delegated to
 
 - Health and API description: `/healthz`, `/openapi.json`, `/swagger/`
 - Auth: `/api/otp/request`, `/api/login`
+- Liveness and readiness: `/healthz`, `/readyz`
 - Teams and members: `/api/teams...`
 - Agents: `/api/teams/{team_id}/agents...`
 - Issues: `/api/teams/{team_id}/issues...`
