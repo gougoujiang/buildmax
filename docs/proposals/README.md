@@ -31,9 +31,18 @@ their context.
 | Proposal | Question |
 |---|---|
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
-| [Agent execution policy](agent-execution-policy.md) | What default policy and approval boundary make worker execution acceptable for a trusted enterprise deployment? |
-| [Private production operations](private-production-operations.md) | What minimum operating contract turns the local Kubernetes path into a supported private deployment? |
-| [Audit and data governance](audit-and-data-governance.md) | What is the smallest useful evidence and data-control model for shared agent work? |
+| [Agent execution policy](agent-execution-policy.md) | Who chooses a worker's execution boundary, and what happens when the chosen one cannot be applied? |
+
+Two papers have been retired because the work they proposed shipped. *Private
+production operations* asked for an operating contract for private deployment;
+`deployment/production/` and the compatibility section of
+[../start/support.md](../start/support.md) are that contract, and what it still
+lacks is operational evidence, now recorded as open questions in the
+[enterprise deployment design](../design/enterprise-deployment.md). *Audit and
+data governance* asked for the smallest useful evidence model; the append-only
+audit trail is it, and retention, export, and correlation remain open in the
+[team governance design](../design/team-governance.md). Git history holds both
+papers.
 
 ## Starting A Proposal
 

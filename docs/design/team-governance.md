@@ -3,8 +3,9 @@
 ## Status
 
 - roadmap_priority: `P4`
-- status: `partially_implemented` — roles, quota, and workflow lifecycle are
-  shipped; audit/event visibility remains open
+- status: `partially_implemented` — roles, quota, workflow lifecycle, the
+  authorization matrix, and the first audit-trail slice are shipped; retention,
+  export, and correlation remain open
 - follows: [enterprise-deployment.md](./enterprise-deployment.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
@@ -78,10 +79,18 @@ explanation:
 - which workflow states are runnable
 - current team usage and quota limits
 
-### 4.2 Permission Boundaries Need Broader Tests
+### 4.2 Permission Boundaries Need Broader Tests — RESOLVED
 
-Handler tests already cover some role behavior. P4 should make permission
-boundaries systematic:
+**This gap is closed.** A matrix drives real requests through the mux for an
+owner, an admin, a member, a member of another team, and an anonymous caller,
+covering every team-scoped route in `internal/server/handlers/routes.go`.
+Driving requests rather than unit-testing the authorization helper is the
+point: the role rules have more than one implementation, and a test of the
+shared helper would pass while they drifted. A second test reads `routes.go`
+and fails when a team-scoped route has no entry — and when an entry names a
+route that no longer exists, because a dead row reads as coverage.
+
+What it was built to prove:
 
 - members cannot mutate shared automation assets
 - admins cannot manage ownership-sensitive membership actions
@@ -99,18 +108,24 @@ The lifecycle exists, but it should be obvious in Portal:
 
 The UI should avoid making users learn this by failed requests.
 
-### 4.4 Sensitive Assets Are Not Traceable
+### 4.4 Sensitive Assets Are Not Traceable — PARTLY RESOLVED
 
-BuildMax now has shared assets that affect team execution:
+The audit trail described in §5.4 now exists, but it covers the identity and
+model-catalog half of the list. Of the shared assets that affect team
+execution:
 
-- webhook keys
-- agent definitions
-- workflows
-- team members and roles
-- quota tier assignment
+- team members and roles — **recorded**
+- the model catalog, which holds provider credentials — **recorded**
+- webhook keys — not recorded
+- agent definitions — not recorded
+- workflows, including publish and archive — not recorded
+- quota tier assignment — not recorded
 
-There is no small audit/event model yet. P4 should define and implement the
-smallest useful traceability slice.
+The first slice was chosen for what a compromise costs rather than for how
+often the asset changes: a membership change grants access to everything a team
+holds, and a catalog change moves prompts and spending. The rest is additive —
+each one is a `Record` call at the point of change plus a permanent action
+string — and is the obvious second slice.
 
 ## 5. In Scope
 
@@ -155,57 +170,58 @@ Polish workflow list/detail copy and controls:
 - keep archived workflows inspectable
 - make publish/archive transitions explicit
 
-### 5.4 Small Audit/Event Model
+### 5.4 Small Audit/Event Model — SHIPPED, first slice
 
-Define and implement a small append-only event model.
+`model.AuditEvent` in `internal/core/model/audit.go` is the shipped shape. It
+differs from what this section originally sketched in three ways that were
+decisions, not drift:
 
-Recommended model:
+- **`ActorType` plus `ActorID`, not `ActorUserID`.** A worker and the system
+  itself take meaningful actions, and typing the actor was cheaper than
+  inventing a user id for them.
+- **No `MetadataJSON`.** A free-form JSON column is where prompts, request
+  bodies, and credentials end up. `Detail` is a short non-sensitive note — a
+  role name, a model alias — and nothing more.
+- **A `TeamID` that may be empty.** A login is not team-scoped, and forcing one
+  would have meant inventing a team for the event.
 
-```go
-type TeamEvent struct {
-	ID             uint   `json:"-"`
-	EventID        string `json:"event_id"`
-	TeamID         string `json:"team_id"`
-	ActorUserID    string `json:"actor_user_id"`
-	Action         string `json:"action"`
-	TargetType     string `json:"target_type"`
-	TargetID       string `json:"target_id"`
-	Summary        string `json:"summary"`
-	MetadataJSON   string `json:"metadata_json,omitempty"`
-	CreatedAt      int64  `json:"created_at"`
-}
-```
+The event carries no prompts, no generated content, no tool output, and no
+credentials: only who did what to which object. Run diagnostics live in the
+durable run trace and per-call accounting in the `llm_call` ledger, because
+those are different questions with different retention answers.
 
-Use a prefixed ID such as `ev_` through `internal/util.NewPrefixedID`.
+`AuditStore` is append-only by interface — there is no update or delete, since
+a record that can be edited is not evidence. Action strings are persisted and
+therefore permanent; renaming one rewrites history for every reader filtering
+on it.
 
-Initial event actions:
+The actions that shipped are `user.login`, `team.member_added`,
+`team.member_removed`, `llm_model.created`, `llm_model.enabled`,
+`llm_model.disabled`, and `access.denied`. Two are worth stating for anyone
+extending the list: a failed login is deliberately *not* recorded, because it
+says nothing about who the actor was and would turn the trail into a place to
+write arbitrary strings; and `access.denied` is the one action written on
+failure, because a denial is what shows someone probing at a boundary.
 
-- `team.member_added`
-- `team.member_removed`
-- `team.member_role_changed`
-- `agent.created`
-- `agent.updated`
-- `agent.deleted`
-- `workflow.created`
-- `workflow.updated`
-- `workflow.published`
-- `workflow.archived`
-- `webhook_key.created`
-- `webhook_key.revoked`
-- `quota.tier_changed` if quota tier editing exists
+A failed write is logged and dropped rather than failing the action that
+triggered it. That is a real limit and is stated in `docs/start/support.md`:
+the trail records what happened while the database was reachable, which is not
+the same as guaranteeing every action was recorded. See open question 2.
 
-### 5.5 Event Visibility
+The remaining actions from §4.4 are the second slice.
 
-Add a small Team Activity section in settings:
+### 5.5 Event Visibility — SHIPPED
 
-- latest 20-50 events
-- actor
-- action
-- target
-- time
-- short summary
+`GET /api/teams/{team_id}/audit-events` serves a team's trail newest-first with
+limit/offset, and Portal renders it as an audit section in team settings
+(`portal/src/features/audit/`).
 
-Do not build filtering, export, or compliance retention in the first slice.
+It is **owner-only**, in the API and in the UI. The trail names who did what
+including who was refused, which is administrative rather than collaborative
+information — a member does not need to see that a colleague was denied
+something. This answers what was open question 1.
+
+Filtering, export, and compliance retention are deliberately still absent.
 
 ## 6. Out Of Scope
 
@@ -241,16 +257,16 @@ control, build from observed needs rather than inventing custom RBAC now.
 
 ## 8. Backend Plan
 
-### M1. Permission Tests
+### M1. Permission Tests — DONE
 
-- Add table-driven tests around `isRoleAllowed`.
-- Expand handler tests for agents, workflows, issues, teams, webhook keys, and
-  usage where action boundaries matter.
-- Add cross-team access tests for sensitive reads and writes.
+Shipped as a route matrix rather than tests around `isRoleAllowed`, for the
+reason given in §4.2: the helper is not the only implementation of the rules.
+Every team-scoped route in `routes.go` has a row naming who may call it, the
+rows are driven as real requests for five callers including a member of another
+team, and a route without a row fails the build.
 
-Acceptance:
-
-- the permission matrix is enforced by tests
+Acceptance met: the permission matrix is enforced by tests, and a new
+team-scoped route cannot ship without someone deciding who may call it.
 
 ### M2. Governance Service Boundary
 
@@ -267,50 +283,34 @@ type TeamAuthorizer interface {
 
 Keep it boring: no policy DSL.
 
-### M3. Team Event Store
+### M3. Team Event Store — DONE
 
-Add model and store contracts:
+Shipped as `model.AuditEvent` and `model.AuditStore`
+(`RecordAuditEvent`/`ListAuditEvents`), with `auditEventRow` in
+`internal/infra/db` on the singular table `audit_event`. The
+naming landed on *audit* rather than *team event* because a login is not
+team-scoped and the trail is evidence rather than an activity feed. See §5.4 for
+the shape and for what was dropped from the sketch here.
 
-- `TeamEvent`
-- `TeamEventStore`
-- `CreateTeamEvent`
-- `ListTeamEventsByTeam`
+### M4. Event Writes — DONE
 
-Add GORM row with singular table name `team_event`.
+Events are written after the mutation succeeds. A failed write is logged and
+dropped, so a governance record never fails the action it describes — the
+trade-off is stated in §5.4 and in `docs/start/support.md` rather than left for
+an operator to discover during an investigation. The compact-JSON metadata rule
+did not survive: there is no metadata column, only a short `Detail` string.
 
-### M4. Event Writes
+### M5. Event API — DONE
 
-Write events from successful sensitive actions.
-
-Rules:
-
-- write after the main mutation succeeds
-- event write failure should be logged
-- for MVP, event write failure should not fail the user action unless we decide
-  traceability is mandatory for that action
-- metadata should be compact JSON with snake_case keys
-
-### M5. Event API
-
-Add:
+Shipped as:
 
 ```text
-GET /api/teams/{team_id}/events
+GET /api/teams/{team_id}/audit-events
 ```
 
-Authorization:
-
-- owner/admin can view
-- member cannot view in the first slice
-
-Response:
-
-```json
-{
-  "events": [],
-  "total": 0
-}
-```
+Authorization is **owner-only**, narrower than the owner/admin sketched here,
+for the reason in §5.5. Response is `{"events": [], "total": 0}` with
+limit/offset paging.
 
 ## 9. Frontend Plan
 
@@ -342,14 +342,12 @@ In workflow pages:
 - unavailable run action for draft/archived
 - assignment UI that defaults to published workflows only
 
-### M4. Activity Section
+### M4. Activity Section — DONE
 
-In team settings:
-
-- add "Activity"
-- list recent team events
-- use concise labels
-- link targets when target route exists
+Shipped in team settings as "Audit trail" (`portal/src/features/audit/`), with
+concise labels and paging. A non-owner sees the section explain why it is empty
+for them rather than seeing nothing, so the boundary is legible instead of
+looking like a missing feature.
 
 ## 10. Validation
 
@@ -393,11 +391,40 @@ Manual scenarios:
 
 ## 12. Open Questions
 
-1. Should members be able to view Team Activity, or is it admin-only?
-2. Should event writes be best-effort or required for sensitive actions?
+1. ~~Should members be able to view Team Activity, or is it admin-only?~~
+   **Decided: owner-only**, narrower than either option. The trail records who
+   was refused a request, and that is administrative information — see §5.5.
+2. Should event writes be best-effort or required for sensitive actions? Still
+   open, and now a shipped behaviour rather than a design choice: writes are
+   best-effort. Making one required means deciding what the user sees when the
+   action succeeded and the record did not.
 3. Should workflow publish/archive require owner or allow admin?
 4. Should quota tier changes be implemented in P4 or only documented?
 5. Should webhook key creation/revocation require owner/admin only?
+
+The remaining questions came from the retired *Audit and data governance*
+proposal. Its recommended direction — an internal team ledger first, export
+later — is what shipped; these are the parts that were not settled by shipping
+it:
+
+6. What retention applies to audit events, and is it configuration or an
+   operational responsibility? Nothing expires today. `docs/start/support.md`
+   says retention of artifacts, run state, and traces is the operator's to
+   configure, but the audit table has no such answer and no operator control.
+7. What correlation identifiers may connect a task, worker, model call, and
+   artifact? The trail, the durable run trace, and the `llm_call` ledger are
+   three separate records with no shared key, so an investigation that starts
+   at an audit event cannot mechanically reach the run that caused it.
+8. Does export need at-least-once delivery, and how would a consumer detect
+   gaps? Deliberately deferred until the event shape stops changing, which the
+   §4.4 second slice will do. A best-effort write (question 2) also means a gap
+   is not always distinguishable from nothing having happened.
+9. Who may read run traces, artifacts, and model usage? The audit trail's
+   answer is settled; these three were never decided together, and they carry
+   more than the trail does — a trace holds tool output.
+10. Which deletion controls does a team get? There is no export or import
+    command and nothing deletes a team's records, so "delete our data" has no
+    answer beyond dropping the database and the bucket.
 
 ## 13. Recommended First PR
 
