@@ -3,7 +3,9 @@
 ## Status
 
 - roadmap_priority: `P3`
-- status: `in_progress` — M1 (config contract cleanup) is done; M2–M5 are open
+- status: `in_progress` — M1 (config contract cleanup) and M4 (production
+  reference) are done, M3 (health and readiness) is mostly done; M2 and M5 are
+  open
 - follows: P2 Portal outcome surface (complete; plan retired)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
@@ -101,20 +103,31 @@ What shipped:
 
 Not verified against a live cluster — see §10.
 
-### 4.2 Missing Recommended Deployment Shape
+### 4.2 Missing Recommended Deployment Shape — RESOLVED
 
-The repo has a kind path, but not a crisp recommended production shape.
+**This gap is closed.** `deployment/production/` is the blessed shape: one
+plain-YAML manifest for a cluster that already runs its own MySQL, object
+storage, ingress, and certificates, plus a README stating the contract each
+dependency has to meet. It is deliberately not a chart, so it converts to
+whatever a cluster is already managed with, and every dependency address is a
+placeholder so an unedited `kubectl apply` fails rather than coming up against
+the wrong database.
 
-We need one blessed architecture:
+The architecture it fixes:
 
 - Server Deployment
 - Portal Deployment
 - Worker Jobs launched by the scheduler
-- MySQL
-- MinIO or external S3
+- external MySQL
+- external S3-compatible storage
 - ConfigMap for non-secret `server.yaml`
 - Secret for JWT, worker token, LLM API key, DB password, S3 secret
-- Ingress for Portal and API
+- Ingress for Portal and API on one origin
+
+What the shape does *not* yet have is operational evidence: no restore
+exercise, no upgrade/rollback exercise across a schema change, no metrics, and
+no run against a real cloud account. Those are open questions 6–9 below, not
+gaps in the shape itself.
 
 ### 4.3 Health And Startup Diagnostics Are Thin
 
@@ -389,25 +402,20 @@ Acceptance:
 - a broken DB, missing bucket, missing worker token, or invalid worker mode has
   a clear failing check
 
-### M4. Production Reference Guide
+### M4. Production Reference Guide — DONE
 
-- Add a deployment guide under `deployment/README.md`.
-- Document:
-  - images
-  - config
-  - secrets
-  - storage
-  - database
-  - ingress/TLS
-  - worker mode
-  - backup boundaries
-  - upgrade steps
-- Keep the guide concrete but not cloud-specific.
+`deployment/production/` carries the manifest and the guide: images, config,
+secrets, storage, database, ingress/TLS, worker mode, backup boundaries, and
+upgrade steps, with what the reference deliberately does not cover stated
+rather than left to be discovered. `docs/start/support.md` carries the
+compatibility half — what an upgrade may and may not do to a schema, an API,
+a config key, and stored data. `internal/architecture` parses the manifest's
+ConfigMap the way the server parses its own config, so the two cannot drift.
 
-Acceptance:
-
-- a private deployment can be planned from docs without reading Go bootstrap
-  code
+Acceptance met: a private deployment can be planned from these docs without
+reading Go bootstrap code. Not met, and tracked as open questions rather than
+as part of this milestone: the reference has never been applied against a real
+managed database or object store.
 
 ### M5. Admin Bootstrap Story
 
@@ -482,6 +490,32 @@ Manual product validation:
 4. Should the recommended production path use Kubernetes Jobs only, or document
    `local_process` as a single-node option?
 5. Should private deployments allow self-signup by default?
+
+The remaining questions came from the retired *Private production operations*
+proposal. The reference topology it asked for now exists; what it asked for and
+did not get is evidence that the topology can be operated:
+
+6. What availability and recovery targets are realistic for the first Beta? The
+   deployment reference states a recovery *procedure* — restore from backup,
+   redeploy the previous image tag — without stating an objective it meets.
+7. Has a restore actually been exercised? Recovering a team and a completed run
+   needs the database and the bucket restored *together*, and nothing has proven
+   that the pair comes back consistent.
+8. Has an upgrade and rollback been exercised across at least one schema change?
+   The N-1 promise in `docs/start/support.md` is a rule the code follows, not a
+   run anyone has performed.
+9. Which metrics make a deployment supportable? There are none today — no
+   `/metrics` endpoint and no Prometheus dependency — so an operator diagnoses
+   from logs, `/readyz`, and the run trace. Deciding the required set is a
+   prerequisite for claiming the deployment is operable, not a later polish.
+10. How are JWT, worker, database, storage, and model credentials **rotated**?
+    Injection is settled — env overrides sourced from a Secret — but nothing
+    documents what a rotation does to sessions, in-flight task runs, or a
+    worker Job that already holds a token.
+11. Which versions of Kubernetes, MySQL, and S3-compatible storage form the
+    supported matrix? `docs/start/support.md` grades surfaces and platforms but
+    names no dependency versions, and `deployment/production/README.md` states
+    a behavioural contract instead.
 
 ## 13. Recommended First PR
 
