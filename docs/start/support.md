@@ -69,15 +69,77 @@
 | Local single-user CLI/TUI | **Supported** | Start in a git working tree you can diff and revert. |
 | Trusted private server deployment | **Beta** | Suitable for local labs or trusted networks after reading deployment docs. |
 | Docker Compose quickstart | **Beta** | Fast contributor and single-machine path. Uses a local-process worker and local filesystem storage. |
-| Local kind deployment | **Beta** | Kubernetes contribution path. Uses MinIO and one Kubernetes Job per TaskRun. |
+| Local kind deployment | **Beta** | Kubernetes contribution path, with its own MySQL and MinIO. A development environment, not a deployment template. |
+| Private Kubernetes deployment against your own dependencies | **Beta** | `deployment/production/` is a plain-YAML reference plus the contract each dependency has to meet. Written to be read and adapted; not applied as-is, and not yet exercised against a real cloud account. |
 | Public internet server exposure | Not supported | `POST /api/login` is disabled by default and production auth is not wired. |
 | Development fixed OTP | **Experimental** | One code signs in every registered user. Use only on a laptop or trusted network. |
 | JWT user API and team membership authorization | **Beta** | User API uses JWT; team membership is the resource boundary. |
 | Worker token auth | **Beta** | Guards worker routes by task run id. Treat it as sensitive infrastructure credential. |
-| Bash sandbox | **Beta** | Off by default for local runs. Covers `Bash` subprocesses, not every tool or process on the host. |
+| Bash sandbox | **Beta** | Off by default on every surface. Covers `Bash` subprocesses, not every tool or process on the host. |
+| Worker pod containment | **Beta** | Worker Jobs run non-root with no service-account token, all capabilities dropped, and a read-only root filesystem. This — not the sandbox — is the boundary a Kubernetes deployment relies on. Workers still receive object-storage credentials. |
 | Runtime hooks | **Beta** | Can observe or block selected lifecycle/tool events. Hook failures fail open. |
 | Durable run traces | **Supported** | On by default, bounded and redacted; failures do not break runs. |
-| Audit log and approval workflow | Not supported | Planned, but not implemented as a governance surface. |
+| Audit log | **Beta** | Records sign-ins, membership changes, model catalog changes, and refused requests. Owner-only, in the API and in Portal. A failed write is logged and dropped, so it records what happened while the database was reachable rather than guaranteeing every action was recorded. |
+| Approval workflow | Not supported | Planned; no gate exists today. |
+
+## Compatibility
+
+What an upgrade may and may not do to a deployment. Where a promise does not
+exist yet, this says so rather than implying one.
+
+### Database schema — a promise, and it is enforced
+
+The schema moves **forward only**. There are no down migrations, and the
+`Migration` type has no `Down` field to write one in.
+
+What is supported is rolling the **binary** back one release: schema version N
+keeps serving code from release N-1. That puts one requirement on every change
+— nothing is removed in the same release that stops using it, so a removal
+takes two — and it is why an upgrade that goes wrong is recovered by
+redeploying the previous image tag.
+
+Rolling a **database** back is not supported. Recovery from a bad schema change
+is a restore from backup, so take one before an upgrade that crosses a release
+carrying migrations. A binary that meets migrations from a later release logs a
+warning and keeps running, because that is the N-1 promise working; a binary
+several releases behind has no such promise.
+
+### HTTP API — no version, so expect change
+
+There is no `/v1` prefix and no negotiated version. `internal/server/handlers/routes.go`
+is the list of routes and `openapi.json` describes them, but neither is a
+stability contract during Beta.
+
+Expect additions to be additive and safe. Do not assume a route, a field, or a
+status code will survive a release without reading the changelog. A breaking
+change will be called out there; it will not be prevented.
+
+The one exception is the managed inference wire contract, which carries an
+explicit version (`llmwire.Version`) precisely because CLI, Desktop, and worker
+builds move independently of the server. A change to its shape needs a new
+version rather than a silent edit.
+
+### Configuration — additive, with removals announced
+
+New keys are added with defaults that preserve existing behaviour, and
+`config-examples/server.example.yaml` carries every key the server reads — a
+test fails when it does not.
+
+Removals and renames are called out in the changelog. There is no deprecation
+period and no compatibility shim, so a key you rely on can disappear in one
+release with a note rather than two releases with a warning.
+
+Credentials never gain defaults. A setting that decides *where* a deployment
+connects or *as whom* is left unset rather than pointed somewhere plausible.
+
+### Stored data
+
+Run artifacts, run state, and durable traces are written under a documented key
+layout in object storage and are not rewritten by an upgrade. BuildMax never
+deletes them; retention is the operator's to configure.
+
+There is no export or import command, so moving a deployment means moving its
+database and its bucket together.
 
 ## Non-Goals For The Alpha
 
@@ -96,7 +158,6 @@
 - A Git hosting or IDE replacement. Git is used for visibility and recovery;
   BuildMax does not replace review, merge, or repository management workflows.
 - Native mobile apps, browser extensions, or published desktop installers.
-- Backward-compatible storage/schema guarantees before a stable release.
 
 ## How To Read This Page
 
