@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
@@ -159,6 +160,8 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		WorkspaceDir: proj.FolderPath,
 		EnableMCP:    true,
 		Policy:       agentapp.NewInteractivePolicy(),
+		ManagedToken: auth.TokenForServer,
+		Surface:      model.LLMCallSurfaceDesktop,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)

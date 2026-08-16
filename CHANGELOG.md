@@ -23,6 +23,17 @@ pre-releases and must be called out in release notes.
   token usage, with no prompts or generated content. No BuildMax client uses the
   gateway yet, and a team already over quota is refused, which is accounting
   rather than a spending ceiling.
+- CLI and Desktop can use a deployment's managed models. A `settings.yaml` entry
+  with `transport: buildmax`, `server_url`, and `team_id` calls a BuildMax
+  server instead of a provider, so no provider key sits on the machine; its
+  `model` field is a team alias. The credential comes from `buildmax login` and
+  is only sent to the server the login belongs to. `buildmax models` lists every
+  configured model and where it sends prompts, and `--team` lists a team's
+  aliases. The model picker in the TUI and Desktop names the destination for a
+  managed entry, and `buildmax doctor` reports one that cannot authenticate.
+  There is no automatic fallback between the two modes, and the login expires
+  after 24 hours with no refresh yet. Workers and the evaluation harness stay
+  direct.
 - Managed calls can stream. `stream: true` answers with typed `delta`, `result`,
   and `error` events over SSE; abandoning the call cancels the provider request
   so it stops costing tokens. A call refused before any output is still a plain

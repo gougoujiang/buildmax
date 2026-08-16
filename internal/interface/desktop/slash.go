@@ -3,7 +3,9 @@ package desktop
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 )
@@ -14,6 +16,11 @@ type SlashModelEntry struct {
 	Name          string `json:"name"`
 	ProviderModel string `json:"provider_model,omitempty"`
 	IsCurrent     bool   `json:"is_current"`
+	// Managed and Destination say where this model sends prompts. Two entries
+	// can share a display name and reach different places, so the selector has
+	// to be able to tell them apart.
+	Managed     bool   `json:"managed"`
+	Destination string `json:"destination,omitempty"`
 }
 
 type SlashModelsResult struct {
@@ -35,9 +42,27 @@ func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
 			Name:          c.Name,
 			ProviderModel: c.ProviderModel,
 			IsCurrent:     c.Name == current || c.ProviderModel == current,
+			Managed:       c.IsManaged(),
+			Destination:   modelDestination(c),
 		}
 	}
 	return SlashModelsResult{Current: current, Models: models}, nil
+}
+
+// modelDestination is where a model entry sends prompts, shown next to the
+// name so a managed entry is never mistaken for a local one.
+func modelDestination(c agentapp.ModelConfig) string {
+	if !c.IsManaged() {
+		return c.BaseURL
+	}
+	server := strings.TrimPrefix(strings.TrimPrefix(c.ServerURL, "https://"), "http://")
+	if server == "" {
+		server = "no server_url"
+	}
+	if c.TeamID == "" {
+		return server
+	}
+	return server + " " + c.TeamID
 }
 
 // SetProjectModel switches the active model for a project's agent.

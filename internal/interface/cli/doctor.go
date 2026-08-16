@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
+	"github.com/gougoujiang/buildmax/internal/interface/auth"
 
 	"github.com/spf13/cobra"
 )
@@ -162,6 +163,10 @@ func checkModels(settings config.Settings) []doctorCheck {
 			})
 			continue
 		}
+		if m.IsManaged() {
+			checks = append(checks, checkManagedModel(i, title, display, sev, m))
+			continue
+		}
 		if strings.TrimSpace(m.APIKey) == "" || m.APIKey == APIKeyPlaceholder {
 			checks = append(checks, doctorCheck{
 				Severity: sev,
@@ -191,6 +196,46 @@ func checkModels(settings config.Settings) []doctorCheck {
 		})
 	}
 	return checks
+}
+
+// checkManagedModel reports whether a transport: buildmax entry can actually be
+// used. It checks the login too, because an entry that looks complete still
+// fails at the first call when the stored credential belongs elsewhere or has
+// expired.
+func checkManagedModel(index int, title, display string, sev doctorSeverity, m config.ModelEntry) doctorCheck {
+	if strings.TrimSpace(m.ServerURL) == "" {
+		return doctorCheck{
+			Severity: sev,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s uses transport %s but has no server_url", display, config.TransportBuildMax),
+			Next:     "Set server_url to the BuildMax server this model runs on.",
+		}
+	}
+	if strings.TrimSpace(m.TeamID) == "" {
+		return doctorCheck{
+			Severity: sev,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s uses transport %s but has no team_id", display, config.TransportBuildMax),
+			Next:     "Set team_id, then run `buildmax models --team <team_id>` to see its aliases.",
+		}
+	}
+	if _, err := auth.TokenForServer(m.ServerURL); err != nil {
+		return doctorCheck{
+			Severity: sev,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s cannot authenticate: %v", display, err),
+			Next:     fmt.Sprintf("Run `buildmax login` against %s.", m.ServerURL),
+		}
+	}
+	suffix := ""
+	if index == 0 {
+		suffix = " (default)"
+	}
+	return doctorCheck{
+		Severity: doctorOK,
+		Title:    title,
+		Detail:   fmt.Sprintf("%s -> %s team %s%s", display, m.ServerURL, m.TeamID, suffix),
+	}
 }
 
 func optionalModelSeverity(index int) doctorSeverity {

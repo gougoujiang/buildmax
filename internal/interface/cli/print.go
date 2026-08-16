@@ -13,6 +13,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -63,6 +65,8 @@ func runPrintMode(opts printOptions) error {
 		WorkspaceDir: opts.Workspace,
 		EnableMCP:    true,
 		Policy:       agentapp.NewNonInteractivePolicy(),
+		ManagedToken: auth.TokenForServer,
+		Surface:      model.LLMCallSurfaceCLI,
 	})
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)

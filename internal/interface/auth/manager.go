@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 )
@@ -52,6 +54,38 @@ func RequireLogin() error {
 		return fmt.Errorf("not logged in")
 	}
 	return nil
+}
+
+// TokenForServer returns the stored token for calls to serverURL.
+//
+// It refuses to hand the credential to any other host. A managed model entry
+// names its own server, and settings.yaml is editable by anything running as
+// the user, so a mismatch would otherwise send a BuildMax token — and every
+// prompt that follows — wherever that file said.
+func TokenForServer(serverURL string) (string, error) {
+	if serverURL == "" {
+		return "", errors.New("managed model entry has no server_url")
+	}
+	creds, err := Load(config.AuthPath())
+	if err != nil {
+		return "", fmt.Errorf("load auth: %w", err)
+	}
+	if creds == nil || creds.Token == "" {
+		return "", errors.New("not logged in: run `buildmax login`")
+	}
+	if !sameServer(creds.ServerURL, serverURL) {
+		return "", fmt.Errorf("logged in to %s, but this model entry uses %s: run `buildmax login` against that server",
+			creds.ServerURL, serverURL)
+	}
+	if !creds.IsValid() {
+		return "", errors.New("login has expired: run `buildmax login`")
+	}
+	return creds.Token, nil
+}
+
+// sameServer compares two server URLs ignoring a trailing slash.
+func sameServer(a, b string) bool {
+	return strings.TrimRight(a, "/") == strings.TrimRight(b, "/")
 }
 
 // SaveCredentials persists a login result.

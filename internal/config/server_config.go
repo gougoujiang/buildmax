@@ -96,8 +96,21 @@ type ServerModelEntry struct {
 // RuntimeModelEntry converts the server's resolved model configuration into
 // the model shape used by the shared agent runtime. Environment overrides have
 // already been applied before this conversion, so credentials stay in memory.
+//
+// The result is always a direct entry: a worker runs the server's own model
+// with the server's own credential, and does not call the gateway. Worker
+// adoption of managed inference is separate work — see
+// docs/design/llm-gateway.md section 15.
 func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
-	return ModelEntry(m)
+	return ModelEntry{
+		Model:         m.Model,
+		Name:          m.Name,
+		APIURL:        m.APIURL,
+		APIKey:        m.APIKey,
+		ContextWindow: m.ContextWindow,
+		CallTimeout:   m.CallTimeout,
+		Transport:     TransportDirect,
+	}
 }
 
 // ServerDBConfig holds MySQL connection settings.

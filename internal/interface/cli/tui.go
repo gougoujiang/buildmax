@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/muesli/termenv"
 )
 
@@ -20,7 +22,12 @@ func detectGlamourStyle() string {
 }
 
 func runTUI(resumeID string, modelName string) error {
-	app, err := agentapp.NewAgentApp(agentapp.AppConfig{EnableMCP: true, Policy: agentapp.NewInteractivePolicy()})
+	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
+		EnableMCP:    true,
+		Policy:       agentapp.NewInteractivePolicy(),
+		ManagedToken: auth.TokenForServer,
+		Surface:      model.LLMCallSurfaceCLI,
+	})
 	if err != nil {
 		return err
 	}

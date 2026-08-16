@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/infra/hook"
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
+	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
@@ -33,7 +34,18 @@ type AppConfig struct {
 	// config.SandboxSurfaceCLI / SandboxSurfaceWorker). Empty means
 	// SandboxSurfaceCLI.
 	SandboxSurface config.SandboxSurface
+	// ManagedToken supplies the BuildMax credential for models configured with
+	// transport "buildmax". Leaving it nil means this surface offers no managed
+	// inference, and such an entry fails with a clear error instead of falling
+	// back to a direct provider call.
+	ManagedToken ManagedTokenFunc
+	// Surface labels managed calls for correlation, e.g. "cli" or "desktop".
+	Surface string
 }
+
+// ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
+// expected to refuse when the stored login belongs to a different server.
+type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
 	workspaceRoot        string
@@ -64,8 +76,14 @@ type SubAgentRegistry struct {
 
 type LLMClientCache struct {
 	settings config.Settings
-	mu       sync.Mutex
-	clients  map[string]cllm.LLMClient
+	// managedToken supplies the BuildMax credential for a managed entry. Nil
+	// means this surface does not offer managed inference — the worker and the
+	// evaluation harness deliberately do not.
+	managedToken ManagedTokenFunc
+	// surface labels managed calls for correlation only.
+	surface string
+	mu      sync.Mutex
+	clients map[string]cllm.LLMClient
 }
 
 type RunResult struct {
@@ -110,7 +128,17 @@ type ModelConfig struct {
 	APIKey        string
 	ContextWindow int // 0 = no windowing; from settings.yaml model entry
 	CallTimeout   int // seconds; 0 = uses DefaultCallTimeoutSecs
+	// Transport is config.TransportDirect or config.TransportBuildMax. Empty
+	// means direct.
+	Transport string
+	// ServerURL and TeamID are set on a managed entry. ProviderModel then holds
+	// the team alias rather than a provider's model identifier.
+	ServerURL string
+	TeamID    string
 }
+
+// IsManaged reports whether this model calls a BuildMax gateway.
+func (c ModelConfig) IsManaged() bool { return c.Transport == config.TransportBuildMax }
 
 func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	workspaceRoot, err := resolveWorkspaceRoot(cfg.WorkspaceDir)
@@ -158,8 +186,10 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		sandboxResolved:   sandboxResolved,
 	}
 	app.llmClients = &LLMClientCache{
-		settings: app.settings,
-		clients:  make(map[string]cllm.LLMClient),
+		settings:     app.settings,
+		managedToken: cfg.ManagedToken,
+		surface:      cfg.Surface,
+		clients:      make(map[string]cllm.LLMClient),
 	}
 	if cfg.EnableMCP {
 		mcpCfg, err := config.LoadMCPConfigForWorkspace(app.workspaceRoot)
@@ -691,18 +721,52 @@ func (r *LLMClientCache) Get(modelName string) (cllm.LLMClient, error) {
 	if !ok {
 		return nil, fmt.Errorf("model not found: %q", modelName)
 	}
-	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("api_key is required for model %q in settings.yaml", modelName)
+	client, err := r.build(cfg)
+	if err != nil {
+		return nil, err
 	}
-	client := llm.NewClient(llm.Config{
+	r.clients[modelName] = client
+	return client, nil
+}
+
+// build makes the client for one model entry. The transport decides where the
+// prompt goes, and the two paths never substitute for one another: a managed
+// entry that cannot authenticate fails rather than quietly calling a provider
+// with some other credential.
+func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
+	if cfg.IsManaged() {
+		if r.managedToken == nil {
+			return nil, fmt.Errorf("model %q uses transport %q, which this surface does not support",
+				cfg.Name, config.TransportBuildMax)
+		}
+		if cfg.TeamID == "" {
+			return nil, fmt.Errorf("team_id is required for model %q in settings.yaml", cfg.Name)
+		}
+		token, err := r.managedToken(cfg.ServerURL)
+		if err != nil {
+			return nil, fmt.Errorf("model %q: %w", cfg.Name, err)
+		}
+		return llmremote.NewClient(llmremote.Config{
+			ServerURL:     cfg.ServerURL,
+			Token:         token,
+			TeamID:        cfg.TeamID,
+			Alias:         cfg.ProviderModel,
+			ContextWindow: cfg.ContextWindow,
+			Surface:       r.surface,
+			CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
+		}), nil
+	}
+
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("api_key is required for model %q in settings.yaml", cfg.Name)
+	}
+	return llm.NewClient(llm.Config{
 		APIKey:        cfg.APIKey,
 		BaseURL:       cfg.BaseURL,
 		Model:         cfg.ProviderModel,
 		ContextWindow: cfg.ContextWindow,
 		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
-	})
-	r.clients[modelName] = client
-	return client, nil
+	}), nil
 }
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
@@ -777,6 +841,10 @@ func FindModelConfig(settings config.Settings, name string) (ModelConfig, bool) 
 	return ModelConfig{}, false
 }
 
+// ModelConfigFromEntry resolves one settings.yaml model entry. Surfaces use it
+// to describe a model without building a client for it.
+func ModelConfigFromEntry(entry config.ModelEntry) ModelConfig { return toModelConfig(entry) }
+
 func toModelConfig(entry config.ModelEntry) ModelConfig {
 	name := entry.Name
 	if name == "" {
@@ -789,5 +857,8 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		APIKey:        entry.APIKey,
 		ContextWindow: entry.ContextWindow,
 		CallTimeout:   entry.CallTimeout,
+		Transport:     entry.Transport,
+		ServerURL:     entry.ServerURL,
+		TeamID:        entry.TeamID,
 	}
 }

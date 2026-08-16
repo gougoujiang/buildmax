@@ -39,6 +39,20 @@ func openSlashModel(m *Model, note string, selector string) (tea.Model, tea.Cmd)
 	return m.openPanel(st)
 }
 
+// managedModelLabel names the deployment a managed entry calls, so the panel
+// distinguishes two same-named models by where the prompt goes.
+func managedModelLabel(entry agentapp.ModelConfig) string {
+	server := entry.ServerURL
+	if server == "" {
+		server = "no server_url"
+	}
+	server = strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
+	if entry.TeamID == "" {
+		return server
+	}
+	return server + " " + entry.TeamID
+}
+
 func selectedModelIndex(entries []agentapp.ModelConfig, current string, selector string) int {
 	for i, entry := range entries {
 		if selector != "" && (entry.Name == selector || entry.ProviderModel == selector) {
@@ -169,6 +183,11 @@ func (p *slashModelState) Render(_ *Model, maxLineWidth int) string {
 		line := prefix + currentMark + entry.Name
 		if entry.ProviderModel != "" && entry.ProviderModel != entry.Name {
 			line += " -> " + entry.ProviderModel
+		}
+		// Two entries can share a display name while sending prompts to
+		// completely different places, so a managed one always says where.
+		if entry.IsManaged() {
+			line += " [" + managedModelLabel(entry) + "]"
 		}
 		b.WriteString(truncateRunes(line, maxLineWidth))
 		b.WriteByte('\n')

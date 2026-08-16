@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 )
 
 // LoginUser is the user subset returned in a login response.
@@ -92,6 +95,38 @@ func (c *Client) Login(ctx context.Context, email, otp, platform string) (*Login
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 	return &lr, nil
+}
+
+// ListTeamModels calls GET /api/teams/{team_id}/llm/models and returns the
+// model aliases the team may use through the managed gateway.
+//
+// The reply names aliases only. Which provider serves one, and with whose
+// credential, stays on the server.
+func (c *Client) ListTeamModels(ctx context.Context, token, teamID string) ([]llmwire.Model, error) {
+	if teamID == "" {
+		return nil, errors.New("team is required")
+	}
+	url := c.BaseURL + fmt.Sprintf(llmwire.ModelsPath, teamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseErrorResponse(resp)
+	}
+	var out llmwire.ModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	return out.Models, nil
 }
 
 // parseErrorResponse reads an error JSON body ({"error":"..."} or {"message":"..."})
