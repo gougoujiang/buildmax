@@ -7,7 +7,7 @@ import (
 	"runtime"
 )
 
-const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.13.0"
+const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.14.0"
 
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
