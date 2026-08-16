@@ -71,6 +71,8 @@ func dispatch(args []string) error {
 		return cmdLint()
 	case "smoke":
 		return cmdSmoke()
+	case "e2e":
+		return cmdE2E(rest)
 	case "eval":
 		return cmdEval(rest)
 	case "run":
@@ -174,6 +176,7 @@ func allHelpSections() []helpSection {
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke|status|logs|down)"},
 			{"kind <action>", "Manage local Kubernetes (up|images|smoke|status|logs|down)"},
+			{"e2e", "Run Portal browser tests against a running deployment"},
 		}},
 		{"Release", []helpRow{
 			{"release <action>", "Run bump, verify, notices, or licenses"},
