@@ -23,6 +23,24 @@ models:
     api_key: your-openrouter-api-key
     context_window: 8192
 
+  # A managed entry calls a BuildMax server instead of a provider, so the
+  # deployment holds the provider credential and decides which models the team
+  # may use. Prompts, tool schemas, and tool results pass through that server.
+  #
+  # `model` is a team alias, not a provider model id. List the aliases a team
+  # offers with `buildmax models --team <team_id>`. The credential is not copied
+  # here: it comes from `buildmax login`, and only when the stored login belongs
+  # to this server_url.
+  #
+  # There is no automatic fallback between the two modes. Configure both entries
+  # and choose, rather than expecting one to cover for the other.
+  # - model: default
+  #   name: Team Default
+  #   transport: buildmax        # omit or use "direct" for a provider call
+  #   server_url: https://buildmax.example.com
+  #   team_id: tm_example
+  #   context_window: 128000
+
 # Bash sandbox. Confines the subprocesses started by the Bash tool by filesystem
 # path and network domain. Covers Bash only — Read, Write, Edit, Glob, and Grep
 # keep their own workspace-root boundary either way.

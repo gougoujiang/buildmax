@@ -27,6 +27,20 @@ type Settings struct {
 	Sandbox   SandboxConfig `mapstructure:"sandbox"`
 }
 
+// LLM connection modes for a model entry.
+//
+// The two are never mixed and never fall back to one another: a run either
+// calls a provider from this machine or calls a BuildMax deployment, and the
+// user can tell which from the entry. See docs/design/llm-gateway.md.
+const (
+	// TransportDirect calls an OpenAI-compatible provider from this machine
+	// using the entry's own credential. It is the default.
+	TransportDirect = "direct"
+	// TransportBuildMax calls a BuildMax server's managed gateway, which holds
+	// the provider credential and decides which model the team may use.
+	TransportBuildMax = "buildmax"
+)
+
 // ModelEntry is one LLM model entry in settings.yaml (snake_case on disk).
 type ModelEntry struct {
 	Model         string `mapstructure:"model"`
@@ -35,7 +49,17 @@ type ModelEntry struct {
 	APIKey        string `mapstructure:"api_key"`
 	ContextWindow int    `mapstructure:"context_window"` // 0 = uses DefaultContextWindow
 	CallTimeout   int    `mapstructure:"call_timeout"`   // seconds; 0 = uses DefaultCallTimeoutSecs
+	// Transport is "direct" (the default) or "buildmax".
+	Transport string `mapstructure:"transport"`
+	// ServerURL and TeamID apply to a "buildmax" entry. The credential is not
+	// copied here: the remote client reads it from the login state in
+	// auth.json, and only when it belongs to this server.
+	ServerURL string `mapstructure:"server_url"`
+	TeamID    string `mapstructure:"team_id"`
 }
+
+// IsManaged reports whether this entry calls a BuildMax gateway.
+func (m ModelEntry) IsManaged() bool { return m.Transport == TransportBuildMax }
 
 // DefaultOpenRouterBaseURL is the OpenRouter OpenAI-compatible API base URL.
 const DefaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"

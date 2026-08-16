@@ -114,6 +114,12 @@ models:                              # first entry is the default model
     context_window: 16385            # 0 = built-in default (32000)
     call_timeout: 300                # seconds; 0 = default (300)
 
+  # - model: default                 # a team alias, not a provider model id
+  #   name: Team Default
+  #   transport: buildmax
+  #   server_url: https://buildmax.example.com
+  #   team_id: tm_example
+
 hooks: {}                            # see guide/hooks.md
 sandbox: {}                          # see guide/sandbox.md
 ```
@@ -123,6 +129,52 @@ sandbox: {}                          # see guide/sandbox.md
 | `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
 | `server_url` | — | Only used as the prompt default for `buildmax login`. |
 | `models[]` | — | Any OpenAI-compatible endpoint. Select one per run with `--model <id or name>`. |
+| `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
+| `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
+| `models[].team_id` | — | Required for `buildmax` transport: which team the call is billed and authorized against. |
+
+### Managed models
+
+A `transport: buildmax` entry calls a BuildMax deployment instead of a provider,
+so the server holds the provider credential and decides which models the team
+may use. Its `model` field is a **team alias**, not a provider model id. List a
+team's aliases with:
+
+```bash
+buildmax models --team <team_id>
+```
+
+`buildmax models` also prints where every configured model sends prompts, and
+`buildmax doctor` reports a managed entry that is missing `server_url` or
+`team_id`, or whose login is absent, expired, or for a different server.
+
+The credential is never written into `settings.yaml`. It comes from
+`buildmax login` and is only used when the stored login belongs to that entry's
+`server_url` — a mismatch fails rather than sending the token to whatever host
+the file names.
+
+Model selection is first-match by file order: `--model` and `/model` match a
+name or a model id against `models[]` top to bottom, and the first entry is the
+default. Two entries sharing a name are therefore not interchangeable — the
+lower one is unreachable — which is why `buildmax models` and the model pickers
+print each entry's destination.
+
+Three limits worth knowing before you rely on this:
+
+- **There is no fallback between the modes.** A managed entry does not quietly
+  become a direct call when the server is down, because that would redirect
+  governed traffic to a personal provider key. Configure both entries and pick.
+- **The login expires after 24 hours and there is no refresh.** A long run can
+  outlive it; you get a clear error and re-run `buildmax login`. See
+  [design/llm-gateway.md](../design/llm-gateway.md) section 11.
+- **Workers and the evaluation harness never use managed mode.** A worker runs
+  the server's own model with the server's own credential, and `eval/` stays
+  direct so benchmark results do not move with team model policy or quota.
+
+Prompts, tool schemas, and tool results pass through the server for a managed
+call. That is the point of the mode, and it is a real change in where your data
+goes — which is why the model picker and `buildmax models` always name the
+destination.
 | `hooks` | empty | Lifecycle hooks. Reference: [guide/hooks.md](../guide/hooks.md). |
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
 
@@ -257,6 +309,14 @@ credential — fails startup rather than starting a server with no Tier 1 model.
 Managed calls need a database, because every one of them is recorded in the
 `llm_call` ledger. Without a store the routes answer `503` rather than serving
 inference nobody can account for.
+
+**The catalog cannot be configured in the Kubernetes topology yet.**
+`llm.targets[].api_key` has no `BUILDMAX_*` environment override, and worker
+pods read `server.yaml` from a ConfigMap, which must never hold a credential.
+Until the catalog moves to the database or gains an environment override, use
+the gateway on deployments where `server.yaml` is a private file — Compose or a
+single host. Existing Kubernetes deployments are unaffected: the `llm` block is
+optional and off.
 
 ## Data Directory Layout
 

@@ -1873,6 +1873,9 @@ function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentPr
                   {m.provider_model && m.provider_model !== m.name && (
                     <span className="model-selector__option-sub">{m.provider_model}</span>
                   )}
+                  {m.managed && (
+                    <span className="model-selector__option-sub">via {m.destination}</span>
+                  )}
                   {m.is_current && <span className="model-selector__option-check" aria-hidden>✓</span>}
                 </button>
               ))}
