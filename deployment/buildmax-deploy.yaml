@@ -139,6 +139,16 @@ spec:
         app: buildmax-server
     spec:
       serviceAccountName: buildmax-server
+      # The same containment the production reference applies. It lives here
+      # too so `./make kind up` exercises it on every run — a hardening setting
+      # that only appears in a manifest nobody applies is a guess.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: server
           image: buildmax:local
@@ -147,6 +157,11 @@ spec:
           ports:
             - containerPort: 5678
               name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           # Readiness reflects MySQL and object storage, so a dependency outage
           # takes this pod out of the Service instead of letting it accept
           # requests it cannot serve.
@@ -221,6 +236,10 @@ spec:
               mountPath: /buildmax/server.yaml
               subPath: server.yaml
               readOnly: true
+            # The root filesystem is read-only; this is the writable path
+            # ordinary tooling assumes.
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               memory: 256Mi
@@ -230,6 +249,8 @@ spec:
               cpu: 500m
       volumes:
         - name: buildmax-home
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}
         - name: buildmax-config
           configMap:

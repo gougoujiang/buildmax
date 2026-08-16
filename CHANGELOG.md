@@ -11,6 +11,13 @@ pre-releases and must be called out in release notes.
 
 ### Security
 
+- The server pod is now created with the same containment as worker pods:
+  non-root with an explicit uid, no added capabilities, no privilege
+  escalation, `RuntimeDefault` seccomp, and a read-only root filesystem with a
+  writable `/tmp`. It is applied in the local kind manifest as well as the
+  production reference, so `./make kind up` exercises it rather than leaving it
+  a setting that only appears in a file nobody applies.
+
 - Task-run workers are no longer handed the JWT signing secret or the database
   password. Both reached workers by inheritance — a local worker got the
   server's whole environment, and a Kubernetes worker Job got every `BUILDMAX_*`

@@ -116,8 +116,8 @@ Stated rather than left to be discovered:
   bounded by their own resource settings, not by a replica count. Cluster
   capacity is what limits concurrency.
 - **Multi-region, HA MySQL, and SSO.** Out of scope for this reference.
-- **Verification against a live cloud provider.** This manifest is checked in CI
-  for whether its configuration parses into the config the server actually
-  reads. It has not been applied against a real RDS or S3 account, and the
-  server's read-only root filesystem has been exercised for worker pods but not
-  for the server pod. Watch the first rollout.
+- **Verification against a live cloud provider.** This manifest is checked in
+  CI for whether its configuration parses into the config the server actually
+  reads, and its container hardening is the same set `./make kind up` applies
+  and exercises on every run. It has not been applied against a real RDS or S3
+  account — the dependency contract above is what stands in for that.
