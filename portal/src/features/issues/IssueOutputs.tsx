@@ -9,13 +9,20 @@ interface OutputCardProps {
   onOpenFull: (output: IssueOutput) => void
   onOpenConversation?: (conversationId: string) => void
   onOpenRun?: (workflowRunId: string) => void
+  onOpenTrace?: (taskRunId: string) => void
 }
 
 function formatTimestamp(seconds: number): string {
   return new Date(seconds * 1000).toLocaleString()
 }
 
-export function OutputCard({ output, onOpenFull, onOpenConversation, onOpenRun }: OutputCardProps) {
+export function OutputCard({
+  output,
+  onOpenFull,
+  onOpenConversation,
+  onOpenRun,
+  onOpenTrace,
+}: OutputCardProps) {
   const { source } = output
   return (
     <article className="issue-outputs__card">
@@ -66,6 +73,15 @@ export function OutputCard({ output, onOpenFull, onOpenConversation, onOpenRun }
             Open run detail
           </button>
         ) : null}
+        {source.taskRunId && onOpenTrace ? (
+          <button
+            type="button"
+            className="page-activity__action-btn"
+            onClick={() => onOpenTrace(source.taskRunId!)}
+          >
+            Run details
+          </button>
+        ) : null}
       </footer>
     </article>
   )
@@ -76,9 +92,10 @@ interface OutputsListProps {
   onOpenFull: (output: IssueOutput) => void
   onOpenConversation?: (conversationId: string) => void
   onOpenRun?: (workflowRunId: string) => void
+  onOpenTrace?: (taskRunId: string) => void
 }
 
-export function OutputsList({ outputs, onOpenFull, onOpenConversation, onOpenRun }: OutputsListProps) {
+export function OutputsList({ outputs, onOpenFull, onOpenConversation, onOpenRun, onOpenTrace }: OutputsListProps) {
   if (outputs.length === 0) {
     return <p className="page-activity__empty">No results produced yet.</p>
   }
@@ -91,6 +108,7 @@ export function OutputsList({ outputs, onOpenFull, onOpenConversation, onOpenRun
           onOpenFull={onOpenFull}
           onOpenConversation={onOpenConversation}
           onOpenRun={onOpenRun}
+          onOpenTrace={onOpenTrace}
         />
       ))}
     </div>

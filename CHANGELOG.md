@@ -44,6 +44,15 @@ pre-releases and must be called out in release notes.
   it". The Bash sandbox still defaults off on every surface, so most runs record
   `false` today.
 
+- A **Run details** view in Portal, on any issue output produced by a task run.
+  It reports the model, duration, model and tool calls, tokens, the files the
+  run changed, each tool call with its duration or the reason it was denied,
+  and the failure cause. Three things it refuses to leave implicit: a run
+  nothing confined says so in words rather than by omission, a run that wrote
+  no terminal record is marked as such instead of reading like a success, and a
+  bounded tool list says how many calls it is hiding. A run whose trace was
+  never recorded and one whose trace has left storage both explain which.
+
 - `GET /api/teams/{team_id}/task-runs/{task_run_id}/trace`, which answers what
   a run used, touched, spent, why it ended, and what confined it — the model,
   the tool calls with their durations, the files it wrote, tokens, the terminal

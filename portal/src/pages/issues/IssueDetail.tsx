@@ -14,6 +14,7 @@ import {
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
 import { getIssueFlow, OutputsList, OutputViewerModal, runIssueAgent, updateIssue } from "../../features/issues"
+import { RunTraceModal } from "../../features/runs"
 import { getTeamMembers } from "../../features/teams/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
 import { useTeam } from "../../contexts/TeamContext"
@@ -58,6 +59,7 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
 export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const { currentTeamId, currentUserRole } = useTeam()
   const [flow, setFlow] = useState<IssueFlow | null>(null)
+  const [traceRunId, setTraceRunId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [members, setMembers] = useState<ApiTeamMember[]>([])
@@ -375,6 +377,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
               onOpenFull={(o) => setViewerOutput(o)}
               onOpenConversation={(conversationId) => navigate({ name: "conversation", conversationId })}
               onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", workflowRunId })}
+              onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
             />
           </section>
 
@@ -555,6 +558,13 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
         token={token}
         output={viewerOutput}
         onClose={() => setViewerOutput(null)}
+      />
+      <RunTraceModal
+        open={traceRunId != null}
+        teamId={currentTeamId}
+        token={token}
+        taskRunId={traceRunId}
+        onClose={() => setTraceRunId(null)}
       />
     </div>
   )
