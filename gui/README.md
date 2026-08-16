@@ -21,7 +21,7 @@ From `portal/` or `desktop/frontend/` add to `package.json`:
 
 From `desktop/frontend/` the path is `file:../../gui`.
 
-1. Use Node 22 and npm 10 (see the root `.node-version`).
+1. Use Node 24 and npm 11 (see the root `.node-version`).
 2. Build the package: `cd gui && npm ci && npm run build`
 3. In the app: `npm ci`
 4. Import: `import { ThemeProvider, useTheme, ThemeToggle, BaseModal } from '@buildmax/gui'`, `import '@buildmax/gui/theme.css'`, and (if using modals) `import '@buildmax/gui/modal.css'`

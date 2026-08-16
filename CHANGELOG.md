@@ -245,6 +245,15 @@ pre-releases and must be called out in release notes.
 
 ### Changed
 
+- The frontend toolchain moves to Node 24 and npm 11, from Node 22 and npm 10.
+  Node 22 entered maintenance; 24 is the active LTS. This affects `gui/`,
+  `portal/`, and `desktop/frontend/` only — normal CLI work still needs no Node
+  at all. The three lockfiles were regenerated with npm 11, which changed
+  nothing but deduplicating a nested `@eslint/js` copy. `./make doctor` reports
+  the versions it wants, and `TestFrontendToolchainPinsAgree` fails if
+  `.node-version`, the `packageManager` fields, and the `engines` ranges drift
+  apart again.
+
 - `storage.minio` no longer defaults its endpoint, region, and credentials to a
   local MinIO and that server's development user. Those defaults made "unset"
   unreachable, so a deployment that omitted them was silently pointed at

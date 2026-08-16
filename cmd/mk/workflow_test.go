@@ -157,8 +157,8 @@ func TestFrontendToolchainPinsAgree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read .node-version: %v", err)
 	}
-	if got := strings.TrimSpace(string(node)); !strings.HasPrefix(got, "22.") {
-		t.Fatalf(".node-version = %q; want an exact Node 22 release", got)
+	if got := strings.TrimSpace(string(node)); !strings.HasPrefix(got, "24.") {
+		t.Fatalf(".node-version = %q; want an exact Node 24 release", got)
 	}
 
 	var packageManager string
@@ -176,8 +176,8 @@ func TestFrontendToolchainPinsAgree(t *testing.T) {
 		} else if match[1] != packageManager {
 			t.Errorf("%s packageManager = %q; want %q", dir, match[1], packageManager)
 		}
-		if !strings.Contains(string(body), `"node": ">=22 <23"`) {
-			t.Errorf("%s/package.json does not constrain Node to major 22", dir)
+		if !strings.Contains(string(body), `"node": ">=24 <25"`) {
+			t.Errorf("%s/package.json does not constrain Node to major 24", dir)
 		}
 	}
 }

@@ -5,7 +5,7 @@ Native desktop application for BuildMax (Wails + Go). Provides a local, first-ha
 ## Prerequisites
 
 - **Go** — the version in `go.mod`
-- **Node 22** and **npm 10** — pinned by `.node-version` and `package.json`
+- **Node 24** and **npm 11** — pinned by `.node-version` and `package.json`
 - **Wails CLI** is needed only for direct development commands. Install the
   same version used by `go.mod`:
 

@@ -62,7 +62,7 @@ running the agent yourself and `./make eval`.
 | Tool | Needed for |
 |---|---|
 | **Go** — the version in `go.mod` | Everything. The CLI, server, worker, and desktop backend are all Go; the CLI has no Python or Node runtime dependency. |
-| **Node 22 and npm 10** — pinned by `.node-version` and `packageManager` | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. Use `npm ci`; normal CLI work does not need Node. |
+| **Node 24 and npm 11** — pinned by `.node-version` and `packageManager` | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. Use `npm ci`; normal CLI work does not need Node. |
 | **Docker** | The Compose deployment smoke and container changes. |
 | **kind and kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
 | **shellcheck** | Workflow changes. actionlint skips its shell script pass without it, and says nothing; `./make doctor` reports whether you have it. |

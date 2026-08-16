@@ -14,7 +14,7 @@
 # rather than the image's target architecture. The output is static JavaScript
 # and CSS, identical on every platform, so emulating arm64 to run npm would cost
 # minutes per build and produce the same bytes.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 
 # Build the shared gui package first so portal's local file dependency

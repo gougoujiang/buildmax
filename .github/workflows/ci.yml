@@ -126,7 +126,7 @@ jobs:
             desktop/frontend/package-lock.json
 
       - name: Use pinned npm
-        run: npm install --global npm@10.9.8
+        run: npm install --global npm@11.17.0
 
       # These are the exact first commands in the contributor path. Running
       # them in a pristine checkout catches missing generated files, inaccurate
@@ -159,7 +159,7 @@ jobs:
             desktop/frontend/package-lock.json
 
       - name: Use pinned npm
-        run: npm install --global npm@10.9.8
+        run: npm install --global npm@11.17.0
 
       # portal depends on @buildmax/gui via a file: link, so gui builds first.
       # gui has no ESLint step: typescript-eslint does not support the
@@ -202,7 +202,7 @@ jobs:
           node-version-file: .node-version
 
       - name: Use pinned npm
-        run: npm install --global npm@10.9.8
+        run: npm install --global npm@11.17.0
 
       - uses: actions/setup-go@v7
         with:
