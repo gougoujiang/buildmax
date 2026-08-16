@@ -35,6 +35,17 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- `POST /api/worker/task-runs/{task_run_id}/llm/completions`, the managed
+  inference entry point for workers — the last route needed before a task run
+  can use operator-approved models without holding an upstream provider key.
+  The team, task, and run are derived from server state, so the only thing
+  taken from a worker is the prompt it wants answered. A call is accepted only
+  while the run is executing: the worker token identifies a worker, not the
+  owner of a particular run, so without that any token holder could spend a
+  team's quota against a run that finished weeks ago. Nothing calls it yet —
+  workers still receive a direct model entry, and switching them over needs a
+  decision about which alias a worker resolves.
+
 - `GET /readyz`, which reports whether the server can actually serve traffic by
   probing MySQL and object storage. `/healthz` keeps its old meaning and still
   checks nothing: the two exist because Kubernetes acts on them very

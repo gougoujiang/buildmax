@@ -85,6 +85,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.workerAuthMiddleware(http.HandlerFunc(h.getTaskRun)))
 	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.workerAuthMiddleware(http.HandlerFunc(h.patchTaskRun)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.workerAuthMiddleware(http.HandlerFunc(h.postStream)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerAuthMiddleware(http.HandlerFunc(h.workerLLMCompletionsHandler)))
 
 	// Inbound webhook
 	mux.HandleFunc("POST /api/webhook", h.serveWebhook)

@@ -1,20 +1,26 @@
 # Managed LLM Gateway
 
-> **Audience:** contributors · **Status:** partially shipped — the user-facing
-> managed path is implemented; the worker path is not
+> **Audience:** contributors · **Status:** partially shipped — every server-side
+> route exists; no worker calls the worker one yet
 >
 > Shipped: `internal/service/llmgateway` (catalog, team policy, alias
 > resolution, capability set, router, error classes), the `llm_model` catalog
 > and `llm_call` ledger rows in `internal/infra/db`, the
-> `internal/infra/llmremote` client, `buildmax-server model`, and the two user
-> routes in `internal/server/handlers/routes.go` including SSE streaming.
-> CLI, TUI, and Desktop reach managed models through `AppConfig.ManagedToken`.
-> Quota runs at the §10 visibility/soft-enforcement stage.
+> `internal/infra/llmremote` client, `buildmax-server model`, and all three
+> routes in `internal/server/handlers/routes.go` including SSE streaming. CLI,
+> TUI, and Desktop reach managed models through `AppConfig.ManagedToken`. Quota
+> runs at the §10 visibility/soft-enforcement stage.
 >
-> Not shipped: the worker entry point
-> `POST /api/worker/task-runs/{task_run_id}/llm/completions` is not registered,
-> and `internal/agentapp/taskrun` sets no `ManagedToken` — so task runs still
-> need an upstream provider credential of their own. Team policy is the
+> The worker entry point `POST /api/worker/task-runs/{task_run_id}/llm/completions`
+> is registered and tested. It derives team, task, and run from server state and
+> accepts a call only while the run is executing, since the worker token
+> identifies a worker rather than the owner of a particular run.
+>
+> Not shipped: nothing calls it. `internal/agentapp/taskrun` still receives a
+> direct model entry, so task runs continue to need an upstream provider
+> credential; `llmremote.Client` addresses the team route only. Turning that on
+> needs a decision this document has not made — which alias a worker resolves,
+> and how the server signals managed mode to it. Team policy remains the
 > deployment-wide `server.yaml` `llm.aliases` map described in §7, not the
 > per-team database policy. Reserved quota enforcement and concurrency control
 > (§10) do not exist; do not claim a strict spending ceiling.
