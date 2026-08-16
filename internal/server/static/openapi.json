@@ -231,6 +231,22 @@
         }
       }
     },
+    "/api/worker/task-runs/{task_run_id}/llm/completions": {
+      "post": {
+        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. The team, task, and run are derived from server state, never from the request. Authenticated with the worker token",
+        "parameters": [
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK. Same body and streaming behaviour as the team route" },
+          "400": { "description": "Invalid request, unknown field, or a model the run's team may not use" },
+          "401": { "description": "Missing or invalid worker token" },
+          "404": { "description": "No such task run" },
+          "409": { "description": "The run is not executing, so no call is accepted for it" },
+          "429": { "description": "Team quota exceeded" }
+        }
+      }
+    },
     "/api/teams/{team_id}/llm/completions": {
       "post": {
         "summary": "Run one managed model call. Names a team alias; upstream endpoints, credentials, and provider model identifiers are never accepted or returned. With stream=true the response is text/event-stream carrying delta, result, and error events",

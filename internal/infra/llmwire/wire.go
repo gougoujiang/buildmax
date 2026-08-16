@@ -26,6 +26,10 @@ const (
 	ModelsPath = "/api/teams/%s/llm/models"
 	// CompletionsPath runs one managed call.
 	CompletionsPath = "/api/teams/%s/llm/completions"
+	// WorkerCompletionsPath runs one managed call on behalf of a task run.
+	// The team comes from the run rather than the path, so a worker cannot
+	// name a team it was not scheduled for.
+	WorkerCompletionsPath = "/api/worker/task-runs/%s/llm/completions"
 )
 
 // Message is one chat message.

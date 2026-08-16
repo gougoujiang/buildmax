@@ -38,7 +38,8 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
 - WebSocket: `/api/teams/{team_id}/ws`
-- Worker API: `/api/worker/task-runs/{task_run_id}...`
+- Worker API: `/api/worker/task-runs/{task_run_id}...`, including
+  `/llm/completions` so a worker needs no provider credential
 - Inbound webhook: `/api/webhook`
 
 ## Notes
