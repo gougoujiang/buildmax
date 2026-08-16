@@ -11,6 +11,15 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- A `sandbox_boundary` record in every run trace, written immediately after
+  `run_start`, carrying whether the run was sandboxed and — when it was — the
+  mode, backend, and the settings/policy/env source chain that decided it. It is
+  written for unsandboxed runs too, with an explicit `"sandboxed": false`:
+  traces are about to become the basis for answering what confined a run, and a
+  missing field would read as "nobody checked" rather than "nothing confined
+  it". The Bash sandbox still defaults off on every surface, so most runs record
+  `false` today.
+
 - `docs/contribute/architecture/data-model.md`, a full reference for the server
   database: every one of the 18 tables with its columns, types, nullability,
   indexes, and enumerated values, two entity-relationship diagrams, and the

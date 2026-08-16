@@ -112,8 +112,8 @@ Phase 1 shipped: a bounded, redacted JSONL trace written at the single
 `agentapp.RunPrompt` chokepoint, so CLI/TUI, Desktop, eval, and worker runs all
 produce traces with no per-surface code. Each run writes
 `<DataDir>/traces/<session_id>/<run_id>.jsonl` (run id prefix `rt_`) with a
-`run_start` record, per-iteration `llm_*`/`tool_*`/`context_compacted` records,
-and a terminal `run_end`. Disable via `BUILDMAX_TRACE_DISABLED`. Fail-open: a
+`run_start` record, a `sandbox_boundary` record, per-iteration
+`llm_*`/`tool_*`/`context_compacted` records, and a terminal `run_end`. Disable via `BUILDMAX_TRACE_DISABLED`. Fail-open: a
 trace failure never breaks or slows a run.
 
 Traces are bounded and redacted so they are useful for debugging without
@@ -130,7 +130,10 @@ Coverage against the full §3.3 target (✅ = in phase 1):
 - hook execution — ❌ needs dedicated hook events
 - file changes — ❌ needs file-change events
 - subagent parent/child relationships — ❌ `parent_run_id` linkage deferred
-- sandbox mode and boundary decisions — ❌ needs sandbox events (see §3.2)
+- sandbox mode and boundary decisions — partial: a `sandbox_boundary` record is
+  written for every run with the resolved enabled/mode/backend and the source
+  chain, including an explicit `sandboxed: false` when nothing confined the run.
+  Per-command boundary decisions and violations are still ❌ (see §3.2)
 - memory and instruction sources used for the run — ❌ deferred
 
 Deferred to follow-ups (see [durable-run-trace.md](./durable-run-trace.md) §7):

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
@@ -49,11 +50,14 @@ func TestRecorder_WritesRunStartEventsAndEnd(t *testing.T) {
 
 	path := filepath.Join(dir, "c_sess1", "rt_test01.jsonl")
 	recs := readRecords(t, path)
-	if len(recs) != 4 { // run_start, llm_start, tool_end, run_end (delta dropped)
-		t.Fatalf("got %d records, want 4: %+v", len(recs), recs)
+	if len(recs) != 5 { // run_start, sandbox_boundary, llm_start, tool_end, run_end (delta dropped)
+		t.Fatalf("got %d records, want 5: %+v", len(recs), recs)
 	}
 	if recs[0].Type != "run_start" || recs[0].RunID != "rt_test01" || recs[0].TraceVersion != traceVersion {
 		t.Errorf("bad run_start: %+v", recs[0])
+	}
+	if recs[1].Type != "sandbox_boundary" {
+		t.Errorf("sandbox_boundary must follow run_start: %+v", recs[1])
 	}
 	if recs[len(recs)-1].Type != "run_end" {
 		t.Errorf("last record should be run_end: %+v", recs[len(recs)-1])
@@ -96,7 +100,7 @@ func TestNewRecorder_FailOpen(t *testing.T) {
 func TestRecorder_RecordCap(t *testing.T) {
 	dir := t.TempDir()
 	rec := NewRecorder(dir, Meta{RunID: "rt_cap", SessionID: "s"})
-	rec.maxRecord = 3 // run_start already counts as 1
+	rec.maxRecord = 3 // run_start and sandbox_boundary already count as 2
 	rec.Record(agent.Event{Kind: agent.EventIterStart, Iter: 1})
 	rec.Record(agent.Event{Kind: agent.EventIterStart, Iter: 2}) // hits cap; dropped
 	rec.Record(agent.Event{Kind: agent.EventIterStart, Iter: 3}) // dropped
@@ -125,7 +129,77 @@ func TestRecordRunEnd_Synthetic(t *testing.T) {
 	rec.RecordRunEnd("blocked by hook: nope")
 	rec.Close()
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_block.jsonl"))
-	if len(recs) != 2 || recs[1].Type != "run_end" || recs[1].Error != "blocked by hook: nope" {
+	if len(recs) != 3 || recs[2].Type != "run_end" || recs[2].Error != "blocked by hook: nope" {
 		t.Errorf("synthetic run_end wrong: %+v", recs)
+	}
+}
+
+// TestRecorder_BoundaryReportsUnsandboxedRun asserts the case the record exists
+// for: a run nothing confined still says so, explicitly, rather than leaving the
+// field out and letting a reader assume the boundary held.
+func TestRecorder_BoundaryReportsUnsandboxedRun(t *testing.T) {
+	tests := []struct {
+		name         string
+		info         *agent.SandboxInfo
+		wantSandboxd bool
+		wantBackend  string
+	}{
+		{
+			name:        "no sandbox view wired",
+			info:        nil,
+			wantBackend: "none",
+		},
+		{
+			name:        "view present but disabled",
+			info:        &agent.SandboxInfo{Enabled: false, Sources: []string{"default:cli"}},
+			wantBackend: "none",
+		},
+		{
+			name:         "enabled",
+			info:         &agent.SandboxInfo{Enabled: true, Mode: "auto_allow", Backend: "bwrap", Sources: []string{"default:worker", "policy"}},
+			wantSandboxd: true,
+			wantBackend:  "bwrap",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			rec := NewRecorder(dir, Meta{RunID: "rt_b", SessionID: "s", Sandbox: tt.info})
+			rec.Close()
+
+			recs := readRecords(t, filepath.Join(dir, "s", "rt_b.jsonl"))
+			if len(recs) != 2 {
+				t.Fatalf("got %d records, want run_start + sandbox_boundary: %+v", len(recs), recs)
+			}
+			got := recs[1]
+			if got.Type != "sandbox_boundary" {
+				t.Fatalf("second record type = %q, want sandbox_boundary", got.Type)
+			}
+			if got.Sandboxed == nil {
+				t.Fatal("sandboxed must be present even when false; an omitted field reads as unchecked")
+			}
+			if *got.Sandboxed != tt.wantSandboxd {
+				t.Errorf("sandboxed = %v, want %v", *got.Sandboxed, tt.wantSandboxd)
+			}
+			if got.Backend != tt.wantBackend {
+				t.Errorf("backend = %q, want %q", got.Backend, tt.wantBackend)
+			}
+			if tt.info != nil && len(got.Sources) != len(tt.info.Sources) {
+				t.Errorf("sources = %v, want %v", got.Sources, tt.info.Sources)
+			}
+		})
+	}
+}
+
+// TestBoundaryRecord_FalseSurvivesEncoding guards the pointer field: with a
+// plain bool and omitempty, an unsandboxed run would encode to a line with no
+// sandboxed key at all.
+func TestBoundaryRecord_FalseSurvivesEncoding(t *testing.T) {
+	b, err := json.Marshal(boundaryRecord(nil))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"sandboxed":false`) {
+		t.Errorf("encoded boundary must carry sandboxed:false, got %s", b)
 	}
 }

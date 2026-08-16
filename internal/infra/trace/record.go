@@ -30,6 +30,19 @@ type Record struct {
 	IsSubagent   bool   `json:"is_subagent,omitempty"`
 	TraceVersion int    `json:"trace_version,omitempty"`
 
+	// sandbox_boundary
+	//
+	// Sandboxed is a pointer so an unsandboxed run records "sandboxed": false
+	// rather than omitting the field. A boundary that goes unreported is
+	// indistinguishable from one that was never resolved, and a reader
+	// resolving that silence in the run's favor would credit a run with
+	// protection it did not have.
+	Sandboxed   *bool    `json:"sandboxed,omitempty"`
+	SandboxMode string   `json:"sandbox_mode,omitempty"`
+	Backend     string   `json:"backend,omitempty"`
+	Sources     []string `json:"sources,omitempty"`
+	Downgraded  bool     `json:"downgraded,omitempty"`
+
 	// iter_start, llm_start, llm_end
 	Iter int `json:"iter,omitempty"`
 
@@ -130,6 +143,32 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		}
 	}
 	return r, true
+}
+
+// boundaryRecord builds the sandbox_boundary record written immediately after
+// run_start.
+//
+// It is written for every run, including one that was not confined at all.
+// Portal run diagnostics and `buildmax sandbox overrides` both answer "what
+// contained this run" from this record, and an absent record would be read as
+// "nobody checked" rather than "nothing contained it".
+func boundaryRecord(info *agent.SandboxInfo) Record {
+	rec := Record{TS: now(), Type: "sandbox_boundary", Backend: "none"}
+	sandboxed := false
+	// A nil view means the surface wired no sandbox, which gives the run no
+	// boundary. Recording that as unknown would let an unprotected run read as
+	// an unexamined one, so it is reported as unsandboxed.
+	if info != nil {
+		sandboxed = info.Enabled
+		rec.SandboxMode = info.Mode
+		if info.Backend != "" {
+			rec.Backend = info.Backend
+		}
+		rec.Sources = append([]string(nil), info.Sources...)
+		rec.Downgraded = info.Downgraded
+	}
+	rec.Sandboxed = &sandboxed
+	return rec
 }
 
 // bound truncates s to at most max bytes, appending a marker noting how many

@@ -532,6 +532,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 			SessionID: sess.ID,
 			Workspace: a.workspaceRoot,
 			Model:     modelName,
+			Sandbox:   a.sandboxInfo(),
 		})
 		defer recorder.Close()
 	}

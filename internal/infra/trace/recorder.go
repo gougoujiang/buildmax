@@ -25,6 +25,9 @@ type Meta struct {
 	Workspace  string
 	Model      string
 	IsSubagent bool
+	// Sandbox is the execution boundary resolved for this run. Nil is recorded
+	// as unsandboxed rather than unknown — see boundaryRecord.
+	Sandbox *agent.SandboxInfo
 }
 
 // Recorder appends trace records for one run to a JSONL file. All methods are
@@ -43,8 +46,9 @@ type Recorder struct {
 }
 
 // NewRecorder opens <dir>/<session_id>/<run_id>.jsonl and writes the run_start
-// record. On any failure it logs a warning and returns a nil *Recorder, whose
-// methods are all no-ops — callers do not need to nil-check beyond normal use.
+// and sandbox_boundary records. On any failure it logs a warning and returns a
+// nil *Recorder, whose methods are all no-ops — callers do not need to
+// nil-check beyond normal use.
 func NewRecorder(dir string, meta Meta) *Recorder {
 	if meta.RunID == "" {
 		slog.Warn("trace: missing run id; tracing disabled for this run")
@@ -78,6 +82,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		IsSubagent:   meta.IsSubagent,
 		TraceVersion: traceVersion,
 	})
+	r.write(boundaryRecord(meta.Sandbox))
 	return r
 }
 
