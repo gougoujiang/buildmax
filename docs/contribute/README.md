@@ -16,7 +16,6 @@ boundaries, pull request expectations — start at
 | [documentation.md](documentation.md) | Documentation structure, conventions, and what to update when |
 | [dependency-licenses.md](dependency-licenses.md) | Go and npm license audit, and how to re-run it |
 | [releasing.md](releasing.md) | Versioning, release preparation, verification, and recovery |
-| [public-launch-checklist.md](public-launch-checklist.md) | One-time repository checks and settings for switching to Public |
 
 Design records — the reasoning behind a decision, and plans not yet built —
 live in [../design/](../design/README.md).
