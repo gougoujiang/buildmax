@@ -99,7 +99,8 @@ to check the generated Job and manifest contracts.
 Check it is alive:
 
 ```bash
-curl localhost:5678/healthz
+curl localhost:5678/healthz   # the process is up
+curl localhost:5678/readyz    # its dependencies answer too
 ```
 
 The API describes itself at `/openapi.json`, with a browsable UI at `/swagger/`.

@@ -35,6 +35,19 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- `GET /readyz`, which reports whether the server can actually serve traffic by
+  probing MySQL and object storage. `/healthz` keeps its old meaning and still
+  checks nothing: the two exist because Kubernetes acts on them very
+  differently — a failed readiness check stops traffic, a failed liveness check
+  restarts the container — and pointing both at a dependency-aware endpoint
+  would turn every database blip into a restart of a working server. The
+  reference manifest now points readiness at `/readyz` and leaves liveness on
+  `/healthz`. The response names the failing dependency but never the reason:
+  the endpoint is unauthenticated and connection errors carry DSNs, endpoints,
+  and bucket names, so the reason goes to the server log. The storage probe
+  only reads, so a backend that accepts reads and refuses writes still reports
+  ready.
+
 - A `sandbox_boundary` record in every run trace, written immediately after
   `run_start`, carrying whether the run was sandboxed and — when it was — the
   mode, backend, and the settings/policy/env source chain that decided it. It is

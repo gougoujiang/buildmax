@@ -1,12 +1,39 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+// newTestServer starts a server with the given config and closes it with the test.
+func newTestServer(t *testing.T, cfg Config) *httptest.Server {
+	t.Helper()
+	cfg.Addr = ":0"
+	ts := httptest.NewServer(New(cfg).Handler())
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// getJSON returns the response body and status for a GET.
+func getJSON(t *testing.T, url string) (string, int) {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(body), resp.StatusCode
+}
 
 func TestHealthz(t *testing.T) {
 	s := New(Config{Addr: ":0"})
@@ -84,5 +111,75 @@ func TestSwaggerUI(t *testing.T) {
 			t.Errorf("GET %s Content-Type = %q; want text/html", path, ct)
 		}
 		_ = resp.Body.Close()
+	}
+}
+
+// TestReadyz covers what separates readiness from the liveness endpoint: it
+// reflects dependencies, and it refuses to describe them.
+func TestReadyz(t *testing.T) {
+	t.Run("reports ready when every dependency answers", func(t *testing.T) {
+		ts := newTestServer(t, Config{Readiness: []ReadinessCheck{
+			{Name: "database", Probe: func(context.Context) error { return nil }},
+			{Name: "object_storage", Probe: func(context.Context) error { return nil }},
+		}})
+		body, code := getJSON(t, ts.URL+"/readyz")
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if !strings.Contains(body, `"status":"ready"`) {
+			t.Errorf("body %q should report ready", body)
+		}
+		if !strings.Contains(body, `"name":"database"`) || !strings.Contains(body, `"name":"object_storage"`) {
+			t.Errorf("body %q should name every dependency it checked", body)
+		}
+	})
+
+	t.Run("refuses traffic when a dependency is down", func(t *testing.T) {
+		ts := newTestServer(t, Config{Readiness: []ReadinessCheck{
+			{Name: "database", Probe: func(context.Context) error {
+				return errors.New("dial tcp 10.0.0.5:3306: connect: connection refused, dsn=root:hunter2@tcp(db)/buildmax")
+			}},
+			{Name: "object_storage", Probe: func(context.Context) error { return nil }},
+		}})
+		body, code := getJSON(t, ts.URL+"/readyz")
+		if code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want 503 so Kubernetes stops routing to this pod", code)
+		}
+		if !strings.Contains(body, `"name":"database","status":"failed"`) {
+			t.Errorf("body %q should name the failing dependency", body)
+		}
+		// The endpoint is unauthenticated and connection errors carry DSNs,
+		// endpoints, and bucket names. The reason belongs in the server log.
+		for _, leaked := range []string{"hunter2", "10.0.0.5", "dsn=", "connection refused"} {
+			if strings.Contains(body, leaked) {
+				t.Errorf("readiness body leaked %q: %s", leaked, body)
+			}
+		}
+	})
+
+	t.Run("an unchecked server says so rather than claiming health", func(t *testing.T) {
+		ts := newTestServer(t, Config{})
+		body, code := getJSON(t, ts.URL+"/readyz")
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		// An empty list is visible evidence that nothing was verified — which
+		// is the failure this endpoint exists to replace.
+		if !strings.Contains(body, `"checks":[]`) {
+			t.Errorf("body %q should show an empty check list", body)
+		}
+	})
+}
+
+// TestHealthzIgnoresDependencies pins liveness apart from readiness. A liveness
+// probe that failed on a dependency outage would restart a healthy server and
+// turn a recoverable outage into a crash loop.
+func TestHealthzIgnoresDependencies(t *testing.T) {
+	ts := newTestServer(t, Config{Readiness: []ReadinessCheck{
+		{Name: "database", Probe: func(context.Context) error { return errors.New("down") }},
+	}})
+	_, code := getJSON(t, ts.URL+"/healthz")
+	if code != http.StatusOK {
+		t.Errorf("healthz status = %d, want 200 even with a dependency down", code)
 	}
 }

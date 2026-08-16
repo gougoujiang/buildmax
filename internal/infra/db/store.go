@@ -44,6 +44,17 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+// Ping verifies the database is reachable and the pool can hand out a
+// connection. Used by the server's readiness probe, so it must stay cheap
+// enough to run on every probe interval.
+func (s *Store) Ping(ctx context.Context) error {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
+}
+
 // Close closes the underlying DB connection. Optional for server lifecycle.
 func (s *Store) Close() error {
 	sqlDB, err := s.db.DB()

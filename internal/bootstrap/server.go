@@ -233,6 +233,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			MessagePath: sc.Webhook.MessagePath,
 			UserID:      sc.Webhook.UserID,
 		},
+		Readiness: readinessChecks(st, persistStorage),
 	}
 	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {
 		return httpserver.Config{}, err
@@ -245,6 +246,32 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 //
 // The server resolves a catalog target it owns for its own inference: it does
 // not call its own HTTP listener and is not subject to team model policy.
+// readinessProbeTeam is a team id no team can have, so the storage probe reads
+// nothing real. It exercises the configured backend — reachability,
+// credentials, and bucket or directory access — without depending on any
+// tenant's data existing.
+const readinessProbeTeam = "_readiness_probe"
+
+// readinessChecks are the dependencies the server cannot serve traffic without.
+//
+// Names are what an unauthenticated caller sees, so they say which dependency
+// without saying where it lives.
+func readinessChecks(st *db.Store, persist blob.PersistStorage) []httpserver.ReadinessCheck {
+	return []httpserver.ReadinessCheck{
+		{
+			Name:  "database",
+			Probe: st.Ping,
+		},
+		{
+			Name: "object_storage",
+			Probe: func(ctx context.Context) error {
+				_, err := persist.ListFiles(ctx, readinessProbeTeam)
+				return err
+			},
+		},
+	}
+}
+
 func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.QuotaService) error {
 	// A nil *db.Store put straight into an interface parameter is a non-nil
 	// interface holding a nil pointer, so the absence of a store has to be
