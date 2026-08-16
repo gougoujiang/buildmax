@@ -40,6 +40,11 @@ pre-releases and must be called out in release notes.
   keeps existing deployments unbounded rather than handing them a limit nobody
   chose. `local_process` mode is unchanged and remains a development path.
 
+- The managed inference routes now authenticate before checking whether a
+  gateway is configured. They were the only team-scoped routes that answered
+  `503 managed inference not configured` to an anonymous caller, which told
+  anyone who asked whether a deployment offers managed models.
+
 ### Added
 
 - `deployment/production/`, a private deployment reference for a cluster that
