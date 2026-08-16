@@ -269,7 +269,25 @@ pre-releases and must be called out in release notes.
   explanation of why the contents are owner-only, rather than a tab that exists
   for some people and not others.
 
+- Portal browser tests, run by `./make e2e` against a deployment that is
+  already up. They deliberately do not repeat the API-level deployment smoke,
+  which already drives login, team, task, worker, and artifact — what only a
+  browser can show is whether the published bundle works against a real server:
+  the runtime API base, hash routing, session restoration, and the views that
+  exist only in the UI. `deployment-smoke` runs them after the kind stack comes
+  up, and uploads a trace on failure. They found the blank-page defect fixed
+  below on their first run.
+
 ### Changed
+
+- `docs/start/support.md` gains a compatibility section, and its stale rows are
+  corrected. It now states what an upgrade may do to a deployment: the schema
+  moves forward only with one release of binary rollback, the HTTP API carries
+  no version and may change with a changelog note, configuration is additive
+  with removals announced but no deprecation period, and stored data is never
+  rewritten or deleted by an upgrade. Where a promise does not exist it says so
+  rather than implying one. The audit log, the private Kubernetes reference,
+  and worker pod containment are no longer described as missing.
 
 - The frontend toolchain moves to Node 24 and npm 11, from Node 22 and npm 10.
   Node 22 entered maintenance; 24 is the active LTS. This affects `gui/`,
@@ -340,6 +358,15 @@ pre-releases and must be called out in release notes.
   the license permits, so automated license detection now identifies the
   repository and every release archive as Apache-2.0 rather than as an unknown
   license.
+
+- Portal rendered a blank page. `@buildmax/gui` is a symlinked workspace package
+  that externalises React, so its bare `import "react"` resolved from its own
+  real path — and `gui` has React installed as a peer. The bundle therefore
+  shipped two React instances and every hook threw
+  `Cannot read properties of null (reading 'useState')`. Deduplicating React in
+  the Portal's Vite config fixes it, and takes 8 kB off the bundle. This was
+  invisible to the build, to TypeScript, and to the API-level deployment smoke;
+  the browser tests added alongside it are what found it.
 
 ## [0.1.0-alpha] - 2026-08-09
 

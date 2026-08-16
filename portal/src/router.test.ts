@@ -17,6 +17,9 @@ describe("hash router", () => {
     ["#/space", { name: "space", section: "overview" }],
     ["#/space/members", { name: "space", section: "members" }],
     ["#/space/members/new", { name: "space", section: "memberNew" }],
+    // A section reachable only by clicking a tab cannot be linked, shared, or
+    // survive a reload, so every one of them needs a URL.
+    ["#/space/audit", { name: "space", section: "audit" }],
     ["#/team-settings", { name: "space", section: "overview" }],
     ["#/workflows", { name: "workflows" }],
     ["#/workflow/w_123", { name: "workflow", workflowId: "w_123" }],
@@ -39,6 +42,7 @@ describe("hash router", () => {
     [{ name: "account", section: "usage" }, "#/account/usage"],
     [{ name: "account", section: "webhook" }, "#/account/webhook"],
     [{ name: "space", section: "overview" }, "#/space"],
+    [{ name: "space", section: "audit" }, "#/space/audit"],
     [{ name: "space", section: "members" }, "#/space/members"],
     [{ name: "space", section: "memberNew" }, "#/space/members/new"],
     [{ name: "workflows" }, "#/workflows"],

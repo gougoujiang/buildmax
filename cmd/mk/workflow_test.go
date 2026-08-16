@@ -216,3 +216,33 @@ func TestExactVersionDoesNotAcceptPrefixMatch(t *testing.T) {
 		t.Fatalf("requiredExactVersion returned %d for a partial match; want 1", got)
 	}
 }
+
+// TestEveryCommandPackageIsGitIgnored guards a gap that is invisible until it
+// bites: `./make build` writes to bin/, but a bare `go build ./cmd/<x>` writes
+// <x> to the repository root. The ignore list was written from what ./make
+// produces, so it missed the packages ./make never builds — and a `git add -A`
+// after a manual build stages a binary.
+func TestEveryCommandPackageIsGitIgnored(t *testing.T) {
+	root := filepath.Clean("../..")
+	entries, err := os.ReadDir(filepath.Join(root, "cmd"))
+	if err != nil {
+		t.Fatalf("read cmd/: %v", err)
+	}
+	ignore, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatalf("read .gitignore: %v", err)
+	}
+	lines := make(map[string]bool)
+	for _, line := range strings.Split(string(ignore), "\n") {
+		lines[strings.TrimSpace(line)] = true
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if want := "/" + entry.Name(); !lines[want] {
+			t.Errorf(".gitignore has no %q; a bare `go build ./cmd/%s` leaves that binary in the repository root",
+				want, entry.Name())
+		}
+	}
+}

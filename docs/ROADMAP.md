@@ -190,7 +190,7 @@ Five gates, each with the surface that proves it:
 | The recommended private deployment is operable | Kubernetes reference with external MySQL, S3, TLS, secrets, resource limits, and a versioned schema migration with a rollback path |
 | A run explains itself | Portal answers model, tools, files, duration, tokens, and failure cause for any task run, with stable cancel/retry/timeout semantics |
 | The minimum governance loop closes | Role and team authorization covered end to end by tests; audit events for sign-in, configuration, model use, task execution, and credential change |
-| Beta claims are continuously verified | CI, Compose, and kind checks running again; Portal browser E2E; a published support and compatibility matrix |
+| Beta claims are continuously verified | CI, Compose, and kind checks running again; Portal browser E2E; a published support and compatibility matrix (see [start/support.md](start/support.md)) |
 
 The first gate deliberately does not require the OS sandbox. Enabling it on
 workers is P0.5 work that continues past Beta; the Beta boundary is the pod and

@@ -41,6 +41,24 @@ Portal owns the cloud/team lane:
   same as an unconfined one, and an audit action this Portal does not recognise
   is shown verbatim rather than hidden.
 
+## Testing
+
+Unit tests are Vitest over pure modules; `vite.config.ts` excludes `e2e/` from
+them. Portal has no DOM test environment, so display decisions live in pure
+modules — `features/runs/summary.ts`, `features/audit/describe.ts` — where they
+can be asserted without one.
+
+`portal/e2e/` holds Playwright specs, run by `./make e2e` against a deployment
+that is already running. They cover only what a browser can show: that the
+published bundle works against a real server. The API-level flow belongs to
+`./make kind smoke`, and repeating it here would be slower and no more
+informative.
+
+`./make e2e` issues the login code, because a code arrives out of band by
+design and the browser cannot fetch one. Playwright's global setup signs in
+once and saves the session, which is also why signing in is not a separate
+spec: a break in it fails the whole suite before the first test.
+
 ## Product Boundary
 
 Portal is the cloud team workspace. CLI and Desktop are the local execution
