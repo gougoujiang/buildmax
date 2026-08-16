@@ -358,5 +358,6 @@ func toWorkspaceStorageConfig(sc config.ServerStorageConfig) config.WorkspaceSto
 		SecretKey:        sc.MinIO.SecretKey,
 		Bucket:           sc.MinIO.Bucket,
 		Prefix:           sc.MinIO.Prefix,
+		PathStyle:        sc.MinIO.PathStyle,
 	}
 }

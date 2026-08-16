@@ -16,4 +16,8 @@ type WorkspaceStorageConfig struct {
 	SecretKey        string
 	Bucket           string
 	Prefix           string
+	// PathStyle forces bucket-in-path addressing on or off. Nil derives it
+	// from Endpoint, which is the right answer for both of the cases that
+	// actually occur — see bootstrap.BuildS3Client.
+	PathStyle *bool
 }

@@ -93,7 +93,27 @@ type ServerDBConfig struct {
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
+	// TLS is the go-sql-driver tls parameter. Empty means DefaultDBTLSMode.
+	//
+	// A deployment pointing at a database it already runs — RDS, Aurora, Cloud
+	// SQL — is the case this exists for: most managed MySQL either requires TLS
+	// or is reached over a network where the credentials should not travel in
+	// the clear.
+	//
+	// Values: "preferred" (TLS when the server offers it, certificate not
+	// verified), "true" (require TLS and verify the certificate against the
+	// system roots), "skip-verify" (require TLS, accept any certificate), or
+	// "false" (never).
+	TLS string `mapstructure:"tls"`
 }
+
+// DefaultDBTLSMode is used when database.tls is unset.
+//
+// "preferred" upgrades a connection whenever the server advertises TLS and
+// behaves exactly as before against one that does not, so it has no failure
+// mode a plaintext connection did not already have. It does not verify the
+// certificate; a deployment that needs that sets "true".
+const DefaultDBTLSMode = "preferred"
 
 // DSN builds a MySQL DSN from the database config.
 func (d ServerDBConfig) DSN() string {
@@ -114,16 +134,24 @@ func (d ServerDBConfig) DSN() string {
 	if name == "" {
 		name = "buildmax"
 	}
-	return (&serverDBFormatter{host: host, port: port, user: user, password: password, name: name}).dsn()
+	tlsMode := d.TLS
+	if tlsMode == "" {
+		tlsMode = DefaultDBTLSMode
+	}
+	return (&serverDBFormatter{host: host, port: port, user: user, password: password, name: name, tls: tlsMode}).dsn()
 }
 
 type serverDBFormatter struct {
-	host, user, password, name string
-	port                       int
+	host, user, password, name, tls string
+	port                            int
 }
 
 func (f *serverDBFormatter) dsn() string {
-	return f.user + ":" + f.password + "@tcp(" + f.host + ":" + itoa(f.port) + ")/" + f.name + "?charset=utf8mb4&parseTime=True"
+	dsn := f.user + ":" + f.password + "@tcp(" + f.host + ":" + itoa(f.port) + ")/" + f.name + "?charset=utf8mb4&parseTime=True"
+	if f.tls != "" {
+		dsn += "&tls=" + f.tls
+	}
+	return dsn
 }
 
 func itoa(n int) string {
@@ -210,6 +238,11 @@ type ServerMinIOConfig struct {
 	SecretKey string `mapstructure:"secret_key"`
 	Bucket    string `mapstructure:"bucket"`
 	Prefix    string `mapstructure:"prefix"`
+	// PathStyle forces bucket-in-path addressing. Unset derives it from
+	// endpoint: set means an S3-compatible store such as MinIO, which needs
+	// path style; empty means real AWS S3, which does not. Set it explicitly
+	// for a compatible store that uses virtual-host addressing.
+	PathStyle *bool `mapstructure:"path_style"`
 }
 
 // ---------------------------------------------------------------------------

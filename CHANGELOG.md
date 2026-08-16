@@ -35,6 +35,21 @@ pre-releases and must be called out in release notes.
 
 ### Added
 
+- A deployment can now point BuildMax at a database and an object store it
+  already runs, which the connection layer previously could not express.
+  `database.tls` carries a TLS mode into the DSN, defaulting to `preferred` —
+  TLS whenever the server offers it, unverified — so an existing plaintext
+  connection keeps working while every server that supports TLS gets it; set
+  `true` for a managed database that should be verified. An empty
+  `storage.minio.endpoint` now means AWS S3 and lets the SDK resolve the
+  regional endpoint, instead of forcing a base endpoint at every store, and
+  bucket addressing follows from that rather than being pinned to path style,
+  which AWS S3 has not supported for buckets created since 2020;
+  `storage.minio.path_style` overrides it. Leaving both storage keys empty
+  falls through to the AWS SDK's default credential chain, so a pod can reach a
+  bucket through IRSA, workload identity, or an instance profile rather than a
+  long-lived key the deployment has to store and rotate.
+
 - Versioned schema migrations. Changes that `AutoMigrate` cannot express — a
   backfill, a drop, a rename — are now an ordered list recorded in a new
   `schema_migration` table, so each runs at most once per database instead of
