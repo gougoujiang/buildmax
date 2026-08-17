@@ -30,6 +30,38 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdRelease([]string{"publish"}); err == nil {
 		t.Fatal("cmdRelease accepted an unknown action")
 	}
+	// Resolving the target must fail before anything reaches out to a cluster,
+	// or a typo waits on an HTTP timeout before saying what was wrong.
+	if _, err := e2eTarget([]string{"docker"}); err == nil {
+		t.Fatal("e2eTarget accepted an unknown deployment")
+	}
+	if _, err := e2eTarget([]string{"kind", "extra"}); err == nil {
+		t.Fatal("e2eTarget accepted extra arguments")
+	}
+}
+
+// TestE2ETargetsMatchTheirDeployments pins the difference the browser tests can
+// actually see: the kind reference serves Portal and server from one ingress,
+// so the bundle's API base is same-origin, while Compose publishes them
+// separately and needs an absolute one.
+func TestE2ETargetsMatchTheirDeployments(t *testing.T) {
+	kind, err := e2eTarget([]string{"kind"})
+	if err != nil {
+		t.Fatalf("kind target: %v", err)
+	}
+	if kind.portalRuntimeAPIBase != "/" {
+		t.Errorf("kind API base = %q; the single-ingress reference is same-origin", kind.portalRuntimeAPIBase)
+	}
+	compose, err := e2eTarget([]string{"compose"})
+	if err != nil {
+		t.Fatalf("compose target: %v", err)
+	}
+	if !strings.HasPrefix(compose.portalRuntimeAPIBase, "http") {
+		t.Errorf("compose API base = %q; separate ports need an absolute URL", compose.portalRuntimeAPIBase)
+	}
+	if compose.portalURL == "" || compose.admin == nil {
+		t.Error("compose target cannot be driven: it has no portal URL or no admin command")
+	}
 }
 
 func TestReleaseRoutesActions(t *testing.T) {

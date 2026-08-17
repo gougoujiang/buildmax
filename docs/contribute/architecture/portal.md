@@ -59,6 +59,14 @@ design and the browser cannot fetch one. Playwright's global setup signs in
 once and saves the session, which is also why signing in is not a separate
 spec: a break in it fails the whole suite before the first test.
 
+`./make e2e` defaults to the kind deployment; `./make e2e compose` runs the same
+specs against the quickstart stack. Both are in `deployment-smoke.yml`, because
+the two differ in ways a browser can see. kind serves Portal and server from one
+ingress, so the bundle's API base is same-origin; Compose publishes them on
+separate ports, so it is absolute. A spec that needs to know is told through
+`BUILDMAX_E2E_API_BASE` rather than assuming either shape — the task runner
+passes whichever it just pointed the browser at.
+
 `run-trace.spec.ts` is the exception to "seed nothing". The run trace view
 opens only from an issue's outputs, and the API-level smoke creates a
 conversation task, which has none — so the spec creates the issue and agent run

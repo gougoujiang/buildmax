@@ -19,13 +19,20 @@ test("the signed-in shell renders against a real deployment", async ({ page }) =
   }
 })
 
-test("the runtime API base is same-origin, as the ingress serves it", async ({ page }) => {
+test("the runtime API base is the one this deployment serves", async ({ page }) => {
   const config = await page.request.get("/config.js")
   expect(config.ok()).toBeTruthy()
-  // Same-origin is what the deployment reference's single-ingress shape
-  // depends on. An absolute URL here means the bundle is talking to a host the
-  // browser may not be allowed to reach.
-  expect(await config.text()).toContain('apiBase: "/"')
+  // The published image ships one bundle for every deployment and learns its
+  // API base at container start, so a wrong value here produces a page that
+  // renders and then fails every request.
+  //
+  // What "right" means is the deployment's to say, not this spec's. The kind
+  // reference puts one ingress in front of Portal and server, so the base is
+  // same-origin; the Compose quickstart publishes them on separate ports, so it
+  // is absolute. `./make e2e` passes in whichever it just pointed the browser
+  // at, and the default keeps a hand-run suite honest about the reference.
+  const expected = process.env.BUILDMAX_E2E_API_BASE ?? "/"
+  expect(await config.text()).toContain(`apiBase: "${expected}"`)
 })
 
 test("a reload keeps the session", async ({ page }) => {
