@@ -9,6 +9,8 @@ pre-releases and must be called out in release notes.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-08-17
+
 ### Security
 
 - The server pod is now created with the same containment as worker pods:
