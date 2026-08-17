@@ -18,6 +18,10 @@
   "ignores": [
     "**/node_modules/**",
     "**/dist/**",
+    // Playwright writes a Markdown failure report per failed test. It is
+    // generated, gitignored, and only present after someone runs `./make e2e`
+    // locally — without this, a failed browser test also fails `check docs`.
+    "**/test-results/**",
     ".buildmax/**",
     "docs/design/**",
     "eval/**",

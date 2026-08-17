@@ -59,6 +59,13 @@ design and the browser cannot fetch one. Playwright's global setup signs in
 once and saves the session, which is also why signing in is not a separate
 spec: a break in it fails the whole suite before the first test.
 
+`run-trace.spec.ts` is the exception to "seed nothing". The run trace view
+opens only from an issue's outputs, and the API-level smoke creates a
+conversation task, which has none — so the spec creates the issue and agent run
+through the API before reading the result through the UI. That keeps the pure
+module's claim about boundaries honest in the one place it is actually shown:
+`summary.ts` proves the wording, this proves a real run reaches it.
+
 ## Product Boundary
 
 Portal is the cloud team workspace. CLI and Desktop are the local execution
