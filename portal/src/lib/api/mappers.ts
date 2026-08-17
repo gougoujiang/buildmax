@@ -73,6 +73,10 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
   return {
     id: api.id,
     userId: api.user_id,
+    parentIssueId: api.parent_issue_id ?? null,
+    childCount: api.child_count ?? 0,
+    doneChildCount: api.done_child_count ?? 0,
+    commentCount: api.comment_count ?? 0,
     title: api.title,
     description: api.description,
     status: api.status as Issue["status"],

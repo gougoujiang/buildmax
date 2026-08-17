@@ -8,12 +8,19 @@ import type { ApiIssue, ApiIssueFlowResponse, ApiIssuesListResponse, ApiTask } f
 export interface GetIssuesOptions {
   limit?: number
   offset?: number
+  /**
+   * "none" lists only top-level issues; an issue id lists that issue's
+   * sub-issues. Omitting it lists everything, which is what the endpoint did
+   * before sub-issues existed.
+   */
+  parentId?: string
 }
 
 export async function getIssues(teamId: string, token: string, options?: GetIssuesOptions): Promise<ApiIssuesListResponse> {
   const params = new URLSearchParams()
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
+  if (options?.parentId) params.set("parent_id", options.parentId)
   const q = params.toString()
   return requestJson<ApiIssuesListResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues${q ? `?${q}` : ""}`, {
     headers: authHeaders(token),
@@ -34,7 +41,7 @@ export async function getIssueFlow(teamId: string, issueId: string, token: strin
 
 export async function createIssue(
   teamId: string,
-  body: { title: string; description?: string },
+  body: { title: string; description?: string; parent_issue_id?: string },
   token: string,
 ): Promise<ApiIssue> {
   return requestJson<ApiIssue>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues`, {
@@ -53,6 +60,8 @@ export async function updateIssue(
     status?: "todo" | "in_progress" | "done"
     assignee_kind?: "person" | "agent" | "workflow" | ""
     assignee_id?: string
+    /** An empty string clears the parent, matching how assignee is cleared. */
+    parent_issue_id?: string
   },
   token: string,
 ): Promise<ApiIssue> {

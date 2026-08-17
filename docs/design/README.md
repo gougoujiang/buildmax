@@ -29,6 +29,7 @@ reference, then delete the plan.
 | Document | Priority | Current state |
 |---|---|---|
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
+| [Issue model](issue-model.md) | P2 follow-on | Sub-issues and comments implemented; mentions and realtime push open |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Planned; direct mode only — no managed transport implemented |
 | [Team governance](team-governance.md) | P4 | Roles, quota, and workflow lifecycle shipped; audit/event visibility open |

@@ -47,6 +47,7 @@ export interface ApiIssue {
   id: string
   user_id: string
   team_id: string
+  parent_issue_id?: string | null
   title: string
   description: string
   status: string
@@ -55,6 +56,28 @@ export interface ApiIssue {
   created_by: string
   created_at: number
   updated_at: number
+  /** Derived per response, never stored. Absent on older servers. */
+  child_count?: number
+  done_child_count?: number
+  comment_count?: number
+}
+
+export interface ApiIssueComment {
+  id: string
+  issue_id: string
+  author_kind: "user" | "agent" | "system"
+  author_id: string
+  body: string
+  source_task_id?: string | null
+  source_task_run_id?: string | null
+  created_at: number
+  /** Absent until the comment is edited. */
+  edited_at?: number | null
+}
+
+export interface ApiIssueCommentsResponse {
+  comments: ApiIssueComment[]
+  total: number
 }
 
 export interface ApiWorkflow {
@@ -142,6 +165,9 @@ export interface ApiIssueOutput {
 
 export interface ApiIssueFlowResponse {
   issue: ApiIssue
+  /** Set on a sub-issue; children is set on a parent. Never both. */
+  parent?: ApiIssue | null
+  children: ApiIssue[]
   workflow?: ApiWorkflow | null
   runs: ApiIssueFlowRun[]
   agent_tasks: ApiTask[]

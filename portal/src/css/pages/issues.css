@@ -267,3 +267,118 @@
   border: 1px solid var(--color-border);
   border-radius: 6px;
 }
+
+/* --- Sub-issues --- */
+
+.issues-page__children {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0 1.25rem;
+}
+
+.issues-page__child-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issues-page__child .issues-page__row {
+  padding: 0.6rem 0.75rem;
+  background: var(--color-bg-muted);
+}
+
+.issue-detail-page__children {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-detail-page__child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.issue-detail-page__child-actions,
+.issue-detail-page__parent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* --- Discussion --- */
+
+.issue-discussion {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.issue-discussion__list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-discussion__item {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.issue-discussion__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.issue-discussion__author {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Agent and system comments are the record of what a run reported rather than
+   something a person wrote, so they read as reported rather than said. */
+.issue-discussion__author--agent,
+.issue-discussion__author--system {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.issue-discussion__body {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.issue-discussion__composer {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.issue-discussion__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}

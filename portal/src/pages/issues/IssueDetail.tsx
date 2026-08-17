@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Agent, Issue, IssueFlow, IssueFlowRun, IssueOutput, Workflow } from "../../lib/types"
-import type { ApiIssueFlowResponse, ApiTeamMember } from "../../lib/api/types"
+import type { ApiIssueComment, ApiIssueFlowResponse, ApiTeamMember } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
@@ -13,7 +13,15 @@ import {
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
-import { getIssueFlow, OutputsList, OutputViewerModal, runIssueAgent, updateIssue } from "../../features/issues"
+import {
+  createIssue,
+  getIssueFlow,
+  IssueDiscussion,
+  OutputsList,
+  OutputViewerModal,
+  runIssueAgent,
+  updateIssue,
+} from "../../features/issues"
 import { RunTraceModal } from "../../features/runs"
 import { getTeamMembers } from "../../features/teams/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
@@ -36,6 +44,8 @@ interface TimelineEvent {
 function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
   return {
     issue: apiIssueToIssue(api.issue),
+    parent: api.parent ? apiIssueToIssue(api.parent) : null,
+    children: (api.children ?? []).map(apiIssueToIssue),
     workflow: api.workflow ? apiWorkflowToWorkflow(api.workflow) : null,
     runs: api.runs.map((item) => ({
       run: apiWorkflowRunToWorkflowRun(item.run),
@@ -73,6 +83,11 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const [runningAgent, setRunningAgent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [viewerOutput, setViewerOutput] = useState<IssueOutput | null>(null)
+  const [subIssueTitle, setSubIssueTitle] = useState("")
+  const [addingSubIssue, setAddingSubIssue] = useState(false)
+  // Owned by the Discussion panel's fetch and mirrored here so the timeline can
+  // interleave what people said with what runs did.
+  const [comments, setComments] = useState<ApiIssueComment[]>([])
   const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const load = useCallback(async () => {
@@ -127,6 +142,14 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const publishedAssignableWorkflows = workflows.filter(
     (workflow) => workflow.status === "published" || workflow.id === flow?.issue.assigneeId,
   )
+
+  const openChildCount = (flow?.issue.childCount ?? 0) - (flow?.issue.doneChildCount ?? 0)
+
+  const agentNames = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const agent of agents) out[agent.id] = agent.name
+    return out
+  }, [agents])
 
   const assigneeLabel = useCallback((issue: Issue): string => {
     if (issue.assigneeKind === "person") {
@@ -184,8 +207,18 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
         status: task.status,
       })
     }
+    // Comments belong on the same column as runs: an issue's history is what
+    // people said and what execution did, in one order.
+    for (const comment of comments) {
+      events.push({
+        id: comment.id,
+        label: comment.author_kind === "user" ? "Comment" : "Agent comment",
+        detail: comment.body,
+        timestamp: comment.created_at,
+      })
+    }
     return events.sort((a, b) => b.timestamp - a.timestamp)
-  }, [flow])
+  }, [flow, comments])
 
   function memberLabel(member: ApiTeamMember): string {
     if (member.user_id === userId) return "Me"
@@ -218,6 +251,21 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to update issue")))
       .finally(() => setSaving(false))
+  }
+
+  function handleAddSubIssue() {
+    if (!token || !currentTeamId || !flow) return
+    const trimmed = subIssueTitle.trim()
+    if (!trimmed || addingSubIssue) return
+    setAddingSubIssue(true)
+    setError(null)
+    createIssue(currentTeamId, { title: trimmed, parent_issue_id: flow.issue.id }, token)
+      .then(() => {
+        setSubIssueTitle("")
+        return load()
+      })
+      .catch((err) => setError(getErrorMessage(err, "Failed to add sub-issue")))
+      .finally(() => setAddingSubIssue(false))
   }
 
   function handleRunWorkflow() {
@@ -355,12 +403,114 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                   </span>
                 </label>
               </div>
+              {status === "done" && openChildCount > 0 ? (
+                <p className="page-activity__meta">
+                  {openChildCount} sub-issue{openChildCount === 1 ? " is" : "s are"} still open. Closing this issue
+                  anyway is allowed — sub-issue status is never rolled up.
+                </p>
+              ) : null}
               <div className="issues-page__meta-row">
                 <div className="page-activity__meta">Current assignee: {assigneeLabel(flow.issue)}</div>
                 <div className="page-activity__meta">Created: {formatTimestamp(flow.issue.createdAt)}</div>
                 <div className="page-activity__meta">Updated: {formatTimestamp(flow.issue.updatedAt)}</div>
               </div>
             </div>
+          </section>
+
+          <section className="issues-page__panel">
+            <div className="issues-page__toolbar">
+              <h2 className="issues-page__section-title">{flow.parent ? "Parent Issue" : "Sub-issues"}</h2>
+              {flow.parent ? null : (
+                <span className="page-activity__meta">
+                  {flow.issue.childCount === 0
+                    ? "None yet"
+                    : `${flow.issue.doneChildCount}/${flow.issue.childCount} done`}
+                </span>
+              )}
+            </div>
+            {flow.parent ? (
+              <div className="issue-detail-page__parent">
+                <button
+                  type="button"
+                  className="page-activity__action-btn"
+                  onClick={() => navigate({ name: "issue", issueId: flow.parent!.id })}
+                >
+                  ← {flow.parent.title}
+                </button>
+                <p className="page-activity__meta">
+                  This is a sub-issue. Sub-issues cannot have sub-issues of their own.
+                </p>
+              </div>
+            ) : (
+              <>
+                {flow.children.length === 0 ? (
+                  <p className="page-activity__empty">No sub-issues yet.</p>
+                ) : (
+                  <ul className="issue-detail-page__children">
+                    {flow.children.map((child) => (
+                      <li key={child.id} className="issue-detail-page__child">
+                        <button
+                          type="button"
+                          className="page-activity__action-btn"
+                          onClick={() => navigate({ name: "issue", issueId: child.id })}
+                        >
+                          {child.title}
+                        </button>
+                        <span className="issues-page__status">{child.status}</span>
+                        <span className="page-activity__meta">{assigneeLabel(child)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {/* A sub-issue starts as a title. Everything else is filled in
+                    on its own page, so decomposing an issue stays one keystroke
+                    per piece. */}
+                <div className="issue-detail-page__child-actions">
+                  <input
+                    className="issues-page__input"
+                    value={subIssueTitle}
+                    placeholder="New sub-issue title"
+                    onChange={(e) => setSubIssueTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleAddSubIssue()
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="page-activity__action-btn"
+                    onClick={handleAddSubIssue}
+                    disabled={addingSubIssue || subIssueTitle.trim() === ""}
+                  >
+                    {addingSubIssue ? "Adding…" : "Add sub-issue"}
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+
+          <section className="issues-page__panel issue-detail-page__wide">
+            <div className="issues-page__toolbar">
+              <h2 className="issues-page__section-title">Discussion</h2>
+              <span className="page-activity__meta">
+                {comments.length === 0
+                  ? "No comments"
+                  : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            <IssueDiscussion
+              teamId={currentTeamId}
+              issueId={flow.issue.id}
+              token={token}
+              userId={userId ?? null}
+              canModerate={currentUserRole === "owner"}
+              members={members}
+              agentNames={agentNames}
+              onOpenTrace={(taskRunId) => setTraceRunId(taskRunId)}
+              onCommentsChanged={setComments}
+            />
           </section>
 
           <section className="issues-page__panel issue-detail-page__wide">

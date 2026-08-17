@@ -68,6 +68,7 @@ export interface Agent {
 export interface Issue {
   id: string
   userId: string
+  parentIssueId?: string | null
   title: string
   description: string
   status: "todo" | "in_progress" | "done"
@@ -77,6 +78,10 @@ export interface Issue {
   createdAt: number
   updatedAt: number
   updatedLabel: string
+  /** Derived server-side per response, never stored. */
+  childCount: number
+  doneChildCount: number
+  commentCount: number
 }
 
 export interface Workflow {
@@ -152,6 +157,9 @@ export interface IssueOutput {
 
 export interface IssueFlow {
   issue: Issue
+  /** Set on a sub-issue; children is set on a parent. Never both. */
+  parent: Issue | null
+  children: Issue[]
   workflow?: Workflow | null
   runs: IssueFlowRun[]
   agentTasks: Task[]

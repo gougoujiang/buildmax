@@ -61,6 +61,7 @@ type Config struct {
 	WorkflowStore            model.WorkflowStore
 	AgentStore               model.AgentStore
 	IssueStore               model.IssueStore
+	IssueCommentStore        model.IssueCommentStore
 	TaskStore                model.TaskStore
 	TaskRunStore             model.TaskRunStore
 	RunOutputLister          RunOutputLister
