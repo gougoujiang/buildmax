@@ -23,9 +23,36 @@ type LoginUser struct {
 
 // LoginResponse is the successful result of POST /api/login.
 type LoginResponse struct {
-	Token string    `json:"token"`
-	User  LoginUser `json:"user"`
+	// Token is AccessToken under the name it had before a login returned two
+	// credentials. A server older than that split sends only this one.
+	Token       string `json:"token"`
+	AccessToken string `json:"access_token"`
+	// RefreshToken is empty when the server keeps no store for it, which means
+	// the login ends when the access token does.
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresIn    int64     `json:"expires_in"`
+	User         LoginUser `json:"user"`
 }
+
+// Access returns the access token under whichever name the server used.
+func (r *LoginResponse) Access() string {
+	if r.AccessToken != "" {
+		return r.AccessToken
+	}
+	return r.Token
+}
+
+// RefreshResponse is the successful result of POST /api/token/refresh.
+type RefreshResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+}
+
+// ErrRefreshRejected means the server refused the refresh token: it is spent,
+// revoked, expired, or was replayed. The session is over and only a new login
+// will produce another.
+var ErrRefreshRejected = errors.New("refresh token rejected")
 
 // Client is a stateless HTTP client for the BuildMax server API.
 type Client struct {
@@ -66,14 +93,28 @@ func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 	return parseErrorResponse(resp)
 }
 
-// Login calls POST /api/login and returns the token and user on success.
+// Login calls POST /api/login with a single-use login code — the recovery
+// path, used to claim a new account or replace a forgotten password.
 // platform identifies the calling client ("cli", "desktop", "portal").
 func (c *Client) Login(ctx context.Context, email, otp, platform string) (*LoginResponse, error) {
-	body, _ := json.Marshal(map[string]string{
+	return c.login(ctx, map[string]string{
 		"email":    email,
 		"otp":      otp,
 		"platform": platform,
 	})
+}
+
+// LoginWithPassword calls POST /api/login with a password, the everyday way in.
+func (c *Client) LoginWithPassword(ctx context.Context, email, password, platform string) (*LoginResponse, error) {
+	return c.login(ctx, map[string]string{
+		"email":    email,
+		"password": password,
+		"platform": platform,
+	})
+}
+
+func (c *Client) login(ctx context.Context, payload map[string]string) (*LoginResponse, error) {
+	body, _ := json.Marshal(payload)
 	url := c.BaseURL + "/api/login"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -95,6 +136,68 @@ func (c *Client) Login(ctx context.Context, email, otp, platform string) (*Login
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 	return &lr, nil
+}
+
+// Refresh calls POST /api/token/refresh, exchanging a refresh token for a new
+// pair.
+//
+// A rejected token returns ErrRefreshRejected, which the caller must be able to
+// tell apart from the server being unreachable: one means sign in again, the
+// other means try later.
+func (c *Client) Refresh(ctx context.Context, refreshToken string) (*RefreshResponse, error) {
+	body, _ := json.Marshal(map[string]string{"refresh_token": refreshToken})
+	url := c.BaseURL + "/api/token/refresh"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, ErrRefreshRejected
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseErrorResponse(resp)
+	}
+	var rr RefreshResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rr); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	if rr.AccessToken == "" {
+		return nil, fmt.Errorf("refresh returned no access token")
+	}
+	return &rr, nil
+}
+
+// Logout calls POST /api/logout to revoke the session behind refreshToken.
+func (c *Client) Logout(ctx context.Context, refreshToken, accessToken string) error {
+	body, _ := json.Marshal(map[string]string{"refresh_token": refreshToken})
+	url := c.BaseURL + "/api/logout"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	return parseErrorResponse(resp)
 }
 
 // ListTeamModels calls GET /api/teams/{team_id}/llm/models and returns the

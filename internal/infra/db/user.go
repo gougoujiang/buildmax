@@ -11,10 +11,16 @@ import (
 )
 
 type userRow struct {
-	ID                uint    `gorm:"primaryKey;autoIncrement"`
-	UserID            string  `gorm:"type:varchar(64);uniqueIndex;not null"`
-	Email             string  `gorm:"type:varchar(255);uniqueIndex;not null"`
-	Name              string  `gorm:"type:varchar(255)"`
+	ID     uint   `gorm:"primaryKey;autoIncrement"`
+	UserID string `gorm:"type:varchar(64);uniqueIndex;not null"`
+	Email  string `gorm:"type:varchar(255);uniqueIndex;not null"`
+	Name   string `gorm:"type:varchar(255)"`
+	// PasswordHash is NULL for an account that has never set one: created by an
+	// operator and not yet claimed, or signing in with login codes only. It
+	// stays nullable so that an account authenticated somewhere else — an
+	// identity provider, when there is one — needs no local password to exist.
+	PasswordHash      *string `gorm:"type:varchar(255)"`
+	PasswordSetAt     *int64  `gorm:""`
 	QuotaTier         string  `gorm:"type:varchar(64)"`
 	LastLoginAt       *int64  `gorm:""`
 	LastLoginPlatform *string `gorm:"type:varchar(32)"`
@@ -36,6 +42,8 @@ func toUser(row *userRow) *model.User {
 		LastLoginAt:       row.LastLoginAt,
 		LastLoginPlatform: row.LastLoginPlatform,
 		CreatedAt:         row.CreatedAt,
+		// Whether a password exists, never what it is.
+		HasPassword: row.PasswordHash != nil && *row.PasswordHash != "",
 	}
 }
 
@@ -143,4 +151,48 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		return nil, err
 	}
 	return &u, nil
+}
+
+// PasswordHash implements model.PasswordStore.
+//
+// A missing account and an account with no password both return "", because
+// the caller does the same thing with either: refuse, having spent the same
+// work. Distinguishing them here would only invite a handler to distinguish
+// them in a response.
+func (s *Store) PasswordHash(ctx context.Context, userID string) (string, error) {
+	if userID == "" {
+		return "", nil
+	}
+	var row userRow
+	err := s.db.WithContext(ctx).Select("password_hash").Where("user_id = ?", userID).First(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	if row.PasswordHash == nil {
+		return "", nil
+	}
+	return *row.PasswordHash, nil
+}
+
+// SetPassword implements model.PasswordStore.
+func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, setAt int64) error {
+	if userID == "" {
+		return errors.New("set password: user id required")
+	}
+	if encodedHash == "" {
+		return errors.New("set password: hash required")
+	}
+	res := s.db.WithContext(ctx).Model(&userRow{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]any{"password_hash": encodedHash, "password_set_at": setAt})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return model.ErrUserNotFound
+	}
+	return nil
 }

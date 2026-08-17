@@ -45,6 +45,89 @@ pre-releases and must be called out in release notes.
   `503 managed inference not configured` to an anonymous caller, which told
   anyone who asked whether a deployment offers managed models.
 
+- Signing in now returns two credentials instead of one. The access token is
+  still a signed JWT the server keeps no record of; alongside it comes a refresh
+  token, stored as a hash in the new `user_refresh_token` table and exchanged at
+  `POST /api/token/refresh` for the next pair. A single 24-hour token meant two
+  things at once: nothing could retire it early, and everyone had to sign in
+  again every day — which, with no mail channel, meant an operator issuing a
+  login code by hand each time. Splitting them separates those questions.
+  `access_token_ttl` (7 days) is now the only thing that governs how long a
+  leaked token works, and `refresh_token_ttl` (30 days) governs how long a
+  session can be renewed without a new login code.
+
+  Each exchange spends the token presented and issues its replacement in the
+  same session, so a token appearing twice means two holders. Past
+  `refresh_rotation_grace` that revokes the whole session and records an
+  `auth.refresh_reuse` audit event — the legitimate holder is signed out too,
+  because there is no way to tell the copies apart. The grace window exists
+  because the CLI and Desktop share one credentials file across processes, where
+  two simultaneous refreshes are ordinary rather than suspicious.
+
+  Every login opens its own session, and `POST /api/logout` revokes one of them
+  without touching the others. Expired login codes and refresh tokens are now
+  swept hourly; the sweep for login codes had been written but never wired up.
+  Existing tokens keep working until they expire, so upgrading does not sign
+  anyone out.
+
+  Every client renews rather than expiring. The Portal refreshes when a call
+  comes back `401` and replays it, sharing one exchange between requests that
+  fail together — several refreshes of the same token would read as a replay
+  and revoke the session. Its WebSocket asks for a fresh token before each
+  connect, because a rejected upgrade arrives as a close event with nothing to
+  read. The CLI and Desktop renew inside `TokenForServer`, so `~/.buildmax/
+  auth.json` now holds both credentials and is written atomically; `buildmax
+  logout` revokes the session on the server rather than only forgetting it
+  locally. Being offline never discards a session — only the server rejecting
+  the refresh token does.
+
+  Managed model clients now read the credential per request instead of at
+  construction. A client is built once and cached for the life of the process,
+  so a token captured there was fine until it expired and useless afterwards,
+  with no way back short of a restart.
+
+- People sign in with an email address and a password, hashed with argon2id and
+  a per-account salt. Until now the only credential was an operator-issued
+  login code, which meant every sign-in on every device went through a person —
+  workable for a demo, not for a small team that will not stand up an identity
+  provider. Passwords are the one credential that needs no delivery channel,
+  which is why they come before SSO rather than after it.
+
+  Login codes keep their job and lose the wrong one: they are now the recovery
+  path, not the everyday way in. A code claims a new account or replaces a
+  forgotten password, and `POST /api/password` sets one from a signed-in
+  session. Changing an existing password requires the current one — a session by
+  itself must not be enough, because an access token cannot be revoked before it
+  expires and allowing it would turn a stolen token into a permanent takeover.
+  Setting the *first* password needs only the session, which came from a code an
+  operator issued by hand.
+
+  The minimum is twelve characters and there is no composition rule, because
+  "one digit and one symbol" pushes people toward short predictable passwords
+  that satisfy it. Every failed password login answers with the same sentence
+  and does the same hashing work whether or not the address exists, so the form
+  cannot be used to ask who has an account. `user.password_set` and the
+  credential each login used now appear in the audit trail.
+
+  **Login is not rate limited.** A reachable server can be brute-forced online;
+  the length minimum and a memory-hard hash raise the cost per guess but are not
+  a substitute for throttling. Unified rate limiting is separate, planned work.
+
+- `dev_login_otp` is removed, along with `BUILDMAX_DEV_LOGIN_OTP`. It was a
+  fixed code that authenticated every registered account — a standing
+  authentication bypass kept for the convenience of clicking through the Portal
+  locally. A password does that job with no bypass:
+  `buildmax-server user set-password dev@local` reads one from stdin, so it
+  lands in neither shell history nor the process list. A `dev_login_otp:` left
+  in `server.yaml` is ignored, as any unknown key is — the bypass is gone
+  either way, but remove the line so nobody reads it as still doing something.
+
+- The Portal's sign-up page is gone. It collected an email address, told the
+  person a code had been sent, and sent nothing — BuildMax has no mail channel.
+  `allow_signup` still works for the API, and still only creates an account that
+  needs an operator-issued code before anyone can use it, which is why no form
+  offers it.
+
 ### Added
 
 - `deployment/production/`, a private deployment reference for a cluster that

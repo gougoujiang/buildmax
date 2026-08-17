@@ -19,14 +19,6 @@ const (
 	// storing the value in the YAML file on disk.
 	EnvKeyBuildmaxJWTSecret = "BUILDMAX_JWT_SECRET"
 
-	// BUILDMAX_DEV_LOGIN_OTP — optional override for dev_login_otp in server.yaml.
-	// When set, POST /api/login accepts this single fixed code as the one-time
-	// password for every account. This is a development convenience that stands in
-	// for a real OTP delivery channel; it is a full authentication bypass for anyone
-	// who knows a registered email address. Leave it unset in any deployment that
-	// is reachable by untrusted users.
-	EnvKeyBuildmaxDevLoginOTP = "BUILDMAX_DEV_LOGIN_OTP"
-
 	// Test only.
 	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
 )
@@ -53,7 +45,6 @@ type EnvVar struct {
 var EnvVars = []EnvVar{
 	{Name: EnvKeyBuildmaxHome, Default: "~/.buildmax", Description: "Application data directory; locates settings.yaml and server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxJWTSecret, Description: "Override for jwt_secret in server.yaml; inject at deploy time in production"},
-	{Name: EnvKeyBuildmaxDevLoginOTP, Description: "Development-only fixed login OTP; leave unset except on trusted local deployments"},
 	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml"},
 	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},

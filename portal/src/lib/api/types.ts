@@ -10,7 +10,13 @@ export interface LoginUser {
 }
 
 export interface LoginResponse {
+  /** The access token under the name it had before the credentials were split. */
   token: string
+  access_token?: string
+  /** Absent when the deployment has no store to keep refresh tokens in. */
+  refresh_token?: string
+  /** Access token lifetime in seconds. */
+  expires_in?: number
   user: LoginUser
 }
 

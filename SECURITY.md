@@ -39,14 +39,17 @@ support SLA.
 These are documented gaps, not vulnerabilities. Please do not file reports for
 them; they are tracked as roadmap work.
 
-- **Bootstrap-level authentication.** The server has no mail channel, so signing
-  in means an operator issuing a single-use, expiring, per-account code with
-  `buildmax-server user login-code`. Self-registration is closed by default.
-  There is no password, second factor, SSO, or self-service recovery; a
-  deployment serving people outside your organization needs a real identity
-  provider in front of it. The optional `dev_login_otp` setting is a fixed code
-  that authenticates any registered email address — a development convenience,
-  off by default, and a full bypass when enabled.
+- **Bootstrap-level authentication.** People sign in with an email address and a
+  password, hashed with argon2id. The server has no mail channel, so an account
+  is claimed — and a forgotten password recovered — with a single-use, expiring,
+  per-account code an operator issues using `buildmax-server user login-code`.
+  Self-registration is closed by default. There is no second factor, no SSO, and
+  no self-service recovery; a deployment serving people outside your
+  organization needs a real identity provider in front of it.
+- **Login is not rate limited.** Nothing throttles password attempts, so a
+  reachable server can be brute-forced online. A 12-character minimum and a
+  memory-hard hash raise the cost of each guess, but they are not a substitute.
+  Put a rate limiter in front of a deployment that untrusted networks can reach.
 - **Sandboxing is off by default.** The bash sandbox exists but is not enabled
   on any surface by default, and worker hardening is incomplete. See
   `docs/design/sandbox-boundaries.md` §13.1.

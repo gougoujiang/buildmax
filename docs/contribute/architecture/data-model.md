@@ -15,7 +15,7 @@ way, see [../../design/product-vision.md](../../design/product-vision.md) and
 
 There is no `.sql` file describing the current schema. The source of truth is
 the set of unexported `xxxRow` structs in `internal/infra/db`, and their GORM
-tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 18 of
+tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 21 of
 them at server startup, so the running database is whatever those structs say.
 
 The CLI and Desktop surfaces do not use this database at all. Sessions, traces,
@@ -33,7 +33,7 @@ identifier is a separate `varchar(64)` column named after the entity
 `internal/util/id.go`: `u_` user, `tm_` team, `i_` issue, `a_` agent, `w_`
 workflow, `wr_` workflow run, `wsr_` workflow step run, `c_` conversation,
 `cm_` conversation message, `t_` task, `r_` task run, `whk_` webhook key, `lc_`
-LLM call, `lm_` LLM model. Every API path, foreign reference, and log line uses
+LLM call, `lm_` LLM model, `as_` auth session. Every API path, foreign reference, and log line uses
 the prefixed ID. Join on it, not on `id`.
 
 **Session IDs are the exception.** `task.session_id` and `task_run.session_id`
@@ -104,6 +104,7 @@ erDiagram
     quota_tier ||--o{ team : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
+    user ||--o{ user_refresh_token : "keeps sessions in"
     team ||--o{ llm_call : "billed to"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
@@ -119,7 +120,7 @@ plus task_run is Tier 2 and reports back through Tier 1. See
 
 ### `user`
 
-One row per person. Created on first successful login; signup is disabled by
+One row per person. Created by an operator; self-registration is disabled by
 default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 
 | Column | Type | Null | Notes |
@@ -128,6 +129,8 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | `user_id` | `varchar(64)` | no | Public ID, `u_` prefix, unique |
 | `email` | `varchar(255)` | no | Unique; the login identifier |
 | `name` | `varchar(255)` | yes | Display name |
+| `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
+| `password_set_at` | `bigint` | yes | Unix seconds |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `last_login_at` | `bigint` | yes | Unix seconds |
 | `last_login_platform` | `varchar(32)` | yes | Where the last login came from |
@@ -138,6 +141,12 @@ Indexes: PK `id`; unique `user_id`; unique `email`.
 `last_login_at` and `last_login_platform` are carried through the store mapping
 but no server code path currently writes them — only the in-memory store in
 `internal/mock` does. Treat them as reserved, not as a login audit trail.
+
+`password_hash` is nullable and read only by the code that verifies a login,
+through `model.PasswordStore` rather than as a field on `model.User`. It never
+rides along on a user object, so no handler can serialize it by accident.
+Nullable is also what leaves room for an account authenticated somewhere else:
+an identity provider, when there is one, needs no local password to exist.
 
 ### `team`
 
@@ -213,6 +222,40 @@ Single-use email login codes. Rows are consumed, not deleted on use.
 
 Indexes: PK `id`; unique `code_hash`; index `user_id`; index `expires_at`.
 
+### `user_refresh_token`
+
+The stored half of a login. Signing in returns a signed access token, which the
+server keeps no record of, plus a refresh token, which is a row here. That split
+is what makes a session revocable: the credential that lives for weeks is the
+one the server can retire.
+
+Each row belongs to a `session_id` — one login chain. Every exchange spends the
+presented token and issues a new one in the same session, so revoking a session
+retires the chain however many times it has been renewed.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `token_hash` | `varchar(128)` | no | Hash of the token, unique — the plaintext is returned once and never stored |
+| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `session_id` | `varchar(64)` | no | `as_` prefix; one login chain, preserved across every rotation |
+| `platform` | `varchar(32)` | yes | Which surface logged in — a label for the reader, not enforced |
+| `expires_at` | `bigint` | no | Unix seconds; default TTL is 30 days (`model.RefreshTokenTTLDefault`) |
+| `used_at` | `bigint` | yes | Non-`NULL` means already exchanged |
+| `revoked_at` | `bigint` | yes | Non-`NULL` means retired by a logout or a reuse report |
+| `replaced_by` | `varchar(128)` | yes | Hash of the token issued in exchange; lets an operator walk a chain back to its login |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `token_hash`; index `user_id`; index `session_id`;
+index `expires_at`.
+
+A token presented after it was already exchanged means two holders, so the
+store revokes the whole session rather than guessing which one is legitimate.
+The exception is a short grace window after an exchange, which exists because
+the CLI and Desktop share one credentials file between processes and refreshing
+twice at once is normal there. Rows are swept once they expire; revoked rows are
+kept until then, so a reuse report still has a chain to inspect.
+
 ### `user_webhook_key`
 
 API keys for the inbound webhook surface documented in
@@ -268,7 +311,7 @@ record that can be edited is not evidence.
 | `created_at` | `bigint` | no | Unix seconds |
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
-| `action` | `varchar(64)` | no | `user.login`, `team.member_added`, `llm_model.created`, `access.denied`, … |
+| `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `team.member_added`, `llm_model.created`, `access.denied`, … |
 | `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on |
 | `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model alias |
 

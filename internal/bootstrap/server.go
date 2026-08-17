@@ -70,14 +70,9 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return fmt.Errorf("jwt_secret is required (set in server.yaml or %s env var)", config.EnvKeyBuildmaxJWTSecret)
 	}
 
-	// A fixed login OTP lets anyone who knows a registered email address sign in.
-	// It is off by default; warn loudly whenever an operator turns it on.
-	if sc.DevLoginOTP != "" {
-		slog.Warn("development fixed login OTP is enabled — any registered email can sign in with a single known code; do not use on an untrusted network",
-			"config", "dev_login_otp", "env", config.EnvKeyBuildmaxDevLoginOTP)
-	} else {
-		slog.Info("login accepts single-use codes only", "issue_with", "buildmax-server user login-code <email>")
-	}
+	slog.Info("login accepts a password or a single-use code",
+		"set_password_with", "buildmax-server user set-password <email>",
+		"issue_code_with", "buildmax-server user login-code <email>")
 	// Self-registration and a reachable server together mean anyone can create
 	// an account. Say so at startup rather than in a document nobody opened.
 	if sc.AllowSignup {
@@ -124,6 +119,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 	}
 	sched.Start()
 	defer sched.Stop()
+
+	cleaner := scheduler.NewCredentialCleaner(store, 0)
+	cleaner.Start()
+	defer cleaner.Stop()
 
 	s := httpserver.New(serverConfig)
 	slog.Info("server starting",
@@ -199,16 +198,20 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
 		Auth: httpserver.AuthConfig{
-			JWTSecret:        jwtSecret,
-			DevLoginOTP:      sc.DevLoginOTP,
-			AllowSignup:      sc.AllowSignup,
-			CORSOrigin:       sc.CORSOrigin,
-			QuotaService:     quotaService,
-			DefaultQuotaTier: sc.DefaultQuotaTier,
+			JWTSecret:            jwtSecret,
+			AllowSignup:          sc.AllowSignup,
+			CORSOrigin:           sc.CORSOrigin,
+			QuotaService:         quotaService,
+			DefaultQuotaTier:     sc.DefaultQuotaTier,
+			AccessTokenTTL:       sc.AccessTokenTTL,
+			RefreshTokenTTL:      sc.RefreshTokenTTL,
+			RefreshRotationGrace: sc.RefreshRotationGrace,
 		},
 		Stores: httpserver.StoresConfig{
 			UserStore:           st,
 			LoginCodeStore:      st,
+			PasswordStore:       st,
+			RefreshTokenStore:   st,
 			TeamStore:           st,
 			WorkflowStore:       st,
 			AgentStore:          st,

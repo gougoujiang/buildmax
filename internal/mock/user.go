@@ -64,3 +64,29 @@ func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginA
 	}
 	return nil
 }
+
+// MockPasswordStore is an in-memory PasswordStore for tests. Seed Hashes with
+// the encoded hash a test expects to verify against.
+type MockPasswordStore struct {
+	Hashes  map[string]string
+	ReadErr error
+	SetErr  error
+}
+
+func (m *MockPasswordStore) PasswordHash(_ context.Context, userID string) (string, error) {
+	if m.ReadErr != nil {
+		return "", m.ReadErr
+	}
+	return m.Hashes[userID], nil
+}
+
+func (m *MockPasswordStore) SetPassword(_ context.Context, userID, encodedHash string, _ int64) error {
+	if m.SetErr != nil {
+		return m.SetErr
+	}
+	if m.Hashes == nil {
+		m.Hashes = make(map[string]string)
+	}
+	m.Hashes[userID] = encodedHash
+	return nil
+}

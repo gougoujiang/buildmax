@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -36,17 +37,26 @@ type Config struct {
 	JWTSecret   string
 	CORSOrigin  string
 	WorkerToken string // required for /api/worker/* endpoints
-	// DevLoginOTP is the development fixed login OTP: a single code that
-	// authenticates any registered email. Empty is the default. See the comment
-	// in auth.go for how it relates to single-use login codes.
-	DevLoginOTP string
 	// AllowSignup opens POST /api/otp/request to self-registration. False — the
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool
 
+	// Token lifetimes. Zero means the model package's default. The access
+	// token is signed and unstored, so its lifetime is the window in which a
+	// stolen one still works; the refresh token is a row and can be revoked
+	// before it expires.
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	// RefreshRotationGrace is how long a just-rotated refresh token may be
+	// exchanged again before that counts as reuse. It exists because the CLI
+	// and Desktop share one credentials file between processes.
+	RefreshRotationGrace time.Duration
+
 	// Stores
 	UserStore                model.UserStore
 	LoginCodeStore           model.LoginCodeStore
+	PasswordStore            model.PasswordStore
+	RefreshTokenStore        model.RefreshTokenStore
 	TeamStore                model.TeamStore
 	WorkflowStore            model.WorkflowStore
 	AgentStore               model.AgentStore

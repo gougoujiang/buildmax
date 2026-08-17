@@ -14,7 +14,6 @@ func TestWorkerEnv_WithholdsServerOnlyCredentials(t *testing.T) {
 	withheld := []string{
 		EnvKeyBuildmaxJWTSecret,
 		EnvKeyBuildmaxDatabasePassword,
-		EnvKeyBuildmaxDevLoginOTP,
 		EnvKeyBuildmaxTestDSN,
 	}
 	for _, name := range withheld {

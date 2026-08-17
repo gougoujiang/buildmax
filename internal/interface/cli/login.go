@@ -12,6 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/interface/client"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 const defaultServerURL = "http://localhost:5678"
@@ -69,28 +70,41 @@ func interactiveLogin() error {
 	ctx := context.Background()
 	c := client.NewClient(serverURL)
 
-	if err := c.RequestOTP(ctx, email, "login"); err != nil {
-		return fmt.Errorf("request OTP: %w", err)
-	}
-	fmt.Fprintln(os.Stdout, "OTP sent.")
-
-	fmt.Fprint(os.Stdout, "OTP: ")
-	otp := readLine(reader)
-	if otp == "" {
-		return fmt.Errorf("OTP is required")
-	}
-
-	lr, err := c.Login(ctx, email, otp, "cli")
+	// Password first, since that is the everyday way in. An empty one falls
+	// through to a login code, which is how someone claims a new account or
+	// recovers a forgotten password — there is no mail channel, so an operator
+	// issues that code by hand.
+	password, err := readPassword("Password (leave blank to use a login code): ")
 	if err != nil {
-		return fmt.Errorf("login: %w", err)
+		return err
+	}
+
+	var lr *client.LoginResponse
+	if password != "" {
+		lr, err = c.LoginWithPassword(ctx, email, password, "cli")
+		if err != nil {
+			return fmt.Errorf("login: %w", err)
+		}
+	} else {
+		fmt.Fprintln(os.Stdout, "Ask an administrator to run: buildmax-server user login-code "+email)
+		fmt.Fprint(os.Stdout, "Login code: ")
+		otp := readLine(reader)
+		if otp == "" {
+			return fmt.Errorf("a password or a login code is required")
+		}
+		lr, err = c.Login(ctx, email, otp, "cli")
+		if err != nil {
+			return fmt.Errorf("login: %w", err)
+		}
 	}
 
 	creds := &auth.Credentials{
-		ServerURL: serverURL,
-		Token:     lr.Token,
-		UserID:    lr.User.ID,
-		Email:     lr.User.Email,
-		Name:      lr.User.Name,
+		ServerURL:    serverURL,
+		Token:        lr.Access(),
+		RefreshToken: lr.RefreshToken,
+		UserID:       lr.User.ID,
+		Email:        lr.User.Email,
+		Name:         lr.User.Name,
 	}
 	if err := auth.SaveCredentials(creds); err != nil {
 		return fmt.Errorf("save credentials: %w", err)
@@ -100,10 +114,13 @@ func interactiveLogin() error {
 }
 
 func runLogout(_ *cobra.Command, _ []string) error {
-	if err := auth.Logout(); err != nil {
-		return fmt.Errorf("clear credentials: %w", err)
-	}
+	err := auth.LogoutAndRevoke()
 	fmt.Fprintln(os.Stdout, "Logged out.")
+	if err != nil {
+		// The credentials are gone either way. Say what did not happen rather
+		// than reporting a failure for something that succeeded locally.
+		fmt.Fprintf(os.Stderr, "warning: the session may still be active on the server: %v\n", err)
+	}
 	return nil
 }
 
@@ -123,4 +140,27 @@ func runWhoami(_ *cobra.Command, _ []string) error {
 func readLine(r *bufio.Reader) string {
 	line, _ := r.ReadString('\n')
 	return strings.TrimSpace(line)
+}
+
+// readPassword prompts and reads without echoing.
+//
+// When stdin is not a terminal — a pipe, a script — it reads a line normally.
+// There is nothing to hide from in that case, and refusing would make the
+// command unusable from anything but an interactive shell.
+func readPassword(prompt string) (string, error) {
+	fmt.Fprint(os.Stdout, prompt)
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil && line == "" {
+			return "", nil
+		}
+		return strings.TrimSpace(line), nil
+	}
+	raw, err := term.ReadPassword(fd)
+	fmt.Fprintln(os.Stdout)
+	if err != nil {
+		return "", fmt.Errorf("read password: %w", err)
+	}
+	return strings.TrimSpace(string(raw)), nil
 }

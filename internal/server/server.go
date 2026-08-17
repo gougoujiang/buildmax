@@ -39,17 +39,22 @@ type RunOutputLister interface {
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
 	JWTSecret        string              // Required for login when UserStore is set
-	DevLoginOTP      string              // Development fixed login OTP; authenticates any registered email
 	AllowSignup      bool                // Open POST /api/otp/request to self-registration; closed by default
 	CORSOrigin       string              // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	QuotaService     *quota.QuotaService // Optional; when set, create chat/run enforce quota and return 429 when exceeded
 	DefaultQuotaTier string              // Default quota tier for new users (e.g. signup); used when calling CreateUser
+	// Token lifetimes; zero means the default in internal/core/model.
+	AccessTokenTTL       time.Duration
+	RefreshTokenTTL      time.Duration
+	RefreshRotationGrace time.Duration
 }
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
 	UserStore           model.UserStore
 	LoginCodeStore      model.LoginCodeStore
+	PasswordStore       model.PasswordStore
+	RefreshTokenStore   model.RefreshTokenStore
 	TeamStore           model.TeamStore
 	WorkflowStore       model.WorkflowStore
 	AgentStore          model.AgentStore
@@ -163,14 +168,18 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 	}
 	return handlers.Config{
 		JWTSecret:                cfg.Auth.JWTSecret,
-		DevLoginOTP:              cfg.Auth.DevLoginOTP,
 		AllowSignup:              cfg.Auth.AllowSignup,
 		CORSOrigin:               cfg.Auth.CORSOrigin,
+		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
+		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
+		RefreshRotationGrace:     cfg.Auth.RefreshRotationGrace,
 		WorkerToken:              cfg.Worker.WorkerToken,
 		UserStore:                cfg.Stores.UserStore,
 		AuditStore:               cfg.Stores.AuditStore,
 		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
+		PasswordStore:            cfg.Stores.PasswordStore,
+		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
 		TeamStore:                cfg.Stores.TeamStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,

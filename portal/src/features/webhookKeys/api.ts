@@ -1,7 +1,7 @@
 import {
   getApiBase,
   requestJson,
-  checkUnauthorized,
+  apiFetch,
   parseErrorResponse,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
@@ -44,11 +44,10 @@ export async function revokeWebhookKey(
   keyId: string,
   token: string
 ): Promise<void> {
-  const res = await fetch(`${getApiBase()}/api/webhook-keys/${keyId}`, {
+  const res = await apiFetch(`${getApiBase()}/api/webhook-keys/${keyId}`, {
     method: "DELETE",
     headers: authHeaders(token),
   })
-  checkUnauthorized(res)
   if (!res.ok) {
     const msg = await parseErrorResponse(res, "Failed to revoke key")
     throw new Error(msg)

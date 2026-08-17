@@ -1,5 +1,5 @@
 import {
-  checkUnauthorized,
+  apiFetch,
   getApiBase,
   parseErrorResponse,
   requestJson,
@@ -63,14 +63,13 @@ export async function removeTeamMember(
   userId: string,
   token: string
 ): Promise<void> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`,
     {
       method: "DELETE",
       headers: authHeaders(token),
     }
   )
-  checkUnauthorized(res)
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res, "Failed to remove member"))
   }

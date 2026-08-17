@@ -1,5 +1,7 @@
-// Package auth provides credential persistence for the BuildMax client.
-// It has no dependencies on TUI, desktop, Cobra, or any other project package.
+// Package auth provides credential persistence and renewal for the BuildMax
+// client. It depends on internal/config for the file location and
+// internal/interface/client to exchange a refresh token, and on nothing from
+// the TUI, desktop, or Cobra layers above it.
 package auth
 
 import (
@@ -12,19 +14,25 @@ import (
 	"time"
 )
 
-// Credentials holds the persisted authentication state (server URL, JWT
-// token, and basic user info). Stored as JSON on disk.
+// Credentials holds the persisted authentication state (server URL, both
+// halves of the login, and basic user info). Stored as JSON on disk.
 type Credentials struct {
 	ServerURL string `json:"server_url"`
-	Token     string `json:"token"`
-	UserID    string `json:"user_id"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	SavedAt   int64  `json:"saved_at"`
+	// Token is the access token. The field keeps its original name so that a
+	// credentials file written before refresh tokens existed still loads.
+	Token string `json:"token"`
+	// RefreshToken renews the access token without another login code. Empty
+	// means this login ends when Token expires — either an old file or a server
+	// that stores no refresh tokens.
+	RefreshToken string `json:"refresh_token,omitempty"`
+	UserID       string `json:"user_id"`
+	Email        string `json:"email"`
+	Name         string `json:"name"`
+	SavedAt      int64  `json:"saved_at"`
 }
 
 // IsValid returns true when the credentials contain a non-empty, unexpired
-// JWT token. It parses the exp claim from the token payload without
+// access token. It parses the exp claim from the token payload without
 // verifying the signature (clients don't have the server secret).
 func (c *Credentials) IsValid() bool {
 	if c == nil || c.Token == "" {
@@ -35,6 +43,33 @@ func (c *Credentials) IsValid() bool {
 		return false
 	}
 	return time.Now().Unix() < exp
+}
+
+// IsUsable reports whether these credentials can still authenticate a call,
+// either because the access token is good or because it can be renewed.
+//
+// This is the question every command actually has: "am I signed in?" — not
+// "is this particular token still fresh?", which stopped being the same
+// question once a refresh token existed.
+func (c *Credentials) IsUsable() bool {
+	if c == nil {
+		return false
+	}
+	return c.IsValid() || c.RefreshToken != ""
+}
+
+// needsRefresh reports whether the access token is spent or close enough to it
+// that a call starting now might outlive it.
+func (c *Credentials) needsRefresh(skew time.Duration) bool {
+	if c == nil || c.Token == "" {
+		return true
+	}
+	exp, err := extractJWTExp(c.Token)
+	if err != nil {
+		// An unparseable token is not one to keep sending.
+		return true
+	}
+	return time.Now().Add(skew).Unix() >= exp
 }
 
 // extractJWTExp decodes the JWT payload (middle segment) and returns
@@ -63,6 +98,11 @@ func extractJWTExp(tokenStr string) (int64, error) {
 
 // Save marshals creds to JSON and writes them to path, creating parent
 // directories as needed.
+//
+// The write goes to a temporary file and is renamed into place. Refreshing
+// rewrites this file while other BuildMax processes may be reading it, and a
+// truncate-then-write would let one of them load a half-written file and
+// conclude it is not signed in.
 func Save(creds *Credentials, path string) error {
 	if creds.SavedAt == 0 {
 		creds.SavedAt = time.Now().Unix()
@@ -71,10 +111,31 @@ func Save(creds *Credentials, path string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0600)
+	tmp, err := os.CreateTemp(dir, ".auth-*.json")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		// Removing a file that was renamed away is expected and not an error.
+		_ = os.Remove(tmpName)
+	}()
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 // Load reads credentials from path. If the file does not exist, it returns

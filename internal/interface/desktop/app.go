@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -404,19 +405,37 @@ func (a *App) RequestOTP(serverURL, email, intent string) error {
 	return c.RequestOTP(context.Background(), email, intent)
 }
 
-// DoLogin authenticates against the server and saves credentials on success.
+// DoLoginWithPassword authenticates with a password and saves credentials on
+// success. This is the everyday path.
+func (a *App) DoLoginWithPassword(serverURL, email, password string) (*auth.AuthInfo, error) {
+	c := client.NewClient(serverURL)
+	lr, err := c.LoginWithPassword(context.Background(), email, password, "desktop")
+	if err != nil {
+		return nil, err
+	}
+	return a.saveLogin(serverURL, lr)
+}
+
+// DoLogin authenticates with a single-use login code and saves credentials on
+// success. It is the recovery path: claiming a new account, or getting back in
+// after a forgotten password.
 func (a *App) DoLogin(serverURL, email, otp string) (*auth.AuthInfo, error) {
 	c := client.NewClient(serverURL)
 	lr, err := c.Login(context.Background(), email, otp, "desktop")
 	if err != nil {
 		return nil, err
 	}
+	return a.saveLogin(serverURL, lr)
+}
+
+func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*auth.AuthInfo, error) {
 	creds := &auth.Credentials{
-		ServerURL: serverURL,
-		Token:     lr.Token,
-		UserID:    lr.User.ID,
-		Email:     lr.User.Email,
-		Name:      lr.User.Name,
+		ServerURL:    serverURL,
+		Token:        lr.Access(),
+		RefreshToken: lr.RefreshToken,
+		UserID:       lr.User.ID,
+		Email:        lr.User.Email,
+		Name:         lr.User.Name,
 	}
 	if err := auth.SaveCredentials(creds); err != nil {
 		return nil, fmt.Errorf("save credentials: %w", err)
@@ -430,9 +449,16 @@ func (a *App) DoLogin(serverURL, email, otp string) (*auth.AuthInfo, error) {
 	}, nil
 }
 
-// Logout clears stored credentials.
+// Logout clears stored credentials and revokes the session on the server.
+//
+// A server that cannot be reached is not a failed logout: the credentials are
+// gone from this machine either way, and returning an error would leave the UI
+// showing someone as signed in when they are not.
 func (a *App) Logout() error {
-	return auth.Logout()
+	if err := auth.LogoutAndRevoke(); err != nil {
+		slog.Warn("logout could not revoke the session on the server", "err", err)
+	}
+	return nil
 }
 
 // --- Chat bindings ---

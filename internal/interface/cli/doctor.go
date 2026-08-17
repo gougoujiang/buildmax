@@ -219,7 +219,7 @@ func checkManagedModel(index int, title, display string, sev doctorSeverity, m c
 			Next:     "Set team_id, then run `buildmax models --team <team_id>` to see its aliases.",
 		}
 	}
-	if _, err := auth.TokenForServer(m.ServerURL); err != nil {
+	if err := auth.CanAuthenticate(m.ServerURL); err != nil {
 		return doctorCheck{
 			Severity: sev,
 			Title:    title,

@@ -218,16 +218,6 @@ spec:
                 secretKeyRef:
                   name: buildmax-secret
                   key: BUILDMAX_CONVERSATION_MODEL_API_KEY
-            # Development fixed login OTP. Optional: when the secret has no
-            # BUILDMAX_DEV_LOGIN_OTP key, login stays disabled (503). This kind
-            # manifest is a local dev environment, not a deployment template for
-            # an internet-facing cluster.
-            - name: BUILDMAX_DEV_LOGIN_OTP
-              valueFrom:
-                secretKeyRef:
-                  name: buildmax-secret
-                  key: BUILDMAX_DEV_LOGIN_OTP
-                  optional: true
           volumeMounts:
             - name: buildmax-home
               mountPath: /buildmax

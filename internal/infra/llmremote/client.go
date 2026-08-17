@@ -39,8 +39,18 @@ type Config struct {
 	// ServerURL is the BuildMax server base URL.
 	ServerURL string
 	// Token authenticates the caller. It is a BuildMax credential, never a
-	// provider key.
+	// provider key. Prefer TokenFunc; this is for callers with a fixed token.
 	Token string
+	// TokenFunc supplies the credential for each request, and takes precedence
+	// over Token.
+	//
+	// A client outlives its token. This one is built once and cached for the
+	// life of the process, while an access token expires on its own schedule —
+	// so a long-running TUI or Desktop session that baked the token in at
+	// construction would authenticate for a week and then fail every call
+	// afterwards, with no way to recover short of a restart. Asking per request
+	// lets the credential layer renew underneath.
+	TokenFunc func() (string, error)
 	// TeamID scopes the call. The server verifies membership regardless.
 	TeamID string
 	// Alias is the team model alias to call. Empty uses the team default.
@@ -72,6 +82,28 @@ func NewClient(cfg Config) *Client {
 	}
 	cfg.ServerURL = strings.TrimRight(cfg.ServerURL, "/")
 	return &Client{cfg: cfg, httpClient: httpClient}
+}
+
+// setAuthorization puts the current credential on req.
+//
+// A TokenFunc that fails stops the call rather than sending it unauthenticated.
+// An anonymous request to a managed gateway can only be refused, and reporting
+// "not logged in" is more use than reporting the 401 that would follow.
+func (c *Client) setAuthorization(req *http.Request) error {
+	if c.cfg.TokenFunc != nil {
+		token, err := c.cfg.TokenFunc()
+		if err != nil {
+			return fmt.Errorf("managed credential: %w", err)
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		return nil
+	}
+	if c.cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	}
+	return nil
 }
 
 // ContextWindow returns the configured context window (0 = no windowing).
@@ -278,8 +310,8 @@ func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message,
 	if stream {
 		req.Header.Set("Accept", "text/event-stream")
 	}
-	if c.cfg.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	if err := c.setAuthorization(req); err != nil {
+		return nil, err
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -396,8 +428,8 @@ func (c *Client) Models(ctx context.Context) ([]llmwire.Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build models request: %w", err)
 	}
-	if c.cfg.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	if err := c.setAuthorization(req); err != nil {
+		return nil, err
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

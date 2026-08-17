@@ -17,10 +17,8 @@ func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"
 	userExists := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 
-	// Login needs at least one verifier. Cases that exercise the fixed
-	// development code set devLoginOTP; cases that exercise single-use codes set
-	// loginCodeStore instead, which is how a real deployment is configured.
-	const devOTP = "123456"
+	// Login needs a verifier. A login code store is one, and is how a real
+	// deployment recovers an account; password login has its own test file.
 
 	// Far enough ahead that these codes never expire mid-run.
 	farFuture := time.Now().Add(time.Hour).Unix()
@@ -30,94 +28,59 @@ func TestLoginHandler(t *testing.T) {
 		userStore      model.UserStore
 		loginCodeStore model.LoginCodeStore
 		jwtSecret      string
-		devLoginOTP    string
 		body           string
 		wantStatus     int
 		wantBodyHas    string
 		wantBodyNotHas string
 	}{
 		{
-			name:        "user found with valid otp returns 200 and token",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
+			name:      "missing credential returns 400",
+			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+				"code-1": {UserID: "u1", ExpiresAt: farFuture},
+			}},
 			jwtSecret:   secret,
-			devLoginOTP: devOTP,
-			body:        `{"email":"a@b.c","otp":"123456"}`,
-			wantStatus:  http.StatusOK,
-			wantBodyHas: "token",
-		},
-		{
-			name:        "user found but wrong otp returns 401",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
-			jwtSecret:   secret,
-			devLoginOTP: devOTP,
-			body:        `{"email":"a@b.c","otp":"000000"}`,
-			wantStatus:  http.StatusUnauthorized,
-			wantBodyHas: "invalid otp",
-		},
-		{
-			name:        "user found but missing otp returns 400",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
-			jwtSecret:   secret,
-			devLoginOTP: devOTP,
 			body:        `{"email":"a@b.c"}`,
 			wantStatus:  http.StatusBadRequest,
-			wantBodyHas: "otp required",
+			wantBodyHas: "password or otp required",
 		},
 		{
-			name:        "user not found returns 401",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
-			jwtSecret:   secret,
-			devLoginOTP: devOTP,
-			body:        `{"email":"nobody@example.com","otp":"123456"}`,
-			wantStatus:  http.StatusUnauthorized,
-			wantBodyHas: "user not found",
+			name:           "invalid body returns 400",
+			userStore:      &mock.MockUserStore{ByEmail: map[string]*model.User{}},
+			loginCodeStore: &mock.MockLoginCodeStore{},
+			jwtSecret:      secret,
+			body:           `{`,
+			wantStatus:     http.StatusBadRequest,
 		},
 		{
-			name:        "invalid body returns 400",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
-			jwtSecret:   secret,
-			devLoginOTP: devOTP,
-			body:        `{`,
-			wantStatus:  http.StatusBadRequest,
+			name:           "empty email returns 400",
+			userStore:      &mock.MockUserStore{ByEmail: map[string]*model.User{}},
+			loginCodeStore: &mock.MockLoginCodeStore{},
+			jwtSecret:      secret,
+			body:           `{"email":"","otp":"code-1"}`,
+			wantStatus:     http.StatusBadRequest,
+			wantBodyHas:    "email required",
 		},
 		{
-			name:        "empty email returns 400",
-			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
-			jwtSecret:   secret,
-			devLoginOTP: devOTP,
-			body:        `{"email":""}`,
-			wantStatus:  http.StatusBadRequest,
-			wantBodyHas: "email required",
+			name:           "no UserStore returns 503",
+			userStore:      nil,
+			loginCodeStore: &mock.MockLoginCodeStore{},
+			jwtSecret:      secret,
+			body:           `{"email":"a@b.c","otp":"code-1"}`,
+			wantStatus:     http.StatusServiceUnavailable,
 		},
 		{
-			name:        "no UserStore returns 503",
-			userStore:   nil,
-			jwtSecret:   secret,
-			devLoginOTP: devOTP,
-			body:        `{"email":"a@b.c","otp":"123456"}`,
-			wantStatus:  http.StatusServiceUnavailable,
-		},
-		{
-			name:        "no otp verifier configured returns 503 and issues no token",
+			// Neither credential can be checked, so the server says so rather
+			// than answering 401 as though the submission were wrong.
+			name:        "no verifier configured returns 503 and issues no token",
 			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			jwtSecret:   secret,
-			devLoginOTP: "",
-			body:        `{"email":"a@b.c","otp":"123456"}`,
+			body:        `{"email":"a@b.c","otp":"code-1"}`,
 			wantStatus:  http.StatusServiceUnavailable,
-			wantBodyHas: "no otp verifier",
-		},
-		{
-			name:           "no otp verifier configured rejects an empty otp too",
-			userStore:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
-			jwtSecret:      secret,
-			devLoginOTP:    "",
-			body:           `{"email":"a@b.c","otp":""}`,
-			wantStatus:     http.StatusServiceUnavailable,
-			wantBodyNotHas: "token",
+			wantBodyHas: "no way to verify a credential",
 		},
 
-		// Single-use codes. A store on its own is a complete verifier: these
-		// cases leave devLoginOTP empty, which is how a real deployment runs.
+		// Single-use codes: the recovery path, and how a new account is claimed.
 		{
 			name:      "valid single-use code returns 200 and token",
 			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
@@ -179,28 +142,13 @@ func TestLoginHandler(t *testing.T) {
 		{
 			// With a code store wired, login is configured — an unknown code is
 			// a rejection, not "this server cannot log anyone in".
-			name:           "unknown code with no dev otp returns 401 rather than 503",
+			name:           "unknown code returns 401 rather than 503",
 			userStore:      &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{},
 			jwtSecret:      secret,
 			body:           `{"email":"a@b.c","otp":"nope"}`,
 			wantStatus:     http.StatusUnauthorized,
 			wantBodyHas:    "invalid otp",
-		},
-		{
-			// Both verifiers configured: the fixed code still works, so an
-			// existing development setup does not break.
-			name: "dev otp still works alongside a code store",
-			userStore: &mock.MockUserStore{
-				ByEmail: map[string]*model.User{"a@b.c": userExists},
-				ByID:    map[string]*model.User{"u1": userExists},
-			},
-			loginCodeStore: &mock.MockLoginCodeStore{},
-			jwtSecret:      secret,
-			devLoginOTP:    devOTP,
-			body:           `{"email":"a@b.c","otp":"123456"}`,
-			wantStatus:     http.StatusOK,
-			wantBodyHas:    "token",
 		},
 	}
 	for _, tt := range tests {
@@ -210,7 +158,6 @@ func TestLoginHandler(t *testing.T) {
 				UserStore:        tt.userStore,
 				LoginCodeStore:   tt.loginCodeStore,
 				JWTSecret:        tt.jwtSecret,
-				DevLoginOTP:      tt.devLoginOTP,
 				DefaultQuotaTier: "",
 			}).Register(mux)
 			req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewBufferString(tt.body))
@@ -263,7 +210,7 @@ func TestOtpRequestHandler(t *testing.T) {
 			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:        `{"email":"new@example.com","intent":"signup"}`,
 			wantStatus:  http.StatusOK,
-			wantBodyHas: "otp_sent",
+			wantBodyHas: "account_created",
 		},
 		{
 			name:        "signup existing email returns 409",
@@ -285,7 +232,7 @@ func TestOtpRequestHandler(t *testing.T) {
 			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			body:        `{"email":"a@b.c","intent":"login"}`,
 			wantStatus:  http.StatusOK,
-			wantBodyHas: "otp_sent",
+			wantBodyHas: "account_exists",
 		},
 		{
 			name:        "default intent signup creates user",
@@ -293,7 +240,7 @@ func TestOtpRequestHandler(t *testing.T) {
 			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{}},
 			body:        `{"email":"default@example.com"}`,
 			wantStatus:  http.StatusOK,
-			wantBodyHas: "otp_sent",
+			wantBodyHas: "account_created",
 		},
 		{
 			name:        "empty email returns 400",
@@ -338,7 +285,7 @@ func TestOtpRequestHandler(t *testing.T) {
 			userStore:   &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			body:        `{"email":"a@b.c","intent":"login"}`,
 			wantStatus:  http.StatusOK,
-			wantBodyHas: "otp_sent",
+			wantBodyHas: "account_exists",
 		},
 	}
 	for _, tt := range tests {
@@ -397,20 +344,19 @@ func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 	}
 }
 
-// A store failure must not fall through to the fixed development code. The
-// fallback exists for codes that do not match, not for a database that is down.
-func TestLoginHandlerStoreErrorDoesNotFallThroughToDevOTP(t *testing.T) {
+// A database that is down is not a wrong code. Answering 401 would tell someone
+// their code was rejected when it was never read.
+func TestLoginHandlerStoreErrorIsNotARejection(t *testing.T) {
 	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 	mux := http.NewServeMux()
 	NewHandler(Config{
 		UserStore:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": user}},
 		LoginCodeStore: &mock.MockLoginCodeStore{ConsumeErr: errors.New("database is down")},
 		JWTSecret:      "test-jwt-secret",
-		DevLoginOTP:    "123456",
 	}).Register(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/login",
-		bytes.NewBufferString(`{"email":"a@b.c","otp":"123456"}`))
+		bytes.NewBufferString(`{"email":"a@b.c","otp":"code-1"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

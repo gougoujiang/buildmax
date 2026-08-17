@@ -38,7 +38,6 @@ anything not listed here is not read by BuildMax.
 |---|---|---|
 | `BUILDMAX_HOME` | `~/.buildmax` | Data directory; locates `settings.yaml` and `server.yaml`. Must be an env var — nothing else can be found until it is known. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
-| `BUILDMAX_DEV_LOGIN_OTP` | — | Overrides `dev_login_otp`. **Development only** — see [deploy/authentication.md](../deploy/authentication.md). |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |
@@ -208,8 +207,11 @@ Three limits worth knowing before you rely on this:
 - **There is no fallback between the modes.** A managed entry does not quietly
   become a direct call when the server is down, because that would redirect
   governed traffic to a personal provider key. Configure both entries and pick.
-- **The login expires after 24 hours and there is no refresh.** A long run can
-  outlive it; you get a clear error and re-run `buildmax login`. See
+- **The login renews itself, until it does not.** The access token is refreshed
+  automatically before each managed call that would otherwise use an expired
+  one, so a long-lived session keeps working without another login code. When
+  the refresh token itself expires or its session is revoked, calls fail with a
+  clear error and you re-run `buildmax login`. See
   [design/llm-gateway.md](../design/llm-gateway.md) section 11.
 - **Workers and the evaluation harness never use managed mode.** A worker runs
   the server's own model with the server's own credential, and `eval/` stays
@@ -229,7 +231,9 @@ log_level: info
 port: 5678
 jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in production
 # allow_signup: true                 # default false; accounts are created with `buildmax-server user create`
-# dev_login_otp: "123456"            # development only; see deploy/authentication.md
+access_token_ttl: 168h               # signed, unstored — this is how long a leaked one works
+refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
+refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
@@ -285,14 +289,26 @@ Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`),
 `database`, and `worker.token` if you run workers. Everything else has a usable
 default for local development.
 
-`allow_signup` defaults to **false**, so nobody can register themselves. Create
-accounts and issue login codes from the server instead — see
+The two token lifetimes are not interchangeable. An access token is signed and
+never stored, so nothing can retire one early — `access_token_ttl` is the window
+in which a leaked one still works. A refresh token is a database row, so
+`refresh_token_ttl` is how long a session can be renewed, not how long it is
+beyond reach. See [deploy/authentication.md](../deploy/authentication.md).
+
+People sign in with an email address and a password. `allow_signup` defaults to
+**false**, so nobody registers themselves; create accounts from the server and
+hand over a login code, which the person redeems and then replaces with a
+password of their own — see
 [deploy/authentication.md](../deploy/authentication.md):
 
 ```bash
 buildmax-server user create alice@example.com
 buildmax-server user login-code alice@example.com
 ```
+
+The same code is how someone who forgot their password gets back in. Login
+attempts are not rate limited; see the warning in that document before exposing
+a server to an untrusted network.
 
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
