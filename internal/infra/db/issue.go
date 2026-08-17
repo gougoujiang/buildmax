@@ -11,18 +11,19 @@ import (
 )
 
 type issueRow struct {
-	ID           uint    `gorm:"primaryKey;autoIncrement"`
-	IssueID      string  `gorm:"column:issue_id;type:varchar(64);uniqueIndex;not null"`
-	UserID       string  `gorm:"type:varchar(64);not null;index"`
-	TeamID       string  `gorm:"type:varchar(64);index"`
-	Title        string  `gorm:"type:varchar(255);not null"`
-	Description  string  `gorm:"type:text;not null"`
-	Status       string  `gorm:"type:varchar(32);not null"`
-	AssigneeKind *string `gorm:"type:varchar(32)"`
-	AssigneeID   *string `gorm:"type:varchar(64)"`
-	CreatedBy    string  `gorm:"type:varchar(64);not null"`
-	CreatedAt    int64   `gorm:"autoCreateTime"`
-	UpdatedAt    int64   `gorm:"autoUpdateTime"`
+	ID            uint    `gorm:"primaryKey;autoIncrement"`
+	IssueID       string  `gorm:"column:issue_id;type:varchar(64);uniqueIndex;not null"`
+	UserID        string  `gorm:"type:varchar(64);not null;index"`
+	TeamID        string  `gorm:"type:varchar(64);index"`
+	ParentIssueID *string `gorm:"column:parent_issue_id;type:varchar(64);index"`
+	Title         string  `gorm:"type:varchar(255);not null"`
+	Description   string  `gorm:"type:text;not null"`
+	Status        string  `gorm:"type:varchar(32);not null"`
+	AssigneeKind  *string `gorm:"type:varchar(32)"`
+	AssigneeID    *string `gorm:"type:varchar(64)"`
+	CreatedBy     string  `gorm:"type:varchar(64);not null"`
+	CreatedAt     int64   `gorm:"autoCreateTime"`
+	UpdatedAt     int64   `gorm:"autoUpdateTime"`
 }
 
 func (issueRow) TableName() string { return "issue" }
@@ -32,18 +33,19 @@ func toIssue(row *issueRow) *model.Issue {
 		return nil
 	}
 	return &model.Issue{
-		ID:           row.ID,
-		IssueID:      row.IssueID,
-		UserID:       row.UserID,
-		TeamID:       row.TeamID,
-		Title:        row.Title,
-		Description:  row.Description,
-		Status:       row.Status,
-		AssigneeKind: row.AssigneeKind,
-		AssigneeID:   row.AssigneeID,
-		CreatedBy:    row.CreatedBy,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		ID:            row.ID,
+		IssueID:       row.IssueID,
+		UserID:        row.UserID,
+		TeamID:        row.TeamID,
+		ParentIssueID: row.ParentIssueID,
+		Title:         row.Title,
+		Description:   row.Description,
+		Status:        row.Status,
+		AssigneeKind:  row.AssigneeKind,
+		AssigneeID:    row.AssigneeID,
+		CreatedBy:     row.CreatedBy,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	}
 }
 
@@ -60,18 +62,19 @@ func toIssueRow(m *model.Issue) *issueRow {
 		return nil
 	}
 	return &issueRow{
-		ID:           m.ID,
-		IssueID:      m.IssueID,
-		UserID:       m.UserID,
-		TeamID:       m.TeamID,
-		Title:        m.Title,
-		Description:  m.Description,
-		Status:       m.Status,
-		AssigneeKind: m.AssigneeKind,
-		AssigneeID:   m.AssigneeID,
-		CreatedBy:    m.CreatedBy,
-		CreatedAt:    m.CreatedAt,
-		UpdatedAt:    m.UpdatedAt,
+		ID:            m.ID,
+		IssueID:       m.IssueID,
+		UserID:        m.UserID,
+		TeamID:        m.TeamID,
+		ParentIssueID: m.ParentIssueID,
+		Title:         m.Title,
+		Description:   m.Description,
+		Status:        m.Status,
+		AssigneeKind:  m.AssigneeKind,
+		AssigneeID:    m.AssigneeID,
+		CreatedBy:     m.CreatedBy,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
 	}
 }
 
@@ -90,17 +93,18 @@ func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateI
 func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
 	now := time.Now().Unix()
 	issue := &model.Issue{
-		IssueID:      util.NewPrefixedID(util.PrefixIssue),
-		UserID:       createdBy,
-		TeamID:       teamID,
-		Title:        in.Title,
-		Description:  in.Description,
-		Status:       model.IssueStatusTodo,
-		CreatedBy:    createdBy,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		AssigneeKind: nil,
-		AssigneeID:   nil,
+		IssueID:       util.NewPrefixedID(util.PrefixIssue),
+		UserID:        createdBy,
+		TeamID:        teamID,
+		ParentIssueID: in.ParentIssueID,
+		Title:         in.Title,
+		Description:   in.Description,
+		Status:        model.IssueStatusTodo,
+		CreatedBy:     createdBy,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		AssigneeKind:  nil,
+		AssigneeID:    nil,
 	}
 	if err := s.db.WithContext(ctx).Create(toIssueRow(issue)).Error; err != nil {
 		return nil, err
@@ -126,13 +130,26 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 }
 
 // ListIssuesByTeam returns issues for the team ordered by updated_at DESC.
-func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Issue, int, error) {
+//
+// A zero filter lists every issue in the team, sub-issues included, which is
+// what callers predating the hierarchy expect.
+func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
+	scope := func(q *gorm.DB) *gorm.DB {
+		q = q.Where("team_id = ?", teamID)
+		switch {
+		case filter.TopLevelOnly:
+			q = q.Where("parent_issue_id IS NULL")
+		case filter.ParentIssueID != "":
+			q = q.Where("parent_issue_id = ?", filter.ParentIssueID)
+		}
+		return q
+	}
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
+	if err := scope(s.db.WithContext(ctx).Model(&issueRow{})).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []issueRow
-	q := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("updated_at DESC")
+	q := scope(s.db.WithContext(ctx)).Order("updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -140,6 +157,51 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, limit, offs
 		return nil, 0, err
 	}
 	return toIssues(list), int(total), nil
+}
+
+// ListIssueChildren returns every sub-issue of parentIssueID, oldest first.
+//
+// There is no pagination because the hierarchy is two levels deep and a
+// parent's children are shown as one group; a parent with enough children to
+// need paging is a sign the breakdown wants a different shape, not a bigger
+// page.
+func (s *Store) ListIssueChildren(ctx context.Context, parentIssueID string) ([]model.Issue, error) {
+	if parentIssueID == "" {
+		return []model.Issue{}, nil
+	}
+	var list []issueRow
+	if err := s.db.WithContext(ctx).
+		Where("parent_issue_id = ?", parentIssueID).
+		Order("created_at ASC, id ASC").
+		Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return toIssues(list), nil
+}
+
+// ChildStatsForIssues returns sub-issue progress for the given parents in one
+// grouped query. Parents with no children are absent from the map.
+func (s *Store) ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]model.IssueChildStats, error) {
+	out := map[string]model.IssueChildStats{}
+	if len(issueIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		ParentIssueID string
+		Total         int
+		Done          int
+	}
+	if err := s.db.WithContext(ctx).Model(&issueRow{}).
+		Select("parent_issue_id, COUNT(*) AS total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS done", model.IssueStatusDone).
+		Where("parent_issue_id IN ?", issueIDs).
+		Group("parent_issue_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.ParentIssueID] = model.IssueChildStats{Total: row.Total, Done: row.Done}
+	}
+	return out, nil
 }
 
 // GetIssue returns the issue by issue_id, or (nil, nil) if not found.
@@ -205,6 +267,13 @@ func (s *Store) updateIssue(ctx context.Context, issueID string, in model.Update
 			updates["assignee_id"] = nil
 		} else {
 			updates["assignee_id"] = *in.AssigneeID
+		}
+	}
+	if in.ParentIssueID != nil {
+		if *in.ParentIssueID == "" {
+			updates["parent_issue_id"] = nil
+		} else {
+			updates["parent_issue_id"] = *in.ParentIssueID
 		}
 	}
 	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("issue_id = ?", issueID).Updates(updates).Error; err != nil {

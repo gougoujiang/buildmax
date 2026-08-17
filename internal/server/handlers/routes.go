@@ -44,6 +44,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}", h.getIssueHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}/flow", h.getIssueFlowHandler)
 	mux.HandleFunc("PATCH /api/teams/{team_id}/issues/{issue_id}", h.patchIssueHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}/comments", h.listIssueCommentsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/comments", h.createIssueCommentHandler)
+	mux.HandleFunc("PATCH /api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", h.patchIssueCommentHandler)
+	mux.HandleFunc("DELETE /api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", h.deleteIssueCommentHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/agent-runs", h.createIssueAgentRunHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/workflow-runs", h.createIssueWorkflowRunHandler)
 

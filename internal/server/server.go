@@ -19,6 +19,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
+	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -59,6 +60,7 @@ type StoresConfig struct {
 	WorkflowStore       model.WorkflowStore
 	AgentStore          model.AgentStore
 	IssueStore          model.IssueStore
+	IssueCommentStore   model.IssueCommentStore
 	TaskStore           model.TaskStore
 	TaskRunStore        model.TaskRunStore
 	RunOutputLister     RunOutputLister
@@ -184,6 +186,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,
 		IssueStore:               cfg.Stores.IssueStore,
+		IssueCommentStore:        cfg.Stores.IssueCommentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
 		RunOutputLister:          cfg.Stores.RunOutputLister,
@@ -205,26 +208,43 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 	}
 }
 
+// buildOnTaskRunTerminal composes what should happen when a worker run reaches
+// a terminal status: advance the workflow it belongs to, and report it on the
+// issue it belongs to.
+//
+// Each half is wired independently and each failure is logged rather than
+// propagated. A deployment without workflows still reports runs on issues, and
+// a comment store that is down does not stop a workflow from advancing.
 func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
-	if cfg.Stores.WorkflowStore == nil {
+	var workflowSvc *workflow.WorkflowService
+	if cfg.Stores.WorkflowStore != nil {
+		taskSvc := &task.TaskService{
+			Agents:         cfg.Stores.AgentStore,
+			Tasks:          cfg.Stores.TaskStore,
+			TaskRuns:       cfg.Stores.TaskRunStore,
+			QuotaChecker:   cfg.Auth.QuotaService,
+			TitleGenerator: nil,
+		}
+		workflowSvc = &workflow.WorkflowService{
+			Workflows:     cfg.Stores.WorkflowStore,
+			Agents:        cfg.Stores.AgentStore,
+			Issues:        cfg.Stores.IssueStore,
+			Conversations: cfg.Conv.ConversationStore,
+			TaskService:   taskSvc,
+		}
+	}
+	var runReporter *issue.RunReporter
+	if cfg.Stores.IssueCommentStore != nil && cfg.Stores.TaskStore != nil {
+		runReporter = &issue.RunReporter{
+			Tasks:    cfg.Stores.TaskStore,
+			Comments: cfg.Stores.IssueCommentStore,
+		}
+	}
+	if workflowSvc == nil && runReporter == nil {
 		return nil
 	}
-	taskSvc := &task.TaskService{
-		Agents:         cfg.Stores.AgentStore,
-		Tasks:          cfg.Stores.TaskStore,
-		TaskRuns:       cfg.Stores.TaskRunStore,
-		QuotaChecker:   cfg.Auth.QuotaService,
-		TitleGenerator: nil,
-	}
-	workflowSvc := &workflow.WorkflowService{
-		Workflows:     cfg.Stores.WorkflowStore,
-		Agents:        cfg.Stores.AgentStore,
-		Issues:        cfg.Stores.IssueStore,
-		Conversations: cfg.Conv.ConversationStore,
-		TaskService:   taskSvc,
-	}
 	return func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
-		workflowInfo := model.TaskRunTerminalInfo{
+		terminal := model.TaskRunTerminalInfo{
 			TaskRunID:      info.TaskRunID,
 			TaskID:         info.TaskID,
 			ConversationID: info.ConversationID,
@@ -233,8 +253,15 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.
 			Output:         info.Output,
 			ErrorMessage:   info.ErrorMessage,
 		}
-		if err := workflowSvc.HandleTaskRunTerminal(ctx, workflowInfo); err != nil && !errors.Is(err, workflow.ErrWorkflowRunNotFound) {
-			slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
+		if workflowSvc != nil {
+			if err := workflowSvc.HandleTaskRunTerminal(ctx, terminal); err != nil && !errors.Is(err, workflow.ErrWorkflowRunNotFound) {
+				slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
+			}
+		}
+		if runReporter != nil {
+			if err := runReporter.ReportRunTerminal(ctx, terminal); err != nil {
+				slog.Warn("issue run comment not written", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
+			}
 		}
 	}
 }

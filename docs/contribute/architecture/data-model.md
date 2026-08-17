@@ -15,7 +15,7 @@ way, see [../../design/product-vision.md](../../design/product-vision.md) and
 
 There is no `.sql` file describing the current schema. The source of truth is
 the set of unexported `xxxRow` structs in `internal/infra/db`, and their GORM
-tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 21 of
+tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 22 of
 them at server startup, so the running database is whatever those structs say.
 
 The CLI and Desktop surfaces do not use this database at all. Sessions, traces,
@@ -32,7 +32,7 @@ identifier is a separate `varchar(64)` column named after the entity
 (`task_id`, `issue_id`, …) carrying a prefixed ID from `NewPrefixedID` in
 `internal/util/id.go`: `u_` user, `tm_` team, `i_` issue, `a_` agent, `w_`
 workflow, `wr_` workflow run, `wsr_` workflow step run, `c_` conversation,
-`cm_` conversation message, `t_` task, `r_` task run, `whk_` webhook key, `lc_`
+`cm_` conversation message, `ic_` issue comment, `t_` task, `r_` task run, `whk_` webhook key, `lc_`
 LLM call, `lm_` LLM model, `as_` auth session. Every API path, foreign reference, and log line uses
 the prefixed ID. Join on it, not on `id`.
 
@@ -79,6 +79,8 @@ erDiagram
     conversation ||--o{ task : "spawns (tier 1 to tier 2)"
     conversation ||--o{ workflow_run : drives
 
+    issue ||--o{ issue : "breaks down into (2 levels)"
+    issue ||--o{ issue_comment : "discussed in"
     issue ||--o{ task : "tracked by"
     issue ||--o{ workflow_run : "tracked by"
 
@@ -366,6 +368,7 @@ The primary user-facing work object.
 | `issue_id` | `varchar(64)` | no | Public ID, `i_` prefix, unique |
 | `user_id` | `varchar(64)` | no | Owning user |
 | `team_id` | `varchar(64)` | yes | Owning team; the authorization key |
+| `parent_issue_id` | `varchar(64)` | yes | `issue.issue_id` of the parent; `NULL` for a top-level issue |
 | `title` | `varchar(255)` | no | |
 | `description` | `text` | no | |
 | `status` | `varchar(32)` | no | `todo`, `in_progress`, `done` |
@@ -375,11 +378,53 @@ The primary user-facing work object.
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; unique `issue_id`; index `user_id`; index `team_id`.
+Indexes: PK `id`; unique `issue_id`; index `user_id`; index `team_id`; index
+`parent_issue_id`.
 
 The `assignee_kind` / `assignee_id` pair is a polymorphic reference — no index
 or constraint ties it to a specific table, so validation lives in
 `internal/service/issue`.
+
+`parent_issue_id` is a self-reference forming an adjacency list, and the
+hierarchy is capped at **two levels**: a parent must itself have
+`parent_issue_id IS NULL`. Nothing in the schema enforces that — the invariants
+live in `internal/service/issue`, which also rejects a parent in another team, a
+self-parent, and giving a parent to an issue that already has children. Progress
+(`child_count`, `done_child_count`) is computed per response with a grouped
+query and never stored. See
+[../../design/issue-model.md](../../design/issue-model.md).
+
+### `issue_comment`
+
+One statement about an issue, addressed to people.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `issue_comment_id` | `varchar(64)` | no | Public ID, `ic_` prefix, unique |
+| `issue_id` | `varchar(64)` | no | `issue.issue_id` |
+| `author_kind` | `varchar(16)` | no | `user`, `agent`, or `system` |
+| `author_id` | `varchar(64)` | no | `user_id` or `agent_id`; empty for `system` |
+| `body` | `text` | no | Markdown source, stored raw; capped at 16 KiB by the service |
+| `source_task_id` | `varchar(64)` | yes | Set on an agent comment |
+| `source_task_run_id` | `varchar(64)` | yes | Set on an agent comment |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `edited_at` | `bigint` | yes | `NULL` until the body is changed |
+
+Indexes: PK `id`; unique `issue_comment_id`; index `issue_id`.
+
+Ordering is by `created_at`, then `id` — a thread reads oldest first, and
+prefixed IDs are random rather than time-ordered.
+
+The row carries **no `team_id`**. A comment's team is its issue's team, and
+every handler already loads the issue to authorize; denormalizing the
+authorization key would give it a second place to be wrong. This follows
+`conversation_message`, which resolves its team through its conversation.
+
+Deletion is hard — there is no `deleted_at` and no tombstone. Editing is
+restricted to the person who wrote the comment; an agent or system comment is
+the record of what a run reported and is editable by nobody, though a team owner
+may delete one.
 
 ### `agent`
 

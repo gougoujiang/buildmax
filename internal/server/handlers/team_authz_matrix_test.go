@@ -76,6 +76,14 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/issues/{issue_id}", model.TeamRoleMember, false},
 	{"PATCH", "/api/teams/{team_id}/issues/{issue_id}", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/issues/{issue_id}/flow", model.TeamRoleMember, false},
+	// Commenting is collaboration, so every member may do it. Moderation —
+	// deleting a comment you did not write — is owner-only, but that is decided
+	// inside the handler from the comment's author, not by the route: a member
+	// deleting their own comment reaches the same endpoint.
+	{"GET", "/api/teams/{team_id}/issues/{issue_id}/comments", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/issues/{issue_id}/comments", model.TeamRoleMember, false},
+	{"PATCH", "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", model.TeamRoleMember, false},
+	{"DELETE", "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/issues/{issue_id}/agent-runs", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/issues/{issue_id}/workflow-runs", model.TeamRoleMember, false},
 
@@ -140,6 +148,7 @@ func matrixMux(t *testing.T) *http.ServeMux {
 		UserStore:                &mock.MockUserStore{},
 		AgentStore:               &mock.MockAgentStore{},
 		IssueStore:               &mock.MockIssueStore{},
+		IssueCommentStore:        &mock.MockIssueCommentStore{},
 		WorkflowStore:            &mock.MockWorkflowStore{},
 		TaskStore:                &mock.MockTaskStore{},
 		TaskRunStore:             &mock.MockTaskRunStore{},

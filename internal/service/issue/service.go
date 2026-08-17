@@ -20,31 +20,42 @@ var (
 	ErrWorkflowsNotConfigured = errors.New("workflows not configured")
 	ErrWorkflowNotFound       = errors.New("workflow not found or not owned by team")
 	ErrWorkflowNotPublished   = errors.New("workflow not published")
+	// ErrParentNotFound covers both a parent that does not exist and one that
+	// belongs to another team. The two are reported identically on purpose:
+	// distinguishing them would confirm that an issue ID exists somewhere the
+	// caller cannot see, and issue IDs are what Portal puts in URLs.
+	ErrParentNotFound   = errors.New("parent issue not found")
+	ErrHierarchyTooDeep = errors.New("issue hierarchy too deep")
+	ErrIssueHasChildren = errors.New("issue has sub-issues")
+	ErrInvalidParent    = errors.New("invalid parent_issue_id")
 )
 
 type IssueService struct {
 	Issues    model.IssueStore
+	Comments  model.IssueCommentStore
 	Agents    model.AgentStore
 	Teams     model.TeamStore
 	Workflows model.WorkflowStore
 }
 
 type CreateIssueCmd struct {
-	UserID      string
-	TeamID      string
-	Title       string
-	Description string
+	UserID        string
+	TeamID        string
+	Title         string
+	Description   string
+	ParentIssueID *string
 }
 
 type UpdateIssueCmd struct {
-	UserID       string
-	TeamID       string
-	IssueID      string
-	Title        *string
-	Description  *string
-	Status       *string
-	AssigneeKind *string
-	AssigneeID   *string
+	UserID        string
+	TeamID        string
+	IssueID       string
+	Title         *string
+	Description   *string
+	Status        *string
+	AssigneeKind  *string
+	AssigneeID    *string
+	ParentIssueID *string
 }
 
 func (s *IssueService) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.Issue, error) {
@@ -57,9 +68,14 @@ func (s *IssueService) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*mo
 	if cmd.TeamID == "" {
 		return nil, ErrTeamsNotConfigured
 	}
+	parent, err := s.normalizeParent(ctx, cmd.TeamID, "", cmd.ParentIssueID)
+	if err != nil {
+		return nil, err
+	}
 	return s.Issues.CreateIssueInTeam(ctx, cmd.TeamID, cmd.UserID, model.CreateIssueInput{
-		Title:       cmd.Title,
-		Description: cmd.Description,
+		Title:         cmd.Title,
+		Description:   cmd.Description,
+		ParentIssueID: parent,
 	})
 }
 
@@ -76,12 +92,25 @@ func (s *IssueService) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*mo
 	if err := s.validateAssignee(ctx, cmd.TeamID, cmd.UserID, cmd.AssigneeKind, cmd.AssigneeID); err != nil {
 		return nil, err
 	}
+	parent := cmd.ParentIssueID
+	if parent != nil {
+		var err error
+		if parent, err = s.normalizeParent(ctx, cmd.TeamID, cmd.IssueID, cmd.ParentIssueID); err != nil {
+			return nil, err
+		}
+		// normalizeParent returns nil for a cleared parent; the store needs an
+		// empty string to distinguish "clear it" from "leave it alone".
+		if parent == nil {
+			parent = new(string)
+		}
+	}
 	issue, err := s.Issues.UpdateIssueInTeam(ctx, cmd.IssueID, cmd.TeamID, model.UpdateIssueInput{
-		Title:        cmd.Title,
-		Description:  cmd.Description,
-		Status:       cmd.Status,
-		AssigneeKind: cmd.AssigneeKind,
-		AssigneeID:   cmd.AssigneeID,
+		Title:         cmd.Title,
+		Description:   cmd.Description,
+		Status:        cmd.Status,
+		AssigneeKind:  cmd.AssigneeKind,
+		AssigneeID:    cmd.AssigneeID,
+		ParentIssueID: parent,
 	})
 	if err != nil {
 		return nil, err
@@ -90,6 +119,44 @@ func (s *IssueService) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*mo
 		return nil, ErrIssueNotFound
 	}
 	return issue, nil
+}
+
+// normalizeParent enforces the hierarchy invariants and returns the parent to
+// persist: nil for "no parent", a pointer otherwise.
+//
+// childID is the issue being reparented, or "" when the child does not exist
+// yet. A new issue cannot have children, so only the update path checks H3.
+func (s *IssueService) normalizeParent(ctx context.Context, teamID, childID string, parentIssueID *string) (*string, error) {
+	if parentIssueID == nil || *parentIssueID == "" {
+		return nil, nil
+	}
+	// H4: an issue cannot be its own parent.
+	if childID != "" && *parentIssueID == childID {
+		return nil, ErrInvalidParent
+	}
+	parent, err := s.Issues.GetIssue(ctx, *parentIssueID)
+	if err != nil {
+		return nil, err
+	}
+	// H1: the parent must exist and belong to the same team.
+	if parent == nil || parent.TeamID != teamID {
+		return nil, ErrParentNotFound
+	}
+	// H2: the hierarchy is two levels deep, so the parent must be top-level.
+	if parent.ParentIssueID != nil && *parent.ParentIssueID != "" {
+		return nil, ErrHierarchyTooDeep
+	}
+	// H3: an issue that already has children cannot become a child itself.
+	if childID != "" {
+		children, err := s.Issues.ListIssueChildren(ctx, childID)
+		if err != nil {
+			return nil, err
+		}
+		if len(children) > 0 {
+			return nil, ErrIssueHasChildren
+		}
+	}
+	return parentIssueID, nil
 }
 
 func isValidStatus(status string) bool {

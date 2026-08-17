@@ -216,6 +216,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			WorkflowStore:       st,
 			AgentStore:          st,
 			IssueStore:          st,
+			IssueCommentStore:   st,
 			TaskStore:           st,
 			TaskRunStore:        st,
 			RunOutputLister:     st,

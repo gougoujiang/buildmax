@@ -31,6 +31,10 @@ export function Issues({ token, userId }: IssuesProps) {
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  // An entry appears here once a parent's children have been fetched; undefined
+  // while the request is in flight.
+  const [children, setChildren] = useState<Record<string, Issue[]>>({})
   const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -48,7 +52,9 @@ export function Issues({ token, userId }: IssuesProps) {
     setLoading(true)
     setError(null)
     return Promise.all([
-      getIssues(currentTeamId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+      // The board shows top-level issues; sub-issues appear under the parent
+      // they were split out of, not as siblings in the same list.
+      getIssues(currentTeamId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, parentId: "none" }),
       getAgents(currentTeamId, token),
       getTeamMembers(currentTeamId, token),
       getWorkflows(currentTeamId, token),
@@ -71,6 +77,22 @@ export function Issues({ token, userId }: IssuesProps) {
   useEffect(() => {
     setPage(1)
   }, [currentTeamId])
+
+  // A reload invalidates every cached breakdown: statuses may have moved, and a
+  // stale child list is worse than a second fetch.
+  useEffect(() => {
+    setExpanded({})
+    setChildren({})
+  }, [page, currentTeamId])
+
+  function toggleChildren(issueId: string) {
+    const nowOpen = !expanded[issueId]
+    setExpanded((prev) => ({ ...prev, [issueId]: nowOpen }))
+    if (!nowOpen || !token || !currentTeamId || children[issueId] !== undefined) return
+    getIssues(currentTeamId, token, { limit: 100, parentId: issueId })
+      .then((res) => setChildren((prev) => ({ ...prev, [issueId]: res.issues.map(apiIssueToIssue) })))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load sub-issues")))
+  }
 
   function assigneeLabel(issue: Issue): string {
     if (issue.assigneeKind === "person") {
@@ -194,6 +216,16 @@ export function Issues({ token, userId }: IssuesProps) {
                     </span>
                   </span>
                   <span className="issues-page__row-side">
+                    {issue.childCount > 0 ? (
+                      <span className="page-activity__meta">
+                        {issue.doneChildCount}/{issue.childCount} sub-issues
+                      </span>
+                    ) : null}
+                    {issue.commentCount > 0 ? (
+                      <span className="page-activity__meta">
+                        {issue.commentCount} comment{issue.commentCount === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
                     <span className="issues-page__status">{issue.status}</span>
                     <span className="page-activity__meta">
                       {assigneeLabel(issue)}
@@ -201,6 +233,45 @@ export function Issues({ token, userId }: IssuesProps) {
                     <span className="page-activity__meta">{issue.updatedLabel}</span>
                   </span>
                 </button>
+                {issue.childCount > 0 ? (
+                  <div className="issues-page__children">
+                    {/* Children load on expand rather than with the page: a
+                        board of parents would otherwise pay for every
+                        breakdown nobody opened. */}
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      onClick={() => toggleChildren(issue.id)}
+                    >
+                      {expanded[issue.id] ? "Hide sub-issues" : "Show sub-issues"}
+                    </button>
+                    {expanded[issue.id] ? (
+                      children[issue.id] === undefined ? (
+                        <p className="page-activity__empty">Loading…</p>
+                      ) : (
+                        <ul className="issues-page__child-list">
+                          {children[issue.id].map((child) => (
+                            <li key={child.id} className="issues-page__child">
+                              <button
+                                type="button"
+                                className="issues-page__row"
+                                onClick={() => navigate({ name: "issue", issueId: child.id })}
+                              >
+                                <span className="issues-page__row-main">
+                                  <span className="issues-page__row-title">{child.title}</span>
+                                </span>
+                                <span className="issues-page__row-side">
+                                  <span className="issues-page__status">{child.status}</span>
+                                  <span className="page-activity__meta">{assigneeLabel(child)}</span>
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    ) : null}
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
