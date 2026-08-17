@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -335,22 +334,5 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) loadTaskConversationData(ctx context.Context, task *model.Task, lastRunID, sessionID string) ([]byte, error) {
-	relPath := "sessions/" + sessionID + ".json"
-	if h.cfg.PersistStorage != nil {
-		data, err := h.cfg.PersistStorage.GetRunGlobal(ctx, blob.RunObjectRef{
-			CreatedBy:      task.CreatedBy,
-			ConversationID: task.ConversationID,
-			TaskID:         task.TaskID,
-			TaskRunID:      lastRunID,
-			RelPath:        relPath,
-		})
-		if err == nil {
-			return data, nil
-		}
-		if !errors.Is(err, blob.ErrNotFound) {
-			return nil, err
-		}
-	}
-	localPath := filepath.Join(h.workspacesDir(), task.CreatedBy, "conversations", task.ConversationID, "tasks", task.TaskID, lastRunID, "global", "sessions", sessionID+".json")
-	return os.ReadFile(localPath)
+	return h.readRunGlobal(ctx, task, lastRunID, "sessions/"+sessionID+".json")
 }
