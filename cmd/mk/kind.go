@@ -185,11 +185,16 @@ func kindSmokeTarget() smokeTarget {
 // kindQuery runs one read-only statement against the cluster's MySQL. The
 // password is the fixed development one from deployment/dev-kind/mysql.yaml;
 // this cluster holds nothing else.
+//
+// The client is pinned to TCP: with no host it falls back to a unix socket
+// whose path differs between mysql images, which fails in CI while working
+// locally.
 func kindQuery(sql string) (string, error) {
 	return captureCombined("kubectl", "--context", kindContext(),
 		"exec", "-n", "db", "deployment/mysql", "--",
 		"env", "MYSQL_PWD=buildmax",
-		"mysql", "-ubuildmax", "--batch", "--skip-column-names", "buildmax", "-e", sql)
+		"mysql", "-h127.0.0.1", "--protocol=TCP", "-ubuildmax",
+		"--batch", "--skip-column-names", "buildmax", "-e", sql)
 }
 
 // kindStatus reports what the selected cluster is running without changing it,

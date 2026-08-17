@@ -140,13 +140,18 @@ func composeEnvPath() string {
 // The password comes from the same .env the stack was started with, read here
 // rather than passed on the command line, so it does not appear in this
 // process's argv.
+//
+// The client is pinned to TCP: with no host it falls back to a unix socket
+// whose path differs between mysql images, which fails in CI while working
+// locally.
 func composeQuery(sql string) (string, error) {
 	password, err := composeEnvValue("BUILDMAX_DATABASE_PASSWORD")
 	if err != nil {
 		return "", err
 	}
 	args := append(composeSmokeArgs(true), "exec", "-T", "-e", "MYSQL_PWD="+password, "mysql",
-		"mysql", "-ubuildmax", "--batch", "--skip-column-names", "buildmax", "-e", sql)
+		"mysql", "-h127.0.0.1", "--protocol=TCP", "-ubuildmax",
+		"--batch", "--skip-column-names", "buildmax", "-e", sql)
 	return captureCombined("docker", args...)
 }
 
