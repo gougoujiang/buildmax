@@ -36,7 +36,9 @@ async function globalSetup() {
     await page.getByRole("button", { name: /login code/i }).click()
     await page.getByLabel("Email").fill(email)
     await page.getByLabel("Login code").fill(code)
-    await page.getByRole("button", { name: "Sign in" }).click()
+    // exact: the form also carries a "Sign in with a password" link, and a
+    // substring match would find both and refuse to guess.
+    await page.getByRole("button", { name: "Sign in", exact: true }).click()
     // Signed in when the login card is gone. Asserting on its absence rather
     // than on a URL keeps this working if the post-login landing route moves.
     await page.locator(".login-page__card").waitFor({ state: "detached", timeout: 15_000 })
