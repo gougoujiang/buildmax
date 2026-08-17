@@ -30,9 +30,12 @@ async function globalSetup() {
   const page = await browser.newPage({ baseURL })
   try {
     await page.goto("/")
+    // The form opens on password. A login code is the recovery path, which is
+    // what an out-of-band code is for and the only credential a test can be
+    // handed without also owning an account's password.
+    await page.getByRole("button", { name: /login code/i }).click()
     await page.getByLabel("Email").fill(email)
-    await page.getByRole("button", { name: "Get OTP" }).click()
-    await page.getByLabel("OTP").fill(code)
+    await page.getByLabel("Login code").fill(code)
     await page.getByRole("button", { name: "Sign in" }).click()
     // Signed in when the login card is gone. Asserting on its absence rather
     // than on a URL keeps this working if the post-login landing route moves.

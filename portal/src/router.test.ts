@@ -6,7 +6,6 @@ describe("hash router", () => {
   it.each([
     ["#/", { name: "home" }],
     ["#/login", { name: "login" }],
-    ["#/signup", { name: "signup" }],
     ["#/conversation/c_123", { name: "conversation", conversationId: "c_123" }],
     ["#/conversations", { name: "conversations" }],
     ["#/explore", { name: "explore" }],
@@ -33,7 +32,6 @@ describe("hash router", () => {
   it.each([
     [{ name: "home" }, "#/"],
     [{ name: "login" }, "#/login"],
-    [{ name: "signup" }, "#/signup"],
     [{ name: "conversation", conversationId: "c_123" }, "#/conversation/c_123"],
     [{ name: "conversations" }, "#/conversations"],
     [{ name: "explore" }, "#/explore"],

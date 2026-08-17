@@ -43,7 +43,6 @@ export interface Conversation {
 export type Route =
   | { name: "home" }
   | { name: "login" }
-  | { name: "signup" }
   | { name: "conversation"; conversationId: string }
   | { name: "conversations" }
   | { name: "explore" }

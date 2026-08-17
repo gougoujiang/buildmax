@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -17,28 +16,29 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// LoginRequest is the JSON body for POST /api/login.
+// LoginRequest is the JSON body for POST /api/login. Exactly one of Password
+// and Otp is used; Password is tried first when both arrive.
 type LoginRequest struct {
 	Email    string `json:"email"`
+	Password string `json:"password"`
 	Otp      string `json:"otp"`
 	Platform string `json:"platform"`
 }
 
-// BuildMax ships no OTP delivery channel, so POST /api/login accepts two kinds
-// of code, in this order:
+// POST /api/login accepts two credentials, for two different jobs.
 //
-//  1. A single-use code from Config.LoginCodeStore, issued out of band with
-//     `buildmax-server user login-code <email>` and delivered by the operator.
-//     Each one belongs to a single user, expires, and cannot be replayed. This
-//     is the supported way to run a deployment.
+//  1. A password, which the person chose and can use every day. This is the
+//     ordinary way in.
 //
-//  2. Config.DevLoginOTP (server.yaml `dev_login_otp`), a fixed code that
-//     authenticates *any* registered email. It is a development convenience and
-//     a standing authentication bypass; it stays empty unless an operator opts
-//     in, and the server logs a warning on every startup where it is set.
+//  2. A single-use login code from Config.LoginCodeStore, issued out of band
+//     with `buildmax-server user login-code <email>` and delivered by the
+//     operator. It belongs to one account, expires, and cannot be replayed.
+//     BuildMax has no mail channel, so this is the recovery path: it is how a
+//     new account is claimed and how a forgotten password is reset. Signing in
+//     with a code and then setting a password is the whole flow.
 //
-// With neither configured there is no way to verify a code, and login returns
-// 503 rather than pretending to work.
+// The two are not tiers of the same thing. A password is what someone knows; a
+// code is what an operator vouched for. Either produces the same session.
 
 // LoginResponse is the JSON body for a successful login.
 type LoginResponse struct {
@@ -88,7 +88,11 @@ type OtpRequestRequest struct {
 	Intent string `json:"intent"` // "signup" or "login"; default "signup"
 }
 
-// OtpRequestResponse is the JSON body for a successful OTP request.
+// OtpRequestResponse is the JSON body for a successful account request.
+//
+// Message is "account_created" or "account_exists". It deliberately no longer
+// says "otp_sent": nothing was sent, and no client should tell someone to check
+// an inbox that will stay empty.
 type OtpRequestResponse struct {
 	Message string `json:"message"`
 }
@@ -176,8 +180,8 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
-	if h.cfg.LoginCodeStore == nil && h.cfg.DevLoginOTP == "" {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured: no otp verifier")
+	if h.cfg.LoginCodeStore == nil && h.cfg.PasswordStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured: no way to verify a credential")
 		return
 	}
 	var req LoginRequest
@@ -189,11 +193,21 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "email required")
 		return
 	}
-	if req.Otp == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "otp required")
+	if req.Password == "" && req.Otp == "" {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "password or otp required")
 		return
 	}
-	user, ok := h.verifyLoginCode(w, r, req)
+
+	var user *model.User
+	var method string
+	var ok bool
+	if req.Password != "" {
+		user, ok = h.verifyPassword(w, r, req)
+		method = loginMethodPassword
+	} else {
+		user, ok = h.verifyLoginCode(w, r, req)
+		method = loginMethodLoginCode
+	}
 	if !ok {
 		return
 	}
@@ -222,6 +236,11 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Action:     model.AuditUserLogin,
 		TargetType: "platform",
 		TargetID:   platform,
+		// Which credential authenticated. A trail that cannot tell a password
+		// from an operator-issued code cannot answer who let someone in, and
+		// adding the field afterwards would leave every earlier row unable to
+		// say.
+		Detail: method,
 	})
 	httputil.WriteJSON(w, http.StatusOK, LoginResponse{
 		Token:        accessToken,
@@ -321,6 +340,70 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// SetPasswordRequest is the JSON body for POST /api/password.
+type SetPasswordRequest struct {
+	// CurrentPassword is required when the account already has one. It is not
+	// used when setting the first password, because there is nothing to prove
+	// against and the caller already holds a session.
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// setPasswordHandler sets or changes the caller's password.
+//
+// Changing an existing password requires the current one. The session alone is
+// not enough: a stolen access token cannot be revoked before it expires, and
+// letting one set a password would turn a temporary theft into a permanent
+// account takeover. Setting the *first* password does run on the session
+// alone — that session came from a login code an operator issued by hand, which
+// is the strongest proof this deployment has.
+func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.PasswordStore == nil || h.cfg.UserStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
+		return
+	}
+	userID, ok := requireAuth(w, r, h.cfg.JWTSecret)
+	if !ok {
+		return
+	}
+	var req SetPasswordRequest
+	if !decodeJSONBody(w, r, &req) {
+		return
+	}
+	if err := model.ValidatePassword(req.NewPassword); err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	existing, err := h.cfg.PasswordStore.PasswordHash(r.Context(), userID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "password_hash")
+		return
+	}
+	if existing != "" && !model.VerifyPassword(existing, req.CurrentPassword) {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "current password is incorrect")
+		return
+	}
+
+	hash, err := model.HashPassword(req.NewPassword)
+	if err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.cfg.PasswordStore.SetPassword(r.Context(), userID, hash, time.Now().Unix()); err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "user_id", userID)
+		return
+	}
+	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
+		ActorType:  model.AuditActorUser,
+		ActorID:    userID,
+		Action:     model.AuditPasswordSet,
+		TargetType: "user",
+		TargetID:   userID,
+	})
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // logoutHandler revokes one session.
 //
 // It accepts either credential. A refresh token names its session directly; an
@@ -373,41 +456,23 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// verifyLoginCode resolves the user the submitted code authenticates, writing
-// the response and returning ok=false when it does not authenticate anyone.
-//
-// A single-use code is tried first and, once redeemed, is spent whether or not
-// the rest of the request succeeds — that is what "single use" has to mean for
-// a replay to be impossible.
-func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
-	if h.cfg.LoginCodeStore != nil {
-		userID, err := h.cfg.LoginCodeStore.ConsumeLoginCode(r.Context(), req.Otp, time.Now().Unix())
-		if err != nil {
-			httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "consume_login_code")
-			return nil, false
-		}
-		if userID != "" {
-			user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
-			if err != nil {
-				httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "user_id", userID)
-				return nil, false
-			}
-			// The code already names the user; the email is checked so that
-			// signing in as someone else cannot happen by pasting the wrong
-			// code into the wrong browser.
-			if user == nil || !strings.EqualFold(user.Email, req.Email) {
-				httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
-				return nil, false
-			}
-			return user, true
-		}
-	}
+// Login methods, as recorded in the audit trail.
+const (
+	loginMethodPassword  = "password"
+	loginMethodLoginCode = "login_code"
+)
 
-	// No stored code matched. Fall back to the fixed development code, which is
-	// only ever set on a deployment that has accepted what it means.
-	if h.cfg.DevLoginOTP == "" ||
-		subtle.ConstantTimeCompare([]byte(req.Otp), []byte(h.cfg.DevLoginOTP)) != 1 {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
+// invalidPasswordMessage is the single answer to every failed password login.
+//
+// An unknown address, an account with no password set, and a wrong password
+// are all the same sentence. Telling them apart would turn the login form into
+// a way to ask which addresses have accounts here.
+const invalidPasswordMessage = "invalid email or password"
+
+// verifyPassword resolves the user a submitted password authenticates.
+func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
+	if h.cfg.PasswordStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
 		return nil, false
 	}
 	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
@@ -415,8 +480,60 @@ func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req Lo
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "email", req.Email)
 		return nil, false
 	}
-	if user == nil {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "user not found")
+
+	var hash string
+	if user != nil {
+		hash, err = h.cfg.PasswordStore.PasswordHash(r.Context(), user.UserID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "password_hash")
+			return nil, false
+		}
+	}
+	if hash == "" {
+		// No account, or one that has never set a password. Hash anyway: the
+		// work is what makes the two cases take the same time, and time is the
+		// other channel that would answer "is this address registered".
+		model.DummyVerifyPassword(req.Password)
+		httputil.WriteJSONError(w, http.StatusUnauthorized, invalidPasswordMessage)
+		return nil, false
+	}
+	if !model.VerifyPassword(hash, req.Password) {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, invalidPasswordMessage)
+		return nil, false
+	}
+	return user, true
+}
+
+// verifyLoginCode resolves the user the submitted code authenticates, writing
+// the response and returning ok=false when it does not authenticate anyone.
+//
+// The code is spent once redeemed, whether or not the rest of the request
+// succeeds — that is what "single use" has to mean for a replay to be
+// impossible.
+func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
+	if h.cfg.LoginCodeStore == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login codes are not configured")
+		return nil, false
+	}
+	userID, err := h.cfg.LoginCodeStore.ConsumeLoginCode(r.Context(), req.Otp, time.Now().Unix())
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "consume_login_code")
+		return nil, false
+	}
+	if userID == "" {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
+		return nil, false
+	}
+	user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "user_id", userID)
+		return nil, false
+	}
+	// The code already names the user; the email is checked so that signing in
+	// as someone else cannot happen by pasting the wrong code into the wrong
+	// browser.
+	if user == nil || !strings.EqualFold(user.Email, req.Email) {
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}
 	return user, true
@@ -454,15 +571,18 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "user not found")
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "otp_sent"})
+		// The account exists. Nothing is sent, because there is nothing to send
+		// it with; getting in means a password, or a code an operator issues by
+		// hand.
+		httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "account_exists"})
 		return
 	}
 	// intent == "signup"
 	//
-	// Closed by default. Self-registration plus a shared dev code is what turns
-	// a reachable server into an open one: anyone could register an address and
-	// then sign in as it. Accounts are created by an operator instead, with
-	// `buildmax-server user create`.
+	// Closed by default. Nothing here verifies that whoever typed an address
+	// controls it, so open registration on a reachable server is how someone
+	// claims a colleague's address. Accounts are created by an operator
+	// instead, with `buildmax-server user create`.
 	if !h.cfg.AllowSignup {
 		httputil.WriteJSONError(w, http.StatusForbidden,
 			"signup is disabled on this server; ask an administrator for an account")
@@ -481,7 +601,11 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "otp_sent"})
+	// The account exists now, and still cannot be used: it has no password, and
+	// no code has been issued for it. An operator has to run
+	// `buildmax-server user login-code` before anyone can sign in — which is why
+	// no BuildMax client offers a sign-up form.
+	httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "account_created"})
 }
 
 // --- JWT auth middleware helpers ---

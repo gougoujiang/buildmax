@@ -12,11 +12,14 @@ const LoginCodeTTLDefault = time.Hour
 
 // LoginCodeStore issues and redeems single-use login codes.
 //
-// This is BuildMax's answer to having no OTP delivery channel: an operator
-// issues a code out of band (`buildmax-server user login-code`) and delivers it
-// however they already talk to the person. It replaces the shared
-// `dev_login_otp`, which authenticates any registered email and is therefore a
-// standing bypass rather than a credential.
+// This is BuildMax's answer to having no mail channel: an operator issues a
+// code out of band (`buildmax-server user login-code`) and delivers it however
+// they already talk to the person.
+//
+// It is not the everyday credential — a password is. A code is what claims a
+// new account and what recovers a forgotten password, which is why it is
+// single-use and short-lived: it exists to be spent once, on the way to
+// setting a password.
 type LoginCodeStore interface {
 	// CreateLoginCode issues a single-use code for userID and returns the
 	// plaintext, which is never stored and cannot be recovered afterwards.

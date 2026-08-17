@@ -2,6 +2,7 @@ import {
   ACCOUNT_NAV,
   AccountWebhookSection,
   SettingsGeneralSection,
+  SettingsPasswordSection,
   SettingsUsageSection,
   type AccountSection,
   useSettingsData,
@@ -57,7 +58,12 @@ export function AccountSettings({ section }: { section: AccountSection }) {
       </div>
 
       <div className="settings-page__content">
-        {section === "general" ? <SettingsGeneralSection user={user} /> : null}
+        {section === "general" ? (
+          <>
+            <SettingsGeneralSection user={user} />
+            <SettingsPasswordSection token={token} />
+          </>
+        ) : null}
         {section === "usage" ? (
           <SettingsUsageSection loading={usageLoading} error={pageError} usage={usage} />
         ) : null}

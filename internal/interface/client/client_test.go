@@ -19,7 +19,7 @@ func TestClientRequestOTP(t *testing.T) {
 			t.Errorf("unexpected body: %v", body)
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message":"otp_sent"}`))
+		_, _ = w.Write([]byte(`{"message":"account_created"}`))
 	}))
 	defer srv.Close()
 

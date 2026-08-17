@@ -131,7 +131,6 @@ func TestDeploymentConfigMapCarriesNoSecrets(t *testing.T) {
 	}
 	secrets := map[string]string{
 		"jwt_secret":                 cfg.JWTSecret,
-		"dev_login_otp":              cfg.DevLoginOTP,
 		"worker.token":               cfg.Worker.Token,
 		"conversation.model.api_key": cfg.Conversation.Model.APIKey,
 	}

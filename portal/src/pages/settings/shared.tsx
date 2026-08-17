@@ -5,6 +5,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 import { getUsage } from "../../features/usage"
 import { addTeamMember, getTeamMembers, getTeamUsage, removeTeamMember } from "../../features/teams/api"
+import { setPassword } from "../../features/auth"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
 import { UserAvatar } from "../../components/UserAvatar"
@@ -79,6 +80,113 @@ export function SettingsGeneralSection({ user }: { user: LoginUser | null }) {
       ) : (
         <p className="settings-section__muted">Not signed in.</p>
       )}
+    </section>
+  )
+}
+
+/**
+ * Set or change the password.
+ *
+ * The current password is asked for only when there is one. Someone who just
+ * signed in with a login code has none — that is the recovery flow finishing —
+ * and demanding a value they cannot have would strand them.
+ */
+export function SettingsPasswordSection({ token }: { token: string | null }) {
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [status, setStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!token) return
+    setError(null)
+    setStatus(null)
+    if (newPassword !== confirmPassword) {
+      setError("The two passwords do not match.")
+      return
+    }
+    setSaving(true)
+    try {
+      await setPassword(token, newPassword, currentPassword || undefined)
+      setStatus("Password updated. Sessions already signed in are unaffected.")
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (err) {
+      setError(getErrorMessage(err, "Could not update the password"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="settings-page__section">
+      <div className="settings-page__section-head">
+        <div>
+          <h2 className="settings-page__section-title">Password</h2>
+          <p className="settings-page__section-copy">
+            Set a password, or change the one you have. Leave the current
+            password blank if you signed in with a login code and have not set
+            one yet.
+          </p>
+        </div>
+      </div>
+      <form className="settings-general" onSubmit={handleSubmit}>
+        <label className="settings-general__label" htmlFor="current-password">
+          Current password
+        </label>
+        <input
+          id="current-password"
+          type="password"
+          className="login-page__input"
+          autoComplete="current-password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          disabled={saving}
+        />
+        <label className="settings-general__label" htmlFor="new-password">
+          New password
+        </label>
+        <input
+          id="new-password"
+          type="password"
+          className="login-page__input"
+          autoComplete="new-password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          required
+          disabled={saving}
+        />
+        <label className="settings-general__label" htmlFor="confirm-password">
+          Confirm new password
+        </label>
+        <input
+          id="confirm-password"
+          type="password"
+          className="login-page__input"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          disabled={saving}
+        />
+        {error ? (
+          <p className="settings-section__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {status ? <p className="settings-section__muted">{status}</p> : null}
+        <button
+          type="submit"
+          className="login-page__submit"
+          disabled={saving || !token || newPassword === ""}
+        >
+          {saving ? "Saving…" : "Save password"}
+        </button>
+      </form>
     </section>
   )
 }

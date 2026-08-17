@@ -93,14 +93,28 @@ func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 	return parseErrorResponse(resp)
 }
 
-// Login calls POST /api/login and returns the token and user on success.
+// Login calls POST /api/login with a single-use login code — the recovery
+// path, used to claim a new account or replace a forgotten password.
 // platform identifies the calling client ("cli", "desktop", "portal").
 func (c *Client) Login(ctx context.Context, email, otp, platform string) (*LoginResponse, error) {
-	body, _ := json.Marshal(map[string]string{
+	return c.login(ctx, map[string]string{
 		"email":    email,
 		"otp":      otp,
 		"platform": platform,
 	})
+}
+
+// LoginWithPassword calls POST /api/login with a password, the everyday way in.
+func (c *Client) LoginWithPassword(ctx context.Context, email, password, platform string) (*LoginResponse, error) {
+	return c.login(ctx, map[string]string{
+		"email":    email,
+		"password": password,
+		"platform": platform,
+	})
+}
+
+func (c *Client) login(ctx context.Context, payload map[string]string) (*LoginResponse, error) {
+	body, _ := json.Marshal(payload)
 	url := c.BaseURL + "/api/login"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {

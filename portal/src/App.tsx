@@ -8,7 +8,6 @@ import { Layout } from "./layout/Layout"
 import { AppRouter } from "./components/AppRouter"
 import { useConversations } from "./hooks/useConversations"
 import { Login } from "./pages/auth/Login"
-import { SignUp } from "./pages/auth/SignUp"
 import { navigate } from "./router"
 
 function AppContent() {
@@ -23,7 +22,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!token) return
-    if (route.name !== "login" && route.name !== "signup") return
+    if (route.name !== "login") return
     navigate({ name: "home" })
   }, [token, route])
 
@@ -51,7 +50,6 @@ function AppContent() {
   }, [currentTeamId, route, setPendingConversation])
 
   if (!token) {
-    if (route.name === "signup") return <SignUp />
     return <Login />
   }
 

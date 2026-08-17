@@ -12,6 +12,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/token/refresh", h.refreshHandler)
 	mux.HandleFunc("POST /api/logout", h.logoutHandler)
 
+	// Password — authenticated; sets or changes the caller's own password
+	mux.HandleFunc("POST /api/password", h.setPasswordHandler)
+
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)

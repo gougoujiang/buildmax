@@ -19,6 +19,9 @@ const (
 	// session was revoked in response. Unlike the actions above this is not a
 	// user's intent — it is the server reporting what it saw.
 	AuditRefreshReuse = "auth.refresh_reuse"
+	// AuditPasswordSet records an account's password being set or changed. The
+	// event says that it happened, never what it became.
+	AuditPasswordSet = "user.password_set"
 	// AuditTeamMemberAdded and AuditTeamMemberRemoved record changes to who
 	// can reach a team's resources.
 	AuditTeamMemberAdded   = "team.member_added"

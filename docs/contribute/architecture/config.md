@@ -20,7 +20,7 @@ via Viper plus a small set of bootstrap environment variables, and it does
 | `ServerConfig` | `<BUILDMAX_HOME>/server.yaml` | `LoadServerConfig()` | Server, Worker |
 
 `Settings` carries `log_level`, `server_url`, `models[]`, `hooks`, and
-`sandbox`. `ServerConfig` carries the port, `jwt_secret`, `dev_login_otp`,
+`sandbox`. `ServerConfig` carries the port, `jwt_secret`, the token lifetimes,
 `cors_origin`, `workspaces_dir`, `default_quota_tier`, and the nested
 `conversation`, `database`, `webhook`, `worker`, and `storage` blocks. Both use
 `mapstructure` tags in `snake_case` to match the on-disk form.

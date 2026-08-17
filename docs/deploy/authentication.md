@@ -2,13 +2,15 @@
 
 > **Audience:** operators · **Status:** current
 
-BuildMax has no way to send email. Everything below follows from that: accounts
-are created by an operator, and login codes are delivered by hand.
+People sign in with an email address and a password. BuildMax has no way to
+send email, and everything unusual below follows from that: accounts are created
+by an operator, and the one-time codes that claim an account or reset a
+forgotten password are delivered by hand.
 
 For the broader alpha support boundaries, see the
 [support matrix](../start/support.md).
 
-## How Someone Signs In
+## Creating An Account
 
 Two commands on the server, and one code you pass along:
 
@@ -17,7 +19,7 @@ buildmax-server user create alice@example.com
 buildmax-server user login-code alice@example.com
 ```
 
-The second prints a code, once:
+A new account has no password. The second command prints a code, once:
 
 ```text
 Login code for alice@example.com:
@@ -27,9 +29,22 @@ Login code for alice@example.com:
 Valid until 2026-08-15T19:22:58+08:00, and only once.
 ```
 
-Send it over whatever channel you already trust, and the person enters their
-email and that code in the Portal. `--ttl` changes the lifetime, which defaults
-to an hour.
+Send it over whatever channel you already trust. The person signs in with it —
+"Forgot your password, or have a login code?" on the sign-in form — and then
+sets a password from account settings. After that they sign in normally and you
+are not involved again. `--ttl` changes the code's lifetime, which defaults to
+an hour.
+
+To set a password yourself instead, pipe one in rather than passing it as an
+argument, which would put it in shell history and in the process list:
+
+```bash
+echo -n 'correct horse battery staple' | \
+  buildmax-server user set-password alice@example.com
+```
+
+Letting the person set their own is better: the password then exists only where
+they put it.
 
 Both commands read the same `server.yaml` the server does, so inside a container
 they need no extra configuration:
@@ -40,6 +55,9 @@ kubectl exec -n buildmax deploy/buildmax-server -- \
 ```
 
 ### What The Code Is
+
+A code is not a weaker password. It is what an operator vouches for, spent once,
+on the way to a password:
 
 - **Single-use.** Redeeming it spends it, whether or not the sign-in that
   follows succeeds. Entering the wrong email address burns the code — issue
@@ -90,39 +108,59 @@ the session behind it — there is no revocation list. Shortening
 `access_token_ttl` is the only control over that window, and it costs nothing
 but refresh traffic.
 
-## Signup Is Closed By Default
+## Self-Registration Is Closed, And Has No UI
 
 `POST /api/otp/request` refuses `intent: signup` with `403` unless `server.yaml`
-sets `allow_signup: true`. Accounts come from `buildmax-server user create`.
+sets `allow_signup: true`. Accounts come from `buildmax-server user create`, and
+the Portal offers no sign-up form.
 
-Opening it means anyone who can reach the server can create an account. On a
-deployment reachable only from a trusted network that may be what you want; on
-anything else it is how a server becomes someone else's. The server logs a
-warning at startup whenever it is on.
+Even with `allow_signup: true`, self-registration only creates the account: the
+new account has no password, and there is no way to send its owner anything, so
+an operator still has to issue a login code. That is why there is no form for
+it.
 
-## The Development Fixed Code
+Nothing verifies that whoever types an address controls it, which is the real
+reason this stays closed. On a deployment reachable only from a trusted network
+open registration may be what you want; on anything else it is how someone
+claims a colleague's address. The server logs a warning at startup whenever it
+is on.
 
-`dev_login_otp` in `server.yaml` (or `BUILDMAX_DEV_LOGIN_OTP`) makes one code
-work for every account:
+## Passwords
 
-```yaml
-dev_login_otp: "123456"
-```
+Stored as an argon2id hash with a per-account salt, so a database dump yields no
+usable passwords and nothing that can be looked up in a precomputed table. The
+hashing parameters travel inside each stored hash, which means raising them
+later applies to new passwords without invalidating existing ones.
 
-> **One code signs in every registered account.** Anyone who knows a registered
-> email address can authenticate as that user.
+The only rule is length: **at least 12 characters**, at most 1024. There is no
+"one digit and one symbol" requirement, because composition rules push people
+toward short predictable passwords that satisfy them.
 
-It is an authentication bypass, not a credential — it exists so a developer can
-click through the Portal without issuing codes. Single-use codes replace it
-entirely; leave it unset. The server logs a warning on every startup where it is
-enabled.
+Changing a password requires the current one. Setting the *first* password does
+not, because someone who just redeemed a login code has none — that is the
+recovery flow finishing. A session by itself is deliberately not enough to
+change an existing password: an access token cannot be revoked before it
+expires, so allowing it would turn a stolen token into a permanent takeover.
+
+Changing a password does **not** sign existing sessions out. Revoke those
+separately if that is the intent.
+
+> **Login is not rate limited.** Nothing throttles password attempts, so a
+> server anyone can reach can be brute-forced online. The 12-character minimum
+> and a memory-hard hash make each guess expensive, but they are not a
+> substitute for throttling. Put a rate limiter in front of a deployment that
+> untrusted networks can reach. A unified rate-limiting capability is planned
+> and not built.
 
 ## What Is Still Missing
 
-Login codes are a bootstrap mechanism, not an identity system. There is no
-password, no second factor, no SSO, and no self-service recovery — losing access
-means asking an operator for another code. A deployment serving people outside
-your organization wants a real identity provider in front of it.
+There is no second factor, no SSO, and no self-service recovery: a forgotten
+password means asking an operator for a login code. Nothing verifies that an
+email address belongs to the person using it — addresses are identifiers here,
+not proof. A deployment serving people outside your organization wants a real
+identity provider in front of it; OIDC is planned and not built.
+
+Login attempts are not throttled. See the note under [Passwords](#passwords).
 
 Sessions are revocable but not yet manageable: nothing lists a user's active
 sessions, and no command revokes one. An access token cannot be revoked at all.

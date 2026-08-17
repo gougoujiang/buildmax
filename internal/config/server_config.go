@@ -15,10 +15,9 @@ import (
 
 // ServerConfig is the root of BUILDMAX_HOME/server.yaml.
 type ServerConfig struct {
-	LogLevel    string `mapstructure:"log_level"`
-	Port        int    `mapstructure:"port"`
-	JWTSecret   string `mapstructure:"jwt_secret"`
-	DevLoginOTP string `mapstructure:"dev_login_otp"`
+	LogLevel  string `mapstructure:"log_level"`
+	Port      int    `mapstructure:"port"`
+	JWTSecret string `mapstructure:"jwt_secret"`
 	// AccessTokenTTL is how long a signed access token stays valid. It is not
 	// stored anywhere, so this is also the window in which a leaked one still
 	// works — shortening it costs nothing but refresh traffic.
@@ -330,7 +329,6 @@ func LoadServerConfig() (ServerConfig, error) {
 	// An explicit env name is passed, so SetEnvPrefix does not apply to these.
 	v.SetEnvPrefix("BUILDMAX")
 	_ = v.BindEnv("jwt_secret", EnvKeyBuildmaxJWTSecret)
-	_ = v.BindEnv("dev_login_otp", EnvKeyBuildmaxDevLoginOTP)
 	_ = v.BindEnv("database.password", EnvKeyBuildmaxDatabasePassword)
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)

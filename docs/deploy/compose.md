@@ -62,7 +62,9 @@ docker compose exec server buildmax-server user login-code you@example.com
 ```
 
 The second command prints a single-use code. Open <http://localhost:8080>,
-enter that email and code, and you are in.
+choose "Forgot your password, or have a login code?", and enter that email and
+code. Then set a password from account settings — after that you sign in with it
+normally.
 
 ## Add a Model
 

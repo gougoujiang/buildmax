@@ -37,10 +37,6 @@ type Config struct {
 	JWTSecret   string
 	CORSOrigin  string
 	WorkerToken string // required for /api/worker/* endpoints
-	// DevLoginOTP is the development fixed login OTP: a single code that
-	// authenticates any registered email. Empty is the default. See the comment
-	// in auth.go for how it relates to single-use login codes.
-	DevLoginOTP string
 	// AllowSignup opens POST /api/otp/request to self-registration. False — the
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool
@@ -59,6 +55,7 @@ type Config struct {
 	// Stores
 	UserStore                model.UserStore
 	LoginCodeStore           model.LoginCodeStore
+	PasswordStore            model.PasswordStore
 	RefreshTokenStore        model.RefreshTokenStore
 	TeamStore                model.TeamStore
 	WorkflowStore            model.WorkflowStore

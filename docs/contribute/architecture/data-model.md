@@ -15,7 +15,7 @@ way, see [../../design/product-vision.md](../../design/product-vision.md) and
 
 There is no `.sql` file describing the current schema. The source of truth is
 the set of unexported `xxxRow` structs in `internal/infra/db`, and their GORM
-tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 18 of
+tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 21 of
 them at server startup, so the running database is whatever those structs say.
 
 The CLI and Desktop surfaces do not use this database at all. Sessions, traces,
@@ -33,7 +33,7 @@ identifier is a separate `varchar(64)` column named after the entity
 `internal/util/id.go`: `u_` user, `tm_` team, `i_` issue, `a_` agent, `w_`
 workflow, `wr_` workflow run, `wsr_` workflow step run, `c_` conversation,
 `cm_` conversation message, `t_` task, `r_` task run, `whk_` webhook key, `lc_`
-LLM call, `lm_` LLM model. Every API path, foreign reference, and log line uses
+LLM call, `lm_` LLM model, `as_` auth session. Every API path, foreign reference, and log line uses
 the prefixed ID. Join on it, not on `id`.
 
 **Session IDs are the exception.** `task.session_id` and `task_run.session_id`
@@ -120,7 +120,7 @@ plus task_run is Tier 2 and reports back through Tier 1. See
 
 ### `user`
 
-One row per person. Created on first successful login; signup is disabled by
+One row per person. Created by an operator; self-registration is disabled by
 default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 
 | Column | Type | Null | Notes |
@@ -129,6 +129,8 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | `user_id` | `varchar(64)` | no | Public ID, `u_` prefix, unique |
 | `email` | `varchar(255)` | no | Unique; the login identifier |
 | `name` | `varchar(255)` | yes | Display name |
+| `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
+| `password_set_at` | `bigint` | yes | Unix seconds |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `last_login_at` | `bigint` | yes | Unix seconds |
 | `last_login_platform` | `varchar(32)` | yes | Where the last login came from |
@@ -139,6 +141,12 @@ Indexes: PK `id`; unique `user_id`; unique `email`.
 `last_login_at` and `last_login_platform` are carried through the store mapping
 but no server code path currently writes them — only the in-memory store in
 `internal/mock` does. Treat them as reserved, not as a login audit trail.
+
+`password_hash` is nullable and read only by the code that verifies a login,
+through `model.PasswordStore` rather than as a field on `model.User`. It never
+rides along on a user object, so no handler can serialize it by accident.
+Nullable is also what leaves room for an account authenticated somewhere else:
+an identity provider, when there is one, needs no local password to exist.
 
 ### `team`
 
@@ -303,7 +311,7 @@ record that can be edited is not evidence.
 | `created_at` | `bigint` | no | Unix seconds |
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
-| `action` | `varchar(64)` | no | `user.login`, `team.member_added`, `llm_model.created`, `access.denied`, … |
+| `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `team.member_added`, `llm_model.created`, `access.denied`, … |
 | `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on |
 | `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model alias |
 

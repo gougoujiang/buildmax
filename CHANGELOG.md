@@ -86,6 +86,48 @@ pre-releases and must be called out in release notes.
   so a token captured there was fine until it expired and useless afterwards,
   with no way back short of a restart.
 
+- People sign in with an email address and a password, hashed with argon2id and
+  a per-account salt. Until now the only credential was an operator-issued
+  login code, which meant every sign-in on every device went through a person —
+  workable for a demo, not for a small team that will not stand up an identity
+  provider. Passwords are the one credential that needs no delivery channel,
+  which is why they come before SSO rather than after it.
+
+  Login codes keep their job and lose the wrong one: they are now the recovery
+  path, not the everyday way in. A code claims a new account or replaces a
+  forgotten password, and `POST /api/password` sets one from a signed-in
+  session. Changing an existing password requires the current one — a session by
+  itself must not be enough, because an access token cannot be revoked before it
+  expires and allowing it would turn a stolen token into a permanent takeover.
+  Setting the *first* password needs only the session, which came from a code an
+  operator issued by hand.
+
+  The minimum is twelve characters and there is no composition rule, because
+  "one digit and one symbol" pushes people toward short predictable passwords
+  that satisfy it. Every failed password login answers with the same sentence
+  and does the same hashing work whether or not the address exists, so the form
+  cannot be used to ask who has an account. `user.password_set` and the
+  credential each login used now appear in the audit trail.
+
+  **Login is not rate limited.** A reachable server can be brute-forced online;
+  the length minimum and a memory-hard hash raise the cost per guess but are not
+  a substitute for throttling. Unified rate limiting is separate, planned work.
+
+- `dev_login_otp` is removed, along with `BUILDMAX_DEV_LOGIN_OTP`. It was a
+  fixed code that authenticated every registered account — a standing
+  authentication bypass kept for the convenience of clicking through the Portal
+  locally. A password does that job with no bypass:
+  `buildmax-server user set-password dev@local` reads one from stdin, so it
+  lands in neither shell history nor the process list. A `dev_login_otp:` left
+  in `server.yaml` is ignored, as any unknown key is — the bypass is gone
+  either way, but remove the line so nobody reads it as still doing something.
+
+- The Portal's sign-up page is gone. It collected an email address, told the
+  person a code had been sent, and sent nothing — BuildMax has no mail channel.
+  `allow_signup` still works for the API, and still only creates an account that
+  needs an operator-issued code before anyone can use it, which is why no form
+  offers it.
+
 ### Added
 
 - `deployment/production/`, a private deployment reference for a cluster that

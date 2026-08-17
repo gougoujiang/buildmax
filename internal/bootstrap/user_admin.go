@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -14,10 +15,15 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 )
 
-// The operator-side half of authentication. BuildMax has no way to email a
-// code, so account creation and code issuance happen here, on the machine that
-// already holds the database credentials, and the operator delivers the code
-// over whatever channel they already use.
+// The operator-side half of authentication. BuildMax has no way to email
+// anything, so account creation, password setting, and code issuance happen
+// here, on the machine that already holds the database credentials.
+//
+// A new account has no password. Either the operator sets one and passes it
+// along, or they issue a login code and the person sets their own after signing
+// in. The second is better — the password then exists only in the head of the
+// person it belongs to — but the first is there for seeding a development
+// database in one command.
 //
 // These commands read the same server.yaml the server does, so running them in
 // a container or a pod needs no extra configuration.
@@ -26,14 +32,22 @@ import (
 const UserCommandUsage = `Usage: buildmax-server user <command> [flags]
 
 Commands:
-  create <email>       Create an account and its personal team
-  login-code <email>   Issue a single-use login code for an existing account
+  create <email>         Create an account and its personal team
+  set-password <email>   Set an account's password, read from stdin
+  login-code <email>     Issue a single-use login code for an existing account
 
 Flags for login-code:
-  --ttl duration       How long the code stays valid (default 1h)
+  --ttl duration         How long the code stays valid (default 1h)
 
-The code is printed once and cannot be recovered. Deliver it to the person
-yourself; BuildMax has no mail channel. See docs/deploy/authentication.md.
+set-password reads the password from stdin so it does not land in shell
+history:
+
+  echo -n 'correct horse battery staple' | buildmax-server user set-password alice@example.com
+
+A login code is printed once and cannot be recovered. Deliver it to the person
+yourself; BuildMax has no mail channel. It is also how someone who forgot their
+password gets back in: sign in with the code, then set a new one.
+See docs/deploy/authentication.md.
 `
 
 // RunUserCommand executes `buildmax-server user ...`. args excludes the "user"
@@ -46,6 +60,8 @@ func RunUserCommand(ctx context.Context, args []string, out io.Writer) error {
 	switch args[0] {
 	case "create":
 		return runUserCreate(ctx, args[1:], out)
+	case "set-password":
+		return runUserSetPassword(ctx, args[1:], out, os.Stdin)
 	case "login-code":
 		return runUserLoginCode(ctx, args[1:], out)
 	case "help", "-h", "--help":
@@ -84,8 +100,62 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer) error {
 		}
 		return fmt.Errorf("create user: %w", err)
 	}
-	fmt.Fprintf(out, "Created %s (%s) with a personal team.\n\n", user.Email, user.UserID)
-	fmt.Fprintf(out, "Next, issue a login code:\n  buildmax-server user login-code %s\n", email)
+	fmt.Fprintf(out, "Created %s (%s) with a personal team. It has no password yet.\n\n", user.Email, user.UserID)
+	fmt.Fprintf(out, "Let them set their own:\n  buildmax-server user login-code %s\n\n", email)
+	fmt.Fprintf(out, "Or set one now:\n  printf '%%s' '<password>' | buildmax-server user set-password %s\n", email)
+	return nil
+}
+
+// runUserSetPassword sets an account's password, reading it from in.
+//
+// From stdin rather than a flag: a password on the command line is recorded in
+// shell history and visible in the process list to everyone on the machine.
+func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io.Reader) error {
+	fs := flag.NewFlagSet("user set-password", flag.ContinueOnError)
+	fs.SetOutput(out)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	email, err := requireEmailArg(fs.Args())
+	if err != nil {
+		return err
+	}
+	raw, err := io.ReadAll(io.LimitReader(in, model.PasswordMaxLength+1))
+	if err != nil {
+		return fmt.Errorf("read password: %w", err)
+	}
+	// A trailing newline is what a pipe or a here-string adds, not part of what
+	// anyone meant to type.
+	password := strings.TrimRight(string(raw), "\r\n")
+	if password == "" {
+		return errors.New("no password on stdin; pipe one in, e.g. printf '%s' '<password>' | buildmax-server user set-password <email>")
+	}
+	if err := model.ValidatePassword(password); err != nil {
+		return err
+	}
+	hash, err := model.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	store, closeStore, err := openUserStore(ctx)
+	if err != nil {
+		return err
+	}
+	defer closeStore()
+
+	user, err := store.UserByEmail(ctx, email)
+	if err != nil {
+		return fmt.Errorf("look up user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("no account for %s; create one with: buildmax-server user create %s", email, email)
+	}
+	if err := store.SetPassword(ctx, user.UserID, hash, time.Now().Unix()); err != nil {
+		return fmt.Errorf("set password: %w", err)
+	}
+	fmt.Fprintf(out, "Password set for %s.\n", user.Email)
+	fmt.Fprintf(out, "Existing sessions are unaffected; revoke them separately if that is the intent.\n")
 	return nil
 }
 
@@ -131,6 +201,7 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer) error {
 type userAdminStore interface {
 	model.UserStore
 	model.LoginCodeStore
+	model.PasswordStore
 }
 
 // openUserStore connects using the same server.yaml the server reads, so an
