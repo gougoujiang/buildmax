@@ -39,6 +39,11 @@ type AppConfig struct {
 	// inference, and such an entry fails with a clear error instead of falling
 	// back to a direct provider call.
 	ManagedToken ManagedTokenFunc
+	// ManagedTaskRunID makes managed calls from this app run-scoped: they go to
+	// the worker route, carrying a run token instead of a login, and the server
+	// derives user and team from it. Empty means managed calls are team-scoped,
+	// which is what CLI, TUI, and Desktop do.
+	ManagedTaskRunID string
 	// Surface labels managed calls for correlation, e.g. "cli" or "desktop".
 	Surface string
 }
@@ -80,6 +85,9 @@ type LLMClientCache struct {
 	// means this surface does not offer managed inference — the worker and the
 	// evaluation harness deliberately do not.
 	managedToken ManagedTokenFunc
+	// managedTaskRunID scopes managed calls to one task run. Empty means they
+	// are team-scoped.
+	managedTaskRunID string
 	// surface labels managed calls for correlation only.
 	surface string
 	mu      sync.Mutex
@@ -191,10 +199,11 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		sandboxResolved:   sandboxResolved,
 	}
 	app.llmClients = &LLMClientCache{
-		settings:     app.settings,
-		managedToken: cfg.ManagedToken,
-		surface:      cfg.Surface,
-		clients:      make(map[string]cllm.LLMClient),
+		settings:         app.settings,
+		managedToken:     cfg.ManagedToken,
+		managedTaskRunID: cfg.ManagedTaskRunID,
+		surface:          cfg.Surface,
+		clients:          make(map[string]cllm.LLMClient),
 	}
 	if cfg.EnableMCP {
 		mcpCfg, err := config.LoadMCPConfigForWorkspace(app.workspaceRoot)
@@ -747,7 +756,14 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 			return nil, fmt.Errorf("model %q uses transport %q, which this surface does not support",
 				cfg.Name, config.TransportBuildMax)
 		}
-		if cfg.TeamID == "" {
+		// A run-scoped app calls as its task run, so it needs no team: the server
+		// reads user and team from the run token. Any team on the entry is
+		// dropped rather than sent, because the two identities select different
+		// routes and the client refuses to hold both.
+		teamID := cfg.TeamID
+		if r.managedTaskRunID != "" {
+			teamID = ""
+		} else if teamID == "" {
 			return nil, fmt.Errorf("team_id is required for model %q in settings.yaml", cfg.Name)
 		}
 		// Resolved once here so a model that cannot authenticate fails at
@@ -760,7 +776,8 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		return llmremote.NewClient(llmremote.Config{
 			ServerURL:     cfg.ServerURL,
 			TokenFunc:     func() (string, error) { return r.managedToken(serverURL) },
-			TeamID:        cfg.TeamID,
+			TeamID:        teamID,
+			TaskRunID:     r.managedTaskRunID,
 			Alias:         cfg.ProviderModel,
 			ContextWindow: cfg.ContextWindow,
 			Surface:       r.surface,

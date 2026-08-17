@@ -19,23 +19,27 @@ const workerSurface = "worker"
 // POST /api/worker/task-runs/{task_run_id}/llm/completions.
 //
 // It exists so a worker can use operator-approved models without holding an
-// upstream provider credential. Every attribution — team, task, run — is
-// derived from server state; the only thing taken from the worker is the
-// prompt it wants answered.
+// upstream provider credential. Every attribution — user, team, task, run —
+// comes from the run token the server minted at dispatch; the only thing taken
+// from the worker is the prompt it wants answered.
 //
-// The worker token authenticates the caller as *a* worker, not as the worker
-// for this run, so the run's status is what scopes it: a call is accepted only
-// while the run is executing. Without that, any holder of the token could spend
-// a team's quota against a run that finished weeks ago.
+// Server state is still consulted, but as verification rather than derivation.
+// A call is accepted only while the run is executing, so a token that outlives
+// its run cannot go on spending a team's quota, and the run's team must match
+// the token's, so a token and a reassigned run cannot disagree silently.
 func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Request) {
+	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
+	if !ok {
+		return
+	}
+	claims, ok := h.requireRunToken(w, r, taskRunID)
+	if !ok {
+		return
+	}
 	if !h.requireLLMGateway(w) {
 		return
 	}
 	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
-		return
-	}
-	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
-	if !ok {
 		return
 	}
 	run, task, err := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
@@ -49,6 +53,10 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 	if run.Status != string(model.RunStatusRunning) {
 		httputil.WriteJSONError(w, http.StatusConflict, "task run is not executing")
+		return
+	}
+	if task.TeamID != claims.TeamID {
+		httputil.WriteJSONError(w, http.StatusForbidden, "this run token does not authorize that task run")
 		return
 	}
 
@@ -68,8 +76,13 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// The user is recorded as well as the team. A task run belongs to whoever
+	// created it, and a ledger that only says "some worker" cannot answer whose
+	// work spent the tokens.
+	userID := claims.UserID
 	cmd := llmgateway.CompleteRequest{
-		TeamID:       task.TeamID,
+		TeamID:       claims.TeamID,
+		UserID:       &userID,
 		TaskRunID:    &run.TaskRunID,
 		TaskID:       &task.TaskID,
 		ClientCallID: req.CallID,
@@ -83,13 +96,13 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	if req.Stream {
-		h.streamLLMCompletion(w, r, cmd, task.TeamID)
+		h.streamLLMCompletion(w, r, cmd, claims.TeamID)
 		return
 	}
 
 	result, err := h.cfg.LLMGateway.Complete(r.Context(), cmd)
 	if err != nil {
-		h.writeLLMGatewayError(w, err, "worker_llm_completions", task.TeamID)
+		h.writeLLMGatewayError(w, err, "worker_llm_completions", claims.TeamID)
 		return
 	}
 

@@ -79,7 +79,7 @@ buildmax-server                 # honours port from server.yaml, or --port
 
 The scheduler starts with the server. It launches `worker.binary`, so
 `buildmax-worker` must be on `PATH` or next to the server binary, and workers
-must be able to reach `worker.server_url` with `worker.token`.
+must be able to reach `worker.server_url` with the run token the server issues it.
 
 Set `worker.run_mode: k8s_job` to have the scheduler create a Kubernetes Job per
 run instead of a local process, using `worker.k8s.namespace` and

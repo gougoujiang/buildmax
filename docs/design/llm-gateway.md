@@ -1,7 +1,7 @@
 # Managed LLM Gateway
 
-> **Audience:** contributors · **Status:** partially shipped — every server-side
-> route exists; no worker calls the worker one yet
+> **Audience:** contributors · **Status:** shipped for every surface; per-team
+> policy and strict quota remain open
 >
 > Shipped: `internal/service/llmgateway` (catalog, team policy, alias
 > resolution, capability set, router, error classes), the `llm_model` catalog
@@ -11,18 +11,19 @@
 > TUI, and Desktop reach managed models through `AppConfig.ManagedToken`. Quota
 > runs at the §10 visibility/soft-enforcement stage.
 >
-> The worker entry point `POST /api/worker/task-runs/{task_run_id}/llm/completions`
-> is registered and tested. It derives team, task, and run from server state and
-> accepts a call only while the run is executing, since the worker token
-> identifies a worker rather than the owner of a particular run.
+> Task runs reach it too, under `worker.llm.transport: buildmax`. The worker
+> entry point `POST /api/worker/task-runs/{task_run_id}/llm/completions`
+> authenticates with a run token — see
+> [worker-run-token.md](worker-run-token.md) — so user, team, task, and run all
+> come from the credential, and it accepts a call only while the run is
+> executing. Such a worker is handed no upstream provider key. The server states
+> the transport and alias in the run's worker-API response; a run never chooses
+> its own model.
 >
-> Not shipped: nothing calls it. `internal/agentapp/taskrun` still receives a
-> direct model entry, so task runs continue to need an upstream provider
-> credential; `llmremote.Client` addresses the team route only. Turning that on
-> needs a decision this document has not made — which alias a worker resolves,
-> and how the server signals managed mode to it. Team policy remains the
-> deployment-wide `server.yaml` `llm.aliases` map described in §7, not the
-> per-team database policy. Reserved quota enforcement and concurrency control
+> Not shipped: team policy remains the deployment-wide `server.yaml`
+> `llm.aliases` map described in §7, not the per-team database policy, and a
+> task's approved alias is not pinned at creation time — a run may name any
+> alias its team is granted. Reserved quota enforcement and concurrency control
 > (§10) do not exist; do not claim a strict spending ceiling.
 
 This is an active P3 design. It follows the deployment direction in
@@ -445,10 +446,13 @@ Required controls are:
 - cancellation propagation and bounded stream queues;
 - explicit retention policy for call metadata.
 
-The existing shared worker token is not an adequate long-term credential for a
-model gateway because it is not scoped to one run. Worker adoption should land
-with run-scoped, short-lived authorization or an equivalent server-verified
-capability. This is part of the worker trust boundary, not merely an LLM feature.
+The shared worker token is not an adequate credential for a model gateway
+because it is not scoped to one run, so the worker route does not accept it. It
+takes a run token instead: a short-lived credential naming the user, team, and
+run, minted when the run is dispatched. See
+[worker-run-token.md](worker-run-token.md). The shared token no longer serves
+any worker route either; it is accepted for one release as an upgrade fallback
+and then removed.
 
 The existing 24-hour user JWT is acceptable for early trusted-deployment
 experiments but not a complete managed-client lifecycle. Before the feature is
@@ -568,12 +572,18 @@ must determine whether the supported deployment topology is acceptable.
 
 ### M5. Worker Adoption And Governance
 
-- Add a run-scoped worker gateway entry point and credential.
-- Remove the provider credential requirement from workers using managed mode.
-- Prevent double-counting between call-ledger and task-run summaries.
+Done: the run-scoped entry point and credential, and removing the provider
+credential from a managed worker. Team-run token counting stays separate from
+the call ledger, so quota still aggregates `task_run` totals only — do not add
+the ledger to that sum without resolving the double count.
+
+Remaining:
+
 - Add soft quota enforcement, bounded requests, concurrency limits, and
   operator diagnostics.
 - Add audit events for model-policy and credential changes.
+- Pin an approved alias to a task or workflow at creation time, so a run's model
+  is reproducible rather than whatever the deployment default is at dispatch.
 
 ### M6. Strict Quota Or Native Providers When Justified
 

@@ -107,6 +107,36 @@ worker:
   run_mode: local_process   # or k8s_job
   server_url: http://localhost:5678
   token: your-worker-token
+
+  # How a task run reaches a model.
+  #
+  # "direct" (the default) means the worker calls a provider itself, using
+  # conversation.model and its api_key. "buildmax" means the run calls this
+  # server's managed gateway with a per-run credential, and no provider key is
+  # given to the worker at all — which requires the llm.aliases block above.
+  #
+  # The alias is the only model identity a run gets: the endpoint, the upstream
+  # model, and the credential stay on the server. Leave it empty to use
+  # llm.default_alias.
+  llm:
+    transport: direct          # or buildmax
+    alias: ""                  # e.g. default
+    context_window: 0
+    call_timeout: 0            # per-call timeout in seconds (0 = client default)
+
+  # How long a run's credential stays valid. Every run gets one — it is what a
+  # worker presents on its own API routes, not only to the gateway. It is not
+  # renewable, so it must outlast the longest run: a run that outlives its token
+  # can no longer report anything, including its own result.
+  run_token_ttl: 24h
+
+  # How long a run may stay SCHEDULED or RUNNING before the server records it as
+  # abandoned. Only the worker moves a run out of those states, so without this a
+  # run whose worker died stays there forever. Keep it at or below
+  # run_token_ttl — a run that outlived its credential cannot report an outcome,
+  # so nothing else will ever close it.
+  run_timeout: 6h
+
   k8s:
     namespace: buildmax
     image: buildmax:local

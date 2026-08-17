@@ -31,7 +31,8 @@ reference, then delete the plan.
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
 | [Issue model](issue-model.md) | P2 follow-on | Sub-issues and comments implemented; mentions and realtime push open |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
-| [Managed LLM gateway](llm-gateway.md) | P3 | Planned; direct mode only — no managed transport implemented |
+| [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
+| [Worker run token](worker-run-token.md) | P3 | Shipped on every worker route; the shared worker token is a deprecated fallback awaiting removal |
 | [Team governance](team-governance.md) | P4 | Roles, quota, and workflow lifecycle shipped; audit/event visibility open |
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 

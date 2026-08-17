@@ -105,7 +105,10 @@ func e2eTarget(args []string) (smokeTarget, error) {
 	case "kind":
 		return kindSmokeTarget(), nil
 	case "compose":
-		return composeSmokeTarget(), nil
+		// The browser tests read a deployment; they do not care which transport
+		// its task runs use, and the file list only affects which server.yaml a
+		// fresh stack would mount.
+		return composeSmokeTarget(false), nil
 	default:
 		return smokeTarget{}, fmt.Errorf("unknown e2e target %q (want kind or compose)", name)
 	}

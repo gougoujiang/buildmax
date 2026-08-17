@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -128,4 +129,62 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	if len(mockRun.Runs) != 1 || mockRun.Runs[0].Status != "PENDING" {
 		t.Errorf("PATCH RUNNING when PENDING: run status = %q, want PENDING (unchanged)", mockRun.Runs[0].Status)
 	}
+}
+
+// TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel covers the descriptor
+// a worker uses to decide its transport. The server states it so the worker —
+// which executes model-chosen code — does not choose its own model, and it
+// states only the alias, because endpoint, upstream identifier, and credential
+// stay on this side.
+func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
+	store := &mock.MockTaskRunStore{
+		Runs:     []model.TaskRun{{TaskRunID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}},
+		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+	}
+
+	get := func(t *testing.T, cfg Config) workerclient.GetTaskRunResponse {
+		t.Helper()
+		mux := http.NewServeMux()
+		NewHandler(cfg).Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
+		req.Header.Set("Authorization", "Bearer worker-token-123")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+		}
+		var got workerclient.GetTaskRunResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return got
+	}
+
+	t.Run("managed", func(t *testing.T) {
+		got := get(t, Config{
+			WorkerToken:  "worker-token-123",
+			TaskRunStore: store,
+			WorkerLLM:    &workerclient.TaskRunLLM{Transport: "buildmax", Alias: "deep", ContextWindow: 128000},
+		})
+		if got.LLM == nil {
+			t.Fatal("a managed deployment told the run nothing about models")
+		}
+		if got.LLM.Transport != "buildmax" || got.LLM.Alias != "deep" {
+			t.Errorf("llm = %+v", *got.LLM)
+		}
+	})
+
+	// Absent means direct, so a worker built before this field behaves as it
+	// always did.
+	t.Run("direct omits the field entirely", func(t *testing.T) {
+		mux := http.NewServeMux()
+		NewHandler(Config{WorkerToken: "worker-token-123", TaskRunStore: store}).Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
+		req.Header.Set("Authorization", "Bearer worker-token-123")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if strings.Contains(w.Body.String(), `"llm"`) {
+			t.Errorf("a direct deployment sent an llm field: %s", w.Body.String())
+		}
+	})
 }

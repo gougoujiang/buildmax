@@ -40,6 +40,7 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
+| `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
 | `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |
 
 ### Credential Overrides
@@ -70,14 +71,27 @@ local process or a Kubernetes Job:
 | Variable | Why a worker needs it |
 |---|---|
 | `BUILDMAX_HOME` | Run-scoped data directory |
-| `BUILDMAX_WORKER_TOKEN` | Authenticates its own `/api/worker/*` calls |
+| `BUILDMAX_WORKER_TOKEN` | Deprecated fallback for its `/api/worker/*` calls; a run uses `BUILDMAX_RUN_TOKEN` |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | Reads and writes run state and artifacts |
-| `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls the model directly; managed inference has no worker path yet |
+| `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls a provider directly — **withheld** when `worker.llm.transport` is `buildmax` |
 | `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
+
+`BUILDMAX_RUN_TOKEN` reaches a worker by a different route. It is not inherited
+from the server — the filter above strips it, so a stale value cannot be picked
+up — and is added to the process or pod at dispatch, naming the one run it
+authorizes. It is what a worker presents on every `/api/worker/*` route, so a run
+can only read and write its own record. `worker.token` is still accepted there
+for one release; see
+[design/worker-run-token.md](../design/worker-run-token.md).
+
+A worker clears `BUILDMAX_RUN_TOKEN` and `BUILDMAX_WORKER_TOKEN` from its own
+environment once it has read them, keeping both in memory only. The sandbox
+would strip secret-shaped variables from a child process, but it is off by
+default, so a model-chosen `printenv` would otherwise print them.
 
 `BUILDMAX_JWT_SECRET` and `BUILDMAX_DATABASE_PASSWORD` are deliberately
 withheld. A worker never reads them — it reaches the server over HTTP with its
-worker token and never touches the database — and it executes model-chosen
+run token and never touches the database — and it executes model-chosen
 shell commands, so holding the signing secret would let one mint a token for
 any user, and holding the database password would give it every team's data.
 An unrecognized `BUILDMAX_` variable is withheld too, so a variable added to
@@ -392,6 +406,35 @@ the one that builds a provider client. They are never returned by a model
 listing, an API response, or an error. Note what that implies for operations:
 database backups and read replicas carry provider keys, so treat them the way
 you treat the database password.
+
+### Managed models for task runs — the `worker.llm` block
+
+Task runs default to calling a provider themselves. Point them at the gateway
+instead, and the worker stops needing an upstream key:
+
+| Key | Meaning |
+|---|---|
+| `worker.llm.transport` | `direct` (default) or `buildmax`. Under `buildmax`, `BUILDMAX_CONVERSATION_MODEL_API_KEY` is withheld from the worker. |
+| `worker.llm.alias` | Which alias a run calls. Empty uses `llm.default_alias`. Must be one of `llm.aliases`. |
+| `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the alias to the run; the protocol does not report them per call. |
+| `worker.run_token_ttl` | How long a run's credential stays valid. Defaults to 24h. Every run gets one, managed or not. |
+| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. |
+
+The server states the transport and alias; a worker never chooses its own model,
+and is told nothing else about it — endpoint, upstream identifier, and
+credential all stay server-side. Each run is dispatched with its own credential
+in `BUILDMAX_RUN_TOKEN`, which authorizes that run and nothing else.
+
+`./make compose smoke managed` runs the whole path against a mock upstream and
+needs no provider key.
+
+Two things to know before enabling it:
+
+- `transport: buildmax` with an empty `llm.aliases`, or an alias no team may
+  call, **stops the server at startup**. That configuration parses cleanly and
+  would otherwise fail every run at its first model call.
+- The run token is not renewable. `run_token_ttl` must outlast your longest
+  run; a run that outlives it loses its remaining model calls.
 
 ## Data Directory Layout
 

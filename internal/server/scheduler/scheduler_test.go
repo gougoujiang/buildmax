@@ -21,6 +21,9 @@ type spyTaskRunStore struct {
 	// UpdateTaskRunStatusIf: return true for first claim (PENDING→SCHEDULED)
 	statusIfCalls int
 
+	// GetTaskRunWithTask: the task behind pendingRun, or nil to report one missing
+	task *model.Task
+
 	// Recorded calls
 	lastUpdateStatus *struct {
 		taskRunID    string
@@ -39,6 +42,11 @@ func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 			Input:     "input",
 			Status:    "PENDING",
 			CreatedAt: time.Now().Unix(),
+		},
+		task: &model.Task{
+			TaskID:    "t_test",
+			TeamID:    "tm_test",
+			CreatedBy: "u_test",
 		},
 	}
 }
@@ -62,7 +70,12 @@ func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*model.TaskRu
 }
 
 func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*model.TaskRun, *model.Task, error) {
-	return nil, nil, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.task == nil {
+		return nil, nil, nil
+	}
+	return s.pendingRun, s.task, nil
 }
 
 func (s *spyTaskRunStore) ClaimTaskRun(_ context.Context, in model.ClaimTaskRunInput) (bool, error) {
@@ -105,7 +118,7 @@ func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) e
 // failingRunner implements WorkerRunner and always returns an error.
 type failingRunner struct{ err error }
 
-func (f *failingRunner) Run(_ context.Context, _ model.TaskRun) (string, *string, *int64, error) {
+func (f *failingRunner) Run(_ context.Context, _ model.TaskRun, _ string) (string, *string, *int64, error) {
 	if f.err != nil {
 		return "", nil, nil, f.err
 	}
@@ -119,7 +132,7 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 	spy := newSpyTaskRunStore(taskRunID)
 	runner := &failingRunner{err: errSpawnFailed}
 
-	s, err := NewSchedulerWithPollInterval(spy, runner, 10*time.Millisecond)
+	s, err := NewSchedulerWithPollInterval(spy, runner, nil, 10*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,33 +5,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
-
-// workerAuthMiddleware requires Authorization: Bearer <token> or X-Worker-Token.
-func (h *Handler) workerAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h.cfg.WorkerToken == "" {
-			httputil.WriteJSONError(w, http.StatusUnauthorized, "worker auth not configured")
-			return
-		}
-		token := ""
-		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
-			token = strings.TrimPrefix(auth, "Bearer ")
-		} else if t := r.Header.Get("X-Worker-Token"); t != "" {
-			token = t
-		}
-		if token != h.cfg.WorkerToken {
-			httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid or missing worker token")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
 
 func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	taskRunID := r.PathValue("task_run_id")
@@ -68,6 +46,11 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			SessionID:      task.SessionID,
 			LastRunID:      task.LastRunID,
 		},
+		// The server decides how the run reaches a model. A worker executes
+		// model-chosen code, so it is told the transport and alias rather than
+		// choosing them — and it is told nothing else about the model, because
+		// endpoint, upstream identifier, and credential stay on this side.
+		LLM: h.cfg.WorkerLLM,
 	})
 }
 

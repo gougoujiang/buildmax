@@ -1,0 +1,140 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
+)
+
+// fakeStaleStore records what the reaper did and lets a test control what it
+// finds.
+type fakeStaleStore struct {
+	stale      []model.TaskRun
+	listErr    error
+	lastCutoff int64
+	failed     []model.UpdateTaskRunInput
+	synced     []string
+	updateErr  error
+}
+
+func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoffUnix int64, _ int) ([]model.TaskRun, error) {
+	f.lastCutoff = cutoffUnix
+	return f.stale, f.listErr
+}
+
+func (f *fakeStaleStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInput) error {
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	f.failed = append(f.failed, in)
+	return nil
+}
+
+func (f *fakeStaleStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
+	f.synced = append(f.synced, taskRunID)
+	return nil
+}
+
+func newStaleFixture(stale ...model.TaskRun) (*fakeStaleStore, *StaleRunReaper) {
+	f := &fakeStaleStore{stale: stale}
+	return f, NewStaleRunReaper(f, 6*time.Hour, time.Hour)
+}
+
+// TestReaperClosesAbandonedRuns is the safety net that makes a per-run
+// credential viable. Only a worker moves a run out of SCHEDULED or RUNNING, so
+// a run whose worker died — or whose token expired before it could report —
+// would otherwise sit there forever, showing as in-progress work that will never
+// finish.
+func TestReaperClosesAbandonedRuns(t *testing.T) {
+	store, reaper := newStaleFixture(
+		model.TaskRun{TaskRunID: "r_1", Status: string(model.RunStatusRunning)},
+		model.TaskRun{TaskRunID: "r_2", Status: string(model.RunStatusScheduled)},
+	)
+
+	now := time.Unix(1_800_000_000, 0)
+	reaper.Sweep(context.Background(), now)
+
+	if len(store.failed) != 2 {
+		t.Fatalf("failed %d runs, want 2", len(store.failed))
+	}
+	for _, in := range store.failed {
+		if in.Status != model.RunStatusFailed {
+			t.Errorf("run %s status = %q, want FAILED", in.TaskRunID, in.Status)
+		}
+		if in.EndedAt == nil || *in.EndedAt != now.Unix() {
+			t.Errorf("run %s ended_at = %v, want %d", in.TaskRunID, in.EndedAt, now.Unix())
+		}
+		// The message names the timeout rather than guessing a cause: from the
+		// server a dead worker, an evicted pod, and an expired credential are
+		// indistinguishable, and inventing one would mislead whoever reads it.
+		if in.ErrorMessage == nil || !strings.Contains(*in.ErrorMessage, "6h0m0s") {
+			t.Errorf("run %s message = %v, want it to name the timeout", in.TaskRunID, in.ErrorMessage)
+		}
+	}
+	// The task's denormalized status has to follow, or Portal keeps showing work
+	// in progress even though the run is closed.
+	if len(store.synced) != 2 {
+		t.Errorf("synced %v, want both runs", store.synced)
+	}
+}
+
+func TestReaperCutoffIsTheTimeoutAgo(t *testing.T) {
+	store, reaper := newStaleFixture()
+	now := time.Unix(1_800_000_000, 0)
+
+	reaper.Sweep(context.Background(), now)
+
+	if want := now.Add(-6 * time.Hour).Unix(); store.lastCutoff != want {
+		t.Errorf("cutoff = %d, want %d", store.lastCutoff, want)
+	}
+}
+
+// TestReaperSurvivesFailures keeps a sweep from taking the server down with it.
+// Every run it touches has already stopped progressing, so a failed sweep costs
+// nothing that the next tick cannot recover.
+func TestReaperSurvivesFailures(t *testing.T) {
+	t.Run("the query fails", func(t *testing.T) {
+		store, reaper := newStaleFixture(model.TaskRun{TaskRunID: "r_1"})
+		store.listErr = errors.New("database is away")
+		reaper.Sweep(context.Background(), time.Now())
+		if len(store.failed) != 0 {
+			t.Error("runs were failed from a query that errored")
+		}
+	})
+
+	t.Run("the update fails", func(t *testing.T) {
+		store, reaper := newStaleFixture(model.TaskRun{TaskRunID: "r_1"})
+		store.updateErr = errors.New("database is away")
+		reaper.Sweep(context.Background(), time.Now())
+		if len(store.synced) != 0 {
+			t.Error("a task was synced from a run that was never failed")
+		}
+	})
+}
+
+// TestNilReaperIsInert covers the deployment with no store: Start, Stop, and
+// Sweep all have to be safe so the caller does not need a nil check.
+func TestNilReaperIsInert(t *testing.T) {
+	var reaper *StaleRunReaper
+	if got := NewStaleRunReaper(nil, 0, 0); got != nil {
+		t.Error("a reaper was built with no store to sweep")
+	}
+	reaper.Start()
+	reaper.Sweep(context.Background(), time.Now())
+	reaper.Stop()
+}
+
+func TestReaperDefaultsAreApplied(t *testing.T) {
+	store := &fakeStaleStore{}
+	reaper := NewStaleRunReaper(store, 0, 0)
+	if reaper.timeout != defaultRunTimeout {
+		t.Errorf("timeout = %v, want %v", reaper.timeout, defaultRunTimeout)
+	}
+	if reaper.interval != defaultStaleSweepInterval {
+		t.Errorf("interval = %v, want %v", reaper.interval, defaultStaleSweepInterval)
+	}
+}

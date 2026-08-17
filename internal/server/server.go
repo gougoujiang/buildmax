@@ -14,6 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -75,9 +76,12 @@ type StorageConfig struct {
 	WorkspacesDir   string // Overrides config.WorkspacesDir() for workspace file operations
 }
 
-// WorkerConfig holds worker-to-server auth.
+// WorkerConfig holds worker-to-server auth and what a worker is told about
+// models for its run.
 type WorkerConfig struct {
 	WorkerToken string // If set, required for /api/worker/*
+	// LLM tells a worker how to reach a model. Nil means direct.
+	LLM *workerclient.TaskRunLLM
 }
 
 // ConversationConfig holds Tier 1 conversation stores and LLM wiring.
@@ -176,6 +180,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
 		RefreshRotationGrace:     cfg.Auth.RefreshRotationGrace,
 		WorkerToken:              cfg.Worker.WorkerToken,
+		WorkerLLM:                cfg.Worker.LLM,
 		UserStore:                cfg.Stores.UserStore,
 		AuditStore:               cfg.Stores.AuditStore,
 		Audit:                    cfg.Audit,

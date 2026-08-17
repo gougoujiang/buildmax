@@ -19,6 +19,12 @@ const (
 	// storing the value in the YAML file on disk.
 	EnvKeyBuildmaxJWTSecret = "BUILDMAX_JWT_SECRET"
 
+	// BUILDMAX_RUN_TOKEN — the credential one task run presents to the managed LLM
+	// gateway. The scheduler mints it per run and puts it in the worker process or
+	// Job pod; nothing inherits it, which is why it is not marked WorkerNeeds
+	// below. See docs/design/worker-run-token.md.
+	EnvKeyBuildmaxRunToken = "BUILDMAX_RUN_TOKEN"
+
 	// Test only.
 	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
 )
@@ -39,6 +45,11 @@ type EnvVar struct {
 	// authority on what that set is: if a worker starts reading a new variable,
 	// mark it here, and it will reach the worker. Nothing else will.
 	WorkerNeeds bool
+	// DirectLLMOnly narrows WorkerNeeds to deployments whose task runs call a
+	// provider themselves. A managed run reaches models through the server and
+	// holds no provider credential, so passing one would hand a model-driven
+	// process a key it has no use for.
+	DirectLLMOnly bool
 }
 
 // EnvVars lists every environment variable read by BuildMax binaries.
@@ -49,7 +60,12 @@ var EnvVars = []EnvVar{
 	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxWorkerToken, Description: "Override for worker.token in server.yaml; shared secret for /api/worker/*", WorkerNeeds: true},
-	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true},
+	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true},
+	// Deliberately not WorkerNeeds: a worker reads this, but it is injected per
+	// run by the scheduler, never inherited from the server. Leaving it unmarked
+	// is what strips a stale value the server happens to be holding, so the only
+	// token a worker can find is the one minted for its own run.
+	{Name: EnvKeyBuildmaxRunToken, Description: "Per-run credential for the managed LLM gateway; minted by the scheduler, not set by an operator"},
 	{Name: EnvKeyBuildmaxTestDSN, Description: "MySQL DSN for store integration tests; unset skips those tests"},
 	{Name: EnvKeyBuildmaxSandboxEnabled, Description: "Override sandbox.enabled in settings; values: 1/true/yes/on or 0/false/no/off", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxTraceDisabled, Description: "Disable durable run traces when truthy (1/true/yes/on); traces are on by default", WorkerNeeds: true},
@@ -57,13 +73,17 @@ var EnvVars = []EnvVar{
 
 // WorkerNeedsEnv reports whether a task-run worker reads name.
 //
+// managedLLM says whether this deployment's task runs reach models through the
+// server. When they do, provider credentials are withheld: the run has a
+// gateway credential instead and never calls a provider itself.
+//
 // It answers false for an unrecognized BUILDMAX_ variable as well as for a
 // known one a worker does not use, so a variable added to the server without a
 // thought for workers stays on the server.
-func WorkerNeedsEnv(name string) bool {
+func WorkerNeedsEnv(name string, managedLLM bool) bool {
 	for _, v := range EnvVars {
 		if v.Name == name {
-			return v.WorkerNeeds
+			return v.WorkerNeeds && !(managedLLM && v.DirectLLMOnly)
 		}
 	}
 	return false
@@ -71,10 +91,10 @@ func WorkerNeedsEnv(name string) bool {
 
 // WorkerEnvKeys returns the environment variable names a worker is given, in
 // declaration order.
-func WorkerEnvKeys() []string {
+func WorkerEnvKeys(managedLLM bool) []string {
 	var out []string
 	for _, v := range EnvVars {
-		if v.WorkerNeeds {
+		if WorkerNeedsEnv(v.Name, managedLLM) {
 			out = append(out, v.Name)
 		}
 	}
@@ -87,11 +107,11 @@ func WorkerEnvKeys() []string {
 // Everything outside the BUILDMAX_ prefix passes through untouched: PATH, HOME
 // and the rest are what let the worker binary run at all. Use this when handing
 // a local worker process the server's environment.
-func FilterWorkerEnv(environ []string) []string {
+func FilterWorkerEnv(environ []string, managedLLM bool) []string {
 	out := make([]string, 0, len(environ))
 	for _, e := range environ {
 		name, _, found := strings.Cut(e, "=")
-		if found && strings.HasPrefix(name, "BUILDMAX_") && !WorkerNeedsEnv(name) {
+		if found && strings.HasPrefix(name, "BUILDMAX_") && !WorkerNeedsEnv(name, managedLLM) {
 			continue
 		}
 		out = append(out, e)

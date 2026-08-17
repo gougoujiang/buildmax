@@ -19,10 +19,15 @@ import (
 )
 
 const (
-	composeFile      = "deployment/compose/compose.yaml"
-	composeSmokeFile = "deployment/compose/compose.smoke.yaml"
-	smokeEmail       = "deployment-smoke@buildmax.local"
-	smokeReply       = "deployment smoke ok"
+	composeFile             = "deployment/compose/compose.yaml"
+	composeSmokeFile        = "deployment/compose/compose.smoke.yaml"
+	composeSmokeManagedFile = "deployment/compose/compose.smoke.managed.yaml"
+	smokeEmail              = "deployment-smoke@buildmax.local"
+	smokeReply              = "deployment smoke ok"
+	// smokeManagedAlias is the team model alias the managed smoke stack grants,
+	// and what the call ledger must record for the run. Matching it proves the
+	// run reached a model the operator approved rather than one it picked.
+	smokeManagedAlias = "default"
 )
 
 var loginCodePattern = regexp.MustCompile(`bmxlogin_[a-f0-9]+`)
@@ -32,11 +37,18 @@ type smokeTarget struct {
 	portalURL            string
 	portalRuntimeAPIBase string
 	admin                func(args ...string) (string, error)
+	// query runs one read-only SQL statement and returns the rows as text. It
+	// exists because the call ledger has no HTTP route, and the ledger is the
+	// only place a managed run leaves proof that it reached the gateway.
+	query func(sql string) (string, error)
+	// managedLLM says this stack runs task-run inference through the gateway, so
+	// the smoke additionally proves the worker held no provider credential.
+	managedLLM bool
 }
 
 func cmdCompose(args []string) error {
-	if len(args) != 1 {
-		return errors.New("usage: ./make compose <up|smoke|status|logs|down>")
+	if len(args) == 0 || len(args) > 2 {
+		return errors.New("usage: ./make compose <up|smoke [managed]|status|logs|down>")
 	}
 	switch args[0] {
 	case "up":
@@ -45,14 +57,18 @@ func cmdCompose(args []string) error {
 		}
 		return runCmd("docker", "compose", "-f", composeFile, "up", "-d", "--build", "--wait")
 	case "smoke":
+		managed, err := composeSmokeMode(args[1:])
+		if err != nil {
+			return err
+		}
 		if err := ensureComposeEnv(); err != nil {
 			return err
 		}
-		files := composeSmokeArgs()
+		files := composeSmokeArgs(managed)
 		if err := runCmd("docker", append(files, "up", "-d", "--build", "--wait")...); err != nil {
 			return err
 		}
-		target := composeSmokeTarget()
+		target := composeSmokeTarget(managed)
 		if err := runDeploymentSmoke(context.Background(), target); err != nil {
 			return err
 		}
@@ -60,37 +76,93 @@ func cmdCompose(args []string) error {
 		return nil
 	case "status":
 		return composeStatus()
+	// logs and down name the same project either way, and neither reads the
+	// mount the managed overlay changes, so both overlays are always passed
+	// rather than asking which mode started the stack.
 	case "logs":
-		return runCmd("docker", append(composeSmokeArgs(), "logs", "--tail", "200")...)
+		return runCmd("docker", append(composeSmokeArgs(true), "logs", "--tail", "200")...)
 	case "down":
-		return runCmd("docker", append(composeSmokeArgs(), "down")...)
+		return runCmd("docker", append(composeSmokeArgs(true), "down")...)
 	default:
 		return fmt.Errorf("unknown compose command %q (want up, smoke, status, logs, or down)", args[0])
 	}
 }
 
-func composeSmokeArgs() []string {
-	return []string{"compose", "-f", composeFile, "-f", composeSmokeFile}
+// composeSmokeMode reads the optional mode argument. Direct is the default
+// because it is the transport most deployments use and the one that must keep
+// working with no server-side model policy at all.
+func composeSmokeMode(args []string) (bool, error) {
+	if len(args) == 0 {
+		return false, nil
+	}
+	switch args[0] {
+	case "direct":
+		return false, nil
+	case "managed":
+		return true, nil
+	default:
+		return false, fmt.Errorf("unknown smoke mode %q (want direct or managed)", args[0])
+	}
+}
+
+func composeSmokeArgs(managed bool) []string {
+	files := []string{"compose", "-f", composeFile, "-f", composeSmokeFile}
+	if managed {
+		files = append(files, "-f", composeSmokeManagedFile)
+	}
+	return files
 }
 
 // composeSmokeTarget describes the quickstart stack. Its Portal and its server
 // answer on separate published ports, so the bundle is configured with an
 // absolute API base — unlike the kind reference, where one ingress serves both
 // and the base is same-origin.
-func composeSmokeTarget() smokeTarget {
+func composeSmokeTarget(managed bool) smokeTarget {
 	return smokeTarget{
 		apiBase:              composeServerURL(),
 		portalURL:            composePortalURL(),
 		portalRuntimeAPIBase: composeServerURL(),
+		managedLLM:           managed,
 		admin: func(args ...string) (string, error) {
-			cmdArgs := append(composeSmokeArgs(), "exec", "-T", "server", "buildmax-server")
+			cmdArgs := append(composeSmokeArgs(managed), "exec", "-T", "server", "buildmax-server")
 			return captureCombined("docker", append(cmdArgs, args...)...)
 		},
+		query: composeQuery,
 	}
 }
 
 func composeEnvPath() string {
 	return filepath.Join("deployment", "compose", ".env")
+}
+
+// composeQuery runs one read-only statement against the stack's MySQL.
+//
+// The password comes from the same .env the stack was started with, read here
+// rather than passed on the command line, so it does not appear in this
+// process's argv.
+func composeQuery(sql string) (string, error) {
+	password, err := composeEnvValue("BUILDMAX_DATABASE_PASSWORD")
+	if err != nil {
+		return "", err
+	}
+	args := append(composeSmokeArgs(true), "exec", "-T", "-e", "MYSQL_PWD="+password, "mysql",
+		"mysql", "-ubuildmax", "--batch", "--skip-column-names", "buildmax", "-e", sql)
+	return captureCombined("docker", args...)
+}
+
+// composeEnvValue reads one key out of the generated compose .env.
+func composeEnvValue(key string) (string, error) {
+	body, err := os.ReadFile(composeEnvPath())
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", composeEnvPath(), err)
+	}
+	for line := range strings.SplitSeq(string(body), "\n") {
+		name, value, found := strings.Cut(strings.TrimSpace(line), "=")
+		if found && name == key {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("%s does not define %s", composeEnvPath(), key)
 }
 
 func composeServerURL() string {
@@ -119,7 +191,7 @@ func composeStatus() error {
 	fmt.Println("Services")
 	// --all keeps exited containers visible: a server that crashed on startup is
 	// exactly what this command exists to show.
-	if err := runCmd("docker", append(composeSmokeArgs(), "ps", "--all")...); err != nil {
+	if err := runCmd("docker", append(composeSmokeArgs(true), "ps", "--all")...); err != nil {
 		return err
 	}
 	fmt.Printf("\nServer: %s (%s)\n", composeServerURL(), httpHealth(composeServerURL()+"/healthz"))
@@ -286,7 +358,61 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("artifact content = %q, want %q", strings.TrimSpace(artifact), smokeReply)
 	}
 
-	fmt.Printf("Deployment smoke passed: portal, auth, team, storage, scheduler, worker, and artifact (%s)\n", target.portalURL)
+	if err := assertManagedRun(target, teamID, artifacts[0].TaskRunID); err != nil {
+		return err
+	}
+
+	covered := "portal, auth, team, storage, scheduler, worker, and artifact"
+	if target.managedLLM {
+		covered += ", with the run reaching its model through the gateway rather than a provider key"
+	}
+	fmt.Printf("Deployment smoke passed: %s (%s)\n", covered, target.portalURL)
+	return nil
+}
+
+// assertManagedRun proves the run reached its model through the gateway.
+//
+// The call ledger is the evidence because only a gateway call produces a row: a
+// worker that had quietly used a provider key would finish the same task, return
+// the same output, and leave nothing here. The row also has to name a user and a
+// team, which is what the run token carries and a shared worker credential could
+// never supply.
+//
+// It reads the database rather than an API because the ledger has no HTTP route
+// yet. The trace would be an alternative — a managed run records its alias as
+// the model — but a `local_fs` deployment cannot serve one at all:
+// LocalFSPersistStorage.GetRunGlobal returns ErrNotFound by design, since run
+// files stay on the worker's disk instead of being copied into the persist root.
+func assertManagedRun(target smokeTarget, teamID, taskRunID string) error {
+	if !target.managedLLM {
+		return nil
+	}
+	if target.query == nil {
+		return errors.New("this smoke target cannot read the call ledger, so a managed run cannot be verified")
+	}
+	row, err := target.query(fmt.Sprintf(
+		"select surface, coalesce(user_id,''), team_id, alias, status from llm_call where task_run_id = '%s' order by accepted_at limit 1",
+		taskRunID))
+	if err != nil {
+		return fmt.Errorf("read call ledger: %w", err)
+	}
+	fields := strings.Fields(row)
+	if len(fields) < 5 {
+		return fmt.Errorf("the managed run left no call-ledger row for %s, so it did not reach the gateway", taskRunID)
+	}
+	surface, userID, ledgerTeam, alias, status := fields[0], fields[1], fields[2], fields[3], fields[4]
+	switch {
+	case surface != "worker":
+		return fmt.Errorf("call ledger surface = %q, want worker", surface)
+	case userID == "":
+		return errors.New("the managed call is attributed to no user; a run belongs to whoever created it")
+	case ledgerTeam != teamID:
+		return fmt.Errorf("call ledger team = %q, want %q", ledgerTeam, teamID)
+	case alias != smokeManagedAlias:
+		return fmt.Errorf("call ledger alias = %q, want %q", alias, smokeManagedAlias)
+	case !strings.EqualFold(status, "succeeded"):
+		return fmt.Errorf("call ledger status = %q, want succeeded", status)
+	}
 	return nil
 }
 

@@ -20,7 +20,56 @@ pre-releases and must be called out in release notes.
   permanent. When an agent run finishes on an issue it posts one comment with
   what it reported and a link to the run.
 
+- Task runs can reach models through the managed LLM gateway instead of calling
+  a provider themselves. Set `worker.llm.transport: buildmax` in `server.yaml`,
+  optionally with `worker.llm.alias`, and a worker no longer receives
+  `BUILDMAX_CONVERSATION_MODEL_API_KEY` at all — it reaches operator-approved
+  models through the server. The server states the transport and alias in the
+  run's worker-API response, so a worker never chooses its own model, and it is
+  told nothing else about it: the endpoint, the upstream model identifier, and
+  the credential stay server-side. Direct mode is unchanged and remains the
+  default; there is no automatic fallback between the two, because a server
+  outage must not silently redirect governed traffic to a personal provider key.
+  A deployment that asks for managed runs it cannot serve — `transport:
+  buildmax` with no `llm.aliases`, or an alias no team may call — now fails at
+  startup rather than at every run's first model call.
+
+### Security
+
+- Each task run is now dispatched with its own gateway credential rather than
+  sharing the deployment-wide worker token. The scheduler mints a short-lived
+  run token naming the run's user, team, and task, delivers it in
+  `BUILDMAX_RUN_TOKEN`, and the managed inference route accepts nothing else —
+  a run token presented against another run's URL is refused, and so is the
+  shared worker token. Every managed call a worker makes is therefore recorded
+  in the `llm_call` ledger against a user as well as a team, which a shared
+  secret could never support. Lifetime is `worker.run_token_ttl`, 24h by
+  default; it is not renewable, so it must outlast your longest run. A run token
+  cannot be used as a user login, and a user access token cannot be used as a
+  run token. The token is cleared from the worker's environment once read, so
+  model-chosen shell commands cannot print it — the sandbox that would otherwise
+  strip it is off by default.
+
+- The run token now authenticates **every** `/api/worker/*` route, not only
+  managed inference, so a run can read and write its own record and nothing
+  else. The deployment-wide `worker.token` could name any run, which meant any
+  worker could read the prompt text of every team's tasks, `PATCH` another
+  team's run to SUCCEEDED with output it invented, or push deltas into another
+  run's live stream. It is still accepted for one release, with a deprecation
+  warning, because a server that has not restarted yet dispatches workers
+  without minting a token; the next release removes it. Since every route needs
+  one, every dispatched run is now given a token, direct-mode runs included.
+  `buildmax-server run-token <task_run_id>` mints one for driving a worker route
+  by hand, which is what copying the shared secret used to be for.
+
 ### Fixed
+
+- A task run whose worker never reported an outcome no longer stays `SCHEDULED`
+  or `RUNNING` forever. Only the worker moves a run out of those states, so an
+  evicted pod, a killed process, or a run outliving its credential left work
+  that Portal showed as in progress and nothing would ever close. The server now
+  records such a run as failed after `worker.run_timeout` (6h by default), with
+  an error that names the timeout rather than guessing which of those happened.
 
 - Portal can show a run's trace on deployments that keep run state on local
   disk. `local_fs` is the default persist backend, and it deliberately stores

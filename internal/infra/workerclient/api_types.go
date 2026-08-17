@@ -5,6 +5,28 @@ package workerclient
 type GetTaskRunResponse struct {
 	Run  TaskRunRun  `json:"run"`
 	Task TaskRunTask `json:"task"`
+	LLM  *TaskRunLLM `json:"llm,omitempty"`
+}
+
+// TaskRunLLM tells a worker how to reach a model for this run.
+//
+// It is deliberately thin. A managed run learns an alias and nothing else — no
+// endpoint, no upstream model identifier, no credential — because those stay
+// inside the server's authorization boundary. A direct run learns nothing here
+// and reads its model from the server.yaml it already mounts.
+//
+// Absent means direct, so a worker built before this field behaves as it always
+// did.
+type TaskRunLLM struct {
+	// Transport is "direct" or "buildmax".
+	Transport string `json:"transport"`
+	// Alias is the team model alias to call. Empty uses the team default.
+	Alias string `json:"alias,omitempty"`
+	// ContextWindow is the usable context size for the alias; 0 disables
+	// windowing.
+	ContextWindow int `json:"context_window,omitempty"`
+	// CallTimeout bounds one call, in seconds; 0 uses the client default.
+	CallTimeout int `json:"call_timeout,omitempty"`
 }
 
 // TaskRunRun is the run portion of the GET response.

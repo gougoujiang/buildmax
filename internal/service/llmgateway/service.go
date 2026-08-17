@@ -83,8 +83,11 @@ func (s *Service) now() time.Time {
 // service; nothing here may be taken from a client request body.
 type CompleteRequest struct {
 	TeamID string
-	// UserID is set for user-authenticated calls, TaskRunID for worker calls.
-	UserID    *string
+	// UserID is who the call is for. A user-authenticated call takes it from the
+	// login; a worker call takes it from the run token, which names the task's
+	// owner — a run is somebody's work even though no person is at the keyboard.
+	UserID *string
+	// TaskRunID and TaskID are set on worker calls, from the run token.
 	TaskRunID *string
 	TaskID    *string
 

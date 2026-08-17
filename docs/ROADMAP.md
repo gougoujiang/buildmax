@@ -124,7 +124,8 @@ Focus:
 - default admin/user/team/quota/model initialization story
 - optional managed LLM connection mode, so a deployment can supply approved
   models without distributing provider credentials to users and workers —
-  shipped for CLI, TUI, and Desktop; the worker path is still open
+  shipped for CLI, TUI, Desktop, and task runs, which reach it with a per-run
+  credential and hold no provider key
 - operator model catalog and team model aliases behind the shared LLM contract,
   with per-call usage recorded before any spending limit is claimed — the
   catalog and call ledger exist; aliases are deployment-wide, not per-team
@@ -238,8 +239,8 @@ at the end:
    must be documented as a development path rather than a deployment topology.
 3. Enterprise deployment loop: a production Kubernetes reference distinct from
    the kind smoke overlay, dependency-aware readiness in place of the fixed-200
-   `/healthz`, the worker managed-LLM entry point, and versioned schema
-   migration with a rollback path. Migration is the hardest item here, not the
+   `/healthz`, and versioned schema migration with a rollback path. Migration is
+   the hardest item here, not the
    smallest: `AutoMigrate` has no down path today, so the rollback promise is
    currently unbacked.
 4. Minimum team governance: role and team authorization tests, then the audit

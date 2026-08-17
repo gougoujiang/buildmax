@@ -1,6 +1,7 @@
 package agentapp
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -150,5 +151,72 @@ func TestDirectEntryStillRequiresAnAPIKey(t *testing.T) {
 
 	if _, err := cache.Get(entry.Name); err == nil {
 		t.Error("a direct entry with no api_key built a client")
+	}
+}
+
+// runScopedCacheFor builds the cache a task run gets: managed calls carry a run
+// token and name a run rather than a team.
+func runScopedCacheFor(entries []config.ModelEntry, taskRunID string) *LLMClientCache {
+	return &LLMClientCache{
+		settings:         config.Settings{Models: entries},
+		managedToken:     func(string) (string, error) { return "run-token", nil },
+		managedTaskRunID: taskRunID,
+		surface:          "worker",
+		clients:          make(map[string]cllm.LLMClient),
+	}
+}
+
+// TestRunScopedManagedEntryNeedsNoTeam is the difference between a worker and
+// every other surface. A person picks a team to spend against; a task run
+// already belongs to one, and the server reads it from the run token — so
+// requiring team_id here would ask the worker to assert an identity the server
+// is supposed to derive.
+func TestRunScopedManagedEntryNeedsNoTeam(t *testing.T) {
+	entry := managedEntry()
+	entry.TeamID = ""
+
+	client, err := runScopedCacheFor([]config.ModelEntry{entry}, "r_1").Get(entry.Name)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if _, ok := client.(*llmremote.Client); !ok {
+		t.Fatalf("a run-scoped managed entry produced %T", client)
+	}
+
+	// The same entry on a team-scoped surface still needs one.
+	if _, err := cacheFor([]config.ModelEntry{entry}, func(string) (string, error) {
+		return "token", nil
+	}).Get(entry.Name); err == nil {
+		t.Error("a managed entry with no team built a team-scoped client")
+	}
+}
+
+// TestRunScopedManagedEntryDropsATeam records that a run never calls as a team
+// even when configuration supplies one. The two identities select different
+// gateway routes, and llmremote refuses a client holding both — so leaving the
+// team in place would turn a stale config value into a failed run.
+func TestRunScopedManagedEntryDropsATeam(t *testing.T) {
+	client, err := runScopedCacheFor([]config.ModelEntry{managedEntry()}, "r_1").Get("Team Default")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	remote, ok := client.(*llmremote.Client)
+	if !ok {
+		t.Fatalf("a run-scoped managed entry produced %T", client)
+	}
+	if _, err := remote.Models(context.Background()); err == nil {
+		t.Error("a run-scoped client offered model discovery")
+	}
+}
+
+// TestRunScopedDirectEntryIsUnaffected keeps the direct path intact: a worker
+// with a provider key behaves exactly as before, run scope or not.
+func TestRunScopedDirectEntryIsUnaffected(t *testing.T) {
+	client, err := runScopedCacheFor([]config.ModelEntry{directEntry()}, "r_1").Get("Direct")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if _, ok := client.(*llm.LLMClient); !ok {
+		t.Errorf("direct entry produced %T", client)
 	}
 }

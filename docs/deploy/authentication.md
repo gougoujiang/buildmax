@@ -170,7 +170,8 @@ sessions, and no command revokes one. An access token cannot be revoked at all.
 | Credential | Config | Guards |
 |---|---|---|
 | **JWT secret** | `jwt_secret` / `BUILDMAX_JWT_SECRET` | Signing for all user access tokens. Required. Generate with `openssl rand -hex 32` and inject at deploy time rather than committing it. |
-| **Worker token** | `worker.token` | The `/api/worker/*` routes that workers use to fetch and update their run. A worker with this token can read and update task runs by id. |
+| **Run token** | minted per run, delivered as `BUILDMAX_RUN_TOKEN` | The `/api/worker/*` routes. Signed with the JWT secret, it names one run's user, team, and task, and authorizes that run alone. Not an operator setting — the scheduler issues one for every dispatched run. Lifetime is `worker.run_token_ttl`; there is no renewal, so it must outlast your longest run. |
+| **Worker token** | `worker.token` | Deprecated. Still accepted on `/api/worker/*` for one release, for the upgrade window where a server that has not restarted dispatches a worker expecting a run token. It names no run, so a holder can read any team's task input and write any run's result — which is why it is going away. |
 | **Webhook keys** | created per user via the API | Inbound `POST /api/webhook`. Stored as a SHA-256 hash; the plaintext is shown once at creation. See [reference/webhook.md](../reference/webhook.md). |
 
 Rotating the JWT secret invalidates every issued access token at once. Refresh
@@ -178,6 +179,10 @@ tokens survive it — they are stored rows, not signatures — so clients exchan
 theirs and carry on rather than needing new login codes. That is usually what
 you want from a key rotation, but it means the secret is no longer the way to
 sign everyone out.
+
+A run token cannot be revoked before it expires either, for the same reason: it
+is a signature, not a row. What bounds it instead is scope — one run — and run
+status, since the inference route refuses a run that is no longer executing.
 
 There is no operator command to revoke sessions yet. Signing a specific person
 out today means deleting their `user_refresh_token` rows in the database and

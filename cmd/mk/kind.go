@@ -15,8 +15,8 @@ const (
 )
 
 func cmdKind(args []string) error {
-	if len(args) != 1 {
-		return errors.New("usage: ./make kind <up|images|smoke|status|logs|down>")
+	if len(args) == 0 || len(args) > 2 {
+		return errors.New("usage: ./make kind <up|images|smoke [managed]|status|logs|down>")
 	}
 	switch args[0] {
 	case "up":
@@ -24,6 +24,13 @@ func cmdKind(args []string) error {
 	case "images":
 		return cmdPubImages()
 	case "smoke":
+		managed, err := composeSmokeMode(args[1:])
+		if err != nil {
+			return err
+		}
+		if managed {
+			return kindManagedSmoke()
+		}
 		return kindSmoke()
 	case "status":
 		return kindStatus()
@@ -171,7 +178,18 @@ func kindSmokeTarget() smokeTarget {
 			cmdArgs := append([]string{"--context", kindContext(), "exec", "-n", "buildmax", "deployment/buildmax-server", "--", "buildmax-server"}, args...)
 			return captureCombined("kubectl", cmdArgs...)
 		},
+		query: kindQuery,
 	}
+}
+
+// kindQuery runs one read-only statement against the cluster's MySQL. The
+// password is the fixed development one from deployment/dev-kind/mysql.yaml;
+// this cluster holds nothing else.
+func kindQuery(sql string) (string, error) {
+	return captureCombined("kubectl", "--context", kindContext(),
+		"exec", "-n", "db", "deployment/mysql", "--",
+		"env", "MYSQL_PWD=buildmax",
+		"mysql", "-ubuildmax", "--batch", "--skip-column-names", "buildmax", "-e", sql)
 }
 
 // kindStatus reports what the selected cluster is running without changing it,
@@ -356,15 +374,51 @@ func applyKindSecret() error {
 }
 
 func applyKindSmokeConfig() error {
+	return applyKindSmokeConfigFrom("deployment/smoke/server.kind.yaml")
+}
+
+func applyKindSmokeConfigFrom(path string) error {
 	manifest, err := captureKindKubectl(
 		"create", "configmap", "buildmax-config", "-n", "buildmax",
-		"--from-file=server.yaml=deployment/smoke/server.kind.yaml",
+		"--from-file=server.yaml="+path,
 		"--dry-run=client", "-o", "yaml",
 	)
 	if err != nil {
 		return fmt.Errorf("render kind smoke config: %w", err)
 	}
 	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
+}
+
+// kindManagedSmoke reruns the smoke against a cluster switched to managed
+// task-run inference.
+//
+// It swaps the ConfigMap and restarts the server rather than standing up a
+// second cluster: transport is startup configuration, so the server has to
+// reread it, but everything else about the deployment is the same. Worker pods
+// pick up the new file because each Job mounts the ConfigMap when it starts.
+//
+// The cluster is left in managed mode afterwards. Rerun `./make kind up` to put
+// it back, which is also what a contributor would do to get a clean stack.
+func kindManagedSmoke() error {
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	if err := applyKindSmokeConfigFrom("deployment/smoke/server.kind.managed.yaml"); err != nil {
+		return err
+	}
+	if err := kindKubectl("rollout", "restart", "deployment/buildmax-server", "-n", "buildmax"); err != nil {
+		return err
+	}
+	if err := kindKubectl("rollout", "status", "deployment/buildmax-server", "-n", "buildmax", "--timeout=180s"); err != nil {
+		return err
+	}
+	target := kindSmokeTarget()
+	target.managedLLM = true
+	if err := runDeploymentSmoke(context.Background(), target); err != nil {
+		return err
+	}
+	printSmokeLogin(target)
+	return nil
 }
 
 func randomHex(bytes int) (string, error) {

@@ -199,12 +199,47 @@ type ServerWebhookConfig struct {
 
 // ServerWorkerConfig holds worker launch and connection options.
 type ServerWorkerConfig struct {
-	Binary    string          `mapstructure:"binary"`
-	RunMode   string          `mapstructure:"run_mode"`
-	Token     string          `mapstructure:"token"`
-	ServerURL string          `mapstructure:"server_url"`
-	K8s       ServerK8sConfig `mapstructure:"k8s"`
+	Binary    string                `mapstructure:"binary"`
+	RunMode   string                `mapstructure:"run_mode"`
+	Token     string                `mapstructure:"token"`
+	ServerURL string                `mapstructure:"server_url"`
+	LLM       ServerWorkerLLMConfig `mapstructure:"llm"`
+	K8s       ServerK8sConfig       `mapstructure:"k8s"`
+	// RunTokenTTL bounds a run token. Zero uses authtoken's default. It has to
+	// outlast the longest run: the token is not renewable, so a run that outlives
+	// it can no longer report anything, including its own result.
+	RunTokenTTL time.Duration `mapstructure:"run_token_ttl"`
+	// RunTimeout is how long a run may stay SCHEDULED or RUNNING before the
+	// server records it as abandoned. Zero uses the scheduler's default.
+	//
+	// Only the worker moves a run out of those states, so without this a run
+	// whose worker died stays there forever. Keep it at or below RunTokenTTL: a
+	// run that outlived its credential cannot report an outcome, so nothing else
+	// will ever close it.
+	RunTimeout time.Duration `mapstructure:"run_timeout"`
 }
+
+// ServerWorkerLLMConfig decides how a task run reaches a model.
+//
+// The choice is the operator's and lives on the server, not in the worker's
+// hands: a worker executes model-chosen code, so it is told which transport and
+// alias to use rather than selecting them.
+type ServerWorkerLLMConfig struct {
+	// Transport is TransportDirect or TransportBuildMax. Empty means direct,
+	// which is what every existing deployment gets.
+	Transport string `mapstructure:"transport"`
+	// Alias is the team model alias a managed run calls. Empty uses the team's
+	// default alias.
+	Alias string `mapstructure:"alias"`
+	// ContextWindow and CallTimeout describe the alias to the run. The protocol
+	// does not report them per call, so they come from configuration or stay
+	// unset.
+	ContextWindow int `mapstructure:"context_window"`
+	CallTimeout   int `mapstructure:"call_timeout"`
+}
+
+// Managed reports whether task runs call the gateway instead of a provider.
+func (c ServerWorkerLLMConfig) Managed() bool { return c.Transport == TransportBuildMax }
 
 // ServerK8sConfig holds Kubernetes worker job settings.
 type ServerK8sConfig struct {
