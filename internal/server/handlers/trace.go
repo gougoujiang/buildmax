@@ -52,13 +52,7 @@ func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request)
 		httputil.WriteJSONError(w, http.StatusNotFound, "no trace was recorded for this run")
 		return
 	}
-	data, err := h.cfg.PersistStorage.GetRunGlobal(r.Context(), blob.RunObjectRef{
-		CreatedBy:      task.CreatedBy,
-		ConversationID: task.ConversationID,
-		TaskID:         task.TaskID,
-		TaskRunID:      taskRunID,
-		RelPath:        *run.TracePath,
-	})
+	data, err := h.readRunGlobal(r.Context(), task, taskRunID, *run.TracePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "this run's trace is no longer in storage")

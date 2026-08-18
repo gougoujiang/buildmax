@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -22,27 +24,32 @@ const testTraceBody = `{"ts":"t0","type":"run_start","run_id":"rt_abc","session_
 {"ts":"t6","type":"run_end","tool_calls":2,"prompt_tokens":120,"completion_tokens":30,"error":"agent: context deadline exceeded"}
 `
 
+const (
+	traceTestUserID         = "user-1"
+	traceTestConversationID = "conv-1"
+	traceTestTaskID         = "task-1"
+	traceTestTaskRunID      = "run-1"
+)
+
 // traceTestFixture builds a handler whose single task run has a trace in
-// storage. tracePath nil means the run recorded none.
-func traceTestFixture(t *testing.T, tracePath *string, storeTrace bool) (*http.ServeMux, string, string, string) {
+// storage. tracePath nil means the run recorded none. persist and workspacesDir
+// select where the trace is kept: an object backend, the server's own disk, or
+// neither.
+func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStorage, workspacesDir string) (*http.ServeMux, string, string, string) {
 	t.Helper()
 	const (
 		secret         = "test-secret"
-		userID         = "user-1"
+		userID         = traceTestUserID
 		teamID         = "tm_personal_user1"
-		conversationID = "conv-1"
-		taskID         = "task-1"
-		taskRunID      = "run-1"
+		conversationID = traceTestConversationID
+		taskID         = traceTestTaskID
+		taskRunID      = traceTestTaskRunID
 	)
 	token := util.SignJWT(userID, secret)
 
-	persist := mock.NewMockPersistStorage()
-	if storeTrace && tracePath != nil {
-		persist.RunGlobal[userID+"/"+conversationID+"/"+taskID+"/"+taskRunID+"/"+*tracePath] = []byte(testTraceBody)
-	}
-
 	h := NewHandler(Config{
-		JWTSecret: secret,
+		JWTSecret:     secret,
+		WorkspacesDir: workspacesDir,
 		TeamStore: &mock.MockTeamStore{
 			Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
 			Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}},
@@ -61,8 +68,38 @@ func traceTestFixture(t *testing.T, tracePath *string, storeTrace bool) (*http.S
 	return mux, token, teamID, taskRunID
 }
 
+// tracePersist is an object backend that holds the trace, or does not.
+func tracePersist(tracePath *string, stored bool) blob.PersistStorage {
+	persist := mock.NewMockPersistStorage()
+	if stored && tracePath != nil {
+		key := traceTestUserID + "/" + traceTestConversationID + "/" + traceTestTaskID + "/" + traceTestTaskRunID + "/" + *tracePath
+		persist.RunGlobal[key] = []byte(testTraceBody)
+	}
+	return persist
+}
+
+// writeRunGlobalOnDisk puts a file where a worker leaves it, under the layout
+// the server resolves for a run's global directory.
+func writeRunGlobalOnDisk(t *testing.T, workspacesDir, relPath, body string) {
+	t.Helper()
+	full := filepath.Join(
+		workspacesDir, traceTestUserID,
+		"conversations", traceTestConversationID,
+		"tasks", traceTestTaskID,
+		traceTestTaskRunID, "global",
+		filepath.FromSlash(relPath),
+	)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("create run global dir: %v", err)
+	}
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		t.Fatalf("write run global file: %v", err)
+	}
+}
+
 func TestGetTaskRunTraceHandler(t *testing.T) {
-	mux, token, teamID, taskRunID := traceTestFixture(t, util.Ptr("traces/c_s1/rt_abc.jsonl"), true)
+	tracePath := util.Ptr("traces/c_s1/rt_abc.jsonl")
+	mux, token, teamID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -124,7 +161,7 @@ func TestGetTaskRunTraceHandler_DistinguishesNeverWrittenFromLost(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mux, token, teamID, taskRunID := traceTestFixture(t, tt.tracePath, tt.storeTrace)
+			mux, token, teamID, taskRunID := traceTestFixture(t, tt.tracePath, tracePersist(tt.tracePath, tt.storeTrace), "")
 			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
 			req.Header.Set("Authorization", "Bearer "+token)
 			rec := httptest.NewRecorder()
@@ -140,10 +177,80 @@ func TestGetTaskRunTraceHandler_DistinguishesNeverWrittenFromLost(t *testing.T) 
 	}
 }
 
+// TestGetTaskRunTraceHandler_ReadsLocalFSRunGlobal is the default deployment.
+//
+// `local_fs` is the default persist backend, and its GetRunGlobal is a
+// deliberate no-op: the worker has already written the trace under
+// WorkspacesDir, so the backend never holds a copy. A handler that asks only
+// the backend therefore answers "this run's trace is no longer in storage" for
+// every run on every default deployment — with the file on disk the whole time.
+// That is the Beta gate's "a run explains itself" failing wherever nobody
+// configured S3.
+func TestGetTaskRunTraceHandler_ReadsLocalFSRunGlobal(t *testing.T) {
+	tracePath := util.Ptr("traces/c_s1/rt_abc.jsonl")
+	workspaces := t.TempDir()
+	writeRunGlobalOnDisk(t, workspaces, *tracePath, testTraceBody)
+
+	// The real backend, not a stand-in: what makes this case work is exactly
+	// that local_fs reports ErrNotFound and the handler looks further.
+	persist := blob.NewLocalFSPersistStorage(func(teamID string) string {
+		return filepath.Join(workspaces, teamID, "persist")
+	})
+	mux, token, teamID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var got TraceResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Model != "test-model" {
+		t.Errorf("model = %q, want the trace on disk to have been read", got.Model)
+	}
+	// The claim the roadmap requires Portal to be able to make at all.
+	if got.Boundary == nil || got.Boundary.Sandboxed {
+		t.Errorf("want an explicit unsandboxed boundary, got %+v", got.Boundary)
+	}
+}
+
+// TestGetTaskRunTraceHandler_RejectsEscapingTracePath keeps the disk read from
+// becoming a file-read primitive. The path is written by a worker and read back
+// from the database, so it is not trusted by the time it reaches a join.
+func TestGetTaskRunTraceHandler_RejectsEscapingTracePath(t *testing.T) {
+	workspaces := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspaces, "secret.txt"), []byte("SECRET-BODY"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	tracePath := util.Ptr("../../../../../../secret.txt")
+	persist := blob.NewLocalFSPersistStorage(func(teamID string) string {
+		return filepath.Join(workspaces, teamID, "persist")
+	})
+	mux, token, teamID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("a traversing trace path was served: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "SECRET-BODY") {
+		t.Error("the response leaked a file outside the run directory")
+	}
+}
+
 // TestGetTaskRunTraceHandler_DeniesOtherTeams asserts the trace sits behind the
 // same team boundary as the run's artifacts.
 func TestGetTaskRunTraceHandler_DeniesOtherTeams(t *testing.T) {
-	mux, _, teamID, taskRunID := traceTestFixture(t, util.Ptr("traces/c_s1/rt_abc.jsonl"), true)
+	tracePath := util.Ptr("traces/c_s1/rt_abc.jsonl")
+	mux, _, teamID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
 	outsider := util.SignJWT("user-2", "test-secret")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
