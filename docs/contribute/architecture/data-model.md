@@ -86,6 +86,8 @@ erDiagram
 
     agent ||--o{ task : executes
     agent ||--o{ workflow_step_run : "targeted by"
+    agent ||--o{ agent_revision : "versioned by"
+    workflow ||--o{ workflow_revision : "versioned by"
 
     task ||--o{ task_run : "attempted as"
     task_run ||--o{ task_run_artifact : produces
@@ -480,6 +482,7 @@ under.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
+| `revision` | `int` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `agent_id`; index `user_id`; index `team_id`.
@@ -487,6 +490,41 @@ Indexes: PK `id`; unique `agent_id`; index `user_id`; index `team_id`.
 These are server-side agent records. They are distinct from the workspace
 subagents defined as Markdown files under `.buildmax/`; see
 [../../guide/skills-and-subagents.md](../../guide/skills-and-subagents.md).
+
+### `agent_revision`
+
+One recorded version of an agent definition. Rows are appended, never updated or
+deleted.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `agent_revision_id` | `varchar(64)` | no | Public ID, `arv_` prefix, unique |
+| `agent_id` | `varchar(64)` | no | `agent.agent_id` |
+| `revision` | `int` | no | 1 for the first recorded content, then one higher per change |
+| `name` | `varchar(255)` | no | |
+| `description` | `text` | yes | |
+| `instructions` | `text` | yes | |
+| `created_by` | `varchar(64)` | no | The user who wrote this revision, not necessarily the agent's owner |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `agent_revision_id`; unique (`agent_id`, `revision`).
+
+The revision is written in the same transaction as the agent row it describes,
+and the unique (`agent_id`, `revision`) index makes a concurrent second write
+fail rather than record two definitions under one number. An update that changes
+nothing appends no revision. Restoring an earlier revision is an ordinary
+update: it appends a new revision holding the old content rather than rewinding
+to it.
+
+Revisions outlive the agent — deleting an agent leaves its history in place, and
+those rows are then the only record of what a past run executed under.
+
+Agents and workflows that existed before revision history was added were given a
+revision 1 by migration `0003_seed_first_agent_and_workflow_revision`. That row
+is an approximation: its author is whoever created the record and its timestamp
+is when the content last moved, neither of which necessarily identifies the edit
+that produced the content it holds.
 
 ### `conversation`
 
@@ -646,6 +684,7 @@ definition into one step run per step, and each agent step delegates to a task.
 | `description` | `text` | no | |
 | `definition` | `longtext` | no | JSON step list; `longtext`, not `text`, because plans can be large |
 | `status` | `varchar(32)` | no | `draft` (default), `published`, `archived` |
+| `revision` | `int` | no | Number of the `workflow_revision` row holding this content; starts at 1 |
 | `created_by` | `varchar(64)` | no | `user.user_id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
@@ -655,6 +694,34 @@ Indexes: PK `id`; unique `workflow_id`; index `team_id`.
 `definition` is opaque to the database. Editing a published workflow does not
 retroactively change runs already expanded from it.
 
+### `workflow_revision`
+
+One recorded version of a workflow. Rows are appended, never updated or deleted.
+The rules are the same as for [`agent_revision`](#agent_revision), including the
+seeded first revision for workflows that predate the table.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `workflow_revision_id` | `varchar(64)` | no | Public ID, `wrv_` prefix, unique |
+| `workflow_id` | `varchar(64)` | no | `workflow.workflow_id` |
+| `revision` | `int` | no | 1 for the first recorded content, then one higher per change |
+| `name` | `varchar(255)` | no | |
+| `description` | `text` | no | |
+| `definition` | `longtext` | no | |
+| `status` | `varchar(32)` | no | The lifecycle state this revision was written with |
+| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `workflow_revision_id`; unique (`workflow_id`,
+`revision`).
+
+`status` is recorded because publishing is what lets a workflow run, so the
+record of who published which definition belongs in history. It is not restored:
+restoring an old revision writes back its name, description, and definition and
+leaves the current lifecycle state alone, so restoring the content of a draft
+revision cannot unpublish a workflow teams are running.
+
 ### `workflow_run`
 
 | Column | Type | Null | Notes |
@@ -662,6 +729,7 @@ retroactively change runs already expanded from it.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `workflow_run_id` | `varchar(64)` | no | Public ID, `wr_` prefix, unique |
 | `workflow_id` | `varchar(64)` | no | `workflow.workflow_id` |
+| `workflow_revision` | `int` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
 | `issue_id` | `varchar(64)` | yes | Issue this run advances |
 | `conversation_id` | `varchar(64)` | no | Tier 1 conversation that reports progress |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
@@ -690,6 +758,7 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 | `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before step runs snapshotted their agent |
 | `agent_description` | `text` | no | Agent description captured when the run started |
 | `agent_instructions` | `longtext` | no | Agent instructions captured when the run started |
+| `agent_revision` | `int` | no | The `agent_revision.revision` the snapshot came from; 0 when it predates revisions |
 | `prompt` | `text` | no | Rendered prompt for this step |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `blocked` |
 | `task_id` | `varchar(64)` | yes | The Tier 2 task this step created |

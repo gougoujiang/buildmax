@@ -7,7 +7,7 @@ import (
 )
 
 // Prefix constants for prefixed IDs. Use with NewPrefixedID.
-// Semantics: u=user, tm=team, a=agent, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, ic=issue comment, whk=user webhook key, lc=managed LLM call, lm=managed model catalog entry, as=auth session (one login chain of refresh tokens), sg=system grant (a deployment-scoped role held by a user).
+// Semantics: u=user, tm=team, a=agent, arv=agent revision, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, ic=issue comment, wrv=workflow revision, whk=user webhook key, lc=managed LLM call, lm=managed model catalog entry, as=auth session (one login chain of refresh tokens), sg=system grant (a deployment-scoped role held by a user).
 // Agent session IDs are internal (not user-facing) and use UUID.
 const (
 	PrefixUser                = "u"
@@ -15,7 +15,9 @@ const (
 	PrefixIssue               = "i"
 	PrefixIssueComment        = "ic"
 	PrefixAgent               = "a"
+	PrefixAgentRevision       = "arv"
 	PrefixWorkflow            = "w"
+	PrefixWorkflowRevision    = "wrv"
 	PrefixWorkflowRun         = "wr"
 	PrefixWorkflowStepRun     = "wsr"
 	PrefixConversation        = "c"

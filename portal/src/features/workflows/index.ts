@@ -7,4 +7,6 @@ export {
   getWorkflowRunDetail,
   runWorkflow,
   runIssueWorkflow,
+  getWorkflowRevisions,
+  restoreWorkflowRevision,
 } from "./api"

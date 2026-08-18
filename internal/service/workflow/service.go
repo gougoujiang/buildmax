@@ -22,6 +22,7 @@ var (
 	ErrWorkflowDefinitionRequired = errors.New("workflow definition required")
 	ErrWorkflowNotFound           = errors.New("workflow not found")
 	ErrWorkflowRunNotFound        = errors.New("workflow run not found")
+	ErrWorkflowRevisionNotFound   = errors.New("workflow revision not found")
 	ErrIssueNotFound              = errors.New("issue not found")
 	ErrIssueWorkflowMismatch      = errors.New("issue not assigned to workflow")
 	ErrInvalidDefinition          = errors.New("invalid workflow definition")
@@ -51,11 +52,20 @@ type CreateWorkflowCmd struct {
 
 type UpdateWorkflowCmd struct {
 	TeamID      string
+	UserID      string
 	WorkflowID  string
 	Name        *string
 	Description *string
 	Definition  *string
 	Status      *string
+}
+
+// RestoreWorkflowRevisionCmd restores an earlier revision's content.
+type RestoreWorkflowRevisionCmd struct {
+	TeamID     string
+	UserID     string
+	WorkflowID string
+	Revision   int
 }
 
 type StartWorkflowRunCmd struct {
@@ -111,6 +121,7 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflow
 		Description: cmd.Description,
 		Definition:  cmd.Definition,
 		Status:      nil,
+		UpdatedBy:   cmd.UserID,
 	}
 	if cmd.Definition != nil {
 		if strings.TrimSpace(*cmd.Definition) == "" {
@@ -134,6 +145,49 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflow
 		return nil, ErrWorkflowNotFound
 	}
 	return workflow, nil
+}
+
+func (s *WorkflowService) ListWorkflowRevisions(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
+	workflow, err := s.GetWorkflow(ctx, teamID, workflowID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.Workflows.ListWorkflowRevisions(ctx, workflow.WorkflowID, limit, offset)
+}
+
+// RestoreWorkflowRevision writes an earlier revision's name, description, and
+// definition back to the workflow, which appends a new revision rather than
+// rewinding to the old one.
+//
+// Status is deliberately not restored. It is lifecycle state, not content:
+// restoring the definition of a draft revision must not unpublish a workflow
+// teams are running, and restoring a published one must not publish a draft
+// without anyone deciding to. The definition is revalidated, so a revision
+// whose agents have since been deleted is refused rather than restored into a
+// plan that cannot run.
+func (s *WorkflowService) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkflowRevisionCmd) (*model.Workflow, error) {
+	if s.Workflows == nil {
+		return nil, ErrWorkflowsNotConfigured
+	}
+	workflow, err := s.GetWorkflow(ctx, cmd.TeamID, cmd.WorkflowID)
+	if err != nil {
+		return nil, err
+	}
+	revision, err := s.Workflows.GetWorkflowRevision(ctx, workflow.WorkflowID, cmd.Revision)
+	if err != nil {
+		return nil, err
+	}
+	if revision == nil {
+		return nil, ErrWorkflowRevisionNotFound
+	}
+	return s.UpdateWorkflow(ctx, UpdateWorkflowCmd{
+		TeamID:      cmd.TeamID,
+		UserID:      cmd.UserID,
+		WorkflowID:  workflow.WorkflowID,
+		Name:        &revision.Name,
+		Description: &revision.Description,
+		Definition:  &revision.Definition,
+	})
 }
 
 func (s *WorkflowService) ListWorkflowRuns(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
@@ -202,12 +256,13 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 	}
 	now := time.Now().Unix()
 	run, err := s.Workflows.CreateWorkflowRun(ctx, model.CreateWorkflowRunInput{
-		WorkflowID:     workflow.WorkflowID,
-		IssueID:        cmd.IssueID,
-		ConversationID: conv.ConversationID,
-		Status:         model.WorkflowRunStatusRunning,
-		CreatedBy:      cmd.UserID,
-		StartedAt:      &now,
+		WorkflowID:       workflow.WorkflowID,
+		WorkflowRevision: workflow.Revision,
+		IssueID:          cmd.IssueID,
+		ConversationID:   conv.ConversationID,
+		Status:           model.WorkflowRunStatusRunning,
+		CreatedBy:        cmd.UserID,
+		StartedAt:        &now,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -224,6 +279,7 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 			AgentName:         agent.Name,
 			AgentDescription:  agent.Description,
 			AgentInstructions: agent.Instructions,
+			AgentRevision:     agent.Revision,
 			Prompt:            def.Steps[i].Prompt,
 			Status:            model.WorkflowStepRunStatusPending,
 		}
@@ -384,6 +440,7 @@ func (s *WorkflowService) stepAgent(ctx context.Context, teamID, agentID string,
 			Name:         step.AgentName,
 			Description:  step.AgentDescription,
 			Instructions: step.AgentInstructions,
+			Revision:     step.AgentRevision,
 		}, nil
 	}
 	if s.Agents == nil {

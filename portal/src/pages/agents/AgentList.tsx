@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Agent } from "../../lib/types"
+import type { Agent, AgentRevision } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { apiAgentToAgent } from "../../lib/api/mappers"
+import { apiAgentToAgent, apiAgentRevisionToAgentRevision } from "../../lib/api/mappers"
 import { createConversation } from "../../features/conversations"
 import {
   getAgents,
   createAgent,
   updateAgent,
   deleteAgent,
+  getAgentRevisions,
+  restoreAgentRevision,
 } from "../../features/agents"
 import { useApp } from "../../contexts/AppContext"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { EditAgentModal } from "../../components/EditAgentModal"
+import { RevisionHistory } from "../../components/RevisionHistory"
 import { NewConversationFromAgent } from "../../components/NewConversationFromAgent"
 import { useTeam } from "../../contexts/TeamContext"
 
@@ -34,6 +37,10 @@ export function AgentList({ token }: AgentListProps) {
   const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
   const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [revisions, setRevisions] = useState<AgentRevision[]>([])
+  const [revisionsLoading, setRevisionsLoading] = useState(false)
+  const [revisionsError, setRevisionsError] = useState<string | null>(null)
+  const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
   const canManageAgents = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchAgents = useCallback(() => {
@@ -53,6 +60,42 @@ export function AgentList({ token }: AgentListProps) {
   useEffect(() => {
     fetchAgents()
   }, [fetchAgents])
+
+  const loadRevisions = useCallback(
+    (agentId: string) => {
+      if (!token || !currentTeamId) return
+      setRevisionsLoading(true)
+      setRevisionsError(null)
+      getAgentRevisions(currentTeamId, agentId, token)
+        .then((res) => setRevisions(res.revisions.map(apiAgentRevisionToAgentRevision)))
+        .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
+        .finally(() => setRevisionsLoading(false))
+    },
+    [token, currentTeamId],
+  )
+
+  useEffect(() => {
+    if (editingAgent == null) {
+      setRevisions([])
+      setRevisionsError(null)
+      return
+    }
+    loadRevisions(editingAgent.id)
+  }, [editingAgent, loadRevisions])
+
+  function handleRestoreRevision(revision: number) {
+    if (!token || !currentTeamId || editingAgent == null) return
+    setRevisionsError(null)
+    setRestoringRevision(revision)
+    restoreAgentRevision(currentTeamId, editingAgent.id, revision, token)
+      .then((restored) => {
+        const mapped = apiAgentToAgent(restored)
+        setAgents((prev) => prev.map((a) => (a.id === mapped.id ? mapped : a)))
+        setEditingAgent(mapped)
+      })
+      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to restore revision")))
+      .finally(() => setRestoringRevision(null))
+  }
 
   function handleCreateAgent(values: {
     name: string
@@ -252,6 +295,24 @@ export function AgentList({ token }: AgentListProps) {
         }}
         onSave={handleSaveAgent}
         onDelete={handleDeleteAgent}
+        history={
+          <RevisionHistory
+            title="History"
+            entries={revisions.map((rev) => ({
+              id: rev.id,
+              revision: rev.revision,
+              createdBy: rev.createdBy,
+              createdLabel: rev.createdLabel,
+              summary: rev.instructions,
+            }))}
+            currentRevision={editingAgent?.revision ?? 0}
+            loading={revisionsLoading}
+            error={revisionsError}
+            canRestore={canManageAgents}
+            restoringRevision={restoringRevision}
+            onRestore={handleRestoreRevision}
+          />
+        }
       />
 
       <NewConversationFromAgent

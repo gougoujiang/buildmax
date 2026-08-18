@@ -31,24 +31,48 @@ type Workflow struct {
 	Description string `json:"description"`
 	Definition  string `json:"definition"`
 	Status      string `json:"status"`
-	CreatedBy   string `json:"created_by"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	// Revision numbers the workflow_revision row holding this content. It
+	// starts at 1 and advances every time the name, description, definition,
+	// or status changes.
+	Revision  int    `json:"revision"`
+	CreatedBy string `json:"created_by"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+// WorkflowRevision is one recorded version of a workflow.
+//
+// Revisions are append-only: an edit adds one, nothing rewrites or deletes one,
+// and restoring an older revision is itself an edit that appends a new one.
+type WorkflowRevision struct {
+	ID                 uint   `json:"-"`
+	WorkflowRevisionID string `json:"workflow_revision_id"`
+	WorkflowID         string `json:"workflow_id"`
+	Revision           int    `json:"revision"`
+	Name               string `json:"name"`
+	Description        string `json:"description"`
+	Definition         string `json:"definition"`
+	Status             string `json:"status"`
+	CreatedBy          string `json:"created_by"`
+	CreatedAt          int64  `json:"created_at"`
 }
 
 // WorkflowRun is one execution attempt of a workflow.
 type WorkflowRun struct {
-	ID             uint    `json:"-"`
-	WorkflowRunID  string  `json:"workflow_run_id"`
-	WorkflowID     string  `json:"workflow_id"`
-	IssueID        *string `json:"issue_id,omitempty"`
-	ConversationID string  `json:"conversation_id"`
-	Status         string  `json:"status"`
-	CreatedBy      string  `json:"created_by"`
-	CreatedAt      int64   `json:"created_at"`
-	StartedAt      *int64  `json:"started_at,omitempty"`
-	EndedAt        *int64  `json:"ended_at,omitempty"`
-	ErrorMessage   *string `json:"error_message,omitempty"`
+	ID            uint   `json:"-"`
+	WorkflowRunID string `json:"workflow_run_id"`
+	WorkflowID    string `json:"workflow_id"`
+	// WorkflowRevision is the workflow revision this run expanded. It is 0 for
+	// runs started before workflows recorded revisions.
+	WorkflowRevision int     `json:"workflow_revision,omitempty"`
+	IssueID          *string `json:"issue_id,omitempty"`
+	ConversationID   string  `json:"conversation_id"`
+	Status           string  `json:"status"`
+	CreatedBy        string  `json:"created_by"`
+	CreatedAt        int64   `json:"created_at"`
+	StartedAt        *int64  `json:"started_at,omitempty"`
+	EndedAt          *int64  `json:"ended_at,omitempty"`
+	ErrorMessage     *string `json:"error_message,omitempty"`
 }
 
 // WorkflowStepRun is one durable step execution record under a workflow run.
@@ -66,6 +90,7 @@ type WorkflowStepRun struct {
 	AgentName         string  `json:"agent_name,omitempty"`
 	AgentDescription  string  `json:"agent_description,omitempty"`
 	AgentInstructions string  `json:"agent_instructions,omitempty"`
+	AgentRevision     int     `json:"agent_revision,omitempty"`
 	Prompt            string  `json:"prompt"`
 	Status            string  `json:"status"`
 	TaskID            *string `json:"task_id,omitempty"`
@@ -91,12 +116,13 @@ type WorkflowDefinitionStep struct {
 }
 
 type CreateWorkflowRunInput struct {
-	WorkflowID     string
-	IssueID        *string
-	ConversationID string
-	Status         string
-	CreatedBy      string
-	StartedAt      *int64
+	WorkflowID       string
+	WorkflowRevision int
+	IssueID          *string
+	ConversationID   string
+	Status           string
+	CreatedBy        string
+	StartedAt        *int64
 }
 
 type UpdateWorkflowInput struct {
@@ -104,6 +130,8 @@ type UpdateWorkflowInput struct {
 	Description *string
 	Definition  *string
 	Status      *string
+	// UpdatedBy is recorded as the author of the revision this update appends.
+	UpdatedBy string
 }
 
 type CreateWorkflowStepRunInput struct {
@@ -114,6 +142,7 @@ type CreateWorkflowStepRunInput struct {
 	AgentName         string
 	AgentDescription  string
 	AgentInstructions string
+	AgentRevision     int
 	Prompt            string
 	Status            string
 }
@@ -151,4 +180,10 @@ type WorkflowStore interface {
 	UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in UpdateWorkflowStepRunInput) (*WorkflowStepRun, error)
 	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*WorkflowStepRun, error)
 	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*WorkflowStepRun, error)
+	// ListWorkflowRevisions returns a workflow's revisions, newest first, with
+	// the total count.
+	ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]WorkflowRevision, int, error)
+	// GetWorkflowRevision returns one revision, or nil when the workflow has no
+	// such revision number.
+	GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*WorkflowRevision, error)
 }

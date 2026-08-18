@@ -65,6 +65,12 @@ The Portal adds a shared model on top of the same runtime:
 Team roles are `owner`, `admin`, and `member`. Uploaded files, issues,
 workflows, conversations, and tasks are all team-scoped.
 
+Agents and workflows keep a numbered history. Every edit records the definition
+it produced, along with who wrote it, and an earlier version can be restored —
+which records a new version rather than erasing the ones since. A workflow run
+notes the workflow version it expanded and the agent version each step ran
+under, so a past run stays readable after the definitions move on.
+
 ## Two Tiers
 
 The Portal separates *talking* from *doing*:

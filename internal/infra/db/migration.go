@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
@@ -71,6 +72,10 @@ var migrations = []Migration{
 	{
 		ID:    "0002_task_run_output_file_to_task_run_artifact",
 		Apply: migrateTaskRunOutputFileToArtifact,
+	},
+	{
+		ID:    "0003_seed_first_agent_and_workflow_revision",
+		Apply: seedFirstRevisions,
 	},
 }
 
@@ -180,4 +185,91 @@ func migrateTaskRunOutputFileToArtifact(ctx context.Context, db *gorm.DB) error 
 		return err
 	}
 	return db.WithContext(ctx).Exec("DROP TABLE task_run_output_file").Error
+}
+
+// seedFirstRevisions gives every agent and workflow that predates revision
+// history a revision 1 holding its current content.
+//
+// The alternative — an empty history until the next edit — would silently lose
+// the definition an edit replaced, which is the one thing history exists to
+// keep. The seeded row is an approximation and is documented as one: its author
+// is whoever created the record, not whoever last changed it, and its timestamp
+// is when the content last moved, not when this content was written.
+//
+// It only inserts for records that have no revision at all, so a retry after a
+// crash between applying and recording adds nothing.
+func seedFirstRevisions(ctx context.Context, db *gorm.DB) error {
+	if err := seedFirstAgentRevisions(ctx, db); err != nil {
+		return err
+	}
+	return seedFirstWorkflowRevisions(ctx, db)
+}
+
+func seedFirstAgentRevisions(ctx context.Context, db *gorm.DB) error {
+	var agents []agentRow
+	err := db.WithContext(ctx).
+		Where("NOT EXISTS (SELECT 1 FROM agent_revision WHERE agent_revision.agent_id = agent.agent_id)").
+		Find(&agents).Error
+	if err != nil {
+		return err
+	}
+	if len(agents) == 0 {
+		return nil
+	}
+	revisions := make([]agentRevisionRow, len(agents))
+	for i := range agents {
+		revisions[i] = agentRevisionRow{
+			AgentRevisionID: util.NewPrefixedID(util.PrefixAgentRevision),
+			AgentID:         agents[i].AgentID,
+			Revision:        firstRevision(agents[i].Revision),
+			Name:            agents[i].Name,
+			Description:     agents[i].Description,
+			Instructions:    agents[i].Instructions,
+			CreatedBy:       agents[i].UserID,
+			CreatedAt:       agents[i].CreatedAt,
+		}
+	}
+	return db.WithContext(ctx).Create(&revisions).Error
+}
+
+func seedFirstWorkflowRevisions(ctx context.Context, db *gorm.DB) error {
+	var workflows []workflowRow
+	err := db.WithContext(ctx).
+		Where("NOT EXISTS (SELECT 1 FROM workflow_revision WHERE workflow_revision.workflow_id = workflow.workflow_id)").
+		Find(&workflows).Error
+	if err != nil {
+		return err
+	}
+	if len(workflows) == 0 {
+		return nil
+	}
+	revisions := make([]workflowRevisionRow, len(workflows))
+	for i := range workflows {
+		createdAt := workflows[i].UpdatedAt
+		if createdAt == 0 {
+			createdAt = workflows[i].CreatedAt
+		}
+		revisions[i] = workflowRevisionRow{
+			WorkflowRevisionID: util.NewPrefixedID(util.PrefixWorkflowRevision),
+			WorkflowID:         workflows[i].WorkflowID,
+			Revision:           firstRevision(workflows[i].Revision),
+			Name:               workflows[i].Name,
+			Description:        workflows[i].Description,
+			Definition:         workflows[i].Definition,
+			Status:             workflows[i].Status,
+			CreatedBy:          workflows[i].CreatedBy,
+			CreatedAt:          createdAt,
+		}
+	}
+	return db.WithContext(ctx).Create(&revisions).Error
+}
+
+// firstRevision returns the revision number a seeded row should carry. The
+// column defaults to 1, so a row that reports less than that predates the
+// column and is still its own first revision.
+func firstRevision(current int) int {
+	if current < 1 {
+		return 1
+	}
+	return current
 }

@@ -10,9 +10,39 @@ import (
 	"gorm.io/gorm"
 )
 
-// MockAgentStore is an in-memory AgentStore for tests.
+// MockAgentStore is an in-memory AgentStore for tests. It records revisions the
+// way the database store does, so a test can assert on history.
 type MockAgentStore struct {
-	Agents []model.Agent
+	Agents    []model.Agent
+	Revisions []model.AgentRevision
+}
+
+func (m *MockAgentStore) appendRevision(a *model.Agent, createdBy string) {
+	m.Revisions = append(m.Revisions, model.AgentRevision{
+		AgentRevisionID: fmt.Sprintf("arv_mock_%d", len(m.Revisions)+1),
+		AgentID:         a.AgentID,
+		Revision:        a.Revision,
+		Name:            a.Name,
+		Description:     a.Description,
+		Instructions:    a.Instructions,
+		CreatedBy:       createdBy,
+		CreatedAt:       time.Now().Unix(),
+	})
+}
+
+func (m *MockAgentStore) updateAgentAt(i int, updatedBy, name, description, instructions string) *model.Agent {
+	if m.Agents[i].Name == name && m.Agents[i].Description == description && m.Agents[i].Instructions == instructions {
+		return &m.Agents[i]
+	}
+	m.Agents[i].Name = name
+	m.Agents[i].Description = description
+	m.Agents[i].Instructions = instructions
+	if m.Agents[i].Revision < 1 {
+		m.Agents[i].Revision = 1
+	}
+	m.Agents[i].Revision++
+	m.appendRevision(&m.Agents[i], updatedBy)
+	return &m.Agents[i]
 }
 
 func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]model.Agent, error) {
@@ -56,31 +86,47 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, na
 		Name:         name,
 		Description:  description,
 		Instructions: instructions,
+		Revision:     1,
 		CreatedAt:    time.Now().Unix(),
 	}
 	m.Agents = append(m.Agents, a)
-	return &m.Agents[len(m.Agents)-1], nil
+	created := &m.Agents[len(m.Agents)-1]
+	m.appendRevision(created, userID)
+	return created, nil
 }
 
 func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*model.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
-			m.Agents[i].Name = name
-			m.Agents[i].Description = description
-			m.Agents[i].Instructions = instructions
-			return &m.Agents[i], nil
+			return m.updateAgentAt(i, userID, name, description, instructions), nil
 		}
 	}
 	return nil, nil
 }
 
-func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, name, description, instructions string) (*model.Agent, error) {
+func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, updatedBy, name, description, instructions string) (*model.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
-			m.Agents[i].Name = name
-			m.Agents[i].Description = description
-			m.Agents[i].Instructions = instructions
-			return &m.Agents[i], nil
+			return m.updateAgentAt(i, updatedBy, name, description, instructions), nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockAgentStore) ListAgentRevisions(_ context.Context, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
+	var all []model.AgentRevision
+	for i := len(m.Revisions) - 1; i >= 0; i-- {
+		if m.Revisions[i].AgentID == agentID {
+			all = append(all, m.Revisions[i])
+		}
+	}
+	return pageRevisions(all, limit, offset), len(all), nil
+}
+
+func (m *MockAgentStore) GetAgentRevision(_ context.Context, agentID string, revision int) (*model.AgentRevision, error) {
+	for i := range m.Revisions {
+		if m.Revisions[i].AgentID == agentID && m.Revisions[i].Revision == revision {
+			return &m.Revisions[i], nil
 		}
 	}
 	return nil, nil

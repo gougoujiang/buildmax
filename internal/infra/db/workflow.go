@@ -18,6 +18,7 @@ type workflowRow struct {
 	Description string `gorm:"type:text;not null"`
 	Definition  string `gorm:"type:longtext;not null"`
 	Status      string `gorm:"type:varchar(32);not null;default:'draft'"`
+	Revision    int    `gorm:"column:revision;not null;default:1"`
 	CreatedBy   string `gorm:"type:varchar(64);not null"`
 	CreatedAt   int64  `gorm:"autoCreateTime"`
 	UpdatedAt   int64  `gorm:"autoUpdateTime"`
@@ -25,18 +26,36 @@ type workflowRow struct {
 
 func (workflowRow) TableName() string { return "workflow" }
 
+// workflowRevisionRow is one recorded version of a workflow. Rows are appended,
+// never updated or deleted.
+type workflowRevisionRow struct {
+	ID                 uint   `gorm:"primaryKey;autoIncrement"`
+	WorkflowRevisionID string `gorm:"column:workflow_revision_id;type:varchar(64);uniqueIndex;not null"`
+	WorkflowID         string `gorm:"column:workflow_id;type:varchar(64);not null;index:idx_workflow_revision,unique,priority:1"`
+	Revision           int    `gorm:"column:revision;not null;index:idx_workflow_revision,unique,priority:2"`
+	Name               string `gorm:"type:varchar(255);not null"`
+	Description        string `gorm:"type:text;not null"`
+	Definition         string `gorm:"type:longtext;not null"`
+	Status             string `gorm:"type:varchar(32);not null"`
+	CreatedBy          string `gorm:"column:created_by;type:varchar(64);not null"`
+	CreatedAt          int64  `gorm:"autoCreateTime"`
+}
+
+func (workflowRevisionRow) TableName() string { return "workflow_revision" }
+
 type workflowRunRow struct {
-	ID             uint    `gorm:"primaryKey;autoIncrement"`
-	WorkflowRunID  string  `gorm:"column:workflow_run_id;type:varchar(64);uniqueIndex;not null"`
-	WorkflowID     string  `gorm:"column:workflow_id;type:varchar(64);not null;index"`
-	IssueID        *string `gorm:"column:issue_id;type:varchar(64);index"`
-	ConversationID string  `gorm:"column:conversation_id;type:varchar(64);not null;index"`
-	Status         string  `gorm:"type:varchar(32);not null"`
-	CreatedBy      string  `gorm:"type:varchar(64);not null"`
-	CreatedAt      int64   `gorm:"autoCreateTime"`
-	StartedAt      *int64  `gorm:""`
-	EndedAt        *int64  `gorm:""`
-	ErrorMessage   *string `gorm:"type:text"`
+	ID               uint    `gorm:"primaryKey;autoIncrement"`
+	WorkflowRunID    string  `gorm:"column:workflow_run_id;type:varchar(64);uniqueIndex;not null"`
+	WorkflowID       string  `gorm:"column:workflow_id;type:varchar(64);not null;index"`
+	WorkflowRevision int     `gorm:"column:workflow_revision;not null;default:0"`
+	IssueID          *string `gorm:"column:issue_id;type:varchar(64);index"`
+	ConversationID   string  `gorm:"column:conversation_id;type:varchar(64);not null;index"`
+	Status           string  `gorm:"type:varchar(32);not null"`
+	CreatedBy        string  `gorm:"type:varchar(64);not null"`
+	CreatedAt        int64   `gorm:"autoCreateTime"`
+	StartedAt        *int64  `gorm:""`
+	EndedAt          *int64  `gorm:""`
+	ErrorMessage     *string `gorm:"type:text"`
 }
 
 func (workflowRunRow) TableName() string { return "workflow_run" }
@@ -54,6 +73,7 @@ type workflowStepRunRow struct {
 	AgentName         string  `gorm:"column:agent_name;type:varchar(255);not null"`
 	AgentDescription  string  `gorm:"column:agent_description;type:text;not null"`
 	AgentInstructions string  `gorm:"column:agent_instructions;type:longtext;not null"`
+	AgentRevision     int     `gorm:"column:agent_revision;not null;default:0"`
 	Prompt            string  `gorm:"type:text;not null"`
 	Status            string  `gorm:"type:varchar(32);not null"`
 	TaskID            *string `gorm:"column:task_id;type:varchar(64);index"`
@@ -79,6 +99,7 @@ func toWorkflow(row *workflowRow) *model.Workflow {
 		Description: row.Description,
 		Definition:  row.Definition,
 		Status:      row.Status,
+		Revision:    row.Revision,
 		CreatedBy:   row.CreatedBy,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
@@ -105,10 +126,37 @@ func toWorkflowRow(m *model.Workflow) *workflowRow {
 		Description: m.Description,
 		Definition:  m.Definition,
 		Status:      m.Status,
+		Revision:    m.Revision,
 		CreatedBy:   m.CreatedBy,
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
 	}
+}
+
+func toWorkflowRevision(row *workflowRevisionRow) *model.WorkflowRevision {
+	if row == nil {
+		return nil
+	}
+	return &model.WorkflowRevision{
+		ID:                 row.ID,
+		WorkflowRevisionID: row.WorkflowRevisionID,
+		WorkflowID:         row.WorkflowID,
+		Revision:           row.Revision,
+		Name:               row.Name,
+		Description:        row.Description,
+		Definition:         row.Definition,
+		Status:             row.Status,
+		CreatedBy:          row.CreatedBy,
+		CreatedAt:          row.CreatedAt,
+	}
+}
+
+func toWorkflowRevisions(rows []workflowRevisionRow) []model.WorkflowRevision {
+	out := make([]model.WorkflowRevision, len(rows))
+	for i := range rows {
+		out[i] = *toWorkflowRevision(&rows[i])
+	}
+	return out
 }
 
 func toWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
@@ -116,17 +164,18 @@ func toWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
 		return nil
 	}
 	return &model.WorkflowRun{
-		ID:             row.ID,
-		WorkflowRunID:  row.WorkflowRunID,
-		WorkflowID:     row.WorkflowID,
-		IssueID:        row.IssueID,
-		ConversationID: row.ConversationID,
-		Status:         row.Status,
-		CreatedBy:      row.CreatedBy,
-		CreatedAt:      row.CreatedAt,
-		StartedAt:      row.StartedAt,
-		EndedAt:        row.EndedAt,
-		ErrorMessage:   row.ErrorMessage,
+		ID:               row.ID,
+		WorkflowRunID:    row.WorkflowRunID,
+		WorkflowID:       row.WorkflowID,
+		WorkflowRevision: row.WorkflowRevision,
+		IssueID:          row.IssueID,
+		ConversationID:   row.ConversationID,
+		Status:           row.Status,
+		CreatedBy:        row.CreatedBy,
+		CreatedAt:        row.CreatedAt,
+		StartedAt:        row.StartedAt,
+		EndedAt:          row.EndedAt,
+		ErrorMessage:     row.ErrorMessage,
 	}
 }
 
@@ -143,17 +192,18 @@ func toWorkflowRunRow(m *model.WorkflowRun) *workflowRunRow {
 		return nil
 	}
 	return &workflowRunRow{
-		ID:             m.ID,
-		WorkflowRunID:  m.WorkflowRunID,
-		WorkflowID:     m.WorkflowID,
-		IssueID:        m.IssueID,
-		ConversationID: m.ConversationID,
-		Status:         m.Status,
-		CreatedBy:      m.CreatedBy,
-		CreatedAt:      m.CreatedAt,
-		StartedAt:      m.StartedAt,
-		EndedAt:        m.EndedAt,
-		ErrorMessage:   m.ErrorMessage,
+		ID:               m.ID,
+		WorkflowRunID:    m.WorkflowRunID,
+		WorkflowID:       m.WorkflowID,
+		WorkflowRevision: m.WorkflowRevision,
+		IssueID:          m.IssueID,
+		ConversationID:   m.ConversationID,
+		Status:           m.Status,
+		CreatedBy:        m.CreatedBy,
+		CreatedAt:        m.CreatedAt,
+		StartedAt:        m.StartedAt,
+		EndedAt:          m.EndedAt,
+		ErrorMessage:     m.ErrorMessage,
 	}
 }
 
@@ -172,6 +222,7 @@ func toWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
 		AgentName:         row.AgentName,
 		AgentDescription:  row.AgentDescription,
 		AgentInstructions: row.AgentInstructions,
+		AgentRevision:     row.AgentRevision,
 		Prompt:            row.Prompt,
 		Status:            row.Status,
 		TaskID:            row.TaskID,
@@ -207,14 +258,39 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		Description: description,
 		Definition:  definition,
 		Status:      model.WorkflowStatusDraft,
+		Revision:    1,
 		CreatedBy:   createdBy,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := s.db.WithContext(ctx).Create(toWorkflowRow(workflow)).Error; err != nil {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(toWorkflowRow(workflow)).Error; err != nil {
+			return err
+		}
+		return appendWorkflowRevision(tx, workflow, createdBy)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return workflow, nil
+}
+
+// appendWorkflowRevision records the workflow's current content as its
+// revision. It runs in the same transaction as the write it describes, and the
+// unique (workflow_id, revision) index makes a concurrent second write fail
+// rather than record two definitions under one number.
+func appendWorkflowRevision(tx *gorm.DB, w *model.Workflow, createdBy string) error {
+	return tx.Create(&workflowRevisionRow{
+		WorkflowRevisionID: util.NewPrefixedID(util.PrefixWorkflowRevision),
+		WorkflowID:         w.WorkflowID,
+		Revision:           w.Revision,
+		Name:               w.Name,
+		Description:        w.Description,
+		Definition:         w.Definition,
+		Status:             w.Status,
+		CreatedBy:          createdBy,
+		CreatedAt:          time.Now().Unix(),
+	}).Error
 }
 
 func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error) {
@@ -237,38 +313,93 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 	if workflow.TeamID != teamID {
 		return nil, nil
 	}
-	updates := map[string]interface{}{
-		"updated_at": time.Now().Unix(),
-	}
+	updated := *workflow
 	if in.Name != nil {
-		updates["name"] = *in.Name
+		updated.Name = *in.Name
 	}
 	if in.Description != nil {
-		updates["description"] = *in.Description
+		updated.Description = *in.Description
 	}
 	if in.Definition != nil {
-		updates["definition"] = *in.Definition
+		updated.Definition = *in.Definition
 	}
 	if in.Status != nil {
-		updates["status"] = *in.Status
+		updated.Status = *in.Status
 	}
-	if err := s.db.WithContext(ctx).Model(&workflowRow{}).Where("workflow_id = ?", workflowID).Updates(updates).Error; err != nil {
+	// A save that changes nothing is not a revision. Status counts as content
+	// here: publishing is the act that lets a workflow run, so the record of who
+	// published which definition is exactly what history is for.
+	if updated.Name == workflow.Name && updated.Description == workflow.Description &&
+		updated.Definition == workflow.Definition && updated.Status == workflow.Status {
+		return workflow, nil
+	}
+	updated.Revision = nextRevision(workflow.Revision)
+	updated.UpdatedAt = time.Now().Unix()
+	updates := map[string]interface{}{
+		"name":        updated.Name,
+		"description": updated.Description,
+		"definition":  updated.Definition,
+		"status":      updated.Status,
+		"revision":    updated.Revision,
+		"updated_at":  updated.UpdatedAt,
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&workflowRow{}).Where("workflow_id = ?", workflowID).Updates(updates).Error; err != nil {
+			return err
+		}
+		return appendWorkflowRevision(tx, &updated, in.UpdatedBy)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return s.GetWorkflow(ctx, workflowID)
 }
 
+// ListWorkflowRevisions returns a workflow's revisions, newest first.
+func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&workflowRevisionRow{}).Where("workflow_id = ?", workflowID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	q := s.db.WithContext(ctx).Where("workflow_id = ?", workflowID).Order("revision DESC")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	if offset > 0 {
+		q = q.Offset(offset)
+	}
+	var list []workflowRevisionRow
+	if err := q.Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return toWorkflowRevisions(list), int(total), nil
+}
+
+// GetWorkflowRevision returns one revision, or (nil, nil) when there is no such revision.
+func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*model.WorkflowRevision, error) {
+	var row workflowRevisionRow
+	err := s.db.WithContext(ctx).Where("workflow_id = ? AND revision = ?", workflowID, revision).First(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toWorkflowRevision(&row), nil
+}
+
 func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
 	now := time.Now().Unix()
 	run := &model.WorkflowRun{
-		WorkflowRunID:  util.NewPrefixedID(util.PrefixWorkflowRun),
-		WorkflowID:     in.WorkflowID,
-		IssueID:        in.IssueID,
-		ConversationID: in.ConversationID,
-		Status:         in.Status,
-		CreatedBy:      in.CreatedBy,
-		CreatedAt:      now,
-		StartedAt:      in.StartedAt,
+		WorkflowRunID:    util.NewPrefixedID(util.PrefixWorkflowRun),
+		WorkflowID:       in.WorkflowID,
+		WorkflowRevision: in.WorkflowRevision,
+		IssueID:          in.IssueID,
+		ConversationID:   in.ConversationID,
+		Status:           in.Status,
+		CreatedBy:        in.CreatedBy,
+		CreatedAt:        now,
+		StartedAt:        in.StartedAt,
 	}
 	if err := s.db.WithContext(ctx).Create(toWorkflowRunRow(run)).Error; err != nil {
 		return nil, err
@@ -348,6 +479,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 			AgentName:         steps[i].AgentName,
 			AgentDescription:  steps[i].AgentDescription,
 			AgentInstructions: steps[i].AgentInstructions,
+			AgentRevision:     steps[i].AgentRevision,
 			Prompt:            steps[i].Prompt,
 			Status:            steps[i].Status,
 			CreatedAt:         now,

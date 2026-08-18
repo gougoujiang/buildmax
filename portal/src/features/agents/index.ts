@@ -1,1 +1,8 @@
-export { createAgent, deleteAgent, getAgents, updateAgent } from "./api"
+export {
+  createAgent,
+  deleteAgent,
+  getAgents,
+  updateAgent,
+  getAgentRevisions,
+  restoreAgentRevision,
+} from "./api"

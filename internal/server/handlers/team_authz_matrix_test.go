@@ -59,6 +59,8 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/agents/{agent_id}", model.TeamRoleMember, false},
 	{"PATCH", "/api/teams/{team_id}/agents/{agent_id}", model.TeamRoleAdmin, false},
 	{"DELETE", "/api/teams/{team_id}/agents/{agent_id}", model.TeamRoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/agents/{agent_id}/revisions", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", model.TeamRoleAdmin, false},
 
 	{"GET", "/api/teams/{team_id}/members", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/members", model.TeamRoleOwner, false},
@@ -91,6 +93,8 @@ var teamRoutes = []authzCase{
 	{"POST", "/api/teams/{team_id}/workflows", model.TeamRoleAdmin, false},
 	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}", model.TeamRoleMember, false},
 	{"PATCH", "/api/teams/{team_id}/workflows/{workflow_id}", model.TeamRoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}/revisions", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore", model.TeamRoleAdmin, false},
 	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}/runs", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/workflows/{workflow_id}/runs", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/workflow-runs/{workflow_run_id}", model.TeamRoleMember, false},

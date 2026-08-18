@@ -112,13 +112,14 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 			Name:       "WF",
 			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
 			Status:     model.WorkflowStatusPublished,
+			Revision:   3,
 		}},
 	}
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Description: "collects", Instructions: "collect carefully"},
-			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Description: "summarizes", Instructions: "summarize carefully"},
+			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Description: "collects", Instructions: "collect carefully", Revision: 1},
+			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Description: "summarizes", Instructions: "summarize carefully", Revision: 2},
 		},
 	}
 	svc := &WorkflowService{
@@ -140,6 +141,12 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	}
 	if steps[1].AgentName != "Summarizer" || steps[1].AgentInstructions != "summarize carefully" {
 		t.Fatalf("step[1] snapshot = %q/%q, want Summarizer/summarize carefully", steps[1].AgentName, steps[1].AgentInstructions)
+	}
+	if run.WorkflowRevision != 3 {
+		t.Fatalf("run workflow revision = %d, want 3", run.WorkflowRevision)
+	}
+	if steps[1].AgentRevision != 2 {
+		t.Fatalf("step[1] agent revision = %d, want 2", steps[1].AgentRevision)
 	}
 
 	// Editing the agent after the run started must not change a step still pending.
@@ -177,6 +184,106 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	}
 	if strings.Contains(secondInput, "rewritten mid-run") {
 		t.Fatalf("second task input used the edited agent: %q", secondInput)
+	}
+}
+
+func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
+	workflowStore := &mock.MockWorkflowStore{}
+	agentStore := &mock.MockAgentStore{
+		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
+	}
+	svc := &WorkflowService{Workflows: workflowStore, Agents: agentStore}
+	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
+	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflow: %v", err)
+	}
+	if created.Revision != 1 {
+		t.Fatalf("created revision = %d, want 1", created.Revision)
+	}
+
+	second := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
+	updated, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u2", WorkflowID: created.WorkflowID, Definition: &second,
+	})
+	if err != nil {
+		t.Fatalf("UpdateWorkflow: %v", err)
+	}
+	if updated.Revision != 2 {
+		t.Fatalf("updated revision = %d, want 2", updated.Revision)
+	}
+
+	// Saving the same content again is not a revision.
+	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u2", WorkflowID: created.WorkflowID, Definition: &second,
+	}); err != nil {
+		t.Fatalf("UpdateWorkflow no-op: %v", err)
+	}
+
+	revisions, total, err := svc.ListWorkflowRevisions(context.Background(), "tm_1", created.WorkflowID, 0, 0)
+	if err != nil {
+		t.Fatalf("ListWorkflowRevisions: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("revisions = %d, want 2", total)
+	}
+	if revisions[0].Revision != 2 || revisions[0].CreatedBy != "u2" {
+		t.Fatalf("newest revision = %d by %q, want 2 by u2", revisions[0].Revision, revisions[0].CreatedBy)
+	}
+	if revisions[1].Definition != first {
+		t.Fatalf("revision 1 definition = %q, want the original", revisions[1].Definition)
+	}
+}
+
+func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
+	workflowStore := &mock.MockWorkflowStore{}
+	agentStore := &mock.MockAgentStore{
+		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
+	}
+	svc := &WorkflowService{Workflows: workflowStore, Agents: agentStore}
+	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
+	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflow: %v", err)
+	}
+	published := model.WorkflowStatusPublished
+	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u1", WorkflowID: created.WorkflowID, Status: &published,
+	}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	second := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
+	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u1", WorkflowID: created.WorkflowID, Definition: &second,
+	}); err != nil {
+		t.Fatalf("UpdateWorkflow: %v", err)
+	}
+
+	restored, err := svc.RestoreWorkflowRevision(context.Background(), RestoreWorkflowRevisionCmd{
+		TeamID: "tm_1", UserID: "u3", WorkflowID: created.WorkflowID, Revision: 1,
+	})
+	if err != nil {
+		t.Fatalf("RestoreWorkflowRevision: %v", err)
+	}
+	if restored.Definition != first {
+		t.Fatalf("restored definition = %q, want the revision 1 definition", restored.Definition)
+	}
+	if restored.Revision != 4 {
+		t.Fatalf("restored revision = %d, want 4 — a restore appends rather than rewinds", restored.Revision)
+	}
+	// Revision 1 was a draft; restoring its content must not unpublish the workflow.
+	if restored.Status != model.WorkflowStatusPublished {
+		t.Fatalf("restored status = %q, want published", restored.Status)
+	}
+
+	if _, err := svc.RestoreWorkflowRevision(context.Background(), RestoreWorkflowRevisionCmd{
+		TeamID: "tm_1", UserID: "u3", WorkflowID: created.WorkflowID, Revision: 99,
+	}); err != ErrWorkflowRevisionNotFound {
+		t.Fatalf("restore of missing revision err = %v, want ErrWorkflowRevisionNotFound", err)
 	}
 }
 
