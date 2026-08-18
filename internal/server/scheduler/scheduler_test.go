@@ -24,6 +24,10 @@ type spyTaskRunStore struct {
 	// GetTaskRunWithTask: the task behind pendingRun, or nil to report one missing
 	task *model.Task
 
+	// GetTaskRun: what the run looks like when the scheduler re-reads it after
+	// the worker exits. Nil means the store has nothing to say about it.
+	storedRun *model.TaskRun
+
 	// Recorded calls
 	lastUpdateStatus *struct {
 		taskRunID    string
@@ -70,7 +74,9 @@ func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskR
 }
 
 func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*model.TaskRun, error) {
-	return nil, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.storedRun, nil
 }
 
 func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*model.TaskRun, *model.Task, error) {
@@ -80,6 +86,14 @@ func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*mode
 		return nil, nil, nil
 	}
 	return s.pendingRun, s.task, nil
+}
+
+func (s *spyTaskRunStore) GetActiveTaskRunByTask(_ context.Context, _ string) (*model.TaskRun, error) {
+	return nil, nil
+}
+
+func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _ string, _ int64) (bool, error) {
+	return false, nil
 }
 
 func (s *spyTaskRunStore) ClaimTaskRun(_ context.Context, in model.ClaimTaskRunInput) (bool, error) {
@@ -130,6 +144,29 @@ func (f *failingRunner) Run(_ context.Context, _ model.TaskRun, _ string) (strin
 }
 
 var errSpawnFailed = errors.New("spawn failed for test")
+
+// A canceled worker exits non-zero after it has already reported CANCELED.
+// Overwriting that with the process error would turn an honored instruction
+// into a failure, and replace the reason the run stopped with "exit status 1".
+func TestScheduler_Loop_KeepsAnOutcomeTheWorkerAlreadyReported(t *testing.T) {
+	taskRunID := "r_spy_canceled_00000000"
+	spy := newSpyTaskRunStore(taskRunID)
+	spy.storedRun = &model.TaskRun{TaskRunID: taskRunID, Status: string(model.RunStatusCanceled)}
+
+	s, err := NewSchedulerWithPollInterval(spy, &failingRunner{err: errSpawnFailed}, nil, 10*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Start()
+	time.Sleep(25 * time.Millisecond)
+	s.Stop()
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	if spy.lastUpdateStatus != nil {
+		t.Errorf("the run was rewritten to %q after its worker reported CANCELED", spy.lastUpdateStatus.status)
+	}
+}
 
 func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 	taskRunID := "r_spy123456789012345678"

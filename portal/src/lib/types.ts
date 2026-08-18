@@ -152,7 +152,7 @@ export interface WorkflowStepRun {
   agentDescription?: string | null
   agentInstructions?: string | null
   prompt: string
-  status: "pending" | "running" | "succeeded" | "failed" | "blocked"
+  status: "pending" | "running" | "succeeded" | "failed" | "canceled" | "blocked"
   taskId?: string | null
   taskRunId?: string | null
   outputSummary?: string | null

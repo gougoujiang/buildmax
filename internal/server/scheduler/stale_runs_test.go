@@ -13,17 +13,25 @@ import (
 // fakeStaleStore records what the reaper did and lets a test control what it
 // finds.
 type fakeStaleStore struct {
-	stale      []model.TaskRun
-	listErr    error
-	lastCutoff int64
-	failed     []model.UpdateTaskRunInput
-	synced     []string
-	updateErr  error
+	stale            []model.TaskRun
+	canceled         []model.TaskRun
+	listErr          error
+	cancelListErr    error
+	lastCutoff       int64
+	lastCancelCutoff int64
+	failed           []model.UpdateTaskRunInput
+	synced           []string
+	updateErr        error
 }
 
 func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoffUnix int64, _ int) ([]model.TaskRun, error) {
 	f.lastCutoff = cutoffUnix
 	return f.stale, f.listErr
+}
+
+func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoffUnix int64, _ int) ([]model.TaskRun, error) {
+	f.lastCancelCutoff = cutoffUnix
+	return f.canceled, f.cancelListErr
 }
 
 func (f *fakeStaleStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInput) error {
@@ -82,6 +90,56 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 	}
 }
 
+// TestReaperClosesUnconfirmedCancels covers the case a cooperative cancel
+// cannot: the worker that was supposed to stop is gone. Without this the run
+// keeps showing as in progress after someone pressed stop, which reads as the
+// cancel having done nothing.
+func TestReaperClosesUnconfirmedCancels(t *testing.T) {
+	store := &fakeStaleStore{
+		canceled: []model.TaskRun{{TaskRunID: "r_1", Status: string(model.RunStatusRunning)}},
+	}
+	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+
+	now := time.Unix(1_800_000_000, 0)
+	reaper.Sweep(context.Background(), now)
+
+	if len(store.failed) != 1 {
+		t.Fatalf("finished %d runs, want 1", len(store.failed))
+	}
+	got := store.failed[0]
+	if got.Status != model.RunStatusCanceled {
+		t.Errorf("status = %q, want CANCELED — a stop that was asked for is not a failure", got.Status)
+	}
+	if got.EndedAt == nil || *got.EndedAt != now.Unix() {
+		t.Errorf("ended_at = %v, want %d", got.EndedAt, now.Unix())
+	}
+	if got.ErrorMessage == nil || !strings.Contains(*got.ErrorMessage, defaultCancelGrace.String()) {
+		t.Errorf("message = %v, want it to name the grace period", got.ErrorMessage)
+	}
+	if want := now.Add(-defaultCancelGrace).Unix(); store.lastCancelCutoff != want {
+		t.Errorf("cancel cutoff = %d, want %d — a run asked to stop a moment ago is still the worker's to end", store.lastCancelCutoff, want)
+	}
+	if len(store.synced) != 1 {
+		t.Errorf("synced %v, want the canceled run", store.synced)
+	}
+}
+
+// A failing cancel query must not stop the abandoned sweep: they answer
+// different questions and one being unavailable is no reason to skip the other.
+func TestReaperSweepsAbandonedRunsWhenTheCancelQueryFails(t *testing.T) {
+	store := &fakeStaleStore{
+		stale:         []model.TaskRun{{TaskRunID: "r_1", Status: string(model.RunStatusRunning)}},
+		cancelListErr: errors.New("database is away"),
+	}
+	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+
+	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+	if len(store.failed) != 1 || store.failed[0].Status != model.RunStatusFailed {
+		t.Errorf("failed = %v, want the abandoned run failed", store.failed)
+	}
+}
+
 func TestReaperCutoffIsTheTimeoutAgo(t *testing.T) {
 	store, reaper := newStaleFixture()
 	now := time.Unix(1_800_000_000, 0)
@@ -136,5 +194,8 @@ func TestReaperDefaultsAreApplied(t *testing.T) {
 	}
 	if reaper.interval != defaultStaleSweepInterval {
 		t.Errorf("interval = %v, want %v", reaper.interval, defaultStaleSweepInterval)
+	}
+	if reaper.cancelGrace != defaultCancelGrace {
+		t.Errorf("cancel grace = %v, want %v", reaper.cancelGrace, defaultCancelGrace)
 	}
 }

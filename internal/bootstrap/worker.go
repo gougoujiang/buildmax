@@ -144,12 +144,18 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("worker: run not in SCHEDULED status", "task_run_id", taskRunID, "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
+	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: token}
+	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: token}
+	// A cancel that landed between dispatch and now: the run is over before it
+	// starts, and nothing below needs to be built for it.
+	if fetched.CancelRequested {
+		return reportCanceledBeforeStart(ctx, updater, taskRunID)
+	}
 
 	sessionID := session.NewID()
 	if task.SessionID != nil {
 		sessionID = *task.SessionID
 	}
-	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: token}
 	now := time.Now().Unix()
 	if err := updater.UpdateRunStatus(ctx, run.TaskRunID, &workerclient.PatchTaskRunRequest{
 		Status:    string(model.RunStatusRunning),
@@ -194,7 +200,16 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	paths := taskrun.NewRuntimePathsFromRoot(workspacesDir)
 	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: token}
 	streamSender := &workerclient.DebouncedStreamSender{Inner: httpSender}
-	err = taskrun.RunTask(ctx, taskrun.RunTaskInput{
+
+	// The run's own context, so a cancel recorded on the server reaches the
+	// agent loop. Cancelling by cause rather than plainly is what lets RunTask
+	// tell "someone stopped this" from "the process is shutting down", which
+	// are the same signal but not the same outcome.
+	runCtx, cancelRun := context.WithCancelCause(ctx)
+	defer cancelRun(nil)
+	go workerclient.WatchCancel(runCtx, apiCfg, taskRunID, 0, func() { cancelRun(model.ErrRunCanceled) })
+
+	err = taskrun.RunTask(runCtx, taskrun.RunTaskInput{
 		Task:            task,
 		Run:             run,
 		SessionID:       sessionID,
@@ -206,9 +221,31 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Model:           runtimeModel,
 		Managed:         managed,
 	})
+	if errors.Is(err, model.ErrRunCanceled) {
+		slog.Info("worker: run canceled on request", "task_run_id", taskRunID)
+		return err
+	}
 	if err != nil {
 		slog.Error("worker: run execution failed", "task_run_id", taskRunID, "err", err)
 		return err
 	}
 	return nil
+}
+
+// reportCanceledBeforeStart finishes a run that was canceled between dispatch
+// and start. Nothing ran, so there is no output and no artifact to register —
+// only a record that says why the run stopped instead of what it produced.
+func reportCanceledBeforeStart(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID string) error {
+	slog.Info("worker: this run was canceled before it started", "task_run_id", taskRunID)
+	endedAt := time.Now().Unix()
+	message := "this run was canceled before it started"
+	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
+		Status:       string(model.RunStatusCanceled),
+		EndedAt:      &endedAt,
+		ErrorMessage: &message,
+	}); err != nil {
+		slog.Error("worker: could not report a cancel", "task_run_id", taskRunID, "err", err)
+		return err
+	}
+	return model.ErrRunCanceled
 }

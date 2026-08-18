@@ -69,6 +69,10 @@ type WorkerTaskRun struct {
 	// LLM is how this run reaches a model. Nil means direct, which is what a
 	// server that has not enabled managed worker inference reports.
 	LLM *TaskRunLLM
+	// CancelRequested is true when the run was already asked to stop before
+	// this worker picked it up — a cancel that landed between dispatch and
+	// start. Such a run is finished without executing anything.
+	CancelRequested bool
 }
 
 // GetWorkerTaskRun fetches the run from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil if not found.
@@ -105,7 +109,8 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 			SessionID:      got.Task.SessionID,
 			LastRunID:      got.Task.LastRunID,
 		},
-		LLM: got.LLM,
+		LLM:             got.LLM,
+		CancelRequested: got.Run.CancelRequested,
 	}, nil
 }
 

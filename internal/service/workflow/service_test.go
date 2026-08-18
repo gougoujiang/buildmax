@@ -402,3 +402,64 @@ func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
 		t.Fatalf("cross-team stepAgent err = %v, want ErrInvalidTargetAgent", err)
 	}
 }
+
+// A canceled step stops the run without calling it a failure. The engine reacts
+// to a cancel exactly as it does to a failure — later steps are blocked, the run
+// ends — but a reader has to be able to tell "someone stopped this" from
+// "something went wrong".
+func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
+	workflowStore := &mock.MockWorkflowStore{
+		Workflows: []model.Workflow{{
+			WorkflowID: "w_1",
+			TeamID:     "tm_1",
+			Name:       "WF",
+			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
+			Status:     model.WorkflowStatusPublished,
+		}},
+	}
+	agentStore := &mock.MockAgentStore{
+		Agents: []model.Agent{
+			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
+			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
+		},
+	}
+	svc := &WorkflowService{
+		Workflows:     workflowStore,
+		Agents:        agentStore,
+		Conversations: &mock.MockConversationStore{},
+		TaskService:   &task.TaskService{Agents: agentStore, Tasks: &mock.MockTaskStore{}},
+	}
+	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
+		TeamID: "tm_1", UserID: "u1", WorkflowID: "w_1",
+	})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+
+	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+		TaskRunID: *steps[0].TaskRunID,
+		TaskID:    *steps[0].TaskID,
+		UserID:    "u1",
+		Status:    string(model.RunStatusCanceled),
+	}); err != nil {
+		t.Fatalf("HandleTaskRunTerminal: %v", err)
+	}
+
+	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.WorkflowRunID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if updatedSteps[0].Status != model.WorkflowStepRunStatusCanceled {
+		t.Errorf("step[0] status = %q, want canceled", updatedSteps[0].Status)
+	}
+	if updatedSteps[1].Status != model.WorkflowStepRunStatusBlocked {
+		t.Errorf("step[1] status = %q, want blocked — a canceled step must not start the next one", updatedSteps[1].Status)
+	}
+	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.WorkflowRunID)
+	if err != nil {
+		t.Fatalf("GetWorkflowRun: %v", err)
+	}
+	if updatedRun.Status != model.WorkflowRunStatusCanceled {
+		t.Errorf("run status = %q, want canceled", updatedRun.Status)
+	}
+}

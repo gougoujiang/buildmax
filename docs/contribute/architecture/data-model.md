@@ -602,7 +602,7 @@ The durable unit of background work. One task, many attempts.
 | `conversation_id` | `varchar(64)` | no | The Tier 1 conversation that owns the result |
 | `team_id` | `varchar(64)` | yes | Owning team; used by quota aggregation |
 | `issue_id` | `varchar(64)` | yes | The issue this task advances, if any |
-| `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED` |
+| `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED` |
 | `input` | `text` | no | The prompt |
 | `title` | `varchar(256)` | yes | LLM-generated |
 | `title_prompt_tokens` | `int` | yes | Tokens spent generating the title — counted against quota |
@@ -647,9 +647,19 @@ One execution attempt. This is the row quota and token accounting read.
 | `prompt_tokens` | `int` | yes | Quota input |
 | `completion_tokens` | `int` | yes | Quota input |
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
+| `cancel_requested_at` | `bigint` | yes | When someone asked this run to stop; `NULL` when nobody has |
+| `cancel_requested_by` | `varchar(64)` | yes | `user.user_id` of whoever asked |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `task_run_id`; index `task_id`; index `created_by`.
+Indexes: PK `id`; unique `task_run_id`; index `task_id`; index `created_by`;
+index `cancel_requested_at`.
+
+`cancel_requested_at` is a request, not a status: a run a worker already holds
+stays `RUNNING` until that worker reports `CANCELED`, because nothing else can
+end another process's agent loop. The worker sees the request by polling its own
+run route, and `StaleRunReaper` finishes runs whose worker never confirms — the
+same backstop that closes abandoned ones. Both columns are written once; a
+second cancel does not overwrite who asked first.
 
 `worker_type`, `k8s_job_name`, and `k8s_job_created_at` have no writer in the
 current code — they round-trip through the store mapping and stay `NULL`. Do
@@ -777,7 +787,7 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 | `agent_instructions` | `longtext` | no | Agent instructions captured when the run started |
 | `agent_revision` | `int` | no | The `agent_revision.revision` the snapshot came from; 0 when it predates revisions |
 | `prompt` | `text` | no | Rendered prompt for this step |
-| `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `blocked` |
+| `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled`, `blocked` |
 | `task_id` | `varchar(64)` | yes | The Tier 2 task this step created |
 | `task_run_id` | `varchar(64)` | yes | The specific attempt |
 | `output_summary` | `text` | yes | First 500 runes of the step output, for display; it is not passed to the next step |
@@ -796,6 +806,10 @@ step sends to the model.
 
 `blocked` has no counterpart in `workflow_run.status`. When a step fails, the run
 is marked `failed` and every later `pending` step becomes `blocked`.
+
+`canceled` is written when the step's task run is canceled. It stops the run the
+way a failure does — later steps are blocked, the run ends — and the run is
+marked `canceled` rather than `failed`, because nothing went wrong.
 
 ## Managed Inference
 

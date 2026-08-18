@@ -30,7 +30,12 @@ type taskRunRow struct {
 	PromptTokens     *int    `gorm:""`
 	CompletionTokens *int    `gorm:""`
 	TracePath        *string `gorm:"column:trace_path;type:varchar(512)"`
-	CreatedAt        int64   `gorm:"autoCreateTime"`
+	// CancelRequestedAt is when someone asked this run to stop. It is a
+	// separate column rather than a status because a started run stays RUNNING
+	// until its own worker reports the outcome.
+	CancelRequestedAt *int64  `gorm:"column:cancel_requested_at;index"`
+	CancelRequestedBy *string `gorm:"column:cancel_requested_by;type:varchar(64)"`
+	CreatedAt         int64   `gorm:"autoCreateTime"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -48,26 +53,28 @@ func toTaskRun(row *taskRunRow) *model.TaskRun {
 		return nil
 	}
 	return &model.TaskRun{
-		ID:               row.ID,
-		TaskRunID:        row.TaskRunID,
-		TaskID:           row.TaskID,
-		Input:            row.Input,
-		CreatedBy:        row.CreatedBy,
-		CreatedByType:    row.CreatedByType,
-		TriggerSource:    row.TriggerSource,
-		Status:           row.Status,
-		Output:           row.Output,
-		ErrorMessage:     row.ErrorMessage,
-		StartedAt:        row.StartedAt,
-		EndedAt:          row.EndedAt,
-		SessionID:        row.SessionID,
-		WorkerType:       row.WorkerType,
-		K8sJobName:       row.K8sJobName,
-		K8sJobCreatedAt:  row.K8sJobCreatedAt,
-		PromptTokens:     row.PromptTokens,
-		CompletionTokens: row.CompletionTokens,
-		TracePath:        row.TracePath,
-		CreatedAt:        row.CreatedAt,
+		ID:                row.ID,
+		TaskRunID:         row.TaskRunID,
+		TaskID:            row.TaskID,
+		Input:             row.Input,
+		CreatedBy:         row.CreatedBy,
+		CreatedByType:     row.CreatedByType,
+		TriggerSource:     row.TriggerSource,
+		Status:            row.Status,
+		Output:            row.Output,
+		ErrorMessage:      row.ErrorMessage,
+		StartedAt:         row.StartedAt,
+		EndedAt:           row.EndedAt,
+		SessionID:         row.SessionID,
+		WorkerType:        row.WorkerType,
+		K8sJobName:        row.K8sJobName,
+		K8sJobCreatedAt:   row.K8sJobCreatedAt,
+		PromptTokens:      row.PromptTokens,
+		CompletionTokens:  row.CompletionTokens,
+		TracePath:         row.TracePath,
+		CancelRequestedAt: row.CancelRequestedAt,
+		CancelRequestedBy: row.CancelRequestedBy,
+		CreatedAt:         row.CreatedAt,
 	}
 }
 
@@ -76,26 +83,28 @@ func toTaskRunRow(m *model.TaskRun) *taskRunRow {
 		return nil
 	}
 	return &taskRunRow{
-		ID:               m.ID,
-		TaskRunID:        m.TaskRunID,
-		TaskID:           m.TaskID,
-		Input:            m.Input,
-		CreatedBy:        m.CreatedBy,
-		CreatedByType:    m.CreatedByType,
-		TriggerSource:    m.TriggerSource,
-		Status:           m.Status,
-		Output:           m.Output,
-		ErrorMessage:     m.ErrorMessage,
-		StartedAt:        m.StartedAt,
-		EndedAt:          m.EndedAt,
-		SessionID:        m.SessionID,
-		WorkerType:       m.WorkerType,
-		K8sJobName:       m.K8sJobName,
-		K8sJobCreatedAt:  m.K8sJobCreatedAt,
-		PromptTokens:     m.PromptTokens,
-		CompletionTokens: m.CompletionTokens,
-		TracePath:        m.TracePath,
-		CreatedAt:        m.CreatedAt,
+		ID:                m.ID,
+		TaskRunID:         m.TaskRunID,
+		TaskID:            m.TaskID,
+		Input:             m.Input,
+		CreatedBy:         m.CreatedBy,
+		CreatedByType:     m.CreatedByType,
+		TriggerSource:     m.TriggerSource,
+		Status:            m.Status,
+		Output:            m.Output,
+		ErrorMessage:      m.ErrorMessage,
+		StartedAt:         m.StartedAt,
+		EndedAt:           m.EndedAt,
+		SessionID:         m.SessionID,
+		WorkerType:        m.WorkerType,
+		K8sJobName:        m.K8sJobName,
+		K8sJobCreatedAt:   m.K8sJobCreatedAt,
+		PromptTokens:      m.PromptTokens,
+		CompletionTokens:  m.CompletionTokens,
+		TracePath:         m.TracePath,
+		CancelRequestedAt: m.CancelRequestedAt,
+		CancelRequestedBy: m.CancelRequestedBy,
+		CreatedAt:         m.CreatedAt,
 	}
 }
 
@@ -168,7 +177,7 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 // CreateTaskRun creates a new run (PENDING). Returns model.ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
 func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*model.TaskRun, error) {
 	var inProgress int64
-	err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskID, []string{"PENDING", "SCHEDULED", "RUNNING"}).Count(&inProgress).Error
+	err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskID, model.ActiveRunStatuses).Count(&inProgress).Error
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +257,74 @@ func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*mode
 		return run, nil, err
 	}
 	return run, task, nil
+}
+
+// GetActiveTaskRunByTask returns the task's run in PENDING, SCHEDULED, or
+// RUNNING, or (nil, nil) when the task has none.
+//
+// CreateTaskRun refuses a second run while one is active, so at most one row
+// can match; the ordering only makes the answer deterministic if that ever
+// stops being true.
+func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*model.TaskRun, error) {
+	var r taskRunRow
+	err := s.db.WithContext(ctx).
+		Where("task_id = ? AND status IN ?", taskID, model.ActiveRunStatuses).
+		Order("created_at DESC").
+		First(&r).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toTaskRun(&r), nil
+}
+
+// RequestTaskRunCancel records a cancel request on a run that is still active
+// and does not already carry one.
+//
+// The status stays where it is. A started run belongs to its worker until that
+// worker reports an outcome, so writing CANCELED here would describe a run that
+// is still executing, and the worker's own report would overwrite it moments
+// later.
+func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error) {
+	result := s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("task_run_id = ? AND status IN ? AND cancel_requested_at IS NULL", taskRunID, model.ActiveRunStatuses).
+		Updates(map[string]interface{}{
+			"cancel_requested_at": requestedAt,
+			"cancel_requested_by": requestedBy,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+// ListCancelRequestedTaskRuns returns runs that were asked to stop before
+// cutoffUnix and are still active.
+//
+// A cancel is honored by the run's worker, and a worker can be gone — killed,
+// evicted, or built before cancellation existed. Nothing else would ever move
+// those runs, which is why this query exists; see StaleRunReaper.
+func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoffUnix int64, limit int) ([]model.TaskRun, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var rows []taskRunRow
+	err := s.db.WithContext(ctx).
+		Where("status IN ?", model.ActiveRunStatuses).
+		Where("cancel_requested_at IS NOT NULL AND cancel_requested_at <= ?", cutoffUnix).
+		Order("cancel_requested_at ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.TaskRun, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toTaskRun(&rows[i]))
+	}
+	return out, nil
 }
 
 // ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.

@@ -115,6 +115,13 @@ The scheduler runs inside the server process. The worker talks to blob storage
 directly rather than proxying files through the server, and reports status back
 over a token-authenticated worker API.
 
+A run in flight can be stopped: Issue Detail offers **Stop Run** while a task is
+pending or running. A run nobody has picked up ends immediately. A run a worker
+is executing is asked to stop, and finishes as `canceled` once that worker
+stops — usually within seconds. Either way the run keeps whatever it had
+produced by then, so stopping early costs you the rest of the work, not the part
+already done.
+
 ## Next
 
 - Run something locally: [quickstart.md](quickstart.md)

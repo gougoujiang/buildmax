@@ -381,7 +381,16 @@ func (s *WorkflowService) HandleTaskRunTerminal(ctx context.Context, info model.
 		}
 		return nil
 	}
+	// A canceled step stops the run the same way a failed one does, but it is
+	// not a failure: someone stopped this work on purpose, and a run labelled
+	// failed would send whoever reads it looking for a fault that never
+	// happened.
 	stepStatus := model.WorkflowStepRunStatusFailed
+	runStatus := model.WorkflowRunStatusFailed
+	if info.Status == string(model.RunStatusCanceled) {
+		stepStatus = model.WorkflowStepRunStatusCanceled
+		runStatus = model.WorkflowRunStatusCanceled
+	}
 	if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.StepRunID, model.UpdateWorkflowStepRunInput{
 		Status:       &stepStatus,
 		TaskRunID:    &info.TaskRunID,
@@ -402,7 +411,6 @@ func (s *WorkflowService) HandleTaskRunTerminal(ctx context.Context, info model.
 			}
 		}
 	}
-	runStatus := model.WorkflowRunStatusFailed
 	_, err = s.Workflows.UpdateWorkflowRun(ctx, run.WorkflowRunID, model.UpdateWorkflowRunInput{
 		Status:       runStatus,
 		EndedAt:      &now,

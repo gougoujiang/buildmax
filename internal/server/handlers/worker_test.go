@@ -11,6 +11,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
@@ -49,6 +50,82 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	}
 	if body := w.Body.String(); !strings.Contains(body, `"team_id":"tm_1"`) {
 		t.Errorf("with token: body missing team_id: %q", body)
+	}
+}
+
+// The worker polls this route while it executes, so the run's cancel request
+// has to be visible in it. Nothing else can reach a started run.
+func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
+	taskRunID := "run-cancel"
+	askedAt := int64(1_800_000_000)
+	runs := &mock.MockTaskRunStore{
+		Runs: []model.TaskRun{{
+			TaskRunID: taskRunID, TaskID: "task-1", Input: "input",
+			Status: string(model.RunStatusRunning), CancelRequestedAt: &askedAt,
+		}},
+		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+	}
+	h := NewHandler(Config{WorkerToken: "worker-token-123", TaskRunStore: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+	req.Header.Set("Authorization", "Bearer worker-token-123")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got workerclient.GetTaskRunResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !got.Run.CancelRequested {
+		t.Errorf("cancel_requested = false for a run that was asked to stop; body = %s", w.Body.String())
+	}
+}
+
+// A canceled run is registered like a finished one: its artifacts are kept and
+// its task follows it out of "running". Losing either would make cancelling
+// cost more than waiting.
+func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) {
+	taskRunID := "run-canceled"
+	runs := &mock.MockTaskRunStore{
+		Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
+		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+	}
+	h := NewHandler(Config{WorkerToken: "worker-token-123", TaskRunStore: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	endedAt := int64(1_800_000_010)
+	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
+		Status:   string(model.RunStatusCanceled),
+		EndedAt:  &endedAt,
+		Output:   util.Ptr("as far as I got"),
+		Artifact: &workerclient.ArtifactPayload{RelativePaths: []string{"result.md", "notes.md"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer worker-token-123")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	if runs.Runs[0].Status != string(model.RunStatusCanceled) {
+		t.Errorf("run status = %q, want CANCELED", runs.Runs[0].Status)
+	}
+	if runs.TaskList[0].Status != string(model.RunStatusCanceled) {
+		t.Errorf("task status = %q, want CANCELED", runs.TaskList[0].Status)
+	}
+	if got := runs.Artifacts[taskRunID]; len(got) != 2 {
+		t.Errorf("registered artifacts = %v, want both files the run wrote", got)
 	}
 }
 

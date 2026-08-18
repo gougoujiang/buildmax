@@ -129,6 +129,11 @@ type RunTaskInput struct {
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
 // If input.StreamSender is non-nil, stdout is streamed to the server as deltas; full output is still accumulated for persist and PATCH.
+//
+// A ctx canceled with cause model.ErrRunCanceled means someone asked this run
+// to stop: the run is recorded as CANCELED, keeps the output and artifacts it
+// had produced, and RunTask returns model.ErrRunCanceled. Any other end of ctx
+// is the process going away, which is not this run's outcome to report.
 func RunTask(ctx context.Context, input RunTaskInput) error {
 	task, run := input.Task, input.Run
 	if task == nil || run == nil {
@@ -141,10 +146,19 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.TaskID, TaskRunID: run.TaskRunID}
 
 	if err := prepareRunWorkspace(ctx, input.Persist, task, run, dirs); err != nil {
+		if runCanceled(ctx) {
+			return reportCanceledRun(ctx, scope, RunResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input)
+		}
 		reportRunFailure(ctx, run.TaskRunID, err, "", input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
+	// The cancel check comes first because the agent loop treats cancellation
+	// as an ordinary end: it returns what it had produced and no error. Judging
+	// by err alone would file a stopped run as a completed one.
+	if runCanceled(ctx) {
+		return reportCanceledRun(ctx, scope, result, dirs, input)
+	}
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
 		slog.Error("runtime: run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
@@ -153,11 +167,46 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 
 	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-	if err := reportRunSuccess(ctx, scope, result, input.ArtifactStorage, input.Updater); err != nil {
+	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, input.ArtifactStorage, input.Updater); err != nil {
 		return err
 	}
 	slog.Info("runtime: run succeeded", "task_run_id", run.TaskRunID)
 	return nil
+}
+
+// reportFinishTimeout bounds the work a canceled run is still allowed to do:
+// uploading what it produced and telling the server it stopped. It is generous
+// enough for an artifact upload and short enough that a worker asked to stop
+// actually stops.
+const reportFinishTimeout = 60 * time.Second
+
+// runCanceled reports whether this run's context was ended by a cancel request
+// rather than by the process shutting down or a deadline passing.
+func runCanceled(ctx context.Context) bool {
+	return errors.Is(context.Cause(ctx), model.ErrRunCanceled)
+}
+
+// reportCanceledRun finishes a run that was stopped on request.
+//
+// It does the same reporting a finished run does — upload the run state, keep
+// the artifacts, record the outcome — because a canceled run is not a wasted
+// one: whatever it produced before stopping is the reason someone will look at
+// it. The one difference is the context: the run's own is already dead, so the
+// reporting gets a fresh, bounded one, or the cancel would also destroy the
+// evidence of what the run had done.
+func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
+	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
+	defer cancel()
+	if result.EndTime == 0 {
+		result.EndTime = time.Now().Unix()
+	}
+	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
+	if err := reportRunOutcome(reportCtx, scope, result, model.RunStatusCanceled, input.ArtifactStorage, input.Updater); err != nil {
+		slog.Error("runtime: could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
+		return err
+	}
+	slog.Info("runtime: run canceled", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
+	return model.ErrRunCanceled
 }
 
 func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) runDirs {
@@ -293,7 +342,11 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		return err
 	})
 	if streamSender != nil {
-		if flushErr := streamSender.Flush(ctx, run.TaskRunID); flushErr != nil {
+		// Detached: on a cancel this context is already dead, and the buffered
+		// tail is the part of the reply the reader has not seen yet.
+		flushCtx, cancelFlush := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
+		defer cancelFlush()
+		if flushErr := streamSender.Flush(flushCtx, run.TaskRunID); flushErr != nil {
 			slog.Warn("runtime: stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
 		}
 	}
@@ -374,7 +427,13 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 	_ = updater.UpdateRunStatus(ctx, taskRunID, req)
 }
 
-func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
+// reportRunOutcome uploads a run's artifacts and records its terminal status.
+//
+// SUCCEEDED and CANCELED share it because they leave the same thing behind: a
+// result file, whatever artifacts the run wrote, and the tokens it spent. Only
+// the status differs, and it is what tells a reader whether the output is the
+// answer or as far as the run got.
+func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
 	if putErr := artifactStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
 		slog.Error("runtime: failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}
@@ -383,7 +442,7 @@ func reportRunSuccess(ctx context.Context, scope RunScope, result RunResult, art
 		relativePaths = []string{"result.md"}
 	}
 	req := &workerclient.PatchTaskRunRequest{
-		Status:   string(model.RunStatusSucceeded),
+		Status:   string(status),
 		EndedAt:  &result.EndTime,
 		Output:   &result.OutputStr,
 		Artifact: &workerclient.ArtifactPayload{RelativePaths: relativePaths},

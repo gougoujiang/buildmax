@@ -600,6 +600,21 @@
         }
       }
     },
+    "/api/teams/{team_id}/tasks/{task_id}/cancel": {
+      "post": {
+        "summary": "Cancel the task's run",
+        "description": "A run that has not been dispatched is canceled outright and answers 200. A run a worker already holds is asked to stop and answers 202; it reaches CANCELED when that worker confirms, or when the server's backstop finishes it.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Canceled" },
+          "202": { "description": "Cancel requested; the run's worker is stopping it" },
+          "409": { "description": "No run in progress, or it already finished" }
+        }
+      }
+    },
     "/api/teams/{team_id}/tasks/{task_id}/conversation": {
       "get": {
         "summary": "Get task execution conversation",

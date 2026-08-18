@@ -165,6 +165,18 @@ pre-releases and must be called out in release notes.
   prompts or generated content, and omits the catalog entry an alias resolved
   to, which is the operator's routing rather than the team's.
 
+- A task run in flight can be stopped. Portal's Issue Detail shows **Stop Run**
+  while an agent task is pending or running, backed by
+  `POST /api/teams/{team_id}/tasks/{task_id}/cancel`. A run nobody has picked up
+  yet ends immediately as `CANCELED`. A run a worker is already executing is
+  asked to stop: the worker notices within seconds, ends its agent loop, uploads
+  what the run produced, and reports `CANCELED` — so a canceled run keeps its
+  output and artifacts instead of throwing away the work already done. The run
+  records who asked and when. Nothing is left hanging if the worker is gone:
+  the server finishes a run whose cancel goes unconfirmed for two minutes, which
+  is the same sweep that closes abandoned runs. Cancelling twice while a run is
+  stopping is not an error, and a canceled task can be run again.
+
 ### Fixed
 
 - A task run whose worker never reported an outcome no longer stays `SCHEDULED`
@@ -198,6 +210,12 @@ pre-releases and must be called out in release notes.
   flight when this ships keep the old behavior, since their steps carry no
   snapshot. The captured definition is returned with the workflow run detail and
   shown per step in Portal.
+
+- A failed run keeps the reason its worker reported. The worker records the
+  failure and then exits non-zero, and the scheduler used to overwrite the
+  record with the process error — so "context deadline exceeded calling the
+  model" became "exit status 1". The scheduler now leaves a run alone once it
+  has reached a terminal status.
 
 ## [0.1.0-alpha.1] - 2026-08-17
 

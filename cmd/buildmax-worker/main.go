@@ -11,6 +11,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/bootstrap"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/model"
 	log "github.com/gougoujiang/buildmax/internal/infra/log"
 )
 
@@ -34,6 +35,13 @@ func main() {
 	if err := bootstrap.RunWorker(ctx, *taskRunID); err != nil {
 		if errors.Is(err, bootstrap.ErrAlreadyClaimed) {
 			os.Exit(2)
+		}
+		// A canceled run did what it was told and has already reported CANCELED.
+		// Exiting non-zero here would make the scheduler treat an honored
+		// instruction as a dispatch failure.
+		if errors.Is(err, model.ErrRunCanceled) {
+			slog.Info("worker run canceled", "task_run_id", *taskRunID)
+			return
 		}
 		slog.Error("worker run failed", "task_run_id", *taskRunID, "err", err)
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
