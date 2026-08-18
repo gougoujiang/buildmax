@@ -90,6 +90,36 @@ pre-releases and must be called out in release notes.
   over HTTP puts the key in a request body, a proxy log, and whatever the
   browser did with the form.
 
+- Agents and workflows keep a numbered, append-only history. Every edit records
+  the definition it produced and who wrote it, `GET
+  /api/teams/{team_id}/agents/{agent_id}/revisions` and the matching workflow
+  route read it back, and `POST .../revisions/{revision}/restore` writes an
+  earlier version's content back — which appends a new revision rather than
+  erasing the ones after it. Saving without changing anything records nothing.
+  Restoring a workflow leaves its `draft`/`published`/`archived` state alone, so
+  bringing back an old definition cannot unpublish a workflow a team is running,
+  and the definition is revalidated so a version whose agents were since deleted
+  is refused rather than restored into a plan that cannot run. A workflow run
+  records the workflow revision it expanded and each step records the agent
+  revision it ran under. Existing agents and workflows are given a revision 1
+  holding their current content on upgrade. Portal shows the history on the
+  workflow page and on each agent, with restore in place.
+
+### Changed
+
+- Deleting an agent no longer removes the record. Tasks, workflow step runs, and
+  revisions all name an agent by ID, so dropping the row left dangling
+  references and broke any workflow run still in flight at its next step. The
+  agent is now marked deleted: it disappears from listings and from everything
+  that starts new work — a run cannot be started with it, an issue cannot be
+  assigned to it, and a workflow definition naming it is refused — while records
+  that already refer to it still resolve and an in-flight run finishes on the
+  snapshot it started with. Deleting an agent a *published* workflow still names
+  is refused with `409` naming those workflows, so the breakage surfaces at the
+  delete rather than at the next run; draft and archived workflows do not block
+  it. There is no undelete: the row exists so references resolve, not as a
+  recycle bin.
+
 ### Security
 
 - An account can be disabled, and disabling it stops access immediately rather
@@ -157,6 +187,17 @@ pre-releases and must be called out in release notes.
   deployment, including the Compose quickstart, while the file sat on disk the
   whole time. It now falls back to disk, as the task conversation endpoint
   already did. Deployments backed by S3 were unaffected.
+
+- A workflow run now uses the agent definitions it started with. Steps are
+  dispatched one at a time as the previous step's task run finishes, and each
+  dispatch re-read the agent, so editing an agent while a run was in flight
+  changed what its later steps sent to the model — a run could execute two
+  different versions of the same agent, with nothing recording that it happened.
+  Each step run now stores the agent name, description, and instructions as they
+  were when the run started, and dispatches from that copy. Runs already in
+  flight when this ships keep the old behavior, since their steps carry no
+  snapshot. The captured definition is returned with the workflow run detail and
+  shown per step in Portal.
 
 ## [0.1.0-alpha.1] - 2026-08-17
 

@@ -13,8 +13,8 @@ The active persistence model is team-scoped for shared work:
 - team / team_member
 - conversation / conversation_message
 - issue
-- agent
-- workflow / workflow_run / workflow_step_run
+- agent / agent_revision
+- workflow / workflow_revision / workflow_run / workflow_step_run
 - task / task_run / task_run_artifact
 - quota_tier
 - llm_model / llm_call
@@ -39,7 +39,8 @@ window. Metering therefore has no separate write path to keep in sync.
 ## Notes
 
 - Public entity IDs use prefixed IDs — `u_` user, `tm_` team, `i_` issue, `a_` agent,
-  `w_`/`wr_`/`wsr_` workflow, workflow run, workflow step run, `c_` conversation,
+  `arv_` agent revision, `w_`/`wrv_`/`wr_`/`wsr_` workflow, workflow revision,
+  workflow run, workflow step run, `c_` conversation,
   `cm_` conversation message, `t_` task, `r_` task run, `ar_` artifact,
   `f_` artifact item, `whk_` webhook key. Constants live in `internal/util/id.go`.
 - Session IDs are the exception: they are internal and use UUIDs.

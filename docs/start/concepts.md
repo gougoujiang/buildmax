@@ -65,6 +65,17 @@ The Portal adds a shared model on top of the same runtime:
 Team roles are `owner`, `admin`, and `member`. Uploaded files, issues,
 workflows, conversations, and tasks are all team-scoped.
 
+Deleting an agent removes it from the team but keeps the record behind it, so
+runs and history that already name it stay readable, and a workflow run in
+flight finishes. An agent a published workflow still uses cannot be deleted
+until that workflow is changed or archived.
+
+Agents and workflows keep a numbered history. Every edit records the definition
+it produced, along with who wrote it, and an earlier version can be restored —
+which records a new version rather than erasing the ones since. A workflow run
+notes the workflow version it expanded and the agent version each step ran
+under, so a past run stays readable after the definitions move on.
+
 ## Two Tiers
 
 The Portal separates *talking* from *doing*:

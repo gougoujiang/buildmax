@@ -40,6 +40,7 @@ func TestMigrationIDsAreStable(t *testing.T) {
 	want := []string{
 		"0001_artifact_tables_to_task_run_artifact",
 		"0002_task_run_output_file_to_task_run_artifact",
+		"0003_seed_first_agent_and_workflow_revision",
 	}
 	if len(migrations) < len(want) {
 		t.Fatalf("migrations shrank to %d; entries are append-only", len(migrations))

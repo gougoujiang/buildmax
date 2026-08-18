@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import type { Agent } from "../lib/types"
 import { FormModal } from "@buildmax/gui"
 import { AGENT_FIELDS } from "./CreateAgentModal"
@@ -15,6 +16,7 @@ interface EditAgentModalProps {
     instructions?: string
   }) => void
   onDelete: () => void
+  history?: ReactNode
 }
 
 export function EditAgentModal({
@@ -26,6 +28,7 @@ export function EditAgentModal({
   onClose,
   onSave,
   onDelete,
+  history,
 }: EditAgentModalProps) {
   const initialValues =
     agent != null
@@ -37,7 +40,11 @@ export function EditAgentModal({
       : undefined
 
   function handleDelete() {
-    if (window.confirm("Delete this agent? This cannot be undone.")) {
+    if (
+      window.confirm(
+        "Delete this agent? It leaves the team and cannot be restored. Runs, tasks, and history that already reference it stay readable.",
+      )
+    ) {
       onDelete()
     }
   }
@@ -71,6 +78,8 @@ export function EditAgentModal({
           instructions: values.instructions?.trim() || undefined,
         })
       }}
-    />
+    >
+      {history}
+    </FormModal>
   )
 }

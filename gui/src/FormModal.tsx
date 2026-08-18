@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { BaseModal } from "./BaseModal"
 
 export interface FormModalFieldConfig {
@@ -26,6 +26,9 @@ export interface FormModalProps {
   cancelLabel?: string
   onClose: () => void
   onSubmit: (values: Record<string, string>) => void
+  // children render below the fields and hint, for content a form alone cannot
+  // express — a revision history, a preview, a related list.
+  children?: ReactNode
 }
 
 export function FormModal({
@@ -43,6 +46,7 @@ export function FormModal({
   cancelLabel = "Cancel",
   onClose,
   onSubmit,
+  children,
 }: FormModalProps) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((field) => [field.key, ""]))
@@ -103,6 +107,7 @@ export function FormModal({
           </div>
         ))}
         {hint ? <p className="modal__hint">{hint}</p> : null}
+        {children}
         {error ? (
           <p className="modal__error" role="alert">
             {error}

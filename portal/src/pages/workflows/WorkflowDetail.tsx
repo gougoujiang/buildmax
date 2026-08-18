@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from "react"
-import type { Agent, Workflow, WorkflowRun } from "../../lib/types"
+import type { Agent, Workflow, WorkflowRevision, WorkflowRun } from "../../lib/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
   apiAgentToAgent,
+  apiWorkflowRevisionToWorkflowRevision,
   apiWorkflowRunToWorkflowRun,
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
 import {
   getWorkflow,
+  getWorkflowRevisions,
   getWorkflowRuns,
+  restoreWorkflowRevision,
   runWorkflow,
   updateWorkflow,
 } from "../../features/workflows"
+import { RevisionHistory } from "../../components/RevisionHistory"
 import { useTeam } from "../../contexts/TeamContext"
 
 interface WorkflowStepDraft {
@@ -82,6 +86,10 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [revisions, setRevisions] = useState<WorkflowRevision[]>([])
+  const [revisionsLoading, setRevisionsLoading] = useState(false)
+  const [revisionsError, setRevisionsError] = useState<string | null>(null)
+  const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
   const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
 
   const syncDefinition = useCallback((nextSteps: WorkflowStepDraft[]) => {
@@ -101,16 +109,18 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
     setLoading(true)
     setError(null)
     try {
-      const [workflowApi, runsApi, agentsApi] = await Promise.all([
+      const [workflowApi, runsApi, agentsApi, revisionsApi] = await Promise.all([
         getWorkflow(currentTeamId, workflowId, token),
         getWorkflowRuns(currentTeamId, workflowId, token),
         getAgents(currentTeamId, token),
+        getWorkflowRevisions(currentTeamId, workflowId, token),
       ])
       const mappedWorkflow = apiWorkflowToWorkflow(workflowApi)
       const parsed = parseWorkflowDefinition(mappedWorkflow.definition)
       setWorkflow(mappedWorkflow)
       setRuns(runsApi.runs.map(apiWorkflowRunToWorkflowRun))
       setAgents(agentsApi.map(apiAgentToAgent))
+      setRevisions(revisionsApi.revisions.map(apiWorkflowRevisionToWorkflowRevision))
       setName(mappedWorkflow.name)
       setDescription(mappedWorkflow.description)
       setDefinition(mappedWorkflow.definition)
@@ -122,6 +132,16 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
     } finally {
       setLoading(false)
     }
+  }, [token, currentTeamId, workflowId])
+
+  const loadRevisions = useCallback(() => {
+    if (!token || !currentTeamId) return
+    setRevisionsLoading(true)
+    setRevisionsError(null)
+    getWorkflowRevisions(currentTeamId, workflowId, token)
+      .then((res) => setRevisions(res.revisions.map(apiWorkflowRevisionToWorkflowRevision)))
+      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
+      .finally(() => setRevisionsLoading(false))
   }, [token, currentTeamId, workflowId])
 
   useEffect(() => {
@@ -148,9 +168,31 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
         setStatus(mapped.status)
         setStepDrafts(parsed?.steps ?? [])
         setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
+        loadRevisions()
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to update workflow")))
       .finally(() => setSaving(false))
+  }
+
+  function handleRestoreRevision(revision: number) {
+    if (!token || !currentTeamId || !workflow || !canManageWorkflows) return
+    setRevisionsError(null)
+    setRestoringRevision(revision)
+    restoreWorkflowRevision(currentTeamId, workflow.id, revision, token)
+      .then((restored) => {
+        const mapped = apiWorkflowToWorkflow(restored)
+        const parsed = parseWorkflowDefinition(mapped.definition)
+        setWorkflow(mapped)
+        setName(mapped.name)
+        setDescription(mapped.description)
+        setDefinition(mapped.definition)
+        setStatus(mapped.status)
+        setStepDrafts(parsed?.steps ?? [])
+        setDefinitionHint(parsed ? null : "Definition JSON is invalid, so the step form is temporarily disabled.")
+        loadRevisions()
+      })
+      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to restore revision")))
+      .finally(() => setRestoringRevision(null))
   }
 
   function handleRunWorkflow() {
@@ -401,6 +443,29 @@ export function WorkflowDetail({ token, workflowId }: WorkflowDetailProps) {
                 {definitionHint ? <span className="issues-page__field-label">{definitionHint}</span> : null}
               </label>
             </div>
+          </section>
+
+          <section className="issues-page__panel">
+            <RevisionHistory
+              title="History"
+              entries={revisions.map((rev) => ({
+                id: rev.id,
+                revision: rev.revision,
+                createdBy: rev.createdBy,
+                createdLabel: rev.createdLabel,
+                summary: `${rev.name} · ${rev.status}`,
+              }))}
+              currentRevision={workflow?.revision ?? 0}
+              loading={revisionsLoading}
+              error={revisionsError}
+              canRestore={canManageWorkflows}
+              restoringRevision={restoringRevision}
+              onRestore={handleRestoreRevision}
+            />
+            <p className="page-activity__meta">
+              Restoring writes that version's name, description, and steps back as a new
+              version. The lifecycle state is left as it is.
+            </p>
           </section>
 
           <section className="issues-page__panel">

@@ -3,6 +3,7 @@ import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import type {
   ApiWorkflow,
   ApiWorkflowListResponse,
+  ApiWorkflowRevisionListResponse,
   ApiWorkflowRunDetailResponse,
   ApiWorkflowRunListResponse,
 } from "../../lib/api/types"
@@ -86,4 +87,27 @@ export async function runIssueWorkflow(
     method: "POST",
     headers: authHeaders(token),
   })
+}
+
+export async function getWorkflowRevisions(
+  teamId: string,
+  workflowId: string,
+  token: string,
+): Promise<ApiWorkflowRevisionListResponse> {
+  return requestJson<ApiWorkflowRevisionListResponse>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}/revisions`,
+    { headers: authHeaders(token) },
+  )
+}
+
+export async function restoreWorkflowRevision(
+  teamId: string,
+  workflowId: string,
+  revision: number,
+  token: string,
+): Promise<ApiWorkflow> {
+  return requestJson<ApiWorkflow>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/workflows/${encodeURIComponent(workflowId)}/revisions/${revision}/restore`,
+    { method: "POST", headers: authHeaders(token) },
+  )
 }

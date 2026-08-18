@@ -5,7 +5,7 @@ import {
   throwIfNotOk,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
-import type { ApiAgent } from "../../lib/api/types"
+import type { ApiAgent, ApiAgentRevisionListResponse } from "../../lib/api/types"
 
 export async function getAgents(teamId: string, token: string): Promise<ApiAgent[]> {
   return requestJson<ApiAgent[]>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents`, { headers: authHeaders(token) })
@@ -50,4 +50,27 @@ export async function deleteAgent(
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}`
   const res = await apiFetch(url, { method: "DELETE", headers: authHeaders(token) })
   await throwIfNotOk(res)
+}
+
+export async function getAgentRevisions(
+  teamId: string,
+  agentId: string,
+  token: string
+): Promise<ApiAgentRevisionListResponse> {
+  return requestJson<ApiAgentRevisionListResponse>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}/revisions`,
+    { headers: authHeaders(token) }
+  )
+}
+
+export async function restoreAgentRevision(
+  teamId: string,
+  agentId: string,
+  revision: number,
+  token: string
+): Promise<ApiAgent> {
+  return requestJson<ApiAgent>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}/revisions/${revision}/restore`,
+    { method: "POST", headers: authHeaders(token) }
+  )
 }

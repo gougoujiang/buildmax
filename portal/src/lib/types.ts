@@ -63,7 +63,20 @@ export interface Agent {
   name: string
   description?: string
   instructions?: string
+  revision: number
   createdAt: number
+}
+
+export interface AgentRevision {
+  id: string
+  agentId: string
+  revision: number
+  name: string
+  description: string
+  instructions: string
+  createdBy: string
+  createdAt: number
+  createdLabel: string
 }
 
 export interface Issue {
@@ -92,15 +105,30 @@ export interface Workflow {
   description: string
   definition: string
   status: "draft" | "published" | "archived"
+  revision: number
   createdBy: string
   createdAt: number
   updatedAt: number
   updatedLabel: string
 }
 
+export interface WorkflowRevision {
+  id: string
+  workflowId: string
+  revision: number
+  name: string
+  description: string
+  definition: string
+  status: string
+  createdBy: string
+  createdAt: number
+  createdLabel: string
+}
+
 export interface WorkflowRun {
   id: string
   workflowId: string
+  workflowRevision?: number | null
   issueId?: string | null
   conversationId: string
   status: "pending" | "running" | "succeeded" | "failed" | "canceled"
@@ -119,6 +147,10 @@ export interface WorkflowStepRun {
   stepIndex: number
   stepType: string
   targetAgentId?: string | null
+  agentRevision?: number | null
+  agentName?: string | null
+  agentDescription?: string | null
+  agentInstructions?: string | null
   prompt: string
   status: "pending" | "running" | "succeeded" | "failed" | "blocked"
   taskId?: string | null

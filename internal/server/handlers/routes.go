@@ -37,6 +37,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}", h.getAgentHandler)
 	mux.HandleFunc("PATCH /api/teams/{team_id}/agents/{agent_id}", h.patchAgentHandler)
 	mux.HandleFunc("DELETE /api/teams/{team_id}/agents/{agent_id}", h.deleteAgentHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}/revisions", h.listAgentRevisionsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", h.restoreAgentRevisionHandler)
 
 	// Issues
 	mux.HandleFunc("GET /api/teams/{team_id}/issues", h.listIssuesHandler)
@@ -56,6 +58,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/teams/{team_id}/workflows", h.createWorkflowHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}", h.getWorkflowHandler)
 	mux.HandleFunc("PATCH /api/teams/{team_id}/workflows/{workflow_id}", h.patchWorkflowHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}/revisions", h.listWorkflowRevisionsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore", h.restoreWorkflowRevisionHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}/runs", h.listWorkflowRunsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/workflows/{workflow_id}/runs", h.createWorkflowRunHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/workflow-runs/{workflow_run_id}", h.getWorkflowRunHandler)

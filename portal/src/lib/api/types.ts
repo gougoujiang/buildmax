@@ -40,7 +40,24 @@ export interface ApiAgent {
   name: string
   description: string
   instructions: string
+  revision: number
   created_at: number
+}
+
+export interface ApiAgentRevision {
+  id: string
+  agent_id: string
+  revision: number
+  name: string
+  description: string
+  instructions: string
+  created_by: string
+  created_at: number
+}
+
+export interface ApiAgentRevisionListResponse {
+  revisions: ApiAgentRevision[]
+  total: number
 }
 
 export interface ApiIssue {
@@ -87,9 +104,27 @@ export interface ApiWorkflow {
   description: string
   definition: string
   status: string
+  revision: number
   created_by: string
   created_at: number
   updated_at: number
+}
+
+export interface ApiWorkflowRevision {
+  id: string
+  workflow_id: string
+  revision: number
+  name: string
+  description: string
+  definition: string
+  status: string
+  created_by: string
+  created_at: number
+}
+
+export interface ApiWorkflowRevisionListResponse {
+  revisions: ApiWorkflowRevision[]
+  total: number
 }
 
 export interface ApiWorkflowListResponse {
@@ -99,6 +134,7 @@ export interface ApiWorkflowListResponse {
 export interface ApiWorkflowRun {
   id: string
   workflow_id: string
+  workflow_revision?: number | null
   issue_id?: string | null
   conversation_id: string
   status: string
@@ -116,6 +152,10 @@ export interface ApiWorkflowStepRun {
   step_index: number
   step_type: string
   target_agent_id?: string | null
+  agent_name?: string | null
+  agent_description?: string | null
+  agent_instructions?: string | null
+  agent_revision?: number | null
   prompt: string
   status: string
   task_id?: string | null

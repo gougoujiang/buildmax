@@ -22,6 +22,7 @@ var (
 	ErrWorkflowDefinitionRequired = errors.New("workflow definition required")
 	ErrWorkflowNotFound           = errors.New("workflow not found")
 	ErrWorkflowRunNotFound        = errors.New("workflow run not found")
+	ErrWorkflowRevisionNotFound   = errors.New("workflow revision not found")
 	ErrIssueNotFound              = errors.New("issue not found")
 	ErrIssueWorkflowMismatch      = errors.New("issue not assigned to workflow")
 	ErrInvalidDefinition          = errors.New("invalid workflow definition")
@@ -51,11 +52,20 @@ type CreateWorkflowCmd struct {
 
 type UpdateWorkflowCmd struct {
 	TeamID      string
+	UserID      string
 	WorkflowID  string
 	Name        *string
 	Description *string
 	Definition  *string
 	Status      *string
+}
+
+// RestoreWorkflowRevisionCmd restores an earlier revision's content.
+type RestoreWorkflowRevisionCmd struct {
+	TeamID     string
+	UserID     string
+	WorkflowID string
+	Revision   int
 }
 
 type StartWorkflowRunCmd struct {
@@ -82,7 +92,7 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, cmd CreateWorkflow
 	if strings.TrimSpace(cmd.Definition) == "" {
 		return nil, ErrWorkflowDefinitionRequired
 	}
-	if _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, cmd.Definition); err != nil {
+	if _, _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, cmd.Definition); err != nil {
 		return nil, err
 	}
 	return s.Workflows.CreateWorkflow(ctx, cmd.TeamID, cmd.UserID, strings.TrimSpace(cmd.Name), strings.TrimSpace(cmd.Description), cmd.Definition)
@@ -111,12 +121,13 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflow
 		Description: cmd.Description,
 		Definition:  cmd.Definition,
 		Status:      nil,
+		UpdatedBy:   cmd.UserID,
 	}
 	if cmd.Definition != nil {
 		if strings.TrimSpace(*cmd.Definition) == "" {
 			return nil, ErrWorkflowDefinitionRequired
 		}
-		if _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, *cmd.Definition); err != nil {
+		if _, _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, *cmd.Definition); err != nil {
 			return nil, err
 		}
 	}
@@ -134,6 +145,86 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflow
 		return nil, ErrWorkflowNotFound
 	}
 	return workflow, nil
+}
+
+func (s *WorkflowService) ListWorkflowRevisions(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
+	workflow, err := s.GetWorkflow(ctx, teamID, workflowID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.Workflows.ListWorkflowRevisions(ctx, workflow.WorkflowID, limit, offset)
+}
+
+// RestoreWorkflowRevision writes an earlier revision's name, description, and
+// definition back to the workflow, which appends a new revision rather than
+// rewinding to the old one.
+//
+// Status is deliberately not restored. It is lifecycle state, not content:
+// restoring the definition of a draft revision must not unpublish a workflow
+// teams are running, and restoring a published one must not publish a draft
+// without anyone deciding to. The definition is revalidated, so a revision
+// whose agents have since been deleted is refused rather than restored into a
+// plan that cannot run.
+func (s *WorkflowService) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkflowRevisionCmd) (*model.Workflow, error) {
+	if s.Workflows == nil {
+		return nil, ErrWorkflowsNotConfigured
+	}
+	workflow, err := s.GetWorkflow(ctx, cmd.TeamID, cmd.WorkflowID)
+	if err != nil {
+		return nil, err
+	}
+	revision, err := s.Workflows.GetWorkflowRevision(ctx, workflow.WorkflowID, cmd.Revision)
+	if err != nil {
+		return nil, err
+	}
+	if revision == nil {
+		return nil, ErrWorkflowRevisionNotFound
+	}
+	return s.UpdateWorkflow(ctx, UpdateWorkflowCmd{
+		TeamID:      cmd.TeamID,
+		UserID:      cmd.UserID,
+		WorkflowID:  workflow.WorkflowID,
+		Name:        &revision.Name,
+		Description: &revision.Description,
+		Definition:  &revision.Definition,
+	})
+}
+
+// PublishedWorkflowsUsingAgent returns the team's published workflows whose
+// definition names agentID.
+//
+// It exists so deleting an agent can be refused while a workflow that can still
+// be run depends on it. Draft and archived workflows do not count: neither can
+// start a run, and publishing one revalidates its agents.
+//
+// A published workflow whose definition no longer parses is skipped rather than
+// treated as a reference. It cannot run either way, and blocking an unrelated
+// delete on it would leave no way forward.
+func (s *WorkflowService) PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]model.Workflow, error) {
+	if s.Workflows == nil {
+		return nil, ErrWorkflowsNotConfigured
+	}
+	workflows, err := s.Workflows.ListWorkflowsByTeam(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	var using []model.Workflow
+	for i := range workflows {
+		if workflows[i].Status != model.WorkflowStatusPublished {
+			continue
+		}
+		def, err := parseDefinition(workflows[i].Definition)
+		if err != nil {
+			continue
+		}
+		for j := range def.Steps {
+			if def.Steps[j].TargetAgentID == agentID {
+				using = append(using, workflows[i])
+				break
+			}
+		}
+	}
+	return using, nil
 }
 
 func (s *WorkflowService) ListWorkflowRuns(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
@@ -189,7 +280,7 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 	if workflow.Status != model.WorkflowStatusPublished {
 		return nil, nil, ErrWorkflowNotPublished
 	}
-	def, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, workflow.Definition)
+	def, agents, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, workflow.Definition)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -202,12 +293,13 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 	}
 	now := time.Now().Unix()
 	run, err := s.Workflows.CreateWorkflowRun(ctx, model.CreateWorkflowRunInput{
-		WorkflowID:     workflow.WorkflowID,
-		IssueID:        cmd.IssueID,
-		ConversationID: conv.ConversationID,
-		Status:         model.WorkflowRunStatusRunning,
-		CreatedBy:      cmd.UserID,
-		StartedAt:      &now,
+		WorkflowID:       workflow.WorkflowID,
+		WorkflowRevision: workflow.Revision,
+		IssueID:          cmd.IssueID,
+		ConversationID:   conv.ConversationID,
+		Status:           model.WorkflowRunStatusRunning,
+		CreatedBy:        cmd.UserID,
+		StartedAt:        &now,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -215,13 +307,18 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 	stepsIn := make([]model.CreateWorkflowStepRunInput, len(def.Steps))
 	for i := range def.Steps {
 		target := def.Steps[i].TargetAgentID
+		agent := agents[target]
 		stepsIn[i] = model.CreateWorkflowStepRunInput{
-			StepID:        def.Steps[i].StepID,
-			StepIndex:     i,
-			StepType:      def.Steps[i].Type,
-			TargetAgentID: &target,
-			Prompt:        def.Steps[i].Prompt,
-			Status:        model.WorkflowStepRunStatusPending,
+			StepID:            def.Steps[i].StepID,
+			StepIndex:         i,
+			StepType:          def.Steps[i].Type,
+			TargetAgentID:     &target,
+			AgentName:         agent.Name,
+			AgentDescription:  agent.Description,
+			AgentInstructions: agent.Instructions,
+			AgentRevision:     agent.Revision,
+			Prompt:            def.Steps[i].Prompt,
+			Status:            model.WorkflowStepRunStatusPending,
 		}
 	}
 	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.WorkflowRunID, stepsIn)
@@ -368,6 +465,36 @@ func (s *WorkflowService) dispatchNextStep(ctx context.Context, teamID, userID s
 	return nil, err
 }
 
+// stepAgent returns the agent definition a step must run with. Steps recorded since
+// runs snapshot their agent carry it on the step run itself, so an edit to the agent
+// while the run is in flight cannot change what a later step sends. Steps written
+// before that fall back to the agent definition as it stands now, deleted or not:
+// the run was authorized when it started, and refusing to finish it because the
+// agent has since been deleted would strand it half done.
+func (s *WorkflowService) stepAgent(ctx context.Context, teamID, agentID string, step model.WorkflowStepRun) (*model.Agent, error) {
+	if step.AgentName != "" || step.AgentInstructions != "" {
+		return &model.Agent{
+			AgentID:      agentID,
+			TeamID:       teamID,
+			Name:         step.AgentName,
+			Description:  step.AgentDescription,
+			Instructions: step.AgentInstructions,
+			Revision:     step.AgentRevision,
+		}, nil
+	}
+	if s.Agents == nil {
+		return nil, ErrInvalidTargetAgent
+	}
+	agent, err := s.Agents.GetAgentIncludingDeleted(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if agent == nil || agent.TeamID != teamID {
+		return nil, ErrInvalidTargetAgent
+	}
+	return agent, nil
+}
+
 func (s *WorkflowService) createStepTask(ctx context.Context, teamID, userID, conversationID string, step model.WorkflowStepRun) (*model.Task, string, error) {
 	agentID := ""
 	if step.TargetAgentID != nil {
@@ -376,12 +503,9 @@ func (s *WorkflowService) createStepTask(ctx context.Context, teamID, userID, co
 	if agentID == "" {
 		return nil, "", ErrInvalidTargetAgent
 	}
-	agent, err := s.Agents.GetAgent(ctx, agentID)
+	agent, err := s.stepAgent(ctx, teamID, agentID, step)
 	if err != nil {
 		return nil, "", err
-	}
-	if agent == nil || agent.TeamID != teamID {
-		return nil, "", ErrInvalidTargetAgent
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt)
 	taskItem, err := s.TaskService.CreateTask(ctx, task.CreateTaskCmd{
@@ -423,15 +547,18 @@ func (s *WorkflowService) validateIssueForRun(ctx context.Context, teamID, workf
 	return nil
 }
 
-func (s *WorkflowService) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, error) {
+// parseAndValidateDefinition parses raw, checks every step's target agent, and returns
+// the resolved agents keyed by agent ID so a caller can snapshot them.
+func (s *WorkflowService) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, map[string]model.Agent, error) {
 	def, err := parseDefinition(raw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := s.validateDefinitionAgents(ctx, teamID, def); err != nil {
-		return nil, err
+	agents, err := s.resolveDefinitionAgents(ctx, teamID, def)
+	if err != nil {
+		return nil, nil, err
 	}
-	return def, nil
+	return def, agents, nil
 }
 
 // parseDefinition unmarshals raw JSON into a WorkflowDefinition and validates structural fields
@@ -468,21 +595,33 @@ func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 	return &def, nil
 }
 
-// validateDefinitionAgents checks that every step's target agent exists and belongs to teamID.
-func (s *WorkflowService) validateDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) error {
+// resolveDefinitionAgents checks that every step's target agent is live and belongs
+// to teamID, and returns those agents keyed by agent ID.
+//
+// A deleted agent is refused. This runs when a workflow is written and again when a
+// run starts, so a plan cannot take a new dependency on a deleted agent, and a
+// workflow that lost one is refused at the start of a run rather than partway
+// through it.
+func (s *WorkflowService) resolveDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) (map[string]model.Agent, error) {
 	if s.Agents == nil {
-		return ErrInvalidTargetAgent
+		return nil, ErrInvalidTargetAgent
 	}
+	agents := make(map[string]model.Agent, len(def.Steps))
 	for i := range def.Steps {
-		agent, err := s.Agents.GetAgent(ctx, def.Steps[i].TargetAgentID)
+		agentID := def.Steps[i].TargetAgentID
+		if _, ok := agents[agentID]; ok {
+			continue
+		}
+		agent, err := s.Agents.GetAgent(ctx, agentID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if agent == nil || agent.TeamID != teamID {
-			return ErrInvalidTargetAgent
+			return nil, ErrInvalidTargetAgent
 		}
+		agents[agentID] = *agent
 	}
-	return nil
+	return agents, nil
 }
 
 func isValidWorkflowStatus(status string) bool {

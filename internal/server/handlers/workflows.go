@@ -16,40 +16,63 @@ type workflowResponse struct {
 	Description string `json:"description"`
 	Definition  string `json:"definition"`
 	Status      string `json:"status"`
+	Revision    int    `json:"revision"`
 	CreatedBy   string `json:"created_by"`
 	CreatedAt   int64  `json:"created_at"`
 	UpdatedAt   int64  `json:"updated_at"`
 }
 
+type workflowRevisionResponse struct {
+	ID          string `json:"id"`
+	WorkflowID  string `json:"workflow_id"`
+	Revision    int    `json:"revision"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Definition  string `json:"definition"`
+	Status      string `json:"status"`
+	CreatedBy   string `json:"created_by"`
+	CreatedAt   int64  `json:"created_at"`
+}
+
+type workflowRevisionListResponse struct {
+	Revisions []workflowRevisionResponse `json:"revisions"`
+	Total     int                        `json:"total"`
+}
+
 type workflowRunResponse struct {
-	ID             string  `json:"id"`
-	WorkflowID     string  `json:"workflow_id"`
-	IssueID        *string `json:"issue_id,omitempty"`
-	ConversationID string  `json:"conversation_id"`
-	Status         string  `json:"status"`
-	CreatedBy      string  `json:"created_by"`
-	CreatedAt      int64   `json:"created_at"`
-	StartedAt      *int64  `json:"started_at,omitempty"`
-	EndedAt        *int64  `json:"ended_at,omitempty"`
-	ErrorMessage   *string `json:"error_message,omitempty"`
+	ID               string  `json:"id"`
+	WorkflowID       string  `json:"workflow_id"`
+	WorkflowRevision int     `json:"workflow_revision,omitempty"`
+	IssueID          *string `json:"issue_id,omitempty"`
+	ConversationID   string  `json:"conversation_id"`
+	Status           string  `json:"status"`
+	CreatedBy        string  `json:"created_by"`
+	CreatedAt        int64   `json:"created_at"`
+	StartedAt        *int64  `json:"started_at,omitempty"`
+	EndedAt          *int64  `json:"ended_at,omitempty"`
+	ErrorMessage     *string `json:"error_message,omitempty"`
 }
 
 type workflowStepRunResponse struct {
-	ID            string  `json:"id"`
-	WorkflowRunID string  `json:"workflow_run_id"`
-	StepID        string  `json:"step_id"`
-	StepIndex     int     `json:"step_index"`
-	StepType      string  `json:"step_type"`
-	TargetAgentID *string `json:"target_agent_id,omitempty"`
-	Prompt        string  `json:"prompt"`
-	Status        string  `json:"status"`
-	TaskID        *string `json:"task_id,omitempty"`
-	TaskRunID     *string `json:"task_run_id,omitempty"`
-	OutputSummary *string `json:"output_summary,omitempty"`
-	ErrorMessage  *string `json:"error_message,omitempty"`
-	CreatedAt     int64   `json:"created_at"`
-	StartedAt     *int64  `json:"started_at,omitempty"`
-	EndedAt       *int64  `json:"ended_at,omitempty"`
+	ID                string  `json:"id"`
+	WorkflowRunID     string  `json:"workflow_run_id"`
+	StepID            string  `json:"step_id"`
+	StepIndex         int     `json:"step_index"`
+	StepType          string  `json:"step_type"`
+	TargetAgentID     *string `json:"target_agent_id,omitempty"`
+	AgentName         string  `json:"agent_name,omitempty"`
+	AgentDescription  string  `json:"agent_description,omitempty"`
+	AgentInstructions string  `json:"agent_instructions,omitempty"`
+	AgentRevision     int     `json:"agent_revision,omitempty"`
+	Prompt            string  `json:"prompt"`
+	Status            string  `json:"status"`
+	TaskID            *string `json:"task_id,omitempty"`
+	TaskRunID         *string `json:"task_run_id,omitempty"`
+	OutputSummary     *string `json:"output_summary,omitempty"`
+	ErrorMessage      *string `json:"error_message,omitempty"`
+	CreatedAt         int64   `json:"created_at"`
+	StartedAt         *int64  `json:"started_at,omitempty"`
+	EndedAt           *int64  `json:"ended_at,omitempty"`
 }
 
 type workflowListResponse struct {
@@ -91,44 +114,64 @@ func workflowToResponse(workflow model.Workflow) workflowResponse {
 		Description: workflow.Description,
 		Definition:  workflow.Definition,
 		Status:      workflow.Status,
+		Revision:    workflow.Revision,
 		CreatedBy:   workflow.CreatedBy,
 		CreatedAt:   workflow.CreatedAt,
 		UpdatedAt:   workflow.UpdatedAt,
 	}
 }
 
+func workflowRevisionToResponse(rev model.WorkflowRevision) workflowRevisionResponse {
+	return workflowRevisionResponse{
+		ID:          rev.WorkflowRevisionID,
+		WorkflowID:  rev.WorkflowID,
+		Revision:    rev.Revision,
+		Name:        rev.Name,
+		Description: rev.Description,
+		Definition:  rev.Definition,
+		Status:      rev.Status,
+		CreatedBy:   rev.CreatedBy,
+		CreatedAt:   rev.CreatedAt,
+	}
+}
+
 func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
 	return workflowRunResponse{
-		ID:             run.WorkflowRunID,
-		WorkflowID:     run.WorkflowID,
-		IssueID:        run.IssueID,
-		ConversationID: run.ConversationID,
-		Status:         run.Status,
-		CreatedBy:      run.CreatedBy,
-		CreatedAt:      run.CreatedAt,
-		StartedAt:      run.StartedAt,
-		EndedAt:        run.EndedAt,
-		ErrorMessage:   run.ErrorMessage,
+		ID:               run.WorkflowRunID,
+		WorkflowID:       run.WorkflowID,
+		WorkflowRevision: run.WorkflowRevision,
+		IssueID:          run.IssueID,
+		ConversationID:   run.ConversationID,
+		Status:           run.Status,
+		CreatedBy:        run.CreatedBy,
+		CreatedAt:        run.CreatedAt,
+		StartedAt:        run.StartedAt,
+		EndedAt:          run.EndedAt,
+		ErrorMessage:     run.ErrorMessage,
 	}
 }
 
 func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunResponse {
 	return workflowStepRunResponse{
-		ID:            step.StepRunID,
-		WorkflowRunID: step.WorkflowRunID,
-		StepID:        step.StepID,
-		StepIndex:     step.StepIndex,
-		StepType:      step.StepType,
-		TargetAgentID: step.TargetAgentID,
-		Prompt:        step.Prompt,
-		Status:        step.Status,
-		TaskID:        step.TaskID,
-		TaskRunID:     step.TaskRunID,
-		OutputSummary: step.OutputSummary,
-		ErrorMessage:  step.ErrorMessage,
-		CreatedAt:     step.CreatedAt,
-		StartedAt:     step.StartedAt,
-		EndedAt:       step.EndedAt,
+		ID:                step.StepRunID,
+		WorkflowRunID:     step.WorkflowRunID,
+		StepID:            step.StepID,
+		StepIndex:         step.StepIndex,
+		StepType:          step.StepType,
+		TargetAgentID:     step.TargetAgentID,
+		AgentName:         step.AgentName,
+		AgentDescription:  step.AgentDescription,
+		AgentInstructions: step.AgentInstructions,
+		AgentRevision:     step.AgentRevision,
+		Prompt:            step.Prompt,
+		Status:            step.Status,
+		TaskID:            step.TaskID,
+		TaskRunID:         step.TaskRunID,
+		OutputSummary:     step.OutputSummary,
+		ErrorMessage:      step.ErrorMessage,
+		CreatedAt:         step.CreatedAt,
+		StartedAt:         step.StartedAt,
+		EndedAt:           step.EndedAt,
 	}
 }
 
@@ -160,6 +203,8 @@ func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
 		httputil.WriteJSONError(w, http.StatusNotFound, "workflow not found")
 	case errors.Is(err, workflow.ErrWorkflowRunNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "workflow run not found")
+	case errors.Is(err, workflow.ErrWorkflowRevisionNotFound):
+		httputil.WriteJSONError(w, http.StatusNotFound, "workflow revision not found")
 	case errors.Is(err, workflow.ErrIssueNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 	case errors.Is(err, workflow.ErrIssueWorkflowMismatch):
@@ -268,6 +313,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	updatedWorkflow, err := h.workflowService().UpdateWorkflow(r.Context(), workflow.UpdateWorkflowCmd{
 		TeamID:      teamID,
+		UserID:      userID,
 		WorkflowID:  workflowID,
 		Name:        req.Name,
 		Description: req.Description,
@@ -282,6 +328,67 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*updatedWorkflow))
+}
+
+// listWorkflowRevisionsHandler returns a workflow's recorded versions, newest
+// first. Reading history needs no more than team membership.
+func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Request) {
+	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	if !ok {
+		return
+	}
+	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	if !ok {
+		return
+	}
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	list, total, err := h.workflowService().ListWorkflowRevisions(r.Context(), teamID, workflowID, limit, offset)
+	if err != nil {
+		if h.writeWorkflowSvcError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_workflow_revisions", "team_id", teamID, "workflow_id", workflowID)
+		return
+	}
+	out := make([]workflowRevisionResponse, len(list))
+	for i := range list {
+		out[i] = workflowRevisionToResponse(list[i])
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowRevisionListResponse{Revisions: out, Total: total})
+}
+
+// restoreWorkflowRevisionHandler writes an earlier revision's content back to
+// the workflow. It is an ordinary edit and needs the permission an edit needs.
+func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.Request) {
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	if !ok {
+		return
+	}
+	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageWorkflows); !ok {
+		return
+	}
+	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	if !ok {
+		return
+	}
+	revision, ok := pathValueInt(w, r, "revision")
+	if !ok {
+		return
+	}
+	updated, err := h.workflowService().RestoreWorkflowRevision(r.Context(), workflow.RestoreWorkflowRevisionCmd{
+		TeamID:     teamID,
+		UserID:     userID,
+		WorkflowID: workflowID,
+		Revision:   revision,
+	})
+	if err != nil {
+		if h.writeWorkflowSvcError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_workflow_revision", "team_id", teamID, "workflow_id", workflowID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, workflowToResponse(*updated))
 }
 
 func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request) {

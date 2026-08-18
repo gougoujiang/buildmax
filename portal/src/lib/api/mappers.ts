@@ -5,6 +5,7 @@
 
 import type {
   ApiAgent,
+  ApiAgentRevision,
   ApiArtifact,
   ApiIssueOutput,
   ApiOutputSource,
@@ -12,11 +13,13 @@ import type {
   ApiConversation,
   ApiIssue,
   ApiWorkflow,
+  ApiWorkflowRevision,
   ApiWorkflowRun,
   ApiWorkflowStepRun,
 } from "./types"
 import type {
   Agent,
+  AgentRevision,
   Artifact,
   IssueOutput,
   OutputSource,
@@ -24,6 +27,7 @@ import type {
   Conversation,
   Issue,
   Workflow,
+  WorkflowRevision,
   WorkflowRun,
   WorkflowStepRun,
 } from "../types"
@@ -65,7 +69,22 @@ export function apiAgentToAgent(api: ApiAgent): Agent {
     name: api.name,
     description: api.description,
     instructions: api.instructions,
+    revision: api.revision,
     createdAt: api.created_at,
+  }
+}
+
+export function apiAgentRevisionToAgentRevision(api: ApiAgentRevision): AgentRevision {
+  return {
+    id: api.id,
+    agentId: api.agent_id,
+    revision: api.revision,
+    name: api.name,
+    description: api.description,
+    instructions: api.instructions,
+    createdBy: api.created_by,
+    createdAt: api.created_at,
+    createdLabel: formatRelativeTime(api.created_at),
   }
 }
 
@@ -89,6 +108,21 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
   }
 }
 
+export function apiWorkflowRevisionToWorkflowRevision(api: ApiWorkflowRevision): WorkflowRevision {
+  return {
+    id: api.id,
+    workflowId: api.workflow_id,
+    revision: api.revision,
+    name: api.name,
+    description: api.description,
+    definition: api.definition,
+    status: api.status,
+    createdBy: api.created_by,
+    createdAt: api.created_at,
+    createdLabel: formatRelativeTime(api.created_at),
+  }
+}
+
 export function apiWorkflowToWorkflow(api: ApiWorkflow): Workflow {
   return {
     id: api.id,
@@ -97,6 +131,7 @@ export function apiWorkflowToWorkflow(api: ApiWorkflow): Workflow {
     description: api.description,
     definition: api.definition,
     status: api.status as Workflow["status"],
+    revision: api.revision,
     createdBy: api.created_by,
     createdAt: api.created_at,
     updatedAt: api.updated_at,
@@ -108,6 +143,7 @@ export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
   return {
     id: api.id,
     workflowId: api.workflow_id,
+    workflowRevision: api.workflow_revision ?? null,
     issueId: api.issue_id ?? null,
     conversationId: api.conversation_id,
     status: api.status as WorkflowRun["status"],
@@ -128,6 +164,10 @@ export function apiWorkflowStepRunToWorkflowStepRun(api: ApiWorkflowStepRun): Wo
     stepIndex: api.step_index,
     stepType: api.step_type,
     targetAgentId: api.target_agent_id ?? null,
+    agentRevision: api.agent_revision ?? null,
+    agentName: api.agent_name ?? null,
+    agentDescription: api.agent_description ?? null,
+    agentInstructions: api.agent_instructions ?? null,
     prompt: api.prompt,
     status: api.status as WorkflowStepRun["status"],
     taskId: api.task_id ?? null,

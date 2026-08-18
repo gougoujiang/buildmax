@@ -135,6 +135,9 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
             </div>
             <div className="workflow-run-page__meta">
               <div><strong>Run ID:</strong> {run.id}</div>
+              {run.workflowRevision ? (
+                <div><strong>Workflow version:</strong> v{run.workflowRevision}</div>
+              ) : null}
               <div><strong>Created:</strong> {run.createdLabel}</div>
               {run.startedAt ? <div><strong>Started:</strong> {new Date(run.startedAt * 1000).toLocaleString()}</div> : null}
               {run.endedAt ? <div><strong>Ended:</strong> {new Date(run.endedAt * 1000).toLocaleString()}</div> : null}
@@ -168,8 +171,15 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
                       <div>{step.prompt}</div>
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
-                          Agent: {step.targetAgentId}
+                          Agent: {step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId}
+                          {step.agentRevision ? ` · v${step.agentRevision}` : ""}
                         </div>
+                      ) : null}
+                      {step.agentInstructions ? (
+                        <details className="workflow-run-page__step-agent">
+                          <summary className="page-activity__meta">Agent definition used by this step</summary>
+                          <pre className="workflow-page__step-output">{step.agentInstructions}</pre>
+                        </details>
                       ) : null}
                       {step.taskId ? (
                         <div className="page-activity__meta">
