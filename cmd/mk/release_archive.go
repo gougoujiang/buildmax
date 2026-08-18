@@ -281,9 +281,14 @@ func archiveDestination(target, name string) (string, error) {
 	if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("unsafe archive path %q", name)
 	}
-	dst := filepath.Join(target, clean)
-	rel, err := filepath.Rel(target, dst)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	// The final containment check is a prefix test on the joined path rather
+	// than filepath.Rel, which answered the same question before. Both are
+	// exact for cleaned paths, but the prefix form is the one CodeQL's
+	// go/zipslip query recognizes as a barrier, and without it both extraction
+	// loops are reported as writing unsanitized archive entries.
+	root := filepath.Clean(target)
+	dst := filepath.Join(root, clean)
+	if !strings.HasPrefix(dst, root+string(filepath.Separator)) {
 		return "", fmt.Errorf("unsafe archive path %q", name)
 	}
 	return dst, nil
