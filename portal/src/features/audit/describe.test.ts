@@ -39,6 +39,30 @@ describe("describeEvent", () => {
       .toBe("Added a member")
   })
 
+  it("reads the deployment-scoped actions the admin trail added", () => {
+    // These have no team, so a space owner can never see them. They are only
+    // readable in the administration area, and they should read as sentences
+    // there rather than as raw action strings.
+    expect(describeEvent(event({ action: "system.admin_granted", detail: "system_admin" })).summary)
+      .toBe("Granted system_admin over the deployment")
+    expect(describeEvent(event({ action: "system.admin_revoked", detail: "system_admin" })).summary)
+      .toBe("Revoked system_admin over the deployment")
+    expect(describeEvent(event({ action: "user.created" })).summary).toBe("Created an account")
+    expect(describeEvent(event({ action: "user.disabled" })).summary).toBe("Disabled an account")
+    expect(describeEvent(event({ action: "user.enabled" })).summary).toBe("Enabled an account")
+    expect(describeEvent(event({ action: "user.login_code_issued" })).summary)
+      .toBe("Issued a login code")
+    expect(describeEvent(event({ action: "user.sessions_revoked" })).summary)
+      .toBe("Revoked every session of an account")
+  })
+
+  it("marks a reused refresh token as a refusal", () => {
+    // It is not a user's intent — it is the server reporting a credential in
+    // two places — so it gets the treatment a denial gets, not the treatment an
+    // ordinary action gets.
+    expect(describeEvent(event({ action: "auth.refresh_reuse" })).denied).toBe(true)
+  })
+
   it("does not show a target for events whose target is already in the summary", () => {
     // A login's target is the platform, which the sentence already names.
     expect(describeEvent(event({ action: "user.login", target_id: "cli" })).target).toBeNull()

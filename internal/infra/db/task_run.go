@@ -191,6 +191,26 @@ func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, cre
 	return run, nil
 }
 
+// CountTaskRunsByStatus implements model.TaskRunStore.
+func (s *Store) CountTaskRunsByStatus(ctx context.Context) (map[string]int, error) {
+	var rows []struct {
+		Status string
+		N      int
+	}
+	if err := s.db.WithContext(ctx).
+		Model(&taskRunRow{}).
+		Select("status, count(*) as n").
+		Group("status").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(rows))
+	for _, row := range rows {
+		out[row.Status] = row.N
+	}
+	return out, nil
+}
+
 // GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*model.TaskRun, error) {
 	var r taskRunRow

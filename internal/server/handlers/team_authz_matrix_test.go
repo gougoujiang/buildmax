@@ -130,6 +130,14 @@ var teamRoutes = []authzCase{
 // assertion mean what it says.
 func matrixMux(t *testing.T) *http.ServeMux {
 	t.Helper()
+	return matrixMuxWithGrants(t, nil)
+}
+
+// matrixMuxWithGrants is matrixMux with a deployment-scoped grant store, so
+// the team matrix can also be driven by a system administrator. That caller
+// must be refused by every route here — see TestSystemGrantIsNotATeamKey.
+func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.ServeMux {
+	t.Helper()
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
 			{TeamID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
@@ -160,6 +168,7 @@ func matrixMux(t *testing.T) *http.ServeMux {
 		ConversationStore:        conversations,
 		ConversationMessageStore: &mockConversationMessageStore{},
 		AuditStore:               &mock.MockAuditStore{},
+		SystemGrantStore:         grants,
 		PersistStorage:           mock.NewMockPersistStorage(),
 		ArtifactStorage:          mock.NewMockArtifactStorage(),
 		WorkspacesDir:            t.TempDir(),

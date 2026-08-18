@@ -46,6 +46,13 @@ func cmdE2E(args []string) error {
 	if output, err := target.admin("user", "create", smokeEmail); err != nil && !strings.Contains(output, "already has an account") {
 		return fmt.Errorf("create the end-to-end account: %w", err)
 	}
+	// The same account holds the deployment-scoped grant, so the browser tests
+	// can reach /admin. Granting an existing grant is refused rather than being
+	// an error worth stopping for — this command runs against a deployment that
+	// may already have been set up.
+	if output, err := target.admin("admin", "grant", smokeEmail); err != nil && !strings.Contains(output, "already holds") {
+		return fmt.Errorf("grant system_admin to the end-to-end account: %w", err)
+	}
 	codeOutput, err := target.admin("user", "login-code", smokeEmail)
 	if err != nil {
 		return fmt.Errorf("issue a login code: %w", err)

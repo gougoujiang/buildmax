@@ -77,6 +77,20 @@ type Config struct {
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
 	AuditStore               model.AuditStore
+	// LLMModelStore reads the managed model catalog. Nil leaves the admin
+	// catalog routes answering 503. It is deliberately read plus enable/disable
+	// here: the credential half of the catalog is edited by
+	// `buildmax-server model`, on the machine that holds the database
+	// credentials.
+	LLMModelStore model.LLMModelStore
+	// SchemaStore reports which migrations a database has had applied. Nil
+	// leaves that field of the system status empty.
+	SchemaStore model.SchemaStore
+	// SystemGrantStore reads deployment-scoped role grants. Nil leaves every
+	// /api/admin route answering 503 to an authenticated caller, which is what
+	// a deployment with no database has: no way to know whether anyone is an
+	// administrator, and therefore no basis for letting one in.
+	SystemGrantStore model.SystemGrantStore
 
 	// Storage
 	PersistStorage  blob.PersistStorage
@@ -98,6 +112,18 @@ type Config struct {
 	// Audit records sensitive actions. Nil discards them, so a deployment
 	// without a database still serves.
 	Audit *audit.Recorder
+
+	// Deployment describes facts about this deployment that do not change
+	// while it runs, for the admin system status.
+	Deployment DeploymentInfo
+	// DependencyProbes are the same checks the readiness endpoint runs. The
+	// admin status reports them so an operator sees what /readyz sees without
+	// needing to reach it.
+	DependencyProbes []DependencyProbe
+	// RedactedConfig is the operator-facing view of server.yaml, built by
+	// internal/config so that the decision about which fields may be shown
+	// lives next to the struct. Nil means the deployment reports none.
+	RedactedConfig any
 
 	// Inbound webhook
 	WebhookAdapter     convchannel.Adapter

@@ -142,6 +142,32 @@ func (m *MockRefreshTokenStore) revokeSession(sessionID string, now int64) int64
 	return n
 }
 
+func (m *MockRefreshTokenStore) RevokeUserSessions(_ context.Context, userID string, now int64) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var n int64
+	for _, tok := range m.Tokens {
+		if tok.UserID == userID && tok.RevokedAt == nil {
+			revoked := now
+			tok.RevokedAt = &revoked
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (m *MockRefreshTokenStore) CountUserSessions(_ context.Context, userID string, now int64) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	sessions := make(map[string]bool)
+	for _, tok := range m.Tokens {
+		if tok.UserID == userID && tok.RevokedAt == nil && tok.ExpiresAt > now {
+			sessions[tok.SessionID] = true
+		}
+	}
+	return len(sessions), nil
+}
+
 func (m *MockRefreshTokenStore) DeleteExpiredRefreshTokens(_ context.Context, before int64) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

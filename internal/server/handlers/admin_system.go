@@ -1,0 +1,156 @@
+package handlers
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/gougoujiang/buildmax/internal/server/httputil"
+)
+
+// systemProbeTimeout bounds the whole status response. It mirrors the readiness
+// endpoint's own bound for the same reason: a status page that can hang is
+// worse than one that reports a dependency as failed.
+const systemProbeTimeout = 3 * time.Second
+
+// DependencyProbe is one dependency the deployment needs, as the admin API
+// reports it. It is the same shape the readiness endpoint uses; the server
+// converts its checks into these so that handlers do not import the package
+// that imports them.
+type DependencyProbe struct {
+	// Name must be safe to show: "database", not a DSN.
+	Name  string
+	Probe func(ctx context.Context) error
+}
+
+// DeploymentInfo are the facts about a deployment that do not change while it
+// runs. Bootstrap knows them; the handler only reports them.
+type DeploymentInfo struct {
+	// Version is the running binary's version string. It arrives from
+	// bootstrap rather than being read here: internal/server must not import
+	// internal/config, and a version the handler resolved itself would be a
+	// second answer to a question the process already has one for.
+	Version string
+	// WorkerRunMode is "k8s_job" or the local-process path.
+	WorkerRunMode string
+	// WorkerLLMTransport is "direct" or "buildmax".
+	WorkerLLMTransport string
+	AllowSignup        bool
+	// SandboxSurface is the execution boundary worker runs resolve to. Empty
+	// means none was passed, which is what every deployment has today — the
+	// admin API says so rather than implying a boundary that is not applied.
+	SandboxSurface string
+	// ModelAliases maps a deployment alias to a catalog model id, and
+	// DefaultModelAlias is the one a managed caller gets when it names none.
+	// A catalog model no alias points at is unreachable by every team however
+	// enabled it is, and the catalog route says so.
+	ModelAliases      map[string]string
+	DefaultModelAlias string
+}
+
+// AdminSystemResponse is what an operator opens first: is this deployment all
+// right, and is it the version they think it is.
+type AdminSystemResponse struct {
+	Version string `json:"version"`
+	// SchemaMigrations are the steps applied beyond the row structs'
+	// additive DDL. It is not a schema version — see the store method.
+	SchemaMigrations []adminSchemaMigration `json:"schema_migrations"`
+	Dependencies     []adminDependency      `json:"dependencies"`
+	// Ready mirrors what /readyz would answer right now.
+	Ready              bool           `json:"ready"`
+	WorkerRunMode      string         `json:"worker_run_mode,omitempty"`
+	WorkerLLMTransport string         `json:"worker_llm_transport,omitempty"`
+	SandboxSurface     string         `json:"sandbox_surface,omitempty"`
+	AllowSignup        bool           `json:"allow_signup"`
+	TaskRuns           map[string]int `json:"task_runs"`
+	SystemAdmins       int            `json:"system_admins"`
+	ServerTime         int64          `json:"server_time"`
+}
+
+type adminSchemaMigration struct {
+	ID        string `json:"id"`
+	AppliedAt int64  `json:"applied_at"`
+}
+
+type adminDependency struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+// adminSystemHandler serves GET /api/admin/system.
+//
+// Everything here is either a count, a name, or a status. A failed dependency
+// is named and not explained, exactly as /readyz does it: connection errors
+// carry DSNs, endpoints, and bucket names, and the reason belongs in the server
+// log where an operator already has to be.
+func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireSystemAdmin(w, r); !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), systemProbeTimeout)
+	defer cancel()
+
+	out := AdminSystemResponse{
+		Version:            h.cfg.Deployment.Version,
+		SchemaMigrations:   []adminSchemaMigration{},
+		Dependencies:       []adminDependency{},
+		Ready:              true,
+		WorkerRunMode:      h.cfg.Deployment.WorkerRunMode,
+		WorkerLLMTransport: h.cfg.Deployment.WorkerLLMTransport,
+		SandboxSurface:     h.cfg.Deployment.SandboxSurface,
+		AllowSignup:        h.cfg.Deployment.AllowSignup,
+		TaskRuns:           map[string]int{},
+		ServerTime:         time.Now().Unix(),
+	}
+
+	for _, dep := range h.cfg.DependencyProbes {
+		if dep.Probe == nil {
+			continue
+		}
+		status := "ok"
+		if err := dep.Probe(ctx); err != nil {
+			status = "failed"
+			out.Ready = false
+		}
+		out.Dependencies = append(out.Dependencies, adminDependency{Name: dep.Name, Status: status})
+	}
+
+	// Each remaining read is best-effort. A status page that returns 500
+	// because one of its five questions could not be answered tells an operator
+	// nothing during exactly the outage they opened it for.
+	if h.cfg.SchemaStore != nil {
+		if migrations, err := h.cfg.SchemaStore.AppliedMigrations(ctx); err == nil {
+			for _, m := range migrations {
+				out.SchemaMigrations = append(out.SchemaMigrations, adminSchemaMigration{ID: m.ID, AppliedAt: m.AppliedAt})
+			}
+		}
+	}
+	if h.cfg.TaskRunStore != nil {
+		if counts, err := h.cfg.TaskRunStore.CountTaskRunsByStatus(ctx); err == nil {
+			out.TaskRuns = counts
+		}
+	}
+	if h.cfg.SystemGrantStore != nil {
+		if n, err := h.cfg.SystemGrantStore.CountActiveSystemGrants(ctx, systemRoleAdmin()); err == nil {
+			out.SystemAdmins = n
+		}
+	}
+	httputil.WriteJSON(w, http.StatusOK, out)
+}
+
+// adminConfigHandler serves GET /api/admin/config.
+//
+// Read-only, and it will stay read-only until there is somewhere to write to.
+// server.yaml is read at process start, so a write through this API would
+// change one replica's view of the world, or none. Configuration stays
+// source-controlled — see docs/design/system-administration.md section 7.2.
+func (h *Handler) adminConfigHandler(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireSystemAdmin(w, r); !ok {
+		return
+	}
+	if h.cfg.RedactedConfig == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "configuration reporting not configured")
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, h.cfg.RedactedConfig)
+}

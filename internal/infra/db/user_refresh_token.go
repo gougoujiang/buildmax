@@ -229,6 +229,37 @@ func (s *Store) RevokeSession(ctx context.Context, sessionID string, now int64) 
 	return res.RowsAffected, res.Error
 }
 
+// RevokeUserSessions implements model.RefreshTokenStore.
+func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now int64) (int64, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	res := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Update("revoked_at", now)
+	return res.RowsAffected, res.Error
+}
+
+// CountUserSessions implements model.RefreshTokenStore.
+//
+// Distinct session ids rather than rows: rotation leaves several live tokens in
+// one chain during the grace window, and reporting those as separate sessions
+// would tell an operator someone is signed in three times when they are signed
+// in once.
+func (s *Store) CountUserSessions(ctx context.Context, userID string, now int64) (int, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	var n int64
+	if err := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
+		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userID, now).
+		Distinct("session_id").
+		Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return int(n), nil
+}
+
 func revokeSessionTx(tx *gorm.DB, sessionID string, now int64) error {
 	if sessionID == "" {
 		return nil

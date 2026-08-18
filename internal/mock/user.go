@@ -3,6 +3,8 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -63,6 +65,49 @@ func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginA
 		u.LastLoginPlatform = &platform
 	}
 	return nil
+}
+
+func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset int) ([]model.User, int, error) {
+	var all []model.User
+	for _, u := range m.ByID {
+		if query == "" || strings.Contains(u.Email, query) {
+			all = append(all, *u)
+		}
+	}
+	// Map iteration is random, and a list endpoint's paging assertions are not
+	// worth making flaky. Newest first matches the store, with the id as the
+	// tiebreaker seeded ids do not otherwise have.
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].CreatedAt != all[j].CreatedAt {
+			return all[i].CreatedAt > all[j].CreatedAt
+		}
+		return all[i].UserID > all[j].UserID
+	})
+	total := len(all)
+	if offset > total {
+		offset = total
+	}
+	all = all[offset:]
+	if limit > 0 && limit < len(all) {
+		all = all[:limit]
+	}
+	return all, total, nil
+}
+
+func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabledAt *int64) error {
+	u, ok := m.ByID[userID]
+	if !ok || u == nil {
+		return model.ErrUserNotFound
+	}
+	u.DisabledAt = disabledAt
+	return nil
+}
+
+// DisableForTest disables a seeded account. Test setup, not a store method.
+func (m *MockUserStore) DisableForTest(userID string, at int64) {
+	if u, ok := m.ByID[userID]; ok {
+		u.DisabledAt = &at
+	}
 }
 
 // MockPasswordStore is an in-memory PasswordStore for tests. Seed Hashes with

@@ -12,6 +12,7 @@ import { WorkflowDetail } from "../pages/workflows/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/workflows/WorkflowRunDetail"
 import { AccountSettings } from "../pages/settings/AccountSettings"
 import { SpaceSettings } from "../pages/settings/SpaceSettings"
+import { AdminSettings } from "../pages/admin/AdminSettings"
 
 export interface AppRouterProps {
   conversations: Conversation[]
@@ -61,6 +62,7 @@ export function AppRouter({
 
   if (route.name === "account") return <AccountSettings section={route.section ?? "general"} />
   if (route.name === "space") return <SpaceSettings section={route.section ?? "overview"} />
+  if (route.name === "admin") return <AdminSettings section={route.section ?? "overview"} />
 
   if (route.name === "workflows") {
     return <Workflows token={token ?? null} />

@@ -39,6 +39,7 @@ base36 (`[a-z0-9]`).
 | `wr_` | workflow run | `f_` | artifact item |
 | `wsr_` | workflow step run | `whk_` | webhook key |
 | `lc_` | managed LLM call | `lm_` | managed model |
+| `ae_` | audit event | `sg_` | system grant |
 
 Generate them with `internal/util.NewPrefixedID(prefix)`, passing the prefix
 without the underscore; the constants live in `internal/util/id.go`, which with

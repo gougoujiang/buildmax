@@ -311,6 +311,164 @@ export interface ApiAuditEventsResponse {
   total: number
 }
 
+// --- Deployment administration ---
+//
+// These come from /api/admin, which is deployment-scoped rather than
+// team-scoped. Nothing here carries team content: an administrator learns that
+// an account or a team exists, never what is in it.
+
+/** One deployment-scoped grant. */
+export interface ApiSystemGrant {
+  system_grant_id: string
+  user_id: string
+  role: string
+  granted_by: string
+  granted_at: number
+  revoked_at?: number
+  /** Resolved on the grants list so a reader does not see only ids. */
+  email?: string
+}
+
+/** The caller's own deployment authority, from GET /api/admin/me. */
+export interface ApiAdminMe {
+  user_id: string
+  roles: string[]
+  grants: ApiSystemGrant[]
+}
+
+export interface ApiAdminGrantsResponse {
+  grants: ApiSystemGrant[]
+}
+
+/** One account as an administrator sees it. Never a hash, never a token. */
+export interface ApiAdminUser {
+  user_id: string
+  email: string
+  name?: string
+  quota_tier?: string
+  has_password: boolean
+  /** Non-null means every credential this account holds is refused. */
+  disabled_at?: number
+  last_login_at?: number
+  last_login_platform?: string
+  created_at: number
+}
+
+export interface ApiAdminUsersResponse {
+  users: ApiAdminUser[]
+  total: number
+}
+
+export interface ApiAdminUserTeam {
+  team_id: string
+  name: string
+  role: string
+}
+
+export interface ApiAdminUserDetail extends ApiAdminUser {
+  teams: ApiAdminUserTeam[]
+  /** Live login chains, not tokens. */
+  session_count: number
+  system_roles: string[]
+}
+
+export interface ApiAdminLoginCode {
+  code: string
+  expires_at: number
+}
+
+export interface ApiAdminSessionsRevoked {
+  revoked: number
+}
+
+/** An account plus what a disable did to its sessions. */
+export interface ApiAdminUserAfterDisable extends ApiAdminUser {
+  sessions_revoked: number
+}
+
+export interface ApiAdminDependency {
+  name: string
+  /** "ok" or "failed". The reason is deliberately not reported. */
+  status: string
+}
+
+export interface ApiAdminSchemaMigration {
+  id: string
+  applied_at: number
+}
+
+export interface ApiAdminSystem {
+  version: string
+  schema_migrations: ApiAdminSchemaMigration[]
+  dependencies: ApiAdminDependency[]
+  ready: boolean
+  worker_run_mode?: string
+  worker_llm_transport?: string
+  /** Empty when no worker path passes one, which is every deployment today. */
+  sandbox_surface?: string
+  allow_signup: boolean
+  task_runs: Record<string, number>
+  system_admins: number
+  server_time: number
+}
+
+/**
+ * One catalog model. There is no credential field, and there is none in the
+ * server's record either — the key leaves the store only for the component that
+ * opens a provider connection.
+ */
+export interface ApiAdminModel {
+  llm_model_id: string
+  name: string
+  provider_type: string
+  api_url: string
+  model: string
+  context_window?: number
+  call_timeout?: number
+  capabilities?: string[]
+  enabled: boolean
+  created_at: number
+  updated_at: number
+  /** Deployment aliases pointing here. None means no team can call it. */
+  aliases: string[]
+}
+
+export interface ApiAdminModelsResponse {
+  models: ApiAdminModel[]
+  default_alias?: string
+}
+
+/** Whether a credential is configured. Never its value, length, or prefix. */
+export interface ApiSecretStatus {
+  set: boolean
+}
+
+export interface ApiAdminTeam {
+  team_id: string
+  name: string
+  personal: boolean
+  quota_tier?: string
+  member_count: number
+  created_by?: string
+  created_at: number
+}
+
+export interface ApiAdminTeamsResponse {
+  teams: ApiAdminTeam[]
+  total: number
+}
+
+export interface ApiAdminTeamMember {
+  user_id: string
+  email?: string
+  role: string
+}
+
+export interface ApiAdminTeamDetail extends ApiAdminTeam {
+  members: ApiAdminTeamMember[]
+  usage?: ApiUsage
+}
+
 /** Upload response from the team-scoped upload endpoint. */
 export interface UploadResponse {
   uploaded: string[]

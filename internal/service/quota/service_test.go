@@ -36,6 +36,14 @@ func (m *mockTeamStore) RemoveTeamMember(_ context.Context, _, _ string) error {
 	return nil
 }
 
+func (m *mockTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]model.Team, int, error) {
+	return nil, 0, nil
+}
+
+func (m *mockTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[string]int, error) {
+	return nil, nil
+}
+
 func (m *mockTeamStore) ListTeamMembers(_ context.Context, _ string) ([]model.TeamMember, error) {
 	return nil, nil
 }

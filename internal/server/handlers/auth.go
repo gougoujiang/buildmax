@@ -211,6 +211,14 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Checked after the credential verifies, never before. Refusing a disabled
+	// account earlier would answer an unauthenticated caller "that address is
+	// registered but switched off", which is more than a wrong password is
+	// told. Someone who just proved the account is theirs, on the other hand,
+	// should hear the real reason rather than "wrong password".
+	if !h.rejectDisabled(w, r, user, "login") {
+		return
+	}
 	now := time.Now()
 	platform := req.Platform
 	if platform == "" {
@@ -316,6 +324,17 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
+	// A disabled account's sessions are revoked when it is disabled, so a
+	// refresh token that still rotates was issued after that or escaped the
+	// sweep. Either way the account is the authority, not the row: revoke the
+	// session this one belongs to and say why.
+	if user.Disabled() {
+		if _, err := h.cfg.RefreshTokenStore.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
+			slog.Error("revoke session for disabled user failed", "err", err, "session_id", rotated.SessionID)
+		}
+		httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
+		return
+	}
 
 	ttl := h.accessTokenTTL()
 	claims := jwtClaims{
@@ -362,7 +381,7 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
 		return
 	}
-	userID, ok := requireAuth(w, r, h.cfg.JWTSecret)
+	userID, ok := h.requireActiveUser(w, r)
 	if !ok {
 		return
 	}
@@ -619,6 +638,59 @@ func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (stri
 	return userID, true
 }
 
+// accountDisabledMessage is what a disabled account is told, and it is
+// deliberately specific: the person holding the credential has already proved
+// it is theirs, and "wrong password" would send them to reset one that works.
+const accountDisabledMessage = "account_disabled"
+
+// requireActiveUser authenticates the caller and refuses a disabled account.
+//
+// This is where "disable this account" becomes immediate. The access token is a
+// signed JWT the server never stores, so it cannot be retired — the only way to
+// stop honouring one is to check at the point the identity is resolved, and
+// requireAuth is the single funnel every authenticated route reaches. The cost
+// is one primary-key read per request, which is strictly less than the
+// ListTeamMembers every team-scoped route already does. Waiting out the access
+// token instead would make "disable" mean "in about a week", which is not the
+// feature.
+func (h *Handler) requireActiveUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID, ok := requireAuth(w, r, h.cfg.JWTSecret)
+	if !ok {
+		return "", false
+	}
+	if h.cfg.UserStore == nil {
+		// No store to ask. A deployment without one has no accounts to
+		// disable, so there is nothing this check could have found.
+		return userID, true
+	}
+	user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "require_active_user", "user_id", userID)
+		return "", false
+	}
+	// A token naming an account the store does not have is allowed through
+	// unchanged. Nothing deletes accounts, so this is not a state a deployment
+	// reaches; tightening it is a separate decision from disablement, and
+	// making it here would change what an unknown subject means on every route
+	// at once.
+	if user != nil && user.Disabled() {
+		httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
+		return "", false
+	}
+	return userID, true
+}
+
+// rejectDisabled writes the refusal for a disabled account and reports whether
+// the caller may continue. It exists so the login paths state the rule once.
+func (h *Handler) rejectDisabled(w http.ResponseWriter, r *http.Request, user *model.User, handler string) bool {
+	if user == nil || !user.Disabled() {
+		return true
+	}
+	slog.Info("refused a disabled account", "handler", handler, "user_id", user.UserID, "remote", r.RemoteAddr)
+	httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
+	return false
+}
+
 func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
 	if store == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
@@ -640,7 +712,7 @@ func (h *Handler) withUserAndStore(w http.ResponseWriter, r *http.Request, store
 	if !h.requireStore(w, store, unavailableMsg) {
 		return "", false
 	}
-	userID, ok = requireAuth(w, r, h.cfg.JWTSecret)
+	userID, ok = h.requireActiveUser(w, r)
 	if !ok {
 		return "", false
 	}

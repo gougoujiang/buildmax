@@ -40,6 +40,18 @@ func main() {
 		return
 	}
 
+	// `admin` grants and revokes deployment-scoped authority. It is the only
+	// way the first System Administrator can exist, and the way a deployment
+	// that has lost every admin recovers — so it lives here, next to the
+	// database, rather than behind a login it might not be able to reach.
+	if len(os.Args) > 1 && os.Args[1] == "admin" {
+		if err := bootstrap.RunAdminCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// `run-token` mints one run's credential for hand-driving a worker route.
 	// It signs with the deployment's key, so it runs here rather than anywhere a
 	// client could reach.
@@ -66,6 +78,7 @@ func usage() {
 	fmt.Fprint(out, `Usage: buildmax-server [flags]
        buildmax-server user <command> [flags]
        buildmax-server model <command> [flags]
+       buildmax-server admin <command> [flags]
        buildmax-server run-token <task_run_id> [flags]
 
 Runs the BuildMax HTTP API and the task scheduler. Configuration comes from
@@ -76,5 +89,6 @@ Flags:
 	flag.PrintDefaults()
 	fmt.Fprint(out, "\n"+bootstrap.UserCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.ModelCommandUsage)
+	fmt.Fprint(out, "\n"+bootstrap.AdminCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.RunTokenCommandUsage)
 }

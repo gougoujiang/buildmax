@@ -28,6 +28,14 @@ func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, creat
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil
 }
+func (m *MockTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]int, error) {
+	out := make(map[string]int)
+	for _, run := range m.Runs {
+		out[run.Status]++
+	}
+	return out, nil
+}
+
 func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskRun, error) {
 	return nil, nil
 }

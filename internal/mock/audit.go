@@ -40,3 +40,37 @@ func (m *MockAuditStore) ListAuditEvents(_ context.Context, teamID string, limit
 	}
 	return all, total, nil
 }
+
+func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter model.AuditFilter, limit, offset int) ([]model.AuditEvent, int, error) {
+	var all []model.AuditEvent
+	for _, e := range m.Events {
+		switch {
+		case filter.WithoutTeam && e.TeamID != "":
+			continue
+		case !filter.WithoutTeam && filter.TeamID != "" && e.TeamID != filter.TeamID:
+			continue
+		}
+		if filter.ActorID != "" && e.ActorID != filter.ActorID {
+			continue
+		}
+		if filter.Action != "" && e.Action != filter.Action {
+			continue
+		}
+		if filter.Since > 0 && e.CreatedAt < filter.Since {
+			continue
+		}
+		if filter.Until > 0 && e.CreatedAt >= filter.Until {
+			continue
+		}
+		all = append(all, e)
+	}
+	total := len(all)
+	if offset > total {
+		offset = total
+	}
+	all = all[offset:]
+	if limit > 0 && limit < len(all) {
+		all = all[:limit]
+	}
+	return all, total, nil
+}

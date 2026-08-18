@@ -408,7 +408,10 @@ later — is what shipped; these are the parts that were not settled by shipping
 it:
 
 6. What retention applies to audit events, and is it configuration or an
-   operational responsibility? Nothing expires today. `docs/start/support.md`
+   operational responsibility? Nothing expires today, and the deployment-wide
+   search added by [system-administration.md](./system-administration.md) M4
+   makes the answer more pressing rather than less: the table now has a reader
+   who will page through all of it. `docs/start/support.md`
    says retention of artifacts, run state, and traces is the operator's to
    configure, but the audit table has no such answer and no operator control.
 7. What correlation identifiers may connect a task, worker, model call, and

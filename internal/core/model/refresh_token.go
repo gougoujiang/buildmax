@@ -87,6 +87,17 @@ type RefreshTokenStore interface {
 	// many it retired.
 	RevokeSession(ctx context.Context, sessionID string, now int64) (int64, error)
 
+	// RevokeUserSessions revokes every live session the user has and returns
+	// how many tokens it retired. This is what "sign them out everywhere"
+	// means, and it is the strongest thing disabling an account can do to a
+	// credential the server actually stores.
+	RevokeUserSessions(ctx context.Context, userID string, now int64) (int64, error)
+
+	// CountUserSessions counts the user's live sessions — distinct login
+	// chains, not tokens, since a chain is what a person would recognise as
+	// "signed in on my laptop".
+	CountUserSessions(ctx context.Context, userID string, now int64) (int, error)
+
 	// DeleteExpiredRefreshTokens removes rows that can no longer be exchanged.
 	DeleteExpiredRefreshTokens(ctx context.Context, before int64) (int64, error)
 }

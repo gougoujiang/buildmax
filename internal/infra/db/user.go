@@ -24,7 +24,11 @@ type userRow struct {
 	QuotaTier         string  `gorm:"type:varchar(64)"`
 	LastLoginAt       *int64  `gorm:""`
 	LastLoginPlatform *string `gorm:"type:varchar(32)"`
-	CreatedAt         int64   `gorm:"autoCreateTime"`
+	// DisabledAt is NULL for an ordinary account. Non-NULL is checked on every
+	// authenticated request, which is why it lives on this row rather than in a
+	// side table: the check has to be one primary-key read.
+	DisabledAt *int64 `gorm:""`
+	CreatedAt  int64  `gorm:"autoCreateTime"`
 }
 
 func (userRow) TableName() string { return "user" }
@@ -41,6 +45,7 @@ func toUser(row *userRow) *model.User {
 		QuotaTier:         row.QuotaTier,
 		LastLoginAt:       row.LastLoginAt,
 		LastLoginPlatform: row.LastLoginPlatform,
+		DisabledAt:        row.DisabledAt,
 		CreatedAt:         row.CreatedAt,
 		// Whether a password exists, never what it is.
 		HasPassword: row.PasswordHash != nil && *row.PasswordHash != "",
@@ -59,8 +64,71 @@ func toUserRow(m *model.User) *userRow {
 		QuotaTier:         m.QuotaTier,
 		LastLoginAt:       m.LastLoginAt,
 		LastLoginPlatform: m.LastLoginPlatform,
+		DisabledAt:        m.DisabledAt,
 		CreatedAt:         m.CreatedAt,
 	}
+}
+
+// ListUsers returns accounts newest first with the total count.
+//
+// The query filters on email as a substring. It is not an index scan and is not
+// meant to be: an operator searching for a colleague on a deployment with a few
+// thousand accounts is not a hot path, and a prefix-only match would fail the
+// common case of searching by the part before the @.
+func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) ([]model.User, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q := s.db.WithContext(ctx).Model(&userRow{})
+	if query != "" {
+		q = q.Where("email LIKE ?", "%"+query+"%")
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []userRow
+	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]model.User, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toUser(&rows[i]))
+	}
+	return out, int(total), nil
+}
+
+// SetUserDisabled disables or enables an account.
+//
+// Enabling reverses the state and nothing else: sessions revoked by the disable
+// stay revoked, and runs it stopped stay stopped. Undo is not a goal.
+func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *int64) error {
+	res := s.db.WithContext(ctx).
+		Model(&userRow{}).
+		Where("user_id = ?", userID).
+		Update("disabled_at", disabledAt)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		// Distinguishing "no such account" from "already in that state" needs a
+		// read, because an update to the value a row already holds affects no
+		// rows under MySQL's default client flags.
+		user, err := s.GetUser(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if user == nil {
+			return model.ErrUserNotFound
+		}
+	}
+	return nil
 }
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.

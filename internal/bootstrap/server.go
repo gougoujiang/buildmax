@@ -18,6 +18,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
+	"github.com/gougoujiang/buildmax/internal/server/handlers"
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -124,7 +125,9 @@ func RunServer(ctx context.Context, portOverride int) error {
 	if err != nil {
 		return fmt.Errorf("scheduler: %w", err)
 	}
-	sched.Start()
+	// So that work queued by an account an administrator has disabled does not
+	// start after the disable.
+	sched.WithUserStore(store).Start()
 	defer sched.Stop()
 
 	cleaner := scheduler.NewCredentialCleaner(store, 0)
@@ -234,6 +237,9 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			RunOutputLister:     st,
 			UserWebhookKeyStore: st,
 			AuditStore:          st,
+			SystemGrantStore:    st,
+			SchemaStore:         st,
+			LLMModelStore:       st,
 		},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:  persistStorage,
@@ -254,6 +260,11 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		},
 		Audit:     audit.NewRecorder(st),
 		Readiness: readinessChecks(st, persistStorage),
+		// What the admin system status reports about this deployment, and the
+		// operator-facing view of server.yaml. The redaction whitelist lives in
+		// internal/config, next to the struct it describes.
+		Deployment:     deploymentInfoFor(sc),
+		RedactedConfig: sc.Redacted(),
 	}
 	if err := wireLLM(&cfg, sc, st, quotaService); err != nil {
 		return httpserver.Config{}, err
@@ -276,6 +287,34 @@ const readinessProbeTeam = "_readiness_probe"
 //
 // Names are what an unauthenticated caller sees, so they say which dependency
 // without saying where it lives.
+// deploymentInfoFor describes a deployment from its configuration.
+//
+// It lives in bootstrap for the same reason readinessChecks does: the server
+// layer does not know what a run mode or a model transport is, and keeping that
+// mapping here is what stops configuration detail leaking into it.
+//
+// SandboxSurface is deliberately left empty. No worker path passes one today —
+// internal/agentapp/taskrun leaves AppConfig.SandboxSurface unset — and
+// reporting a boundary that is not applied would be worse than reporting none.
+func deploymentInfoFor(sc config.ServerConfig) handlers.DeploymentInfo {
+	transport := sc.Worker.LLM.Transport
+	if transport == "" {
+		transport = config.TransportDirect
+	}
+	runMode := sc.Worker.RunMode
+	if runMode == "" {
+		runMode = "local_process"
+	}
+	return handlers.DeploymentInfo{
+		Version:            config.VersionString(),
+		ModelAliases:       sc.LLM.Aliases,
+		DefaultModelAlias:  sc.LLM.DefaultAlias,
+		WorkerRunMode:      runMode,
+		WorkerLLMTransport: transport,
+		AllowSignup:        sc.AllowSignup,
+	}
+}
+
 func readinessChecks(st *db.Store, persist blob.PersistStorage) []httpserver.ReadinessCheck {
 	return []httpserver.ReadinessCheck{
 		{

@@ -33,9 +33,14 @@ their context.
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Agent execution policy](agent-execution-policy.md) | Who chooses a worker's execution boundary, and what happens when the chosen one cannot be applied? |
 | [Trusted private execution loop](trusted-private-execution-loop.md) | Should the next cross-cutting milestone prove one constrained, managed, auditable private team task before broader product expansion? |
-| [System administration](system-administration.md) | How should a private deployment authorize and audit System Administrators without weakening Team isolation? |
 
-Two papers have been retired because the work they proposed shipped. *Private
+Three papers have been retired. *System administration* asked how a private
+deployment should authorize and audit System Administrators; the direction was
+accepted and is now the [system administration
+design](../design/system-administration.md), which decides the grant model,
+the bootstrap and recovery path, the first API, and what stays out of it.
+
+The other two were retired because the work they proposed shipped. *Private
 production operations* asked for an operating contract for private deployment;
 `deployment/production/` and the compatibility section of
 [../start/support.md](../start/support.md) are that contract, and what it still
@@ -43,8 +48,8 @@ lacks is operational evidence, now recorded as open questions in the
 [enterprise deployment design](../design/enterprise-deployment.md). *Audit and
 data governance* asked for the smallest useful evidence model; the append-only
 audit trail is it, and retention, export, and correlation remain open in the
-[team governance design](../design/team-governance.md). Git history holds both
-papers.
+[team governance design](../design/team-governance.md). Git history holds all
+three papers.
 
 ## Starting A Proposal
 
