@@ -60,15 +60,21 @@ type WorkflowStepRun struct {
 	StepIndex     int     `json:"step_index"`
 	StepType      string  `json:"step_type"`
 	TargetAgentID *string `json:"target_agent_id,omitempty"`
-	Prompt        string  `json:"prompt"`
-	Status        string  `json:"status"`
-	TaskID        *string `json:"task_id,omitempty"`
-	TaskRunID     *string `json:"task_run_id,omitempty"`
-	OutputSummary *string `json:"output_summary,omitempty"`
-	ErrorMessage  *string `json:"error_message,omitempty"`
-	CreatedAt     int64   `json:"created_at"`
-	StartedAt     *int64  `json:"started_at,omitempty"`
-	EndedAt       *int64  `json:"ended_at,omitempty"`
+	// AgentName, AgentDescription, and AgentInstructions capture the target agent
+	// definition as it was when the run started, so later edits to the agent cannot
+	// change what a step in flight sends to the model.
+	AgentName         string  `json:"agent_name,omitempty"`
+	AgentDescription  string  `json:"agent_description,omitempty"`
+	AgentInstructions string  `json:"agent_instructions,omitempty"`
+	Prompt            string  `json:"prompt"`
+	Status            string  `json:"status"`
+	TaskID            *string `json:"task_id,omitempty"`
+	TaskRunID         *string `json:"task_run_id,omitempty"`
+	OutputSummary     *string `json:"output_summary,omitempty"`
+	ErrorMessage      *string `json:"error_message,omitempty"`
+	CreatedAt         int64   `json:"created_at"`
+	StartedAt         *int64  `json:"started_at,omitempty"`
+	EndedAt           *int64  `json:"ended_at,omitempty"`
 }
 
 // WorkflowDefinition is the parsed structure of a workflow definition JSON.
@@ -101,12 +107,15 @@ type UpdateWorkflowInput struct {
 }
 
 type CreateWorkflowStepRunInput struct {
-	StepID        string
-	StepIndex     int
-	StepType      string
-	TargetAgentID *string
-	Prompt        string
-	Status        string
+	StepID            string
+	StepIndex         int
+	StepType          string
+	TargetAgentID     *string
+	AgentName         string
+	AgentDescription  string
+	AgentInstructions string
+	Prompt            string
+	Status            string
 }
 
 type UpdateWorkflowRunInput struct {

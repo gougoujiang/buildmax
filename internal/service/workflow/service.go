@@ -82,7 +82,7 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, cmd CreateWorkflow
 	if strings.TrimSpace(cmd.Definition) == "" {
 		return nil, ErrWorkflowDefinitionRequired
 	}
-	if _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, cmd.Definition); err != nil {
+	if _, _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, cmd.Definition); err != nil {
 		return nil, err
 	}
 	return s.Workflows.CreateWorkflow(ctx, cmd.TeamID, cmd.UserID, strings.TrimSpace(cmd.Name), strings.TrimSpace(cmd.Description), cmd.Definition)
@@ -116,7 +116,7 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflow
 		if strings.TrimSpace(*cmd.Definition) == "" {
 			return nil, ErrWorkflowDefinitionRequired
 		}
-		if _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, *cmd.Definition); err != nil {
+		if _, _, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, *cmd.Definition); err != nil {
 			return nil, err
 		}
 	}
@@ -189,7 +189,7 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 	if workflow.Status != model.WorkflowStatusPublished {
 		return nil, nil, ErrWorkflowNotPublished
 	}
-	def, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, workflow.Definition)
+	def, agents, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, workflow.Definition)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,13 +215,17 @@ func (s *WorkflowService) StartWorkflowRun(ctx context.Context, cmd StartWorkflo
 	stepsIn := make([]model.CreateWorkflowStepRunInput, len(def.Steps))
 	for i := range def.Steps {
 		target := def.Steps[i].TargetAgentID
+		agent := agents[target]
 		stepsIn[i] = model.CreateWorkflowStepRunInput{
-			StepID:        def.Steps[i].StepID,
-			StepIndex:     i,
-			StepType:      def.Steps[i].Type,
-			TargetAgentID: &target,
-			Prompt:        def.Steps[i].Prompt,
-			Status:        model.WorkflowStepRunStatusPending,
+			StepID:            def.Steps[i].StepID,
+			StepIndex:         i,
+			StepType:          def.Steps[i].Type,
+			TargetAgentID:     &target,
+			AgentName:         agent.Name,
+			AgentDescription:  agent.Description,
+			AgentInstructions: agent.Instructions,
+			Prompt:            def.Steps[i].Prompt,
+			Status:            model.WorkflowStepRunStatusPending,
 		}
 	}
 	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.WorkflowRunID, stepsIn)
@@ -368,6 +372,33 @@ func (s *WorkflowService) dispatchNextStep(ctx context.Context, teamID, userID s
 	return nil, err
 }
 
+// stepAgent returns the agent definition a step must run with. Steps recorded since
+// runs snapshot their agent carry it on the step run itself, so an edit to the agent
+// while the run is in flight cannot change what a later step sends. Steps written
+// before that fall back to the current agent definition.
+func (s *WorkflowService) stepAgent(ctx context.Context, teamID, agentID string, step model.WorkflowStepRun) (*model.Agent, error) {
+	if step.AgentName != "" || step.AgentInstructions != "" {
+		return &model.Agent{
+			AgentID:      agentID,
+			TeamID:       teamID,
+			Name:         step.AgentName,
+			Description:  step.AgentDescription,
+			Instructions: step.AgentInstructions,
+		}, nil
+	}
+	if s.Agents == nil {
+		return nil, ErrInvalidTargetAgent
+	}
+	agent, err := s.Agents.GetAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if agent == nil || agent.TeamID != teamID {
+		return nil, ErrInvalidTargetAgent
+	}
+	return agent, nil
+}
+
 func (s *WorkflowService) createStepTask(ctx context.Context, teamID, userID, conversationID string, step model.WorkflowStepRun) (*model.Task, string, error) {
 	agentID := ""
 	if step.TargetAgentID != nil {
@@ -376,12 +407,9 @@ func (s *WorkflowService) createStepTask(ctx context.Context, teamID, userID, co
 	if agentID == "" {
 		return nil, "", ErrInvalidTargetAgent
 	}
-	agent, err := s.Agents.GetAgent(ctx, agentID)
+	agent, err := s.stepAgent(ctx, teamID, agentID, step)
 	if err != nil {
 		return nil, "", err
-	}
-	if agent == nil || agent.TeamID != teamID {
-		return nil, "", ErrInvalidTargetAgent
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt)
 	taskItem, err := s.TaskService.CreateTask(ctx, task.CreateTaskCmd{
@@ -423,15 +451,18 @@ func (s *WorkflowService) validateIssueForRun(ctx context.Context, teamID, workf
 	return nil
 }
 
-func (s *WorkflowService) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, error) {
+// parseAndValidateDefinition parses raw, checks every step's target agent, and returns
+// the resolved agents keyed by agent ID so a caller can snapshot them.
+func (s *WorkflowService) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, map[string]model.Agent, error) {
 	def, err := parseDefinition(raw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := s.validateDefinitionAgents(ctx, teamID, def); err != nil {
-		return nil, err
+	agents, err := s.resolveDefinitionAgents(ctx, teamID, def)
+	if err != nil {
+		return nil, nil, err
 	}
-	return def, nil
+	return def, agents, nil
 }
 
 // parseDefinition unmarshals raw JSON into a WorkflowDefinition and validates structural fields
@@ -468,21 +499,28 @@ func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 	return &def, nil
 }
 
-// validateDefinitionAgents checks that every step's target agent exists and belongs to teamID.
-func (s *WorkflowService) validateDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) error {
+// resolveDefinitionAgents checks that every step's target agent exists and belongs to
+// teamID, and returns those agents keyed by agent ID.
+func (s *WorkflowService) resolveDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) (map[string]model.Agent, error) {
 	if s.Agents == nil {
-		return ErrInvalidTargetAgent
+		return nil, ErrInvalidTargetAgent
 	}
+	agents := make(map[string]model.Agent, len(def.Steps))
 	for i := range def.Steps {
-		agent, err := s.Agents.GetAgent(ctx, def.Steps[i].TargetAgentID)
+		agentID := def.Steps[i].TargetAgentID
+		if _, ok := agents[agentID]; ok {
+			continue
+		}
+		agent, err := s.Agents.GetAgent(ctx, agentID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if agent == nil || agent.TeamID != teamID {
-			return ErrInvalidTargetAgent
+			return nil, ErrInvalidTargetAgent
 		}
+		agents[agentID] = *agent
 	}
-	return nil
+	return agents, nil
 }
 
 func isValidWorkflowStatus(status string) bool {

@@ -116,6 +116,9 @@ export interface ApiWorkflowStepRun {
   step_index: number
   step_type: string
   target_agent_id?: string | null
+  agent_name?: string | null
+  agent_description?: string | null
+  agent_instructions?: string | null
   prompt: string
   status: string
   task_id?: string | null

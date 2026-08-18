@@ -119,6 +119,9 @@ export interface WorkflowStepRun {
   stepIndex: number
   stepType: string
   targetAgentId?: string | null
+  agentName?: string | null
+  agentDescription?: string | null
+  agentInstructions?: string | null
   prompt: string
   status: "pending" | "running" | "succeeded" | "failed" | "blocked"
   taskId?: string | null

@@ -687,11 +687,14 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 | `step_index` | `int` | no | Position in the linear plan; the execution order |
 | `step_type` | `varchar(32)` | no | `agent_task` |
 | `target_agent_id` | `varchar(64)` | yes | `agent.agent_id` to run the step as |
+| `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before step runs snapshotted their agent |
+| `agent_description` | `text` | no | Agent description captured when the run started |
+| `agent_instructions` | `longtext` | no | Agent instructions captured when the run started |
 | `prompt` | `text` | no | Rendered prompt for this step |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `blocked` |
 | `task_id` | `varchar(64)` | yes | The Tier 2 task this step created |
 | `task_run_id` | `varchar(64)` | yes | The specific attempt |
-| `output_summary` | `text` | yes | Carried into the next step's prompt |
+| `output_summary` | `text` | yes | First 500 runes of the step output, for display; it is not passed to the next step |
 | `error_message` | `text` | yes | |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `started_at` | `bigint` | yes | |
@@ -700,8 +703,13 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 Indexes: PK `id`; unique `workflow_step_run_id`; index `workflow_run_id`; index
 `target_agent_id`; index `task_id`; index `task_run_id`.
 
-`blocked` has no counterpart in `workflow_run.status` — a blocked step stops the
-run without failing it.
+The three `agent_*` columns pin the agent definition for the whole run. Steps are
+dispatched one at a time as the previous task run reaches a terminal state, so
+without them an edit to the agent between two steps would change what the later
+step sends to the model.
+
+`blocked` has no counterpart in `workflow_run.status`. When a step fails, the run
+is marked `failed` and every later `pending` step becomes `blocked`.
 
 ## Managed Inference
 

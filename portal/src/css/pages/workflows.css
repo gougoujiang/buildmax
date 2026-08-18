@@ -120,6 +120,14 @@
   color: var(--color-text);
 }
 
+.workflow-run-page__step-agent summary {
+  cursor: pointer;
+}
+
+.workflow-run-page__step-agent > .workflow-page__step-output {
+  margin-top: 0.4rem;
+}
+
 .workflow-run-page__step-actions {
   display: flex;
   flex-wrap: wrap;

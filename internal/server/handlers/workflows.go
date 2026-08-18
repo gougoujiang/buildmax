@@ -35,21 +35,24 @@ type workflowRunResponse struct {
 }
 
 type workflowStepRunResponse struct {
-	ID            string  `json:"id"`
-	WorkflowRunID string  `json:"workflow_run_id"`
-	StepID        string  `json:"step_id"`
-	StepIndex     int     `json:"step_index"`
-	StepType      string  `json:"step_type"`
-	TargetAgentID *string `json:"target_agent_id,omitempty"`
-	Prompt        string  `json:"prompt"`
-	Status        string  `json:"status"`
-	TaskID        *string `json:"task_id,omitempty"`
-	TaskRunID     *string `json:"task_run_id,omitempty"`
-	OutputSummary *string `json:"output_summary,omitempty"`
-	ErrorMessage  *string `json:"error_message,omitempty"`
-	CreatedAt     int64   `json:"created_at"`
-	StartedAt     *int64  `json:"started_at,omitempty"`
-	EndedAt       *int64  `json:"ended_at,omitempty"`
+	ID                string  `json:"id"`
+	WorkflowRunID     string  `json:"workflow_run_id"`
+	StepID            string  `json:"step_id"`
+	StepIndex         int     `json:"step_index"`
+	StepType          string  `json:"step_type"`
+	TargetAgentID     *string `json:"target_agent_id,omitempty"`
+	AgentName         string  `json:"agent_name,omitempty"`
+	AgentDescription  string  `json:"agent_description,omitempty"`
+	AgentInstructions string  `json:"agent_instructions,omitempty"`
+	Prompt            string  `json:"prompt"`
+	Status            string  `json:"status"`
+	TaskID            *string `json:"task_id,omitempty"`
+	TaskRunID         *string `json:"task_run_id,omitempty"`
+	OutputSummary     *string `json:"output_summary,omitempty"`
+	ErrorMessage      *string `json:"error_message,omitempty"`
+	CreatedAt         int64   `json:"created_at"`
+	StartedAt         *int64  `json:"started_at,omitempty"`
+	EndedAt           *int64  `json:"ended_at,omitempty"`
 }
 
 type workflowListResponse struct {
@@ -114,21 +117,24 @@ func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
 
 func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunResponse {
 	return workflowStepRunResponse{
-		ID:            step.StepRunID,
-		WorkflowRunID: step.WorkflowRunID,
-		StepID:        step.StepID,
-		StepIndex:     step.StepIndex,
-		StepType:      step.StepType,
-		TargetAgentID: step.TargetAgentID,
-		Prompt:        step.Prompt,
-		Status:        step.Status,
-		TaskID:        step.TaskID,
-		TaskRunID:     step.TaskRunID,
-		OutputSummary: step.OutputSummary,
-		ErrorMessage:  step.ErrorMessage,
-		CreatedAt:     step.CreatedAt,
-		StartedAt:     step.StartedAt,
-		EndedAt:       step.EndedAt,
+		ID:                step.StepRunID,
+		WorkflowRunID:     step.WorkflowRunID,
+		StepID:            step.StepID,
+		StepIndex:         step.StepIndex,
+		StepType:          step.StepType,
+		TargetAgentID:     step.TargetAgentID,
+		AgentName:         step.AgentName,
+		AgentDescription:  step.AgentDescription,
+		AgentInstructions: step.AgentInstructions,
+		Prompt:            step.Prompt,
+		Status:            step.Status,
+		TaskID:            step.TaskID,
+		TaskRunID:         step.TaskRunID,
+		OutputSummary:     step.OutputSummary,
+		ErrorMessage:      step.ErrorMessage,
+		CreatedAt:         step.CreatedAt,
+		StartedAt:         step.StartedAt,
+		EndedAt:           step.EndedAt,
 	}
 }
 

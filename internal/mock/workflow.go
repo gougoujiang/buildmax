@@ -145,15 +145,18 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 	out := make([]model.WorkflowStepRun, len(steps))
 	for i := range steps {
 		out[i] = model.WorkflowStepRun{
-			StepRunID:     fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
-			WorkflowRunID: workflowRunID,
-			StepID:        steps[i].StepID,
-			StepIndex:     steps[i].StepIndex,
-			StepType:      steps[i].StepType,
-			TargetAgentID: steps[i].TargetAgentID,
-			Prompt:        steps[i].Prompt,
-			Status:        steps[i].Status,
-			CreatedAt:     time.Now().Unix(),
+			StepRunID:         fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
+			WorkflowRunID:     workflowRunID,
+			StepID:            steps[i].StepID,
+			StepIndex:         steps[i].StepIndex,
+			StepType:          steps[i].StepType,
+			TargetAgentID:     steps[i].TargetAgentID,
+			AgentName:         steps[i].AgentName,
+			AgentDescription:  steps[i].AgentDescription,
+			AgentInstructions: steps[i].AgentInstructions,
+			Prompt:            steps[i].Prompt,
+			Status:            steps[i].Status,
+			CreatedAt:         time.Now().Unix(),
 		}
 		m.StepRuns = append(m.StepRuns, out[i])
 	}

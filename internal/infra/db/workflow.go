@@ -49,15 +49,20 @@ type workflowStepRunRow struct {
 	StepIndex     int     `gorm:"column:step_index;not null"`
 	StepType      string  `gorm:"column:step_type;type:varchar(32);not null"`
 	TargetAgentID *string `gorm:"column:target_agent_id;type:varchar(64);index"`
-	Prompt        string  `gorm:"type:text;not null"`
-	Status        string  `gorm:"type:varchar(32);not null"`
-	TaskID        *string `gorm:"column:task_id;type:varchar(64);index"`
-	TaskRunID     *string `gorm:"column:task_run_id;type:varchar(64);index"`
-	OutputSummary *string `gorm:"type:text"`
-	ErrorMessage  *string `gorm:"type:text"`
-	CreatedAt     int64   `gorm:"autoCreateTime"`
-	StartedAt     *int64  `gorm:""`
-	EndedAt       *int64  `gorm:""`
+	// Agent definition captured when the run started; empty on rows written before
+	// step runs snapshotted their agent.
+	AgentName         string  `gorm:"column:agent_name;type:varchar(255);not null"`
+	AgentDescription  string  `gorm:"column:agent_description;type:text;not null"`
+	AgentInstructions string  `gorm:"column:agent_instructions;type:longtext;not null"`
+	Prompt            string  `gorm:"type:text;not null"`
+	Status            string  `gorm:"type:varchar(32);not null"`
+	TaskID            *string `gorm:"column:task_id;type:varchar(64);index"`
+	TaskRunID         *string `gorm:"column:task_run_id;type:varchar(64);index"`
+	OutputSummary     *string `gorm:"type:text"`
+	ErrorMessage      *string `gorm:"type:text"`
+	CreatedAt         int64   `gorm:"autoCreateTime"`
+	StartedAt         *int64  `gorm:""`
+	EndedAt           *int64  `gorm:""`
 }
 
 func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
@@ -157,22 +162,25 @@ func toWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
 		return nil
 	}
 	return &model.WorkflowStepRun{
-		ID:            row.ID,
-		StepRunID:     row.StepRunID,
-		WorkflowRunID: row.WorkflowRunID,
-		StepID:        row.StepID,
-		StepIndex:     row.StepIndex,
-		StepType:      row.StepType,
-		TargetAgentID: row.TargetAgentID,
-		Prompt:        row.Prompt,
-		Status:        row.Status,
-		TaskID:        row.TaskID,
-		TaskRunID:     row.TaskRunID,
-		OutputSummary: row.OutputSummary,
-		ErrorMessage:  row.ErrorMessage,
-		CreatedAt:     row.CreatedAt,
-		StartedAt:     row.StartedAt,
-		EndedAt:       row.EndedAt,
+		ID:                row.ID,
+		StepRunID:         row.StepRunID,
+		WorkflowRunID:     row.WorkflowRunID,
+		StepID:            row.StepID,
+		StepIndex:         row.StepIndex,
+		StepType:          row.StepType,
+		TargetAgentID:     row.TargetAgentID,
+		AgentName:         row.AgentName,
+		AgentDescription:  row.AgentDescription,
+		AgentInstructions: row.AgentInstructions,
+		Prompt:            row.Prompt,
+		Status:            row.Status,
+		TaskID:            row.TaskID,
+		TaskRunID:         row.TaskRunID,
+		OutputSummary:     row.OutputSummary,
+		ErrorMessage:      row.ErrorMessage,
+		CreatedAt:         row.CreatedAt,
+		StartedAt:         row.StartedAt,
+		EndedAt:           row.EndedAt,
 	}
 }
 
@@ -331,15 +339,18 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	rows := make([]workflowStepRunRow, len(steps))
 	for i := range steps {
 		rows[i] = workflowStepRunRow{
-			StepRunID:     util.NewPrefixedID(util.PrefixWorkflowStepRun),
-			WorkflowRunID: workflowRunID,
-			StepID:        steps[i].StepID,
-			StepIndex:     steps[i].StepIndex,
-			StepType:      steps[i].StepType,
-			TargetAgentID: steps[i].TargetAgentID,
-			Prompt:        steps[i].Prompt,
-			Status:        steps[i].Status,
-			CreatedAt:     now,
+			StepRunID:         util.NewPrefixedID(util.PrefixWorkflowStepRun),
+			WorkflowRunID:     workflowRunID,
+			StepID:            steps[i].StepID,
+			StepIndex:         steps[i].StepIndex,
+			StepType:          steps[i].StepType,
+			TargetAgentID:     steps[i].TargetAgentID,
+			AgentName:         steps[i].AgentName,
+			AgentDescription:  steps[i].AgentDescription,
+			AgentInstructions: steps[i].AgentInstructions,
+			Prompt:            steps[i].Prompt,
+			Status:            steps[i].Status,
+			CreatedAt:         now,
 		}
 	}
 	if err := s.db.WithContext(ctx).Create(&rows).Error; err != nil {

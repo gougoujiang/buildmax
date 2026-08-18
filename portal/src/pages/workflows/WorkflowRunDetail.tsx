@@ -168,8 +168,14 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
                       <div>{step.prompt}</div>
                       {step.targetAgentId ? (
                         <div className="page-activity__meta">
-                          Agent: {step.targetAgentId}
+                          Agent: {step.agentName ? `${step.agentName} (${step.targetAgentId})` : step.targetAgentId}
                         </div>
+                      ) : null}
+                      {step.agentInstructions ? (
+                        <details className="workflow-run-page__step-agent">
+                          <summary className="page-activity__meta">Agent definition used by this step</summary>
+                          <pre className="workflow-page__step-output">{step.agentInstructions}</pre>
+                        </details>
                       ) : null}
                       {step.taskId ? (
                         <div className="page-activity__meta">
