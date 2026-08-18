@@ -209,9 +209,19 @@ func (s *Scheduler) runTokenFor(ctx context.Context, run *model.TaskRun) (string
 	})
 }
 
-// failRun records a dispatch failure. The run never started, so there is no
-// worker to report anything later.
+// failRun records a dispatch failure.
+//
+// A run that already reached a terminal status is left alone. The worker
+// process reports its own outcome and then exits non-zero on failure, so the
+// exit status arrives here after the record is already written — and a run its
+// worker reported as CANCELED or FAILED must not be overwritten with the
+// process error, which says less and is about the wrong thing.
 func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) {
+	if run, err := s.taskRuns.GetTaskRun(ctx, taskRunID); err == nil && run != nil && model.RunStatusTerminal(run.Status) {
+		slog.Info("scheduler: worker exited non-zero but the run already reported an outcome",
+			"task_run_id", taskRunID, "status", run.Status, "err", cause)
+		return
+	}
 	errorMsg := cause.Error()
 	if len(errorMsg) > maxErrorMessageLength {
 		errorMsg = errorMsg[:maxErrorMessageLength]

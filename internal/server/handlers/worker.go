@@ -36,7 +36,10 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			TaskID:    run.TaskID,
 			Input:     run.Input,
 			Status:    run.Status,
-			CreatedAt: run.CreatedAt,
+			// The worker polls this route while it executes, so this field is
+			// how a cancel reaches a run that is already under way.
+			CancelRequested: run.CancelRequestedAt != nil,
+			CreatedAt:       run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{
 			TaskID:         task.TaskID,
@@ -120,7 +123,12 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
 		return false
 	}
-	if req.Status == string(model.RunStatusSucceeded) && req.Artifact != nil {
+	// A canceled run is registered exactly like a finished one. It stopped
+	// early, but whatever it produced before stopping is real work, and
+	// discarding it would make cancelling more expensive than waiting.
+	registersArtifacts := req.Status == string(model.RunStatusSucceeded) || req.Status == string(model.RunStatusCanceled)
+	switch {
+	case registersArtifacts && req.Artifact != nil:
 		relativePaths := req.Artifact.RelativePaths
 		if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
 			relativePaths = []string{req.Artifact.RelativePath}
@@ -132,35 +140,48 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_on_complete", "task_run_id", taskRunID)
 			return false
 		}
-	} else if req.Status == string(model.RunStatusFailed) {
+	case req.Status == string(model.RunStatusFailed) || req.Status == string(model.RunStatusCanceled):
 		if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_sync", "task_run_id", taskRunID)
 			return false
 		}
 	}
-	run, task, _ := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
-	if run != nil {
-		h.hub.Done(run.TaskID)
-	}
-	if run != nil && task != nil {
-		info := TaskRunTerminalInfo{
-			TaskRunID:      run.TaskRunID,
-			TaskID:         run.TaskID,
-			ConversationID: task.ConversationID,
-			UserID:         task.CreatedBy,
-			Status:         req.Status,
-			Output:         req.Output,
-			ErrorMessage:   req.ErrorMessage,
-		}
-		go func() {
-			slog.Info("worker: firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)
-			h.connRegistry.OnTaskRunTerminal(context.Background(), info)
-			if h.cfg.OnTaskRunTerminal != nil {
-				h.cfg.OnTaskRunTerminal(context.Background(), info)
-			}
-		}()
-	}
+	h.announceTaskRunTerminal(r.Context(), taskRunID, req.Status, req.Output, req.ErrorMessage)
 	return true
+}
+
+// announceTaskRunTerminal closes the run's output stream and tells Tier 1 that
+// the run is over.
+//
+// Every terminal outcome goes through here — reported by a worker or written by
+// the server on a cancel — because a conversation that started a task waits for
+// exactly one of these. Losing it leaves the conversation waiting for a run that
+// has already stopped.
+func (h *Handler) announceTaskRunTerminal(ctx context.Context, taskRunID, status string, output, errorMessage *string) {
+	run, task, _ := h.cfg.TaskRunStore.GetTaskRunWithTask(ctx, taskRunID)
+	if run == nil {
+		return
+	}
+	h.hub.Done(run.TaskID)
+	if task == nil {
+		return
+	}
+	info := TaskRunTerminalInfo{
+		TaskRunID:      run.TaskRunID,
+		TaskID:         run.TaskID,
+		ConversationID: task.ConversationID,
+		UserID:         task.CreatedBy,
+		Status:         status,
+		Output:         output,
+		ErrorMessage:   errorMessage,
+	}
+	go func() {
+		slog.Info("worker: firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)
+		h.connRegistry.OnTaskRunTerminal(context.Background(), info)
+		if h.cfg.OnTaskRunTerminal != nil {
+			h.cfg.OnTaskRunTerminal(context.Background(), info)
+		}
+	}()
 }
 
 func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {

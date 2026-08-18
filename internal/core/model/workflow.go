@@ -19,6 +19,7 @@ const (
 	WorkflowStepRunStatusRunning   = "running"
 	WorkflowStepRunStatusSucceeded = "succeeded"
 	WorkflowStepRunStatusFailed    = "failed"
+	WorkflowStepRunStatusCanceled  = "canceled"
 	WorkflowStepRunStatusBlocked   = "blocked"
 )
 

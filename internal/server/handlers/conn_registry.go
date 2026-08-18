@@ -65,6 +65,15 @@ func (r *connRegistry) OnTaskRunTerminal(ctx context.Context, info TaskRunTermin
 }
 
 func formatTaskResultMessage(info TaskRunTerminalInfo) string {
+	if info.Status == string(model.RunStatusCanceled) {
+		// A cancel is an instruction, not a fault. Saying so keeps Tier 1 from
+		// treating the stop as a failure worth retrying or apologising for.
+		note := ""
+		if info.ErrorMessage != nil && *info.ErrorMessage != "" {
+			note = "\n\n" + *info.ErrorMessage
+		}
+		return "[Task Result] task_id: " + info.TaskID + " | status: canceled\n\nThis task was stopped on request." + note
+	}
 	if info.Status == string(model.RunStatusSucceeded) {
 		output := ""
 		if info.Output != nil {

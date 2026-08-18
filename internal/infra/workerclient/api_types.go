@@ -35,7 +35,12 @@ type TaskRunRun struct {
 	TaskID    string `json:"task_id"`
 	Input     string `json:"input"`
 	Status    string `json:"status"`
-	CreatedAt int64  `json:"created_at"`
+	// CancelRequested is true once someone has asked this run to stop. The
+	// worker polls for it and is what actually stops: the server records the
+	// intent, the run's own process ends it. Absent means no request, so a
+	// worker built before cancellation existed reads what it always did.
+	CancelRequested bool  `json:"cancel_requested,omitempty"`
+	CreatedAt       int64 `json:"created_at"`
 }
 
 // TaskRunTask is the task portion of the GET response.
@@ -76,5 +81,5 @@ type StreamDeltaRequest struct {
 	Delta string `json:"delta"`
 }
 
-// Run status values match model.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED).
+// Run status values match model.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED, CANCELED).
 // Use model.RunStatusPending, model.RunStatusScheduled, etc. when building or comparing status.

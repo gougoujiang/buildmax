@@ -11,7 +11,31 @@ const (
 	RunStatusRunning   RunStatus = "RUNNING"
 	RunStatusSucceeded RunStatus = "SUCCEEDED"
 	RunStatusFailed    RunStatus = "FAILED"
+	// RunStatusCanceled is terminal and distinct from FAILED: nothing went
+	// wrong, someone stopped the run. A canceled run keeps whatever output and
+	// artifacts it had produced by then.
+	RunStatusCanceled RunStatus = "CANCELED"
 )
+
+// RunStatusTerminal reports whether a run in this status has finished. A run
+// leaves a non-terminal status only through its worker, the scheduler, or a
+// cancel; a terminal one never changes again.
+func RunStatusTerminal(status string) bool {
+	switch RunStatus(status) {
+	case RunStatusSucceeded, RunStatusFailed, RunStatusCanceled:
+		return true
+	default:
+		return false
+	}
+}
+
+// ActiveRunStatuses are the statuses a run passes through before it finishes.
+// One task may hold at most one run in these statuses at a time.
+var ActiveRunStatuses = []string{
+	string(RunStatusPending),
+	string(RunStatusScheduled),
+	string(RunStatusRunning),
+}
 
 const (
 	RunCreatedByTypeUser    = "user"
@@ -77,7 +101,15 @@ type TaskRun struct {
 	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was written — the
 	// run failed before an agent started, or tracing was disabled.
 	TracePath *string `json:"trace_path,omitempty"`
-	CreatedAt int64   `json:"created_at"`
+	// CancelRequestedAt is when someone asked this run to stop. A cancel is
+	// recorded rather than applied because the only thing that can stop a
+	// started run is its own worker: the server states the intent, the worker
+	// honors it and reports CANCELED. Nil means nobody has asked.
+	CancelRequestedAt *int64 `json:"cancel_requested_at,omitempty"`
+	// CancelRequestedBy is the user who asked. A team's runs can be stopped by
+	// anyone on the team, so "why did this stop" needs a name to answer.
+	CancelRequestedBy *string `json:"cancel_requested_by,omitempty"`
+	CreatedAt         int64   `json:"created_at"`
 }
 
 // TaskRunTerminalInfo describes a task run that reached a terminal state.
@@ -186,6 +218,15 @@ type TaskRunStore interface {
 	GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error)
 	// GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
 	GetTaskRunWithTask(ctx context.Context, taskRunID string) (*TaskRun, *Task, error)
+	// GetActiveTaskRunByTask returns the task's run in PENDING, SCHEDULED, or
+	// RUNNING, or (nil, nil) when the task has none. A task holds at most one.
+	GetActiveTaskRunByTask(ctx context.Context, taskID string) (*TaskRun, error)
+	// RequestTaskRunCancel records who asked a run to stop, and when, on a run
+	// that has not reached a terminal status. Returns false when the run is
+	// already terminal or already carries a request, so a second cancel
+	// neither resets the clock the backstop measures nor overwrites the name
+	// of whoever asked first.
+	RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error)
 	// ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
 	ClaimTaskRun(ctx context.Context, in ClaimTaskRunInput) (bool, error)
 	// UpdateRun updates a run's status and optional fields.

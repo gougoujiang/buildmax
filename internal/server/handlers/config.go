@@ -28,9 +28,9 @@ type TaskRunTerminalInfo struct {
 	TaskID         string
 	ConversationID string
 	UserID         string
-	Status         string  // "succeeded" or "failed"
-	Output         *string // task output (succeeded) — may be nil
-	ErrorMessage   *string // error message (failed) — may be nil
+	Status         string  // SUCCEEDED, FAILED, or CANCELED
+	Output         *string // task output (succeeded, or as far as a canceled run got) — may be nil
+	ErrorMessage   *string // why it ended (failed or canceled) — may be nil
 }
 
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).

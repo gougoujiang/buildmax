@@ -1,4 +1,5 @@
 export {
+  cancelTask,
   getTasks,
   getTasksPaginated,
 } from "./api"

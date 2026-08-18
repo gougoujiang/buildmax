@@ -266,6 +266,20 @@ export interface CreateTaskRunResponse {
   task_id: string
 }
 
+/**
+ * Response from the team-scoped cancel endpoint.
+ *
+ * `cancel_requested` is the difference that matters to the UI: false means the
+ * run is already over, true means it is still executing and its worker has been
+ * asked to stop.
+ */
+export interface CancelTaskResponse {
+  task_id: string
+  task_run_id: string
+  status: string
+  cancel_requested: boolean
+}
+
 /** Run output (artifact) as returned by task/run artifact endpoints */
 export interface ApiArtifact {
   task_run_id: string

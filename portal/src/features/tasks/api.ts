@@ -11,6 +11,7 @@ import type {
   ApiTask,
   ApiTasksListResponse,
   ApiSession,
+  CancelTaskResponse,
   CreateTaskRunResponse,
 } from "../../lib/api/types"
 import { createConversation } from "../conversations"
@@ -111,6 +112,30 @@ export async function createTaskRun(
   }
   await throwIfNotOk(res)
   return res.json() as Promise<CreateTaskRunResponse>
+}
+
+/**
+ * Ask the server to stop the task's run.
+ *
+ * 409 means there was nothing to stop — the run finished between the page
+ * rendering a Stop button and the click reaching the server — which is a state
+ * the caller resolves by reloading, not an error worth showing.
+ */
+export async function cancelTask(
+  teamId: string,
+  taskId: string,
+  token: string
+): Promise<CancelTaskResponse> {
+  const res = await apiFetch(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/cancel`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
+  )
+  if (res.status === 409) {
+    const msg = await parseErrorResponse(res, "This task has no run in progress")
+    throw new Error(msg)
+  }
+  await throwIfNotOk(res)
+  return res.json() as Promise<CancelTaskResponse>
 }
 
 export function subscribeTaskStream(

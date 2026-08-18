@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -270,6 +272,120 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.createTaskRunViaConversation(w, r, userID, task.TaskID, req.Input)
+}
+
+// cancelTaskResponse reports what the cancel did.
+//
+// The two outcomes are genuinely different and the caller has to tell them
+// apart: a run that had not started is over when this returns, while a started
+// one is only asked to stop and keeps running until its worker confirms.
+type cancelTaskResponse struct {
+	TaskID    string `json:"task_id"`
+	TaskRunID string `json:"task_run_id"`
+	// Status is the run's status now, not the one it is heading for.
+	Status string `json:"status"`
+	// CancelRequested is true while the run is still executing and the stop is
+	// pending its worker.
+	CancelRequested bool `json:"cancel_requested"`
+}
+
+// cancelTaskHandler stops the task's in-flight run.
+//
+// A run that has not been dispatched is canceled outright: no worker holds it,
+// so nothing has to agree. A run already with a worker is asked instead, and the
+// worker ends it — the server has no way to reach into another process's agent
+// loop, and pretending otherwise would leave the run's own record lying about
+// what it was doing. `StaleRunReaper` finishes the ones no worker answers for.
+func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	if !ok {
+		return
+	}
+	taskID, ok := pathValueRequired(w, r, "task_id")
+	if !ok {
+		return
+	}
+	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	if !ok {
+		return
+	}
+	run, err := h.cfg.TaskRunStore.GetActiveTaskRunByTask(r.Context(), target.TaskID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_id", taskID)
+		return
+	}
+	if run == nil {
+		httputil.WriteJSONError(w, http.StatusConflict, "this task has no run in progress")
+		return
+	}
+
+	// Record the request first. It names who asked and starts the clock the
+	// backstop measures, and it stays true whichever of the two paths below the
+	// run turns out to be on.
+	now := time.Now().Unix()
+	requested, err := h.cfg.TaskRunStore.RequestTaskRunCancel(r.Context(), run.TaskRunID, userID, now)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.TaskRunID)
+		return
+	}
+	if h.finishUndispatchedRun(r, run.TaskRunID, now) {
+		httputil.WriteJSON(w, http.StatusOK, cancelTaskResponse{
+			TaskID:    target.TaskID,
+			TaskRunID: run.TaskRunID,
+			Status:    string(model.RunStatusCanceled),
+		})
+		return
+	}
+
+	// Not PENDING any more: either a worker has it, or it finished while this
+	// request was in flight. Re-reading is what tells those apart.
+	current, err := h.cfg.TaskRunStore.GetTaskRun(r.Context(), run.TaskRunID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.TaskRunID)
+		return
+	}
+	if current == nil || model.RunStatusTerminal(current.Status) {
+		httputil.WriteJSONError(w, http.StatusConflict, "this run has already finished")
+		return
+	}
+	if !requested && current.CancelRequestedAt == nil {
+		httputil.WriteJSONError(w, http.StatusConflict, "this run could not be canceled")
+		return
+	}
+	slog.Info("cancel requested for a running task", "task_id", target.TaskID, "task_run_id", current.TaskRunID, "status", current.Status, "user_id", userID)
+	httputil.WriteJSON(w, http.StatusAccepted, cancelTaskResponse{
+		TaskID:          target.TaskID,
+		TaskRunID:       current.TaskRunID,
+		Status:          current.Status,
+		CancelRequested: true,
+	})
+}
+
+// finishUndispatchedRun cancels a run that is still PENDING and reports whether
+// it did. The claim is conditional on PENDING, so a run the scheduler picked up
+// in the meantime is left to its worker rather than being marked over while it
+// runs.
+func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt int64) bool {
+	message := "this run was canceled before it started"
+	claimed, err := h.cfg.TaskRunStore.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
+		TaskRunID:      taskRunID,
+		ExpectedStatus: model.RunStatusPending,
+		NewStatus:      model.RunStatusCanceled,
+		EndedAt:        &endedAt,
+		ErrorMessage:   &message,
+	})
+	if err != nil {
+		slog.Warn("could not cancel a pending run", "task_run_id", taskRunID, "err", err)
+		return false
+	}
+	if !claimed {
+		return false
+	}
+	if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
+		slog.Warn("could not sync a task from its canceled run", "task_run_id", taskRunID, "err", err)
+	}
+	h.announceTaskRunTerminal(r.Context(), taskRunID, string(model.RunStatusCanceled), nil, &message)
+	return true
 }
 
 type SessionMessage struct {

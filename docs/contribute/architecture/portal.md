@@ -16,6 +16,9 @@ Portal owns the cloud/team lane:
 - workflows and workflow runs
 - run diagnostics: what a task run used, touched, spent, why it ended, and what
   confined it
+- stopping a run in flight: Issue Detail offers Stop Run for a task that is still
+  pending or running, and the button stays until the server's answer, because a
+  started run only reaches `canceled` when its worker confirms
 - the space audit trail, for owners
 - agents
 - team files

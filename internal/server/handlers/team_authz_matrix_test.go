@@ -101,6 +101,10 @@ var teamRoutes = []authzCase{
 
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/tasks/{task_id}/runs", model.TeamRoleMember, false},
+	// Starting a run and stopping one are the same level of act on the same
+	// resource. A member who may spend the team's budget may also stop
+	// spending it, including on a run somebody else started.
+	{"POST", "/api/teams/{team_id}/tasks/{task_id}/cancel", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/artifacts", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/conversation", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/stream", model.TeamRoleMember, false},

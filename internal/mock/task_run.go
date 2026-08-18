@@ -12,6 +12,9 @@ import (
 type MockTaskRunStore struct {
 	Runs     []model.TaskRun
 	TaskList []model.Task
+	// Artifacts holds the relative paths registered per run, so a test can
+	// check that a run's files were kept.
+	Artifacts map[string][]string
 }
 
 func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*model.TaskRun, error) {
@@ -67,12 +70,48 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	}
 	return run, task, nil
 }
+func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID string) (*model.TaskRun, error) {
+	for i := range m.Runs {
+		if m.Runs[i].TaskID != taskID {
+			continue
+		}
+		if !model.RunStatusTerminal(m.Runs[i].Status) {
+			return &m.Runs[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error) {
+	for i := range m.Runs {
+		if m.Runs[i].TaskRunID != taskRunID {
+			continue
+		}
+		if model.RunStatusTerminal(m.Runs[i].Status) || m.Runs[i].CancelRequestedAt != nil {
+			return false, nil
+		}
+		m.Runs[i].CancelRequestedAt = &requestedAt
+		m.Runs[i].CancelRequestedBy = &requestedBy
+		return true, nil
+	}
+	return false, nil
+}
+
 func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskRunID == in.TaskRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
 			m.Runs[i].Status = string(in.NewStatus)
 			if in.StartedAt != nil {
 				m.Runs[i].StartedAt = in.StartedAt
+			}
+			if in.EndedAt != nil {
+				m.Runs[i].EndedAt = in.EndedAt
+			}
+			if in.Output != nil {
+				m.Runs[i].Output = in.Output
+			}
+			if in.ErrorMessage != nil {
+				m.Runs[i].ErrorMessage = in.ErrorMessage
 			}
 			if in.SessionID != nil {
 				m.Runs[i].SessionID = in.SessionID
@@ -115,9 +154,38 @@ func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in model.UpdateTaskRun
 func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
 	return nil
 }
-func (m *MockTaskRunStore) OnRunComplete(_ context.Context, taskRunID string, relativePaths []string) error {
-	return nil
+
+// OnRunComplete records the run's artifacts and copies its terminal state onto
+// its task, which is what the real store does for every terminal status that
+// leaves files behind.
+func (m *MockTaskRunStore) OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error {
+	if m.Artifacts == nil {
+		m.Artifacts = make(map[string][]string)
+	}
+	m.Artifacts[taskRunID] = append(m.Artifacts[taskRunID], relativePaths...)
+	return m.SyncTaskFromRun(ctx, taskRunID)
 }
+
+// SyncTaskFromRun copies the run's terminal state onto its task, which is what
+// the real store does and what callers assert on after a cancel or a failure.
 func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
+	for i := range m.Runs {
+		if m.Runs[i].TaskRunID != taskRunID {
+			continue
+		}
+		run := m.Runs[i]
+		for j := range m.TaskList {
+			if m.TaskList[j].TaskID != run.TaskID {
+				continue
+			}
+			m.TaskList[j].Status = run.Status
+			m.TaskList[j].LastRunID = &run.TaskRunID
+			m.TaskList[j].Output = run.Output
+			m.TaskList[j].StartedAt = run.StartedAt
+			m.TaskList[j].EndedAt = run.EndedAt
+			m.TaskList[j].ErrorMessage = run.ErrorMessage
+		}
+		return nil
+	}
 	return nil
 }

@@ -32,7 +32,8 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Issues: `/api/teams/{team_id}/issues...`
 - Workflows: `/api/teams/{team_id}/workflows...`
 - Files: `/api/teams/{team_id}/upload`, `/files...`
-- Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`
+- Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`,
+  including `POST /tasks/{task_id}/cancel` — see "Cancelling a run" below
 - Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
 - Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
 - Managed model calls: `/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` —
@@ -45,6 +46,29 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Worker API: `/api/worker/task-runs/{task_run_id}...`, including
   `/llm/completions` so a worker needs no provider credential
 - Inbound webhook: `/api/webhook`
+
+## Cancelling A Run
+
+`POST /api/teams/{team_id}/tasks/{task_id}/cancel` stops the task's run. What
+happens next depends on whether a worker already holds it:
+
+- **Not dispatched yet** (`PENDING`): the run is claimed straight to `CANCELED`,
+  its task is synced, and the response is `200`.
+- **Dispatched** (`SCHEDULED` or `RUNNING`): the request is recorded on the run
+  (`cancel_requested_at`, `cancel_requested_by`) and the response is `202`. The
+  worker polls `GET /api/worker/task-runs/{task_run_id}`, sees `cancel_requested`,
+  ends its agent loop, uploads what the run produced, and PATCHes `CANCELED`.
+- **Already finished**: `409`. Cancelling twice while a run is stopping is not an
+  error — the second call answers `202` again.
+
+The server never ends a started run itself: only the run's own process can stop
+its agent loop, and a status written from outside would describe a run that is
+still executing. `StaleRunReaper` is the backstop for a worker that never
+confirms, and finishes such runs as `CANCELED` after a grace period.
+
+A canceled run keeps its output and artifacts. It stopped early, but what it
+produced is real work, and discarding it would make cancelling more expensive
+than waiting.
 
 ## Notes
 
