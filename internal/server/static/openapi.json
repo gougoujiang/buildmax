@@ -269,14 +269,15 @@
     },
     "/api/worker/task-runs/{task_run_id}/llm/completions": {
       "post": {
-        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. The team, task, and run are derived from server state, never from the request. Authenticated with the worker token",
+        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, team, task, and run all come from the credential, never from the request. The deployment-wide worker token is not accepted here",
         "parameters": [
           { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": { "description": "OK. Same body and streaming behaviour as the team route" },
           "400": { "description": "Invalid request, unknown field, or a model the run's team may not use" },
-          "401": { "description": "Missing or invalid worker token" },
+          "401": { "description": "Missing, invalid, or expired run token" },
+          "403": { "description": "The run token authorizes a different task run, or a different team than the run's" },
           "404": { "description": "No such task run" },
           "409": { "description": "The run is not executing, so no call is accepted for it" },
           "429": { "description": "Team quota exceeded" }

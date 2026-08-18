@@ -52,7 +52,18 @@ type Config struct {
 	// lets the credential layer renew underneath.
 	TokenFunc func() (string, error)
 	// TeamID scopes the call. The server verifies membership regardless.
+	//
+	// Leave it empty in worker mode: a task run's team comes from its run token,
+	// so a worker neither states a team nor needs one configured.
 	TeamID string
+	// TaskRunID selects the worker route, where the credential is a run token
+	// rather than a user login and the server derives user, team, task, and run
+	// from it. Empty means the team route.
+	//
+	// The two are mutually exclusive because they are different claims about who
+	// is calling. Setting both is a caller that has not decided, not a caller
+	// being thorough.
+	TaskRunID string
 	// Alias is the team model alias to call. Empty uses the team default.
 	Alias string
 	// ContextWindow is the usable context size for this alias; 0 disables
@@ -106,6 +117,27 @@ func (c *Client) setAuthorization(req *http.Request) error {
 	return nil
 }
 
+// completionsURL picks the route this client's identity entitles it to.
+//
+// A misconfigured client fails here rather than at the server, so the message
+// names what is missing instead of reporting a 401 or a 404 the caller would
+// have to interpret.
+func (c *Client) completionsURL() (string, error) {
+	if c.cfg.ServerURL == "" {
+		return "", errors.New("managed llm client needs a server URL")
+	}
+	switch {
+	case c.cfg.TaskRunID != "" && c.cfg.TeamID != "":
+		return "", errors.New("managed llm client has both a task run and a team; it can only call as one of them")
+	case c.cfg.TaskRunID != "":
+		return c.cfg.ServerURL + fmt.Sprintf(llmwire.WorkerCompletionsPath, c.cfg.TaskRunID), nil
+	case c.cfg.TeamID != "":
+		return c.cfg.ServerURL + fmt.Sprintf(llmwire.CompletionsPath, c.cfg.TeamID), nil
+	default:
+		return "", errors.New("managed llm client needs a team or a task run")
+	}
+}
+
 // ContextWindow returns the configured context window (0 = no windowing).
 func (c *Client) ContextWindow() int {
 	if c == nil {
@@ -118,9 +150,6 @@ func (c *Client) ContextWindow() int {
 func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
 	if c == nil {
 		return "", nil, cllm.Usage{}, errors.New("managed llm client is not configured")
-	}
-	if c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
-		return "", nil, cllm.Usage{}, errors.New("managed llm client needs a server URL and a team")
 	}
 
 	resp, err := c.post(ctx, false, messages, tools)
@@ -281,8 +310,9 @@ func (s *streamState) finish() (string, []cllm.ToolCall, cllm.Usage, error) {
 // The client-side deadline, when set, covers the whole exchange including a
 // stream, so a hung connection cannot hold a caller forever.
 func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message, tools []cllm.ToolDef) (*http.Response, error) {
-	if c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
-		return nil, errors.New("managed llm client needs a server URL and a team")
+	url, err := c.completionsURL()
+	if err != nil {
+		return nil, err
 	}
 	body, err := json.Marshal(llmwire.CompletionRequest{
 		Model:    c.cfg.Alias,
@@ -301,7 +331,6 @@ func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message,
 		// cancel travels with the request rather than firing on return.
 		context.AfterFunc(ctx, cancel)
 	}
-	url := c.cfg.ServerURL + fmt.Sprintf(llmwire.CompletionsPath, c.cfg.TeamID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build managed request: %w", err)
@@ -419,9 +448,19 @@ func toWireTools(in []cllm.ToolDef) []llmwire.Tool {
 }
 
 // Models lists the aliases this client's team may use.
+//
+// Discovery is a team capability, so a worker-mode client refuses it. A task run
+// is told which model to use at dispatch; letting it browse the team's catalog
+// would be a choice it has no business making.
 func (c *Client) Models(ctx context.Context) ([]llmwire.Model, error) {
-	if c == nil || c.cfg.ServerURL == "" || c.cfg.TeamID == "" {
-		return nil, errors.New("managed llm client needs a server URL and a team")
+	if c == nil || c.cfg.ServerURL == "" {
+		return nil, errors.New("managed llm client needs a server URL")
+	}
+	if c.cfg.TaskRunID != "" {
+		return nil, errors.New("a task run cannot list team models")
+	}
+	if c.cfg.TeamID == "" {
+		return nil, errors.New("managed llm client needs a team")
 	}
 	url := c.cfg.ServerURL + fmt.Sprintf(llmwire.ModelsPath, c.cfg.TeamID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

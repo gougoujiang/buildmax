@@ -174,8 +174,8 @@ func allHelpSections() []helpSection {
 			{"eval", "Run the agent benchmark (requires a model API key)"},
 		}},
 		{"Deployment", []helpRow{
-			{"compose <action>", "Manage the Compose quickstart (up|smoke|status|logs|down)"},
-			{"kind <action>", "Manage local Kubernetes (up|images|smoke|status|logs|down)"},
+			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
+			{"kind <action>", "Manage local Kubernetes (up|images|smoke [managed]|status|logs|down)"},
 			{"e2e [target]", "Run Portal browser tests against a running kind or compose deployment"},
 		}},
 		{"Release", []helpRow{

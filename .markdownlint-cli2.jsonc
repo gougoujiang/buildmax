@@ -23,6 +23,9 @@
     // locally — without this, a failed browser test also fails `check docs`.
     "**/test-results/**",
     ".buildmax/**",
+    // Agent scratch state: git-ignored worktrees and their test output, which
+    // is generated markdown nobody edits and every generator formats its own way.
+    ".claude/**",
     "docs/design/**",
     "eval/**",
     "testing-sandbox/**",

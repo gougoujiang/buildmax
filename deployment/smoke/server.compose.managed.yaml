@@ -1,0 +1,54 @@
+# Smoke configuration for managed task-run inference.
+#
+# Tracks server.compose.yaml — keep the two in step; they differ only in the
+# `llm` block and `worker.llm`. The split exists because transport is startup
+# configuration, so one stack cannot run both modes, and both modes need
+# end-to-end coverage.
+#
+# What this proves that the direct smoke does not: a worker completes a real
+# task while holding no provider credential. The key reaches the server through
+# BUILDMAX_CONVERSATION_MODEL_API_KEY and never reaches a worker, because
+# `worker.llm.transport: buildmax` withholds it — and it is not in this file
+# either, so a worker mounting this config cannot find it anywhere.
+
+log_level: info
+port: 5678
+cors_origin: http://localhost:8080
+workspaces_dir: /data/workspaces
+default_quota_tier: free_trial
+
+database:
+  host: mysql
+  port: 3306
+  user: buildmax
+  name: buildmax
+
+conversation:
+  model:
+    model: buildmax-smoke
+    name: BuildMax smoke
+    api_url: http://mock-llm:8080/v1
+    context_window: 32000
+
+# `conversation` is the bootstrap catalog target derived from the model above,
+# so this smoke needs no llm_model row and no ID to discover at deploy time. A
+# real deployment points aliases at rows created with `buildmax-server model
+# add` instead.
+llm:
+  aliases:
+    default: conversation
+  default_alias: default
+
+worker:
+  binary: buildmax-worker
+  run_mode: local_process
+  server_url: http://127.0.0.1:5678
+  llm:
+    transport: buildmax
+    alias: default
+    context_window: 32000
+  run_token_ttl: 1h
+
+storage:
+  persist_backend: local_fs
+  artifact_backend: local_fs

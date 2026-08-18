@@ -356,3 +356,31 @@ func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
 	}
 	return s.db.WithContext(ctx).Model(&taskRow{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
 }
+
+// ListStaleTaskRuns returns runs that were dispatched before cutoffUnix and have
+// not reached a terminal status.
+//
+// A run leaves SCHEDULED or RUNNING when its worker reports the outcome, so a
+// run still in one of those states long after dispatch has no worker coming for
+// it: the process died, the pod was evicted, or its credential expired before it
+// could report. Nothing else notices, which is why this query exists.
+func (s *Store) ListStaleTaskRuns(ctx context.Context, cutoffUnix int64, limit int) ([]model.TaskRun, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var rows []taskRunRow
+	err := s.db.WithContext(ctx).
+		Where("status IN ?", []string{string(model.RunStatusScheduled), string(model.RunStatusRunning)}).
+		Where("created_at <= ?", cutoffUnix).
+		Order("created_at ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.TaskRun, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toTaskRun(&rows[i]))
+	}
+	return out, nil
+}

@@ -40,6 +40,17 @@ func main() {
 		return
 	}
 
+	// `run-token` mints one run's credential for hand-driving a worker route.
+	// It signs with the deployment's key, so it runs here rather than anywhere a
+	// client could reach.
+	if len(os.Args) > 1 && os.Args[1] == "run-token" {
+		if err := bootstrap.RunRunTokenCommand(ctx, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	portFlag := flag.Int("port", 0, "port to listen on (overrides server.yaml port, default 5678)")
 	flag.Usage = usage
 	flag.Parse()
@@ -55,6 +66,7 @@ func usage() {
 	fmt.Fprint(out, `Usage: buildmax-server [flags]
        buildmax-server user <command> [flags]
        buildmax-server model <command> [flags]
+       buildmax-server run-token <task_run_id> [flags]
 
 Runs the BuildMax HTTP API and the task scheduler. Configuration comes from
 BUILDMAX_HOME/server.yaml.
@@ -64,4 +76,5 @@ Flags:
 	flag.PrintDefaults()
 	fmt.Fprint(out, "\n"+bootstrap.UserCommandUsage)
 	fmt.Fprint(out, "\n"+bootstrap.ModelCommandUsage)
+	fmt.Fprint(out, "\n"+bootstrap.RunTokenCommandUsage)
 }

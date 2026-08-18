@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
@@ -14,7 +15,9 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
+	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -88,6 +91,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 		port = 5678
 	}
 
+	if err := validateWorkerLLM(sc); err != nil {
+		return err
+	}
+
 	workspacesDir, err := resolveWorkspacesDir(sc.WorkspacesDir)
 	if err != nil {
 		return err
@@ -113,7 +120,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
-	sched, err := scheduler.NewScheduler(store, runner)
+	sched, err := scheduler.NewScheduler(store, runner, runTokenMinter(sc, jwtSecret))
 	if err != nil {
 		return fmt.Errorf("scheduler: %w", err)
 	}
@@ -123,6 +130,10 @@ func RunServer(ctx context.Context, portOverride int) error {
 	cleaner := scheduler.NewCredentialCleaner(store, 0)
 	cleaner.Start()
 	defer cleaner.Stop()
+
+	reaper := scheduler.NewStaleRunReaper(store, sc.Worker.RunTimeout, 0)
+	reaper.Start()
+	defer reaper.Stop()
 
 	s := httpserver.New(serverConfig)
 	slog.Info("server starting",
@@ -230,6 +241,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		},
 		Worker: httpserver.WorkerConfig{
 			WorkerToken: sc.Worker.Token,
+			LLM:         workerLLMDescriptor(sc.Worker.LLM),
 		},
 		Conv: httpserver.ConversationConfig{
 			ConversationStore:        st,
@@ -318,6 +330,65 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	return nil
 }
 
+// runTokenMinter returns the signer the scheduler gives each dispatched run.
+//
+// Every run gets one, not only a managed one. The token started as a gateway
+// credential, but it is now what a worker uses to reach any of its own routes,
+// so a direct-mode run needs it to report the work it did.
+func runTokenMinter(sc config.ServerConfig, jwtSecret string) scheduler.MintRunToken {
+	ttl := sc.Worker.RunTokenTTL
+	if sc.Worker.LLM.Managed() {
+		slog.Info("task runs use managed inference and hold no provider credential",
+			"alias", sc.Worker.LLM.Alias, "run_token_ttl", ttl)
+	}
+	return func(claims authtoken.RunClaims) (string, error) {
+		return authtoken.MintRun(jwtSecret, claims, ttl, time.Now())
+	}
+}
+
+// workerLLMDescriptor is what a worker is told about models for its run. It
+// carries an alias and nothing else — the endpoint, the upstream model, and the
+// credential stay on the server.
+//
+// Nil means direct, so a deployment that has not enabled managed inference sends
+// the field at all.
+func workerLLMDescriptor(wc config.ServerWorkerLLMConfig) *workerclient.TaskRunLLM {
+	if !wc.Managed() {
+		return nil
+	}
+	return &workerclient.TaskRunLLM{
+		Transport:     config.TransportBuildMax,
+		Alias:         wc.Alias,
+		ContextWindow: wc.ContextWindow,
+		CallTimeout:   wc.CallTimeout,
+	}
+}
+
+// validateWorkerLLM rejects a deployment that asks for managed worker inference
+// it cannot serve.
+//
+// Without this, `worker.llm.transport: buildmax` with no `llm.aliases` parses
+// cleanly and then fails every run at its first model call, which reads as a
+// model outage rather than a configuration mistake.
+func validateWorkerLLM(sc config.ServerConfig) error {
+	if !sc.Worker.LLM.Managed() {
+		return nil
+	}
+	if len(sc.LLM.Aliases) == 0 {
+		return fmt.Errorf("worker.llm.transport is %q but llm.aliases is empty, so no team may call the gateway",
+			config.TransportBuildMax)
+	}
+	if alias := sc.Worker.LLM.Alias; alias != "" {
+		if _, ok := sc.LLM.Aliases[alias]; !ok {
+			return fmt.Errorf("worker.llm.alias %q is not one of llm.aliases", alias)
+		}
+	} else if sc.LLM.DefaultAlias == "" && len(sc.LLM.Aliases) > 1 {
+		return fmt.Errorf("worker.llm.alias is unset and llm.default_alias does not say which of %d aliases a run should use",
+			len(sc.LLM.Aliases))
+	}
+	return nil
+}
+
 func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, error) {
 	switch wc.RunMode {
 	case "k8s_job":
@@ -331,7 +402,7 @@ func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, er
 		return k8s.NewK8sJobRunner(
 			wc.K8s.Namespace,
 			wc.K8s.Image,
-			k8s.WorkerEnvFromEnviron(),
+			k8s.WorkerEnvFromEnviron(wc.LLM.Managed()),
 			k8s.PodConfig{
 				ConfigMapName: wc.K8s.ConfigMap,
 				HomeDir:       wc.K8s.HomeDir,
@@ -349,7 +420,7 @@ func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, er
 		if wc.Binary == "" {
 			return nil, fmt.Errorf("worker.binary is required in server.yaml for local_process mode")
 		}
-		return scheduler.NewLocalRunner(wc.Binary, config.FilterWorkerEnv(os.Environ())), nil
+		return scheduler.NewLocalRunner(wc.Binary, config.FilterWorkerEnv(os.Environ(), wc.LLM.Managed()), config.EnvKeyBuildmaxRunToken), nil
 	}
 }
 

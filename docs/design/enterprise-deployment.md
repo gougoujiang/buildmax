@@ -228,7 +228,7 @@ Required checks:
 - worker mode is valid
 - `worker.binary` exists for `local_process`
 - Kubernetes job creator is available for `k8s_job`
-- worker token is present when worker API is enabled
+- `worker.llm.transport` names a model policy the deployment can actually serve
 
 ### 5.5 Initial Admin / Team / Quota Story
 

@@ -1,0 +1,66 @@
+# Smoke configuration for managed task-run inference on kind.
+#
+# Tracks server.kind.yaml — keep the two in step; they differ only in the `llm`
+# block and `worker.llm`. The split exists because transport is startup
+# configuration, so one server cannot serve both modes, and both modes need
+# end-to-end coverage.
+#
+# What this proves that the compose managed smoke does not: the run token
+# reaches a worker through a Kubernetes Job spec rather than a child process
+# environment. Those are two different delivery paths for the same credential.
+#
+# The provider key reaches the server from buildmax-secret and is withheld from
+# worker pods by `worker.llm.transport: buildmax`. It is not in this file
+# either, so a worker pod mounting this ConfigMap cannot find it anywhere.
+
+log_level: info
+port: 5678
+cors_origin: http://localhost:8080
+workspaces_dir: /buildmax/workspaces
+default_quota_tier: free_trial
+
+database:
+  host: mysql.db.svc.cluster.local
+  port: 3306
+  user: buildmax
+  name: buildmax
+
+conversation:
+  model:
+    model: buildmax-smoke
+    name: BuildMax smoke
+    api_url: http://buildmax-smoke-llm.buildmax.svc.cluster.local:8080/v1
+    context_window: 32000
+
+# `conversation` is the bootstrap catalog target derived from the model above,
+# so this smoke needs no llm_model row and no ID to discover at deploy time. A
+# real deployment points aliases at rows created with `buildmax-server model
+# add` instead.
+llm:
+  aliases:
+    default: conversation
+  default_alias: default
+
+worker:
+  binary: buildmax-worker
+  run_mode: k8s_job
+  server_url: http://buildmax.buildmax.svc.cluster.local:5678
+  llm:
+    transport: buildmax
+    alias: default
+    context_window: 32000
+  run_token_ttl: 1h
+  k8s:
+    namespace: buildmax
+    image: buildmax:local
+    config_map: buildmax-config
+    home_dir: /buildmax
+
+storage:
+  persist_backend: minio
+  artifact_backend: minio
+  minio:
+    endpoint: http://minio.storage.svc.cluster.local:9000
+    region: us-east-1
+    bucket: bmstore
+    prefix: workspaces

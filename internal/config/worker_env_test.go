@@ -17,10 +17,10 @@ func TestWorkerEnv_WithholdsServerOnlyCredentials(t *testing.T) {
 		EnvKeyBuildmaxTestDSN,
 	}
 	for _, name := range withheld {
-		if WorkerNeedsEnv(name) {
+		if WorkerNeedsEnv(name, false) {
 			t.Errorf("%s must not reach a worker", name)
 		}
-		if slices.Contains(WorkerEnvKeys(), name) {
+		if slices.Contains(WorkerEnvKeys(false), name) {
 			t.Errorf("%s appears in WorkerEnvKeys", name)
 		}
 	}
@@ -40,11 +40,11 @@ func TestWorkerEnv_KeepsWhatTheWorkerReads(t *testing.T) {
 		EnvKeyBuildmaxTraceDisabled,
 	}
 	for _, name := range needed {
-		if !WorkerNeedsEnv(name) {
+		if !WorkerNeedsEnv(name, false) {
 			t.Errorf("%s is read by a worker but withheld from it", name)
 		}
 	}
-	if got, want := len(WorkerEnvKeys()), len(needed); got != want {
+	if got, want := len(WorkerEnvKeys(false)), len(needed); got != want {
 		t.Errorf("WorkerEnvKeys has %d entries, want %d — a new worker variable needs a decision here, not a default",
 			got, want)
 	}
@@ -54,7 +54,7 @@ func TestWorkerEnv_KeepsWhatTheWorkerReads(t *testing.T) {
 // variable added to the server without a thought for workers stays on the
 // server.
 func TestWorkerNeedsEnv_UnknownVariableIsWithheld(t *testing.T) {
-	if WorkerNeedsEnv("BUILDMAX_SOMETHING_ADDED_LATER") {
+	if WorkerNeedsEnv("BUILDMAX_SOMETHING_ADDED_LATER", false) {
 		t.Error("an unrecognized variable must default to withheld")
 	}
 }
@@ -70,7 +70,7 @@ func TestFilterWorkerEnv(t *testing.T) {
 		"BUILDMAX_UNKNOWN=whatever",
 		"MALFORMED_NO_EQUALS",
 	}
-	got := FilterWorkerEnv(in)
+	got := FilterWorkerEnv(in, false)
 	joined := strings.Join(got, "\n")
 
 	for _, banned := range []string{"jwt-secret", "db-secret", "BUILDMAX_UNKNOWN"} {
@@ -88,5 +88,47 @@ func TestFilterWorkerEnv(t *testing.T) {
 	// silently swallowed.
 	if !slices.Contains(got, "MALFORMED_NO_EQUALS") {
 		t.Errorf("malformed entry was dropped: %v", got)
+	}
+}
+
+// TestManagedRunsGetNoProviderKey is the credential this whole change exists to
+// remove. A managed run reaches models through the server, so the upstream
+// provider key has no use inside a process that executes model-chosen shell
+// commands — and a key with no use is pure exposure.
+func TestManagedRunsGetNoProviderKey(t *testing.T) {
+	if WorkerNeedsEnv(EnvKeyBuildmaxConversationAPIKey, true) {
+		t.Errorf("%s reached a managed worker", EnvKeyBuildmaxConversationAPIKey)
+	}
+	if slices.Contains(WorkerEnvKeys(true), EnvKeyBuildmaxConversationAPIKey) {
+		t.Errorf("%s appears in a managed worker's keys", EnvKeyBuildmaxConversationAPIKey)
+	}
+
+	filtered := FilterWorkerEnv([]string{
+		EnvKeyBuildmaxConversationAPIKey + "=provider-key",
+		EnvKeyBuildmaxWorkerToken + "=wt-secret",
+		EnvKeyBuildmaxMinIOAccessKey + "=minio-key",
+	}, true)
+	joined := strings.Join(filtered, "\n")
+	if strings.Contains(joined, "provider-key") {
+		t.Errorf("a managed worker was handed the provider key: %v", filtered)
+	}
+	// Everything else a worker reads is unaffected: managed inference changes
+	// where prompts go, not how a run reports results or writes artifacts.
+	for _, kept := range []string{"wt-secret", "minio-key"} {
+		if !strings.Contains(joined, kept) {
+			t.Errorf("managed filtering dropped %q: %v", kept, filtered)
+		}
+	}
+}
+
+// TestDirectRunsStillGetTheProviderKey is the other direction. Direct mode is a
+// first-class path, and withholding its credential would break every existing
+// deployment.
+func TestDirectRunsStillGetTheProviderKey(t *testing.T) {
+	if !WorkerNeedsEnv(EnvKeyBuildmaxConversationAPIKey, false) {
+		t.Errorf("%s was withheld from a direct worker", EnvKeyBuildmaxConversationAPIKey)
+	}
+	if got, want := len(WorkerEnvKeys(true)), len(WorkerEnvKeys(false))-1; got != want {
+		t.Errorf("a managed worker gets %d variables, want %d — exactly one fewer than a direct one", got, want)
 	}
 }

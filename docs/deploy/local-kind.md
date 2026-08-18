@@ -44,11 +44,20 @@ single-use code for `deployment-smoke@buildmax.local` after verification.
 
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
+./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind images  # rebuild and load local images without applying manifests
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind down    # delete the selected cluster
 ```
+
+`smoke managed` swaps the `buildmax-config` ConfigMap for
+`deployment/smoke/server.kind.managed.yaml`, restarts the server, and reruns the
+same assertions with task-run inference going through the gateway. It proves
+what the default run cannot: a worker Job completes a real task holding no
+provider credential, and its run token reaches the pod through the Job spec.
+The cluster stays in managed mode afterwards — rerun `./make kind up` to return
+it to direct.
 
 `status` changes nothing. It prints the selected cluster and context, probes
 <http://localhost:8080/healthz> through the ingress, and lists nodes plus the

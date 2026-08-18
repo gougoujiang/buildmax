@@ -1,0 +1,10 @@
+# Applied after compose.smoke.yaml to run the smoke with managed task-run
+# inference: `./make compose smoke managed`.
+#
+# It swaps only the mounted server.yaml. The provider key still reaches the
+# server — the gateway needs it to call the mock upstream — but no longer
+# reaches the worker, which is what this variant exists to prove.
+services:
+  server:
+    volumes:
+      - ../smoke/server.compose.managed.yaml:/buildmax/server.yaml:ro

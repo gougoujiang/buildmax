@@ -61,40 +61,52 @@ func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix
 	return resp, nil
 }
 
-// GetWorkerTaskRun fetches run and task from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil, nil if not found.
-func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*model.TaskRun, *model.Task, error) {
+// WorkerTaskRun is everything the server tells a worker about the run it is
+// about to execute.
+type WorkerTaskRun struct {
+	Run  *model.TaskRun
+	Task *model.Task
+	// LLM is how this run reaches a model. Nil means direct, which is what a
+	// server that has not enabled managed worker inference reports.
+	LLM *TaskRunLLM
+}
+
+// GetWorkerTaskRun fetches the run from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil if not found.
+func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (*WorkerTaskRun, error) {
 	pathSuffix := "/api/worker/task-runs/" + taskRunID
 	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil, nil
+		return nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
+		return nil, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
 	}
 	var got GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	run := &model.TaskRun{
-		TaskRunID: got.Run.TaskRunID,
-		TaskID:    got.Run.TaskID,
-		Input:     got.Run.Input,
-		Status:    got.Run.Status,
-		CreatedAt: got.Run.CreatedAt,
-	}
-	task := &model.Task{
-		TaskID:         got.Task.TaskID,
-		ConversationID: got.Task.ConversationID,
-		TeamID:         got.Task.TeamID,
-		CreatedBy:      got.Task.UserID,
-		SessionID:      got.Task.SessionID,
-		LastRunID:      got.Task.LastRunID,
-	}
-	return run, task, nil
+	return &WorkerTaskRun{
+		Run: &model.TaskRun{
+			TaskRunID: got.Run.TaskRunID,
+			TaskID:    got.Run.TaskID,
+			Input:     got.Run.Input,
+			Status:    got.Run.Status,
+			CreatedAt: got.Run.CreatedAt,
+		},
+		Task: &model.Task{
+			TaskID:         got.Task.TaskID,
+			ConversationID: got.Task.ConversationID,
+			TeamID:         got.Task.TeamID,
+			CreatedBy:      got.Task.UserID,
+			SessionID:      got.Task.SessionID,
+			LastRunID:      got.Task.LastRunID,
+		},
+		LLM: got.LLM,
+	}, nil
 }
 
 // WorkerHTTPUpdater implements TaskRunUpdater by calling the server's worker API (PATCH /api/worker/task-runs/{task_run_id}).

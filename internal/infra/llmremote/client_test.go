@@ -62,7 +62,9 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 
 func (g *fakeGateway) client(cfg llmremote.Config) *llmremote.Client {
 	cfg.ServerURL = g.server.URL
-	if cfg.TeamID == "" {
+	// A team is the usual identity, but not when the caller already gave a task
+	// run: the two select different routes and cannot both be set.
+	if cfg.TeamID == "" && cfg.TaskRunID == "" {
 		cfg.TeamID = "tm_one"
 	}
 	return llmremote.NewClient(cfg)

@@ -7,6 +7,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
@@ -37,6 +38,10 @@ type Config struct {
 	JWTSecret   string
 	CORSOrigin  string
 	WorkerToken string // required for /api/worker/* endpoints
+	// WorkerLLM tells a worker how to reach a model for its run. Nil means
+	// direct, which is what a deployment that has not enabled managed worker
+	// inference reports.
+	WorkerLLM *workerclient.TaskRunLLM
 	// AllowSignup opens POST /api/otp/request to self-registration. False — the
 	// zero value — means accounts are created by an operator.
 	AllowSignup bool

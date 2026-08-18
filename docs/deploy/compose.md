@@ -28,6 +28,20 @@ artifact retrieval. It requires no provider key. Inspect failures with
 `./make compose logs`, then stop the stack with `./make compose down`. On
 success it prints a fresh single-use Portal login code for the smoke account.
 
+The same flow runs with task-run inference going through the managed gateway
+instead of a provider:
+
+```bash
+./make compose smoke managed
+```
+
+That variant proves the thing the default one cannot: the worker completes a
+real task while holding no provider credential. It checks the run's trace
+records the team alias as its model, which a worker that had quietly used a
+provider key could not produce. The two are separate stacks because transport
+is startup configuration — one server cannot serve both — and both modes need
+end-to-end coverage. Switching between them recreates the server container.
+
 `./make compose status` changes nothing. It lists every service in the stack,
 including exited ones, and probes the server and Portal ports on the host, so a
 stack that was never started is distinguishable from one whose server is

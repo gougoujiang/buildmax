@@ -34,7 +34,12 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Files: `/api/teams/{team_id}/upload`, `/files...`
 - Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`
 - Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
-- Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
+- Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace` — only serves a
+  trace when `storage.persist_backend` is `minio`. `LocalFSPersistStorage`
+  returns `ErrNotFound` from `GetRunGlobal` by design, because run files stay on
+  the worker's disk rather than being copied into the persist root, so a
+  `local_fs` deployment answers 404 even for a run whose trace was written and
+  whose `trace_path` is recorded.
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
 - Audit trail (owner only): `/api/teams/{team_id}/audit-events`
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
@@ -46,7 +51,10 @@ callbacks, and scheduler startup. Business workflows are delegated to
 ## Notes
 
 - User-facing Portal APIs are team-scoped wherever work ownership matters.
-- Worker APIs use worker-token auth rather than user JWT auth.
+- Worker APIs use worker-token auth rather than user JWT auth. Managed inference
+  is the exception: `/llm/completions` takes the run token the scheduler minted
+  for that run, so the call carries a user, a team, and a run rather than only
+  "a worker" — see [design/worker-run-token.md](../../design/worker-run-token.md).
 - Signing in returns two credentials. The access token is a signed JWT the
   server does not store; the refresh token is a `user_refresh_token` row, which
   is what makes a session revocable. `auth.go` owns both, and every rotation

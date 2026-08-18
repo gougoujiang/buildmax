@@ -180,7 +180,9 @@ func TestDeploymentSmokeConfigsLoadWithoutSecrets(t *testing.T) {
 		runMode string
 	}{
 		{name: "compose", file: "server.compose.yaml", runMode: "local_process"},
+		{name: "compose managed", file: "server.compose.managed.yaml", runMode: "local_process"},
 		{name: "kind", file: "server.kind.yaml", runMode: "k8s_job"},
+		{name: "kind managed", file: "server.kind.managed.yaml", runMode: "k8s_job"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -290,5 +292,53 @@ func TestProductionReferenceRefusesToRunUnedited(t *testing.T) {
 		if strings.Contains(text, devOnly) {
 			t.Errorf("the production reference names %q, which only resolves in the kind stack", devOnly)
 		}
+	}
+}
+
+// TestManagedSmokeConfigIsActuallyManaged guards the point of having a second
+// smoke configuration at all. The two files differ by a handful of lines, and a
+// managed one that silently reverted to direct would keep passing every
+// assertion the smoke makes about a task succeeding — while proving nothing
+// about a worker running without a provider credential.
+func TestManagedSmokeConfigIsActuallyManaged(t *testing.T) {
+	root := repoRoot(t)
+	for _, file := range []string{"server.compose.managed.yaml", "server.kind.managed.yaml"} {
+		t.Run(file, func(t *testing.T) { assertManagedSmokeConfig(t, root, file) })
+	}
+}
+
+func assertManagedSmokeConfig(t *testing.T, root, file string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(root, "deployment", "smoke", file))
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "server.yaml"), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+
+	if !cfg.Worker.LLM.Managed() {
+		t.Fatalf("worker.llm.transport = %q, want %q", cfg.Worker.LLM.Transport, config.TransportBuildMax)
+	}
+	// The server refuses to start when the worker's alias is not one a team may
+	// call, so the smoke stack would never come up. Catch it here instead, where
+	// the failure names the file.
+	alias := cfg.Worker.LLM.Alias
+	if alias == "" {
+		alias = cfg.LLM.DefaultAlias
+	}
+	if _, ok := cfg.LLM.Aliases[alias]; !ok {
+		t.Errorf("worker alias %q is not granted by llm.aliases %v", alias, cfg.LLM.Aliases)
+	}
+	// A managed worker is given no provider key, so this file must not carry one
+	// for it to find on disk either.
+	if cfg.Conversation.Model.APIKey != "" {
+		t.Error("the managed smoke config carries a provider key, which defeats what it exists to prove")
 	}
 }

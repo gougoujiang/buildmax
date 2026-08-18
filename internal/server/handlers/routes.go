@@ -91,11 +91,16 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// WebSocket
 	mux.HandleFunc("GET /api/teams/{team_id}/ws", h.wsUpgradeHandler)
 
-	// Worker API — behind worker token auth
-	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.workerAuthMiddleware(http.HandlerFunc(h.getTaskRun)))
-	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.workerAuthMiddleware(http.HandlerFunc(h.patchTaskRun)))
-	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.workerAuthMiddleware(http.HandlerFunc(h.postStream)))
-	mux.Handle("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerAuthMiddleware(http.HandlerFunc(h.workerLLMCompletionsHandler)))
+	// Worker API — every route is scoped to one run, so every route authenticates
+	// with that run's token. The deployment-wide worker token is still accepted
+	// here for one release; see docs/design/worker-run-token.md.
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRun)))
+	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
+	// Managed inference is the exception: it authenticates with the run token
+	// the server minted for this run, not the deployment-wide worker token, so
+	// the call carries a user and a team. See docs/design/worker-run-token.md.
+	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
 
 	// Inbound webhook
 	mux.HandleFunc("POST /api/webhook", h.serveWebhook)

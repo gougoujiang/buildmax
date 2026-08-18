@@ -50,13 +50,18 @@ func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, _ []cllm.Mess
 
 func (c *llmStubClient) ContextWindow() int { return 0 }
 
-// llmStubLedger accepts every write.
-type llmStubLedger struct{ opened int }
+// llmStubLedger accepts every write and keeps the last one so a test can check
+// what a call was attributed to.
+type llmStubLedger struct {
+	opened int
+	last   model.LLMCall
+}
 
 func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
 	l.opened++
 	stored := *call
 	stored.LLMCallID = "lc_stub"
+	l.last = stored
 	return &stored, nil
 }
 

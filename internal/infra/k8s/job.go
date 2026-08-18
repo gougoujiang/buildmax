@@ -156,17 +156,27 @@ func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, pod PodConfig
 }
 
 // podEnv returns the inherited environment with BUILDMAX_HOME set to the pod's
-// home directory. Any inherited BUILDMAX_HOME is dropped: it names a path on the
-// server, which does not exist in the worker pod.
-func (r *K8sJobRunner) podEnv() []corev1.EnvVar {
-	out := make([]corev1.EnvVar, 0, len(r.env)+1)
+// home directory, plus this run's gateway credential when one was minted. Any
+// inherited BUILDMAX_HOME is dropped: it names a path on the server, which does
+// not exist in the worker pod.
+//
+// The run token is a plain value in the Job spec, so anyone who can read Job
+// objects in this namespace can read it. That is a known limit of the first
+// version — the token names one run, expires, and stops working when the run
+// does. See docs/design/worker-run-token.md.
+func (r *K8sJobRunner) podEnv(runToken string) []corev1.EnvVar {
+	out := make([]corev1.EnvVar, 0, len(r.env)+2)
 	for _, e := range r.env {
 		if e.Name == config.EnvKeyBuildmaxHome {
 			continue
 		}
 		out = append(out, e)
 	}
-	return append(out, corev1.EnvVar{Name: config.EnvKeyBuildmaxHome, Value: r.pod.homeDir()})
+	out = append(out, corev1.EnvVar{Name: config.EnvKeyBuildmaxHome, Value: r.pod.homeDir()})
+	if runToken != "" {
+		out = append(out, corev1.EnvVar{Name: config.EnvKeyBuildmaxRunToken, Value: runToken})
+	}
+	return out
 }
 
 // podVolumes returns the writable home volume plus, when configured, the
@@ -211,7 +221,10 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 }
 
 // Run creates a Job for the task run; on success returns ("k8s_job", &jobName, &createdAtUnix, nil). On failure returns error.
-func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+//
+// runToken is this run's managed-gateway credential, or "" when the deployment
+// mints none.
+func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
 	jobName := util.WorkerJobNameForTaskRun(run.TaskRunID)
 	now := metav1.Now()
 	createdAtUnix := now.Unix()
@@ -236,7 +249,7 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun) (workerType s
 							Image:           r.image,
 							Command:         []string{"buildmax-worker"},
 							Args:            []string{"--task-run-id", run.TaskRunID},
-							Env:             r.podEnv(),
+							Env:             r.podEnv(runToken),
 							VolumeMounts:    mounts,
 							SecurityContext: containerSecurityContext(),
 							Resources:       r.pod.resourceRequirements(),
@@ -273,7 +286,10 @@ func (c *jobCreatorImpl) CreateJob(ctx context.Context, namespace string, job *b
 // model-chosen command the ability to mint tokens for any user and read the
 // whole database. config.WorkerNeedsEnv decides; see its comment for how to
 // extend the set.
-func WorkerEnvFromEnviron() []corev1.EnvVar {
+//
+// managedLLM says whether task runs reach models through the server, which
+// withholds the provider credential as well.
+func WorkerEnvFromEnviron(managedLLM bool) []corev1.EnvVar {
 	env := os.Environ()
 	var out []corev1.EnvVar
 	for _, e := range env {
@@ -284,7 +300,7 @@ func WorkerEnvFromEnviron() []corev1.EnvVar {
 		if idx <= 0 {
 			continue
 		}
-		if !config.WorkerNeedsEnv(e[:idx]) {
+		if !config.WorkerNeedsEnv(e[:idx], managedLLM) {
 			continue
 		}
 		out = append(out, corev1.EnvVar{Name: e[:idx], Value: e[idx+1:]})

@@ -5,10 +5,12 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 )
 
 const (
@@ -16,22 +18,35 @@ const (
 	maxErrorMessageLength = 500
 )
 
+// MintRunToken signs the credential a worker presents for one run's managed
+// inference calls.
+//
+// It only signs. The scheduler builds the claims from the run and its task, so
+// a worker's identity comes from what the server already knows about the run
+// rather than from anything the worker or its model could influence.
+type MintRunToken func(authtoken.RunClaims) (string, error)
+
 // Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
 	taskRuns     model.TaskRunStore
 	runner       WorkerRunner
+	mintRunToken MintRunToken
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 }
 
 // NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
-func NewScheduler(taskRunStore model.TaskRunStore, runner WorkerRunner) (*Scheduler, error) {
-	return NewSchedulerWithPollInterval(taskRunStore, runner, defaultPollInterval)
+//
+// mint may be nil, which is every deployment that has not enabled managed worker
+// inference: its workers reach a provider directly and have nothing to
+// authenticate to.
+func NewScheduler(taskRunStore model.TaskRunStore, runner WorkerRunner, mint MintRunToken) (*Scheduler, error) {
+	return NewSchedulerWithPollInterval(taskRunStore, runner, mint, defaultPollInterval)
 }
 
 // NewSchedulerWithPollInterval is like NewScheduler but allows setting the poll interval (e.g. for tests). Use 0 for default.
-func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner WorkerRunner, pollInterval time.Duration) (*Scheduler, error) {
+func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner WorkerRunner, mint MintRunToken, pollInterval time.Duration) (*Scheduler, error) {
 	if taskRunStore == nil {
 		return nil, errors.New("scheduler: taskRunStore must not be nil")
 	}
@@ -44,6 +59,7 @@ func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner Worker
 	return &Scheduler{
 		taskRuns:     taskRunStore,
 		runner:       runner,
+		mintRunToken: mint,
 		pollInterval: pollInterval,
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
@@ -96,31 +112,70 @@ func (s *Scheduler) loop() {
 			if !updated {
 				continue // another scheduler claimed it
 			}
-			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run)
+			// A run that cannot be given its credential fails here rather than
+			// starting and failing at its first inference call, where the cause
+			// would read as a model error instead of a dispatch one.
+			runToken, err := s.runTokenFor(ctx, run)
+			if err != nil {
+				slog.Warn("scheduler: could not mint a run token, marking run as FAILED", "task_run_id", run.TaskRunID, "err", err)
+				s.failRun(ctx, run.TaskRunID, err)
+				continue
+			}
+			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run, runToken)
 			if err != nil {
 				slog.Warn("scheduler: worker spawn failed, marking run as FAILED", "task_run_id", run.TaskRunID, "err", err)
-				errorMsg := err.Error()
-				if len(errorMsg) > maxErrorMessageLength {
-					errorMsg = errorMsg[:maxErrorMessageLength]
-				}
-				endedAt := time.Now().Unix()
-				if updateErr := s.taskRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
-					TaskRunID:    run.TaskRunID,
-					Status:       model.RunStatusFailed,
-					EndedAt:      &endedAt,
-					ErrorMessage: &errorMsg,
-				}); updateErr != nil {
-					slog.Error("scheduler: failed to set run to FAILED", "task_run_id", run.TaskRunID, "err", updateErr)
-					continue
-				}
-				if syncErr := s.taskRuns.SyncTaskFromRun(ctx, run.TaskRunID); syncErr != nil {
-					slog.Warn("scheduler: failed to sync task from run", "task_run_id", run.TaskRunID, "err", syncErr)
-				}
+				s.failRun(ctx, run.TaskRunID, err)
 				continue
 			}
 			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.TaskRunID, workerType, k8sName, k8sAt); err != nil {
 				slog.Warn("scheduler: failed to persist worker info", "task_run_id", run.TaskRunID, "err", err)
 			}
 		}
+	}
+}
+
+// runTokenFor builds this run's gateway credential from server state.
+//
+// Returns "" when the deployment mints none. The claims come from the task, not
+// from the run alone, because the team and the owner are what the gateway
+// authorizes against and only the task carries them.
+func (s *Scheduler) runTokenFor(ctx context.Context, run *model.TaskRun) (string, error) {
+	if s.mintRunToken == nil {
+		return "", nil
+	}
+	_, task, err := s.taskRuns.GetTaskRunWithTask(ctx, run.TaskRunID)
+	if err != nil {
+		return "", fmt.Errorf("load the task behind this run: %w", err)
+	}
+	if task == nil {
+		return "", fmt.Errorf("run %s has no task", run.TaskRunID)
+	}
+	return s.mintRunToken(authtoken.RunClaims{
+		UserID:    task.CreatedBy,
+		TeamID:    task.TeamID,
+		TaskRunID: run.TaskRunID,
+		TaskID:    task.TaskID,
+	})
+}
+
+// failRun records a dispatch failure. The run never started, so there is no
+// worker to report anything later.
+func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) {
+	errorMsg := cause.Error()
+	if len(errorMsg) > maxErrorMessageLength {
+		errorMsg = errorMsg[:maxErrorMessageLength]
+	}
+	endedAt := time.Now().Unix()
+	if err := s.taskRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
+		TaskRunID:    taskRunID,
+		Status:       model.RunStatusFailed,
+		EndedAt:      &endedAt,
+		ErrorMessage: &errorMsg,
+	}); err != nil {
+		slog.Error("scheduler: failed to set run to FAILED", "task_run_id", taskRunID, "err", err)
+		return
+	}
+	if err := s.taskRuns.SyncTaskFromRun(ctx, taskRunID); err != nil {
+		slog.Warn("scheduler: failed to sync task from run", "task_run_id", taskRunID, "err", err)
 	}
 }

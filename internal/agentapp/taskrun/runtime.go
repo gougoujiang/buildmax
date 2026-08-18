@@ -61,6 +61,58 @@ type runDirs struct {
 	runGlobal    string
 }
 
+// ManagedInference is what a run needs to reach the managed LLM gateway instead
+// of a provider.
+//
+// It is separate from Model because it is a credential, not configuration: the
+// model entry says which alias to call, and this says what authorizes the call.
+// The zero value means the run uses a direct model and holds a provider key.
+//
+// Mirrors the design in docs/design/worker-run-token.md.
+type ManagedInference struct {
+	// ServerURL is the BuildMax server that minted RunToken. A managed entry
+	// naming any other server is refused rather than sent this credential.
+	ServerURL string
+	// RunToken authorizes this one run's inference calls.
+	RunToken string
+}
+
+// Enabled reports whether this run can reach the gateway.
+func (m ManagedInference) Enabled() bool { return m.ServerURL != "" && m.RunToken != "" }
+
+// managedSurface labels this run's managed calls. The server sets its own label
+// for the ledger; this one only reaches client-side diagnostics.
+const managedSurface = "worker"
+
+// tokenFunc supplies the run token to agentapp, or nil when this run has none —
+// which is what makes a managed model entry fail outright on a direct-mode
+// worker instead of quietly reaching a provider some other way.
+//
+// It refuses any server but the one that minted the token. A model entry is
+// configuration and a run token is a credential for one deployment; without this
+// check, an entry naming another host would send it there.
+func (m ManagedInference) tokenFunc() agentapp.ManagedTokenFunc {
+	if !m.Enabled() {
+		return nil
+	}
+	want := strings.TrimRight(m.ServerURL, "/")
+	return func(serverURL string) (string, error) {
+		if strings.TrimRight(serverURL, "/") != want {
+			return "", fmt.Errorf("this run's token is for %s, not %s", want, serverURL)
+		}
+		return m.RunToken, nil
+	}
+}
+
+// managedRunScope returns the task run managed calls are made as, or "" when
+// this run has no gateway credential.
+func managedRunScope(m ManagedInference, taskRunID string) string {
+	if !m.Enabled() {
+		return ""
+	}
+	return taskRunID
+}
+
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
 type RunTaskInput struct {
 	Task            *model.Task
@@ -72,6 +124,7 @@ type RunTaskInput struct {
 	Updater         TaskRunUpdater
 	StreamSender    workerclient.StreamSender
 	Model           config.ModelEntry
+	Managed         ManagedInference
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
@@ -137,7 +190,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model)
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed)
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
 		OutputStr:        string(agentRun.output),
@@ -207,7 +260,7 @@ type agentRunOutput struct {
 	tracePath string
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -220,10 +273,13 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 			modelEntries = []config.ModelEntry{runtimeModel}
 		}
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-			WorkspaceDir: runDir,
-			EnableMCP:    true,
-			Policy:       agentapp.NewNonInteractivePolicy(),
-			ModelEntries: modelEntries,
+			WorkspaceDir:     runDir,
+			EnableMCP:        true,
+			Policy:           agentapp.NewNonInteractivePolicy(),
+			ModelEntries:     modelEntries,
+			ManagedToken:     managed.tokenFunc(),
+			ManagedTaskRunID: managedRunScope(managed, run.TaskRunID),
+			Surface:          managedSurface,
 		})
 		if err != nil {
 			return err
