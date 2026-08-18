@@ -27,6 +27,7 @@ func TestArchiveDestination(t *testing.T) {
 	unsafe := []string{
 		"../escape",
 		filepath.Join("..", "escape"),
+		"config-examples/../../escape",
 		"/absolute",
 		`\absolute`,
 		"C:/absolute",
