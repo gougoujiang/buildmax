@@ -31,6 +31,18 @@ type Credentials struct {
 	SavedAt      int64  `json:"saved_at"`
 }
 
+const (
+	// credentialRenameAttempts bounds retries for a transient Windows sharing
+	// violation while replacing auth.json. Readers open the old file only long
+	// enough to decode it, so waiting longer would hide a persistent permission
+	// problem rather than make an atomic update more reliable.
+	credentialRenameAttempts   = 10
+	credentialRenameRetryDelay = 10 * time.Millisecond
+)
+
+// renameCredentialsFile is a seam for testing transient replacement failures.
+var renameCredentialsFile = os.Rename
+
 // IsValid returns true when the credentials contain a non-empty, unexpired
 // access token. It parses the exp claim from the token payload without
 // verifying the signature (clients don't have the server secret).
@@ -135,7 +147,14 @@ func Save(creds *Credentials, path string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, path)
+	for attempt := 0; attempt < credentialRenameAttempts; attempt++ {
+		err = renameCredentialsFile(tmpName, path)
+		if err == nil || !errors.Is(err, os.ErrPermission) || attempt == credentialRenameAttempts-1 {
+			return err
+		}
+		time.Sleep(credentialRenameRetryDelay)
+	}
+	return err
 }
 
 // Load reads credentials from path. If the file does not exist, it returns
