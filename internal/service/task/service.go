@@ -149,7 +149,17 @@ func (s *TaskService) resolveInput(ctx context.Context, teamID, userID, input st
 	if s.Agents == nil {
 		return "", nil, ErrAgentsNotConfigured
 	}
-	agent, err := s.Agents.GetAgent(ctx, *agentID)
+	// With an input the caller already rendered, the agent is provenance and a
+	// deleted one still names it truthfully — that is how a workflow run whose
+	// agent was deleted mid-flight finishes its remaining steps. With no input
+	// the agent is the source of the prompt, so it has to be live.
+	var agent *model.Agent
+	var err error
+	if input != "" {
+		agent, err = s.Agents.GetAgentIncludingDeleted(ctx, *agentID)
+	} else {
+		agent, err = s.Agents.GetAgent(ctx, *agentID)
+	}
 	if err != nil {
 		return "", nil, err
 	}

@@ -483,9 +483,25 @@ under.
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
 | `revision` | `int` | no | Number of the `agent_revision` row holding this content; starts at 1 |
+| `deleted_at` | `bigint` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `agent_id`; index `user_id`; index `team_id`.
+Indexes: PK `id`; unique `agent_id`; index `user_id`; index `team_id`; index
+`deleted_at`.
+
+Deletion is a stamp on `deleted_at`, not a `DELETE`. Tasks, workflow step runs,
+and revisions all name an agent by ID, so removing the row turned every one of
+those into a dangling reference and broke any workflow run still in flight at
+its next step. Reads split accordingly: `GetAgent` and the list queries see only
+live agents, so nothing can start new work with a deleted one, while
+`GetAgentIncludingDeleted` resolves what an existing record refers to. Deleting
+an agent a `published` workflow still names is refused with `409` — that
+workflow could still be run, and the failure would otherwise surface at the next
+run rather than at the delete. Draft and archived workflows do not block it,
+because neither can start a run and publishing revalidates its agents.
+
+There is no undelete route. The row exists so references resolve, not as a
+recycle bin.
 
 These are server-side agent records. They are distinct from the workspace
 subagents defined as Markdown files under `.buildmax/`; see
@@ -517,8 +533,9 @@ nothing appends no revision. Restoring an earlier revision is an ordinary
 update: it appends a new revision holding the old content rather than rewinding
 to it.
 
-Revisions outlive the agent — deleting an agent leaves its history in place, and
-those rows are then the only record of what a past run executed under.
+Revisions outlive the agent's use: a deleted agent keeps its history, which is
+what a past run's provenance points at. The revision routes serve live agents
+only, so reading a deleted agent's history means querying the table.
 
 Agents and workflows that existed before revision history was added were given a
 revision 1 by migration `0003_seed_first_agent_and_workflow_revision`. That row

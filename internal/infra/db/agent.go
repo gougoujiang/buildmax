@@ -19,6 +19,7 @@ type agentRow struct {
 	Description  string `gorm:"type:text"`
 	Instructions string `gorm:"type:text"`
 	Revision     int    `gorm:"column:revision;not null;default:1"`
+	DeletedAt    *int64 `gorm:"column:deleted_at;index"`
 	CreatedAt    int64  `gorm:"autoCreateTime"`
 }
 
@@ -54,6 +55,7 @@ func toAgent(row *agentRow) *model.Agent {
 		Description:  row.Description,
 		Instructions: row.Instructions,
 		Revision:     row.Revision,
+		DeletedAt:    row.DeletedAt,
 		CreatedAt:    row.CreatedAt,
 	}
 }
@@ -104,6 +106,7 @@ func toAgentRow(m *model.Agent) *agentRow {
 		Description:  m.Description,
 		Instructions: m.Instructions,
 		Revision:     m.Revision,
+		DeletedAt:    m.DeletedAt,
 		CreatedAt:    m.CreatedAt,
 	}
 }
@@ -125,8 +128,23 @@ func appendAgentRevision(tx *gorm.DB, a *model.Agent, createdBy string) error {
 	}).Error
 }
 
-// GetAgent returns the agent by agent_id, or (nil, nil) when not found.
+// GetAgent returns the live agent by agent_id, or (nil, nil) when there is none.
+// A deleted agent reads as not found here; see GetAgentIncludingDeleted.
 func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, error) {
+	var a agentRow
+	err := s.db.WithContext(ctx).Where("agent_id = ? AND deleted_at IS NULL", agentID).First(&a).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toAgent(&a), nil
+}
+
+// GetAgentIncludingDeleted returns the agent whether or not it was deleted. It
+// answers "what did this record refer to", not "what may I use".
+func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*model.Agent, error) {
 	var a agentRow
 	err := s.db.WithContext(ctx).Where("agent_id = ?", agentID).First(&a).Error
 	if err != nil {
@@ -141,14 +159,14 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, err
 // ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Agent, error) {
 	var list []agentRow
-	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&list).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND deleted_at IS NULL", userID).Order("created_at ASC").Find(&list).Error
 	return toAgents(list), err
 }
 
 // ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Agent, error) {
 	var list []agentRow
-	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error
+	err := s.db.WithContext(ctx).Where("team_id = ? AND deleted_at IS NULL", teamID).Order("created_at ASC").Find(&list).Error
 	return toAgents(list), err
 }
 
@@ -266,7 +284,8 @@ func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision i
 	return toAgentRevision(&row), nil
 }
 
-// DeleteAgent deletes the agent if it exists and belongs to the user. Returns nil on success, or error if not found / wrong user.
+// DeleteAgent marks the agent deleted if it exists and belongs to the user.
+// Returns gorm.ErrRecordNotFound if there is no such live agent for that user.
 func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil {
@@ -275,10 +294,10 @@ func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	if a == nil || a.UserID != userID {
 		return gorm.ErrRecordNotFound
 	}
-	return s.db.WithContext(ctx).Delete(toAgentRow(a)).Error
+	return s.markAgentDeleted(ctx, a.AgentID)
 }
 
-// DeleteAgentInTeam deletes the agent if it exists and belongs to the team.
+// DeleteAgentInTeam marks the agent deleted if it exists and belongs to the team.
 func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil {
@@ -287,5 +306,18 @@ func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) e
 	if a == nil || a.TeamID != teamID {
 		return gorm.ErrRecordNotFound
 	}
-	return s.db.WithContext(ctx).Delete(toAgentRow(a)).Error
+	return s.markAgentDeleted(ctx, a.AgentID)
+}
+
+// markAgentDeleted stamps deleted_at instead of removing the row.
+//
+// Tasks, workflow step runs, and revisions all name an agent by ID. Dropping
+// the row turned every one of those into a dangling reference and broke any
+// workflow run still in flight at its next step; keeping it costs one column
+// and leaves the record readable.
+func (s *Store) markAgentDeleted(ctx context.Context, agentID string) error {
+	return s.db.WithContext(ctx).
+		Model(&agentRow{}).
+		Where("agent_id = ? AND deleted_at IS NULL", agentID).
+		Update("deleted_at", time.Now().Unix()).Error
 }

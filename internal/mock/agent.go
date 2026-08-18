@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
 
 	"gorm.io/gorm"
 )
@@ -48,7 +49,7 @@ func (m *MockAgentStore) updateAgentAt(i int, updatedBy, name, description, inst
 func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]model.Agent, error) {
 	var out []model.Agent
 	for _, a := range m.Agents {
-		if a.UserID == userID {
+		if a.DeletedAt == nil && a.UserID == userID {
 			out = append(out, a)
 		}
 	}
@@ -58,7 +59,7 @@ func (m *MockAgentStore) ListAgentsByUser(_ context.Context, userID string) ([]m
 func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]model.Agent, error) {
 	var out []model.Agent
 	for _, a := range m.Agents {
-		if a.TeamID == teamID {
+		if a.DeletedAt == nil && a.TeamID == teamID {
 			out = append(out, a)
 		}
 	}
@@ -66,6 +67,15 @@ func (m *MockAgentStore) ListAgentsByTeam(_ context.Context, teamID string) ([]m
 }
 
 func (m *MockAgentStore) GetAgent(_ context.Context, agentID string) (*model.Agent, error) {
+	for i := range m.Agents {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].DeletedAt == nil {
+			return &m.Agents[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockAgentStore) GetAgentIncludingDeleted(_ context.Context, agentID string) (*model.Agent, error) {
 	for i := range m.Agents {
 		if m.Agents[i].AgentID == agentID {
 			return &m.Agents[i], nil
@@ -97,7 +107,7 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, na
 
 func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*model.Agent, error) {
 	for i := range m.Agents {
-		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID && m.Agents[i].DeletedAt == nil {
 			return m.updateAgentAt(i, userID, name, description, instructions), nil
 		}
 	}
@@ -106,7 +116,7 @@ func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, d
 
 func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, updatedBy, name, description, instructions string) (*model.Agent, error) {
 	for i := range m.Agents {
-		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
+		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID && m.Agents[i].DeletedAt == nil {
 			return m.updateAgentAt(i, updatedBy, name, description, instructions), nil
 		}
 	}
@@ -134,8 +144,8 @@ func (m *MockAgentStore) GetAgentRevision(_ context.Context, agentID string, rev
 
 func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) error {
 	for i := range m.Agents {
-		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID {
-			m.Agents = append(m.Agents[:i], m.Agents[i+1:]...)
+		if m.Agents[i].AgentID == agentID && m.Agents[i].UserID == userID && m.Agents[i].DeletedAt == nil {
+			m.Agents[i].DeletedAt = util.Ptr(time.Now().Unix())
 			return nil
 		}
 	}
@@ -144,8 +154,8 @@ func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) 
 
 func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID string) error {
 	for i := range m.Agents {
-		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID {
-			m.Agents = append(m.Agents[:i], m.Agents[i+1:]...)
+		if m.Agents[i].AgentID == agentID && m.Agents[i].TeamID == teamID && m.Agents[i].DeletedAt == nil {
+			m.Agents[i].DeletedAt = util.Ptr(time.Now().Unix())
 			return nil
 		}
 	}

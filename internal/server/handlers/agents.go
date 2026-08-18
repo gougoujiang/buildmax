@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -59,6 +60,16 @@ func agentToResponse(a model.Agent) AgentResponse {
 		Revision:     a.Revision,
 		CreatedAt:    a.CreatedAt,
 	}
+}
+
+// workflowNameList renders the workflows blocking a delete as "name (id)",
+// because a name alone is ambiguous and an ID alone means nothing to a reader.
+func workflowNameList(workflows []model.Workflow) string {
+	parts := make([]string, len(workflows))
+	for i := range workflows {
+		parts[i] = workflows[i].Name + " (" + workflows[i].WorkflowID + ")"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
@@ -262,6 +273,21 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	agentID, ok := pathValueRequired(w, r, "agent_id")
 	if !ok {
 		return
+	}
+	// Deleting an agent a published workflow still names would leave that
+	// workflow unable to run, and the operator would only find out at the next
+	// run. Name the workflows instead and let them be fixed or archived first.
+	if h.cfg.WorkflowStore != nil {
+		using, err := h.workflowService().PublishedWorkflowsUsingAgent(r.Context(), teamID, agentID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "handler error", "handler", "delete_agent", "agent_id", agentID)
+			return
+		}
+		if len(using) > 0 {
+			httputil.WriteJSONError(w, http.StatusConflict,
+				"agent is used by published workflows: "+workflowNameList(using))
+			return
+		}
 	}
 	err := h.cfg.AgentStore.DeleteAgentInTeam(r.Context(), agentID, teamID)
 	if err != nil {

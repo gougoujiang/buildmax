@@ -190,6 +190,43 @@ func (s *WorkflowService) RestoreWorkflowRevision(ctx context.Context, cmd Resto
 	})
 }
 
+// PublishedWorkflowsUsingAgent returns the team's published workflows whose
+// definition names agentID.
+//
+// It exists so deleting an agent can be refused while a workflow that can still
+// be run depends on it. Draft and archived workflows do not count: neither can
+// start a run, and publishing one revalidates its agents.
+//
+// A published workflow whose definition no longer parses is skipped rather than
+// treated as a reference. It cannot run either way, and blocking an unrelated
+// delete on it would leave no way forward.
+func (s *WorkflowService) PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]model.Workflow, error) {
+	if s.Workflows == nil {
+		return nil, ErrWorkflowsNotConfigured
+	}
+	workflows, err := s.Workflows.ListWorkflowsByTeam(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	var using []model.Workflow
+	for i := range workflows {
+		if workflows[i].Status != model.WorkflowStatusPublished {
+			continue
+		}
+		def, err := parseDefinition(workflows[i].Definition)
+		if err != nil {
+			continue
+		}
+		for j := range def.Steps {
+			if def.Steps[j].TargetAgentID == agentID {
+				using = append(using, workflows[i])
+				break
+			}
+		}
+	}
+	return using, nil
+}
+
 func (s *WorkflowService) ListWorkflowRuns(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
 	workflow, err := s.GetWorkflow(ctx, teamID, workflowID)
 	if err != nil {
@@ -431,7 +468,9 @@ func (s *WorkflowService) dispatchNextStep(ctx context.Context, teamID, userID s
 // stepAgent returns the agent definition a step must run with. Steps recorded since
 // runs snapshot their agent carry it on the step run itself, so an edit to the agent
 // while the run is in flight cannot change what a later step sends. Steps written
-// before that fall back to the current agent definition.
+// before that fall back to the agent definition as it stands now, deleted or not:
+// the run was authorized when it started, and refusing to finish it because the
+// agent has since been deleted would strand it half done.
 func (s *WorkflowService) stepAgent(ctx context.Context, teamID, agentID string, step model.WorkflowStepRun) (*model.Agent, error) {
 	if step.AgentName != "" || step.AgentInstructions != "" {
 		return &model.Agent{
@@ -446,7 +485,7 @@ func (s *WorkflowService) stepAgent(ctx context.Context, teamID, agentID string,
 	if s.Agents == nil {
 		return nil, ErrInvalidTargetAgent
 	}
-	agent, err := s.Agents.GetAgent(ctx, agentID)
+	agent, err := s.Agents.GetAgentIncludingDeleted(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -556,8 +595,13 @@ func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 	return &def, nil
 }
 
-// resolveDefinitionAgents checks that every step's target agent exists and belongs to
-// teamID, and returns those agents keyed by agent ID.
+// resolveDefinitionAgents checks that every step's target agent is live and belongs
+// to teamID, and returns those agents keyed by agent ID.
+//
+// A deleted agent is refused. This runs when a workflow is written and again when a
+// run starts, so a plan cannot take a new dependency on a deleted agent, and a
+// workflow that lost one is refused at the start of a run rather than partway
+// through it.
 func (s *WorkflowService) resolveDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) (map[string]model.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrInvalidTargetAgent

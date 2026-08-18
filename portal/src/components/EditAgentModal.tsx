@@ -40,7 +40,11 @@ export function EditAgentModal({
       : undefined
 
   function handleDelete() {
-    if (window.confirm("Delete this agent? This cannot be undone.")) {
+    if (
+      window.confirm(
+        "Delete this agent? It leaves the team and cannot be restored. Runs, tasks, and history that already reference it stay readable.",
+      )
+    ) {
       onDelete()
     }
   }

@@ -287,6 +287,105 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	}
 }
 
+// TestDeletedAgent_RunFinishesButNewWorkIsRefused pins the two halves of soft
+// deletion: a run already in flight completes, and nothing new may name the
+// agent.
+func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
+	definition := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`
+	workflowStore := &mock.MockWorkflowStore{
+		Workflows: []model.Workflow{{
+			WorkflowID: "w_1",
+			TeamID:     "tm_1",
+			Name:       "WF",
+			Definition: definition,
+			Status:     model.WorkflowStatusPublished,
+			Revision:   1,
+		}},
+	}
+	taskStore := &mock.MockTaskStore{}
+	agentStore := &mock.MockAgentStore{
+		Agents: []model.Agent{
+			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect carefully", Revision: 1},
+			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize carefully", Revision: 1},
+		},
+	}
+	svc := &WorkflowService{
+		Workflows:     workflowStore,
+		Agents:        agentStore,
+		Conversations: &mock.MockConversationStore{},
+		TaskService: &task.TaskService{
+			Agents: agentStore,
+			Tasks:  taskStore,
+		},
+	}
+	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
+		TeamID: "tm_1", UserID: "u1", WorkflowID: "w_1",
+	})
+	if err != nil {
+		t.Fatalf("StartWorkflowRun: %v", err)
+	}
+
+	if err := agentStore.DeleteAgentInTeam(context.Background(), "a_2", "tm_1"); err != nil {
+		t.Fatalf("DeleteAgentInTeam: %v", err)
+	}
+
+	output := "done"
+	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+		TaskRunID: *steps[0].TaskRunID,
+		TaskID:    *steps[0].TaskID,
+		UserID:    "u1",
+		Status:    string(model.RunStatusSucceeded),
+		Output:    &output,
+	}); err != nil {
+		t.Fatalf("HandleTaskRunTerminal: %v", err)
+	}
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.WorkflowRunID)
+	if err != nil {
+		t.Fatalf("ListWorkflowStepRuns: %v", err)
+	}
+	if updated[1].Status != model.WorkflowStepRunStatusRunning {
+		t.Fatalf("step[1] status = %q, want running — deleting the agent must not strand a run", updated[1].Status)
+	}
+	if !strings.Contains(taskStore.List[1].Input, "summarize carefully") {
+		t.Fatalf("second task input = %q, want the snapshot of the deleted agent", taskStore.List[1].Input)
+	}
+
+	// Nothing new may name the deleted agent: not a fresh run of the workflow
+	// that still references it, and not a definition written from now on.
+	if _, _, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
+		TeamID: "tm_1", UserID: "u1", WorkflowID: "w_1",
+	}); err != ErrInvalidTargetAgent {
+		t.Fatalf("start with deleted agent err = %v, want ErrInvalidTargetAgent", err)
+	}
+	if _, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
+		TeamID: "tm_1", UserID: "u1", Name: "New", Definition: definition,
+	}); err != ErrInvalidTargetAgent {
+		t.Fatalf("create referencing deleted agent err = %v, want ErrInvalidTargetAgent", err)
+	}
+}
+
+func TestPublishedWorkflowsUsingAgent(t *testing.T) {
+	using := `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`
+	other := `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_2","prompt":"p"}]}`
+	workflowStore := &mock.MockWorkflowStore{
+		Workflows: []model.Workflow{
+			{WorkflowID: "w_pub", TeamID: "tm_1", Name: "Published", Definition: using, Status: model.WorkflowStatusPublished},
+			{WorkflowID: "w_draft", TeamID: "tm_1", Name: "Draft", Definition: using, Status: model.WorkflowStatusDraft},
+			{WorkflowID: "w_arch", TeamID: "tm_1", Name: "Archived", Definition: using, Status: model.WorkflowStatusArchived},
+			{WorkflowID: "w_other", TeamID: "tm_1", Name: "Other agent", Definition: other, Status: model.WorkflowStatusPublished},
+			{WorkflowID: "w_broken", TeamID: "tm_1", Name: "Broken", Definition: "not json", Status: model.WorkflowStatusPublished},
+		},
+	}
+	svc := &WorkflowService{Workflows: workflowStore}
+	found, err := svc.PublishedWorkflowsUsingAgent(context.Background(), "tm_1", "a_1")
+	if err != nil {
+		t.Fatalf("PublishedWorkflowsUsingAgent: %v", err)
+	}
+	if len(found) != 1 || found[0].WorkflowID != "w_pub" {
+		t.Fatalf("found = %v, want only w_pub — a draft or archived workflow cannot run, and a broken one never could", found)
+	}
+}
+
 func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"}},
