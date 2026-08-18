@@ -42,6 +42,42 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
       return { summary: "Enabled a model", denied: false, target }
     case "llm_model.disabled":
       return { summary: "Disabled a model", denied: false, target }
+    case "user.logout":
+      return { summary: "Signed out", denied: false, target: null }
+    case "user.password_set":
+      return { summary: "Set a password", denied: false, target: null }
+    case "auth.refresh_reuse":
+      return {
+        summary: "A refresh token was presented twice; the session was revoked",
+        denied: true,
+        target,
+      }
+    case "user.created":
+      return { summary: "Created an account", denied: false, target }
+    case "user.login_code_issued":
+      return { summary: "Issued a login code", denied: false, target }
+    case "user.disabled":
+      return { summary: "Disabled an account", denied: false, target }
+    case "user.enabled":
+      return { summary: "Enabled an account", denied: false, target }
+    case "user.sessions_revoked":
+      return { summary: "Revoked every session of an account", denied: false, target }
+    case "system.admin_granted":
+      return {
+        summary: event.detail
+          ? `Granted ${event.detail} over the deployment`
+          : "Granted deployment authority",
+        denied: false,
+        target,
+      }
+    case "system.admin_revoked":
+      return {
+        summary: event.detail
+          ? `Revoked ${event.detail} over the deployment`
+          : "Revoked deployment authority",
+        denied: false,
+        target,
+      }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

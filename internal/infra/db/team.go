@@ -232,3 +232,57 @@ func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (strin
 	}
 	return team.TeamID, nil
 }
+
+// ListAllTeams implements model.TeamStore.
+func (s *Store) ListAllTeams(ctx context.Context, query string, limit, offset int) ([]model.Team, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q := s.db.WithContext(ctx).Model(&teamRow{})
+	if query != "" {
+		q = q.Where("name LIKE ?", "%"+query+"%")
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []teamRow
+	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]model.Team, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toTeam(&rows[i]))
+	}
+	return out, int(total), nil
+}
+
+// CountTeamMembers implements model.TeamStore.
+func (s *Store) CountTeamMembers(ctx context.Context, teamIDs []string) (map[string]int, error) {
+	out := make(map[string]int, len(teamIDs))
+	if len(teamIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		TeamID string
+		N      int
+	}
+	if err := s.db.WithContext(ctx).
+		Model(&teamMemberRow{}).
+		Select("team_id, count(*) as n").
+		Where("team_id IN ?", teamIDs).
+		Group("team_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.TeamID] = row.N
+	}
+	return out, nil
+}

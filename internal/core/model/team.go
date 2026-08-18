@@ -51,4 +51,16 @@ type TeamStore interface {
 	RemoveTeamMember(ctx context.Context, teamID, userID string) error
 	// ListTeamMembers returns members of the team ordered by created_at ASC.
 	ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember, error)
+	// ListAllTeams returns every team newest first, with the total count. A
+	// non-empty query filters on name as a substring.
+	//
+	// It is the one method here that ignores membership, so only
+	// deployment-scoped callers may reach it. It returns teams, never their
+	// contents: an administrator learns that a team exists and how large it is,
+	// not what is in it.
+	ListAllTeams(ctx context.Context, query string, limit, offset int) ([]Team, int, error)
+	// CountTeamMembers returns member counts for the given teams, keyed by
+	// team id. It exists so listing teams is two queries rather than one per
+	// row.
+	CountTeamMembers(ctx context.Context, teamIDs []string) (map[string]int, error)
 }

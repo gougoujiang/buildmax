@@ -17,7 +17,16 @@ type User struct {
 	// hash itself never travels on this struct — see PasswordStore — so that no
 	// handler can serialize it into a response by accident.
 	HasPassword bool `json:"has_password"`
+	// DisabledAt is nil for an ordinary account. Non-nil means every credential
+	// this account holds is refused: password, login code, refresh token, the
+	// access token it already has, and its webhook keys. Disabling is not
+	// deletion — nothing is removed, and enabling reverses the state and
+	// nothing else. See docs/design/system-administration.md section 8.
+	DisabledAt *int64 `json:"disabled_at,omitempty"`
 }
+
+// Disabled reports whether the account is currently refused.
+func (u User) Disabled() bool { return u.DisabledAt != nil }
 
 // UserStore looks up users by email and creates new users.
 type UserStore interface {
@@ -28,6 +37,13 @@ type UserStore interface {
 	CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*User, error)
 	// UpdateLoginMeta records the last login timestamp and platform for the user.
 	UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error
+	// ListUsers returns accounts newest first with the total count. A non-empty
+	// query filters on email as a substring.
+	ListUsers(ctx context.Context, query string, limit, offset int) ([]User, int, error)
+	// SetUserDisabled disables the account at the given time, or enables it
+	// when disabledAt is nil. Returns ErrUserNotFound when there is no such
+	// account.
+	SetUserDisabled(ctx context.Context, userID string, disabledAt *int64) error
 }
 
 // PasswordStore reads and writes the one credential a person chose themselves.

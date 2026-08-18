@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
 
 // The operator-side half of authentication. BuildMax has no way to email
@@ -58,12 +59,20 @@ func RunUserCommand(ctx context.Context, args []string, out io.Writer) error {
 		return errors.New("user: a command is required")
 	}
 	switch args[0] {
-	case "create":
-		return runUserCreate(ctx, args[1:], out)
-	case "set-password":
-		return runUserSetPassword(ctx, args[1:], out, os.Stdin)
-	case "login-code":
-		return runUserLoginCode(ctx, args[1:], out)
+	case "create", "set-password", "login-code":
+		store, closeStore, err := openUserStore(ctx)
+		if err != nil {
+			return err
+		}
+		defer closeStore()
+		switch args[0] {
+		case "create":
+			return runUserCreate(ctx, args[1:], out, store)
+		case "set-password":
+			return runUserSetPassword(ctx, args[1:], out, os.Stdin, store)
+		default:
+			return runUserLoginCode(ctx, args[1:], out, store)
+		}
 	case "help", "-h", "--help":
 		fmt.Fprint(out, UserCommandUsage)
 		return nil
@@ -73,7 +82,7 @@ func RunUserCommand(ctx context.Context, args []string, out io.Writer) error {
 	}
 }
 
-func runUserCreate(ctx context.Context, args []string, out io.Writer) error {
+func runUserCreate(ctx context.Context, args []string, out io.Writer, store userAdminStore) error {
 	fs := flag.NewFlagSet("user create", flag.ContinueOnError)
 	fs.SetOutput(out)
 	if err := fs.Parse(args); err != nil {
@@ -83,12 +92,6 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	store, closeStore, err := openUserStore(ctx)
-	if err != nil {
-		return err
-	}
-	defer closeStore()
-
 	sc, err := config.LoadServerConfig()
 	if err != nil {
 		return fmt.Errorf("server config: %w", err)
@@ -100,6 +103,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer) error {
 		}
 		return fmt.Errorf("create user: %w", err)
 	}
+	recordOperatorUserAudit(ctx, store, model.AuditUserCreated, user.UserID)
 	fmt.Fprintf(out, "Created %s (%s) with a personal team. It has no password yet.\n\n", user.Email, user.UserID)
 	fmt.Fprintf(out, "Let them set their own:\n  buildmax-server user login-code %s\n\n", email)
 	fmt.Fprintf(out, "Or set one now:\n  printf '%%s' '<password>' | buildmax-server user set-password %s\n", email)
@@ -110,7 +114,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer) error {
 //
 // From stdin rather than a flag: a password on the command line is recorded in
 // shell history and visible in the process list to everyone on the machine.
-func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io.Reader) error {
+func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io.Reader, store userAdminStore) error {
 	fs := flag.NewFlagSet("user set-password", flag.ContinueOnError)
 	fs.SetOutput(out)
 	if err := fs.Parse(args); err != nil {
@@ -138,12 +142,6 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 		return err
 	}
 
-	store, closeStore, err := openUserStore(ctx)
-	if err != nil {
-		return err
-	}
-	defer closeStore()
-
 	user, err := store.UserByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("look up user: %w", err)
@@ -154,12 +152,13 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 	if err := store.SetPassword(ctx, user.UserID, hash, time.Now().Unix()); err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
+	recordOperatorUserAudit(ctx, store, model.AuditPasswordSet, user.UserID)
 	fmt.Fprintf(out, "Password set for %s.\n", user.Email)
 	fmt.Fprintf(out, "Existing sessions are unaffected; revoke them separately if that is the intent.\n")
 	return nil
 }
 
-func runUserLoginCode(ctx context.Context, args []string, out io.Writer) error {
+func runUserLoginCode(ctx context.Context, args []string, out io.Writer, store userAdminStore) error {
 	fs := flag.NewFlagSet("user login-code", flag.ContinueOnError)
 	fs.SetOutput(out)
 	ttl := fs.Duration("ttl", model.LoginCodeTTLDefault, "how long the code stays valid")
@@ -173,12 +172,6 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer) error {
 	if *ttl <= 0 {
 		return errors.New("--ttl must be positive")
 	}
-	store, closeStore, err := openUserStore(ctx)
-	if err != nil {
-		return err
-	}
-	defer closeStore()
-
 	user, err := store.UserByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("look up user: %w", err)
@@ -190,6 +183,7 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("issue login code: %w", err)
 	}
+	recordOperatorUserAudit(ctx, store, model.AuditLoginCodeIssued, user.UserID)
 	fmt.Fprintf(out, "Login code for %s:\n\n  %s\n\n", user.Email, code)
 	fmt.Fprintf(out, "Valid until %s, and only once. It is not stored anywhere it can be read back,\n",
 		time.Unix(expiresAt, 0).Format(time.RFC3339))
@@ -202,6 +196,26 @@ type userAdminStore interface {
 	model.UserStore
 	model.LoginCodeStore
 	model.PasswordStore
+	model.AuditStore
+}
+
+// recordOperatorUserAudit writes an account action taken from the command line.
+//
+// These three commands wrote nothing to the trail until deployment
+// administration was designed, which meant the most sensitive actions an
+// operator takes — creating an account, setting its password, minting a way
+// into it — were the only ones with no record. The actor is the system, for
+// the same reason the model catalog commands say so: this runs from a shell on
+// the machine that already holds the database credentials, and inventing a
+// user id would put a name in the record that nothing verified.
+func recordOperatorUserAudit(ctx context.Context, store model.AuditStore, action, userID string) {
+	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
+		ActorType:  model.AuditActorSystem,
+		ActorID:    model.AuditActorOperator,
+		Action:     action,
+		TargetType: "user",
+		TargetID:   userID,
+	})
 }
 
 // openUserStore connects using the same server.yaml the server reads, so an

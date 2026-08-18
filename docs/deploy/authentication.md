@@ -69,6 +69,49 @@ on the way to a password:
 - **Stored as a SHA-256 hash.** A database backup yields no usable codes, and a
   lost code cannot be read back — issue a new one.
 
+## System Administrators
+
+A System Administrator is an authority over the **deployment**, held by an
+account and separate from every Team role. Team `owner`, `admin`, and `member`
+govern one team's people and shared automation; they say nothing about the
+server. A grant is what says something about the server.
+
+```bash
+buildmax-server admin grant alice@example.com
+buildmax-server admin list
+buildmax-server admin revoke alice@example.com
+```
+
+Granting does not create the account — run `buildmax-server user create` first.
+Like the account commands, these read the same `server.yaml` the server does,
+so inside a container they need no extra configuration.
+
+What the grant carries today is `/api/admin`: listing and inspecting accounts,
+creating one, issuing a login code, disabling and enabling access, revoking
+sessions, and granting or revoking the role itself. The Portal area that will
+use those is still being built. What the grant will never carry is access to a
+team's issues, conversations, artifacts, files, or run traces. Those stay behind
+team membership, and an administrator who is not in your team cannot read them.
+
+Disabling an account refuses every credential it holds: password, login code,
+refresh token, the access token it is already carrying, and its webhook keys.
+Sessions are revoked at the same time, and work it queued but that has not
+started fails instead of running. It is not deletion — nothing is removed, and
+enabling reverses the state and nothing else.
+
+This command is also the recovery path, which is why the authority lives in the
+database rather than in a configuration value. It behaves the same whether the
+deployment has ten administrators or none, so a deployment that has lost every
+one is recovered with the same line that created the first — no break-glass
+credential to store, rotate, or leak. Revoking the last grant is allowed here
+and refused through the API, for that reason.
+
+Grants and revocations are recorded in the audit trail, as are account
+creation, password setting, and login-code issuance from `buildmax-server
+user`. Actions taken from a command line are recorded as the system actor
+`buildmax-server`: the command holds the database credentials rather than a
+session, so there is no person to name.
+
 ## What Signing In Returns
 
 Two credentials, not one:
@@ -162,8 +205,12 @@ identity provider in front of it; OIDC is planned and not built.
 
 Login attempts are not throttled. See the note under [Passwords](#passwords).
 
-Sessions are revocable but not yet manageable: nothing lists a user's active
-sessions, and no command revokes one. An access token cannot be revoked at all.
+Sessions are manageable only by a System Administrator, through
+`/api/admin/users`: it reports how many live sessions an account has and can
+revoke them all at once. Nothing lists them individually, and no command
+revokes one. An access token still cannot be revoked — what stops it is the
+account check on the next request, which is why disabling an account works
+immediately and signing out one device does not.
 
 ## The Other Credentials
 

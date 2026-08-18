@@ -106,3 +106,55 @@ func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offse
 	}
 	return out, int(total), nil
 }
+
+// SearchAuditEvents returns events across every team, newest first.
+//
+// The composite index leads with team_id, so a team-filtered search uses it and
+// an unfiltered one is an ordered scan of a table that only grows by
+// deliberate action. If that stops being true the answer is a second index on
+// created_at, not a smaller retention — losing evidence to make a query fast is
+// the wrong trade.
+func (s *Store) SearchAuditEvents(ctx context.Context, filter model.AuditFilter, limit, offset int) ([]model.AuditEvent, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q := s.db.WithContext(ctx).Model(&auditEventRow{})
+	switch {
+	case filter.WithoutTeam:
+		q = q.Where("team_id = ?", "")
+	case filter.TeamID != "":
+		q = q.Where("team_id = ?", filter.TeamID)
+	}
+	if filter.ActorID != "" {
+		q = q.Where("actor_id = ?", filter.ActorID)
+	}
+	if filter.Action != "" {
+		q = q.Where("action = ?", filter.Action)
+	}
+	if filter.Since > 0 {
+		q = q.Where("created_at >= ?", filter.Since)
+	}
+	if filter.Until > 0 {
+		q = q.Where("created_at < ?", filter.Until)
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []auditEventRow
+	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]model.AuditEvent, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toAuditEvent(&rows[i]))
+	}
+	return out, int(total), nil
+}

@@ -20,6 +20,13 @@ describe("hash router", () => {
     // survive a reload, so every one of them needs a URL.
     ["#/space/audit", { name: "space", section: "audit" }],
     ["#/team-settings", { name: "space", section: "overview" }],
+    // Deployment administration is a separate area from space settings, and
+    // its sections are linkable for the same reason the space ones are.
+    ["#/admin", { name: "admin", section: "overview" }],
+    ["#/admin/accounts", { name: "admin", section: "accounts" }],
+    ["#/admin/teams", { name: "admin", section: "teams" }],
+    ["#/admin/models", { name: "admin", section: "models" }],
+    ["#/admin/audit", { name: "admin", section: "audit" }],
     ["#/workflows", { name: "workflows" }],
     ["#/workflow/w_123", { name: "workflow", workflowId: "w_123" }],
     ["#/workflow-run/wr_123", { name: "workflowRun", workflowRunId: "wr_123" }],
@@ -38,6 +45,11 @@ describe("hash router", () => {
     [{ name: "agents" }, "#/agents"],
     [{ name: "account", section: "general" }, "#/account"],
     [{ name: "account", section: "usage" }, "#/account/usage"],
+    [{ name: "admin", section: "overview" }, "#/admin"],
+    [{ name: "admin", section: "accounts" }, "#/admin/accounts"],
+    [{ name: "admin", section: "teams" }, "#/admin/teams"],
+    [{ name: "admin", section: "models" }, "#/admin/models"],
+    [{ name: "admin", section: "audit" }, "#/admin/audit"],
     [{ name: "account", section: "webhook" }, "#/account/webhook"],
     [{ name: "space", section: "overview" }, "#/space"],
     [{ name: "space", section: "audit" }, "#/space/audit"],

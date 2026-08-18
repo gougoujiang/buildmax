@@ -18,6 +18,11 @@ const (
 	maxErrorMessageLength = 500
 )
 
+// errCreatorDisabled is the reason recorded on a run whose creator was disabled
+// before it was dispatched. It is written into the run's error_message, which is
+// where a run explains itself.
+var errCreatorDisabled = errors.New("the account that created this run has been disabled")
+
 // MintRunToken signs the credential a worker presents for one run's managed
 // inference calls.
 //
@@ -28,7 +33,11 @@ type MintRunToken func(authtoken.RunClaims) (string, error)
 
 // Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	taskRuns     model.TaskRunStore
+	taskRuns model.TaskRunStore
+	// users answers whether the account that created a run may still have work
+	// executed for it. Nil means the check is skipped, which is what a
+	// deployment with no user store has.
+	users        model.UserStore
 	runner       WorkerRunner
 	mintRunToken MintRunToken
 	pollInterval time.Duration
@@ -64,6 +73,37 @@ func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner Worker
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
 	}, nil
+}
+
+// WithUserStore lets the scheduler refuse work for a disabled account.
+//
+// It is a setter rather than a constructor parameter because the check is
+// optional: a deployment with no user store schedules exactly as it did before,
+// and the three existing call sites do not have to learn about accounts to keep
+// compiling.
+func (s *Scheduler) WithUserStore(users model.UserStore) *Scheduler {
+	s.users = users
+	return s
+}
+
+// creatorIsDisabled reports whether the account that asked for this run has
+// been disabled since it was queued.
+//
+// A store failure answers false. Refusing to run a team's work because the user
+// table was briefly unreachable would turn a database blip into lost work,
+// which is a worse failure than one run starting for an account disabled a
+// moment ago — the run's own credential is scoped to that run and expiring, and
+// the account's sessions are already gone.
+func (s *Scheduler) creatorIsDisabled(ctx context.Context, run *model.TaskRun) bool {
+	if s.users == nil || run.CreatedBy == "" {
+		return false
+	}
+	user, err := s.users.GetUser(ctx, run.CreatedBy)
+	if err != nil {
+		slog.Warn("scheduler: could not check the run creator's account", "task_run_id", run.TaskRunID, "err", err)
+		return false
+	}
+	return user != nil && user.Disabled()
 }
 
 // Start launches the poll loop in a background goroutine.
@@ -111,6 +151,17 @@ func (s *Scheduler) loop() {
 			}
 			if !updated {
 				continue // another scheduler claimed it
+			}
+			// Work queued by an account that has since been disabled does not
+			// start. It fails here rather than being left PENDING for the same
+			// reason the credential failure below does: a run nobody will ever
+			// dispatch, sitting in a queue with no explanation, is worse than a
+			// terminal one that says why. There is no CANCELED status to use —
+			// see docs/design/system-administration.md section 8.
+			if s.creatorIsDisabled(ctx, run) {
+				slog.Info("scheduler: run creator is disabled, marking run as FAILED", "task_run_id", run.TaskRunID, "user_id", run.CreatedBy)
+				s.failRun(ctx, run.TaskRunID, errCreatorDisabled)
+				continue
 			}
 			// A run that cannot be given its credential fails here rather than
 			// starting and failing at its first inference call, where the cause

@@ -47,6 +47,26 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
       { label: "Space", route: { name: "space", section: "overview" } },
       { label: sectionLabel, route },
     ]
+  } else if (route.name === "admin") {
+    const sectionLabel = (() => {
+      switch (route.section) {
+        case "accounts":
+          return "Accounts"
+        case "teams":
+          return "Spaces"
+        case "models":
+          return "Models"
+        case "audit":
+          return "Audit"
+        case "overview":
+        default:
+          return "Overview"
+      }
+    })()
+    crumbs = [
+      { label: "Administration", route: { name: "admin", section: "overview" } },
+      { label: sectionLabel, route },
+    ]
   } else if (route.name === "workflows") {
     crumbs = [{ label: "Workflows", route: { name: "workflows" } }]
   } else if (route.name === "workflow") {

@@ -35,6 +35,21 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid webhook key")
 		return
 	}
+	// A webhook key is a credential the account holds, so disabling the account
+	// refuses it too. Nothing revokes the key itself: enabling the account
+	// should bring the integration back without the operator having to reissue
+	// keys to whatever is calling this.
+	if h.cfg.UserStore != nil {
+		owner, err := h.cfg.UserStore.GetUser(r.Context(), resolvedUserID)
+		if err != nil {
+			httputil.WriteInternalError(w, err, "webhook handler", "handler", "webhook_owner", "user_id", resolvedUserID)
+			return
+		}
+		if owner != nil && owner.Disabled() {
+			httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
+			return
+		}
+	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "read_body")

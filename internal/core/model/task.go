@@ -177,6 +177,10 @@ type TaskStore interface {
 type TaskRunStore interface {
 	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING/SCHEDULED/RUNNING.
 	CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*TaskRun, error)
+	// CountTaskRunsByStatus returns how many runs are in each status. It is
+	// the one number that answers "is work flowing through this deployment",
+	// and it carries no team, input, or output — only counts.
+	CountTaskRunsByStatus(ctx context.Context) (map[string]int, error)
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error)
 	GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error)

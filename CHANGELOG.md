@@ -34,7 +34,73 @@ pre-releases and must be called out in release notes.
   buildmax` with no `llm.aliases`, or an alias no team may call — now fails at
   startup rather than at every run's first model call.
 
+- A deployment can now have System Administrators: an authority over the
+  deployment itself, held by an account and separate from every Team role.
+  `buildmax-server admin grant | revoke | list` manages it on the machine that
+  already holds the database credentials, which is also what recovers a
+  deployment that has lost every administrator — there is no configuration
+  value and no break-glass credential. A grant carries no access to any team's
+  issues, conversations, artifacts, files, or run traces; those stay behind
+  team membership. Granting, revoking, and — new — account creation, password
+  setting, and login-code issuance from `buildmax-server user` are all recorded
+  in the audit trail, which those three commands previously wrote nothing to.
+
+- System Administrators get an account API under `/api/admin`: list and search
+  accounts, inspect one with its teams, roles, and live session count, create
+  one, issue a login code, revoke every session, and grant or revoke the
+  administrator role itself. Every one of those is recorded in the audit trail
+  against the administrator who did it. The API refuses to revoke the
+  deployment's last grant — that is what the operator command is for — and an
+  administrator cannot disable their own account.
+
+- `GET /api/admin/system` and `GET /api/admin/config` report what a deployment
+  is doing: version, applied schema migrations, dependency health as `/readyz`
+  sees it, worker run mode and model transport, task runs by status, and the
+  effective `server.yaml` with every credential reduced to whether it is set.
+  Not its length, not a prefix — presence only. The configuration view also
+  computes warnings for states that are trade-offs elsewhere in the project:
+  self-registration left open, the deprecated shared worker token still set,
+  managed worker inference with no aliases, local-process run mode, a run
+  timeout that outlives its run token, and run output on local disk.
+
+- `GET /api/admin/audit-events` searches the audit trail across every team,
+  filtered by team, actor, action, and time window. It is the only way to read
+  the events that have no team at all — logins, administrator grants, account
+  actions — which the team-scoped trail could never return; ask for those with
+  `team_id=none`. `GET /api/admin/teams` and `/api/admin/teams/{team_id}` list
+  teams with their size, quota tier, and usage, and name their members and
+  roles. Both are metadata: an administrator learns that a team exists and how
+  large it is, never what is in it, and reaching a team's own resources still
+  requires membership.
+
+- Portal has an administration area at `#/admin`, visible only to a System
+  Administrator: deployment health and version, accounts with disable, enable,
+  login-code and session controls, spaces with their size and usage, and the
+  deployment-wide audit trail. It is a separate area from space settings rather
+  than another tab in it, because authority over the deployment is not authority
+  inside a space — every page says what it does not show, and there is no link
+  from a space into its contents.
+
+- The administration area has a Models page, and `GET /api/admin/llm/models`
+  behind it, showing which upstreams the deployment will call and which aliases
+  point at each one — a model that is enabled with no alias is unreachable by
+  every team, which is the most common reason an operator's model appears not
+  to work. Models can be retired and restored from there. Adding one stays
+  `buildmax-server model add`: it carries a provider credential, and doing that
+  over HTTP puts the key in a request body, a proxy log, and whatever the
+  browser did with the form.
+
 ### Security
+
+- An account can be disabled, and disabling it stops access immediately rather
+  than when a token expires. Every credential the account holds is refused:
+  password, login code, refresh token, the access token it is already carrying,
+  and its webhook keys. Live sessions are revoked at the same time, and work the
+  account queued but that has not started fails at dispatch instead of running.
+  Previously there was no way to stop an account short of editing the database,
+  and an issued access token stayed usable for its full lifetime — seven days by
+  default. Disabling is not deletion: nothing is removed, and enabling reverses
+  the state and nothing else.
 
 - Each task run is now dispatched with its own gateway credential rather than
   sharing the deployment-wide worker token. The scheduler mints a short-lived

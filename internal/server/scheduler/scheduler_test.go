@@ -55,6 +55,10 @@ func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _, _, _ string)
 	return nil, nil
 }
 
+func (s *spyTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]int, error) {
+	return nil, nil
+}
+
 func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

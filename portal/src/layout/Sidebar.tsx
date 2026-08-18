@@ -15,6 +15,7 @@ import WorkflowIcon from "../icons/workflow.svg?react"
 import AgentsIcon from "../icons/agents.svg?react"
 import { CreateSpaceDialog } from "../components/CreateSpaceDialog"
 import { useTeam } from "../contexts/TeamContext"
+import { useAdminAccess } from "../features/admin"
 
 /** ASCII art for "BuildMax" (matches internal/tui/banner.go). */
 const LOGO_ASCII = `
@@ -50,6 +51,7 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const { teams, currentTeam, currentTeamId, loading: teamsLoading, setCurrentTeamId } = useTeam()
+  const { isAdmin: isSystemAdmin } = useAdminAccess()
   const showTeamSwitcher = teams.length > 1
   const personalTeams = teams.filter((team) => Boolean(team.personalForUserId))
   const sharedTeams = teams.filter((team) => !team.personalForUserId)
@@ -258,6 +260,28 @@ export function Sidebar({
               </span>
               Space
             </button>
+            {/*
+              Only for someone the server has confirmed may operate the
+              deployment. Hiding it is presentation — /api/admin refuses either
+              way — but an entry that leads to a forbidden screen is worse than
+              no entry.
+            */}
+            {isSystemAdmin ? (
+              <button
+                type="button"
+                className="sidebar__user-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  setUserMenuOpen(false)
+                  navigate({ name: "admin", section: "overview" })
+                }}
+              >
+                <span className="sidebar__user-menu-item-icon" aria-hidden>
+                  <SettingsIcon />
+                </span>
+                Administration
+              </button>
+            ) : null}
             <button
               type="button"
               className="sidebar__user-menu-item"

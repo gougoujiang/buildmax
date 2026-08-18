@@ -68,6 +68,9 @@ type StoresConfig struct {
 	RunOutputLister     RunOutputLister
 	UserWebhookKeyStore model.UserWebhookKeyStore
 	AuditStore          model.AuditStore
+	SystemGrantStore    model.SystemGrantStore
+	SchemaStore         model.SchemaStore
+	LLMModelStore       model.LLMModelStore
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -113,6 +116,11 @@ type Config struct {
 	Webhook WebhookConfig
 	// Audit records sensitive actions. Nil discards them.
 	Audit *audit.Recorder
+	// Deployment describes this deployment for the admin system status.
+	Deployment handlers.DeploymentInfo
+	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
+	// admin configuration route answers 503.
+	RedactedConfig any
 	// Readiness lists the dependency probes GET /readyz runs. Empty means the
 	// endpoint reports ready without verifying anything, and says so by
 	// returning an empty check list.
@@ -184,6 +192,12 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		WorkerLLM:                cfg.Worker.LLM,
 		UserStore:                cfg.Stores.UserStore,
 		AuditStore:               cfg.Stores.AuditStore,
+		SystemGrantStore:         cfg.Stores.SystemGrantStore,
+		SchemaStore:              cfg.Stores.SchemaStore,
+		LLMModelStore:            cfg.Stores.LLMModelStore,
+		Deployment:               cfg.Deployment,
+		DependencyProbes:         dependencyProbes(cfg.Readiness),
+		RedactedConfig:           cfg.RedactedConfig,
 		Audit:                    cfg.Audit,
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		PasswordStore:            cfg.Stores.PasswordStore,
@@ -318,4 +332,15 @@ func openAPIHandler(w http.ResponseWriter, _ *http.Request) {
 
 func swaggerUIHandler(w http.ResponseWriter, _ *http.Request) {
 	serveStatic(w, "static/swagger.html", "text/html; charset=utf-8")
+}
+
+// dependencyProbes converts readiness checks into the shape the admin API
+// reports. Both are a name and a probe; the conversion exists so that the
+// handler package does not import this one, which imports it.
+func dependencyProbes(checks []ReadinessCheck) []handlers.DependencyProbe {
+	out := make([]handlers.DependencyProbe, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, handlers.DependencyProbe{Name: check.Name, Probe: check.Probe})
+	}
+	return out
 }

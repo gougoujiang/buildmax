@@ -107,6 +107,7 @@ erDiagram
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
     user ||--o{ user_refresh_token : "keeps sessions in"
+    user ||--o{ system_grant : "holds deployment authority via"
     team ||--o{ llm_call : "billed to"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
@@ -136,9 +137,17 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `last_login_at` | `bigint` | yes | Unix seconds |
 | `last_login_platform` | `varchar(32)` | yes | Where the last login came from |
+| `disabled_at` | `bigint` | yes | Non-`NULL` means every credential this account holds is refused |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `user_id`; unique `email`.
+
+`disabled_at` is read on every authenticated request, which is why it is a
+column on this row rather than a side table: the check has to be one
+primary-key read. Disabling is not deletion — nothing is removed, and enabling
+clears the column and nothing else. What each credential does about it is in
+[../../design/system-administration.md](../../design/system-administration.md)
+section 8.
 
 `last_login_at` and `last_login_platform` are carried through the store mapping
 but no server code path currently writes them — only the in-memory store in
@@ -208,6 +217,37 @@ Indexes: PK `id`; unique composite `uq_team_member_team_user` on
 Roles are `model.TeamRoleOwner` / `TeamRoleAdmin` / `TeamRoleMember`. Team
 approvals and an audit log are designed but not implemented; do not read this
 table as an approval record.
+
+### `system_grant`
+
+One deployment-scoped authority held by one user, attached to no team. This is
+the only table in the schema that grants anything outside a Team, and it grants
+operation of the deployment rather than access to its contents — see
+[../../design/system-administration.md](../../design/system-administration.md).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `system_grant_id` | `varchar(64)` | no | Public ID, `sg_` prefix, unique |
+| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `role` | `varchar(32)` | no | `system_admin` is the only value this build accepts |
+| `granted_by` | `varchar(64)` | no | `user.user_id`, or `buildmax-server` when the operator command made the grant — the same string the matching audit event carries |
+| `granted_at` | `bigint` | no | Unix seconds |
+| `revoked_at` | `bigint` | yes | `NULL` while the grant is in force |
+
+Indexes: PK `id`; unique `system_grant_id`; unique composite
+`idx_system_grant_live` on (`user_id`, `role`, `revoked_at`); index `user_id`;
+index `granted_at`.
+
+Nothing deletes from this table. Revoking sets `revoked_at`, so the row stays
+as the record that the authority existed and when it ended. The unique index
+includes `revoked_at` on purpose: MySQL treats `NULL`s in a unique index as
+distinct, which leaves at most one live grant per (user, role) while allowing
+any number of retired ones alongside it.
+
+`role` is a column rather than a boolean so a second deployment role can be
+added without a migration. Only roles `model.ValidSystemRole` accepts are
+stored, so the column cannot become a way to invent authority.
 
 ### `login_code`
 

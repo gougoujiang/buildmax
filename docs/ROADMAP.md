@@ -149,10 +149,15 @@ Focus:
 - clear workflow lifecycle UI and copy for draft/published/archived
 - design the smallest audit/event model
 - make sensitive assets traceable over time: webhook keys, agent definitions, workflows
+- a deployment-scoped System Administrator, separate from every Team role, so
+  account lifecycle, access recovery, system status, and cross-team audit stop
+  requiring database or cluster credentials
+  (see [design/system-administration.md](design/system-administration.md))
 
 Acceptance:
 
 - admins understand who can do what, what resources are used, and what state shared automation is in
+- an operator runs routine account and deployment work through an audited surface rather than through the database
 
 ### P5. Versioned Workspace Design
 
@@ -262,7 +267,9 @@ at the end:
    currently unbacked.
 4. Minimum team governance: role and team authorization tests, then the audit
    event model. Quota display and alerting follow; for a trusted team quota is
-   cost control, not a security boundary.
+   cost control, not a security boundary. Deployment administration comes after
+   the team boundary is tested, not before: a system grant is only trustworthy
+   once the boundary it must not cross is covered.
 5. Close the trust harness, as defense in depth rather than the only boundary:
    ship `bwrap` in the runtime image, confirm the pod permits unprivileged user
    namespaces, then pass `SandboxSurfaceWorker` from the task-run runtime, add
@@ -292,4 +299,5 @@ at the end:
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/team-governance.md](design/team-governance.md) — P4 Team governance design
+- [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design
 - [design/versioned-workspace.md](design/versioned-workspace.md) — P5 Versioned workspace design

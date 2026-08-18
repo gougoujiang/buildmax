@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -101,6 +102,38 @@ func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]mod
 	for _, member := range m.Members {
 		if member.TeamID == teamID {
 			out = append(out, member)
+		}
+	}
+	return out, nil
+}
+
+func (m *MockTeamStore) ListAllTeams(_ context.Context, query string, limit, offset int) ([]model.Team, int, error) {
+	var all []model.Team
+	for i := range m.Teams {
+		if query == "" || strings.Contains(m.Teams[i].Name, query) {
+			all = append(all, m.Teams[i])
+		}
+	}
+	total := len(all)
+	if offset > total {
+		offset = total
+	}
+	all = all[offset:]
+	if limit > 0 && limit < len(all) {
+		all = all[:limit]
+	}
+	return all, total, nil
+}
+
+func (m *MockTeamStore) CountTeamMembers(_ context.Context, teamIDs []string) (map[string]int, error) {
+	wanted := make(map[string]bool, len(teamIDs))
+	for _, id := range teamIDs {
+		wanted[id] = true
+	}
+	out := make(map[string]int, len(teamIDs))
+	for _, member := range m.Members {
+		if wanted[member.TeamID] {
+			out[member.TeamID]++
 		}
 	}
 	return out, nil

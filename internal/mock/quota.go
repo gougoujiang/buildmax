@@ -87,3 +87,14 @@ type DenyQuotaTierStore struct {
 func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaTier, error) {
 	return d.Tier, nil
 }
+
+func (d *DenyQuotaTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]model.Team, int, error) {
+	if d.Team == nil {
+		return nil, 0, nil
+	}
+	return []model.Team{*d.Team}, 1, nil
+}
+
+func (d *DenyQuotaTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[string]int, error) {
+	return nil, nil
+}
