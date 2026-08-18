@@ -64,6 +64,7 @@ type StoresConfig struct {
 	IssueCommentStore   model.IssueCommentStore
 	TaskStore           model.TaskStore
 	TaskRunStore        model.TaskRunStore
+	LLMCallStore        model.LLMCallStore
 	RunOutputLister     RunOutputLister
 	UserWebhookKeyStore model.UserWebhookKeyStore
 	AuditStore          model.AuditStore
@@ -194,6 +195,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		IssueCommentStore:        cfg.Stores.IssueCommentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
+		LLMCallStore:             cfg.Stores.LLMCallStore,
 		RunOutputLister:          cfg.Stores.RunOutputLister,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
 		ConversationStore:        cfg.Conv.ConversationStore,

@@ -87,6 +87,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/trace", h.getTaskRunTraceHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/llm-calls", h.listTaskRunLLMCallsHandler)
 
 	// WebSocket
 	mux.HandleFunc("GET /api/teams/{team_id}/ws", h.wsUpgradeHandler)
@@ -97,9 +98,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRun)))
 	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
-	// Managed inference is the exception: it authenticates with the run token
-	// the server minted for this run, not the deployment-wide worker token, so
-	// the call carries a user and a team. See docs/design/worker-run-token.md.
+	// Managed inference takes the run token only. It never accepted the shared
+	// worker token, so it has no upgrade window to keep open and no reason to
+	// grow a fallback the other three are already shedding.
 	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
 
 	// Inbound webhook

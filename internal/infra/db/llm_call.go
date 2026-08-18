@@ -221,3 +221,24 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, teamID, clientCallID s
 	}
 	return toLLMCall(&row), nil
 }
+
+// ListLLMCallsByTaskRun returns one run's calls for a team, oldest first.
+//
+// Both identifiers are in the WHERE clause. Filtering by run alone and checking
+// the team afterwards would still have read another team's row first, and the
+// difference matters for a table that records what each team spent.
+func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, teamID, taskRunID string) ([]model.LLMCall, error) {
+	var rows []llmCallRow
+	err := s.db.WithContext(ctx).
+		Where("team_id = ? AND task_run_id = ?", teamID, taskRunID).
+		Order("accepted_at ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.LLMCall, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toLLMCall(&rows[i]))
+	}
+	return out, nil
+}

@@ -34,12 +34,10 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Files: `/api/teams/{team_id}/upload`, `/files...`
 - Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`
 - Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
-- Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace` — only serves a
-  trace when `storage.persist_backend` is `minio`. `LocalFSPersistStorage`
-  returns `ErrNotFound` from `GetRunGlobal` by design, because run files stay on
-  the worker's disk rather than being copied into the persist root, so a
-  `local_fs` deployment answers 404 even for a run whose trace was written and
-  whose `trace_path` is recorded.
+- Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
+- Managed model calls: `/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` —
+  what a run spent and on which approved alias, without prompts or the
+  operator's catalog routing
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
 - Audit trail (owner only): `/api/teams/{team_id}/audit-events`
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`

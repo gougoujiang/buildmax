@@ -187,10 +187,10 @@ Five gates, each with the surface that proves it:
 
 | Gate | Proven by |
 |---|---|
-| Worker execution boundary is real, visible, and operator-controlled | A task run holds only the credentials that run needs, executes in a hardened pod with a bounded network egress, and records which boundary was actually in effect — including when it was not sandboxed |
+| Worker execution boundary is real, visible, and operator-controlled | A task run holds only the credentials that run needs, executes in a hardened pod, and records which boundary was actually in effect — including when it was not sandboxed. Bounded egress is **not** part of this gate: see below |
 | The recommended private deployment is operable | Kubernetes reference with external MySQL, S3, TLS, secrets, resource limits, and a versioned schema migration with a rollback path |
 | A run explains itself | Portal answers model, tools, files, duration, tokens, and failure cause for any task run, with stable cancel/retry/timeout semantics |
-| The minimum governance loop closes | Role and team authorization covered end to end by tests; audit events for sign-in, configuration, model use, task execution, and credential change |
+| The minimum governance loop closes | Role and team authorization covered end to end by tests; audit events for sign-in, configuration, model use, and credential change; a task run's own record reachable from Portal, joined to the models it called |
 | Beta claims are continuously verified | CI, Compose, and kind checks running again; Portal browser E2E; a published support and compatibility matrix (see [start/support.md](start/support.md)) |
 
 The first gate deliberately does not require the OS sandbox. Enabling it on
@@ -207,6 +207,23 @@ Two consequences follow, and neither may be left implicit in documentation:
   risky-prefix list: those resolve to Ask, and Ask collapses to Deny where no
   approval handler exists. The sandbox is what would demote them to Allow, so
   deferring it is a capability decision as much as a security one.
+
+Bounded egress was removed from the first gate for the same kind of reason. A
+default-deny policy permitting only the Server and the object store would stop a
+task run reaching the internet at all — `git` is not on the risky-prefix list
+and `WebFetch` is unrestricted while the sandbox is off — and no evidenced
+allow-list exists yet to replace it with. Until one does, a task run's reachable
+network is unbounded, and Beta must say so rather than imply a boundary it does
+not have.
+
+Task execution was likewise removed from the governance gate. A run's actor,
+trigger, timing, and outcome are already durable in `task_run`, and the models
+it called are in `llm_call`; copying them into `audit_event` would duplicate
+records without adding evidence, against the rule in
+[design/llm-gateway.md](design/llm-gateway.md) §10 that a governance log is for
+configuration and authorization actions rather than operational records. What
+the gate needs instead is that those existing records are reachable and joined —
+which is a route, not a new write.
 
 Deliberately outside the Beta gate: Desktop polish, SSO, versioned workspace,
 plugin distribution, and additional model providers. None of them block a

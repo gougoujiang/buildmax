@@ -94,6 +94,10 @@ func (l *fakeLedger) GetLLMCallByClientID(context.Context, string, string) (*mod
 	return l.existing, nil
 }
 
+func (l *fakeLedger) ListLLMCallsByTaskRun(context.Context, string, string) ([]model.LLMCall, error) {
+	return nil, nil
+}
+
 func (l *fakeLedger) only(t *testing.T) (model.LLMCall, model.LLMCallOutcome) {
 	t.Helper()
 	l.mu.Lock()

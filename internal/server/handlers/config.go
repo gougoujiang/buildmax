@@ -58,17 +58,20 @@ type Config struct {
 	RefreshRotationGrace time.Duration
 
 	// Stores
-	UserStore                model.UserStore
-	LoginCodeStore           model.LoginCodeStore
-	PasswordStore            model.PasswordStore
-	RefreshTokenStore        model.RefreshTokenStore
-	TeamStore                model.TeamStore
-	WorkflowStore            model.WorkflowStore
-	AgentStore               model.AgentStore
-	IssueStore               model.IssueStore
-	IssueCommentStore        model.IssueCommentStore
-	TaskStore                model.TaskStore
-	TaskRunStore             model.TaskRunStore
+	UserStore         model.UserStore
+	LoginCodeStore    model.LoginCodeStore
+	PasswordStore     model.PasswordStore
+	RefreshTokenStore model.RefreshTokenStore
+	TeamStore         model.TeamStore
+	WorkflowStore     model.WorkflowStore
+	AgentStore        model.AgentStore
+	IssueStore        model.IssueStore
+	IssueCommentStore model.IssueCommentStore
+	TaskStore         model.TaskStore
+	TaskRunStore      model.TaskRunStore
+	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
+	// unreadable over HTTP, which is what a deployment with no database has.
+	LLMCallStore             model.LLMCallStore
 	RunOutputLister          RunOutputLister
 	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConversationStore        model.ConversationStore

@@ -37,10 +37,6 @@ type smokeTarget struct {
 	portalURL            string
 	portalRuntimeAPIBase string
 	admin                func(args ...string) (string, error)
-	// query runs one read-only SQL statement and returns the rows as text. It
-	// exists because the call ledger has no HTTP route, and the ledger is the
-	// only place a managed run leaves proof that it reached the gateway.
-	query func(sql string) (string, error)
 	// managedLLM says this stack runs task-run inference through the gateway, so
 	// the smoke additionally proves the worker held no provider credential.
 	managedLLM bool
@@ -127,47 +123,11 @@ func composeSmokeTarget(managed bool) smokeTarget {
 			cmdArgs := append(composeSmokeArgs(managed), "exec", "-T", "server", "buildmax-server")
 			return captureCombined("docker", append(cmdArgs, args...)...)
 		},
-		query: composeQuery,
 	}
 }
 
 func composeEnvPath() string {
 	return filepath.Join("deployment", "compose", ".env")
-}
-
-// composeQuery runs one read-only statement against the stack's MySQL.
-//
-// The password comes from the same .env the stack was started with, read here
-// rather than passed on the command line, so it does not appear in this
-// process's argv.
-//
-// The client is pinned to TCP: with no host it falls back to a unix socket
-// whose path differs between mysql images, which fails in CI while working
-// locally.
-func composeQuery(sql string) (string, error) {
-	password, err := composeEnvValue("BUILDMAX_DATABASE_PASSWORD")
-	if err != nil {
-		return "", err
-	}
-	args := append(composeSmokeArgs(true), "exec", "-T", "-e", "MYSQL_PWD="+password, "mysql",
-		"mysql", "-h127.0.0.1", "--protocol=TCP", "-ubuildmax",
-		"--batch", "--skip-column-names", "buildmax", "-e", sql)
-	return captureCombined("docker", args...)
-}
-
-// composeEnvValue reads one key out of the generated compose .env.
-func composeEnvValue(key string) (string, error) {
-	body, err := os.ReadFile(composeEnvPath())
-	if err != nil {
-		return "", fmt.Errorf("read %s: %w", composeEnvPath(), err)
-	}
-	for line := range strings.SplitSeq(string(body), "\n") {
-		name, value, found := strings.Cut(strings.TrimSpace(line), "=")
-		if found && name == key {
-			return value, nil
-		}
-	}
-	return "", fmt.Errorf("%s does not define %s", composeEnvPath(), key)
 }
 
 func composeServerURL() string {
@@ -363,7 +323,7 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("artifact content = %q, want %q", strings.TrimSpace(artifact), smokeReply)
 	}
 
-	if err := assertManagedRun(target, teamID, artifacts[0].TaskRunID); err != nil {
+	if err := assertManagedRun(ctx, client, target, teamID, artifacts[0].TaskRunID, login.Token); err != nil {
 		return err
 	}
 
@@ -383,40 +343,35 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 // team, which is what the run token carries and a shared worker credential could
 // never supply.
 //
-// It reads the database rather than an API because the ledger has no HTTP route
-// yet. The trace would be an alternative — a managed run records its alias as
-// the model — but a `local_fs` deployment cannot serve one at all:
-// LocalFSPersistStorage.GetRunGlobal returns ErrNotFound by design, since run
-// files stay on the worker's disk instead of being copied into the persist root.
-func assertManagedRun(target smokeTarget, teamID, taskRunID string) error {
+// It reads the ledger through the same team-authorized route an operator would,
+// which makes this assertion cover the route as well as the transport.
+func assertManagedRun(ctx context.Context, client *http.Client, target smokeTarget, teamID, taskRunID, token string) error {
 	if !target.managedLLM {
 		return nil
 	}
-	if target.query == nil {
-		return errors.New("this smoke target cannot read the call ledger, so a managed run cannot be verified")
+	var calls []struct {
+		UserID  *string `json:"user_id"`
+		Alias   string  `json:"alias"`
+		Status  string  `json:"status"`
+		Surface string  `json:"surface"`
 	}
-	row, err := target.query(fmt.Sprintf(
-		"select surface, coalesce(user_id,''), team_id, alias, status from llm_call where task_run_id = '%s' order by accepted_at limit 1",
-		taskRunID))
-	if err != nil {
-		return fmt.Errorf("read call ledger: %w", err)
+	callsURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/task-runs/" + url.PathEscape(taskRunID) + "/llm-calls"
+	if err := requestJSON(ctx, client, http.MethodGet, callsURL, token, nil, &calls, http.StatusOK); err != nil {
+		return fmt.Errorf("run llm calls: %w", err)
 	}
-	fields := strings.Fields(row)
-	if len(fields) < 5 {
+	if len(calls) == 0 {
 		return fmt.Errorf("the managed run left no call-ledger row for %s, so it did not reach the gateway", taskRunID)
 	}
-	surface, userID, ledgerTeam, alias, status := fields[0], fields[1], fields[2], fields[3], fields[4]
+	call := calls[0]
 	switch {
-	case surface != "worker":
-		return fmt.Errorf("call ledger surface = %q, want worker", surface)
-	case userID == "":
+	case call.Surface != "worker":
+		return fmt.Errorf("call ledger surface = %q, want worker", call.Surface)
+	case call.UserID == nil || *call.UserID == "":
 		return errors.New("the managed call is attributed to no user; a run belongs to whoever created it")
-	case ledgerTeam != teamID:
-		return fmt.Errorf("call ledger team = %q, want %q", ledgerTeam, teamID)
-	case alias != smokeManagedAlias:
-		return fmt.Errorf("call ledger alias = %q, want %q", alias, smokeManagedAlias)
-	case !strings.EqualFold(status, "succeeded"):
-		return fmt.Errorf("call ledger status = %q, want succeeded", status)
+	case call.Alias != smokeManagedAlias:
+		return fmt.Errorf("call ledger alias = %q, want %q", call.Alias, smokeManagedAlias)
+	case !strings.EqualFold(call.Status, "succeeded"):
+		return fmt.Errorf("call ledger status = %q, want succeeded", call.Status)
 	}
 	return nil
 }

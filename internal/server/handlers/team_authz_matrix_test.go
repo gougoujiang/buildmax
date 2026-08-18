@@ -104,6 +104,10 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/trace", model.TeamRoleMember, false},
+	// A member may read what their team's run spent, the same as its trace and
+	// artifacts. The ledger carries no prompts, and hiding a team's own usage
+	// from the people producing it would make quota unexplainable.
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls", model.TeamRoleMember, false},
 
 	{"GET", "/api/teams/{team_id}/files", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/files/{path...}", model.TeamRoleMember, false},
