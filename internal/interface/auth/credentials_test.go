@@ -37,6 +37,42 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 }
 
+// Windows refuses to replace a file while a concurrent reader still holds its
+// handle. Save must retry that short-lived sharing violation rather than leave
+// a rotated refresh token only in the caller that received it.
+func TestSaveRetriesTransientReplaceFailure(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "auth.json")
+	if err := os.WriteFile(path, []byte(`{"token":"old"}`), 0600); err != nil {
+		t.Fatalf("seed auth file: %v", err)
+	}
+
+	originalRename := renameCredentialsFile
+	calls := 0
+	renameCredentialsFile = func(oldPath, newPath string) error {
+		calls++
+		if calls == 1 {
+			return os.ErrPermission
+		}
+		return originalRename(oldPath, newPath)
+	}
+	t.Cleanup(func() { renameCredentialsFile = originalRename })
+
+	if err := Save(&Credentials{Token: "new"}, path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("rename calls = %d, want 2", calls)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.Token != "new" {
+		t.Errorf("stored token = %q, want new", loaded.Token)
+	}
+}
+
 func TestLoadMissing(t *testing.T) {
 	c, err := Load("/nonexistent/auth.json")
 	if err != nil {

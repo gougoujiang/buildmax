@@ -78,6 +78,11 @@ pre-releases and must be called out in release notes.
   records such a run as failed after `worker.run_timeout` (6h by default), with
   an error that names the timeout rather than guessing which of those happened.
 
+- Refreshing credentials now retries a short-lived Windows file-sharing
+  conflict while atomically replacing `auth.json`. Without that retry, a
+  concurrent caller could read the old refresh token after a successful
+  exchange and spend it a second time.
+
 - Portal can show a run's trace on deployments that keep run state on local
   disk. `local_fs` is the default persist backend, and it deliberately stores
   no copy of a run's global files — the worker has already written them under
