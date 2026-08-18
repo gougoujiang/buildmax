@@ -52,15 +52,7 @@ func cmdCompose(args []string) error {
 		if err := runCmd("docker", append(files, "up", "-d", "--build", "--wait")...); err != nil {
 			return err
 		}
-		target := smokeTarget{
-			apiBase:              composeServerURL(),
-			portalURL:            composePortalURL(),
-			portalRuntimeAPIBase: composeServerURL(),
-			admin: func(args ...string) (string, error) {
-				cmdArgs := append(composeSmokeArgs(), "exec", "-T", "server", "buildmax-server")
-				return captureCombined("docker", append(cmdArgs, args...)...)
-			},
-		}
+		target := composeSmokeTarget()
 		if err := runDeploymentSmoke(context.Background(), target); err != nil {
 			return err
 		}
@@ -79,6 +71,22 @@ func cmdCompose(args []string) error {
 
 func composeSmokeArgs() []string {
 	return []string{"compose", "-f", composeFile, "-f", composeSmokeFile}
+}
+
+// composeSmokeTarget describes the quickstart stack. Its Portal and its server
+// answer on separate published ports, so the bundle is configured with an
+// absolute API base — unlike the kind reference, where one ingress serves both
+// and the base is same-origin.
+func composeSmokeTarget() smokeTarget {
+	return smokeTarget{
+		apiBase:              composeServerURL(),
+		portalURL:            composePortalURL(),
+		portalRuntimeAPIBase: composeServerURL(),
+		admin: func(args ...string) (string, error) {
+			cmdArgs := append(composeSmokeArgs(), "exec", "-T", "server", "buildmax-server")
+			return captureCombined("docker", append(cmdArgs, args...)...)
+		},
+	}
 }
 
 func composeEnvPath() string {

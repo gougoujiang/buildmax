@@ -176,7 +176,7 @@ func allHelpSections() []helpSection {
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke|status|logs|down)"},
 			{"kind <action>", "Manage local Kubernetes (up|images|smoke|status|logs|down)"},
-			{"e2e", "Run Portal browser tests against a running deployment"},
+			{"e2e [target]", "Run Portal browser tests against a running kind or compose deployment"},
 		}},
 		{"Release", []helpRow{
 			{"release <action>", "Run bump, verify, notices, or licenses"},
