@@ -701,6 +701,21 @@
           "404": { "description": "The run recorded no trace, or its trace is no longer in storage" }
         }
       }
+    },
+    "/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls": {
+      "get": {
+        "summary": "List a task run's managed model calls",
+        "description": "What the run spent and on which approved alias, oldest first. An accounting record, not a transcript: prompts, tool arguments, and generated content are absent, and so is the catalog entry the alias resolved to, which is the operator's routing rather than the team's.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK. An empty array when the run made no managed calls, which is what a direct-mode run does" },
+          "404": { "description": "No such run for this team" },
+          "503": { "description": "This deployment records no managed calls" }
+        }
+      }
     }
   }
 }

@@ -118,4 +118,9 @@ type LLMCallStore interface {
 	// GetLLMCallByClientID returns a team's call by the caller's idempotency
 	// key, or (nil, nil) when not found.
 	GetLLMCallByClientID(ctx context.Context, teamID, clientCallID string) (*LLMCall, error)
+	// ListLLMCallsByTaskRun returns a run's calls, oldest first, so a reader
+	// follows the run in the order it happened. The team is part of the query
+	// rather than a check afterwards: a caller authorized for one team must not
+	// be able to read another's ledger by naming a run id.
+	ListLLMCallsByTaskRun(ctx context.Context, teamID, taskRunID string) ([]LLMCall, error)
 }
