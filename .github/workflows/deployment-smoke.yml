@@ -46,7 +46,18 @@ jobs:
           cache-dependency-path: portal/package-lock.json
       - name: Install Portal dependencies
         run: npm --prefix portal ci
+      # The browser binaries are a ten-second download; `--with-deps` is the
+      # expensive half, and it is the half that stalls -- on 2026-08-19 its
+      # apt-get sat for 37m34s before the first byte of Chromium arrived and
+      # turned a five-minute run into forty-two. Cache what is cacheable, and
+      # bound the rest so a stalled mirror fails instead of holding the runner.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('portal/package-lock.json') }}
       - name: Install Chromium
+        timeout-minutes: 6
         run: npm --prefix portal exec -- playwright install --with-deps chromium
       - name: Run Portal browser tests
         run: ./make e2e compose
@@ -95,7 +106,18 @@ jobs:
           cache-dependency-path: portal/package-lock.json
       - name: Install Portal dependencies
         run: npm --prefix portal ci
+      # The browser binaries are a ten-second download; `--with-deps` is the
+      # expensive half, and it is the half that stalls -- on 2026-08-19 its
+      # apt-get sat for 37m34s before the first byte of Chromium arrived and
+      # turned a five-minute run into forty-two. Cache what is cacheable, and
+      # bound the rest so a stalled mirror fails instead of holding the runner.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('portal/package-lock.json') }}
       - name: Install Chromium
+        timeout-minutes: 6
         run: npm --prefix portal exec -- playwright install --with-deps chromium
       - name: Run Portal browser tests
         run: ./make e2e

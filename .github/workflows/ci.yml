@@ -17,15 +17,72 @@ jobs:
   go:
     name: Go (build, vet, test)
     runs-on: ubuntu-latest
+    env:
+      # An explicit GOBIN, so the cached path below is exactly where `go install`
+      # writes rather than wherever GOPATH resolves to on the runner. Guessing
+      # wrong there would cache an empty directory and silently reinstall every
+      # tool on every run. The leading dot keeps it out of `./...`.
+      GOBIN: ${{ github.workspace }}/.ci-tools
+      # Tool versions are pinned here rather than at each call site so that the
+      # tool cache key below invalidates on a bump instead of serving a stale
+      # binary.
+      ACTIONLINT_VERSION: v1.7.12
+      GITLEAKS_VERSION: v8.30.1
+      GOLANGCI_LINT_VERSION: v2.12.2
+      GOVULNCHECK_VERSION: v1.7.0
+      GO_LICENSES_VERSION: v1.6.0
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # setup-go keys its cache on go.sum alone, so every Linux job here shared
+      # one entry and whichever finished first saved it -- the light policy job,
+      # which left this one, the heaviest, compiling everything from cold. This
+      # job keeps its own entry instead.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
+
+      # Restored on every run but written only from main. A per-commit key on
+      # pull requests would push a few hundred megabytes into the repository's
+      # shared 10 GB cache budget on every push to every branch, and evict the
+      # entries the other jobs depend on.
+      - name: Restore Go build cache
+        id: go-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-build-${{ runner.os }}-
+
+      # These tools live outside this module, so the module cache never held
+      # them and `go run pkg@version` re-downloaded and recompiled each one on
+      # every run -- 184 module downloads in the lint step alone. Install them
+      # once and cache the binaries.
+      - name: Cache Go tools
+        id: go-tools-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.ci-tools
+          key: go-tools-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.ACTIONLINT_VERSION }}-${{ env.GITLEAKS_VERSION }}-${{ env.GOLANGCI_LINT_VERSION }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GO_LICENSES_VERSION }}
+
+      - name: Install Go tools
+        if: steps.go-tools-cache.outputs.cache-hit != 'true'
+        run: |
+          go install "github.com/rhysd/actionlint/cmd/actionlint@$ACTIONLINT_VERSION"
+          go install "github.com/zricethezav/gitleaks/v8@$GITLEAKS_VERSION"
+          go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$GOLANGCI_LINT_VERSION"
+          go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
+          go install "github.com/google/go-licenses@$GO_LICENSES_VERSION"
+
+      - name: Put Go tools on PATH
+        run: echo "$GOBIN" >> "$GITHUB_PATH"
 
       # gofmt walks the filesystem, not the module, so `gofmt -l .` also reads
       # node_modules once anyone has run npm install. Formatting npm-shipped Go
@@ -46,10 +103,10 @@ jobs:
           git diff --exit-code go.mod go.sum
 
       - name: Check GitHub Actions workflows
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        run: actionlint
 
       - name: Scan Git history for secrets
-        run: go run github.com/zricethezav/gitleaks/v8@v8.30.1 git --redact --no-banner --exit-code 1
+        run: gitleaks git --redact --no-banner --exit-code 1
 
       - name: Build
         run: go build ./...
@@ -59,13 +116,13 @@ jobs:
 
       # Configuration and rationale: .golangci.yml.
       - name: Lint
-        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+        run: golangci-lint run ./...
 
       # Known vulnerabilities in the Go toolchain and in dependencies this code
       # actually calls. Reachability-based, so it fails only on code paths that
       # exist here.
       - name: Check for known vulnerabilities
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+        run: govulncheck ./...
 
       # -race here and not on Windows: the agent runtime, the scheduler, and the
       # websocket hub are all concurrent, and this is the job that exercises
@@ -79,9 +136,16 @@ jobs:
       # Fails on copyleft that would conflict with redistributing under
       # Apache-2.0. See docs/contribute/dependency-licenses.md.
       - name: Check dependency licenses
-        run: |
-          go install github.com/google/go-licenses@v1.6.0
-          go-licenses check ./cmd/... --disallowed_types=forbidden,restricted
+        run: go-licenses check ./cmd/... --disallowed_types=forbidden,restricted
+
+      - name: Save Go build cache
+        if: github.event_name == 'push' && steps.go-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go-build-cache.outputs.cache-primary-key }}
 
   go-windows:
     name: Go (Windows)
