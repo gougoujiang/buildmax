@@ -3,7 +3,7 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `design ready for review` (implementation not started)
+- status: `phase 1 implemented` (§8 phase 1 landed; phases 2–4 open)
 - implements: [trust-harness.md](./trust-harness.md) §3.6 (agent memory, session memory)
 - follows: [hook-system.md](./hook-system.md), [durable-run-trace.md](./durable-run-trace.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -84,7 +84,7 @@ preserve it (`internal/agentapp/compactor.go:9`) but that is an LLM's
 best effort over an unbounded amount of material, and it degrades with every
 pass.
 
-### 3.3 Compaction summaries do not accumulate — earlier context is lost
+### 3.3 Compaction summaries do not accumulate — earlier context is lost — fixed ✅
 
 This is a defect, not a design gap.
 
@@ -107,7 +107,7 @@ A related cosmetic issue: after an in-run compaction the system prompt carries
 two `<context_compaction>` blocks, because `app.go:500` already appended the
 persisted one and `agent.go:152` appends the new one.
 
-### 3.4 The permanent slot has no bound
+### 3.4 The permanent slot has no bound — summary bounded ✅
 
 `CompactionSummary` is concatenated into the system prompt with no size limit.
 The system prompt is the one place with no degradation path — it is re-sent at
@@ -121,7 +121,7 @@ degrades as the context fills with tool output. This is a model property, not
 a context-management bug, and it is not fixed by storage. It is fixed by
 re-stating the small set of invariants close to the generation point.
 
-### 3.6 Minor: threshold comment disagrees with the constant
+### 3.6 Minor: threshold comment disagrees with the constant — fixed ✅
 
 `internal/core/agent/context.go:12` documents 0.75; the constant is 0.80. Fix
 the comment while touching this file.
@@ -491,7 +491,7 @@ nothing. Compaction gets cheaper and safer at the same time.
 
 ## 8. Implementation Steps
 
-### Phase 1 — fix what is already broken
+### Phase 1 — fix what is already broken — shipped ✅
 
 Independent of everything else; ship first.
 
@@ -502,6 +502,13 @@ Independent of everything else; ship first.
 4. Tests: three consecutive compactions preserve a fact stated before the first
    one; the system prompt never carries two summary blocks; the summary stays
    under its ceiling across ten compactions.
+
+Landed as: `withPriorSummary`, `clampSummary`, `maxSummaryChars`, and
+`RenderCompactionBlock` in `internal/core/agent/context.go`;
+`CompactionHistory.PriorSummary` implemented by `session.Session`; the summary
+append removed from `RunPrompt` so `RunLoop` is the block's only renderer.
+Regression coverage in `internal/core/agent/compaction_test.go`, plus an
+ownership guard in `internal/agentapp/prompt_test.go`.
 
 ### Phase 2 — session notes
 

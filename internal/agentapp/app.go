@@ -496,10 +496,9 @@ func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, con
 	if a == nil || sess == nil {
 		return RunStatus{}
 	}
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName)
-	if sess.CompactionSummary != "" {
-		systemPrompt += "\n\n<context_compaction>\n" + sess.CompactionSummary + "\n</context_compaction>"
-	}
+	// This path does not go through RunLoop, so it renders the compaction block itself to
+	// estimate the real prompt size. It uses the same renderer RunLoop does.
+	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName) + agent.RenderCompactionBlock(sess.CompactionSummary)
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunStatus{
 		ContextTokens:         contextTokens,
@@ -587,10 +586,10 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		return RunResult{}, err
 	}
 
+	// No compaction block here: RunLoop reads the stored summary through
+	// CompactionHistory and renders it itself. Appending it here as well put two
+	// <context_compaction> blocks in the prompt after the first in-run compaction.
 	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName)
-	if sess.CompactionSummary != "" {
-		systemPrompt += "\n\n<context_compaction>\n" + sess.CompactionSummary + "\n</context_compaction>"
-	}
 
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,

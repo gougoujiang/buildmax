@@ -29,7 +29,7 @@ reference, then delete the plan.
 | Document | Priority | Current state |
 |---|---|---|
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
-| [Context durability](context-durability.md) | P0.5 | Design ready for review; implementation not started |
+| [Context durability](context-durability.md) | P0.5 | Compaction accumulation and bounds shipped; session notes, forced checkpoint, and agent role open |
 | [Issue model](issue-model.md) | P2 follow-on | Sub-issues and comments implemented; mentions and realtime push open |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |

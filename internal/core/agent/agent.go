@@ -38,8 +38,15 @@ type MessageHistory interface {
 // CompactionHistory is an optional extension of MessageHistory implemented by persistent histories
 // that can record a compaction boundary across turns. When RunLoop compacts the context, it calls
 // AddCompaction so the next turn starts from the compacted view without re-summarizing.
+//
+// The history owns the summary, and RunLoop reads it back through PriorSummary rather than
+// expecting the caller to have folded it into SystemPrompt. That keeps one owner for the
+// block: two owners is how the same summary ends up in the prompt twice.
 type CompactionHistory interface {
 	MessageHistory
+	// PriorSummary returns the summary stored by the most recent compaction, or "" when the
+	// history has never been compacted.
+	PriorSummary() string
 	// AddCompaction advances the compaction boundary by summarizedCount messages and stores summary.
 	AddCompaction(summary string, summarizedCount int)
 }
@@ -97,8 +104,14 @@ type RunLoopOpts struct {
 func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
 	var s RunStats
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
-	compactionSummary := "" // most recent compaction summary; appended to system prompt when non-empty
-	lastContent := ""       // last non-empty assistant content; returned on cancellation
+	// Most recent compaction summary, rendered into the system prompt when non-empty.
+	// Seeded from the history so a session compacted in an earlier turn keeps its summary
+	// and feeds it back into the next compaction.
+	compactionSummary := ""
+	if ch, ok := opts.History.(CompactionHistory); ok {
+		compactionSummary = ch.PriorSummary()
+	}
+	lastContent := "" // last non-empty assistant content; returned on cancellation
 
 	for i := 0; i < opts.MaxIter; i++ {
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
@@ -120,9 +133,16 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 						preOut := runHook(ctx, opts.Hooks, pre)
 						if preOut.Blocked() {
 							slog.Info("context compaction skipped by hook", "iter", i+1, "reason", preOut.Reason)
-						} else if summary, cerr := opts.Compactor.Compact(ctx, toSummarize); cerr == nil {
+						} else if summary, cerr := opts.Compactor.Compact(ctx, withPriorSummary(compactionSummary, toSummarize)); cerr == nil {
+							limit := maxSummaryChars(cw)
+							if clamped := clampSummary(summary, limit); clamped != summary {
+								slog.Warn("compaction summary exceeded its budget, clamped", "iter", i+1, "limit_chars", limit, "got_chars", len(summary))
+								summary = clamped
+							}
 							compactionSummary = summary
 							if ch, ok := opts.History.(CompactionHistory); ok {
+								// summarizedCount counts real history messages; the prior summary
+								// prepended above is synthetic and never entered the history.
 								ch.AddCompaction(summary, len(toSummarize))
 							}
 							history = toKeep
@@ -147,10 +167,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		}
 
 		// Build effective system prompt: base + compaction summary when present.
-		effectiveSysPrompt := opts.SystemPrompt
-		if compactionSummary != "" {
-			effectiveSysPrompt += "\n\n<context_compaction>\n" + compactionSummary + "\n</context_compaction>"
-		}
+		// SystemPrompt must not already carry the block — RunLoop is its only renderer.
+		effectiveSysPrompt := opts.SystemPrompt + RenderCompactionBlock(compactionSummary)
 
 		content, toolCalls, usage, err := callLLM(ctx, opts, history, effectiveSysPrompt, i+1, s)
 		if err != nil {

@@ -104,8 +104,14 @@ func (s *Session) HistoryMessages() []llm.Message {
 	return s.Messages
 }
 
+// PriorSummary returns the summary stored by the most recent compaction, or "" when this
+// session has never been compacted. Implements agent.CompactionHistory so RunLoop can feed
+// the previous summary back into the next compaction instead of discarding what it covered.
+func (s *Session) PriorSummary() string { return s.CompactionSummary }
+
 // AddCompaction advances the compaction boundary by summarizedCount messages and stores the
-// summary. Implements agent.CompactionHistory so RunLoop can persist the boundary across turns.
+// summary. The summary is expected to subsume any earlier one, so replacing is correct.
+// Implements agent.CompactionHistory so RunLoop can persist the boundary across turns.
 func (s *Session) AddCompaction(summary string, summarizedCount int) {
 	s.CompactionSummary = summary
 	s.CompactionIdx += summarizedCount
