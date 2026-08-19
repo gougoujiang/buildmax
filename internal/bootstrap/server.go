@@ -138,6 +138,12 @@ func RunServer(ctx context.Context, portOverride int) error {
 	reaper.Start()
 	defer reaper.Stop()
 
+	// Nil unless the operator set a retention window, so a deployment that
+	// never chose one keeps every event.
+	retainer := scheduler.NewAuditRetainer(store, store, sc.Audit.RetentionDays, 0)
+	retainer.Start()
+	defer retainer.Stop()
+
 	s := httpserver.New(serverConfig)
 	slog.Info("server starting",
 		"addr", serverConfig.Addr,
@@ -208,6 +214,9 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		UsageReader: st,
 		TierStore:   st,
 		DefaultTier: sc.DefaultQuotaTier,
+		// So a team admin can see that the team approached or hit its limits
+		// without anyone having to notice a 429 in a log.
+		Audit: st,
 	}
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),

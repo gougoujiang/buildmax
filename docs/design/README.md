@@ -34,7 +34,7 @@ reference, then delete the plan.
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
 | [Worker run token](worker-run-token.md) | P3 | Shipped on every worker route; the shared worker token is a deprecated fallback awaiting removal |
-| [Team governance](team-governance.md) | P4 | Roles, quota, and workflow lifecycle shipped; audit/event visibility open |
+| [Team governance](team-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 

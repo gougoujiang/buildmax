@@ -1,0 +1,140 @@
+import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+
+/** Per-alias accounting, so a run that called two approved models is legible. */
+export interface AliasSpend {
+  alias: string
+  calls: number
+  totalTokens: number
+  /** Calls whose provider reported no usage. They are not free, only unmeasured. */
+  unreported: number
+}
+
+export interface SpendSummary {
+  calls: number
+  succeeded: number
+  failed: number
+  /** Calls that were accepted and never reached a terminal status. */
+  inFlight: number
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  /**
+   * Calls whose usage the provider never reported. Kept separate from a zero
+   * count: summing an unreported call as zero turns an unknown into a claim.
+   */
+  unreported: number
+  retried: number
+  byAlias: AliasSpend[]
+}
+
+/** Tokens a call is known to have used, or null when nothing was reported. */
+function callTokens(call: ApiTaskRunLLMCall): number | null {
+  if (typeof call.total_tokens === "number") return call.total_tokens
+  const prompt = call.prompt_tokens
+  const completion = call.completion_tokens
+  if (typeof prompt === "number" || typeof completion === "number") {
+    return (prompt ?? 0) + (completion ?? 0)
+  }
+  return null
+}
+
+/**
+ * Aggregate a run's ledger rows.
+ *
+ * Aliases are ordered by spend and then by name, so the model a run leaned on
+ * is first and the order does not move between two runs that spent the same.
+ */
+export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
+  const summary: SpendSummary = {
+    calls: calls.length,
+    succeeded: 0,
+    failed: 0,
+    inFlight: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    unreported: 0,
+    retried: 0,
+    byAlias: [],
+  }
+
+  const aliases = new Map<string, AliasSpend>()
+  for (const call of calls) {
+    switch (call.status) {
+      case "SUCCEEDED":
+        summary.succeeded += 1
+        break
+      case "FAILED":
+      case "CANCELED":
+        summary.failed += 1
+        break
+      default:
+        // ACCEPTED and anything a newer server adds. A call with no terminal
+        // status is not a successful one, and lumping it in with either side
+        // would misreport the run.
+        summary.inFlight += 1
+    }
+    // Attempts counts tries, so the second one onward is a retry. A ledger
+    // written before the field existed reports 0, which is not one attempt.
+    if (typeof call.attempts === "number" && call.attempts > 1) {
+      summary.retried += call.attempts - 1
+    }
+
+    summary.promptTokens += call.prompt_tokens ?? 0
+    summary.completionTokens += call.completion_tokens ?? 0
+    const tokens = callTokens(call)
+    if (tokens === null) {
+      summary.unreported += 1
+    } else {
+      summary.totalTokens += tokens
+    }
+
+    const key = call.alias || "—"
+    const entry = aliases.get(key) ?? { alias: key, calls: 0, totalTokens: 0, unreported: 0 }
+    entry.calls += 1
+    if (tokens === null) entry.unreported += 1
+    else entry.totalTokens += tokens
+    aliases.set(key, entry)
+  }
+
+  summary.byAlias = [...aliases.values()].sort(
+    (a, b) => b.totalTokens - a.totalTokens || a.alias.localeCompare(b.alias)
+  )
+  return summary
+}
+
+/**
+ * Why a run shows no managed model calls.
+ *
+ * An empty list has causes that are not interchangeable to anyone reading a
+ * run: the deployment does not account managed calls at all, the run reached
+ * models directly so the server never saw them, or the run genuinely called no
+ * model. One empty state for all of them would tell a reader that nothing was
+ * spent, which is only true in the last case.
+ *
+ * A read that failed passes the server's own message through rather than
+ * substituting a generic one — "managed model calls not configured" and a
+ * missing run are different facts, and the server already distinguishes them.
+ */
+export function describeSpend(options: {
+  calls: ApiTaskRunLLMCall[]
+  /** The server's message when the ledger could not be read. */
+  error: string | null
+  trace: ApiTaskRunTrace | null
+}): string | null {
+  if (options.error) return options.error
+  if (options.calls.length > 0) return null
+  const traced = options.trace?.llm_calls ?? 0
+  if (traced > 0) {
+    return `This run called a model ${traced} time${traced === 1 ? "" : "s"} without going through the managed gateway, so the server accounted none of it. That is what direct mode does.`
+  }
+  return "This run called no model through the managed gateway."
+}
+
+/** Seconds a call took, at the ledger's one-second resolution. */
+export function callElapsed(call: ApiTaskRunLLMCall): string {
+  if (!call.completed_at) return "—"
+  const seconds = call.completed_at - call.accepted_at
+  if (seconds <= 0) return "<1 s"
+  return `${seconds} s`
+}

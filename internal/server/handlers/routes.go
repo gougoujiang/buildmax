@@ -22,6 +22,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Usage
 	mux.HandleFunc("GET /api/usage", h.usageHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/audit-events", h.listAuditEventsHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/audit-events/export", h.exportAuditEventsHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)
 
 	// Teams and members
@@ -116,6 +117,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/system", h.adminSystemHandler)
 	mux.HandleFunc("GET /api/admin/config", h.adminConfigHandler)
 	mux.HandleFunc("GET /api/admin/audit-events", h.listAdminAuditEventsHandler)
+	mux.HandleFunc("GET /api/admin/audit-events/export", h.exportAdminAuditEventsHandler)
 	mux.HandleFunc("GET /api/admin/teams", h.listAdminTeamsHandler)
 	mux.HandleFunc("GET /api/admin/teams/{team_id}", h.getAdminTeamHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)

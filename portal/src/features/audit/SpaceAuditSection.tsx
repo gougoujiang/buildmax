@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { getAuditEvents } from "./api"
+import { exportAuditEvents, getAuditEvents } from "./api"
 import { actorLabel, describeEvent, formatEventTime } from "./describe"
 
 const PAGE_SIZE = 50
@@ -45,6 +45,7 @@ export function SpaceAuditSection({
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const load = useCallback(
     (offset: number) => {
@@ -67,6 +68,18 @@ export function SpaceAuditSection({
     load(0)
   }, [currentUserIsOwner, load])
 
+  const exportTrail = useCallback(
+    (format: "csv" | "jsonl") => {
+      if (!teamId || !token || exporting) return
+      setExporting(true)
+      setError(null)
+      exportAuditEvents(teamId, token, format)
+        .catch((err) => setError(getErrorMessage(err, "Failed to export the audit trail")))
+        .finally(() => setExporting(false))
+    },
+    [teamId, token, exporting]
+  )
+
   if (!currentUserIsOwner) {
     return (
       <section className="settings-section">
@@ -86,6 +99,31 @@ export function SpaceAuditSection({
         Sign-ins, membership changes, model changes, and refused requests. It records that an
         action happened and who performed it — never prompts, generated content, or credentials.
       </p>
+
+      {/* Exporting is recorded in the trail it exports. Reading the whole
+          record is an action on it, and an export that left no trace would be
+          the one way to consult the trail without appearing in it. */}
+      <div className="audit-export">
+        <button
+          type="button"
+          className="page-activity__action-btn"
+          onClick={() => exportTrail("csv")}
+          disabled={exporting}
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
+        <button
+          type="button"
+          className="page-activity__action-btn"
+          onClick={() => exportTrail("jsonl")}
+          disabled={exporting}
+        >
+          Export JSONL
+        </button>
+        <span className="settings-section__hint">
+          The whole trail, not the page below. Exports are themselves recorded.
+        </span>
+      </div>
 
       {error ? (
         <p className="settings-section__error" role="alert">

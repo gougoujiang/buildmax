@@ -37,21 +37,25 @@ Portal owns the cloud/team lane:
   conversation streaming.
 - The HTTP layer is `portal/src/lib/api/` (`client`, `mappers`, `types`, plus
   `sse` and `ws` for streaming transports).
-- `portal/src/features/runs/` reads a task run's trace summary, and
-  `portal/src/features/audit/` reads the space audit trail. Both keep their
-  display decisions in a pure module — `summary.ts` and `describe.ts` — rather
+- `portal/src/features/runs/` reads a task run's trace summary and the managed
+  model calls the deployment served for it, and `portal/src/features/audit/`
+  reads the space audit trail. Both keep their
+  display decisions in a pure module — `summary.ts`, `spend.ts`, and
+  `describe.ts` — rather
   than inside the component, because Portal has no DOM test environment and the
   judgements worth pinning are exactly the ones that would otherwise go
   untested: an unsandboxed run must say so, an unrecorded boundary is not the
-  same as an unconfined one, and an audit action this Portal does not recognise
-  is shown verbatim rather than hidden.
+  same as an unconfined one, an empty model-call ledger is not the same as a
+  run that spent nothing, and an audit action this Portal does not recognise is
+  shown verbatim rather than hidden.
 
 ## Testing
 
 Unit tests are Vitest over pure modules; `vite.config.ts` excludes `e2e/` from
 them. Portal has no DOM test environment, so display decisions live in pure
-modules — `features/runs/summary.ts`, `features/audit/describe.ts` — where they
-can be asserted without one.
+modules — `features/runs/summary.ts`, `features/runs/spend.ts`,
+`features/audit/describe.ts`, `features/usage/pressure.ts` — where they can be
+asserted without one.
 
 `portal/e2e/` holds Playwright specs, run by `./make e2e` against a deployment
 that is already running. They cover only what a browser can show: that the

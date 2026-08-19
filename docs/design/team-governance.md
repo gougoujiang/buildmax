@@ -4,8 +4,9 @@
 
 - roadmap_priority: `P4`
 - status: `partially_implemented` — roles, quota, workflow lifecycle, the
-  authorization matrix, and the first audit-trail slice are shipped; retention,
-  export, and correlation remain open
+  authorization matrix, the audit trail, its retention window, its export, and
+  quota alerting are shipped; the §4.4 second slice of actions and the
+  correlation identifiers of open question 7 remain open
 - follows: [enterprise-deployment.md](./enterprise-deployment.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
@@ -221,7 +222,77 @@ including who was refused, which is administrative rather than collaborative
 information — a member does not need to see that a colleague was denied
 something. This answers what was open question 1.
 
-Filtering, export, and compliance retention are deliberately still absent.
+### 5.6 Retention — SHIPPED
+
+`audit.retention_days` in `server.yaml` expires events older than the window.
+It defaults to **0**, which keeps everything, because a deployment that never
+chose a policy has not decided to discard evidence.
+
+The sweep is the only thing in BuildMax that removes an audit event, and the
+narrow `AuditPruneStore` interface exists so that it stays that way: every
+reader and writer of the trail holds `AuditStore`, and none of them can reach a
+delete. Nothing can remove a *particular* record — the sweep takes a cutoff and
+a batch size, and that is the whole of its vocabulary.
+
+Every sweep that removed anything writes an `audit.pruned` event naming the
+range and the count. That record is the reason deleting is defensible at all: a
+trail that begins partway through has to say whether policy shortened it or
+somebody truncated it, and those look identical without it. The event is
+younger than the cutoff that produced it, so it survives its own sweep, and by
+the time the window passes it a later sweep says the same about a later stretch.
+
+This answers open question 6: retention is configuration, defaulting to keep,
+applied by the deployment rather than by a team.
+
+### 5.7 Export — SHIPPED
+
+`GET /api/teams/{team_id}/audit-events/export` gives a team owner their trail,
+and `GET /api/admin/audit-events/export` gives a System Administrator the
+deployment's under the same filters the search takes. Both stream CSV or JSONL.
+
+Three decisions are worth keeping:
+
+- **It is a pull, not a delivery.** Open question 8 asked whether export needs
+  at-least-once delivery and how a consumer would detect gaps. A file someone
+  downloads has neither problem, and shipping the pull first means the event
+  shape does not have to be final before anyone can get their data out. A push
+  integration would still have to answer question 8; this does not.
+- **The team route takes no filters.** The reason to export is to hold the
+  record elsewhere, and a filter applied on the way out is a decision the file
+  cannot show it made. The admin route does take them, because there they are
+  an operator narrowing a read they already hold.
+- **An export is recorded**, as `audit.exported`, with the count that actually
+  left and whether it stopped at the cap. Reading the whole record is an action
+  on it; an export that left no trace would be the one way to consult the trail
+  without appearing in it. An admin export narrowed to one team is recorded in
+  that team's trail too, so its owner can see that the deployment read it.
+
+Paging uses a keyset cursor rather than an offset. An export reads across many
+round trips while rows are appended at one end and, under retention, removed at
+the other, and either shifts every offset behind it — in an evidence export a
+skipped page is the worst kind of bug, because the file still looks complete.
+
+### 5.8 Quota Alerting — SHIPPED
+
+`QuotaService.Check` records two actions: `quota.threshold_reached` when a team
+passes 80% of a limit, and `quota.exceeded` when work is refused. They are
+separate because they call for different responses — one is a heads-up, the
+other is work not happening.
+
+Both are written at most once per limit per period, deduplicated against the
+trail itself, so a team that keeps submitting does not turn its own record into
+a log of retries. The actor is the system, not whoever submitted the work that
+tipped the total over: a quota belongs to the team, and naming the last member
+to submit would read as blame for a shared budget.
+
+The admission path is where this has to live. Usage is a rolling window, so
+there is no period boundary at which a sweep could notice a team sitting at
+80%. Neither the read nor the write may change the admission decision — a
+deployment whose audit table is unreachable still runs work, and still enforces
+the limit.
+
+Portal states the same thing in space settings, computed from the usage figures
+it already has. That is the fast answer; the trail is the durable one.
 
 ## 6. Out Of Scope
 
@@ -230,7 +301,8 @@ Filtering, export, and compliance retention are deliberately still absent.
 - Approval workflows.
 - Per-agent or per-workflow permission lists.
 - Immutable compliance archive.
-- Audit export.
+- Pushed audit delivery to an external sink. The pull export in §5.7 shipped;
+  a push would have to answer open question 8, which it does not.
 - Billing.
 - Organization hierarchy.
 
@@ -407,21 +479,22 @@ proposal. Its recommended direction — an internal team ledger first, export
 later — is what shipped; these are the parts that were not settled by shipping
 it:
 
-6. What retention applies to audit events, and is it configuration or an
-   operational responsibility? Nothing expires today, and the deployment-wide
-   search added by [system-administration.md](./system-administration.md) M4
-   makes the answer more pressing rather than less: the table now has a reader
-   who will page through all of it. `docs/start/support.md`
-   says retention of artifacts, run state, and traces is the operator's to
-   configure, but the audit table has no such answer and no operator control.
+6. ~~What retention applies to audit events, and is it configuration or an
+   operational responsibility?~~ **Decided: configuration, defaulting to keep
+   everything** — `audit.retention_days`, applied by the deployment rather than
+   by a team, with each sweep recording what it removed. See §5.6.
 7. What correlation identifiers may connect a task, worker, model call, and
-   artifact? The trail, the durable run trace, and the `llm_call` ledger are
-   three separate records with no shared key, so an investigation that starts
-   at an audit event cannot mechanically reach the run that caused it.
-8. Does export need at-least-once delivery, and how would a consumer detect
-   gaps? Deliberately deferred until the event shape stops changing, which the
-   §4.4 second slice will do. A best-effort write (question 2) also means a gap
-   is not always distinguishable from nothing having happened.
+   artifact? Partly answered: a run's trace and the `llm_call` rows it produced
+   are now joined in Portal's run details, so what a run did and what the
+   deployment served for it are read side by side. The audit trail is still not
+   joined to either — no audit action names a run today — so an investigation
+   that starts at an audit event still cannot mechanically reach the run that
+   caused it.
+8. ~~Does export need at-least-once delivery, and how would a consumer detect
+   gaps?~~ **Sidestepped, not answered.** §5.7 ships a pull export, which has
+   neither problem. The question stands for any future push integration, and a
+   best-effort write (question 2) still means a gap is not always
+   distinguishable from nothing having happened.
 9. Who may read run traces, artifacts, and model usage? The audit trail's
    answer is settled; these three were never decided together, and they carry
    more than the trail does — a trace holds tool output.

@@ -63,7 +63,7 @@ See docs/design/system-administration.md.
 type adminStore interface {
 	model.UserStore
 	model.SystemGrantStore
-	model.AuditStore
+	model.AuditWriter
 }
 
 // RunAdminCommand executes `buildmax-server admin ...`. args excludes the
@@ -236,7 +236,7 @@ func formatGrantTime(unix int64) string {
 // catalog commands say so: this runs from a shell on the machine that holds the
 // database credentials, and inventing a user id would put a name in the record
 // that nothing verified.
-func recordSystemGrantAudit(ctx context.Context, store model.AuditStore, action, userID string) {
+func recordSystemGrantAudit(ctx context.Context, store model.AuditWriter, action, userID string) {
 	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
 		ActorType:  model.AuditActorSystem,
 		ActorID:    model.AuditActorOperator,

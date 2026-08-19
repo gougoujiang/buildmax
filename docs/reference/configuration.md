@@ -287,6 +287,9 @@ worker:
     config_map: buildmax-config      # ConfigMap holding server.yaml for worker pods
     home_dir: /buildmax              # BUILDMAX_HOME inside a worker pod
 
+# audit:                             # governance trail retention
+#   retention_days: 365              # default 0 — keep every event forever
+
 storage:
   persist_backend: local_fs          # or minio — team uploads
   artifact_backend: local_fs         # or minio — run outputs
@@ -327,6 +330,20 @@ a server to an untrusted network.
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
 storage directly rather than proxying through the server.
+
+`audit.retention_days` expires events in the governance trail. It defaults to
+**0**, which keeps everything: a deployment that has not chosen a retention
+policy has not decided to discard evidence. Setting it starts an hourly sweep
+that removes events older than the window, and each sweep that removed anything
+writes an `audit.pruned` event naming the range and the count — so a trail that
+begins partway through says that policy shortened it rather than leaving a
+reader to wonder. Nothing else in BuildMax deletes an audit event, and there is
+no way to delete a particular one.
+
+A team owner can download their space's trail from space settings, and a System
+Administrator can download the deployment-wide one, filtered, from `#/admin`.
+Both come as CSV or JSONL, and both are recorded in the trail as
+`audit.exported` — reading the whole record is itself an action on it.
 
 ### Pointing At Dependencies You Already Run
 

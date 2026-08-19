@@ -127,6 +127,8 @@ var teamRoutes = []authzCase{
 	// Owner only: the trail names who did what, including who was refused,
 	// which is administrative rather than collaborative information.
 	{"GET", "/api/teams/{team_id}/audit-events", model.TeamRoleOwner, false},
+	// The export is the same read in a file, so it is the same reader.
+	{"GET", "/api/teams/{team_id}/audit-events/export", model.TeamRoleOwner, false},
 	{"GET", "/api/teams/{team_id}/llm/models", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/llm/completions", model.TeamRoleMember, false},
 

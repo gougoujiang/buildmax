@@ -160,6 +160,17 @@ worker:
       memory_request: ""
       memory_limit: ""
 
+# Governance trail retention.
+#
+# 0 keeps every event forever, which is the default: a deployment that has not
+# chosen a retention policy has not decided to discard evidence. Setting a
+# window starts an hourly sweep, and each sweep that removed anything records an
+# audit.pruned event naming the range and the count — so a trail that begins
+# partway through says that policy shortened it. Nothing else deletes an audit
+# event, and no interface can delete a particular one.
+audit:
+  retention_days: 0
+
 storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio

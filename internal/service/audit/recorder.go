@@ -17,11 +17,11 @@ import (
 // Recorder writes audit events. A nil Recorder, or one with no store, discards
 // them, so a deployment without a database still runs.
 type Recorder struct {
-	Store model.AuditStore
+	Store model.AuditWriter
 }
 
 // NewRecorder returns a Recorder writing to store.
-func NewRecorder(store model.AuditStore) *Recorder {
+func NewRecorder(store model.AuditWriter) *Recorder {
 	return &Recorder{Store: store}
 }
 

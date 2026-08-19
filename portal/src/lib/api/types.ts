@@ -357,6 +357,45 @@ export interface ApiTaskRunTrace {
 }
 
 /**
+ * One managed model call a run made, as the governance ledger recorded it.
+ *
+ * This is a different record from the trace, and the difference matters when
+ * reading a run: the trace is what the agent did, written by the run itself,
+ * while this is what the deployment was asked to serve and account for. Only
+ * calls that went through the managed gateway appear here — a deployment
+ * running in direct mode records none, because the worker called the provider
+ * itself and the server never saw it.
+ *
+ * It carries no prompts, tool payloads, or generated content, and omits the
+ * catalog entry an alias resolved to: that is the operator's routing, not the
+ * team's.
+ */
+export interface ApiTaskRunLLMCall {
+  llm_call_id: string
+  user_id?: string
+  task_id?: string
+  surface?: string
+  session_id?: string
+  /** The operator-approved alias the run was allowed to call. */
+  alias?: string
+  streaming: boolean
+  accepted_at: number
+  first_delta_at?: number
+  completed_at?: number
+  status: string
+  error_class?: string
+  attempts?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  /**
+   * Separates a provider that reported nothing from one that reported zero.
+   * Without it an absent count reads as a free call.
+   */
+  usage_source?: string
+}
+
+/**
  * One recorded action. The server records that something happened and who did
  * it — never prompts, generated content, tool output, or credentials.
  */
