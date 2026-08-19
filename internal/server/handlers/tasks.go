@@ -62,12 +62,17 @@ func (h *Handler) taskService() *task.TaskService {
 	if h.cfg.QuotaService != nil {
 		quotaChecker = h.cfg.QuotaService
 	}
+	var workflowSteps task.WorkflowStepLookup
+	if h.cfg.WorkflowStore != nil {
+		workflowSteps = h.cfg.WorkflowStore
+	}
 	return &task.TaskService{
 		Agents:         h.cfg.AgentStore,
 		Tasks:          h.cfg.TaskStore,
 		TaskRuns:       h.cfg.TaskRunStore,
 		QuotaChecker:   quotaChecker,
 		TitleGenerator: h.cfg.TitleGenerator,
+		WorkflowSteps:  workflowSteps,
 	}
 }
 
@@ -272,6 +277,62 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.createTaskRunViaConversation(w, r, userID, task.TaskID, req.Input)
+}
+
+// retryTaskResponse names the new run and the one it repeats, so a caller that
+// reloads a task can tell which of its runs is the retry.
+type retryTaskResponse struct {
+	TaskID           string `json:"task_id"`
+	TaskRunID        string `json:"task_run_id"`
+	RetryOfTaskRunID string `json:"retry_of_task_run_id"`
+	Status           string `json:"status"`
+}
+
+// retryTaskHandler runs the task's most recent run again, with the same input.
+//
+// Retry exists because the common reason a run has to be repeated — a worker
+// that died, an expired credential, a model that timed out — has nothing to do
+// with what the run was asked to do, and making someone retype the instructions
+// to recover from it invites them to retype them differently.
+func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
+	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	if !ok {
+		return
+	}
+	taskID, ok := pathValueRequired(w, r, "task_id")
+	if !ok {
+		return
+	}
+	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	if !ok {
+		return
+	}
+	result, err := h.taskService().RetryRun(r.Context(), task.RetryRunCmd{UserID: userID, TaskID: target.TaskID})
+	if err != nil {
+		if h.writeTaskServiceError(w, r, err, nil) {
+			return
+		}
+		switch {
+		case errors.Is(err, task.ErrNoRunToRetry):
+			httputil.WriteJSONError(w, http.StatusConflict, "this task has no finished run to retry")
+		case errors.Is(err, task.ErrRetryOfWorkflowStep):
+			httputil.WriteJSONError(w, http.StatusConflict, "this run belongs to a workflow step and cannot be retried on its own")
+		case errors.Is(err, model.ErrRunInProgress):
+			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
+		case errors.Is(err, task.ErrTaskNotFound):
+			httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
+		default:
+			httputil.WriteInternalError(w, err, "handler error", "handler", "retry_task", "task_id", taskID)
+		}
+		return
+	}
+	slog.Info("task run retried", "task_id", target.TaskID, "task_run_id", result.Run.TaskRunID, "retry_of_task_run_id", result.RetriedRun.TaskRunID, "user_id", userID)
+	httputil.WriteJSON(w, http.StatusCreated, retryTaskResponse{
+		TaskID:           target.TaskID,
+		TaskRunID:        result.Run.TaskRunID,
+		RetryOfTaskRunID: result.RetriedRun.TaskRunID,
+		Status:           result.Run.Status,
+	})
 }
 
 // cancelTaskResponse reports what the cancel did.

@@ -3,7 +3,7 @@ import type { Agent, Issue, IssueFlow, IssueFlowRun, IssueOutput, Workflow } fro
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiTeamMember } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { taskIsStoppable } from "../../lib/taskStatus"
+import { taskIsRetryable, taskIsStoppable } from "../../lib/taskStatus"
 import {
   apiAgentToAgent,
   apiIssueOutputToIssueOutput,
@@ -14,7 +14,7 @@ import {
   apiWorkflowToWorkflow,
 } from "../../lib/api/mappers"
 import { getAgents } from "../../features/agents"
-import { cancelTask } from "../../features/tasks"
+import { cancelTask, retryTask } from "../../features/tasks"
 import {
   createIssue,
   getIssueFlow,
@@ -84,6 +84,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const [runningWorkflow, setRunningWorkflow] = useState(false)
   const [runningAgent, setRunningAgent] = useState(false)
   const [cancelingTaskId, setCancelingTaskId] = useState<string | null>(null)
+  const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viewerOutput, setViewerOutput] = useState<IssueOutput | null>(null)
   const [subIssueTitle, setSubIssueTitle] = useState("")
@@ -292,6 +293,16 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setCancelingTaskId(null))
+  }
+
+  function handleRetryTask(taskId: string) {
+    if (!token || !currentTeamId || retryingTaskId) return
+    setRetryingTaskId(taskId)
+    setError(null)
+    retryTask(currentTeamId, taskId, token)
+      .then(() => load())
+      .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
+      .finally(() => setRetryingTaskId(null))
   }
 
   function handleRunAgent() {
@@ -608,6 +619,16 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                       {cancelingTaskId === latestAgentTask.id ? "Stopping..." : "Stop Run"}
                     </button>
                   ) : null}
+                  {taskIsRetryable(latestAgentTask.status) ? (
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      disabled={retryingTaskId === latestAgentTask.id}
+                      onClick={() => handleRetryTask(latestAgentTask.id)}
+                    >
+                      {retryingTaskId === latestAgentTask.id ? "Retrying..." : "Retry Run"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -725,6 +746,16 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                         onClick={() => handleCancelTask(task.id)}
                       >
                         {cancelingTaskId === task.id ? "Stopping..." : "Stop Run"}
+                      </button>
+                    ) : null}
+                    {taskIsRetryable(task.status) ? (
+                      <button
+                        type="button"
+                        className="page-activity__action-btn"
+                        disabled={retryingTaskId === task.id}
+                        onClick={() => handleRetryTask(task.id)}
+                      >
+                        {retryingTaskId === task.id ? "Retrying..." : "Retry Run"}
                       </button>
                     ) : null}
                     <pre className="workflow-page__step-output">{task.summary}</pre>

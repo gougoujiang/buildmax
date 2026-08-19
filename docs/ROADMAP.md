@@ -241,35 +241,53 @@ Core stability, and the Portal outcome surface — are done. What remains is
 ordered so that each step can be verified when it lands, rather than verified
 at the end:
 
-0. Restore continuous verification: recover the GitHub Actions quota so `ci`,
-   `deployment-smoke`, Compose, and kind gate merges again. Not a Beta gate of
-   its own — a precondition, because every claim below is unverified without
-   it.
-1. Make the boundary observable before changing it: extend the run trace with
-   the resolved execution boundary, and give Portal a run view that joins trace,
-   artifacts, worker logs, and failure cause. A boundary nobody can see cannot
-   be trusted or audited, and P0.5's own acceptance requires the view. The event
-   must report an unsandboxed run as unsandboxed.
-2. Shrink what a task run can reach. This is the Beta boundary, and it comes
-   before any sandbox work because it is what makes deferring the sandbox
-   defensible. Today `scheduler.LocalRunner` passes the server's entire
-   environment to the worker, and `k8s.WorkerEnvFromEnviron` forwards every
-   `BUILDMAX_*` variable into the Job pod — including the JWT secret, the
-   database password, and the object-storage keys. A run should receive only
-   what that run needs, the Job pod needs a security context, resource limits,
-   no automounted service-account token, and bounded egress, and `LocalRunner`
-   must be documented as a development path rather than a deployment topology.
-3. Enterprise deployment loop: a production Kubernetes reference distinct from
-   the kind smoke overlay, dependency-aware readiness in place of the fixed-200
-   `/healthz`, and versioned schema migration with a rollback path. Migration is
-   the hardest item here, not the
-   smallest: `AutoMigrate` has no down path today, so the rollback promise is
-   currently unbacked.
-4. Minimum team governance: role and team authorization tests, then the audit
-   event model. Quota display and alerting follow; for a trusted team quota is
-   cost control, not a security boundary. Deployment administration comes after
-   the team boundary is tested, not before: a system grant is only trustworthy
-   once the boundary it must not cross is covered.
+0. Restore continuous verification — **done**. `ci`, `deployment-smoke`,
+   `codeql`, and `portal-image` gate merges again. It was never a Beta gate of
+   its own, only the precondition that makes every claim below checkable.
+1. Make the boundary observable before changing it — **done**. Every run writes
+   a `sandbox_boundary` record naming the resolved mode, backend, and source
+   chain, and a run nothing confined is recorded as `sandboxed: false` rather
+   than as unknown. Portal reads it beside the run's trace, artifacts, spend,
+   and failure cause. Still open from this step, and tracked in
+   [design/durable-run-trace.md](design/durable-run-trace.md): per-command
+   boundary decisions and violations, hook and file-change events, subagent
+   `parent_run_id` linkage, and retention of the traces directory.
+2. Shrink what a task run can reach — **done for credentials, open for egress**.
+   `config.WorkerNeedsEnv` now decides what a worker is given: `k8s.WorkerEnvFromEnviron`
+   builds the Job pod's environment from the `BUILDMAX_*` variables that pass it
+   and nothing else, so the JWT secret, the database password, and the
+   object-storage keys stay server-side. Each run authenticates with its own
+   run-scoped credential; the shared worker token survives only as a deprecated
+   fallback awaiting removal. The Job pod runs as non-root with a
+   dropped-capability security context, resource limits, and no automounted
+   service-account token.
+
+   Two things are still open. The network: a task run's reachable egress is
+   unbounded, and the Beta gate says so rather than implying a boundary that
+   does not exist. And `LocalRunner`, which is weaker than the pod path by
+   construction — `config.FilterWorkerEnv` removes the `BUILDMAX_*` variables a
+   worker must not see, but every other variable in the server's environment is
+   inherited by the child process. That is a development topology, and the
+   deployment documentation should say so.
+3. Enterprise deployment loop — **mostly done**. `deployment/production/`
+   carries a Kubernetes reference distinct from the kind smoke overlay, `/readyz`
+   reports dependency health in place of the fixed-200 `/healthz`, and
+   `schema_migration` records what a database has applied. Schema change is
+   deliberately forward-only: every migration is additive and a rollback is a
+   rollback of the binary, which the schema it left behind must keep serving —
+   so there is no down path to write, but the compatibility rule has to hold in
+   review. Still open: the readiness probe reads the object store without ever
+   writing to it, so a bucket that refuses writes reports ready and then fails
+   every run, and readiness does not check worker launch mode, worker token, or
+   the LLM configuration the conversation paths need.
+4. Minimum team governance — **mostly done**. The role and team authorization
+   matrix is covered end to end by tests, the audit trail records sign-in,
+   configuration, model, and credential actions, and deployment administration
+   followed rather than preceded it, as the ordering required. Still open, and
+   tracked in [design/team-governance.md](design/team-governance.md): audit
+   retention, export, and correlation, plus quota alerting — for a trusted team
+   quota is cost control, not a security boundary, so it stays after the
+   boundary work rather than in front of it.
 5. Close the trust harness, as defense in depth rather than the only boundary:
    ship `bwrap` in the runtime image, confirm the pod permits unprivileged user
    namespaces, then pass `SandboxSurfaceWorker` from the task-run runtime, add

@@ -105,6 +105,8 @@ var teamRoutes = []authzCase{
 	// resource. A member who may spend the team's budget may also stop
 	// spending it, including on a run somebody else started.
 	{"POST", "/api/teams/{team_id}/tasks/{task_id}/cancel", model.TeamRoleMember, false},
+	// Retry starts a run, so it sits at the same level as starting one.
+	{"POST", "/api/teams/{team_id}/tasks/{task_id}/retry", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/artifacts", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/conversation", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/stream", model.TeamRoleMember, false},

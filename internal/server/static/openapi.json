@@ -615,6 +615,35 @@
         }
       }
     },
+    "/api/teams/{team_id}/tasks/{task_id}/retry": {
+      "post": {
+        "summary": "Run the task's last run again",
+        "description": "Creates a new run with the same input as the task's most recent finished run, recording which run it repeats. Takes no body. A task whose run is still in flight, one that has never finished a run, and one belonging to a workflow step all answer 409.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "201": {
+            "description": "Retry created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task_id": { "type": "string" },
+                    "task_run_id": { "type": "string" },
+                    "retry_of_task_run_id": { "type": "string" },
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "409": { "description": "A run is in progress, there is no finished run to retry, or the task belongs to a workflow step" }
+        }
+      }
+    },
     "/api/teams/{team_id}/tasks/{task_id}/conversation": {
       "get": {
         "summary": "Get task execution conversation",

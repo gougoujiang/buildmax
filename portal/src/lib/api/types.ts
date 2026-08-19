@@ -280,6 +280,19 @@ export interface CancelTaskResponse {
   cancel_requested: boolean
 }
 
+/**
+ * The run a retry created, and the one it repeats.
+ *
+ * `task_run_id` is the new run; `retry_of_task_run_id` is the finished run whose
+ * input it carries.
+ */
+export interface RetryTaskResponse {
+  task_id: string
+  task_run_id: string
+  retry_of_task_run_id: string
+  status: string
+}
+
 /** Run output (artifact) as returned by task/run artifact endpoints */
 export interface ApiArtifact {
   task_run_id: string

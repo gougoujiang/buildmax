@@ -33,7 +33,8 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Workflows: `/api/teams/{team_id}/workflows...`
 - Files: `/api/teams/{team_id}/upload`, `/files...`
 - Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`,
-  including `POST /tasks/{task_id}/cancel` — see "Cancelling a run" below
+  including `POST /tasks/{task_id}/cancel` — see "Cancelling a run" below — and
+  `POST /tasks/{task_id}/retry` — see "Retrying a run"
 - Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
 - Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
 - Managed model calls: `/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` —
@@ -69,6 +70,28 @@ confirms, and finishes such runs as `CANCELED` after a grace period.
 A canceled run keeps its output and artifacts. It stopped early, but what it
 produced is real work, and discarding it would make cancelling more expensive
 than waiting.
+
+## Retrying A Run
+
+`POST /api/teams/{team_id}/tasks/{task_id}/retry` runs the task's most recent
+run again. It takes no body: the new run carries the previous run's input, and
+records it in `retry_of_task_run_id` with `trigger_source` `task_retry`.
+
+The input comes from the run rather than from the task because a task's later
+runs can carry follow-up instructions, and repeating one means running that
+again.
+
+Three states answer `409`, each with its own reason:
+
+- a run is already in flight — one task holds at most one active run, and the
+  answer to a run taking too long is to cancel it first
+- the task has never finished a run — there is nothing to repeat
+- the task belongs to a workflow step — the workflow advances or fails its run
+  from that step's outcome, so a retry started outside it would report a second
+  outcome for a step that is already settled
+
+`retry` creates a run the same way `POST /tasks/{task_id}/runs` does, so team
+quota applies to it identically.
 
 ## Notes
 

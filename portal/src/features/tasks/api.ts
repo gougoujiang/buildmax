@@ -13,6 +13,7 @@ import type {
   ApiSession,
   CancelTaskResponse,
   CreateTaskRunResponse,
+  RetryTaskResponse,
 } from "../../lib/api/types"
 import { createConversation } from "../conversations"
 
@@ -136,6 +137,30 @@ export async function cancelTask(
   }
   await throwIfNotOk(res)
   return res.json() as Promise<CancelTaskResponse>
+}
+
+/**
+ * Run the task's last run again, with the input that run carried.
+ *
+ * 409 covers three different states — a run already in flight, a task that has
+ * never finished one, and a workflow step, which the workflow owns — so the
+ * server's own reason is what the caller shows.
+ */
+export async function retryTask(
+  teamId: string,
+  taskId: string,
+  token: string
+): Promise<RetryTaskResponse> {
+  const res = await apiFetch(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/retry`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
+  )
+  if (res.status === 409) {
+    const msg = await parseErrorResponse(res, "This task cannot be retried right now")
+    throw new Error(msg)
+  }
+  await throwIfNotOk(res)
+  return res.json() as Promise<RetryTaskResponse>
 }
 
 export function subscribeTaskStream(

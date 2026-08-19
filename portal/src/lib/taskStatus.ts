@@ -11,6 +11,15 @@ export function taskIsStoppable(status: Task["status"]): boolean {
   return status === "pending" || status === "running"
 }
 
+/**
+ * A task whose run is over, so running it again is a thing that can be asked
+ * for. Succeeded runs are included: repeating work that worked is normal, and
+ * the server is what refuses the cases it has to.
+ */
+export function taskIsRetryable(status: Task["status"]): boolean {
+  return !taskIsStoppable(status)
+}
+
 export function taskStatusIcon(status: Task["status"]): string {
   switch (status) {
     case "success":

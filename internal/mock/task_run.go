@@ -17,16 +17,25 @@ type MockTaskRunStore struct {
 	Artifacts map[string][]string
 }
 
-func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*model.TaskRun, error) {
+func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in model.CreateTaskRunInput) (*model.TaskRun, error) {
+	// One task holds at most one active run. The real store enforces this, and
+	// callers handle the refusal, so a double that quietly allowed a second one
+	// would let a test pass on behavior the deployment does not have.
+	for i := range m.Runs {
+		if m.Runs[i].TaskID == in.TaskID && !model.RunStatusTerminal(m.Runs[i].Status) {
+			return nil, model.ErrRunInProgress
+		}
+	}
 	run := model.TaskRun{
-		TaskRunID:     fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
-		TaskID:        taskID,
-		Input:         input,
-		CreatedBy:     createdBy,
-		CreatedByType: createdByType,
-		TriggerSource: triggerSource,
-		Status:        string(model.RunStatusPending),
-		CreatedAt:     time.Now().Unix(),
+		TaskRunID:        fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
+		TaskID:           in.TaskID,
+		Input:            in.Input,
+		CreatedBy:        in.CreatedBy,
+		CreatedByType:    in.CreatedByType,
+		TriggerSource:    in.TriggerSource,
+		Status:           string(model.RunStatusPending),
+		RetryOfTaskRunID: in.RetryOfTaskRunID,
+		CreatedAt:        time.Now().Unix(),
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil

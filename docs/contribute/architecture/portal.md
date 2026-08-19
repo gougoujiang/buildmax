@@ -19,6 +19,8 @@ Portal owns the cloud/team lane:
 - stopping a run in flight: Issue Detail offers Stop Run for a task that is still
   pending or running, and the button stays until the server's answer, because a
   started run only reaches `canceled` when its worker confirms
+- repeating a finished run: the same rows offer Retry Run once the run is over,
+  whatever it ended as, and show the server's own reason when it refuses
 - the space audit trail, for owners
 - agents
 - team files

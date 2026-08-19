@@ -55,7 +55,7 @@ func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 	}
 }
 
-func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _, _, _, _, _ string) (*model.TaskRun, error) {
+func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _ model.CreateTaskRunInput) (*model.TaskRun, error) {
 	return nil, nil
 }
 

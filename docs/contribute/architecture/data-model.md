@@ -649,10 +649,17 @@ One execution attempt. This is the row quota and token accounting read.
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
 | `cancel_requested_at` | `bigint` | yes | When someone asked this run to stop; `NULL` when nobody has |
 | `cancel_requested_by` | `varchar(64)` | yes | `user.user_id` of whoever asked |
+| `retry_of_task_run_id` | `varchar(64)` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `task_run_id`; index `task_id`; index `created_by`;
-index `cancel_requested_at`.
+index `cancel_requested_at`; index `retry_of_task_run_id`.
+
+`retry_of_task_run_id` points at the run a retry repeats, one link per row: a
+retry of a retry names the run it repeated, not the first of the chain. It is
+not a foreign key, and the run it names is never modified — a retry is a new
+attempt, not a rewrite of the record that explains why one was needed. The
+matching `trigger_source` is `task_retry`.
 
 `cancel_requested_at` is a request, not a status: a run a worker already holds
 stays `RUNNING` until that worker reports `CANCELED`, because nothing else can
