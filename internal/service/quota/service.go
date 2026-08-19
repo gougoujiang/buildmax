@@ -13,7 +13,13 @@ type QuotaService struct {
 	UsageReader model.UsageInWindowReader
 	TierStore   model.QuotaTierStore
 	DefaultTier string
-	clock       func() time.Time
+	// Audit records a team approaching or reaching its limits. Nil records
+	// nothing, so a deployment without a database still enforces quota — the
+	// enforcement is the point, and the record of it is what a team admin reads
+	// afterwards. It is the full store rather than a writer because the events
+	// are deduplicated against what is already there; see alert.go.
+	Audit model.AuditStore
+	clock func() time.Time
 }
 
 // UsageInfo is a snapshot of a team's usage and tier limits for display.
@@ -114,10 +120,29 @@ func (c *QuotaService) Check(ctx context.Context, teamID string, addRuns, addTok
 		return true, "" // aggregation error => allow to avoid blocking
 	}
 	if runCount+addRuns > tier.MaxRunsPerPeriod {
+		c.noteUsage(ctx, teamID, limitRuns, runCount, tier.MaxRunsPerPeriod, since, true)
 		return false, "quota exceeded: run limit"
 	}
 	if totalTokens+addTokens > tier.MaxTokensPerPeriod {
+		c.noteUsage(ctx, teamID, limitTokens, totalTokens, tier.MaxTokensPerPeriod, since, true)
 		return false, "quota exceeded: token limit"
 	}
+
+	// Warn on the way past the threshold, on an admission that was allowed.
+	// This is the only moment the crossing is visible: usage is a rolling
+	// window with no period boundary for a sweep to notice it at.
+	c.warnIfNear(ctx, teamID, limitRuns, runCount+addRuns, tier.MaxRunsPerPeriod, since)
+	c.warnIfNear(ctx, teamID, limitTokens, totalTokens+addTokens, tier.MaxTokensPerPeriod, since)
 	return true, ""
+}
+
+// warnIfNear records a threshold crossing, and does nothing below it.
+func (c *QuotaService) warnIfNear(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart int64) {
+	if c.Audit == nil || max <= 0 {
+		return
+	}
+	if float64(used) < quotaWarnThreshold*float64(max) {
+		return
+	}
+	c.noteUsage(ctx, teamID, limit, used, max, windowStart, false)
 }

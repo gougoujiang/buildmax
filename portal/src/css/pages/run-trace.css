@@ -167,3 +167,85 @@
   font-size: 0.8rem;
   color: var(--color-text-subtle);
 }
+
+/* Managed model calls: the ledger the server wrote, beside the trace the run
+   wrote. Styled like the tool list rather than as a table — it is a short list
+   of comparable rows, and a table would imply columns worth sorting. */
+.run-trace__spend-note {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.run-trace__aliases,
+.run-trace__calls {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.run-trace__calls {
+  margin-top: 0.5rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.run-trace__aliases li,
+.run-trace__call {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.run-trace__call-alias {
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+
+.run-trace__call-tokens {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-trace__call-duration {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--color-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Trails whatever ended the row rather than claiming the right edge itself:
+   attempts follow either a duration or a failure, and two elements competing
+   for `margin-left: auto` collapse the gap between them. */
+.run-trace__call-attempts {
+  flex: 0 0 auto;
+  color: var(--color-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-trace__call--failed .run-trace__call-alias {
+  color: var(--color-warning);
+}
+
+.run-trace__call-failed {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--color-warning);
+}
+
+/* An unreported usage count sits next to a number, so it must not read as part
+   of it. */
+.run-trace__unreported {
+  color: var(--color-text-subtle);
+  font-size: 0.8rem;
+}

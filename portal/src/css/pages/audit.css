@@ -75,3 +75,13 @@
     gap: 0.25rem;
   }
 }
+
+/* Export controls sit above the list, because they act on the whole trail
+   rather than on what is currently shown. */
+.audit-export {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}

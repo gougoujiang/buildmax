@@ -33,20 +33,7 @@ func (h *Handler) listAdminAuditEventsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	q := r.URL.Query()
-	filter := model.AuditFilter{
-		TeamID:  q.Get("team_id"),
-		ActorID: q.Get("actor_id"),
-		Action:  q.Get("action"),
-		Since:   parseUnixParam(q.Get("since")),
-		Until:   parseUnixParam(q.Get("until")),
-	}
-	// team_id=none asks for the events no team-scoped reader can ever see:
-	// logins, grants, account actions. An empty team_id already means "any
-	// team", so this needs a spelling of its own.
-	if q.Get("team_id") == "none" {
-		filter.TeamID = ""
-		filter.WithoutTeam = true
-	}
+	filter := adminAuditFilter(q)
 	limit, offset := parseLimitOffset(q, "limit", "offset", 50, 200)
 
 	events, total, err := h.cfg.AuditStore.SearchAuditEvents(r.Context(), filter, limit, offset)

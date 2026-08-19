@@ -44,6 +44,21 @@ type ServerConfig struct {
 	Webhook          ServerWebhookConfig `mapstructure:"webhook"`
 	Worker           ServerWorkerConfig  `mapstructure:"worker"`
 	Storage          ServerStorageConfig `mapstructure:"storage"`
+	Audit            ServerAuditConfig   `mapstructure:"audit"`
+}
+
+// ServerAuditConfig decides how long the governance trail is kept.
+type ServerAuditConfig struct {
+	// RetentionDays expires audit events older than the window. Zero, the
+	// default, keeps them forever.
+	//
+	// Keeping is the default because the trail is evidence, and a deployment
+	// that never chose a retention policy has not decided to discard anything.
+	// Setting this is a deliberate act with a cost, which is why the sweep
+	// records what it removed: a trail that begins partway through then says
+	// that policy shortened it, rather than leaving a reader to guess between
+	// policy and loss.
+	RetentionDays int `mapstructure:"retention_days"`
 }
 
 // ServerConvConfig holds Tier 1 conversation LLM settings.

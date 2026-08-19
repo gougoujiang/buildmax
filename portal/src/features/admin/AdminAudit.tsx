@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import type { ApiAuditEvent } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { actorLabel, describeEvent, formatEventTime } from "../audit/describe"
-import { searchAdminAuditEvents } from "./api"
+import { exportAdminAuditEvents, searchAdminAuditEvents } from "./api"
 
 const PAGE_SIZE = 50
 
@@ -27,6 +27,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
   const [filters, setFilters] = useState<AuditFilters>({ teamId: "", actorId: "", action: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const load = useCallback(
     (active: AuditFilters, offset: number) => {
@@ -57,6 +58,22 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
   function apply(next: AuditFilters) {
     setFilters(next)
     load(next, 0)
+  }
+
+  // The export takes the filters currently in the form, not the ones the last
+  // search ran under. Anything else would hand back a file that does not match
+  // what the operator is looking at.
+  function exportTrail(format: "csv" | "jsonl") {
+    if (!token || exporting) return
+    setExporting(true)
+    setError(null)
+    exportAdminAuditEvents(token, format, {
+      team_id: filters.teamId || undefined,
+      actor_id: filters.actorId || undefined,
+      action: filters.action || undefined,
+    })
+      .catch((err) => setError(getErrorMessage(err, "Failed to export the audit trail")))
+      .finally(() => setExporting(false))
   }
 
   return (
@@ -117,6 +134,26 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
             onClick={() => apply({ teamId: "", actorId: "", action: "" })}
           >
             Clear
+          </button>
+          {/* Exports are recorded in the trail, against the administrator who
+              took them — and, when narrowed to one space, in that space's own
+              trail as well. */}
+          <button
+            type="button"
+            className="admin-button"
+            onClick={() => exportTrail("csv")}
+            disabled={exporting}
+            title="Download every event matching these filters"
+          >
+            {exporting ? "Exporting…" : "Export CSV"}
+          </button>
+          <button
+            type="button"
+            className="admin-button"
+            onClick={() => exportTrail("jsonl")}
+            disabled={exporting}
+          >
+            Export JSONL
           </button>
         </form>
 

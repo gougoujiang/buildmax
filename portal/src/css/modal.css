@@ -318,6 +318,24 @@
   color: var(--color-text-subtle);
 }
 
+/* Quota pressure. Both states are called out rather than only the hard stop:
+   a space that is about to start having work refused should hear it before
+   the refusals, not after. */
+.settings-usage__pressure {
+  margin: 0 0 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.settings-usage__pressure--reached {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
 /* Webhook tab (API keys) inside settings modal */
 .settings-webhook {
   margin-top: 0;

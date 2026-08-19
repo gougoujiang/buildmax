@@ -19,7 +19,7 @@ callbacks, and scheduler startup. Business workflows are delegated to
 |------|----------------|------|
 | Server wrapper | `internal/server/server.go` | Builds `http.Server`, middleware, static OpenAPI/Swagger routes |
 | Handlers | `internal/server/handlers` | Portal API, worker API, webhook, WebSocket handlers |
-| Scheduler | `internal/server/scheduler` | Claims pending task runs and launches workers |
+| Scheduler | `internal/server/scheduler` | Claims pending task runs and launches workers; also runs the background sweeps — expired credentials, abandoned runs, and audit retention |
 | Bootstrap | `internal/bootstrap/server.go` | Wires DB, storage, LLM, quota, handlers, scheduler |
 
 ## Main Route Groups
@@ -41,7 +41,10 @@ callbacks, and scheduler startup. Business workflows are delegated to
   what a run spent and on which approved alias, without prompts or the
   operator's catalog routing
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
-- Audit trail (owner only): `/api/teams/{team_id}/audit-events`
+- Audit trail (owner only): `/api/teams/{team_id}/audit-events`, and
+  `/audit-events/export` for the whole trail as CSV or JSONL. The export is
+  itself recorded, and pages by keyset cursor rather than offset so a table
+  written to while it streams cannot skip a record
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
 - WebSocket: `/api/teams/{team_id}/ws`
 - Worker API: `/api/worker/task-runs/{task_run_id}...`, including

@@ -1,0 +1,138 @@
+import { describe, expect, it } from "vitest"
+import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+import { callElapsed, describeSpend, summarizeSpend } from "./spend"
+
+function call(overrides: Partial<ApiTaskRunLLMCall> = {}): ApiTaskRunLLMCall {
+  return {
+    llm_call_id: "lc_1",
+    streaming: false,
+    accepted_at: 1000,
+    status: "SUCCEEDED",
+    ...overrides,
+  }
+}
+
+function trace(overrides: Partial<ApiTaskRunTrace> = {}): ApiTaskRunTrace {
+  return {
+    task_run_id: "tr_1",
+    llm_calls: 0,
+    tool_calls: 0,
+    compactions: 0,
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    complete: true,
+    ...overrides,
+  }
+}
+
+describe("summarizeSpend", () => {
+  it("keeps an unreported usage count out of the total", () => {
+    // A provider that reported nothing and one that reported zero are different
+    // facts. Summing the first as zero would present an unknown as a free call.
+    const got = summarizeSpend([
+      call({ llm_call_id: "lc_1", total_tokens: 300 }),
+      call({ llm_call_id: "lc_2" }),
+    ])
+    expect(got.totalTokens).toBe(300)
+    expect(got.unreported).toBe(1)
+    expect(got.calls).toBe(2)
+  })
+
+  it("derives a total from the two halves when the server sent only those", () => {
+    const got = summarizeSpend([call({ prompt_tokens: 120, completion_tokens: 30 })])
+    expect(got.totalTokens).toBe(150)
+    expect(got.unreported).toBe(0)
+    expect(got.promptTokens).toBe(120)
+    expect(got.completionTokens).toBe(30)
+  })
+
+  it("counts a call with no terminal status as neither succeeded nor failed", () => {
+    const got = summarizeSpend([
+      call({ llm_call_id: "lc_1", status: "ACCEPTED" }),
+      call({ llm_call_id: "lc_2", status: "FAILED" }),
+      call({ llm_call_id: "lc_3", status: "CANCELED" }),
+      call({ llm_call_id: "lc_4", status: "SUCCEEDED" }),
+    ])
+    expect(got.inFlight).toBe(1)
+    expect(got.failed).toBe(2)
+    expect(got.succeeded).toBe(1)
+  })
+
+  it("reports retries rather than attempts, and reads a zero as no record", () => {
+    // Attempts counts tries, so only the second onward is a retry. A ledger row
+    // written before the field existed reports 0, which is not one attempt.
+    const got = summarizeSpend([
+      call({ llm_call_id: "lc_1", attempts: 3 }),
+      call({ llm_call_id: "lc_2", attempts: 1 }),
+      call({ llm_call_id: "lc_3", attempts: 0 }),
+    ])
+    expect(got.retried).toBe(2)
+  })
+
+  it("breaks spend down by approved alias, heaviest first", () => {
+    const got = summarizeSpend([
+      call({ llm_call_id: "lc_1", alias: "fast", total_tokens: 10 }),
+      call({ llm_call_id: "lc_2", alias: "deep", total_tokens: 900 }),
+      call({ llm_call_id: "lc_3", alias: "deep", total_tokens: 100 }),
+    ])
+    expect(got.byAlias.map((entry) => entry.alias)).toEqual(["deep", "fast"])
+    expect(got.byAlias[0]).toMatchObject({ calls: 2, totalTokens: 1000, unreported: 0 })
+  })
+
+  it("orders equal aliases by name so two runs do not disagree about order", () => {
+    const got = summarizeSpend([
+      call({ llm_call_id: "lc_1", alias: "zeta", total_tokens: 5 }),
+      call({ llm_call_id: "lc_2", alias: "alpha", total_tokens: 5 }),
+    ])
+    expect(got.byAlias.map((entry) => entry.alias)).toEqual(["alpha", "zeta"])
+  })
+})
+
+describe("describeSpend", () => {
+  it("says nothing when there are calls to show", () => {
+    expect(describeSpend({ calls: [call()], error: null, trace: trace() })).toBeNull()
+  })
+
+  it("distinguishes a run that bypassed the gateway from one that called nothing", () => {
+    // Both have an empty ledger, and only the second spent nothing. Telling a
+    // reader "no spend" for the first would hide every direct-mode call.
+    const bypassed = describeSpend({ calls: [], error: null, trace: trace({ llm_calls: 4 }) })
+    expect(bypassed).toContain("4 times")
+    expect(bypassed).toContain("direct mode")
+
+    const quiet = describeSpend({ calls: [], error: null, trace: trace({ llm_calls: 0 }) })
+    expect(quiet).toBe("This run called no model through the managed gateway.")
+  })
+
+  it("says nothing about direct mode when there is no trace to compare against", () => {
+    expect(describeSpend({ calls: [], error: null, trace: null })).toBe(
+      "This run called no model through the managed gateway."
+    )
+  })
+
+  it("passes the server's own explanation through", () => {
+    // "managed model calls not configured" and a missing run mean different
+    // things to an operator, and the server already distinguishes them.
+    const got = describeSpend({
+      calls: [],
+      error: "managed model calls not configured",
+      trace: trace({ llm_calls: 2 }),
+    })
+    expect(got).toBe("managed model calls not configured")
+  })
+})
+
+describe("callElapsed", () => {
+  it("reports an unfinished call as unknown rather than as instant", () => {
+    expect(callElapsed(call({ completed_at: undefined }))).toBe("—")
+  })
+
+  it("does not round a sub-second call down to zero", () => {
+    // The ledger stamps seconds, so a fast call and an instant one look alike.
+    expect(callElapsed(call({ accepted_at: 1000, completed_at: 1000 }))).toBe("<1 s")
+  })
+
+  it("reports elapsed seconds", () => {
+    expect(callElapsed(call({ accepted_at: 1000, completed_at: 1007 }))).toBe("7 s")
+  })
+})

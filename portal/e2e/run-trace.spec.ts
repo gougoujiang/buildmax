@@ -187,4 +187,13 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
   await expect(statValue(page, "Model")).not.toHaveText("—")
   await expect(statValue(page, "Duration")).not.toHaveText("—")
   await expect(statValue(page, "Tokens")).toHaveText(/\d+ in · \d+ out/)
+
+  // The governance ledger, beside the trace. The smoke deployments run in
+  // direct mode, so this section is expected to be empty here — what is under
+  // test is that an empty one says which kind of empty it is. A blank section
+  // would read as "this run spent nothing", which is the one thing an empty
+  // ledger does not mean.
+  const spend = dialog.locator(".run-trace__section").filter({ hasText: "Managed model calls" })
+  await expect(spend).toBeVisible()
+  await expect(spend.locator(".run-trace__spend-note, .run-trace__calls").first()).toBeVisible()
 })

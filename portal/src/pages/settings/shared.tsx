@@ -3,7 +3,7 @@ import type { ApiTeamMember, ApiUsage } from "../../lib/api/types"
 import type { LoginUser } from "../../lib/api"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
-import { getUsage } from "../../features/usage"
+import { describeQuotaPressure, getUsage } from "../../features/usage"
 import { addTeamMember, getTeamMembers, getTeamUsage, removeTeamMember } from "../../features/teams/api"
 import { setPassword } from "../../features/auth"
 import { getErrorMessage } from "../../lib/errorMessage"
@@ -191,6 +191,25 @@ export function SettingsPasswordSection({ token }: { token: string | null }) {
   )
 }
 
+/**
+ * Says when a space is near or past its quota.
+ *
+ * The server records the same crossings in the audit trail, so this is the
+ * fast answer and the trail is the durable one; neither replaces the other.
+ */
+function QuotaPressureNote({ usage }: { usage: ApiUsage | null }) {
+  const pressure = describeQuotaPressure(usage)
+  if (!pressure) return null
+  return (
+    <p
+      className={`settings-usage__pressure settings-usage__pressure--${pressure.tone}`}
+      role={pressure.tone === "reached" ? "alert" : "status"}
+    >
+      {pressure.text}
+    </p>
+  )
+}
+
 export function SettingsUsageSection({
   loading,
   error,
@@ -216,6 +235,9 @@ export function SettingsUsageSection({
           {error === "usage not available" ? "Usage not available." : error}
         </p>
       ) : null}
+      {/* Stated above the numbers, because a reader who has to divide two
+          figures in their head to notice they are out of quota will not. */}
+      {!loading && !error ? <QuotaPressureNote usage={usage} /> : null}
       {!loading && !error && usage ? (
         <div className="settings-usage">
           {usage.tier ? (

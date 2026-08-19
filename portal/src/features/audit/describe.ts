@@ -78,6 +78,35 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
         denied: false,
         target,
       }
+    case "audit.exported":
+      return {
+        summary: event.detail ? `Exported the audit trail — ${event.detail}` : "Exported the audit trail",
+        denied: false,
+        target: null,
+      }
+    case "audit.pruned":
+      // Not a denial, but it is the one action that removes evidence, so it
+      // gets the same treatment: a reader scanning the trail must not skim
+      // past the row that explains why the trail starts where it does.
+      return {
+        summary: event.detail
+          ? `Retention removed ${event.detail}`
+          : "Retention removed expired events",
+        denied: true,
+        target: null,
+      }
+    case "quota.threshold_reached":
+      return {
+        summary: event.detail ? `Approaching the quota: ${event.detail}` : "Approaching the quota",
+        denied: false,
+        target: null,
+      }
+    case "quota.exceeded":
+      return {
+        summary: event.detail ? `Quota reached: ${event.detail}` : "Quota reached; work was refused",
+        denied: true,
+        target: null,
+      }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

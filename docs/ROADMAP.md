@@ -280,14 +280,23 @@ at the end:
    writing to it, so a bucket that refuses writes reports ready and then fails
    every run, and readiness does not check worker launch mode, worker token, or
    the LLM configuration the conversation paths need.
-4. Minimum team governance — **mostly done**. The role and team authorization
-   matrix is covered end to end by tests, the audit trail records sign-in,
-   configuration, model, and credential actions, and deployment administration
-   followed rather than preceded it, as the ordering required. Still open, and
-   tracked in [design/team-governance.md](design/team-governance.md): audit
-   retention, export, and correlation, plus quota alerting — for a trusted team
-   quota is cost control, not a security boundary, so it stays after the
-   boundary work rather than in front of it.
+4. Minimum team governance — **done, with one gap named**. The role and team
+   authorization matrix is covered end to end by tests, the audit trail records
+   sign-in, configuration, model, and credential actions, and deployment
+   administration followed rather than preceded it, as the ordering required.
+   Since then: `audit.retention_days` expires the trail on a window that
+   defaults to keeping everything, and every sweep records what it removed, so
+   a trail that starts partway through says why; a team owner and a System
+   Administrator can each download their trail as CSV or JSONL, and the
+   download is itself recorded; and quota records a warning at 80% of a limit
+   and a refusal at the limit, once per limit per period. Portal shows a run's
+   trace beside the managed model calls the deployment served for it.
+
+   The gap that remains is correlation, tracked in
+   [design/team-governance.md](design/team-governance.md) as open question 7:
+   the trace and the `llm_call` ledger are joined, and the audit trail is
+   joined to neither, because no audit action names a run. An investigation
+   that starts at an audit event still cannot mechanically reach the run.
 5. Close the trust harness, as defense in depth rather than the only boundary:
    ship `bwrap` in the runtime image, confirm the pod permits unprivileged user
    namespaces, then pass `SandboxSurfaceWorker` from the task-run runtime, add

@@ -196,7 +196,7 @@ type userAdminStore interface {
 	model.UserStore
 	model.LoginCodeStore
 	model.PasswordStore
-	model.AuditStore
+	model.AuditWriter
 }
 
 // recordOperatorUserAudit writes an account action taken from the command line.
@@ -208,7 +208,7 @@ type userAdminStore interface {
 // the same reason the model catalog commands say so: this runs from a shell on
 // the machine that already holds the database credentials, and inventing a
 // user id would put a name in the record that nothing verified.
-func recordOperatorUserAudit(ctx context.Context, store model.AuditStore, action, userID string) {
+func recordOperatorUserAudit(ctx context.Context, store model.AuditWriter, action, userID string) {
 	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
 		ActorType:  model.AuditActorSystem,
 		ActorID:    model.AuditActorOperator,

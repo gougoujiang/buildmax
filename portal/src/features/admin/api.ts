@@ -1,5 +1,6 @@
 import { getApiBase, requestJson } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
+import { downloadAuthenticated } from "../../lib/download"
 import type {
   ApiAdminGrantsResponse,
   ApiAdminLoginCode,
@@ -138,6 +139,23 @@ export function searchAdminAuditEvents(
   },
 ): Promise<ApiAuditEventsResponse> {
   return get<ApiAuditEventsResponse>("/audit-events", token, options)
+}
+
+/**
+ * Download the deployment-wide trail as a file, under the same filters as the
+ * search above.
+ *
+ * The server records the export, and records it against the administrator who
+ * took it. An export narrowed to one space is recorded in that space's trail
+ * too, so its owner can see that the deployment read their record.
+ */
+export async function exportAdminAuditEvents(
+  token: string,
+  format: "csv" | "jsonl",
+  options?: { team_id?: string; actor_id?: string; action?: string; since?: number; until?: number },
+): Promise<void> {
+  const url = adminUrl("/audit-events/export", { ...options, format })
+  await downloadAuthenticated(url, token, `audit-deployment.${format}`)
 }
 
 export function listAdminModels(token: string): Promise<ApiAdminModelsResponse> {

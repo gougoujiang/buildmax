@@ -138,8 +138,15 @@ Run artifacts, run state, and durable traces are written under a documented key
 layout in object storage and are not rewritten by an upgrade. BuildMax never
 deletes them; retention is the operator's to configure.
 
-There is no export or import command, so moving a deployment means moving its
-database and its bucket together.
+The audit trail is the one exception, and only when asked: setting
+`audit.retention_days` in `server.yaml` expires events older than that window,
+and each sweep records what it removed as an `audit.pruned` event. The default
+is to keep everything. The trail can be downloaded as CSV or JSONL — a space
+owner gets their own, a System Administrator gets the deployment's — and a
+download is itself recorded.
+
+There is no export or import command for a deployment's data as a whole, so
+moving one means moving its database and its bucket together.
 
 ## Non-Goals For The Alpha
 

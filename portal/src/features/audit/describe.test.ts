@@ -63,6 +63,29 @@ describe("describeEvent", () => {
     expect(describeEvent(event({ action: "auth.refresh_reuse" })).denied).toBe(true)
   })
 
+  it("gives retention the same treatment as a denial", () => {
+    // It is the one action that removes evidence. A reader scanning the trail
+    // must not skim past the row that explains why the trail starts where it
+    // does, so it is called out rather than shown as ordinary housekeeping.
+    const got = describeEvent(event({ action: "audit.pruned", detail: "12 events from A to B" }))
+    expect(got.denied).toBe(true)
+    expect(got.summary).toContain("12 events")
+  })
+
+  it("names an export and what left in it", () => {
+    const got = describeEvent(event({ action: "audit.exported", detail: "40 events" }))
+    expect(got.denied).toBe(false)
+    expect(got.summary).toContain("40 events")
+  })
+
+  it("separates approaching a quota from being stopped by one", () => {
+    // One is a heads-up, the other is work not happening.
+    expect(describeEvent(event({ action: "quota.threshold_reached", detail: "runs 80% of 10" })).denied)
+      .toBe(false)
+    expect(describeEvent(event({ action: "quota.exceeded", detail: "runs limit reached at 10 of 10" })).denied)
+      .toBe(true)
+  })
+
   it("does not show a target for events whose target is already in the summary", () => {
     // A login's target is the platform, which the sentence already names.
     expect(describeEvent(event({ action: "user.login", target_id: "cli" })).target).toBeNull()

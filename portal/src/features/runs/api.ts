@@ -1,6 +1,6 @@
 import { getApiBase, requestJson } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
-import type { ApiTaskRunTrace } from "../../lib/api/types"
+import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
 
 /**
  * Fetch a task run's trace summary.
@@ -17,4 +17,21 @@ export async function getTaskRunTrace(
 ): Promise<ApiTaskRunTrace> {
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}/trace`
   return requestJson<ApiTaskRunTrace>(url, { headers: authHeaders(token) })
+}
+
+/**
+ * Fetch the managed model calls one task run made.
+ *
+ * An empty list is an ordinary answer, not an error: a deployment in direct
+ * mode never routes a worker's calls through the server, so there is nothing to
+ * account. A 503 means this deployment records no managed calls at all. The
+ * caller distinguishes the two — see `describeSpend`.
+ */
+export async function listTaskRunLLMCalls(
+  teamId: string,
+  taskRunId: string,
+  token: string
+): Promise<ApiTaskRunLLMCall[]> {
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}/llm-calls`
+  return requestJson<ApiTaskRunLLMCall[]>(url, { headers: authHeaders(token) })
 }

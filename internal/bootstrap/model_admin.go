@@ -246,7 +246,7 @@ func openStoreFromConfig(ctx context.Context) (*db.Store, error) {
 // The actor is the system rather than a user: this runs from a shell on the
 // machine that already holds the database credentials, and inventing a user id
 // for it would put a name in the record that nothing verified.
-func recordModelAudit(ctx context.Context, store model.AuditStore, action, modelID, detail string) {
+func recordModelAudit(ctx context.Context, store model.AuditWriter, action, modelID, detail string) {
 	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
 		ActorType:  model.AuditActorSystem,
 		ActorID:    "buildmax-server",

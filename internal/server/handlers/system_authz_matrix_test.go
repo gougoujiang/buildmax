@@ -61,6 +61,7 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/system"},
 	{"GET", "/api/admin/config"},
 	{"GET", "/api/admin/audit-events"},
+	{"GET", "/api/admin/audit-events/export"},
 	{"GET", "/api/admin/teams"},
 	{"GET", "/api/admin/teams/{team_id}"},
 	{"GET", "/api/admin/llm/models"},

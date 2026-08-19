@@ -118,6 +118,43 @@ pre-releases and must be called out in release notes.
   advances from that step's outcome and a run started outside it would report a
   second one.
 
+- Portal's **Run details** now shows the managed model calls a run made, beside
+  the trace the run wrote itself. The ledger has had a route since it became
+  readable, and nothing displayed it: the two records answer different
+  questions, and the difference is the point. The trace is what the agent did;
+  this is what the deployment was asked to serve, on which operator-approved
+  alias, and it is what a team's quota is computed from. An empty list is not
+  reported as "spent nothing" — a run whose trace shows model calls that the
+  ledger never saw is a run that reached a provider directly, and it says so.
+  A call whose provider reported no usage is counted as unreported rather than
+  as zero.
+
+- The audit trail can be kept for a fixed window. `audit.retention_days` in
+  `server.yaml` expires events older than it; the default is 0, which keeps
+  everything, because a deployment that never chose a retention policy has not
+  decided to discard evidence. Every sweep that removed anything records an
+  `audit.pruned` event naming the range and the count — a trail that begins
+  partway through says that policy shortened it, rather than leaving a reader
+  to wonder whether somebody truncated it. Nothing else deletes an audit event,
+  and there is no way to delete a particular one.
+
+- The audit trail can be downloaded. A space owner exports their own from space
+  settings, a System Administrator exports the deployment's — under the same
+  filters as the search, including the events that belong to no space — from
+  `#/admin`. Both come as CSV or JSONL. An export is itself recorded as
+  `audit.exported` with the number of events that actually left, because
+  reading the whole record is an action on it; an administrator's export
+  narrowed to one space is recorded in that space's trail too, so its owner can
+  see that the deployment read it.
+
+- Quota now says something before it starts refusing work. Passing 80% of a
+  space's run or token limit records `quota.threshold_reached`, and work
+  refused at the limit records `quota.exceeded` — at most once per limit per
+  period, so a space that keeps submitting does not fill its own trail with
+  retries. The actor is the deployment, not whoever submitted the work that
+  tipped the total over. Portal states the same thing in space settings, and a
+  space with no limits reports nothing rather than reporting comfort.
+
 ### Changed
 
 - Deleting an agent no longer removes the record. Tasks, workflow step runs, and
