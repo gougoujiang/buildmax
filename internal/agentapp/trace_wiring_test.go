@@ -65,8 +65,8 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	}
 
 	records := readTrace(t, sess.ID, result.TraceID)
-	if len(records) != 3 {
-		t.Fatalf("got %d records, want run_start + sandbox_boundary + run_end: %+v", len(records), records)
+	if len(records) != 4 {
+		t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + run_end: %+v", len(records), records)
 	}
 
 	start := records[0]
@@ -96,7 +96,17 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 		t.Errorf("sandboxed = %v, want an explicit false on this unsandboxed surface", boundary["sandboxed"])
 	}
 
-	end := records[2]
+	// The prompt layers are recorded for the same reason: what the run was told before the
+	// conversation started does not depend on how far it got.
+	layers := records[2]
+	if layers["type"] != "prompt_layers" {
+		t.Errorf("third record type = %v, want prompt_layers", layers["type"])
+	}
+	if got, ok := layers["layers"].([]any); !ok || len(got) == 0 {
+		t.Errorf("prompt_layers records no layers: %+v", layers)
+	}
+
+	end := records[3]
 	if end["type"] != "run_end" {
 		t.Errorf("last record type = %v, want run_end", end["type"])
 	}

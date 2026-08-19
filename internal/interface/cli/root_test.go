@@ -28,3 +28,25 @@ func TestRootCommand_InvalidSessionIDReturnsError(t *testing.T) {
 		})
 	}
 }
+
+// TestRootCommand_FlagErrorPrecedesModelCheck pins the order of the two usage checks. A bad flag
+// combination is fixable without a model configured, so reporting the missing configuration
+// first would send the user to solve the wrong problem.
+func TestRootCommand_FlagErrorPrecedesModelCheck(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir()) // no settings.yaml, so the model check would also fail
+
+	root := NewRootCommand()
+	root.SetArgs([]string{
+		"--append-system-prompt", "a",
+		"--append-system-prompt-file", "b",
+		"-p", "hi",
+	})
+	err := root.Execute()
+
+	if err == nil {
+		t.Fatal("Execute(): want an error for two mutually exclusive flags")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error = %q, want the flag conflict rather than the model configuration", err.Error())
+	}
+}

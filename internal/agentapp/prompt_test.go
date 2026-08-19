@@ -52,7 +52,7 @@ func TestReadAgentsMd(t *testing.T) {
 // also folds the summary into the base prompt puts two compaction blocks in front of the
 // model, which is what used to happen on every run after the first in-run compaction.
 func TestBuildEffectiveSystemPrompt_NoCompactionBlock(t *testing.T) {
-	got := BuildEffectiveSystemPrompt(t.TempDir(), "test-model")
+	got := BuildEffectiveSystemPrompt(t.TempDir(), "test-model", "")
 	if strings.Contains(got, "context_compaction") {
 		t.Error("base system prompt renders a compaction block; RunLoop is its only renderer")
 	}

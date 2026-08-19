@@ -69,6 +69,11 @@ type WorkerTaskRun struct {
 	// LLM is how this run reaches a model. Nil means direct, which is what a
 	// server that has not enabled managed worker inference reports.
 	LLM *TaskRunLLM
+	// AgentInstructions is the text appended to the run's system prompt, resolved by the
+	// server from the agent the task names. Empty when the task names none. It is not on
+	// model.Task because it is not a property of the task: it is resolved per run, so an
+	// edited definition applies to the next one.
+	AgentInstructions string
 	// CancelRequested is true when the run was already asked to stop before
 	// this worker picked it up — a cancel that landed between dispatch and
 	// start. Such a run is finished without executing anything.
@@ -109,8 +114,9 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 			SessionID:      got.Task.SessionID,
 			LastRunID:      got.Task.LastRunID,
 		},
-		LLM:             got.LLM,
-		CancelRequested: got.Run.CancelRequested,
+		LLM:               got.LLM,
+		AgentInstructions: got.Task.AgentInstructions,
+		CancelRequested:   got.Run.CancelRequested,
 	}, nil
 }
 

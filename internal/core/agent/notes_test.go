@@ -31,10 +31,10 @@ func (h *statefulHistory) SetTodos(todos []Todo, iter int) {
 var _ NotesHistory = (*statefulHistory)(nil)
 
 func TestRenderSessionState_EmptyRendersNothing(t *testing.T) {
-	if got := RenderSessionState(nil, nil, 5); got != "" {
+	if got := RenderSessionState("", nil, nil, 5); got != "" {
 		t.Errorf("empty state rendered %q, want \"\"", got)
 	}
-	if got := RenderSessionState([]Note{}, []Todo{}, 5); got != "" {
+	if got := RenderSessionState("", []Note{}, []Todo{}, 5); got != "" {
 		t.Errorf("empty slices rendered %q, want \"\"", got)
 	}
 }
@@ -50,7 +50,7 @@ func TestRenderSessionState_NotesAndTodos(t *testing.T) {
 		{Content: "read the lease", Status: TodoCompleted, WrittenAt: 3},
 	}
 
-	got := RenderSessionState(notes, todos, 78)
+	got := RenderSessionState("", notes, todos, 78)
 
 	for _, want := range []string{
 		"<session-state>", "</session-state>",
@@ -71,7 +71,7 @@ func TestRenderSessionState_NotesAndTodos(t *testing.T) {
 }
 
 func TestRenderSessionState_AgeOmittedWhenUnknown(t *testing.T) {
-	got := RenderSessionState([]Note{{Text: "a fact"}}, []Todo{{Content: "task", Status: TodoInProgress}}, 0)
+	got := RenderSessionState("", []Note{{Text: "a fact"}}, []Todo{{Content: "task", Status: TodoInProgress}}, 0)
 	if strings.Contains(got, "[i0]") {
 		t.Errorf("unstamped note rendered an age marker:\n%s", got)
 	}
@@ -97,7 +97,7 @@ func TestRenderSessionState_BudgetKeepsHighestPriority(t *testing.T) {
 		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenAt: 1})
 	}
 
-	got := RenderSessionState(notes, todos, 2)
+	got := RenderSessionState("", notes, todos, 2)
 
 	if len(got) > anchorBlockBudgetChars+200 {
 		t.Errorf("block is %d chars, budget is %d", len(got), anchorBlockBudgetChars)
@@ -268,5 +268,56 @@ func TestNotesSurviveCompaction(t *testing.T) {
 	last := client.lastSent[len(client.lastSent)-1]
 	if !strings.Contains(last.Content, "the client is the lessee") {
 		t.Errorf("note lost across compaction; last message was %q", last.Content)
+	}
+}
+
+// TestRenderSessionState_InvariantsLeadAndSurvive covers the highest rung of the ladder. An
+// instruction sitting verbatim in the system prompt still loses ground as the context fills
+// with tool output, so the author-marked constraints are restated here — and they are the last
+// thing dropped when the block does not fit.
+func TestRenderSessionState_InvariantsLeadAndSurvive(t *testing.T) {
+	got := RenderSessionState("- Never push to main.", []Note{{Text: "a note", WrittenAt: 1}}, nil, 2)
+	if !strings.Contains(got, "## Invariants") || !strings.Contains(got, "- Never push to main.") {
+		t.Fatalf("invariants missing:\n%s", got)
+	}
+	if strings.Index(got, "Never push to main") > strings.Index(got, "a note") {
+		t.Errorf("invariants must lead the block:\n%s", got)
+	}
+
+	// Under pressure the invariants outrank everything else.
+	var notes []Note
+	for i := 0; i < MaxNotes; i++ {
+		notes = append(notes, Note{Text: strings.Repeat("y", MaxNoteChars), WrittenAt: 1})
+	}
+	var todos []Todo
+	for i := 0; i < MaxTodos; i++ {
+		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenAt: 1})
+	}
+	crowded := RenderSessionState("- Never push to main.", notes, todos, 2)
+	if !strings.Contains(crowded, "Never push to main") {
+		t.Errorf("invariants dropped before lower-priority entries:\n%s", crowded)
+	}
+}
+
+// TestRenderSessionState_InvariantsAloneStillRender asserts a role with invariants but no notes
+// produces a block: the constraint is the point, not the notes.
+func TestRenderSessionState_InvariantsAloneStillRender(t *testing.T) {
+	if got := RenderSessionState("- Never push to main.", nil, nil, 0); got == "" {
+		t.Error("invariants alone rendered nothing")
+	}
+}
+
+func TestExtractInvariants(t *testing.T) {
+	role := "You are a consultant.\n\n## Invariants\n- One.\n- Two.\n\n## Style\n- Be brief.\n"
+	got := ExtractInvariants(role)
+	if got != "- One.\n- Two." {
+		t.Errorf("invariants = %q, want the section body only", got)
+	}
+	if ExtractInvariants("no section here") != "" {
+		t.Error("a role without the section reported invariants")
+	}
+	long := "## Invariants\n" + strings.Repeat("x", MaxInvariantChars+50)
+	if n := len([]rune(ExtractInvariants(long))); n > MaxInvariantChars {
+		t.Errorf("invariants are %d runes, limit is %d", n, MaxInvariantChars)
 	}
 }

@@ -3,7 +3,7 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `phases 1–3 implemented` (§8 phases 1–3 landed; phase 4 open)
+- status: `implemented` (§8 phases 1–4 landed; follow-ups in §6 and §11 open)
 - implements: [trust-harness.md](./trust-harness.md) §3.6 (agent memory, session memory)
 - follows: [hook-system.md](./hook-system.md), [durable-run-trace.md](./durable-run-trace.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -68,7 +68,7 @@ message, and because it is the only copy, that is real loss.
 
 ## 3. Gaps
 
-### 3.1 No durable agent role for the primary agent
+### 3.1 No durable per-run instructions for the primary agent — fixed ✅
 
 A user cannot say "this agent is a law consultant" and have that hold for the
 whole session. The workspace `AGENTS.md` is the closest thing, but it is
@@ -114,7 +114,7 @@ The system prompt is the one place with no degradation path — it is re-sent at
 full price on every call and cannot be trimmed. Any new permanent state
 (§5.3) inherits this hazard and must be bounded by construction.
 
-### 3.5 Attention dilution
+### 3.5 Attention dilution — invariants restated ✅
 
 Even when an instruction is present verbatim in the system prompt, adherence
 degrades as the context fills with tool output. This is a model property, not
@@ -162,17 +162,24 @@ Consequences that shape the rest of this document:
 | 1 | Runtime base | `DefaultSystemPrompt` + model line | Static |
 | 2 | User memory | `<BUILDMAX_HOME>/AGENTS.md` | Static per session |
 | 3 | Workspace memory | `<workspace>/AGENTS.md` | Static per session |
-| 4 | **Agent role** | agent definition body (§5.2) | Static per session |
+| 4 | **Additional system prompt** | flag, definition body, or agent record (§5.2) | Static per session |
 | 5 | Compaction summary | `Session.CompactionSummary` | Changes on compaction |
 
 Layers 1–4 are stable for the session, so they form a cacheable prefix. Layer 5
 changes and therefore sits last. The anchoring block (§5.4) is rendered after
 the messages, not here, so it never invalidates the prefix.
 
-### 5.2 Agent role
+### 5.2 The additional system prompt
 
 Layer 4 is one slot holding free text. Two questions are separate and are
 answered separately: what the slot contains, and who is allowed to fill it.
+
+A naming note, because the first draft got it wrong. The slot was called the
+"agent role", and every reader had to be told that the field holds prompt text
+rather than the name of a role — needing that disclaimer is the evidence the
+name was wrong. In code it is `AdditionalSystemPrompt`, which says what it holds;
+`--agent` is one of three ways to fill it, not the thing itself. "Role" survives
+below only where it describes intent.
 
 #### The slot
 
@@ -497,7 +504,7 @@ trimmed, so unbounded growth there is worse than losing a message.
 
 | Slot | Bound | Behaviour at limit |
 |---|---|---|
-| Agent role (layer 4) | 8 KB | Reject at resolution time with a clear error naming the writer (flag, file, or API field) |
+| Additional system prompt (layer 4) | 8 KB | Reject at resolution time with a clear error naming the writer (flag, file, or API field) |
 | `## Invariants` | 1 KB | Truncate at render; warn once |
 | Compaction summary | ~2% of context window | Re-summarize the summary on the next pass |
 | Notes | 15 entries × 200 chars | Tool call fails, model must merge |
@@ -623,7 +630,7 @@ compaction, and the end-to-end survival claim) and
 state in the request, retry after a rejected write, turn budget, the two
 no-op cases, and the compactor's anchoring).
 
-### Phase 4 — agent role
+### Phase 4 — the additional system prompt — shipped ✅
 
 12. Layer 4 in `BuildEffectiveSystemPrompt`, with the 8 KB bound and
     `## Invariants` extraction into the anchoring block.
@@ -642,6 +649,32 @@ no-op cases, and the compactor's anchoring).
     rejected with a message naming the writer; a worker without the new field
     behaves as before; the trace names every layer that contributed.
 17. User documentation in `guide/`, linked from the design index.
+
+Landed as: `BuildSystemPromptWithLayers` and `ValidateAdditionalSystemPrompt`
+in `internal/agentapp/assembly.go`; `AppConfig.AdditionalSystemPrompt` and
+`effectiveAdditionalPrompt` in `internal/agentapp/app.go`;
+`agent.ExtractInvariants` plus the invariants rung of the anchoring ladder in
+`internal/core/agent/notes.go`; the three flags in
+`internal/interface/cli/system_prompt.go`; `TaskRunTask.AgentInstructions` in
+`internal/infra/workerclient/api_types.go` with the server side in
+`internal/server/handlers/worker.go` and the worker side in
+`internal/agentapp/taskrun/runtime.go`; `Session.AdditionalSystemPrompt`; and
+the `prompt_layers` trace record. User documentation in
+[`reference/cli.md`](../reference/cli.md).
+
+What this fixed on the Portal path was worse than the plan assumed. A Portal
+agent's `Instructions` were rendered into the **task input** by
+`buildTaskInputFromAgent` — a user message, and therefore compactable, which is
+exactly §1's failure mode occurring in production. Worse, a task created with
+its own input dropped the instructions entirely, so an agent's identity applied
+only to tasks that had no other prompt. Both are fixed by layer 4.
+
+Deliberately not changed: `buildTaskInputFromAgent` still renders the
+instructions into the input for a task created without one. Removing them would
+change the Portal-visible task input and the generated title, which is a product
+decision this record does not cover. The cost is that such a task carries the
+instructions twice — once durably in the system prompt, once in a first message
+that compaction eventually drops. Worth revisiting with the Portal surface.
 
 Phases 1 and 2 are independently valuable. Phase 3 depends on 2. Phase 4 is
 independent of 1–3 and can be reordered by roadmap need.
@@ -681,8 +714,8 @@ the `internal/architecture` tests are unaffected.
   messages is closer to the generation point and should adhere better. This
   design chooses after-the-messages; if adherence proves indistinguishable,
   moving it into the system prompt removes the transport caveat in §5.4.
-- **Should a role be able to suppress inherited layers?** Layer 4 is additive,
-  so a `law-consultant` role running in a Go repository also receives that
+- **Should layer 4 be able to suppress inherited layers?** It is additive, so a
+  `law-consultant` prompt running in a Go repository also receives that
   workspace's `AGENTS.md` contribution rules. Usually harmless, since the later
   layer carries more weight, but "give me a clean role" is a reasonable ask. A
   frontmatter `inherit: false` would cover it. Deferred because the right

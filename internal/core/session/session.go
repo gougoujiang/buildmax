@@ -52,6 +52,11 @@ type Session struct {
 	// Notes/Todos accessors that implement agent.NoteStore; the JSON keys are the plain names.
 	NoteEntries []agent.Note `json:"notes,omitempty"`
 	TodoEntries []agent.Todo `json:"todos,omitempty"`
+	// AdditionalSystemPrompt records the extra system-prompt text this session actually ran
+	// under. It is a record — for the trace, and so a resumed session does not silently lose
+	// its identity when the flag that set it is not repeated — not the authority. Whoever
+	// assembles a run resolves it afresh, and the last writer wins.
+	AdditionalSystemPrompt string `json:"additional_system_prompt,omitempty"`
 }
 
 // SessionItem is one session's metadata in the session index file (sessions.json).

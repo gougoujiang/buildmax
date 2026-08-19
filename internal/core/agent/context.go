@@ -193,3 +193,15 @@ func RenderCompactionBlock(summary string) string {
 	}
 	return "\n\n<context_compaction>\n" + summary + "\n</context_compaction>"
 }
+
+// PromptLayer names one contributor to a run system prompt and how large it was.
+//
+// The layers are what the agent was told before the conversation started, and trust-harness
+// section 3.6 requires a run to be able to say which of them it loaded. That visibility is also
+// what makes last-writer-wins safe for the additional system prompt: an identity change is
+// observable
+// afterwards rather than something an error has to prevent up front.
+type PromptLayer struct {
+	Name  string `json:"name"`
+	Chars int    `json:"chars"`
+}

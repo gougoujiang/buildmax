@@ -28,6 +28,10 @@ type printOptions struct {
 	NoStream      bool
 	Quiet         bool
 	IncludeDeltas bool
+	// AdditionalSystemPrompt is this run's user-authored prompt text, appended as the system
+	// prompt's last layer. Empty leaves a resumed session running under whatever text it
+	// already had.
+	AdditionalSystemPrompt string
 }
 
 // stdoutStreamSink writes each delta to stdout and flushes so output appears incrementally.
@@ -62,11 +66,12 @@ func (s *jsonlEventSink) OnEvent(ev agent.Event) {
 
 func runPrintMode(opts printOptions) error {
 	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-		WorkspaceDir: opts.Workspace,
-		EnableMCP:    true,
-		Policy:       agentapp.NewNonInteractivePolicy(),
-		ManagedToken: auth.TokenForServer,
-		Surface:      model.LLMCallSurfaceCLI,
+		WorkspaceDir:           opts.Workspace,
+		EnableMCP:              true,
+		Policy:                 agentapp.NewNonInteractivePolicy(),
+		ManagedToken:           auth.TokenForServer,
+		Surface:                model.LLMCallSurfaceCLI,
+		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 	})
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)

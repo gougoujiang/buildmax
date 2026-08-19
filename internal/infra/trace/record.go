@@ -43,6 +43,14 @@ type Record struct {
 	Sources     []string `json:"sources,omitempty"`
 	Downgraded  bool     `json:"downgraded,omitempty"`
 
+	// prompt_layers
+	//
+	// Layers names what the run was told before the conversation started, and how much of
+	// each. Like sandbox_boundary, the record is written even when there is nothing beyond
+	// the runtime prompt: an absent record would read as "nobody looked" rather than "there
+	// was nothing else".
+	Layers []agent.PromptLayer `json:"layers,omitempty"`
+
 	// iter_start, llm_start, llm_end
 	Iter int `json:"iter,omitempty"`
 
@@ -143,6 +151,13 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		}
 	}
 	return r, true
+}
+
+// layersRecord reports the system-prompt layers this run loaded. Written for every run,
+// including one that loaded nothing beyond the runtime prompt: trust-harness §3.6 asks that a
+// run be able to say which instruction sources it received, and silence is not an answer.
+func layersRecord(layers []agent.PromptLayer) Record {
+	return Record{TS: now(), Type: "prompt_layers", Layers: append([]agent.PromptLayer(nil), layers...)}
 }
 
 // boundaryRecord builds the sandbox_boundary record written immediately after

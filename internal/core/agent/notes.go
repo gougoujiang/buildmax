@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // Durable session state — notes and todos — is the second half of the rule the compaction
@@ -54,7 +56,39 @@ const (
 	MaxTodos = 30
 	// anchorBlockBudgetChars bounds the whole rendered block at roughly 800 tokens.
 	anchorBlockBudgetChars = 3200
+	// MaxInvariantChars bounds the restated invariants. They are repeated after the messages
+	// on every call, so the section has to stay a reminder rather than a second copy of the
+	// whole prompt.
+	MaxInvariantChars = 1024
 )
+
+// invariantsHeading marks the section of an additional system prompt that is restated in the
+// anchoring block. It is the only structural convention that text has: the rest of it is opaque
+// and sits in the system prompt unparsed.
+const invariantsHeading = "## Invariants"
+
+// ExtractInvariants returns the body of the "## Invariants" section of an additional system
+// prompt, or "" when it has none. The section is restated after the messages on every call,
+// because an instruction present verbatim in the system prompt still loses ground as the context
+// fills with tool output: storage keeps it, proximity keeps it followed.
+func ExtractInvariants(systemPromptText string) string {
+	idx := strings.Index(systemPromptText, invariantsHeading)
+	if idx < 0 {
+		return ""
+	}
+	body := systemPromptText[idx+len(invariantsHeading):]
+	// Stop at the next heading of the same or higher level.
+	for _, marker := range []string{"\n## ", "\n# "} {
+		if end := strings.Index(body, marker); end >= 0 {
+			body = body[:end]
+		}
+	}
+	body = strings.TrimSpace(body)
+	if utf8.RuneCountInString(body) > MaxInvariantChars {
+		body = strings.TrimSpace(util.ClipRunes(body, MaxInvariantChars))
+	}
+	return body
+}
 
 // NoteStore is the write side of durable session state. Tools reach it through the context
 // rather than through a constructor, because the tool registry is cached per model and shared
@@ -199,48 +233,64 @@ func StampTodos(prev, next []Todo, iter int) []Todo {
 // block does not fit.
 type anchorEntry struct {
 	priority int
-	section  int // 0 = notes, 1 = todo
+	section  int
 	order    int
 	text     string
 }
+
+// Sections of the anchoring block, in display order.
+const (
+	sectionInvariants = iota
+	sectionNotes
+	sectionTodo
+)
 
 // Priorities for the budget ladder, lowest number kept first. An in-progress task and the
 // notes are what the model needs to stay on course; pending detail and completed history are
 // what it can lose without losing the thread.
 const (
-	prioInProgress = iota
+	prioInvariant = iota
+	prioInProgress
 	prioNote
 	prioPending
 	prioCompleted
 )
 
 // RenderSessionState renders durable state as a block to be placed after the message list.
-// Returns "" when there is nothing to say — a session that never writes a note pays nothing.
+// Returns "" when there is nothing to say — a session with no invariants that never writes a
+// note pays nothing.
 //
-// iter is the current loop iteration, used to report entry ages; pass 0 when unknown.
-func RenderSessionState(notes []Note, todos []Todo, iter int) string {
+// invariants is the restated hard-constraint section of the run's additional system prompt;
+// pass "" when there is none. iter is the current loop iteration, used to report entry ages; pass 0 when unknown.
+func RenderSessionState(invariants string, notes []Note, todos []Todo, iter int) string {
 	var entries []anchorEntry
 	add := func(prio, section int, text string) {
 		entries = append(entries, anchorEntry{priority: prio, section: section, order: len(entries), text: text})
 	}
 
+	for _, line := range strings.Split(strings.TrimSpace(invariants), "\n") {
+		if strings.TrimSpace(line) != "" {
+			add(prioInvariant, sectionInvariants, strings.TrimRight(line, " \t"))
+		}
+	}
+
 	for _, n := range notes {
-		add(prioNote, 0, "- "+stamp(n.WrittenAt)+n.Text)
+		add(prioNote, sectionNotes, "- "+stamp(n.WrittenAt)+n.Text)
 	}
 
 	completed := 0
 	for _, td := range todos {
 		switch td.Status {
 		case TodoInProgress:
-			add(prioInProgress, 1, "- [in progress"+age(td.WrittenAt, iter)+"] "+td.Content)
+			add(prioInProgress, sectionTodo, "- [in progress"+age(td.WrittenAt, iter)+"] "+td.Content)
 		case TodoPending:
-			add(prioPending, 1, "- [pending] "+td.Content)
+			add(prioPending, sectionTodo, "- [pending] "+td.Content)
 		case TodoCompleted:
 			completed++
 		}
 	}
 	if completed > 0 {
-		add(prioCompleted, 1, "- ("+strconv.Itoa(completed)+" completed)")
+		add(prioCompleted, sectionTodo, "- ("+strconv.Itoa(completed)+" completed)")
 	}
 
 	if len(entries) == 0 {
@@ -254,8 +304,9 @@ func RenderSessionState(notes []Note, todos []Todo, iter int) string {
 
 	var b strings.Builder
 	b.WriteString("<session-state>")
-	writeSection(&b, "Notes", kept, 0)
-	writeSection(&b, "Todo", kept, 1)
+	writeSection(&b, "Invariants", kept, sectionInvariants)
+	writeSection(&b, "Notes", kept, sectionNotes)
+	writeSection(&b, "Todo", kept, sectionTodo)
 	if dropped > 0 {
 		b.WriteString("\n\n(" + strconv.Itoa(dropped) + " lower-priority entries omitted to fit)")
 	}

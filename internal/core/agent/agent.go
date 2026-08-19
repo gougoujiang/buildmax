@@ -89,6 +89,11 @@ type RunLoopOpts struct {
 	// Checkpointer is given one turn to save durable state before a compaction discards
 	// messages. Nil skips the checkpoint; compaction is unaffected either way.
 	Checkpointer StateCheckpointer
+	// Invariants is the hard-constraint section of the run's additional system prompt, restated
+	// after the message list on every call. That text is already in SystemPrompt and never
+	// leaves it; this is about proximity, not storage, so it carries only the part the author
+	// marked as non-negotiable. Empty is the normal case.
+	Invariants string
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
 	// The callback is invoked synchronously from the RunLoop goroutine; it must not block.
@@ -297,11 +302,14 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	// Durable session state is rendered fresh on every call and placed after the messages, so
 	// it is never subject to trimming and never accumulates in the history. An empty block
 	// renders nothing, which is what a run that keeps no state should cost.
-	var stateMsg []llm.Message
+	var notes []Note
+	var todos []Todo
 	if nh, ok := opts.History.(NotesHistory); ok {
-		if block := RenderSessionState(nh.Notes(), nh.Todos(), iter); block != "" {
-			stateMsg = []llm.Message{{Role: "user", Content: block}}
-		}
+		notes, todos = nh.Notes(), nh.Todos()
+	}
+	var stateMsg []llm.Message
+	if block := RenderSessionState(opts.Invariants, notes, todos, iter); block != "" {
+		stateMsg = []llm.Message{{Role: "user", Content: block}}
 	}
 
 	systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(stateMsg)

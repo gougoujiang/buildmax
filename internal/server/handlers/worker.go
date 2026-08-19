@@ -30,6 +30,21 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
+	// The agent's instructions are appended to the run's system prompt. Resolving them here
+	// rather than at task creation means an edited definition takes effect on the next run,
+	// which is what someone editing the field expects. A deleted agent still answers, because
+	// a run that already names it has to finish under the identity it was started with.
+	agentInstructions := ""
+	if task.AgentID != nil && *task.AgentID != "" && h.cfg.AgentStore != nil {
+		if a, aerr := h.cfg.AgentStore.GetAgentIncludingDeleted(r.Context(), *task.AgentID); aerr != nil {
+			// A run missing its instructions is worse than a run that never had any, but
+			// refusing to dispatch it is worse still. Say so and continue.
+			slog.Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
+		} else if a != nil && a.TeamID == task.TeamID {
+			agentInstructions = a.Instructions
+		}
+	}
+
 	httputil.WriteJSON(w, http.StatusOK, workerclient.GetTaskRunResponse{
 		Run: workerclient.TaskRunRun{
 			TaskRunID: run.TaskRunID,
@@ -42,12 +57,13 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:       run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{
-			TaskID:         task.TaskID,
-			ConversationID: task.ConversationID,
-			TeamID:         task.TeamID,
-			UserID:         task.CreatedBy,
-			SessionID:      task.SessionID,
-			LastRunID:      task.LastRunID,
+			TaskID:            task.TaskID,
+			ConversationID:    task.ConversationID,
+			TeamID:            task.TeamID,
+			UserID:            task.CreatedBy,
+			SessionID:         task.SessionID,
+			LastRunID:         task.LastRunID,
+			AgentInstructions: agentInstructions,
 		},
 		// The server decides how the run reaches a model. A worker executes
 		// model-chosen code, so it is told the transport and alias rather than

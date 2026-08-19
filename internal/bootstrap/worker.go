@@ -210,16 +210,17 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	go workerclient.WatchCancel(runCtx, apiCfg, taskRunID, 0, func() { cancelRun(model.ErrRunCanceled) })
 
 	err = taskrun.RunTask(runCtx, taskrun.RunTaskInput{
-		Task:            task,
-		Run:             run,
-		SessionID:       sessionID,
-		Paths:           paths,
-		Persist:         persistStorage,
-		ArtifactStorage: artifactStorage,
-		Updater:         updater,
-		StreamSender:    streamSender,
-		Model:           runtimeModel,
-		Managed:         managed,
+		Task:                   task,
+		Run:                    run,
+		SessionID:              sessionID,
+		Paths:                  paths,
+		Persist:                persistStorage,
+		ArtifactStorage:        artifactStorage,
+		Updater:                updater,
+		StreamSender:           streamSender,
+		Model:                  runtimeModel,
+		Managed:                managed,
+		AdditionalSystemPrompt: fetched.AgentInstructions,
 	})
 	if errors.Is(err, model.ErrRunCanceled) {
 		slog.Info("worker: run canceled on request", "task_run_id", taskRunID)

@@ -77,6 +77,10 @@ results are sent back to the model as tool-role messages.
 - **Parameters**: `notes` (required array of strings)
 - **Behavior**: Replaces the session's durable notes. At most 15 entries of 200 characters; an over-limit call fails with a message naming the limit.
 
+An additional system prompt, when the run has one, contributes a fourth layer to
+the system prompt and its `## Invariants` section is restated in the same block
+these tools render into. See [design/context-durability.md](../../design/context-durability.md).
+
 Both write durable session state rather than returning a formatted string and
 nothing else. The state lives on `session.Session`, is reached through the
 context (`agent.CtxWithNoteStore`) because the tool registry is cached per model

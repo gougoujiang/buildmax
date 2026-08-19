@@ -28,6 +28,8 @@ type Meta struct {
 	// Sandbox is the execution boundary resolved for this run. Nil is recorded
 	// as unsandboxed rather than unknown — see boundaryRecord.
 	Sandbox *agent.SandboxInfo
+	// PromptLayers are the system-prompt layers this run loaded, in order.
+	PromptLayers []agent.PromptLayer
 }
 
 // Recorder appends trace records for one run to a JSONL file. All methods are
@@ -85,6 +87,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		TraceVersion: traceVersion,
 	})
 	r.write(boundaryRecord(meta.Sandbox))
+	r.write(layersRecord(meta.PromptLayers))
 	return r
 }
 
