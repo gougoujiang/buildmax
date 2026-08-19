@@ -122,6 +122,14 @@ stops — usually within seconds. Either way the run keeps whatever it had
 produced by then, so stopping early costs you the rest of the work, not the part
 already done.
 
+A finished run can be repeated: Issue Detail offers **Retry Run** once a run is
+over. The retry runs the same instructions the last run had, so recovering from
+a worker that died or a model that timed out does not mean retyping them. It
+counts against your team's quota like any other run, and it leaves the run it
+repeats untouched — the record of what went wrong stays readable. A task that
+is a workflow step cannot be retried this way: the workflow owns that step's
+outcome, and re-running the workflow is what repeats it.
+
 ## Next
 
 - Run something locally: [quickstart.md](quickstart.md)

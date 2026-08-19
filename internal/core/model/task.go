@@ -44,8 +44,13 @@ const (
 )
 
 const (
-	RunTriggerSourceTaskCreate         = "task_create"
-	RunTriggerSourceTaskRerun          = "task_rerun"
+	RunTriggerSourceTaskCreate = "task_create"
+	RunTriggerSourceTaskRerun  = "task_rerun"
+	// RunTriggerSourceTaskRetry marks a run that repeats an earlier one's
+	// input rather than carrying new instructions. It is distinct from a rerun
+	// because "this was run again unchanged" and "someone asked for something
+	// else" are different answers to why a run exists.
+	RunTriggerSourceTaskRetry          = "task_retry"
 	RunTriggerSourcePortalConversation = "portal_conversation"
 	RunTriggerSourcePortalTaskCreate   = "portal_task_create"
 	RunTriggerSourcePortalTaskRerun    = "portal_task_rerun"
@@ -109,7 +114,12 @@ type TaskRun struct {
 	// CancelRequestedBy is the user who asked. A team's runs can be stopped by
 	// anyone on the team, so "why did this stop" needs a name to answer.
 	CancelRequestedBy *string `json:"cancel_requested_by,omitempty"`
-	CreatedAt         int64   `json:"created_at"`
+	// RetryOfTaskRunID names the run this one repeats. Nil for every run that
+	// carries its own instructions. The lineage is one level deep by record but
+	// unbounded by use: retrying a retry points at the run it repeated, not at
+	// the first of the chain.
+	RetryOfTaskRunID *string `json:"retry_of_task_run_id,omitempty"`
+	CreatedAt        int64   `json:"created_at"`
 }
 
 // TaskRunTerminalInfo describes a task run that reached a terminal state.
@@ -205,10 +215,21 @@ type TaskStore interface {
 	ClaimTask(ctx context.Context, in ClaimTaskInput) (updated bool, err error)
 }
 
+// CreateTaskRunInput describes a new run on an existing task.
+type CreateTaskRunInput struct {
+	TaskID        string
+	Input         string
+	CreatedBy     string
+	CreatedByType string
+	TriggerSource string
+	// RetryOfTaskRunID names the run this one repeats, when it repeats one.
+	RetryOfTaskRunID *string
+}
+
 // TaskRunStore provides task run persistence.
 type TaskRunStore interface {
 	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING/SCHEDULED/RUNNING.
-	CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*TaskRun, error)
+	CreateTaskRun(ctx context.Context, in CreateTaskRunInput) (*TaskRun, error)
 	// CountTaskRunsByStatus returns how many runs are in each status. It is
 	// the one number that answers "is work flowing through this deployment",
 	// and it carries no team, input, or output — only counts.

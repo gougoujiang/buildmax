@@ -306,7 +306,13 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	// A task carries at most one run in flight, so a rerun follows a finished
 	// run. Asking for one while the first is still PENDING is what the Portal
 	// answers 409 to; see CreateTaskRun and model.ErrRunInProgress.
-	if _, err := s.CreateTaskRun(ctx, task.TaskID, "too soon", "reviewer-user", model.RunCreatedByTypeUser, model.RunTriggerSourcePortalConversation); !errors.Is(err, model.ErrRunInProgress) {
+	if _, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
+		TaskID:        task.TaskID,
+		Input:         "too soon",
+		CreatedBy:     "reviewer-user",
+		CreatedByType: model.RunCreatedByTypeUser,
+		TriggerSource: model.RunTriggerSourcePortalConversation,
+	}); !errors.Is(err, model.ErrRunInProgress) {
 		t.Fatalf("CreateTaskRun while the initial run is pending: want ErrRunInProgress, got %v", err)
 	}
 
@@ -319,7 +325,13 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		t.Fatalf("UpdateRun: %v", err)
 	}
 
-	rerun, err := s.CreateTaskRun(ctx, task.TaskID, "follow-up input", "reviewer-user", model.RunCreatedByTypeUser, model.RunTriggerSourcePortalConversation)
+	rerun, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
+		TaskID:        task.TaskID,
+		Input:         "follow-up input",
+		CreatedBy:     "reviewer-user",
+		CreatedByType: model.RunCreatedByTypeUser,
+		TriggerSource: model.RunTriggerSourcePortalConversation,
+	})
 	if err != nil {
 		t.Fatalf("CreateTaskRun: %v", err)
 	}

@@ -35,7 +35,11 @@ type taskRunRow struct {
 	// until its own worker reports the outcome.
 	CancelRequestedAt *int64  `gorm:"column:cancel_requested_at;index"`
 	CancelRequestedBy *string `gorm:"column:cancel_requested_by;type:varchar(64)"`
-	CreatedAt         int64   `gorm:"autoCreateTime"`
+	// RetryOfTaskRunID names the run this one repeats. A nullable column rather
+	// than a trigger_source detail because the question a reader asks is which
+	// run this repeated, and a source string cannot answer it.
+	RetryOfTaskRunID *string `gorm:"column:retry_of_task_run_id;type:varchar(64);index"`
+	CreatedAt        int64   `gorm:"autoCreateTime"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -74,6 +78,7 @@ func toTaskRun(row *taskRunRow) *model.TaskRun {
 		TracePath:         row.TracePath,
 		CancelRequestedAt: row.CancelRequestedAt,
 		CancelRequestedBy: row.CancelRequestedBy,
+		RetryOfTaskRunID:  row.RetryOfTaskRunID,
 		CreatedAt:         row.CreatedAt,
 	}
 }
@@ -104,6 +109,7 @@ func toTaskRunRow(m *model.TaskRun) *taskRunRow {
 		TracePath:         m.TracePath,
 		CancelRequestedAt: m.CancelRequestedAt,
 		CancelRequestedBy: m.CancelRequestedBy,
+		RetryOfTaskRunID:  m.RetryOfTaskRunID,
 		CreatedAt:         m.CreatedAt,
 	}
 }
@@ -175,9 +181,9 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 }
 
 // CreateTaskRun creates a new run (PENDING). Returns model.ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
-func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, createdByType, triggerSource string) (*model.TaskRun, error) {
+func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) (*model.TaskRun, error) {
 	var inProgress int64
-	err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskID, model.ActiveRunStatuses).Count(&inProgress).Error
+	err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", in.TaskID, model.ActiveRunStatuses).Count(&inProgress).Error
 	if err != nil {
 		return nil, err
 	}
@@ -185,14 +191,15 @@ func (s *Store) CreateTaskRun(ctx context.Context, taskID, input, createdBy, cre
 		return nil, model.ErrRunInProgress
 	}
 	run := &model.TaskRun{
-		TaskRunID:     util.NewPrefixedID(util.PrefixTaskRun),
-		TaskID:        taskID,
-		Input:         input,
-		CreatedBy:     createdBy,
-		CreatedByType: defaultString(createdByType, model.RunCreatedByTypeUser),
-		TriggerSource: defaultString(triggerSource, model.RunTriggerSourceTaskRerun),
-		Status:        "PENDING",
-		CreatedAt:     time.Now().Unix(),
+		TaskRunID:        util.NewPrefixedID(util.PrefixTaskRun),
+		TaskID:           in.TaskID,
+		Input:            in.Input,
+		CreatedBy:        in.CreatedBy,
+		CreatedByType:    defaultString(in.CreatedByType, model.RunCreatedByTypeUser),
+		TriggerSource:    defaultString(in.TriggerSource, model.RunTriggerSourceTaskRerun),
+		Status:           "PENDING",
+		RetryOfTaskRunID: in.RetryOfTaskRunID,
+		CreatedAt:        time.Now().Unix(),
 	}
 	if err := s.db.WithContext(ctx).Create(toTaskRunRow(run)).Error; err != nil {
 		return nil, err

@@ -18,7 +18,24 @@ var (
 	ErrTasksNotConfigured    = errors.New("tasks not configured")
 	ErrTaskRunsNotConfigured = errors.New("task runs not configured")
 	ErrAgentNotFound         = errors.New("agent not found or not owned by team")
+	ErrTaskNotFound          = errors.New("task not found")
+	// ErrNoRunToRetry means the task has no finished run to repeat: it has
+	// never run, or its only run is still in flight.
+	ErrNoRunToRetry = errors.New("this task has no finished run to retry")
+	// ErrRetryOfWorkflowStep means the task belongs to a workflow step. The
+	// workflow owns that task's lifecycle — it reacts to the step run's
+	// outcome — so a run started behind its back would mark a settled step
+	// succeeded and dispatch the next step of a workflow run that is already
+	// over.
+	ErrRetryOfWorkflowStep = errors.New("this run belongs to a workflow step")
 )
+
+// WorkflowStepLookup answers whether a task is a workflow step's task. It is
+// optional: a deployment with no workflow store has no workflow steps, so a nil
+// lookup means nothing to protect rather than an unanswered question.
+type WorkflowStepLookup interface {
+	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*model.WorkflowStepRun, error)
+}
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
 type QuotaChecker interface {
@@ -41,6 +58,9 @@ type TaskService struct {
 	TaskRuns       model.TaskRunStore
 	QuotaChecker   QuotaChecker
 	TitleGenerator llm.TitleGenerator
+	// WorkflowSteps is only consulted by RetryRun. Callers that never retry
+	// leave it nil.
+	WorkflowSteps WorkflowStepLookup
 }
 
 // CreateTaskCmd creates a new task and its first run.
@@ -62,6 +82,20 @@ type CreateRunCmd struct {
 	Input         string
 	CreatedByType string
 	TriggerSource string
+	// RetryOfTaskRunID names the run this one repeats, when it repeats one.
+	RetryOfTaskRunID *string
+}
+
+// RetryRunCmd repeats a task's most recent run.
+type RetryRunCmd struct {
+	UserID string
+	TaskID string
+}
+
+// RetryResult reports the new run and the one it repeats.
+type RetryResult struct {
+	Run        *model.TaskRun
+	RetriedRun model.TaskRun
 }
 
 // StartBackgroundTaskResult is returned when a background task is created.
@@ -120,7 +154,88 @@ func (s *TaskService) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.T
 		}
 	}
 	createdByType, triggerSource := normalizeCreateRunProvenance(cmd.CreatedByType, cmd.TriggerSource)
-	return s.TaskRuns.CreateTaskRun(ctx, cmd.TaskID, cmd.Input, cmd.UserID, createdByType, triggerSource)
+	return s.TaskRuns.CreateTaskRun(ctx, model.CreateTaskRunInput{
+		TaskID:           cmd.TaskID,
+		Input:            cmd.Input,
+		CreatedBy:        cmd.UserID,
+		CreatedByType:    createdByType,
+		TriggerSource:    triggerSource,
+		RetryOfTaskRunID: cmd.RetryOfTaskRunID,
+	})
+}
+
+// RetryRun repeats a task's most recent run with the same input.
+//
+// The input comes from the run rather than the task because a task's later runs
+// can carry follow-up instructions, and retrying means running that again — not
+// running whatever the task was first asked to do.
+//
+// A run still in flight is not retried: one task holds at most one active run,
+// and the answer to "it is taking too long" is to stop it first.
+func (s *TaskService) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, error) {
+	if s.TaskRuns == nil {
+		return nil, ErrTaskRunsNotConfigured
+	}
+	if s.Tasks == nil {
+		return nil, ErrTasksNotConfigured
+	}
+	target, err := s.Tasks.GetTask(ctx, cmd.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, ErrTaskNotFound
+	}
+	if err := s.refuseWorkflowStepRetry(ctx, cmd.TaskID); err != nil {
+		return nil, err
+	}
+	// Ask about an in-flight run before looking at the last finished one. The
+	// store refuses a second active run anyway, but a task whose current run is
+	// still going has a more useful answer than "nothing to retry" — and while
+	// it runs, last_run_id still names the run before it.
+	active, err := s.TaskRuns.GetActiveTaskRunByTask(ctx, cmd.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if active != nil {
+		return nil, model.ErrRunInProgress
+	}
+	if target.LastRunID == nil {
+		return nil, ErrNoRunToRetry
+	}
+	previous, err := s.TaskRuns.GetTaskRun(ctx, *target.LastRunID)
+	if err != nil {
+		return nil, err
+	}
+	if previous == nil || !model.RunStatusTerminal(previous.Status) {
+		return nil, ErrNoRunToRetry
+	}
+	run, err := s.CreateRun(ctx, CreateRunCmd{
+		UserID:           cmd.UserID,
+		TaskID:           cmd.TaskID,
+		Input:            previous.Input,
+		CreatedByType:    model.RunCreatedByTypeUser,
+		TriggerSource:    model.RunTriggerSourceTaskRetry,
+		RetryOfTaskRunID: &previous.TaskRunID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &RetryResult{Run: run, RetriedRun: *previous}, nil
+}
+
+func (s *TaskService) refuseWorkflowStepRetry(ctx context.Context, taskID string) error {
+	if s.WorkflowSteps == nil {
+		return nil
+	}
+	step, err := s.WorkflowSteps.GetWorkflowStepRunByTaskID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if step != nil {
+		return ErrRetryOfWorkflowStep
+	}
+	return nil
 }
 
 // StartBackgroundTask creates a task and returns its task/run ids.
