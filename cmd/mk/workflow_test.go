@@ -139,6 +139,14 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 		t.Fatalf("read ci.yml: %v", err)
 	}
 	workflow := string(body)
+	// The workflow declares each tool version once and refers to it by variable
+	// at the install site, so a match has to be resolved before it means
+	// anything. An unresolvable reference is a failure rather than a skip:
+	// otherwise a typo in the variable name would quietly retire the check.
+	env := map[string]string{}
+	for _, entry := range regexp.MustCompile(`(?m)^\s+([A-Z][A-Z0-9_]*): (\S+)$`).FindAllStringSubmatch(workflow, -1) {
+		env[entry[1]] = entry[2]
+	}
 	for _, pkg := range []string{
 		golangciLintPkg,
 		govulncheckPkg,
@@ -152,8 +160,17 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 			t.Errorf("ci.yml no longer runs %s; drop or update the pin in cmd/mk", module)
 			continue
 		}
-		if match != pkg {
-			t.Errorf("cmd/mk pins %s; ci.yml runs %s", pkg, match)
+		_, version, _ := strings.Cut(match, "@")
+		if name, ok := strings.CutPrefix(version, "$"); ok {
+			resolved, declared := env[name]
+			if !declared {
+				t.Errorf("ci.yml installs %s@$%s but declares no %s", module, name, name)
+				continue
+			}
+			version = resolved
+		}
+		if got := module + "@" + version; got != pkg {
+			t.Errorf("cmd/mk pins %s; ci.yml runs %s", pkg, got)
 		}
 	}
 }
