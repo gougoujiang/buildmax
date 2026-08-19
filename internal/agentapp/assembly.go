@@ -99,6 +99,7 @@ func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.To
 		tools.NewGrep(workspaceRoot),
 		tools.NewWebFetch(client, 15*time.Minute).WithSandbox(sandboxView),
 		tools.NewTodoWrite(),
+		tools.NewNoteWrite(),
 		skillTool,
 	}
 }

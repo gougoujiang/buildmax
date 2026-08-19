@@ -534,6 +534,9 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	}
 	start := time.Now()
 	ctx = session.CtxWithSessionID(ctx, sess.ID)
+	// NoteWrite and TodoWrite reach the session through the context: the tool registry is
+	// cached per model and shared across sessions, so a tool must not hold one.
+	ctx = agent.CtxWithNoteStore(ctx, sess)
 
 	// Durable run trace: one JSONL file per run, attached at this single
 	// chokepoint so CLI/TUI, Desktop, eval, and the worker all produce traces

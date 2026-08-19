@@ -3,7 +3,7 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `phase 1 implemented` (§8 phase 1 landed; phases 2–4 open)
+- status: `phases 1–2 implemented` (§8 phases 1 and 2 landed; 3 and 4 open)
 - implements: [trust-harness.md](./trust-harness.md) §3.6 (agent memory, session memory)
 - follows: [hook-system.md](./hook-system.md), [durable-run-trace.md](./durable-run-trace.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -75,7 +75,7 @@ whole session. The workspace `AGENTS.md` is the closest thing, but it is
 workspace-scoped, not agent-scoped, and one workspace may host several agent
 roles.
 
-### 3.2 Task and situation state live only in messages
+### 3.2 Task and situation state live only in messages — fixed ✅
 
 Everything the Agent learns during a run — the goal, the acceptance criteria,
 the decision to use approach B after A failed, the fact that the contract is
@@ -347,19 +347,51 @@ is a strong trigger convention worth preserving — but becomes stateful and
 backed by the same session storage, so its list survives compaction and renders
 in the same block. Whether the two tools eventually merge is left open (§11).
 
-Access to state is exposed to `RunLoop` through an optional interface on the
-history, mirroring the existing `CompactionHistory` extension
-(`internal/core/agent/agent.go:41`), so `internal/core/agent` stays free of any
-dependency on session persistence:
+Reading and writing take different routes, and the split is forced by an
+existing property of the runtime rather than chosen for symmetry.
+
+**Reading** goes through an optional interface on the history, mirroring the
+`CompactionHistory` extension (`internal/core/agent/agent.go:41`), so
+`internal/core/agent` needs no dependency on session persistence:
 
 ```go
-// NotesHistory is an optional extension implemented by persistent histories
-// that carry durable session notes.
+// NotesHistory is an optional extension of MessageHistory implemented by
+// histories that carry durable session state.
 type NotesHistory interface {
-    Notes() []Note
-    SetNotes(notes []Note)
+    MessageHistory
+    NoteStore
 }
 ```
+
+**Writing** cannot use that route, because a tool has no reference to the
+history. Nor can a tool hold the session: `AgentApp` caches one tool registry
+per model name (`internal/agentapp/app.go`), so a single tool instance is shared
+by every session using that model, and a session pointer on the tool would leak
+one session's notes into another. The store therefore reaches tools through the
+context, alongside the session ID that already travels that way:
+
+```go
+type NoteStore interface {
+    Notes() []Note
+    SetNotes(notes []Note, iter int)
+    Todos() []Todo
+    SetTodos(todos []Todo, iter int)
+}
+
+func CtxWithNoteStore(ctx context.Context, s NoteStore) context.Context
+func NoteStoreFromContext(ctx context.Context) (NoteStore, bool)
+```
+
+The `iter` argument is what lets an entry keep its age across a full-list
+rewrite: an entry whose text is unchanged keeps the iteration it first appeared
+at, and only genuinely new entries are stamped with the current one. For a todo
+the key is content *plus* status, so moving a task to `in_progress` restarts its
+clock — that is the number worth reporting. `RunLoop` puts the iteration on the
+context before executing tool calls.
+
+A run whose context carries no store is not an error. Tools fall back to
+formatting the list and saying plainly that it was not kept, because reporting
+success for a note that then vanishes is worse than reporting nothing.
 
 ### 5.4 Anchoring block
 
@@ -455,8 +487,13 @@ trimmed, so unbounded growth there is worse than losing a message.
   stateful todo from §5.3 to exist first, and it should be designed against
   observed drift rather than guessed thresholds. The `written_at` field is
   specified now so the data is available when that design starts.
-- **Note-taking by sub-agents.** Sub-agent runs are short and their result is
-  returned to the parent. Revisit only if long-running sub-agents appear.
+- **Note-taking by sub-agents as a feature.** Sub-agent runs are short and
+  their result is returned to the parent, so nothing is designed around them
+  keeping notes. Isolation, however, is not optional: the parent's store arrives
+  on the context a sub-agent inherits, so `internal/tool/subagent_runner.go`
+  repoints it at the sub-agent's own session. Without that, a sub-agent calling
+  `TodoWrite` would overwrite the task list of the run that delegated to it.
+  The sub-agent's state is discarded when it returns.
 - **Portal/Desktop UI for viewing and editing notes.** Trust-harness §3.6
   requires memory to be inspectable and user-controllable; the storage here
   makes that possible, and the surfaces specify it.
@@ -510,7 +547,7 @@ append removed from `RunPrompt` so `RunLoop` is the block's only renderer.
 Regression coverage in `internal/core/agent/compaction_test.go`, plus an
 ownership guard in `internal/agentapp/prompt_test.go`.
 
-### Phase 2 — session notes
+### Phase 2 — session notes — shipped ✅
 
 5. `session.Note`, `Session.Notes`, JSON persistence, `NotesHistory` interface.
 6. `NoteWrite` tool + `names.go` entry; `TodoWrite` becomes stateful over the
@@ -519,6 +556,26 @@ ownership guard in `internal/agentapp/prompt_test.go`.
 8. Tests: a note written before a compaction is present in the request after
    it; an empty store renders no block; over-limit writes fail with usable
    output; the block is never persisted into session history.
+
+Landed as: `Note`, `Todo`, `NoteStore`, `NotesHistory`, the context accessors,
+the validators, the `Stamp*` age-preserving helpers, and `RenderSessionState`
+in `internal/core/agent/notes.go`; `NoteEntries`/`TodoEntries` plus the
+`agent.NoteStore` methods on `session.Session`; `internal/tool/note_write.go`
+and a stateful `TodoWrite`; the block appended after `history` in `callLLM`.
+Coverage in `internal/core/agent/notes_test.go`,
+`internal/tool/note_write_test.go`, and a persistence round-trip in
+`internal/agentapp/session_manager_test.go`.
+
+Two things the plan did not anticipate. Writes go through the context rather
+than the history, for the registry-caching reason recorded in §5.3. And
+`TodoWrite` now rejects a list with more than one `in_progress` entry: the
+anchoring block reports "in progress for N iterations" against a single active
+task, and a list with two of them has no such answer.
+
+Scope note: `NoteWrite` and `TodoWrite` are part of the workspace agent's tool
+set. Tier 1 conversation runs (`internal/service/conversation/runtime`) build
+their own narrow tool list for task orchestration and offer neither, so nothing
+about this pass changes Portal conversation behaviour.
 
 ### Phase 3 — forced checkpoint
 

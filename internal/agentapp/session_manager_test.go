@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 )
@@ -122,6 +123,33 @@ func TestSaveLoad_UsageRoundTrip(t *testing.T) {
 	}
 	if loaded.PromptTokens != 50 || loaded.CompletionTokens != 30 {
 		t.Errorf("loaded usage: prompt=%d completion=%d, want 50, 30", loaded.PromptTokens, loaded.CompletionTokens)
+	}
+}
+
+// TestSaveLoad_DurableStateRoundTrip covers the property that makes notes worth having: they
+// are stored on the session, not in the message list, so they outlive both trimming and a
+// restart. If they did not persist they would be no better than a tool result.
+func TestSaveLoad_DurableStateRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s := session.NewSession("")
+	s.SetNotes([]agent.Note{{Text: "the client is the lessee"}}, 12)
+	s.SetTodos([]agent.Todo{{Content: "draft the notice", Status: agent.TodoInProgress}}, 12)
+	if err := saveSession(s, dir); err != nil {
+		t.Fatalf("saveSession: %v", err)
+	}
+
+	loaded, err := LoadSession(dir, s.ID)
+	if err != nil {
+		t.Fatalf("LoadSession: %v", err)
+	}
+	if len(loaded.Notes()) != 1 || loaded.Notes()[0].Text != "the client is the lessee" {
+		t.Fatalf("notes = %+v, want the stored note", loaded.Notes())
+	}
+	if loaded.Notes()[0].WrittenAt != 12 {
+		t.Errorf("note WrittenAt = %d, want 12", loaded.Notes()[0].WrittenAt)
+	}
+	if len(loaded.Todos()) != 1 || loaded.Todos()[0].Status != agent.TodoInProgress {
+		t.Errorf("todos = %+v, want one in-progress entry", loaded.Todos())
 	}
 }
 

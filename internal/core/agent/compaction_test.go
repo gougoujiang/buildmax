@@ -43,14 +43,16 @@ var _ CompactionHistory = (*compactingHistory)(nil)
 // windowedClient reports a fixed context window, records the system prompt of every call,
 // and always returns final content so one RunLoop call performs exactly one iteration.
 type windowedClient struct {
-	window  int
-	systems []string
+	window   int
+	systems  []string
+	lastSent []llm.Message
 }
 
 func (c *windowedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
 	if len(messages) > 0 && messages[0].Role == "system" {
 		c.systems = append(c.systems, messages[0].Content)
 	}
+	c.lastSent = append([]llm.Message(nil), messages...)
 	return "done", nil, llm.Usage{}, nil
 }
 

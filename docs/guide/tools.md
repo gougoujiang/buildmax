@@ -20,6 +20,7 @@ so they are worth knowing exactly.
 | `Bash` | Run a shell command in the workspace | `command`, `timeout` (default 120s, max 600s) |
 | `WebFetch` | Fetch a URL as markdown, optionally summarized by the model | `url`, `prompt` |
 | `TodoWrite` | Track multi-step progress | `todos[]` of `{id, content, status}` |
+| `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | skill name |
 | `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [mcp.md](mcp.md) |
@@ -48,6 +49,14 @@ agent decides whether to fetch the new host.
 
 **`Read` returns the first 1000 lines by default.** Large files are read in
 ranges via `offset` and `limit` rather than all at once.
+
+**`NoteWrite` and `TodoWrite` outlive the conversation history.** Both replace
+what they store rather than adding to it, so each call carries the complete
+list. What they hold is shown to the agent on every turn and is not part of the
+message history, which means it survives the compaction that eventually
+discards the messages that produced it. Notes are capped at 15 entries of 200
+characters; a longer list is rejected and the agent is asked to merge it. A
+session that never writes either one carries nothing extra.
 
 ## The Path Boundary
 

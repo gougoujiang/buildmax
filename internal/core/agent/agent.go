@@ -215,7 +215,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			return "", s, err
 		}
 
-		n, err := executeToolCalls(ctx, opts, toolCalls, guard)
+		// Tools that write durable state stamp entries with the iteration they were written at.
+		n, err := executeToolCalls(CtxWithIteration(ctx, i+1), opts, toolCalls, guard)
 		s.ToolCalls += n
 		if err != nil {
 			return "", s, err
@@ -261,12 +262,22 @@ func fireRunEndHook(ctx context.Context, opts RunLoopOpts, stats RunStats, err e
 // When EventSink is also set, content deltas are forwarded to it as EventLLMDelta events.
 // history and systemPrompt are passed explicitly so the caller can inject a compacted view.
 func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, systemPrompt string, iter int, stats RunStats) (string, []llm.ToolCall, llm.Usage, error) {
+	// Durable session state is rendered fresh on every call and placed after the messages, so
+	// it is never subject to trimming and never accumulates in the history. An empty block
+	// renders nothing, which is what a run that keeps no state should cost.
+	var stateMsg []llm.Message
+	if nh, ok := opts.History.(NotesHistory); ok {
+		if block := RenderSessionState(nh.Notes(), nh.Todos(), iter); block != "" {
+			stateMsg = []llm.Message{{Role: "user", Content: block}}
+		}
+	}
+
+	systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(stateMsg)
 	contextWindow := opts.LLMClient.ContextWindow()
 	if contextWindow > 0 {
-		systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt})
 		history = TrimHistory(history, systemTokens, contextWindow, 0)
 	}
-	contextTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(history)
+	contextTokens := systemTokens + EstimateTokens(history)
 	emit(opts.EventSink, Event{
 		Kind:             EventLLMStart,
 		Iter:             iter,
@@ -276,6 +287,7 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		CompletionTokens: stats.CompletionTokens,
 	})
 	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
+	messages = append(messages, stateMsg...)
 	defs := opts.ToolRegistry.GetDefs()
 	if opts.StreamSink != nil {
 		onDelta := opts.StreamSink.OnDelta

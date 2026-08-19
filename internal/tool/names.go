@@ -1,5 +1,5 @@
 // Package tool provides concrete agent tools (Read, Write, Edit, Glob, Grep, Bash,
-// WebFetch, TodoWrite, Skill, Task, and MCP gateway tools).
+// WebFetch, TodoWrite, NoteWrite, Skill, Task, and MCP gateway tools).
 package tool
 
 // Tool name constants — single source of truth for every tool's Name(). Use camelCase for LLM-facing names.
@@ -12,6 +12,7 @@ const (
 	ToolNameBash      = "Bash"
 	ToolNameWebFetch  = "WebFetch"
 	ToolNameTodoWrite = "TodoWrite"
+	ToolNameNoteWrite = "NoteWrite"
 	ToolNameSkill     = "Skill"
 	ToolNameTask      = "Task"
 )
