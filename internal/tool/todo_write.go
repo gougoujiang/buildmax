@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 )
 
-// Valid todo statuses.
+// Valid todo statuses. The values live in internal/core/agent, which owns durable session
+// state; these names stay for the tool's own schema and messages.
 const (
-	StatusPending    = "pending"
-	StatusInProgress = "in_progress"
-	StatusCompleted  = "completed"
+	StatusPending    = agent.TodoPending
+	StatusInProgress = agent.TodoInProgress
+	StatusCompleted  = agent.TodoCompleted
 )
 
 var validStatuses = map[string]bool{
@@ -26,9 +29,12 @@ type todoItem struct {
 	activeForm string
 }
 
-// TodoWrite is a tool that formats a task list for the LLM to trace progress.
-// It does not store state; it validates the given todos and returns a formatted list.
-// It implements the agent.Tool interface.
+// TodoWrite records the task list the LLM uses to trace progress.
+//
+// The list is durable session state, not a message: it survives history compaction and is
+// re-rendered on every model call. It is stored through the context, because the tool registry
+// is cached per model and shared across sessions. A run with no store — a subagent, for
+// instance — still gets a formatted list back, and is told the list was not kept.
 type TodoWrite struct{}
 
 // NewTodoWrite creates a TodoWrite tool.
@@ -41,7 +47,10 @@ func (t *TodoWrite) Name() string { return ToolNameTodoWrite }
 
 // Description returns a short description so the LLM knows when to use this tool.
 func (t *TodoWrite) Description() string {
-	return "Format a task list so you can trace progress. Pass the current list of todos (content, status: pending/in_progress/completed, optional active_form). Returns a formatted list for reference; does not store state."
+	return "Record the task list so you can trace progress. Pass the complete list of todos " +
+		"(content, status: pending/in_progress/completed, optional active_form); it replaces the " +
+		"stored one. Exactly one task is in_progress at a time. The list survives compaction of " +
+		"the conversation history and is shown to you on every turn."
 }
 
 // Parameters returns the OpenAI-style JSON schema for the tool arguments.
@@ -77,7 +86,8 @@ func (t *TodoWrite) Parameters() any {
 	}
 }
 
-// Execute parses and validates todos from args, then returns a formatted list for the LLM.
+// Execute parses and validates todos from args, stores them on the session when the run keeps
+// durable state, and returns a formatted list for the LLM.
 func (t *TodoWrite) Execute(ctx context.Context, args map[string]any) (string, error) {
 	v, ok := args["todos"]
 	if !ok {
@@ -108,6 +118,19 @@ func (t *TodoWrite) Execute(ctx context.Context, args map[string]any) (string, e
 		items = append(items, todoItem{content: content, status: status, activeForm: strings.TrimSpace(activeForm)})
 	}
 
+	todos := make([]agent.Todo, len(items))
+	for i, it := range items {
+		todos[i] = agent.Todo{Content: it.content, Status: it.status, ActiveForm: it.activeForm}
+	}
+	if err := agent.ValidateTodos(todos); err != nil {
+		return "", err
+	}
+
+	store, ok := agent.NoteStoreFromContext(ctx)
+	if !ok {
+		return formatTodoList(items) + "\n\n(This run keeps no durable task list, so the list was not stored.)", nil
+	}
+	store.SetTodos(todos, agent.IterationFromContext(ctx))
 	return formatTodoList(items), nil
 }
 

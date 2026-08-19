@@ -230,6 +230,74 @@ pre-releases and must be called out in release notes.
   model" became "exit status 1". The scheduler now leaves a run alone once it
   has reached a terminal status.
 
+- A long session no longer loses its earliest context outright. Each compaction
+  summarized only the messages it was discarding and then replaced the stored
+  summary, so after the second compaction everything the first one covered was
+  gone rather than condensed — which is why a long-running agent could forget
+  what it had been asked to do. A compaction now summarizes the previous summary
+  together with the newly discarded messages, so each summary subsumes the one
+  before it. The stored summary is also bounded relative to the context window,
+  since it lives in the system prompt, which is re-sent in full on every call and
+  is never trimmed.
+
+- The system prompt no longer carries the compaction summary twice. Both the
+  caller and the agent loop appended it, so every run after its first in-run
+  compaction sent two copies.
+
+- The agent keeps durable session notes. A new `NoteWrite` tool records short
+  entries — decisions and why they were made, approaches already ruled out,
+  constraints stated once — and `TodoWrite` now stores its list instead of only
+  formatting it. Both are kept on the session rather than in the conversation,
+  so they survive the compaction that eventually discards the messages that
+  produced them, and both are shown to the agent on every turn. Each call
+  carries the complete list and replaces what was stored, which is what forces
+  the agent to drop entries it no longer needs; notes are capped at 15 entries
+  of 200 characters and an over-limit call is rejected with an explanation. A
+  session that writes neither carries nothing extra. A subagent writes to its
+  own list and cannot overwrite the one belonging to the run that delegated to
+  it.
+
+- Notes are now saved at the moment they would otherwise be lost. Before a
+  compaction discards messages, the agent gets a bounded turn — with only the
+  note and task-list tools in reach — to move anything it still needs out of
+  the material about to go. Until now a note existed only if the agent
+  remembered to write one, which it is least likely to do exactly when the
+  context is filling up. A write rejected for exceeding the note limit earns
+  one correction, since this is the last moment the material exists. A failed
+  checkpoint is logged and the compaction proceeds.
+
+- Compaction summaries are better targeted. The summarizer is now shown the
+  session's live notes and open tasks and asked to spend its detail on what
+  bears on them, compressing what is already settled. It previously had no
+  signal about what was still open.
+
+- A run's system prompt can be added to: free text appended as its last layer,
+  after the runtime prompt and both `AGENTS.md` files. It is additive rather
+  than a replacement, and because it lives in the system prompt it is sent with
+  every model call instead of fading as the conversation is compacted. On the
+  command line it comes from `--append-system-prompt`,
+  `--append-system-prompt-file` (preferred for anything long or private, since
+  an argument is readable by every process on the machine), or `--agent NAME`
+  for the body of a definition under `.buildmax/agents/` — which supplies prompt
+  text only, and does not switch the model or restrict tools. The text is capped
+  at 8192 characters and an over-limit value is rejected rather than truncated.
+  An `## Invariants` section within it is also restated at the end of every
+  request. Resuming a session without one of these flags keeps the text it
+  already ran under.
+
+- A Portal agent's instructions now reach the agent through its system prompt.
+  They were
+  rendered into the task input, which is a message like any other, so a long
+  run compacted them away — and a task created with its own input dropped them
+  entirely. The server resolves them per run, so editing an agent takes effect
+  on its next run, and they travel in the worker API response rather than on
+  the worker's command line, where every process on the machine could read
+  them.
+
+- A run trace now records which system-prompt layers the run loaded and how
+  large each was, so a finished run can say what it was told before the
+  conversation started.
+
 ## [0.1.0-alpha.1] - 2026-08-17
 
 ### Security

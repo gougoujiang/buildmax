@@ -51,6 +51,18 @@ type TaskRunTask struct {
 	UserID         string  `json:"user_id"`
 	SessionID      *string `json:"session_id,omitempty"`
 	LastRunID      *string `json:"last_run_id,omitempty"`
+	// AgentInstructions is the instruction text of the agent this task names, resolved by
+	// the server. The worker appends it to the run's system prompt, which is re-sent whole on
+	// every call, rather than leaving it in the task input, which the conversation eventually
+	// compacts away.
+	//
+	// It travels here rather than on the worker's command line for the same reason the run
+	// token does: argv is readable by every process on the machine, and this is text a user
+	// wrote, which may carry something they would not publish.
+	//
+	// Absent means the task names no agent, or a server built before this field existed, so
+	// a worker reads it as it always did.
+	AgentInstructions string `json:"agent_instructions,omitempty"`
 }
 
 // PatchTaskRunRequest is the JSON body for PATCH /api/worker/task-runs/{task_run_id} (snake_case).

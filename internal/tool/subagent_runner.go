@@ -87,6 +87,10 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		return "", err
 	}
 	ctx = session.CtxWithSessionID(ctx, sess.ID)
+	// Point durable state at the subagent's own session. The parent's store arrives on the
+	// context, and leaving it in place would let a subagent overwrite the notes and task list
+	// of the run that delegated to it. This session is discarded when the subagent returns.
+	ctx = coreagent.CtxWithNoteStore(ctx, sess)
 
 	// Fire SubagentStart so audit hooks can correlate the subagent run with
 	// its parent. The decision is ignored — SubagentStart is advisory.

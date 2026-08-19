@@ -21,12 +21,13 @@ func detectGlamourStyle() string {
 	return "light"
 }
 
-func runTUI(resumeID string, modelName string) error {
+func runTUI(resumeID, modelName, additionalSystemPrompt string) error {
 	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-		EnableMCP:    true,
-		Policy:       agentapp.NewInteractivePolicy(),
-		ManagedToken: auth.TokenForServer,
-		Surface:      model.LLMCallSurfaceCLI,
+		EnableMCP:              true,
+		Policy:                 agentapp.NewInteractivePolicy(),
+		ManagedToken:           auth.TokenForServer,
+		Surface:                model.LLMCallSurfaceCLI,
+		AdditionalSystemPrompt: additionalSystemPrompt,
 	})
 	if err != nil {
 		return err

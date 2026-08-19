@@ -115,16 +115,21 @@ func managedRunScope(m ManagedInference, taskRunID string) string {
 
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
 type RunTaskInput struct {
-	Task            *model.Task
-	Run             *model.TaskRun
-	SessionID       string
-	Paths           RuntimePaths
-	Persist         blob.PersistStorage
-	ArtifactStorage blob.ArtifactStorage
-	Updater         TaskRunUpdater
-	StreamSender    workerclient.StreamSender
-	Model           config.ModelEntry
-	Managed         ManagedInference
+	Task *model.Task
+	// AdditionalSystemPrompt is the instruction text of the agent this task names, resolved by
+	// the server for this run. It becomes the last layer of the system prompt, where it is
+	// re-sent whole on every call, instead of riding in the task input where compaction
+	// eventually drops it.
+	AdditionalSystemPrompt string
+	Run                    *model.TaskRun
+	SessionID              string
+	Paths                  RuntimePaths
+	Persist                blob.PersistStorage
+	ArtifactStorage        blob.ArtifactStorage
+	Updater                TaskRunUpdater
+	StreamSender           workerclient.StreamSender
+	Model                  config.ModelEntry
+	Managed                ManagedInference
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
@@ -239,7 +244,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed)
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt)
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
 		OutputStr:        string(agentRun.output),
@@ -309,7 +314,7 @@ type agentRunOutput struct {
 	tracePath string
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -322,13 +327,14 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 			modelEntries = []config.ModelEntry{runtimeModel}
 		}
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-			WorkspaceDir:     runDir,
-			EnableMCP:        true,
-			Policy:           agentapp.NewNonInteractivePolicy(),
-			ModelEntries:     modelEntries,
-			ManagedToken:     managed.tokenFunc(),
-			ManagedTaskRunID: managedRunScope(managed, run.TaskRunID),
-			Surface:          managedSurface,
+			WorkspaceDir:           runDir,
+			EnableMCP:              true,
+			Policy:                 agentapp.NewNonInteractivePolicy(),
+			ModelEntries:           modelEntries,
+			ManagedToken:           managed.tokenFunc(),
+			ManagedTaskRunID:       managedRunScope(managed, run.TaskRunID),
+			Surface:                managedSurface,
+			AdditionalSystemPrompt: additionalSystemPrompt,
 		})
 		if err != nil {
 			return err

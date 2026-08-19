@@ -38,8 +38,15 @@ type MessageHistory interface {
 // CompactionHistory is an optional extension of MessageHistory implemented by persistent histories
 // that can record a compaction boundary across turns. When RunLoop compacts the context, it calls
 // AddCompaction so the next turn starts from the compacted view without re-summarizing.
+//
+// The history owns the summary, and RunLoop reads it back through PriorSummary rather than
+// expecting the caller to have folded it into SystemPrompt. That keeps one owner for the
+// block: two owners is how the same summary ends up in the prompt twice.
 type CompactionHistory interface {
 	MessageHistory
+	// PriorSummary returns the summary stored by the most recent compaction, or "" when the
+	// history has never been compacted.
+	PriorSummary() string
 	// AddCompaction advances the compaction boundary by summarizedCount messages and stores summary.
 	AddCompaction(summary string, summarizedCount int)
 }
@@ -48,6 +55,19 @@ type CompactionHistory interface {
 // The returned summary is injected into the system prompt so the LLM retains prior context.
 type ContextCompactor interface {
 	Compact(ctx context.Context, msgs []llm.Message) (summary string, err error)
+}
+
+// StateCheckpointer is handed the messages a compaction is about to discard, and gets one turn
+// to move anything still needed into durable session state before they are gone.
+//
+// This exists because a tool the model has to remember to call will be forgotten exactly when
+// context pressure is highest. Compaction is the one moment where the runtime knows
+// information is being destroyed, so it is the runtime, not the model, that decides the
+// checkpoint happens.
+//
+// Failure is not fatal: a checkpoint that errors is logged and compaction proceeds.
+type StateCheckpointer interface {
+	Checkpoint(ctx context.Context, discarded []llm.Message) error
 }
 
 // RunLoopOpts configures a single run of the shared agent loop (used by both CLI agent and conversation).
@@ -66,6 +86,14 @@ type RunLoopOpts struct {
 	// Compactor summarizes old messages when the context window is filling up.
 	// Nil disables compaction; TrimHistory is used as a fallback.
 	Compactor ContextCompactor
+	// Checkpointer is given one turn to save durable state before a compaction discards
+	// messages. Nil skips the checkpoint; compaction is unaffected either way.
+	Checkpointer StateCheckpointer
+	// Invariants is the hard-constraint section of the run's additional system prompt, restated
+	// after the message list on every call. That text is already in SystemPrompt and never
+	// leaves it; this is about proximity, not storage, so it carries only the part the author
+	// marked as non-negotiable. Empty is the normal case.
+	Invariants string
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
 	// The callback is invoked synchronously from the RunLoop goroutine; it must not block.
@@ -97,8 +125,14 @@ type RunLoopOpts struct {
 func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
 	var s RunStats
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
-	compactionSummary := "" // most recent compaction summary; appended to system prompt when non-empty
-	lastContent := ""       // last non-empty assistant content; returned on cancellation
+	// Most recent compaction summary, rendered into the system prompt when non-empty.
+	// Seeded from the history so a session compacted in an earlier turn keeps its summary
+	// and feeds it back into the next compaction.
+	compactionSummary := ""
+	if ch, ok := opts.History.(CompactionHistory); ok {
+		compactionSummary = ch.PriorSummary()
+	}
+	lastContent := "" // last non-empty assistant content; returned on cancellation
 
 	for i := 0; i < opts.MaxIter; i++ {
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
@@ -120,9 +154,16 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 						preOut := runHook(ctx, opts.Hooks, pre)
 						if preOut.Blocked() {
 							slog.Info("context compaction skipped by hook", "iter", i+1, "reason", preOut.Reason)
-						} else if summary, cerr := opts.Compactor.Compact(ctx, toSummarize); cerr == nil {
+						} else if summary, cerr := checkpointAndCompact(ctx, opts, i+1, compactionSummary, toSummarize); cerr == nil {
+							limit := maxSummaryChars(cw)
+							if clamped := clampSummary(summary, limit); clamped != summary {
+								slog.Warn("compaction summary exceeded its budget, clamped", "iter", i+1, "limit_chars", limit, "got_chars", len(summary))
+								summary = clamped
+							}
 							compactionSummary = summary
 							if ch, ok := opts.History.(CompactionHistory); ok {
+								// summarizedCount counts real history messages; the prior summary
+								// prepended above is synthetic and never entered the history.
 								ch.AddCompaction(summary, len(toSummarize))
 							}
 							history = toKeep
@@ -147,10 +188,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		}
 
 		// Build effective system prompt: base + compaction summary when present.
-		effectiveSysPrompt := opts.SystemPrompt
-		if compactionSummary != "" {
-			effectiveSysPrompt += "\n\n<context_compaction>\n" + compactionSummary + "\n</context_compaction>"
-		}
+		// SystemPrompt must not already carry the block — RunLoop is its only renderer.
+		effectiveSysPrompt := opts.SystemPrompt + RenderCompactionBlock(compactionSummary)
 
 		content, toolCalls, usage, err := callLLM(ctx, opts, history, effectiveSysPrompt, i+1, s)
 		if err != nil {
@@ -197,7 +236,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			return "", s, err
 		}
 
-		n, err := executeToolCalls(ctx, opts, toolCalls, guard)
+		// Tools that write durable state stamp entries with the iteration they were written at.
+		n, err := executeToolCalls(CtxWithIteration(ctx, i+1), opts, toolCalls, guard)
 		s.ToolCalls += n
 		if err != nil {
 			return "", s, err
@@ -208,6 +248,22 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: maxErr})
 	fireRunEndHook(ctx, opts, s, maxErr)
 	return "", s, maxErr
+}
+
+// checkpointAndCompact gives the checkpointer one turn to move anything still needed out of the
+// messages about to be discarded, then summarizes them.
+//
+// The checkpoint runs first because after Compact returns, the material is only reachable
+// through a lossy summary. Its failure is logged and ignored: losing the checkpoint costs some
+// context, but skipping the compaction it guards would cost the run.
+func checkpointAndCompact(ctx context.Context, opts RunLoopOpts, iter int, priorSummary string, toSummarize []llm.Message) (string, error) {
+	if opts.Checkpointer != nil {
+		// The iteration goes on the context so notes written here are stamped like any other.
+		if err := opts.Checkpointer.Checkpoint(CtxWithIteration(ctx, iter), toSummarize); err != nil {
+			slog.Warn("state checkpoint before compaction failed", "iter", iter, "err", err)
+		}
+	}
+	return opts.Compactor.Compact(ctx, withPriorSummary(priorSummary, toSummarize))
 }
 
 // fireRunEndHook invokes the lifecycle hook for a finished run. Routes to
@@ -243,12 +299,25 @@ func fireRunEndHook(ctx context.Context, opts RunLoopOpts, stats RunStats, err e
 // When EventSink is also set, content deltas are forwarded to it as EventLLMDelta events.
 // history and systemPrompt are passed explicitly so the caller can inject a compacted view.
 func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, systemPrompt string, iter int, stats RunStats) (string, []llm.ToolCall, llm.Usage, error) {
+	// Durable session state is rendered fresh on every call and placed after the messages, so
+	// it is never subject to trimming and never accumulates in the history. An empty block
+	// renders nothing, which is what a run that keeps no state should cost.
+	var notes []Note
+	var todos []Todo
+	if nh, ok := opts.History.(NotesHistory); ok {
+		notes, todos = nh.Notes(), nh.Todos()
+	}
+	var stateMsg []llm.Message
+	if block := RenderSessionState(opts.Invariants, notes, todos, iter); block != "" {
+		stateMsg = []llm.Message{{Role: "user", Content: block}}
+	}
+
+	systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(stateMsg)
 	contextWindow := opts.LLMClient.ContextWindow()
 	if contextWindow > 0 {
-		systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt})
 		history = TrimHistory(history, systemTokens, contextWindow, 0)
 	}
-	contextTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(history)
+	contextTokens := systemTokens + EstimateTokens(history)
 	emit(opts.EventSink, Event{
 		Kind:             EventLLMStart,
 		Iter:             iter,
@@ -258,6 +327,7 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		CompletionTokens: stats.CompletionTokens,
 	})
 	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
+	messages = append(messages, stateMsg...)
 	defs := opts.ToolRegistry.GetDefs()
 	if opts.StreamSink != nil {
 		onDelta := opts.StreamSink.OnDelta

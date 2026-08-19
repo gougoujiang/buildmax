@@ -33,6 +33,9 @@ buildmax <command> [flags]
 | `--session-id UUID` | — | Use a specific session id; loads it if it exists, otherwise creates it |
 | `--model ID\|NAME` | first entry in `settings.yaml` | Pick a model from `models:` |
 | `--workspace DIR` | current directory | Directory the agent operates in |
+| `--append-system-prompt TEXT` | — | Text appended to this run's system prompt |
+| `--append-system-prompt-file PATH` | — | Same, read from a file |
+| `--agent NAME` | — | Append the body of a definition from `.buildmax/agents/` or `~/.buildmax/agents/` |
 | `--output text\|json\|jsonl` | `text` | Output format for `-p` |
 | `--no-stream` | off | Do not stream the reply to stdout in print mode |
 | `-q`, `--quiet` | off | Suppress the stats footer in print text mode |
@@ -42,6 +45,40 @@ buildmax <command> [flags]
 
 `--output json` and `--output jsonl` make print mode machine-readable, which is
 what you want when calling BuildMax from a script or another program.
+
+### Adding to the system prompt
+
+The three flags below fill one slot: free text appended to the system prompt,
+after the runtime prompt and both `AGENTS.md` layers. It is additive — it never
+replaces the runtime prompt — and it is sent with every model call, so unlike
+anything you type in the conversation it does not fade as the context fills up.
+Use it for what the agent is and what it must never do.
+
+```bash
+buildmax --append-system-prompt "You are a release engineer. Never push to main."
+buildmax --append-system-prompt-file ./roles/release-engineer.md
+buildmax --agent law-consultant
+```
+
+`--append-system-prompt` and `--append-system-prompt-file` are mutually
+exclusive. Prefer the file when the text is long, multi-line, or private: an
+argument on the command line is readable by every process on the machine.
+
+`--agent NAME` is a convenience over the text — it loads the body of a
+definition file, the same files the `Task` tool delegates to, from
+`<workspace>/.buildmax/agents/` and then `~/.buildmax/agents/`. Only the body is
+used: it supplies prompt text, and does **not** switch the model or restrict the
+tool set the way the same definition does for a subagent. Combining it with
+`--append-system-prompt` appends the ad-hoc text after the definition.
+
+The text is capped at 8192 characters; more is rejected rather than truncated,
+because this layer is sent whole on every call and has no way to degrade. If it
+contains an `## Invariants` section, that section is also restated at the end of
+every request, close to where the model is generating — an instruction sitting
+in the system prompt still loses ground once the context fills with tool output.
+
+Resuming a session without one of these flags keeps the text the session already
+ran under. Passing one replaces it for that run onward.
 
 ### `buildmax init` Flags
 

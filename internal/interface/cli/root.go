@@ -56,6 +56,9 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
+	root.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
+	root.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
+	root.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
 	root.Flags().String("output", "text", "output format for -p print mode: text, json, jsonl")
 	root.Flags().Bool("no-stream", false, "disable streaming of assistant reply to stdout in print mode")
 	root.Flags().BoolP("quiet", "q", false, "suppress the stats footer in print text mode")
@@ -83,6 +86,10 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	model, _ := cmd.Flags().GetString("model")
 	sessionID, _ := cmd.Flags().GetString("session-id")
 	workspace, _ := cmd.Flags().GetString("workspace")
+	promptFlags := systemPromptFlags{}
+	promptFlags.Agent, _ = cmd.Flags().GetString("agent")
+	promptFlags.AppendText, _ = cmd.Flags().GetString("append-system-prompt")
+	promptFlags.AppendFile, _ = cmd.Flags().GetString("append-system-prompt-file")
 	outputStr, _ := cmd.Flags().GetString("output")
 	noStream, _ := cmd.Flags().GetBool("no-stream")
 	quiet, _ := cmd.Flags().GetBool("quiet")
@@ -112,6 +119,15 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Argument errors are reported before the environment is inspected: a bad flag combination
+	// is fixable without a model configured, and reporting the missing configuration first
+	// sends the user to solve the wrong problem.
+	additionalSystemPrompt, err := resolveAdditionalSystemPrompt(promptFlags, workspace)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return &ExitError{Code: ExitUsage, Err: err}
+	}
+
 	if err := checkModelConfig(); err != nil {
 		return &ExitError{Code: ExitUsage, Err: err}
 	}
@@ -119,18 +135,19 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	if prompt != "" {
 		slog.Info("running print mode")
 		return runPrintMode(printOptions{
-			Prompt:        prompt,
-			ResumeID:      effectiveSessionID,
-			ModelName:     model,
-			Workspace:     workspace,
-			Format:        format,
-			NoStream:      noStream,
-			Quiet:         quiet,
-			IncludeDeltas: includeDeltas,
+			Prompt:                 prompt,
+			ResumeID:               effectiveSessionID,
+			ModelName:              model,
+			Workspace:              workspace,
+			Format:                 format,
+			NoStream:               noStream,
+			Quiet:                  quiet,
+			IncludeDeltas:          includeDeltas,
+			AdditionalSystemPrompt: additionalSystemPrompt,
 		})
 	}
 	slog.Info("starting TUI")
-	return runTUI(effectiveSessionID, model)
+	return runTUI(effectiveSessionID, model, additionalSystemPrompt)
 }
 
 func parseOutputFormat(s string) (OutputFormat, error) {

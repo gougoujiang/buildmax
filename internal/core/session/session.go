@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/util"
 
@@ -46,6 +47,16 @@ type Session struct {
 	// Zero means no compaction has occurred.
 	CompactionIdx     int    `json:"compaction_idx,omitempty"`
 	CompactionSummary string `json:"compaction_summary,omitempty"`
+	// NoteEntries and TodoEntries are durable session state: unlike a tool result, they are
+	// not messages, so compaction cannot take them. The fields are named apart from the
+	// Notes/Todos accessors that implement agent.NoteStore; the JSON keys are the plain names.
+	NoteEntries []agent.Note `json:"notes,omitempty"`
+	TodoEntries []agent.Todo `json:"todos,omitempty"`
+	// AdditionalSystemPrompt records the extra system-prompt text this session actually ran
+	// under. It is a record — for the trace, and so a resumed session does not silently lose
+	// its identity when the flag that set it is not repeated — not the authority. Whoever
+	// assembles a run resolves it afresh, and the last writer wins.
+	AdditionalSystemPrompt string `json:"additional_system_prompt,omitempty"`
 }
 
 // SessionItem is one session's metadata in the session index file (sessions.json).
@@ -104,14 +115,38 @@ func (s *Session) HistoryMessages() []llm.Message {
 	return s.Messages
 }
 
+// PriorSummary returns the summary stored by the most recent compaction, or "" when this
+// session has never been compacted. Implements agent.CompactionHistory so RunLoop can feed
+// the previous summary back into the next compaction instead of discarding what it covered.
+func (s *Session) PriorSummary() string { return s.CompactionSummary }
+
 // AddCompaction advances the compaction boundary by summarizedCount messages and stores the
-// summary. Implements agent.CompactionHistory so RunLoop can persist the boundary across turns.
+// summary. The summary is expected to subsume any earlier one, so replacing is correct.
+// Implements agent.CompactionHistory so RunLoop can persist the boundary across turns.
 func (s *Session) AddCompaction(summary string, summarizedCount int) {
 	s.CompactionSummary = summary
 	s.CompactionIdx += summarizedCount
 	if s.CompactionIdx > len(s.Messages) {
 		s.CompactionIdx = len(s.Messages)
 	}
+}
+
+// Notes returns the session's durable notes. Implements agent.NoteStore.
+func (s *Session) Notes() []agent.Note { return s.NoteEntries }
+
+// SetNotes replaces the session's notes, preserving the age of entries whose text is unchanged
+// so a rewrite of the list does not make every entry look new. Implements agent.NoteStore.
+func (s *Session) SetNotes(notes []agent.Note, iter int) {
+	s.NoteEntries = agent.StampNotes(s.NoteEntries, notes, iter)
+}
+
+// Todos returns the session's durable task list. Implements agent.NoteStore.
+func (s *Session) Todos() []agent.Todo { return s.TodoEntries }
+
+// SetTodos replaces the session's task list, preserving the age of entries whose content and
+// status are both unchanged. Implements agent.NoteStore.
+func (s *Session) SetTodos(todos []agent.Todo, iter int) {
+	s.TodoEntries = agent.StampTodos(s.TodoEntries, todos, iter)
 }
 
 // EnsureTitleFromFirstUserMessage sets the session title from the first user message

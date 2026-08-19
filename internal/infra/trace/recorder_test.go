@@ -50,8 +50,9 @@ func TestRecorder_WritesRunStartEventsAndEnd(t *testing.T) {
 
 	path := filepath.Join(dir, "c_sess1", "rt_test01.jsonl")
 	recs := readRecords(t, path)
-	if len(recs) != 5 { // run_start, sandbox_boundary, llm_start, tool_end, run_end (delta dropped)
-		t.Fatalf("got %d records, want 5: %+v", len(recs), recs)
+	// run_start, sandbox_boundary, prompt_layers, llm_start, tool_end, run_end (delta dropped)
+	if len(recs) != 6 {
+		t.Fatalf("got %d records, want 6: %+v", len(recs), recs)
 	}
 	if recs[0].Type != "run_start" || recs[0].RunID != "rt_test01" || recs[0].TraceVersion != traceVersion {
 		t.Errorf("bad run_start: %+v", recs[0])
@@ -129,7 +130,7 @@ func TestRecordRunEnd_Synthetic(t *testing.T) {
 	rec.RecordRunEnd("blocked by hook: nope")
 	rec.Close()
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_block.jsonl"))
-	if len(recs) != 3 || recs[2].Type != "run_end" || recs[2].Error != "blocked by hook: nope" {
+	if len(recs) != 4 || recs[3].Type != "run_end" || recs[3].Error != "blocked by hook: nope" {
 		t.Errorf("synthetic run_end wrong: %+v", recs)
 	}
 }
@@ -168,8 +169,8 @@ func TestRecorder_BoundaryReportsUnsandboxedRun(t *testing.T) {
 			rec.Close()
 
 			recs := readRecords(t, filepath.Join(dir, "s", "rt_b.jsonl"))
-			if len(recs) != 2 {
-				t.Fatalf("got %d records, want run_start + sandbox_boundary: %+v", len(recs), recs)
+			if len(recs) != 3 {
+				t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers: %+v", len(recs), recs)
 			}
 			got := recs[1]
 			if got.Type != "sandbox_boundary" {
@@ -201,5 +202,54 @@ func TestBoundaryRecord_FalseSurvivesEncoding(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"sandboxed":false`) {
 		t.Errorf("encoded boundary must carry sandboxed:false, got %s", b)
+	}
+}
+
+// TestRecorder_ReportsPromptLayers covers the visibility trust-harness §3.6 asks for: a finished
+// run can say which instruction sources it was given, so a system prompt that changed between
+// runs is observable rather than something a reader has to infer from behaviour.
+func TestRecorder_ReportsPromptLayers(t *testing.T) {
+	dir := t.TempDir()
+	rec := NewRecorder(dir, Meta{
+		RunID:     "rt_layers",
+		SessionID: "s",
+		PromptLayers: []agent.PromptLayer{
+			{Name: "runtime", Chars: 100},
+			{Name: "additional_system_prompt", Chars: 42},
+		},
+	})
+	rec.Close()
+
+	recs := readRecords(t, filepath.Join(dir, "s", "rt_layers.jsonl"))
+	var got *Record
+	for i := range recs {
+		if recs[i].Type == "prompt_layers" {
+			got = &recs[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("no prompt_layers record: %+v", recs)
+	}
+	if len(got.Layers) != 2 || got.Layers[1].Name != "additional_system_prompt" || got.Layers[1].Chars != 42 {
+		t.Errorf("layers = %+v, want the two supplied", got.Layers)
+	}
+}
+
+// TestRecorder_ReportsPromptLayersWhenBare asserts the record is written even for a run that
+// loaded nothing beyond the runtime prompt. An absent record would read as "nobody looked".
+func TestRecorder_ReportsPromptLayersWhenBare(t *testing.T) {
+	dir := t.TempDir()
+	rec := NewRecorder(dir, Meta{RunID: "rt_bare", SessionID: "s"})
+	rec.Close()
+
+	recs := readRecords(t, filepath.Join(dir, "s", "rt_bare.jsonl"))
+	found := false
+	for _, r := range recs {
+		if r.Type == "prompt_layers" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no prompt_layers record for a run with no extra layers: %+v", recs)
 	}
 }

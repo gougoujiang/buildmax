@@ -23,7 +23,8 @@ results are sent back to the model as tool-role messages.
 | **Bash** | struct | Runs shell commands in the workspace |
 | **Glob** | struct | Lists files matching glob patterns |
 | **Grep** | struct | Searches file contents by regex |
-| **TodoWrite** | struct | Formats task lists for progress tracking |
+| **TodoWrite** | struct | Records the session task list |
+| **NoteWrite** | struct | Records durable session notes |
 | **SkillTool** | struct | Loads a discovered skill's instructions (`Skill`) |
 | **TaskTool** | struct | Runs a subagent of a named type (`Task`) |
 | MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
@@ -69,10 +70,29 @@ results are sent back to the model as tool-role messages.
 ### TodoWrite (`TodoWrite`)
 
 - **Parameters**: `todos` (required array of {id, content, status})
-- **Behavior**: Formats a task list for progress tracking. Statuses: pending, in_progress, completed.
+- **Behavior**: Replaces the session task list. Statuses: pending, in_progress, completed; at most one entry is in_progress.
+
+### NoteWrite (`NoteWrite`)
+
+- **Parameters**: `notes` (required array of strings)
+- **Behavior**: Replaces the session's durable notes. At most 15 entries of 200 characters; an over-limit call fails with a message naming the limit.
+
+An additional system prompt, when the run has one, contributes a fourth layer to
+the system prompt and its `## Invariants` section is restated in the same block
+these tools render into. See [design/context-durability.md](../../design/context-durability.md).
+
+Both write durable session state rather than returning a formatted string and
+nothing else. The state lives on `session.Session`, is reached through the
+context (`agent.CtxWithNoteStore`) because the tool registry is cached per model
+and shared across sessions, and is re-rendered after the message list on every
+call by `agent.RenderSessionState`. It is therefore never trimmed and never
+accumulates in the history. A subagent run is pointed at its own session, so it
+cannot overwrite the state of the run that delegated to it. See
+[design/context-durability.md](../../design/context-durability.md).
 
 LLM-facing names are the camelCase constants in `names.go` — `Read`, `Write`,
-`Edit`, `Glob`, `Grep`, `Bash`, `WebFetch`, `TodoWrite`, `Skill`, `Task` — plus
+`Edit`, `Glob`, `Grep`, `Bash`, `WebFetch`, `TodoWrite`, `NoteWrite`, `Skill`,
+`Task` — plus
 `LoadMcpTools` and `CallMcpTool` from `mcp_gateway.go`. `names.go` is the single
 source of truth; hook matchers and subagent `tools:` fields match against these
 exact strings.

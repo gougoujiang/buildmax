@@ -3,6 +3,7 @@ package agentapp
 import (
 	"context"
 
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
@@ -17,7 +18,17 @@ Preserve in your summary:
 - Unresolved errors or open decisions
 - Current plan or todo state
 
-Be concise. Use bullet points. Omit pleasantries and filler.`
+Be concise. Use bullet points. Omit pleasantries and filler.
+
+When the session's live notes and task list are given below, treat them as a relevance signal:
+spend your detail on material that bears on what is still open, and compress everything already
+settled to a single line each. Do not copy the notes into the summary — they are kept separately
+and will still be present.`
+
+// liveStatePreamble labels the live state when it is handed to the summarizer. Without it the
+// model is asked to preserve "what matters" over an unbounded transcript with no way to tell
+// what is still open, and spends its budget evenly on material of very unequal value.
+const liveStatePreamble = "The session's live notes and task list, for judging what is still relevant:"
 
 // LLMCompactor implements agent.ContextCompactor using the same LLM client as the agent run.
 // It calls the model once with a summarize prompt over the messages to compact.
@@ -32,8 +43,15 @@ func NewLLMCompactor(client llm.LLMClient) *LLMCompactor {
 
 // Compact summarizes msgs into a short text suitable for injection into the system prompt.
 func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, error) {
-	messages := make([]llm.Message, 0, len(msgs)+1)
+	messages := make([]llm.Message, 0, len(msgs)+2)
 	messages = append(messages, llm.Message{Role: "system", Content: compactionSystemPrompt})
+	// The run's durable state travels on the context, so the summarizer can be told what is
+	// still live without widening the ContextCompactor interface.
+	if store, ok := agent.NoteStoreFromContext(ctx); ok {
+		if live := agent.RenderSessionState("", store.Notes(), store.Todos(), 0); live != "" {
+			messages = append(messages, llm.Message{Role: "user", Content: liveStatePreamble + "\n\n" + live})
+		}
+	}
 	messages = append(messages, msgs...)
 	summary, _, _, err := c.client.ChatCompletionBlocking(ctx, messages, nil)
 	return summary, err

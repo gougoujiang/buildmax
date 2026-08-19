@@ -46,6 +46,16 @@ type AppConfig struct {
 	ManagedTaskRunID string
 	// Surface labels managed calls for correlation, e.g. "cli" or "desktop".
 	Surface string
+	// AdditionalSystemPrompt is free text appended to the system prompt as its last stable
+	// layer: the user-authored identity and constraints for this run. It holds the prompt text
+	// itself, not the name of anything. It is additive and never replaces the runtime prompt,
+	// because replacing that would strip the tool-usage conventions the agent depends on and
+	// the failure would look like a bad model rather than a bad configuration.
+	//
+	// Whoever assembles the run resolves it — a CLI flag, a named definition file, or the
+	// agent record a task run names — and the last writer wins. It is bounded because it
+	// lives in the system prompt, which is re-sent in full on every call and never trimmed.
+	AdditionalSystemPrompt string
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -53,22 +63,23 @@ type AppConfig struct {
 type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
-	workspaceRoot        string
-	settings             config.Settings
-	llmClients           *LLMClientCache
-	toolRegistriesMu     sync.Mutex
-	toolRegistries       map[string]cllm.ToolRegistry
-	mcpManager           *MCPManager
-	skillsRegistry       *SkillRegistry
-	subagentsRegistry    *SubAgentRegistry
-	sessionManager       *SessionManager
-	modelMu              sync.Mutex
-	defaultModelOverride string
-	policy               agent.ToolPolicy
-	hooks                agent.HookRunner
-	sandbox              agent.SandboxView
-	sandboxManager       *sandbox.Manager
-	sandboxResolved      config.SandboxResolution
+	workspaceRoot          string
+	settings               config.Settings
+	llmClients             *LLMClientCache
+	toolRegistriesMu       sync.Mutex
+	toolRegistries         map[string]cllm.ToolRegistry
+	mcpManager             *MCPManager
+	skillsRegistry         *SkillRegistry
+	subagentsRegistry      *SubAgentRegistry
+	sessionManager         *SessionManager
+	modelMu                sync.Mutex
+	defaultModelOverride   string
+	policy                 agent.ToolPolicy
+	hooks                  agent.HookRunner
+	sandbox                agent.SandboxView
+	sandboxManager         *sandbox.Manager
+	sandboxResolved        config.SandboxResolution
+	additionalSystemPrompt string
 }
 
 type SkillRegistry struct {
@@ -153,9 +164,30 @@ type ModelConfig struct {
 // IsManaged reports whether this model calls a BuildMax gateway.
 func (c ModelConfig) IsManaged() bool { return c.Transport == config.TransportBuildMax }
 
+// effectiveAdditionalPrompt returns the additional system prompt a run uses: the one this app
+// was configured with, or — when it was given none — the one the session already ran under. A
+// resumed session keeps its identity rather than losing it because the flag that set it was not
+// repeated. A configured value wins, which is what makes an edited Portal agent definition take
+// effect on the next run.
+func (a *AgentApp) effectiveAdditionalPrompt(sess *SessionContext) string {
+	if a == nil {
+		return ""
+	}
+	if a.additionalSystemPrompt != "" {
+		return a.additionalSystemPrompt
+	}
+	if sess != nil {
+		return sess.AdditionalSystemPrompt
+	}
+	return ""
+}
+
 func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	workspaceRoot, err := resolveWorkspaceRoot(cfg.WorkspaceDir)
 	if err != nil {
+		return nil, err
+	}
+	if err := ValidateAdditionalSystemPrompt(cfg.AdditionalSystemPrompt); err != nil {
 		return nil, err
 	}
 	settings, err := config.LoadSettings()
@@ -187,16 +219,17 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	var sandboxView agent.SandboxView = sandboxManager
 
 	app := &AgentApp{
-		workspaceRoot:     workspaceRoot,
-		settings:          settings,
-		toolRegistries:    make(map[string]cllm.ToolRegistry),
-		sessionManager:    &SessionManager{dir: config.SessionsDir()},
-		skillsRegistry:    &SkillRegistry{},
-		subagentsRegistry: &SubAgentRegistry{},
-		policy:            cfg.Policy,
-		sandbox:           sandboxView,
-		sandboxManager:    sandboxManager,
-		sandboxResolved:   sandboxResolved,
+		workspaceRoot:          workspaceRoot,
+		settings:               settings,
+		toolRegistries:         make(map[string]cllm.ToolRegistry),
+		sessionManager:         &SessionManager{dir: config.SessionsDir()},
+		skillsRegistry:         &SkillRegistry{},
+		subagentsRegistry:      &SubAgentRegistry{},
+		policy:                 cfg.Policy,
+		additionalSystemPrompt: cfg.AdditionalSystemPrompt,
+		sandbox:                sandboxView,
+		sandboxManager:         sandboxManager,
+		sandboxResolved:        sandboxResolved,
 	}
 	app.llmClients = &LLMClientCache{
 		settings:         app.settings,
@@ -496,10 +529,9 @@ func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, con
 	if a == nil || sess == nil {
 		return RunStatus{}
 	}
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName)
-	if sess.CompactionSummary != "" {
-		systemPrompt += "\n\n<context_compaction>\n" + sess.CompactionSummary + "\n</context_compaction>"
-	}
+	// This path does not go through RunLoop, so it renders the compaction block itself to
+	// estimate the real prompt size. It uses the same renderer RunLoop does.
+	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess)) + agent.RenderCompactionBlock(sess.CompactionSummary)
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunStatus{
 		ContextTokens:         contextTokens,
@@ -535,6 +567,15 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	}
 	start := time.Now()
 	ctx = session.CtxWithSessionID(ctx, sess.ID)
+	// NoteWrite and TodoWrite reach the session through the context: the tool registry is
+	// cached per model and shared across sessions, so a tool must not hold one.
+	ctx = agent.CtxWithNoteStore(ctx, sess)
+
+	// Resolved before the trace opens, because the trace reports which prompt layers this run
+	// loaded and a run that ends early still has to be able to say.
+	extraPrompt := a.effectiveAdditionalPrompt(sess)
+	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspaceRoot, modelName, extraPrompt)
+	sess.AdditionalSystemPrompt = extraPrompt
 
 	// Durable run trace: one JSONL file per run, attached at this single
 	// chokepoint so CLI/TUI, Desktop, eval, and the worker all produce traces
@@ -542,11 +583,12 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	var recorder *trace.Recorder
 	if config.TraceEnabled() {
 		recorder = trace.NewRecorder(config.TracesDir(), trace.Meta{
-			RunID:     util.NewPrefixedID("rt"),
-			SessionID: sess.ID,
-			Workspace: a.workspaceRoot,
-			Model:     modelName,
-			Sandbox:   a.sandboxInfo(),
+			RunID:        util.NewPrefixedID("rt"),
+			SessionID:    sess.ID,
+			Workspace:    a.workspaceRoot,
+			Model:        modelName,
+			Sandbox:      a.sandboxInfo(),
+			PromptLayers: promptLayers,
 		})
 		defer recorder.Close()
 	}
@@ -587,11 +629,9 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		return RunResult{}, err
 	}
 
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName)
-	if sess.CompactionSummary != "" {
-		systemPrompt += "\n\n<context_compaction>\n" + sess.CompactionSummary + "\n</context_compaction>"
-	}
-
+	// No compaction block here: RunLoop reads the stored summary through
+	// CompactionHistory and renders it itself. Appending it here as well put two
+	// <context_compaction> blocks in the prompt after the first in-run compaction.
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: systemPrompt,
@@ -602,6 +642,8 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		Policy:       a.policy,
 		Approval:     approval,
 		Compactor:    NewLLMCompactor(client),
+		Checkpointer: NewNoteCheckpointer(client),
+		Invariants:   agent.ExtractInvariants(extraPrompt),
 		EventSink:    teeEventSink(recorder.Record, eventSink),
 		Hooks:        a.hooks,
 		SessionID:    sess.ID,

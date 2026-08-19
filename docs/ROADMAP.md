@@ -314,6 +314,7 @@ at the end:
 - [design/product-vision.md](design/product-vision.md) — long-range AI-native workspace vision
 - [design/surface-positioning.md](design/surface-positioning.md) — product surface positioning
 - [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
+- [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/team-governance.md](design/team-governance.md) — P4 Team governance design
