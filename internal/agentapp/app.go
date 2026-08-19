@@ -604,6 +604,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		Policy:       a.policy,
 		Approval:     approval,
 		Compactor:    NewLLMCompactor(client),
+		Checkpointer: NewNoteCheckpointer(client),
 		EventSink:    teeEventSink(recorder.Record, eventSink),
 		Hooks:        a.hooks,
 		SessionID:    sess.ID,

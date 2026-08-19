@@ -3,7 +3,7 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `phases 1–2 implemented` (§8 phases 1 and 2 landed; 3 and 4 open)
+- status: `phases 1–3 implemented` (§8 phases 1–3 landed; phase 4 open)
 - implements: [trust-harness.md](./trust-harness.md) §3.6 (agent memory, session memory)
 - follows: [hook-system.md](./hook-system.md), [durable-run-trace.md](./durable-run-trace.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -432,13 +432,13 @@ Rendering rules:
 
 Three changes, in descending order of value.
 
-**a. Forced checkpoint before compaction.** The `PreCompact` hook
-(`internal/core/agent/hook.go:39`) already fires with the messages about to be
-discarded. Before summarizing, the Agent is given one turn to update its notes,
-prompted with the material that is about to be lost:
+**a. Forced checkpoint before compaction — shipped ✅.** Before summarizing, the
+Agent is given a bounded turn to update its notes, prompted with the material
+that is about to be lost:
 
-> The following messages are about to be compacted away. Anything in them you
-> will still need must be in your notes now.
+> The transcript below is about to be removed from the conversation. Anything in
+> it you will still need must be in your notes now — this is the last moment the
+> material exists.
 
 This is the single highest-value item in this document. It converts note-taking
 from "hope the model remembers to call the tool" into a runtime-guaranteed
@@ -446,17 +446,46 @@ checkpoint at the exact moment information is destroyed, and it directly
 addresses §1's failure mode. It costs one extra model call per compaction —
 acceptable, since compaction already costs one.
 
+As implemented:
+
+- The checkpoint is an interface, `agent.StateCheckpointer`, on `RunLoopOpts`,
+  in the shape `ContextCompactor` already established: `internal/core/agent`
+  defines it, `internal/agentapp` implements it with the run's LLM client.
+  `internal/core/agent` cannot build the tools itself — `internal/tool` imports
+  it, so the dependency only runs one way.
+- It fires inside `checkpointAndCompact`, after the `PreCompact` hook has
+  allowed the compaction. It is not itself a hook: `PreCompact` runs
+  user-configured external commands, and a blocked compaction destroys nothing,
+  so there is nothing to check point.
+- The turn budget is **two**, not one. A write rejected by validation — an
+  over-long note list — would otherwise lose the material outright at the one
+  moment it cannot be recovered, so the rejection is returned as a tool result
+  and the model gets one correction. It stops as soon as a turn writes cleanly
+  or produces no tool calls.
+- The tool set is exactly `NoteWrite` and `TodoWrite`. With a file or shell tool
+  in reach the model treats the checkpoint as a turn to keep working.
+- The discarded messages are flattened into a transcript rather than replayed as
+  structured messages. Replaying them would present assistant tool calls naming
+  tools the checkpoint does not offer, and a transcript reads the way the
+  question is posed — a record to review, not a conversation to continue.
+- Failure is logged and compaction proceeds. Losing a checkpoint costs context;
+  skipping the compaction it guards would cost the run.
+
 **b. Accumulating summaries — fixes §3.3.** The previous summary must reach the
 compactor. Prepend it to `toSummarize` as a synthetic message so compaction *N*
 summarizes *(summary N-1 + newly discarded messages)* rather than the messages
 alone. `AddCompaction` keeps its replace semantics, which are then correct
 because the new summary subsumes the old one.
 
-**c. Live-state anchoring for summary quality.** Pass the current notes and
-open todos into the compaction prompt as a relevance signal: *these are live —
-preserve detail on anything bearing on them; compress everything else to one
-line*. `compactionSystemPrompt` (`internal/agentapp/compactor.go:9`) currently
-gives the model no signal about what is still open.
+**c. Live-state anchoring for summary quality — shipped ✅.** The current notes
+and open todos are passed into the compaction prompt as a relevance signal:
+*these are live — preserve detail on anything bearing on them; compress
+everything else to one line*. Before this, `compactionSystemPrompt` gave the
+model no signal about what was still open and spent its budget evenly over
+material of very unequal value.
+
+`LLMCompactor` reads the store from the context it is already given, so
+`ContextCompactor` did not have to widen.
 
 Also in this pass: de-duplicate the `<context_compaction>` block so `RunLoop`
 replaces the persisted block rather than appending a second one (§3.3).
@@ -577,12 +606,22 @@ set. Tier 1 conversation runs (`internal/service/conversation/runtime`) build
 their own narrow tool list for task orchestration and offer neither, so nothing
 about this pass changes Portal conversation behaviour.
 
-### Phase 3 — forced checkpoint
+### Phase 3 — forced checkpoint — shipped ✅
 
 9. Note-update turn on `PreCompact` (§5.5a).
 10. Live-state anchoring in the compaction prompt (§5.5c).
 11. Tests: a fact present only in the discarded window survives compaction via
     notes.
+
+Landed as: `StateCheckpointer` and `checkpointAndCompact` in
+`internal/core/agent/agent.go`; `NoteCheckpointer` in
+`internal/agentapp/note_checkpoint.go`; live-state anchoring inside
+`LLMCompactor.Compact`. Coverage in `internal/core/agent/checkpoint_test.go`
+(ordering, iteration stamping, fail-open, skipped when a hook blocks
+compaction, and the end-to-end survival claim) and
+`internal/agentapp/note_checkpoint_test.go` (tool set, transcript and live
+state in the request, retry after a rejected write, turn budget, the two
+no-op cases, and the compactor's anchoring).
 
 ### Phase 4 — agent role
 

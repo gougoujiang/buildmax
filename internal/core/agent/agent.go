@@ -57,6 +57,19 @@ type ContextCompactor interface {
 	Compact(ctx context.Context, msgs []llm.Message) (summary string, err error)
 }
 
+// StateCheckpointer is handed the messages a compaction is about to discard, and gets one turn
+// to move anything still needed into durable session state before they are gone.
+//
+// This exists because a tool the model has to remember to call will be forgotten exactly when
+// context pressure is highest. Compaction is the one moment where the runtime knows
+// information is being destroyed, so it is the runtime, not the model, that decides the
+// checkpoint happens.
+//
+// Failure is not fatal: a checkpoint that errors is logged and compaction proceeds.
+type StateCheckpointer interface {
+	Checkpoint(ctx context.Context, discarded []llm.Message) error
+}
+
 // RunLoopOpts configures a single run of the shared agent loop (used by both CLI agent and conversation).
 type RunLoopOpts struct {
 	LLMClient    llm.LLMClient
@@ -73,6 +86,9 @@ type RunLoopOpts struct {
 	// Compactor summarizes old messages when the context window is filling up.
 	// Nil disables compaction; TrimHistory is used as a fallback.
 	Compactor ContextCompactor
+	// Checkpointer is given one turn to save durable state before a compaction discards
+	// messages. Nil skips the checkpoint; compaction is unaffected either way.
+	Checkpointer StateCheckpointer
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
 	// The callback is invoked synchronously from the RunLoop goroutine; it must not block.
@@ -133,7 +149,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 						preOut := runHook(ctx, opts.Hooks, pre)
 						if preOut.Blocked() {
 							slog.Info("context compaction skipped by hook", "iter", i+1, "reason", preOut.Reason)
-						} else if summary, cerr := opts.Compactor.Compact(ctx, withPriorSummary(compactionSummary, toSummarize)); cerr == nil {
+						} else if summary, cerr := checkpointAndCompact(ctx, opts, i+1, compactionSummary, toSummarize); cerr == nil {
 							limit := maxSummaryChars(cw)
 							if clamped := clampSummary(summary, limit); clamped != summary {
 								slog.Warn("compaction summary exceeded its budget, clamped", "iter", i+1, "limit_chars", limit, "got_chars", len(summary))
@@ -227,6 +243,22 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: maxErr})
 	fireRunEndHook(ctx, opts, s, maxErr)
 	return "", s, maxErr
+}
+
+// checkpointAndCompact gives the checkpointer one turn to move anything still needed out of the
+// messages about to be discarded, then summarizes them.
+//
+// The checkpoint runs first because after Compact returns, the material is only reachable
+// through a lossy summary. Its failure is logged and ignored: losing the checkpoint costs some
+// context, but skipping the compaction it guards would cost the run.
+func checkpointAndCompact(ctx context.Context, opts RunLoopOpts, iter int, priorSummary string, toSummarize []llm.Message) (string, error) {
+	if opts.Checkpointer != nil {
+		// The iteration goes on the context so notes written here are stamped like any other.
+		if err := opts.Checkpointer.Checkpoint(CtxWithIteration(ctx, iter), toSummarize); err != nil {
+			slog.Warn("state checkpoint before compaction failed", "iter", iter, "err", err)
+		}
+	}
+	return opts.Compactor.Compact(ctx, withPriorSummary(priorSummary, toSummarize))
 }
 
 // fireRunEndHook invokes the lifecycle hook for a finished run. Routes to
