@@ -122,6 +122,8 @@ internal/
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
+│   ├── audit/          Records that a sensitive action happened (governance,
+│   │                   not diagnostics — see the package doc)
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
 │
@@ -132,7 +134,8 @@ internal/
 ├── infra/              External-system implementations
 │   ├── db/             MySQL/GORM implementation of the core repositories
 │   ├── objectstore/    Local FS and S3/MinIO persist + artifact storage
-│   ├── llm/            OpenAI-compatible LLM client
+│   ├── llm/            LLMClient over the wire protocols BuildMax speaks:
+│   │                   OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
 │   ├── llmwire/        Versioned wire contract for managed inference
 │   ├── llmremote/      LLM client that calls a BuildMax managed gateway
 │   ├── mcp/            MCP protocol, client transport, registry
@@ -152,6 +155,7 @@ internal/
 │
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
+│   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers
 │   ├── scheduler/      Claims pending task runs and spawns workers
 │   ├── websocket/      Team websocket hub and stream fan-out
