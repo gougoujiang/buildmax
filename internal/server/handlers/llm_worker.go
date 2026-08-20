@@ -107,16 +107,19 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	resp := llmwire.CompletionResponse{
-		LLMCallID: result.LLMCallID,
-		Model:     result.Alias,
-		Content:   result.Content,
-		ToolCalls: fromCoreToolCalls(result.ToolCalls),
+		LLMCallID:     result.LLMCallID,
+		Model:         result.Alias,
+		Content:       result.Content,
+		ToolCalls:     fromCoreToolCalls(result.ToolCalls),
+		ProviderState: fromCoreProviderState(result.ProviderState),
 	}
 	if result.UsageReported {
 		resp.Usage = &llmwire.Usage{
 			PromptTokens:     result.Usage.PromptTokens,
 			CompletionTokens: result.Usage.CompletionTokens,
 			TotalTokens:      result.Usage.TotalTokens,
+			CacheReadTokens:  result.Usage.CacheReadTokens,
+			CacheWriteTokens: result.Usage.CacheWriteTokens,
 		}
 	}
 	httputil.WriteJSON(w, http.StatusOK, resp)

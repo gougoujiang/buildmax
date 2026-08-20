@@ -78,6 +78,16 @@ type ServerModelEntry struct {
 	APIKey        string `mapstructure:"api_key"`
 	ContextWindow int    `mapstructure:"context_window"`
 	CallTimeout   int    `mapstructure:"call_timeout"` // seconds; 0 = uses DefaultCallTimeoutSecs
+	MaxTokens     int    `mapstructure:"max_tokens"`   // 0 = the adapter's own default
+	// Provider is the wire protocol this model speaks. Empty means
+	// LLMProviderOpenAICompatible.
+	Provider string `mapstructure:"provider"`
+	// Reasoning is the effort level: off (the default), low, medium, or high.
+	Reasoning string `mapstructure:"reasoning"`
+	// PromptCache caches the stable prefix of a request.
+	PromptCache bool `mapstructure:"prompt_cache"`
+	// Vision says this model accepts image input.
+	Vision bool `mapstructure:"vision"`
 }
 
 // RuntimeModelEntry converts the server's resolved model configuration into
@@ -96,6 +106,11 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		APIKey:        m.APIKey,
 		ContextWindow: m.ContextWindow,
 		CallTimeout:   m.CallTimeout,
+		MaxTokens:     m.MaxTokens,
+		Provider:      m.Provider,
+		Reasoning:     m.Reasoning,
+		PromptCache:   m.PromptCache,
+		Vision:        m.Vision,
 		Transport:     TransportDirect,
 	}
 }

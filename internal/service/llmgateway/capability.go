@@ -17,6 +17,10 @@ const (
 	CapabilityStreamingText Capability = "streaming_text"
 	// CapabilityUsageReporting is token usage returned with the result.
 	CapabilityUsageReporting Capability = "usage_reporting"
+	// CapabilityImageInput is image content accepted in a request. It is not in
+	// BaselineCapabilities: most models do not have it, and a request carrying
+	// an image is rejected rather than ignored by one that does not.
+	CapabilityImageInput Capability = "image_input"
 )
 
 // BaselineCapabilities is the capability set matching the current

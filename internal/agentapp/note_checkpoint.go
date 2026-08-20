@@ -82,14 +82,17 @@ func (c *NoteCheckpointer) Checkpoint(ctx context.Context, discarded []llm.Messa
 
 	wrote := 0
 	for turn := 0; turn < maxCheckpointTurns; turn++ {
-		_, toolCalls, _, err := c.client.ChatCompletionBlocking(ctx, messages, defs)
+		completion, err := c.client.ChatCompletionBlocking(ctx, messages, defs)
 		if err != nil {
 			return fmt.Errorf("checkpoint call: %w", err)
 		}
+		toolCalls := completion.ToolCalls
 		if len(toolCalls) == 0 {
 			break
 		}
-		messages = append(messages, llm.Message{Role: "assistant", ToolCalls: toolCalls})
+		// The checkpoint's own conversation is replayed to the same client, so
+		// it carries reasoning state exactly as the main loop does.
+		messages = append(messages, completion.AssistantMessage())
 
 		failed := false
 		for _, tc := range toolCalls {

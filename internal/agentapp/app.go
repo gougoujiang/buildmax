@@ -152,6 +152,17 @@ type ModelConfig struct {
 	APIKey        string
 	ContextWindow int // 0 = no windowing; from settings.yaml model entry
 	CallTimeout   int // seconds; 0 = uses DefaultCallTimeoutSecs
+	MaxTokens     int // 0 = the adapter's own default
+	// Reasoning is the effort level (config.Reasoning*); off means none.
+	Reasoning string
+	// PromptCache caches the stable prefix of a request.
+	PromptCache bool
+	// Vision says this model accepts image input.
+	Vision bool
+	// Provider is the wire protocol a direct entry speaks. Empty means
+	// config.LLMProviderOpenAICompatible. A managed entry ignores it: the
+	// operator's catalog decides which protocol serves the call.
+	Provider string
 	// Transport is config.TransportDirect or config.TransportBuildMax. Empty
 	// means direct.
 	Transport string
@@ -849,13 +860,22 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("api_key is required for model %q in settings.yaml", cfg.Name)
 	}
-	return llm.NewClient(llm.Config{
+	client, err := llm.NewClient(llm.Config{
+		Provider:      cfg.Provider,
 		APIKey:        cfg.APIKey,
 		BaseURL:       cfg.BaseURL,
 		Model:         cfg.ProviderModel,
 		ContextWindow: cfg.ContextWindow,
+		MaxTokens:     cfg.MaxTokens,
+		Reasoning:     cfg.Reasoning,
+		PromptCache:   cfg.PromptCache,
+		Vision:        cfg.Vision,
 		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
-	}), nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("model %q: %w", cfg.Name, err)
+	}
+	return client, nil
 }
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
@@ -946,6 +966,11 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		APIKey:        entry.APIKey,
 		ContextWindow: entry.ContextWindow,
 		CallTimeout:   entry.CallTimeout,
+		MaxTokens:     entry.MaxTokens,
+		Reasoning:     entry.Reasoning,
+		PromptCache:   entry.PromptCache,
+		Vision:        entry.Vision,
+		Provider:      entry.Provider,
 		Transport:     entry.Transport,
 		ServerURL:     entry.ServerURL,
 		TeamID:        entry.TeamID,

@@ -24,6 +24,7 @@ func sampleModelInput(name string) model.CreateLLMModelInput {
 		Model:         "vendor/fast-1",
 		ContextWindow: 128000,
 		CallTimeout:   300,
+		MaxTokens:     4096,
 		Capabilities:  []string{"text_chat", "tool_calls"},
 	}
 }
@@ -103,6 +104,9 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 	}
 	if got.Name != name || got.Model != "vendor/fast-1" || got.ContextWindow != 128000 {
 		t.Errorf("stored model = %+v", got)
+	}
+	if got.MaxTokens != 4096 {
+		t.Errorf("MaxTokens = %d, want 4096", got.MaxTokens)
 	}
 	if strings.Join(got.Capabilities, ",") != "text_chat,tool_calls" {
 		t.Errorf("Capabilities = %v", got.Capabilities)

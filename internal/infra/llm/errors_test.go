@@ -1,5 +1,9 @@
 package llm
 
+// Error classification reads the neutral apiError every adapter produces, so
+// these tests feed provider errors through the adapter conversion rather than
+// asserting against one library's error type directly.
+
 import (
 	"context"
 	"errors"
@@ -32,7 +36,7 @@ func TestClassifyLLMError_ContextCanceled(t *testing.T) {
 
 func TestClassifyLLMError_AuthError(t *testing.T) {
 	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
-		got := classifyLLMError(&openai.APIError{HTTPStatusCode: code})
+		got := classifyLLMError(openAIAPIError(&openai.APIError{HTTPStatusCode: code}))
 		if !strings.Contains(got, "authentication failed") {
 			t.Errorf("HTTP %d: classifyLLMError = %q, want 'authentication failed'", code, got)
 		}
@@ -43,7 +47,7 @@ func TestClassifyLLMError_AuthError(t *testing.T) {
 }
 
 func TestClassifyLLMError_RateLimit(t *testing.T) {
-	got := classifyLLMError(&openai.APIError{HTTPStatusCode: 429})
+	got := classifyLLMError(openAIAPIError(&openai.APIError{HTTPStatusCode: 429}))
 	if !strings.Contains(got, "rate limited") {
 		t.Errorf("classifyLLMError(429) = %q, want 'rate limited'", got)
 	}
@@ -51,7 +55,7 @@ func TestClassifyLLMError_RateLimit(t *testing.T) {
 
 func TestClassifyLLMError_ServerErrors(t *testing.T) {
 	for _, code := range []int{500, 502, 503, 504} {
-		got := classifyLLMError(&openai.APIError{HTTPStatusCode: code})
+		got := classifyLLMError(openAIAPIError(&openai.APIError{HTTPStatusCode: code}))
 		if got == "" {
 			t.Errorf("HTTP %d: classifyLLMError returned empty string", code)
 		}
@@ -59,7 +63,7 @@ func TestClassifyLLMError_ServerErrors(t *testing.T) {
 }
 
 func TestClassifyLLMError_UnknownAPIError_WithMessage(t *testing.T) {
-	got := classifyLLMError(&openai.APIError{HTTPStatusCode: 422, Message: "invalid model"})
+	got := classifyLLMError(openAIAPIError(&openai.APIError{HTTPStatusCode: 422, Message: "invalid model"}))
 	if !strings.Contains(got, "422") || !strings.Contains(got, "invalid model") {
 		t.Errorf("classifyLLMError(422, msg) = %q, want status and message", got)
 	}
@@ -74,7 +78,7 @@ func TestClassifyLLMError_PlainError(t *testing.T) {
 }
 
 func TestWrapLLMError_PreservesUnwrap(t *testing.T) {
-	original := &openai.APIError{HTTPStatusCode: 429}
+	original := openAIAPIError(&openai.APIError{HTTPStatusCode: 429})
 	wrapped := wrapLLMError(original)
 	var apiErr *openai.APIError
 	if !errors.As(wrapped, &apiErr) {

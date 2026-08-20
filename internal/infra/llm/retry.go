@@ -5,8 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"time"
-
-	openai "github.com/sashabaranov/go-openai"
 )
 
 const maxRetryAttempts = 3
@@ -18,6 +16,7 @@ var retryBackoff = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second
 //
 // Never retried:
 //   - context cancellation or deadline (caller gave up)
+//   - a request that could not be built (deterministic)
 //   - auth errors (401, 403) — user action required
 //   - bad request (400) — model/request bug, retrying won't help
 //
@@ -32,10 +31,18 @@ func isRetryableError(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	var apiErr *openai.APIError
+	// A request that was never built cannot succeed on a second try.
+	var reqErr *requestError
+	if errors.As(err, &reqErr) {
+		return false
+	}
+	var apiErr *apiError
 	if errors.As(err, &apiErr) {
-		switch apiErr.HTTPStatusCode {
+		switch apiErr.status {
 		case 429, 500, 502, 503, 504:
+			return true
+		case 0:
+			// The call never reached the provider: DNS, connection reset, TLS.
 			return true
 		}
 		return false

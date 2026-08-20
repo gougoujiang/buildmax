@@ -49,6 +49,27 @@ type ModelEntry struct {
 	APIKey        string `mapstructure:"api_key"`
 	ContextWindow int    `mapstructure:"context_window"` // 0 = uses DefaultContextWindow
 	CallTimeout   int    `mapstructure:"call_timeout"`   // seconds; 0 = uses DefaultCallTimeoutSecs
+	// MaxTokens caps one response; 0 = uses the adapter's own default. The
+	// Anthropic Messages protocol requires the field, so its adapter substitutes
+	// DefaultMaxTokens; the OpenAI protocols send it only when set.
+	MaxTokens int `mapstructure:"max_tokens"`
+	// Reasoning is how much the model should reason before answering:
+	// ReasoningOff (the default), ReasoningLow, ReasoningMedium, or
+	// ReasoningHigh. Any level other than off also replays the reasoning on
+	// later turns. It has no effect on a protocol that carries none.
+	Reasoning string `mapstructure:"reasoning"`
+	// Vision says this model accepts image input. When false, an image a tool
+	// returns is described in text rather than sent, because a model that
+	// cannot read images rejects the request rather than ignoring the image.
+	Vision bool `mapstructure:"vision"`
+	// PromptCache asks the provider to cache the stable prefix of a request —
+	// the tool definitions and system prompt — so later calls in the same run
+	// pay less for them.
+	PromptCache bool `mapstructure:"prompt_cache"`
+	// Provider is the wire protocol a direct entry speaks: LLMProviderOpenAICompatible
+	// (the default), LLMProviderOpenAI, or LLMProviderAnthropic. It is ignored by a
+	// "buildmax" entry, where the operator's catalog decides.
+	Provider string `mapstructure:"provider"`
 	// Transport is "direct" (the default) or "buildmax".
 	Transport string `mapstructure:"transport"`
 	// ServerURL and TeamID apply to a "buildmax" entry. The credential is not
@@ -60,6 +81,72 @@ type ModelEntry struct {
 
 // IsManaged reports whether this entry calls a BuildMax gateway.
 func (m ModelEntry) IsManaged() bool { return m.Transport == TransportBuildMax }
+
+// LLM wire protocols a direct model entry can speak. The value names a protocol
+// family, not a vendor: Claude served through an OpenAI-compatible gateway is
+// LLMProviderOpenAICompatible, and Claude served from Anthropic's own endpoint is
+// LLMProviderAnthropic.
+const (
+	// LLMProviderOpenAICompatible is OpenAI Chat Completions, spoken by OpenRouter,
+	// LiteLLM, vLLM, and local inference servers. It is the default.
+	LLMProviderOpenAICompatible = "openai_compatible"
+	// LLMProviderOpenAI is OpenAI's own Responses API.
+	LLMProviderOpenAI = "openai"
+	// LLMProviderAnthropic is the Anthropic Messages API.
+	LLMProviderAnthropic = "anthropic"
+)
+
+// LLMProvider returns the wire protocol this entry speaks, defaulting to
+// LLMProviderOpenAICompatible so a configuration written before providers
+// existed keeps calling what it always called.
+func (m ModelEntry) LLMProvider() string {
+	if m.Provider == "" {
+		return LLMProviderOpenAICompatible
+	}
+	return m.Provider
+}
+
+// Reasoning effort levels. They are a neutral scale: each protocol maps them to
+// its own vocabulary, and a level a model does not support fails that model's
+// call rather than being silently downgraded.
+const (
+	// ReasoningOff does no extra reasoning. It is the default.
+	ReasoningOff    = "off"
+	ReasoningLow    = "low"
+	ReasoningMedium = "medium"
+	ReasoningHigh   = "high"
+)
+
+// ReasoningEnabled reports whether a configured level asks for reasoning.
+func ReasoningEnabled(level string) bool {
+	return level != "" && level != ReasoningOff
+}
+
+// KnownReasoningEffort reports whether level is one BuildMax implements. The
+// empty string is known: it means off.
+func KnownReasoningEffort(level string) bool {
+	switch level {
+	case "", ReasoningOff, ReasoningLow, ReasoningMedium, ReasoningHigh:
+		return true
+	}
+	return false
+}
+
+// ReasoningEfforts returns every level an operator may set, for help text and
+// error messages that must not drift from the list above.
+func ReasoningEfforts() []string {
+	return []string{ReasoningOff, ReasoningLow, ReasoningMedium, ReasoningHigh}
+}
+
+// KnownLLMProvider reports whether name is a wire protocol BuildMax implements.
+// The empty string is known: it means the default.
+func KnownLLMProvider(name string) bool {
+	switch name {
+	case "", LLMProviderOpenAICompatible, LLMProviderOpenAI, LLMProviderAnthropic:
+		return true
+	}
+	return false
+}
 
 // DefaultOpenRouterBaseURL is the OpenRouter OpenAI-compatible API base URL.
 const DefaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"

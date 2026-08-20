@@ -182,15 +182,15 @@ func (c *gatedLLMClient) gate() {
 	<-c.release
 }
 
-func (c *gatedLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *gatedLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	c.gate()
-	return "ok", nil, llm.Usage{}, nil
+	return llm.Completion{Content: "ok"}, nil
 }
 
-func (c *gatedLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *gatedLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	c.gate()
 	onDelta("ok")
-	return "ok", nil, llm.Usage{}, nil
+	return llm.Completion{Content: "ok"}, nil
 }
 
 func (c *gatedLLMClient) ContextWindow() int { return 0 }

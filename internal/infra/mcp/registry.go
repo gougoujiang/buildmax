@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -240,7 +242,36 @@ func (r *Registry) CallMcp(ctx context.Context, serverID, toolName string, argum
 	}
 	out := formatCallToolResult(res)
 	if res != nil && res.IsError {
-		return "", fmt.Errorf("%s", out)
+		return "", fmt.Errorf("%s", out.Text)
+	}
+	return out.Text, nil
+}
+
+// CallMcpMultimodal is CallMcp keeping content the text could only describe.
+//
+// A server that returns an image used to have it JSON-encoded into the result
+// text, which sent the model a base64 blob and called it a tool result. The
+// caller decides what to do with the parts; the text stays a complete,
+// readable answer either way.
+func (r *Registry) CallMcpMultimodal(ctx context.Context, serverID, toolName string, arguments map[string]any) (llm.ToolResult, error) {
+	st := r.lookupServer(serverID)
+	if st == nil {
+		return llm.ToolResult{}, fmt.Errorf("unknown mcp server %q", serverID)
+	}
+	if _, ok := st.toolsByName[toolName]; !ok {
+		return llm.ToolResult{}, fmt.Errorf("unknown tool %q on server %q", toolName, serverID)
+	}
+	args := arguments
+	if args == nil {
+		args = map[string]any{}
+	}
+	res, err := st.session.CallTool(ctx, &mcpsdk.CallToolParams{Name: toolName, Arguments: args})
+	if err != nil {
+		return llm.ToolResult{}, err
+	}
+	out := formatCallToolResult(res)
+	if res != nil && res.IsError {
+		return llm.ToolResult{}, fmt.Errorf("%s", out.Text)
 	}
 	return out, nil
 }
@@ -257,15 +288,29 @@ func (r *Registry) lookupServer(serverID string) *serverState {
 	return nil
 }
 
-func formatCallToolResult(res *mcpsdk.CallToolResult) string {
+// formatCallToolResult renders a server's result as text plus whatever the text
+// could only describe.
+//
+// Every content kind contributes a line of text, including the ones that also
+// contribute a part: a caller that drops the parts still gets a result that
+// says what came back, which is what makes image content safe to send to a
+// model that cannot read images.
+func formatCallToolResult(res *mcpsdk.CallToolResult) llm.ToolResult {
 	if res == nil {
-		return ""
+		return llm.ToolResult{}
 	}
-	var parts []string
+	var lines []string
+	var parts []llm.ContentPart
 	for _, c := range res.Content {
-		parts = append(parts, formatCallToolContent(c))
+		line, part := formatCallToolContent(c)
+		if line != "" {
+			lines = append(lines, line)
+		}
+		if part != nil {
+			parts = append(parts, *part)
+		}
 	}
-	s := strings.TrimSpace(strings.Join(parts, "\n"))
+	s := strings.TrimSpace(strings.Join(lines, "\n"))
 	if res.StructuredContent != nil {
 		b, err := json.MarshalIndent(res.StructuredContent, "", "  ")
 		if err == nil && len(b) > 0 {
@@ -278,18 +323,43 @@ func formatCallToolResult(res *mcpsdk.CallToolResult) string {
 	if s == "" && !res.IsError {
 		s = "(empty tool result)"
 	}
-	return strings.TrimSpace(s)
+	return llm.ToolResult{Text: strings.TrimSpace(s), Parts: parts}
 }
 
-func formatCallToolContent(c mcpsdk.Content) string {
+// formatCallToolContent renders one content item as a line of text and, when it
+// is something text cannot hold, a part carrying it.
+func formatCallToolContent(c mcpsdk.Content) (string, *llm.ContentPart) {
 	switch x := c.(type) {
 	case *mcpsdk.TextContent:
-		return x.Text
-	default:
-		b, err := json.Marshal(c)
-		if err != nil {
-			return fmt.Sprintf("%v", c)
+		return x.Text, nil
+	case *mcpsdk.ImageContent:
+		if x.Data == nil || x.MIMEType == "" {
+			break
 		}
-		return string(b)
+		encoded := base64.StdEncoding.EncodeToString(x.Data)
+		return fmt.Sprintf("(image: %s, %s)", x.MIMEType, byteSize(len(x.Data))),
+			&llm.ContentPart{
+				Type:      llm.ContentPartImage,
+				MediaType: x.MIMEType,
+				Data:      encoded,
+			}
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return fmt.Sprintf("%v", c), nil
+	}
+	return string(b), nil
+}
+
+// byteSize renders a length the way a person reads it, so a result line says
+// how big an image was rather than how many bytes it had.
+func byteSize(n int) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
 	}
 }

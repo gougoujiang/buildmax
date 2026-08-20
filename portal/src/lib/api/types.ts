@@ -531,6 +531,10 @@ export interface ApiAdminModel {
   model: string
   context_window?: number
   call_timeout?: number
+  max_tokens?: number
+  reasoning?: string
+  prompt_cache?: boolean
+  vision?: boolean
   capabilities?: string[]
   enabled: boolean
   created_at: number

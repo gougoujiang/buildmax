@@ -79,11 +79,12 @@ func (s *SessionManager) GenerateTitle(ctx context.Context, client llm.LLMClient
 		return "", llm.Usage{}, nil
 	}
 	slog.Debug("generating session title via LLM")
-	content, _, usage, err := client.ChatCompletionBlocking(ctx, msgs, nil)
+	completion, err := client.ChatCompletionBlocking(ctx, msgs, nil)
 	if err != nil {
 		return "", llm.Usage{}, err
 	}
-	title := cleanTitle(content)
+	usage := completion.Usage
+	title := cleanTitle(completion.Content)
 	slog.Debug("generated session title", "title", title)
 	return title, usage, nil
 }

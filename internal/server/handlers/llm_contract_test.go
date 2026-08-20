@@ -65,7 +65,7 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 		Router: &llmgateway.Router{
 			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
 			Factory: func(_ context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
-				return directClient(target.Endpoint), nil
+				return directClient(t, target.Endpoint), nil
 			},
 		},
 		Ledger: &llmStubLedger{},
@@ -89,13 +89,18 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	})
 }
 
-func directClient(upstreamURL string) cllm.LLMClient {
-	return llm.NewClient(llm.Config{
+func directClient(t *testing.T, upstreamURL string) cllm.LLMClient {
+	t.Helper()
+	client, err := llm.NewClient(llm.Config{
 		APIKey:      "upstream-key",
 		BaseURL:     upstreamURL,
 		Model:       "vendor/x",
 		CallTimeout: 10 * time.Second,
 	})
+	if err != nil {
+		t.Fatalf("build direct client: %v", err)
+	}
+	return client
 }
 
 func TestManagedCallMatchesADirectCall(t *testing.T) {
@@ -156,30 +161,30 @@ func TestManagedCallMatchesADirectCall(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := fakeUpstream(t, tc.upstream)
 
-			wantContent, wantToolCalls, wantUsage, err := directClient(upstream.URL).
+			want, err := directClient(t, upstream.URL).
 				ChatCompletionBlocking(context.Background(), messages, tools)
 			if err != nil {
 				t.Fatalf("direct call: %v", err)
 			}
 
-			gotContent, gotToolCalls, gotUsage, err := managedGateway(t, upstream.URL).
+			got, err := managedGateway(t, upstream.URL).
 				ChatCompletionBlocking(context.Background(), messages, tools)
 			if err != nil {
 				t.Fatalf("managed call: %v", err)
 			}
 
-			if gotContent != wantContent {
-				t.Errorf("content: managed %q, direct %q", gotContent, wantContent)
+			if got.Content != want.Content {
+				t.Errorf("content: managed %q, direct %q", got.Content, want.Content)
 			}
-			if gotUsage != wantUsage {
-				t.Errorf("usage: managed %+v, direct %+v", gotUsage, wantUsage)
+			if got.Usage != want.Usage {
+				t.Errorf("usage: managed %+v, direct %+v", got.Usage, want.Usage)
 			}
-			if len(gotToolCalls) != len(wantToolCalls) {
-				t.Fatalf("tool calls: managed %d, direct %d", len(gotToolCalls), len(wantToolCalls))
+			if len(got.ToolCalls) != len(want.ToolCalls) {
+				t.Fatalf("tool calls: managed %d, direct %d", len(got.ToolCalls), len(want.ToolCalls))
 			}
-			for i := range wantToolCalls {
-				if gotToolCalls[i] != wantToolCalls[i] {
-					t.Errorf("tool call %d: managed %+v, direct %+v", i, gotToolCalls[i], wantToolCalls[i])
+			for i := range want.ToolCalls {
+				if got.ToolCalls[i] != want.ToolCalls[i] {
+					t.Errorf("tool call %d: managed %+v, direct %+v", i, got.ToolCalls[i], want.ToolCalls[i])
 				}
 			}
 		})
@@ -218,7 +223,7 @@ func TestManagedStreamMatchesADirectStream(t *testing.T) {
 	messages := []cllm.Message{{Role: "user", Content: "hi"}}
 
 	var directDeltas []string
-	wantContent, _, wantUsage, err := directClient(upstream.URL).ChatCompletionStreaming(
+	want, err := directClient(t, upstream.URL).ChatCompletionStreaming(
 		context.Background(), messages, nil,
 		func(d string) { directDeltas = append(directDeltas, d) })
 	if err != nil {
@@ -226,18 +231,18 @@ func TestManagedStreamMatchesADirectStream(t *testing.T) {
 	}
 
 	var managedDeltas []string
-	gotContent, _, gotUsage, err := managedGateway(t, upstream.URL).ChatCompletionStreaming(
+	got, err := managedGateway(t, upstream.URL).ChatCompletionStreaming(
 		context.Background(), messages, nil,
 		func(d string) { managedDeltas = append(managedDeltas, d) })
 	if err != nil {
 		t.Fatalf("managed stream: %v", err)
 	}
 
-	if gotContent != wantContent {
-		t.Errorf("content: managed %q, direct %q", gotContent, wantContent)
+	if got.Content != want.Content {
+		t.Errorf("content: managed %q, direct %q", got.Content, want.Content)
 	}
-	if gotUsage != wantUsage {
-		t.Errorf("usage: managed %+v, direct %+v", gotUsage, wantUsage)
+	if got.Usage != want.Usage {
+		t.Errorf("usage: managed %+v, direct %+v", got.Usage, want.Usage)
 	}
 	// Deltas must survive the extra hop intact, not merely add up to the same
 	// text: a managed stream that batched everything would still pass a
@@ -276,7 +281,7 @@ func TestClientDisconnectCancelsTheUpstream(t *testing.T) {
 	client := managedGateway(t, upstream.URL)
 	done := make(chan error, 1)
 	go func() {
-		_, _, _, err := client.ChatCompletionStreaming(ctx,
+		_, err := client.ChatCompletionStreaming(ctx,
 			[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
 			func(string) { cancel() })
 		done <- err
@@ -308,18 +313,18 @@ func TestManagedClientSatisfiesTheAgentContract(t *testing.T) {
 	}`)
 
 	clients := map[string]cllm.LLMClient{
-		"direct":  directClient(upstream.URL),
+		"direct":  directClient(t, upstream.URL),
 		"managed": managedGateway(t, upstream.URL),
 	}
 	for name, client := range clients {
 		t.Run(name, func(t *testing.T) {
-			content, _, usage, err := client.ChatCompletionBlocking(context.Background(),
+			completion, err := client.ChatCompletionBlocking(context.Background(),
 				[]cllm.Message{{Role: "user", Content: "hi"}}, nil)
 			if err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
-			if content != "ok" || usage.TotalTokens != 2 {
-				t.Errorf("content=%q usage=%+v", content, usage)
+			if completion.Content != "ok" || completion.Usage.TotalTokens != 2 {
+				t.Errorf("content=%q usage=%+v", completion.Content, completion.Usage)
 			}
 		})
 	}

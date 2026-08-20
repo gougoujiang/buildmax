@@ -25,22 +25,22 @@ type scriptedReply struct {
 	toolCalls []llm.ToolCall
 }
 
-func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	c.sent = append(c.sent, append([]llm.Message(nil), messages...))
 	c.defs = append(c.defs, tools)
 	if c.err != nil {
-		return "", nil, llm.Usage{}, c.err
+		return llm.Completion{}, c.err
 	}
 	if c.calls >= len(c.replies) {
 		c.calls++
-		return "", nil, llm.Usage{}, nil
+		return llm.Completion{}, nil
 	}
 	r := c.replies[c.calls]
 	c.calls++
-	return r.content, r.toolCalls, llm.Usage{}, nil
+	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls}, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return c.ChatCompletionBlocking(ctx, messages, tools)
 }
 

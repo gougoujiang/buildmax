@@ -31,21 +31,21 @@ type llmStubClient struct {
 	err     error
 }
 
-func (c *llmStubClient) ChatCompletionBlocking(context.Context, []cllm.Message, []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (c *llmStubClient) ChatCompletionBlocking(context.Context, []cllm.Message, []cllm.ToolDef) (cllm.Completion, error) {
 	if c.err != nil {
-		return "", nil, cllm.Usage{}, c.err
+		return cllm.Completion{}, c.err
 	}
-	return c.content, nil, c.usage, nil
+	return cllm.Completion{Content: c.content, Usage: c.usage}, nil
 }
 
-func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, _ []cllm.Message, _ []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, _ []cllm.Message, _ []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	for _, delta := range c.deltas {
 		onDelta(delta)
 	}
 	if c.err != nil {
-		return "", nil, cllm.Usage{}, c.err
+		return cllm.Completion{}, c.err
 	}
-	return c.content, nil, c.usage, nil
+	return cllm.Completion{Content: c.content, Usage: c.usage}, nil
 }
 
 func (c *llmStubClient) ContextWindow() int { return 0 }

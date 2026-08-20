@@ -37,9 +37,13 @@ Flags for add:
   --api-url string        Upstream base URL (required)
   --api-key string        Upstream credential (required)
   --model string          The provider's own model identifier (required)
-  --provider string       Client implementation (default openai_compatible)
+  --provider string       Wire protocol: openai_compatible (default), openai, anthropic
   --context-window int    Usable context size; 0 uses the client default
   --call-timeout int      Per-call timeout in seconds; 0 uses the client default
+  --max-tokens int        Cap on one response; 0 uses the client default
+  --reasoning string      Reasoning effort: off (default), low, medium, high
+  --prompt-cache          Cache the stable prefix of a request
+  --vision                The upstream accepts image input
   --capabilities string   Comma-separated; defaults to the provider contract
 
 Flags for enable and disable:
@@ -81,9 +85,13 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	apiURL := fs.String("api-url", "", "upstream base URL")
 	apiKey := fs.String("api-key", "", "upstream credential")
 	providerModel := fs.String("model", "", "the provider's own model identifier")
-	provider := fs.String("provider", llmgateway.ProviderOpenAICompatible, "client implementation")
+	provider := fs.String("provider", llmgateway.ProviderOpenAICompatible, "wire protocol the upstream speaks")
 	contextWindow := fs.Int("context-window", 0, "usable context size")
 	callTimeout := fs.Int("call-timeout", 0, "per-call timeout in seconds")
+	maxTokens := fs.Int("max-tokens", 0, "cap on one response")
+	reasoning := fs.String("reasoning", "", "reasoning effort: off, low, medium, high")
+	promptCache := fs.Bool("prompt-cache", false, "cache the stable prefix of a request")
+	vision := fs.Bool("vision", false, "the upstream accepts image input")
 	capabilities := fs.String("capabilities", "", "comma-separated capability list")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -97,6 +105,10 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		Model:         strings.TrimSpace(*providerModel),
 		ContextWindow: *contextWindow,
 		CallTimeout:   *callTimeout,
+		MaxTokens:     *maxTokens,
+		Reasoning:     strings.TrimSpace(*reasoning),
+		PromptCache:   *promptCache,
+		Vision:        *vision,
 		Capabilities:  parseCapabilityList(*capabilities),
 	}
 	if err := validateModelInput(in); err != nil {
@@ -142,13 +154,16 @@ func runModelList(ctx context.Context, out io.Writer) error {
 		return nil
 	}
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tMODEL\tAPI URL\tENABLED")
+	// PROVIDER is listed because a catalog can hold more than one wire protocol,
+	// and two rows are otherwise indistinguishable from their model identifier.
+	fmt.Fprintln(w, "ID\tNAME\tPROVIDER\tMODEL\tAPI URL\tENABLED")
 	for _, m := range models {
 		enabled := "yes"
 		if !m.Enabled {
 			enabled = "no"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", m.LLMModelID, m.Name, m.Model, m.APIURL, enabled)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			m.LLMModelID, m.Name, m.ProviderType, m.Model, m.APIURL, enabled)
 	}
 	return w.Flush()
 }
@@ -196,9 +211,18 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 		return errors.New("model add: --api-key is required")
 	case in.Model == "":
 		return errors.New("model add: --model is required")
-	case in.ProviderType != llmgateway.ProviderOpenAICompatible:
-		return fmt.Errorf("model add: --provider %q is not implemented; use %s",
-			in.ProviderType, llmgateway.ProviderOpenAICompatible)
+	case in.ContextWindow < 0:
+		return errors.New("model add: --context-window cannot be negative")
+	case in.CallTimeout < 0:
+		return errors.New("model add: --call-timeout cannot be negative")
+	case in.MaxTokens < 0:
+		return errors.New("model add: --max-tokens cannot be negative")
+	case !config.KnownReasoningEffort(in.Reasoning):
+		return fmt.Errorf("model add: --reasoning %q is not a level; use one of %s",
+			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
+	case !llmgateway.KnownProvider(in.ProviderType):
+		return fmt.Errorf("model add: --provider %q is not implemented; use one of %s",
+			in.ProviderType, strings.Join(llmgateway.Providers(), ", "))
 	}
 	for _, c := range in.Capabilities {
 		if !knownCapability(c) {

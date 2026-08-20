@@ -361,6 +361,48 @@ pre-releases and must be called out in release notes.
   resolved somewhere else — one run with two ideas of where it was. Print mode
   was never affected.
 
+- A model entry can now name the wire protocol its endpoint speaks, so BuildMax
+  reaches a provider's own API instead of only OpenAI-compatible gateways. Set
+  `provider` on a `settings.yaml` model — `openai_compatible` (OpenAI Chat
+  Completions, the default), `openai` (OpenAI's Responses API), or `anthropic`
+  (the Anthropic Messages API) — and optionally `max_tokens` to cap one
+  response. The value names a protocol, not a vendor: Claude through OpenRouter
+  is `openai_compatible`, and Claude from `api.anthropic.com` is `anthropic`. An
+  operator can serve the same three from the managed gateway with
+  `buildmax-server model add --provider --max-tokens`, and `model list` now
+  shows each row's provider. Existing configuration is unchanged: an entry that
+  names no provider keeps calling what it always called.
+
+- A model can now reason before it answers, and keep that reasoning across tool
+  calls. Set `reasoning: low`, `medium`, or `high` on a `settings.yaml` model,
+  or pass `--reasoning` to `buildmax-server model add`, and an `anthropic` model
+  uses extended thinking at that effort while an `openai` model keeps its
+  reasoning between turns. `openai_compatible` has no such state and ignores the
+  setting. It is off by default, because it changes what a call costs and older
+  models reject it. The reasoning itself never appears in the transcript:
+  BuildMax stores it beside the assistant message and sends it back unread, and
+  a session continued against a different provider drops what that provider
+  cannot use rather than failing. CLI sessions, Portal conversations, and
+  managed gateway calls all carry it, so a run keeps its continuity across a
+  restart.
+
+- Prompt caching is now available with `prompt_cache: true` on a model, or
+  `--prompt-cache` on a catalog model. For `anthropic` it places cache
+  breakpoints around the tool definitions and system prompt, which do not change
+  between calls in a run; the OpenAI protocols already cache on their own. It is
+  off by default because a cache write costs more than not caching and only pays
+  back over several calls. Every provider now reports `cache_read_tokens` and
+  `cache_write_tokens`, and a managed deployment records both on the call
+  ledger. They break the prompt count down rather than adding to it, so a spend
+  report must not sum them alongside it.
+
+- An MCP server that returns an image — a screenshot, a rendered chart — now
+  sends the model the image instead of a base64 blob pasted into the tool
+  result. Set `vision: true` on a model that can read images, or `--vision` on a
+  catalog model. Left off, which is the default, the tool result says what came
+  back (`(image: image/png, 43.2 KB)`) and the image is not sent, because a
+  model without image support rejects such a request rather than ignoring it.
+
 ## [0.1.0-alpha.1] - 2026-08-17
 
 ### Security

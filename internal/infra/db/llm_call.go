@@ -47,6 +47,8 @@ type llmCallRow struct {
 	PromptTokens     *int   `gorm:""`
 	CompletionTokens *int   `gorm:""`
 	TotalTokens      *int   `gorm:""`
+	CacheReadTokens  *int   `gorm:""`
+	CacheWriteTokens *int   `gorm:""`
 	UsageSource      string `gorm:"type:varchar(16)"`
 }
 
@@ -81,6 +83,8 @@ func toLLMCall(row *llmCallRow) *model.LLMCall {
 		PromptTokens:      row.PromptTokens,
 		CompletionTokens:  row.CompletionTokens,
 		TotalTokens:       row.TotalTokens,
+		CacheReadTokens:   row.CacheReadTokens,
+		CacheWriteTokens:  row.CacheWriteTokens,
 		UsageSource:       row.UsageSource,
 	}
 }
@@ -114,6 +118,8 @@ func toLLMCallRow(call *model.LLMCall) *llmCallRow {
 		PromptTokens:      call.PromptTokens,
 		CompletionTokens:  call.CompletionTokens,
 		TotalTokens:       call.TotalTokens,
+		CacheReadTokens:   call.CacheReadTokens,
+		CacheWriteTokens:  call.CacheWriteTokens,
 		UsageSource:       call.UsageSource,
 	}
 }
@@ -183,6 +189,8 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome m
 		updates["prompt_tokens"] = usage.PromptTokens
 		updates["completion_tokens"] = usage.CompletionTokens
 		updates["total_tokens"] = usage.TotalTokens
+		updates["cache_read_tokens"] = usage.CacheReadTokens
+		updates["cache_write_tokens"] = usage.CacheWriteTokens
 		updates["usage_source"] = source
 	}
 	return s.db.WithContext(ctx).Model(&llmCallRow{}).

@@ -88,9 +88,12 @@ func (r *usageCaptureReader) parseUsage() {
 			}
 			var obj struct {
 				Usage *struct {
-					PromptTokens     int `json:"prompt_tokens"`
-					CompletionTokens int `json:"completion_tokens"`
-					TotalTokens      int `json:"total_tokens"`
+					PromptTokens        int `json:"prompt_tokens"`
+					CompletionTokens    int `json:"completion_tokens"`
+					TotalTokens         int `json:"total_tokens"`
+					PromptTokensDetails *struct {
+						CachedTokens int `json:"cached_tokens"`
+					} `json:"prompt_tokens_details,omitempty"`
 				} `json:"usage,omitempty"`
 			}
 			if json.Unmarshal(jsonBytes, &obj) != nil || obj.Usage == nil {
@@ -99,6 +102,9 @@ func (r *usageCaptureReader) parseUsage() {
 			r.usage.PromptTokens = obj.Usage.PromptTokens
 			r.usage.CompletionTokens = obj.Usage.CompletionTokens
 			r.usage.TotalTokens = obj.Usage.TotalTokens
+			if obj.Usage.PromptTokensDetails != nil {
+				r.usage.CacheReadTokens = obj.Usage.PromptTokensDetails.CachedTokens
+			}
 		}
 	}
 }

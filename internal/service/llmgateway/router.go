@@ -38,6 +38,10 @@ type clientKey struct {
 	upstreamModel string
 	contextWindow int
 	callTimeout   time.Duration
+	maxTokens     int
+	reasoning     string
+	promptCache   bool
+	vision        bool
 }
 
 func keyOf(target Target) clientKey {
@@ -48,6 +52,10 @@ func keyOf(target Target) clientKey {
 		upstreamModel: target.UpstreamModel,
 		contextWindow: target.ContextWindow,
 		callTimeout:   target.CallTimeout,
+		maxTokens:     target.MaxTokens,
+		reasoning:     target.Reasoning,
+		promptCache:   target.PromptCache,
+		vision:        target.Vision,
 	}
 }
 

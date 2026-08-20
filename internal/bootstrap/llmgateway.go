@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -118,15 +119,23 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 	if modelName == "" {
 		modelName = config.DefaultModel
 	}
+	providerType := entry.Provider
+	if providerType == "" {
+		providerType = llmgateway.ProviderOpenAICompatible
+	}
 	return llmgateway.Target{
 		ID:            conversationTargetID,
 		Name:          name,
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  providerType,
 		Endpoint:      apiURL,
 		CredentialRef: conversationCredentialRef,
 		UpstreamModel: modelName,
 		ContextWindow: entry.ContextWindow,
 		CallTimeout:   time.Duration(entry.CallTimeout) * time.Second,
+		MaxTokens:     entry.MaxTokens,
+		Reasoning:     entry.Reasoning,
+		PromptCache:   entry.PromptCache,
+		Vision:        entry.Vision,
 		Capabilities:  llmgateway.NewCapabilitySet(llmgateway.BaselineCapabilities()...),
 		Enabled:       true,
 	}
@@ -164,20 +173,33 @@ func teamPolicySource(cfg config.ServerLLMConfig) (llmgateway.PolicySource, erro
 // place a credential reference becomes a real credential.
 func newClientFactory(conversationKey string, models model.LLMModelStore) llmgateway.ClientFactory {
 	return func(ctx context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
-		if target.ProviderType != llmgateway.ProviderOpenAICompatible {
-			return nil, fmt.Errorf("model %q uses unsupported provider %q", target.Name, target.ProviderType)
+		if !llmgateway.KnownProvider(target.ProviderType) {
+			return nil, fmt.Errorf("model %q uses unsupported provider %q; use one of %s",
+				target.Name, target.ProviderType, strings.Join(llmgateway.Providers(), ", "))
 		}
 		apiKey, err := resolveCredential(ctx, target.CredentialRef, conversationKey, models)
 		if err != nil {
 			return nil, fmt.Errorf("model %q: %w", target.Name, err)
 		}
-		return llm.NewClient(llm.Config{
+		// The provider type is the catalog's word for a wire protocol, and the
+		// client package uses the same values, so the target selects an adapter
+		// without a translation table to keep in step.
+		client, err := llm.NewClient(llm.Config{
+			Provider:      target.ProviderType,
 			APIKey:        apiKey,
 			BaseURL:       target.Endpoint,
 			Model:         target.UpstreamModel,
 			ContextWindow: target.ContextWindow,
+			MaxTokens:     target.MaxTokens,
+			Reasoning:     target.Reasoning,
+			PromptCache:   target.PromptCache,
+			Vision:        target.Vision,
 			CallTimeout:   target.CallTimeout,
-		}), nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("model %q: %w", target.Name, err)
+		}
+		return client, nil
 	}
 }
 

@@ -23,6 +23,33 @@ models:
     api_key: your-openrouter-api-key
     context_window: 8192
 
+  # `provider` is the wire protocol the endpoint speaks, not a vendor name:
+  #   openai_compatible  OpenAI Chat Completions — OpenRouter, LiteLLM, vLLM,
+  #                      local inference. The default; every entry above uses it.
+  #   openai             OpenAI's own Responses API
+  #   anthropic          the Anthropic Messages API
+  #
+  # `max_tokens` caps one response. The Anthropic protocol requires the field,
+  # so leaving it 0 there uses the built-in default (8192) rather than the
+  # provider's.
+  # - model: claude-sonnet-4-5
+  #   name: Claude Sonnet 4.5
+  #   provider: anthropic
+  #   api_url: https://api.anthropic.com
+  #   api_key: your-anthropic-api-key
+  #   context_window: 200000
+  #   max_tokens: 8192
+  #   reasoning: medium            # off (default), low, medium, or high. Any
+                                   # level but off also replays the reasoning
+                                   # on later turns. No effect on
+                                   # openai_compatible, which carries none.
+  #   prompt_cache: true           # cache the tool definitions and system
+                                   # prompt so later calls in a run pay less
+                                   # for them
+  #   vision: true                 # this model accepts image input. Leave it
+                                   # off and an image an MCP tool returns is
+                                   # described in text instead of sent.
+
   # A managed entry calls a BuildMax server instead of a provider, so the
   # deployment holds the provider credential and decides which models the team
   # may use. Prompts, tool schemas, and tool results pass through that server.

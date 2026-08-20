@@ -14,12 +14,12 @@ import (
 // tests only check which instance came back.
 type fakeLLMClient struct{ builtFor string }
 
-func (c *fakeLLMClient) ChatCompletionBlocking(context.Context, []cllm.Message, []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
-	return "", nil, cllm.Usage{}, nil
+func (c *fakeLLMClient) ChatCompletionBlocking(context.Context, []cllm.Message, []cllm.ToolDef) (cllm.Completion, error) {
+	return cllm.Completion{}, nil
 }
 
-func (c *fakeLLMClient) ChatCompletionStreaming(context.Context, []cllm.Message, []cllm.ToolDef, func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
-	return "", nil, cllm.Usage{}, nil
+func (c *fakeLLMClient) ChatCompletionStreaming(context.Context, []cllm.Message, []cllm.ToolDef, func(string)) (cllm.Completion, error) {
+	return cllm.Completion{}, nil
 }
 
 func (c *fakeLLMClient) ContextWindow() int { return 0 }
@@ -172,20 +172,37 @@ func TestClientForRebuildsWhenTargetChanges(t *testing.T) {
 		t.Errorf("factory called %d times, want 2", factory.count())
 	}
 
-	// A change that does not affect construction keeps the cached client.
-	renamed := rotated
-	renamed.Name = "Renamed"
-	catalog.set(renamed)
+	// An output cap is a construction detail: a client built with the old one
+	// would keep capping responses after the operator changed it.
+	capped := rotated
+	capped.MaxTokens = 4096
+	catalog.set(capped)
 
 	third, err := router.ClientFor(ctx, req)
 	if err != nil {
+		t.Fatalf("ClientFor after a max-tokens change: %v", err)
+	}
+	if third.Client == second.Client {
+		t.Error("a changed output cap reused the cached client")
+	}
+	if factory.count() != 3 {
+		t.Errorf("factory called %d times, want 3", factory.count())
+	}
+
+	// A change that does not affect construction keeps the cached client.
+	renamed := capped
+	renamed.Name = "Renamed"
+	catalog.set(renamed)
+
+	fourth, err := router.ClientFor(ctx, req)
+	if err != nil {
 		t.Fatalf("ClientFor after rename: %v", err)
 	}
-	if third.Client != second.Client {
+	if fourth.Client != third.Client {
 		t.Error("a display-name change rebuilt the client")
 	}
-	if factory.count() != 2 {
-		t.Errorf("factory called %d times, want 2", factory.count())
+	if factory.count() != 3 {
+		t.Errorf("factory called %d times, want 3", factory.count())
 	}
 }
 

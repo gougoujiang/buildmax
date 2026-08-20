@@ -101,16 +101,19 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	resp := llmwire.CompletionResponse{
-		LLMCallID: result.LLMCallID,
-		Model:     result.Alias,
-		Content:   result.Content,
-		ToolCalls: fromCoreToolCalls(result.ToolCalls),
+		LLMCallID:     result.LLMCallID,
+		Model:         result.Alias,
+		Content:       result.Content,
+		ToolCalls:     fromCoreToolCalls(result.ToolCalls),
+		ProviderState: fromCoreProviderState(result.ProviderState),
 	}
 	if result.UsageReported {
 		resp.Usage = &llmwire.Usage{
 			PromptTokens:     result.Usage.PromptTokens,
 			CompletionTokens: result.Usage.CompletionTokens,
 			TotalTokens:      result.Usage.TotalTokens,
+			CacheReadTokens:  result.Usage.CacheReadTokens,
+			CacheWriteTokens: result.Usage.CacheWriteTokens,
 		}
 	}
 	httputil.WriteJSON(w, http.StatusOK, resp)
@@ -126,13 +129,45 @@ func toCoreMessages(in []llmwire.Message) ([]cllm.Message, error) {
 			return nil, errors.New("every message needs a role")
 		}
 		out = append(out, cllm.Message{
-			Role:       m.Role,
-			Content:    m.Content,
-			ToolCallID: m.ToolCallID,
-			ToolCalls:  toCoreToolCalls(m.ToolCalls),
+			Role:          m.Role,
+			Content:       m.Content,
+			ToolCallID:    m.ToolCallID,
+			ToolCalls:     toCoreToolCalls(m.ToolCalls),
+			ProviderState: toCoreProviderState(m.ProviderState),
+			Parts:         toCoreParts(m.Parts),
 		})
 	}
 	return out, nil
+}
+
+// toCoreProviderState and fromCoreProviderState carry reasoning state across
+// the gateway boundary. The server relays it without reading it: the content is
+// the upstream's, and only the adapter that produced it may interpret it.
+func toCoreProviderState(in *llmwire.ProviderState) *cllm.ProviderState {
+	if in == nil {
+		return nil
+	}
+	return &cllm.ProviderState{Protocol: in.Protocol, Data: in.Data}
+}
+
+func fromCoreProviderState(in *cllm.ProviderState) *llmwire.ProviderState {
+	if in == nil {
+		return nil
+	}
+	return &llmwire.ProviderState{Protocol: in.Protocol, Data: in.Data}
+}
+
+func toCoreParts(in []llmwire.ContentPart) []cllm.ContentPart {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]cllm.ContentPart, 0, len(in))
+	for _, part := range in {
+		out = append(out, cllm.ContentPart{
+			Type: part.Type, Text: part.Text, MediaType: part.MediaType, Data: part.Data,
+		})
+	}
+	return out
 }
 
 func toCoreToolCalls(in []llmwire.ToolCall) []cllm.ToolCall {
@@ -212,16 +247,19 @@ func (h *Handler) streamLLMCompletion(w http.ResponseWriter, r *http.Request, cm
 	}
 
 	final := llmwire.CompletionResponse{
-		LLMCallID: result.LLMCallID,
-		Model:     result.Alias,
-		Content:   result.Content,
-		ToolCalls: fromCoreToolCalls(result.ToolCalls),
+		LLMCallID:     result.LLMCallID,
+		Model:         result.Alias,
+		Content:       result.Content,
+		ToolCalls:     fromCoreToolCalls(result.ToolCalls),
+		ProviderState: fromCoreProviderState(result.ProviderState),
 	}
 	if result.UsageReported {
 		final.Usage = &llmwire.Usage{
 			PromptTokens:     result.Usage.PromptTokens,
 			CompletionTokens: result.Usage.CompletionTokens,
 			TotalTokens:      result.Usage.TotalTokens,
+			CacheReadTokens:  result.Usage.CacheReadTokens,
+			CacheWriteTokens: result.Usage.CacheWriteTokens,
 		}
 	}
 	_ = stream.send(llmwire.EventResult, final)
