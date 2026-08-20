@@ -41,6 +41,13 @@ all cached runtimes.
 6. Session persistence and durable traces are handled by `agentapp`, exactly as
    for the CLI.
 
+At most one run per project is in flight. A prompt submitted while one is running
+is queued: `SendMessageStream` returns its 1-based queue position (0 means it
+started a run), the run goroutine drains one queued prompt per turn and announces
+each with `desktop/message-dequeued`, and `QueuedMessages` re-reads a project's
+queue. `CancelRun` discards the queue before cancelling. See
+[Queued messages](../../design/queued-messages.md).
+
 Project metadata is stored in
 `<BUILDMAX_HOME>/projects/projects.json`. Sessions, settings, traces, auth, and
 logs use the regular paths under `BUILDMAX_HOME`; project source files stay in

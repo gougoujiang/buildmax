@@ -48,6 +48,7 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 | [Hook system](hook-system.md) | 13 events and 4 transports implemented | [guide/hooks.md](../guide/hooks.md) |
 | [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; worker hardening open | [guide/sandbox.md](../guide/sandbox.md) |
 | [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
+| [Queued messages](queued-messages.md) | Turn-boundary queueing implemented on all three surfaces; mid-run injection and persistence open | — |
 
 ## Where The Designs Land
 

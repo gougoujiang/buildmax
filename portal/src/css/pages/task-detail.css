@@ -164,6 +164,12 @@
   margin: 0.35rem 0;
 }
 
+/* A message accepted during a turn and waiting for its own: sent, not answered. */
+.page-chat__msg-content--queued {
+  color: var(--color-text-subtle);
+  opacity: 0.75;
+}
+
 .page-chat__msg-toolcalls {
   margin: 0.4rem 0 0;
   padding-left: 1.2rem;

@@ -176,6 +176,35 @@ func formatUserMsgForScrollback(text string) string {
 	return b.String()
 }
 
+// formatQueuedMsgForScrollback formats a message the user typed while a run was in
+// flight. The dim treatment and position marker say "typed, waiting" rather than
+// "sent", which is the one thing the user needs to read off the transcript.
+func formatQueuedMsgForScrollback(text string, position int) string {
+	return queuedPrefixedLines(fmt.Sprintf("⏸ queued #%d ", position), text)
+}
+
+// formatUnqueuedMsgForScrollback formats a queued message the user took back.
+func formatUnqueuedMsgForScrollback(text string) string {
+	return queuedPrefixedLines("⏵ unqueued ", text)
+}
+
+func queuedPrefixedLines(prefix, text string) string {
+	var b strings.Builder
+	lines := strings.Split(text, "\n")
+	indent := strings.Repeat(" ", len([]rune(prefix)))
+	for i, line := range lines {
+		if i == 0 {
+			b.WriteString(queuedMessageStyle.Render(prefix + line))
+		} else {
+			b.WriteString(queuedMessageStyle.Render(indent + line))
+		}
+		if i < len(lines)-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
 // formatAssistantMsgForScrollback formats a completed assistant reply for printing to the terminal scrollback.
 // style is the pre-detected glamour style ("dark" or "light").
 func formatAssistantMsgForScrollback(text string, width int, style string) string {

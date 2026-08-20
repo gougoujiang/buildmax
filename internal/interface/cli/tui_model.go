@@ -122,6 +122,18 @@ type Model struct {
 	pendingApproval  *approvalRequestMsg
 	approvalSelected int
 	runStatus        agentapp.RunStatus
+	// queue holds messages typed while a run was in flight. It is drained one
+	// message per turn, after the run that was busy when they arrived finishes.
+	queue *agent.MessageQueue
+}
+
+// drainQueueMsg asks the model to start the next queued message, if any. It is a
+// message rather than a direct call so the start of the next turn is ordered
+// behind whatever the finished turn was still printing.
+type drainQueueMsg struct{}
+
+func drainQueueCmd() tea.Cmd {
+	return func() tea.Msg { return drainQueueMsg{} }
 }
 
 // streamSinkToChannel implements agent.StreamSink by sending streamDeltaMsg to a channel.
@@ -172,6 +184,7 @@ func NewModel(opts TUIOpts) *Model {
 		branch:     git.CurrentBranch(opts.Workspace),
 		userEmail:  userEmail,
 		runStatus:  opts.RunStatus,
+		queue:      agent.NewMessageQueue(agent.DefaultMaxQueuedMessages),
 	}
 }
 
@@ -304,7 +317,7 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.Code {
 	case tea.KeyEscape:
 		if m.busy {
-			return m, nil
+			return m, unqueueOrClearInput(m)
 		}
 		if m.slashPopup != nil {
 			m.slashPopup = nil
@@ -315,7 +328,7 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyEnter:
 		if m.busy {
-			return m, nil
+			return m, queueMessage(m)
 		}
 		if m.slashPopup != nil && len(m.slashPopup.matches) > 0 {
 			cmd := m.slashPopup.matches[m.slashPopup.selected]
@@ -340,24 +353,7 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.inputBlock.Reset()
 		m.inputBlock.SyncHeight()
-		m.busy = true
-		m.err = ""
-		m.carouselDots = 0
-		m.streamingBuffer = ""
-		m.runStatus.PromptTokens = 0
-		m.runStatus.CompletionTokens = 0
-		channel := make(chan tea.Msg)
-		m.streamChannel = channel
-		// tea.Println returns a Cmd in Bubble Tea v2; use Sequence so the user message
-		// appears in scrollback before the agent starts reading from the channel.
-		userLine := formatUserMsgForScrollback(text)
-		return m, tea.Sequence(
-			tea.Println(userLine+"\n"),
-			tea.Batch(
-				tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
-				runAgentWithStream(m.opts, text, channel),
-			),
-		)
+		return m, startRun(m, text)
 	}
 	// When the session panel is focused, route printable characters and backspace
 	// to the search filter instead of the input block.
@@ -365,6 +361,86 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.inputBlock.SyncHeight()
 	m.syncSlashPopupFromInput()
 	return m, cmd
+}
+
+// startRun begins an agent run for text and returns the Cmd that prints the user
+// message and pumps the run's events. Both a fresh submission and a queued message
+// go through here, so a queued turn is indistinguishable from one typed at the prompt.
+func startRun(m *Model, text string) tea.Cmd {
+	m.busy = true
+	m.err = ""
+	m.carouselDots = 0
+	m.streamingBuffer = ""
+	m.runStatus.PromptTokens = 0
+	m.runStatus.CompletionTokens = 0
+	channel := make(chan tea.Msg)
+	m.streamChannel = channel
+	// tea.Println returns a Cmd in Bubble Tea v2; use Sequence so the user message
+	// appears in scrollback before the agent starts reading from the channel.
+	userLine := formatUserMsgForScrollback(text)
+	return tea.Sequence(
+		tea.Println(userLine+"\n"),
+		tea.Batch(
+			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
+			runAgentWithStream(m.opts, text, channel),
+		),
+	)
+}
+
+// queueMessage stores what the user typed during a run so it runs as its own turn
+// once the current one finishes. Enter during a run used to be swallowed entirely.
+func queueMessage(m *Model) tea.Cmd {
+	text := strings.TrimSpace(m.inputBlock.Value())
+	if text == "" {
+		return nil
+	}
+	// Slash commands act on live TUI state (model switch, session load, panels), so
+	// running one a turn later would apply it to a different world than the one the
+	// user was looking at. Refuse rather than queue.
+	if strings.HasPrefix(text, "/") {
+		m.err = "slash commands are unavailable while the agent is running"
+		return nil
+	}
+	pos, err := m.queue.Enqueue(text)
+	if err != nil {
+		m.err = fmt.Sprintf("%v (%d already waiting)", err, m.queue.Len())
+		return nil
+	}
+	m.inputBlock.Reset()
+	m.inputBlock.SyncHeight()
+	m.slashPopup = nil
+	m.err = ""
+	return tea.Println(formatQueuedMsgForScrollback(text, pos) + "\n")
+}
+
+// unqueueOrClearInput is esc during a run: clear what is being typed, or take back
+// the last queued message when there is nothing left to clear.
+func unqueueOrClearInput(m *Model) tea.Cmd {
+	if strings.TrimSpace(m.inputBlock.Value()) != "" {
+		m.inputBlock.Reset()
+		m.inputBlock.SyncHeight()
+		m.slashPopup = nil
+		return nil
+	}
+	text, ok := m.queue.DropLast()
+	if !ok {
+		return nil
+	}
+	return tea.Println(formatUnqueuedMsgForScrollback(text) + "\n")
+}
+
+// handleDrainQueue starts the next queued message. A run that failed still drains:
+// the queue holds what the user asked for, and stranding it with no way to release
+// it is worse than letting it fail on its own turn.
+func handleDrainQueue(m *Model, _ drainQueueMsg) (tea.Model, tea.Cmd) {
+	if m.busy {
+		return m, nil
+	}
+	text, ok := m.queue.Dequeue()
+	if !ok {
+		return m, nil
+	}
+	return m, startRun(m, text)
 }
 
 func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -393,7 +469,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		m.err = msg.Err.Error()
 		slog.Error("agent failed", "err", msg.Err)
-		return m, nil
+		return m, drainQueueCmd()
 	}
 	m.runStatus = agentapp.RunStatus{
 		ContextTokens:         msg.Result.ContextTokens,
@@ -404,11 +480,11 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 		TotalCompletionTokens: msg.Result.TotalCompletionTokens,
 	}
 	if strings.TrimSpace(text) == "" {
-		return m, nil
+		return m, drainQueueCmd()
 	}
 	// Normally each LLM response is rendered on llmEndMsg. This fallback keeps a
 	// successful run from dropping text if the stream closes without an LLM end event.
-	return m, renderAssistantMsgCmd(text, width, glamourStyle, false)
+	return m, tea.Sequence(renderAssistantMsgCmd(text, width, glamourStyle, false), drainQueueCmd())
 }
 
 func handleCarouselTick(m *Model, msg carouselTickMsg) (tea.Model, tea.Cmd) {
@@ -568,11 +644,21 @@ func (m *Model) renderInputView() string {
 	if boxWidth < 10 {
 		boxWidth = 10
 	}
-	if m.busy {
-		dots := []string{".", "..", "..."}
-		return inputBoxStyle.Width(boxWidth).Render("Generating" + dots[m.carouselDots%3])
-	}
 	return inputBoxStyle.Width(boxWidth).Render(m.inputBlock.View())
+}
+
+// renderBusyHint is the status line shown above the input during a run. The input
+// itself stays on screen and editable, because enter now queues a message instead
+// of being swallowed — typing has to echo for that to be usable.
+func (m *Model) renderBusyHint() string {
+	dots := []string{".", "..", "..."}
+	line := "Generating" + dots[m.carouselDots%3]
+	if n := m.queue.Len(); n > 0 {
+		line += fmt.Sprintf("  ·  %d queued", n)
+	} else {
+		line += "  ·  enter: queue message"
+	}
+	return toolGlyphPendingStyle.Render(line)
 }
 
 func (m *Model) renderFooterView() string {
@@ -594,6 +680,9 @@ func (m *Model) renderFooterView() string {
 	}
 
 	line2 := formatRunStatus(m.runStatus) + " | ctrl+c: quit | esc: clear/dismiss | /… + ↑↓: commands"
+	if n := m.queue.Len(); n > 0 {
+		line2 += fmt.Sprintf(" | queued: %d", n)
+	}
 	if m.activePanel != nil {
 		if hint := m.activePanel.FooterHint(); hint != "" {
 			line2 += " | " + hint
@@ -664,6 +753,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleToolDenied(m, msg)
 	case carouselTickMsg:
 		return handleCarouselTick(m, msg)
+	case drainQueueMsg:
+		return handleDrainQueue(m, msg)
 	case approvalRequestMsg:
 		m.pendingApproval = &msg
 		m.approvalSelected = 0
@@ -709,6 +800,7 @@ func (m *Model) View() tea.View {
 			spinner := toolGlyphPendingStyle.Render(toolSpinnerFrames[m.carouselDots])
 			parts = append(parts, "  "+spinner+" "+m.toolActivity)
 		}
+		parts = append(parts, m.renderBusyHint())
 	}
 
 	// Slash panels (only shown when not busy).
