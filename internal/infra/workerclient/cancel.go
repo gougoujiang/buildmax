@@ -69,15 +69,18 @@ func WatchCancel(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID strin
 			canceled, err := IsCancelRequested(ctx, cfg, taskRunID)
 			if err != nil {
 				if ctx.Err() == nil {
-					slog.Warn("worker: cancel poll failed", "task_run_id", taskRunID, "err", err)
+					cancelPollLog().Warn("cancel poll failed", "task_run_id", taskRunID, "err", err)
 				}
 				continue
 			}
 			if canceled {
-				slog.Info("worker: cancel requested, stopping this run", "task_run_id", taskRunID)
+				cancelPollLog().Info("cancel requested, stopping this run", "task_run_id", taskRunID)
 				onCancel()
 				return
 			}
 		}
 	}
 }
+
+// Identity belongs in an attr, not in every message string.
+func cancelPollLog() *slog.Logger { return slog.With("component", "worker_cancel_poll") }

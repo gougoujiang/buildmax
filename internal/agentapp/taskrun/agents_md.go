@@ -7,7 +7,6 @@ package taskrun
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,7 +31,7 @@ func BuildRunAgentsMdContent(runHome string) (string, error) {
 	out := strings.TrimSpace(runDirectoryStructureSection)
 	extra, err := agentapp.ReadAgentsMd(runHome)
 	if err != nil {
-		slog.Warn("runtime: read workspace AGENTS.md for run", "run_home", runHome, "err", err)
+		componentLog().Warn("read workspace AGENTS.md for run", "run_home", runHome, "err", err)
 		// Continue with structure only
 		return out, nil
 	}

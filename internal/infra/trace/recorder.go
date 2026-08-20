@@ -5,7 +5,6 @@ package trace
 import (
 	"bufio"
 	"encoding/json"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -54,18 +53,18 @@ type Recorder struct {
 // nil-check beyond normal use.
 func NewRecorder(dir string, meta Meta) *Recorder {
 	if meta.RunID == "" {
-		slog.Warn("trace: missing run id; tracing disabled for this run")
+		componentLog().Warn("missing run id; tracing disabled for this run")
 		return nil
 	}
 	runDir := filepath.Join(dir, sanitize(meta.SessionID))
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		slog.Warn("trace: create dir failed; tracing disabled for this run", "dir", runDir, "err", err)
+		componentLog().Warn("create dir failed; tracing disabled for this run", "dir", runDir, "err", err)
 		return nil
 	}
 	path := filepath.Join(runDir, meta.RunID+".jsonl")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		slog.Warn("trace: open file failed; tracing disabled for this run", "path", path, "err", err)
+		componentLog().Warn("open file failed; tracing disabled for this run", "path", path, "err", err)
 		return nil
 	}
 	r := &Recorder{
@@ -128,7 +127,7 @@ func (r *Recorder) Record(e agent.Event) {
 	if r.count >= r.maxRecord && rec.Type != "run_end" {
 		if !r.dropped {
 			r.dropped = true
-			slog.Warn("trace: record cap reached; dropping further records", "run_id", r.runID, "cap", r.maxRecord)
+			componentLog().Warn("record cap reached; dropping further records", "run_id", r.runID, "cap", r.maxRecord)
 		}
 		return
 	}
@@ -155,7 +154,7 @@ func (r *Recorder) Close() error {
 	defer r.mu.Unlock()
 	if r.w != nil {
 		if err := r.w.Flush(); err != nil {
-			slog.Warn("trace: flush failed", "run_id", r.runID, "err", err)
+			componentLog().Warn("flush failed", "run_id", r.runID, "err", err)
 		}
 		r.w = nil
 	}
@@ -174,11 +173,11 @@ func (r *Recorder) write(rec Record) {
 	}
 	b, err := json.Marshal(rec)
 	if err != nil {
-		slog.Warn("trace: marshal record failed", "run_id", r.runID, "type", rec.Type, "err", err)
+		componentLog().Warn("marshal record failed", "run_id", r.runID, "type", rec.Type, "err", err)
 		return
 	}
 	if _, err := r.w.Write(append(b, '\n')); err != nil {
-		slog.Warn("trace: write record failed", "run_id", r.runID, "type", rec.Type, "err", err)
+		componentLog().Warn("write record failed", "run_id", r.runID, "type", rec.Type, "err", err)
 		return
 	}
 	r.count++

@@ -66,7 +66,7 @@ func NewProxy(matcher *HostMatcher, viol Violator) (*Proxy, error) {
 	}
 	go func() {
 		if err := p.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Warn("sandbox proxy: serve exited", "err", err)
+			proxyLog().Warn("serve exited", "err", err)
 		}
 	}()
 	return p, nil
@@ -276,3 +276,6 @@ func isHopByHop(name string) bool {
 	}
 	return false
 }
+
+// Identity belongs in an attr, not in every message string.
+func proxyLog() *slog.Logger { return slog.With("component", "sandbox_proxy") }

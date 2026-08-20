@@ -70,7 +70,7 @@ func (m *HookManager) Run(ctx context.Context, in agent.HookInput) agent.HookOut
 		driverType := entry.ResolvedType()
 		driver, ok := m.drivers[driverType]
 		if !ok {
-			slog.Warn("hook: no driver for type; skipping entry",
+			hookLog().Warn("no driver for type; skipping entry",
 				"event", in.Event,
 				"type", driverType,
 			)
@@ -159,10 +159,13 @@ func (m *HookManager) compile(pattern string) *regexp.Regexp {
 	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		slog.Warn("hook: invalid matcher regex; entry will never match", "pattern", pattern, "err", err)
+		hookLog().Warn("invalid matcher regex; entry will never match", "pattern", pattern, "err", err)
 		m.matchers[pattern] = nil
 		return nil
 	}
 	m.matchers[pattern] = re
 	return re
 }
+
+// Identity belongs in an attr, not in every message string.
+func hookLog() *slog.Logger { return slog.With("component", "hook") }

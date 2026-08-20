@@ -1,8 +1,6 @@
 package hook
 
 import (
-	"log/slog"
-
 	"github.com/gougoujiang/buildmax/internal/config"
 )
 
@@ -20,12 +18,12 @@ func NewDriverRegistry(deps Deps) map[string]Driver {
 	if deps.MCPCaller != nil {
 		registry[config.HookTypeMCP] = NewMCPDriver(deps.MCPCaller)
 	} else {
-		slog.Debug("hook: no MCP caller; mcp_tool hooks disabled")
+		componentLog().Debug("no MCP caller; mcp_tool hooks disabled")
 	}
 	if deps.LLMCaller != nil {
 		registry[config.HookTypePrompt] = NewPromptDriver(deps.LLMCaller)
 	} else {
-		slog.Debug("hook: no LLM caller; prompt hooks disabled")
+		componentLog().Debug("no LLM caller; prompt hooks disabled")
 	}
 	return registry
 }

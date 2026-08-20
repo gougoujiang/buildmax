@@ -3,7 +3,6 @@ package hook
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -32,17 +31,17 @@ func (PromptDriver) Type() string { return config.HookTypePrompt }
 // Run renders the configured prompt and asks the LLM for a decision.
 func (d *PromptDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
 	if d == nil || d.caller == nil {
-		slog.Warn("hook: prompt driver has no caller; failing open", "event", in.Event)
+		componentLog().Warn("prompt driver has no caller; failing open", "event", in.Event)
 		return agent.HookOutput{}
 	}
 	if entry.Prompt == "" {
-		slog.Warn("hook: prompt entry missing prompt", "event", in.Event)
+		componentLog().Warn("prompt entry missing prompt", "event", in.Event)
 		return agent.HookOutput{}
 	}
 
 	payload, err := json.Marshal(in)
 	if err != nil {
-		slog.Warn("hook: marshal prompt arguments failed; failing open", "event", in.Event, "err", err)
+		componentLog().Warn("marshal prompt arguments failed; failing open", "event", in.Event, "err", err)
 		return agent.HookOutput{}
 	}
 	prompt := strings.ReplaceAll(entry.Prompt, "$ARGUMENTS", string(payload))
@@ -52,7 +51,7 @@ func (d *PromptDriver) Run(ctx context.Context, entry config.HookEntry, in agent
 
 	resp, err := d.caller.CompleteHookPrompt(callCtx, entry.Model, prompt)
 	if err != nil {
-		slog.Warn("hook: prompt llm call failed; failing open",
+		componentLog().Warn("prompt llm call failed; failing open",
 			"event", in.Event,
 			"model", entry.Model,
 			"err", err,
@@ -62,11 +61,11 @@ func (d *PromptDriver) Run(ctx context.Context, entry config.HookEntry, in agent
 
 	out, ok := parseHookOutput([]byte(resp))
 	if !ok {
-		slog.Debug("hook: prompt response not parsable; allowing", "event", in.Event, "response", truncate(resp, 200))
+		componentLog().Debug("prompt response not parsable; allowing", "event", in.Event, "response", truncate(resp, 200))
 		return agent.HookOutput{}
 	}
 	if out.Blocked() {
-		slog.Info("hook: prompt blocked", "event", in.Event, "tool", in.ToolName, "model", entry.Model, "reason", out.Reason)
+		componentLog().Info("prompt blocked", "event", in.Event, "tool", in.ToolName, "model", entry.Model, "reason", out.Reason)
 	}
 	return out
 }
