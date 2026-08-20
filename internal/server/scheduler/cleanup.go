@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"log/slog"
 	"time"
 )
 
@@ -56,7 +55,7 @@ func (c *CredentialCleaner) Start() {
 		return
 	}
 	go c.loop()
-	slog.Info("credential cleaner started", "interval", c.interval)
+	c.log().Info("started", "interval", c.interval)
 }
 
 // Stop signals the loop to exit and blocks until it has finished.
@@ -66,7 +65,7 @@ func (c *CredentialCleaner) Stop() {
 	}
 	close(c.stopCh)
 	<-c.doneCh
-	slog.Info("credential cleaner stopped")
+	c.log().Info("stopped")
 }
 
 func (c *CredentialCleaner) loop() {
@@ -92,13 +91,13 @@ func (c *CredentialCleaner) sweep() {
 	now := time.Now().Unix()
 	codes, err := c.store.DeleteExpiredLoginCodes(ctx, now)
 	if err != nil {
-		slog.Warn("cleanup: delete expired login codes failed", "err", err)
+		c.log().Warn("delete expired login codes failed", "err", err)
 	}
 	tokens, err := c.store.DeleteExpiredRefreshTokens(ctx, now)
 	if err != nil {
-		slog.Warn("cleanup: delete expired refresh tokens failed", "err", err)
+		c.log().Warn("delete expired refresh tokens failed", "err", err)
 	}
 	if codes > 0 || tokens > 0 {
-		slog.Info("cleanup: expired credentials removed", "login_codes", codes, "refresh_tokens", tokens)
+		c.log().Info("expired credentials removed", "login_codes", codes, "refresh_tokens", tokens)
 	}
 }

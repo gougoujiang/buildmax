@@ -2,10 +2,10 @@ package scheduler
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
 )
 
 // defaultRunTimeout is how long a run may sit in SCHEDULED or RUNNING before it
@@ -94,7 +94,7 @@ func (c *StaleRunReaper) Start() {
 		return
 	}
 	go c.loop()
-	slog.Info("stale run reaper started", "run_timeout", c.timeout, "cancel_grace", c.cancelGrace, "interval", c.interval)
+	c.log().Info("started", "run_timeout", c.timeout, "cancel_grace", c.cancelGrace, "interval", c.interval)
 }
 
 // Stop signals the loop to exit and blocks until it has finished.
@@ -104,7 +104,7 @@ func (c *StaleRunReaper) Stop() {
 	}
 	close(c.stopCh)
 	<-c.doneCh
-	slog.Info("stale run reaper stopped")
+	c.log().Info("stopped")
 }
 
 func (c *StaleRunReaper) loop() {
@@ -136,7 +136,7 @@ func (c *StaleRunReaper) Sweep(ctx context.Context, now time.Time) {
 func (c *StaleRunReaper) sweepAbandoned(ctx context.Context, now time.Time) {
 	stale, err := c.runs.ListStaleTaskRuns(ctx, now.Add(-c.timeout).Unix(), staleRunLimit)
 	if err != nil {
-		slog.Warn("stale run sweep failed", "err", err)
+		c.log().WarnContext(ctx, "stale run sweep failed", "err", err)
 		return
 	}
 	message := "this run was abandoned: no worker reported an outcome within " + c.timeout.String()
@@ -153,7 +153,7 @@ func (c *StaleRunReaper) sweepAbandoned(ctx context.Context, now time.Time) {
 func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 	canceled, err := c.runs.ListCancelRequestedTaskRuns(ctx, now.Add(-c.cancelGrace).Unix(), staleRunLimit)
 	if err != nil {
-		slog.Warn("canceled run sweep failed", "err", err)
+		c.log().WarnContext(ctx, "canceled run sweep failed", "err", err)
 		return
 	}
 	message := "this run was canceled: no worker confirmed the cancel within " + c.cancelGrace.String()
@@ -168,6 +168,7 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 // because from here a dead worker, an evicted pod, and an expired credential
 // look identical.
 func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status model.RunStatus, message string, now time.Time, logMsg string) {
+	ctx = buildmaxlog.With(ctx, "task_run_id", run.TaskRunID)
 	endedAt := now.Unix()
 	if err := c.runs.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID:    run.TaskRunID,
@@ -175,11 +176,11 @@ func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status m
 		EndedAt:      &endedAt,
 		ErrorMessage: &message,
 	}); err != nil {
-		slog.Warn("could not finish an unreported run", "task_run_id", run.TaskRunID, "status", status, "err", err)
+		c.log().ErrorContext(ctx, "could not finish an unreported run", "status", status, "err", err)
 		return
 	}
 	if err := c.runs.SyncTaskFromRun(ctx, run.TaskRunID); err != nil {
-		slog.Warn("could not sync a task from its unreported run", "task_run_id", run.TaskRunID, "err", err)
+		c.log().WarnContext(ctx, "could not sync a task from its unreported run", "err", err)
 	}
-	slog.Warn(logMsg, "task_run_id", run.TaskRunID, "status_was", run.Status)
+	c.log().WarnContext(ctx, logMsg, "status_was", run.Status)
 }

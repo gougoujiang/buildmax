@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -76,7 +75,7 @@ func (a *AuditRetainer) Start() {
 		return
 	}
 	go a.loop()
-	slog.Info("audit retention started", "window", a.window, "interval", a.interval)
+	a.log().Info("started", "window", a.window, "interval", a.interval)
 }
 
 // Stop signals the loop to exit and blocks until it has finished.
@@ -86,7 +85,7 @@ func (a *AuditRetainer) Stop() {
 	}
 	close(a.stopCh)
 	<-a.doneCh
-	slog.Info("audit retention stopped")
+	a.log().Info("stopped")
 }
 
 func (a *AuditRetainer) loop() {
@@ -122,7 +121,7 @@ func (a *AuditRetainer) sweep(ctx context.Context) int64 {
 	// did not happen.
 	oldest, err := a.store.OldestAuditEventAt(ctx)
 	if err != nil {
-		slog.Warn("audit retention: read oldest event failed", "err", err)
+		a.log().WarnContext(ctx, "read oldest event failed", "err", err)
 		// Not fatal: the count below is still exact, and only the message is
 		// poorer for it.
 		oldest = 0
@@ -132,7 +131,7 @@ func (a *AuditRetainer) sweep(ctx context.Context) int64 {
 	for range auditPruneMaxBatches {
 		n, err := a.store.PruneAuditEvents(ctx, cutoff, auditPruneBatch)
 		if err != nil {
-			slog.Warn("audit retention: prune failed", "err", err, "cutoff", cutoff, "removed", removed)
+			a.log().WarnContext(ctx, "prune failed", "err", err, "cutoff", cutoff, "removed", removed)
 			break
 		}
 		removed += n
@@ -144,7 +143,7 @@ func (a *AuditRetainer) sweep(ctx context.Context) int64 {
 		return 0
 	}
 
-	slog.Info("audit retention: events expired", "removed", removed, "cutoff", cutoff, "window", a.window)
+	a.log().InfoContext(ctx, "events expired", "removed", removed, "cutoff", cutoff, "window", a.window)
 	a.recordPrune(ctx, removed, oldest, cutoff)
 	return removed
 }
@@ -178,6 +177,6 @@ func (a *AuditRetainer) recordPrune(ctx context.Context, removed, oldest, cutoff
 		// A dropped record here is worse than most: it is the one that
 		// explains the gap. It cannot fail the deletion, which already
 		// happened, so the log is where it lands.
-		slog.Error("audit retention: prune not recorded", "err", err, "removed", removed, "cutoff", cutoff)
+		a.log().ErrorContext(ctx, "prune not recorded", "err", err, "removed", removed, "cutoff", cutoff)
 	}
 }
