@@ -285,14 +285,14 @@ func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision i
 }
 
 // DeleteAgent marks the agent deleted if it exists and belongs to the user.
-// Returns gorm.ErrRecordNotFound if there is no such live agent for that user.
+// Returns model.ErrNotFound if there is no such live agent for that user.
 func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil {
 		return err
 	}
 	if a == nil || a.UserID != userID {
-		return gorm.ErrRecordNotFound
+		return model.ErrNotFound
 	}
 	return s.markAgentDeleted(ctx, a.AgentID)
 }
@@ -304,7 +304,7 @@ func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) e
 		return err
 	}
 	if a == nil || a.TeamID != teamID {
-		return gorm.ErrRecordNotFound
+		return model.ErrNotFound
 	}
 	return s.markAgentDeleted(ctx, a.AgentID)
 }

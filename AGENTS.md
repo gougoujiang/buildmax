@@ -69,6 +69,7 @@ Important ownership boundaries:
   database schema; `AutoMigrate` in `store.go` applies them. The full table
   reference and the rules for changing them are in
   [`docs/contribute/architecture/data-model.md`](docs/contribute/architecture/data-model.md).
+  GORM stays inside that package: above it, "no such row" is `model.ErrNotFound`.
 
 Team is the ownership and authorization boundary for Portal resources. Issue is
 the primary user-facing work object. Workflows are team-scoped reusable linear

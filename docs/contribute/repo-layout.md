@@ -179,6 +179,8 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   service is reached by a transport and never reaches back for one.
 - `agentapp` imports nothing from `bootstrap`, `interface`, or `server`. Every
   surface that assembles it sits above it.
+- `gorm.io` is imported only by `infra/db`. Above that boundary, "no such row"
+  is `model.ErrNotFound`, which the store translates to.
 - `internal/tool` is not pure — it imports infra (MCP, git) as needed.
 
 These rules are enforced by tests in `internal/architecture`. If a change trips

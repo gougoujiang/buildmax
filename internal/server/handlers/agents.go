@@ -7,7 +7,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"gorm.io/gorm"
 )
 
 type AgentResponse struct {
@@ -291,7 +290,7 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.cfg.AgentStore.DeleteAgentInTeam(r.Context(), agentID, teamID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, model.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 			return
 		}

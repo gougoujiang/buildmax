@@ -7,8 +7,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
-
-	"gorm.io/gorm"
 )
 
 // MockAgentStore is an in-memory AgentStore for tests. It records revisions the
@@ -149,7 +147,7 @@ func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) 
 			return nil
 		}
 	}
-	return gorm.ErrRecordNotFound
+	return model.ErrNotFound
 }
 
 func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID string) error {
@@ -159,5 +157,5 @@ func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID st
 			return nil
 		}
 	}
-	return gorm.ErrRecordNotFound
+	return model.ErrNotFound
 }

@@ -15,6 +15,11 @@ var importRules = []struct {
 	name      string
 	dir       string
 	forbidden []string
+	// except lists repository-relative directories inside dir that the rule
+	// does not apply to, along with everything under them. Use it for a rule
+	// that constrains a whole tree apart from the one package that owns the
+	// dependency.
+	except []string
 }{
 	{
 		// AGENTS.md and docs/contribute/repo-layout.md both state that core
@@ -81,6 +86,18 @@ var importRules = []struct {
 			"github.com/gougoujiang/buildmax/internal/server",
 		},
 	},
+	{
+		// GORM is an implementation detail of internal/infra/db. Nothing above
+		// it should need the library — a caller that wants "no such row" wants
+		// model.ErrNotFound, which the store translates to at this boundary.
+		name: "gorm stays inside the db implementation",
+		dir:  "internal",
+		forbidden: []string{
+			"gorm.io/gorm",
+			"gorm.io/driver",
+		},
+		except: []string{"internal/infra/db"},
+	},
 }
 
 func TestInternalLayerImports(t *testing.T) {
@@ -89,6 +106,9 @@ func TestInternalLayerImports(t *testing.T) {
 		t.Run(rule.name, func(t *testing.T) {
 			files := goFiles(t, filepath.Join(root, rule.dir))
 			for _, path := range files {
+				if excluded(rel(root, path), rule.except) {
+					continue
+				}
 				f := parseFile(t, path)
 				for _, imp := range f.Imports {
 					importPath, err := strconv.Unquote(imp.Path.Value)
@@ -119,6 +139,17 @@ func TestNoInternalTypeAliases(t *testing.T) {
 			return true
 		})
 	}
+}
+
+// excluded reports whether relPath, a slash-separated repository-relative file
+// path, sits in or under one of the exempt directories.
+func excluded(relPath string, exempt []string) bool {
+	for _, dir := range exempt {
+		if relPath == dir || strings.HasPrefix(relPath, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func moduleRoot(t *testing.T) string {
