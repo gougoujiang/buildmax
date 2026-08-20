@@ -155,6 +155,26 @@ pre-releases and must be called out in release notes.
   tipped the total over. Portal states the same thing in space settings, and a
   space with no limits reports nothing rather than reporting comfort.
 
+- A message typed while the agent is working is now queued instead of refused,
+  on the CLI/TUI, Desktop, and Portal alike. Up to ten can wait per
+  conversation; past that the message is refused rather than the oldest being
+  dropped, so nothing the user believes is scheduled disappears. In the TUI the
+  input stays visible and editable during a run, `Enter` queues, and `Esc` takes
+  the last queued message back; Portal and Desktop show what is waiting at the
+  end of the thread. Stopping a run discards everything queued behind it — those
+  messages were written for work that has just been called off. A run that
+  *fails* keeps the queue, and each message still gets its turn.
+
+- On the CLI/TUI and Desktop a queued message no longer waits for the whole run.
+  The agent picks it up at its next step — as soon as the tool batch it is
+  running finishes — so a correction reaches the model while the work it
+  corrects is still in progress, instead of after it. Such a message passes the
+  same `UserPromptSubmit` hook as any other prompt, and appears in the run trace
+  as `user_input`: a message that entered a run after it started is part of what
+  that run was told to do. Portal keeps delivering a queued message as its own
+  turn — its foreground turns are short, and its queue is shared by every client
+  watching the conversation.
+
 ### Changed
 
 - Deleting an agent no longer removes the record. Tasks, workflow step runs, and
@@ -334,6 +354,12 @@ pre-releases and must be called out in release notes.
 - A run trace now records which system-prompt layers the run loaded and how
   large each was, so a finished run can say what it was told before the
   conversation started.
+
+- `--workspace` now applies to the TUI. The flag reached the `--agent`
+  definition lookup but never the agent itself, so file tools, `AGENTS.md`, and
+  the footer's git branch all ran against the current directory while `--agent`
+  resolved somewhere else — one run with two ideas of where it was. Print mode
+  was never affected.
 
 ## [0.1.0-alpha.1] - 2026-08-17
 

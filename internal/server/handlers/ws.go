@@ -30,27 +30,41 @@ type wsConn struct {
 	writeCh chan []byte
 	closed  chan struct{}
 
-	turnsMu sync.Mutex
-	turns   map[string]*sync.Mutex
+	// queuedMu guards queuedJobs, the turns this connection has waiting in the
+	// server's turn registry. They are dropped when the connection goes away:
+	// nothing is left to stream them to.
+	queuedMu   sync.Mutex
+	queuedJobs []*turnJob
 
 	cancel context.CancelFunc
 }
 
-// turnLock returns the per-conversation mutex, allocating one on first use.
-// Turns in different conversations run independently; turns in the same
-// conversation are serialized.
-func (wc *wsConn) turnLock(conversationID string) *sync.Mutex {
-	wc.turnsMu.Lock()
-	defer wc.turnsMu.Unlock()
-	if wc.turns == nil {
-		wc.turns = make(map[string]*sync.Mutex)
+// trackQueuedJob remembers a turn this connection queued, pruning the ones that
+// have since run.
+func (wc *wsConn) trackQueuedJob(job *turnJob) {
+	wc.queuedMu.Lock()
+	defer wc.queuedMu.Unlock()
+	live := wc.queuedJobs[:0]
+	for _, j := range wc.queuedJobs {
+		select {
+		case <-j.done:
+		default:
+			live = append(live, j)
+		}
 	}
-	m, ok := wc.turns[conversationID]
-	if !ok {
-		m = &sync.Mutex{}
-		wc.turns[conversationID] = m
+	wc.queuedJobs = append(live, job)
+}
+
+// dropQueuedJobs marks this connection's waiting turns as dropped. A turn already
+// running is unaffected — it has a reply to finish writing to the store.
+func (wc *wsConn) dropQueuedJobs() {
+	wc.queuedMu.Lock()
+	jobs := wc.queuedJobs
+	wc.queuedJobs = nil
+	wc.queuedMu.Unlock()
+	for _, j := range jobs {
+		j.dropped.Store(true)
 	}
-	return m
 }
 
 // wsSink implements model.StreamSink by sending conversation.message.delta events.
@@ -289,28 +303,50 @@ func (wc *wsConn) handleConversationMessage(ctx context.Context, p wsconn.Conver
 	wc.runConversationTurn(ctx, p.ConversationID, p.Content, conv.Channel)
 }
 
+// runConversationTurn submits a turn for the conversation. A message that arrives
+// while a turn is running is queued and runs as its own turn once that one
+// finishes, rather than being rejected as it used to be.
 func (wc *wsConn) runConversationTurn(ctx context.Context, conversationID, message, channel string) {
-	m := wc.turnLock(conversationID)
-	if !m.TryLock() {
-		slog.Info("ws turn rejected: conversation busy", "user_id", wc.userID, "conversation_id", conversationID)
+	job := newTurnJob(func() {
+		wc.executeConversationTurn(ctx, conversationID, message, channel)
+	})
+	job.onDequeue = func() {
+		wc.sendEvent(wsconn.TypeMessageDequeued, wsconn.MessageDequeued{
+			ConversationID: conversationID,
+			Content:        message,
+		})
+	}
+	pos, err := wc.h.turns.Submit(conversationID, job)
+	if err != nil {
+		slog.Info("ws turn rejected: queue full", "user_id", wc.userID, "conversation_id", conversationID)
 		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
 			ConversationID: conversationID,
-			Error:          "a conversation turn is already in progress",
+			Error:          err.Error(),
+			Code:           wsconn.ErrorCodeQueueFull,
 		})
 		return
 	}
-	go func() {
-		defer m.Unlock()
-		wc.executeConversationTurn(ctx, conversationID, message, channel)
-	}()
+	if pos > 0 {
+		wc.trackQueuedJob(job)
+		slog.Info("ws turn queued", "user_id", wc.userID, "conversation_id", conversationID, "position", pos)
+		wc.sendEvent(wsconn.TypeMessageQueued, wsconn.MessageQueued{
+			ConversationID: conversationID,
+			Content:        message,
+			Position:       pos,
+		})
+	}
 }
 
-// RunSystemConversationTurn runs a system-triggered conversation turn (e.g. task completion).
+// RunSystemConversationTurn runs a system-triggered conversation turn (e.g. task
+// completion). It queues behind whatever the user is doing in that conversation
+// instead of blocking the caller's goroutine until the conversation is free.
 func (wc *wsConn) RunSystemConversationTurn(ctx context.Context, conversationID, message string) {
-	m := wc.turnLock(conversationID)
-	m.Lock()
-	defer m.Unlock()
-	wc.executeConversationTurn(ctx, conversationID, message, conversation.ChannelSystem)
+	job := newTurnJob(func() {
+		wc.executeConversationTurn(ctx, conversationID, message, conversation.ChannelSystem)
+	})
+	if _, err := wc.h.turns.Submit(conversationID, job); err != nil {
+		slog.Warn("system turn dropped: queue full", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
+	}
 }
 
 func (wc *wsConn) executeConversationTurn(ctx context.Context, conversationID, message, channel string) {
@@ -331,12 +367,17 @@ func (wc *wsConn) executeConversationTurn(ctx context.Context, conversationID, m
 			Error:          err.Error(),
 		})
 	}
-	slog.Info("ws turn done", "user_id", wc.userID, "conversation_id", conversationID)
-	wc.sendEvent(wsconn.TypeMessageCompleted, wsconn.MessageCompleted{ConversationID: conversationID})
+	remaining := wc.h.turns.Waiting(conversationID)
+	slog.Info("ws turn done", "user_id", wc.userID, "conversation_id", conversationID, "queued_remaining", remaining)
+	wc.sendEvent(wsconn.TypeMessageCompleted, wsconn.MessageCompleted{
+		ConversationID:  conversationID,
+		QueuedRemaining: remaining,
+	})
 }
 
 func (wc *wsConn) cleanup() {
 	wc.h.connRegistry.Unregister(wc.userID, wc)
+	wc.dropQueuedJobs()
 	wc.cancel()
 	select {
 	case <-wc.closed:

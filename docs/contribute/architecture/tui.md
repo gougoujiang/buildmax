@@ -45,6 +45,7 @@ focus — plus the parts that make a live run legible:
 | `runStatus` | Context and token counters shown in the footer |
 | `pendingApproval` | An approval request awaiting a keypress |
 | `slash*` / `activePanel` | Slash panel state |
+| `queue` | Messages typed during the run, waiting for their own turn |
 
 ## How A Turn Runs
 
@@ -70,6 +71,25 @@ Enter ─▶ append user message ─▶ busy = true
 Both are adapters over the agent loop's existing seams; the TUI adds no
 agent-side machinery of its own.
 
+## Typing During A Run
+
+The input stays visible and editable while the agent works. `Enter` queues the
+message instead of submitting it: the model appends it to `queue`
+(`agent.MessageQueue`, capacity 10), prints a dim `⏸ queued #n` line to
+scrollback, and shows the depth in the busy hint and the footer. `Esc` clears the
+input, or takes back the last queued message when there is nothing to clear.
+Slash commands are refused rather than queued — they act on live UI state, which
+a turn later is not the state the user was looking at.
+
+The queue is handed to the run as `RunPromptOpts.Pending`, so a queued message
+normally joins the turn already in progress at its next iteration boundary rather
+than waiting for the whole run: `EventUserInput` arrives on the stream channel and
+the message is printed as sent. `agentDoneMsg` still returns a `drainQueueMsg`,
+which starts anything queued after the run stopped reading — going through a
+message rather than a direct call orders that next turn behind whatever the
+finished one was still printing. A failed run drains too; see
+[Queued messages](../../design/queued-messages.md).
+
 ## Approval
 
 `TUIApprovalHandler` (`chat_approval.go`) implements `agent.ApprovalHandler`. When
@@ -91,8 +111,8 @@ the footer hint work the same for all of them.
 
 | Key | Action |
 |---|---|
-| Enter | Submit, or confirm in a panel |
-| Esc | Clear input, dismiss a panel, or deny an approval |
+| Enter | Submit, confirm in a panel, or queue the message during a run |
+| Esc | Clear input, dismiss a panel, deny an approval, or unqueue the last message |
 | Tab | Toggle focus between input and viewport |
 | Ctrl+C | Quit |
 | `/` then ↑↓ | Slash command completion |

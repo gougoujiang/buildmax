@@ -56,7 +56,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", nil, nil, nil)
+	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestAgentApp_RunPromptTraceDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", nil, nil, nil)
+	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestAgentApp_RunPromptTraceFailureIsFailOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", nil, nil, nil)
+	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt returned an error for a trace failure; tracing must fail open: %v", err)
 	}

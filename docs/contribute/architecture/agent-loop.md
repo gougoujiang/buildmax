@@ -26,6 +26,7 @@ Every surface runs this loop. CLI, Desktop, and worker runs reach it through
 | **ContextCompactor** | interface | `Compact(ctx, msgs)` — summarizes old messages into replacement text |
 | **ToolPolicy** / **ApprovalHandler** | interfaces | Allow, deny, or ask before a tool executes |
 | **HookRunner** | interface | Dispatches lifecycle hooks; may block a tool call or a compaction |
+| **PendingInput** | interface | `Dequeue()` — messages the user submitted after the run started, drained at each iteration boundary |
 | **Event** | struct | Structured runtime event delivered to `EventSink` |
 
 ## RunLoopOpts
@@ -41,6 +42,7 @@ type RunLoopOpts struct {
 
     Policy    ToolPolicy            // nil = AllowAllPolicy
     Approval  ApprovalHandler       // nil + ToolActionAsk falls through to allow
+    PendingInput PendingInput       // nil disables mid-run injection
     Compactor ContextCompactor      // nil disables compaction; TrimHistory is the fallback
     EventSink func(Event)           // nil disables event emission entirely
     Hooks     HookRunner            // nil or NoopHookRunner disables hooks
@@ -72,18 +74,27 @@ history + system prompt ──▶ LLMClient
                                        ↺ next iteration
 ```
 
-1. **Build messages** — system prompt prepended to `HistoryMessages()`. The
+1. **Drain pending input** — messages the user submitted while this run was
+   working are appended as user messages, ahead of reading the history and ahead
+   of the compaction check, so they are part of what this iteration reasons about
+   and part of what the context-pressure decision counts. The boundary is chosen
+   because the previous iteration's tool results are complete here: a user message
+   inserted anywhere else would break the `assistant(tool_calls)` ↔ `tool` pairing
+   providers require. Each one passes the `UserPromptSubmit` hook first — a prompt
+   arriving mid-run is still a prompt — and a blocked one is dropped with an
+   `EventUserInputBlocked` rather than appended.
+2. **Build messages** — system prompt prepended to `HistoryMessages()`. The
    system prompt is never stored in history.
-2. **Compact if needed** — when the context window is filling up, `Compactor`
+3. **Compact if needed** — when the context window is filling up, `Compactor`
    summarizes older messages and the summary is injected into the system prompt.
    `PreCompact` hooks can block this; without a compactor, `TrimHistory` drops
    messages instead.
-3. **Call the LLM** — `ChatCompletionStreaming` when `StreamSink` is set,
+4. **Call the LLM** — `ChatCompletionStreaming` when `StreamSink` is set,
    otherwise `ChatCompletionBlocking`.
-4. **No tool calls** → append the assistant reply and return.
-5. **Tool calls** → append the assistant message, then run each call through the
+5. **No tool calls** → append the assistant reply and return.
+6. **Tool calls** → append the assistant message, then run each call through the
    gates below.
-6. **Repeat**, up to `MaxIter`.
+7. **Repeat**, up to `MaxIter`.
 
 ## Tool Call Gates
 
@@ -106,7 +117,8 @@ must react to.
 
 When `EventSink` is set the loop emits structured events — `EventIterStart`,
 `EventLLMStart`, `EventLLMDelta`, `EventLLMEnd`, `EventToolStart`,
-`EventToolEnd`, `EventToolDenied`, `EventContextCompacted`, `EventRunEnd`. The sink is called **synchronously from the RunLoop
+`EventToolEnd`, `EventToolDenied`, `EventContextCompacted`, `EventRunEnd`,
+`EventUserInput`, `EventUserInputBlocked`. The sink is called **synchronously from the RunLoop
 goroutine and must not block**. Nil sink means zero overhead.
 
 This is the single seam the TUI, `--output jsonl`, and the durable run trace all

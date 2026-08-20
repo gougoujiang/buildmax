@@ -110,7 +110,7 @@ func runPrintMode(opts printOptions) error {
 		}
 	}
 
-	out, runErr := app.RunPrompt(ctx, sess, opts.Prompt, streamSink, nil, eventSink)
+	out, runErr := app.RunPrompt(ctx, sess, opts.Prompt, agentapp.RunPromptOpts{Stream: streamSink, EventSink: eventSink})
 
 	userCancelled := ctx.Err() != nil
 	exitCode := classifyExit(runErr, policyDenied, userCancelled)

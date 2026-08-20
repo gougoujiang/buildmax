@@ -35,6 +35,19 @@ type MessageHistory interface {
 	Append(m llm.Message) error
 }
 
+// PendingInput supplies messages the user submitted while a run was already
+// working. RunLoop drains it at the top of every iteration, where the previous
+// iteration's tool results are complete and a user message can be appended
+// without breaking the assistant(tool_calls) to tool pairing.
+//
+// *MessageQueue implements it. A surface that would rather hand queued messages
+// to a fresh run leaves RunLoopOpts.PendingInput nil and drains its queue itself.
+type PendingInput interface {
+	// Dequeue removes and returns the oldest waiting message. The bool is false
+	// when nothing is waiting; RunLoop calls it until it reports false.
+	Dequeue() (string, bool)
+}
+
 // CompactionHistory is an optional extension of MessageHistory implemented by persistent histories
 // that can record a compaction boundary across turns. When RunLoop compacts the context, it calls
 // AddCompaction so the next turn starts from the compacted view without re-summarizing.
@@ -83,6 +96,11 @@ type RunLoopOpts struct {
 	// Approval is invoked when Policy returns ToolActionAsk.
 	// Nil approval with ToolActionAsk falls through to Allow for backward compatibility.
 	Approval ApprovalHandler
+	// PendingInput carries messages the user submitted after this run started.
+	// They are appended to the history at the next iteration boundary, so they
+	// reach the model after the current batch of tool calls rather than after the
+	// whole run. Nil disables mid-run injection entirely.
+	PendingInput PendingInput
 	// Compactor summarizes old messages when the context window is filling up.
 	// Nil disables compaction; TrimHistory is used as a fallback.
 	Compactor ContextCompactor
@@ -137,6 +155,13 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	for i := 0; i < opts.MaxIter; i++ {
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
 		emit(opts.EventSink, Event{Kind: EventIterStart, Iter: i + 1})
+
+		// Before the history is read, so a message that arrived mid-run is part of
+		// what this iteration reasons about — and before compaction, so it counts
+		// toward the context pressure that decides whether to compact.
+		if err := injectPendingInput(ctx, opts, i+1); err != nil {
+			return "", s, err
+		}
 
 		history := opts.History.HistoryMessages()
 
@@ -248,6 +273,50 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: maxErr})
 	fireRunEndHook(ctx, opts, s, maxErr)
 	return "", s, maxErr
+}
+
+// injectPendingInput appends every message waiting in opts.PendingInput to the
+// history as a user message.
+//
+// Each one goes through the UserPromptSubmit hook first. A prompt that arrives
+// mid-run is still a prompt: a hook that inspects what the user sends must not be
+// bypassed by the path that happens to arrive late. A blocked message is dropped
+// with an event rather than appended, which leaves the run working on what it
+// already had.
+func injectPendingInput(ctx context.Context, opts RunLoopOpts, iter int) error {
+	if opts.PendingInput == nil {
+		return nil
+	}
+	for {
+		text, ok := opts.PendingInput.Dequeue()
+		if !ok {
+			return nil
+		}
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		in := baseHookInput(opts, HookUserPromptSubmit)
+		in.Prompt = text
+		if out := runHook(ctx, opts.Hooks, in); out.Blocked() {
+			reason := out.Reason
+			if reason == "" {
+				reason = "prompt blocked by hook"
+			}
+			slog.Info("queued message blocked by hook", "iter", iter, "reason", reason)
+			emit(opts.EventSink, Event{
+				Kind:       EventUserInputBlocked,
+				Iter:       iter,
+				Content:    text,
+				DenyReason: reason,
+			})
+			continue
+		}
+		if err := opts.History.Append(llm.Message{Role: "user", Content: text}); err != nil {
+			return fmt.Errorf("append queued message: %w", err)
+		}
+		slog.Info("queued message injected", "iter", iter)
+		emit(opts.EventSink, Event{Kind: EventUserInput, Iter: iter, Content: text})
+	}
 }
 
 // checkpointAndCompact gives the checkpointer one turn to move anything still needed out of the

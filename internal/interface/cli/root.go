@@ -147,7 +147,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		})
 	}
 	slog.Info("starting TUI")
-	return runTUI(effectiveSessionID, model, additionalSystemPrompt)
+	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace)
 }
 
 func parseOutputFormat(s string) (OutputFormat, error) {

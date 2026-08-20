@@ -336,10 +336,15 @@ export default function App() {
   const EV_TOOL_START = 'desktop/tool-start';
   const EV_TOOL_END = 'desktop/tool-end';
   const EV_RUN_STATUS = 'desktop/run-status';
+  const EV_MESSAGE_DEQUEUED = 'desktop/message-dequeued';
+  const EV_MESSAGE_BLOCKED = 'desktop/message-blocked';
 
   const [approvalRequest, setApprovalRequest] = useState(null);
   const [toolActivity, setToolActivity] = useState('');
   const [runStatus, setRunStatus] = useState(null);
+  // Prompts typed during a run, waiting for their own turn. The Go side owns the
+  // real queue; this mirrors it so the transcript can show what is still waiting.
+  const [queuedMessages, setQueuedMessages] = useState([]);
 
   useEffect(() => {
     const unsubDelta = EventsOn(EV_STREAM_DELTA, (delta) => {
@@ -387,6 +392,8 @@ export default function App() {
         }).catch(() => {});
       }
       getApp()?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
+      // The run goroutine only emits stream-done once the queue is drained.
+      setQueuedMessages([]);
       setLoading(false);
     });
     const unsubError = EventsOn(EV_STREAM_ERROR, (payload) => {
@@ -426,8 +433,25 @@ export default function App() {
     const unsubRunStatus = EventsOn(EV_RUN_STATUS, (payload) => {
       setRunStatus((prev) => mergeRunStatus(prev, payload));
     });
+    // A queued prompt starting its own turn: move it out of the waiting list and
+    // into the transcript as a sent message, and keep the run indicator on.
+    const unsubDequeued = EventsOn(EV_MESSAGE_DEQUEUED, (payload) => {
+      setQueuedMessages(payload?.queued ?? []);
+      const prompt = payload?.prompt ?? '';
+      if (!prompt) return;
+      setError(null);
+      setLoading(true);
+      streamingContentRef.current = '';
+      setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
+    });
+    // A hook refused a queued message. The run is still going, so this reports the
+    // one message and leaves the loading state alone.
+    const unsubBlocked = EventsOn(EV_MESSAGE_BLOCKED, (payload) => {
+      setQueuedMessages(payload?.queued ?? []);
+      setError(`Message blocked by hook: ${payload?.reason ?? 'no reason given'}`);
+    });
     return () => {
-      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS);
+      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED);
       unsubDelta?.();
       unsubDone?.();
       unsubError?.();
@@ -436,8 +460,25 @@ export default function App() {
       unsubToolStart?.();
       unsubToolEnd?.();
       unsubRunStatus?.();
+      unsubDequeued?.();
+      unsubBlocked?.();
     };
   }, []);
+
+  // The queue lives per project on the Go side; re-read it when the visible
+  // project changes so a queue built before a switch is still shown after it.
+  useEffect(() => {
+    const a = getApp();
+    if (!a || !currentProject?.id || typeof a.QueuedMessages !== 'function') {
+      setQueuedMessages([]);
+      return;
+    }
+    let stale = false;
+    a.QueuedMessages(currentProject.id)
+      .then((list) => { if (!stale) setQueuedMessages(list ?? []); })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, [currentProject?.id]);
 
   useEffect(() => {
     if (getApp()) { setWailsReady(true); return; }
@@ -631,12 +672,25 @@ export default function App() {
   }
 
   async function handleSend(prompt) {
-    if (!prompt?.trim() || loading || !app || !currentProject) return;
+    if (!prompt?.trim() || !app || !currentProject) return;
+    const trimmed = prompt.trim();
+
+    // While a run is in flight the message is queued rather than refused. Ask the
+    // Go side first: it owns the queue, and its answer says which of the two happened.
+    if (loading) {
+      try {
+        const position = await app.SendMessageStream(currentProject.id, selectedId || '', trimmed);
+        if (position > 0) setQueuedMessages((prev) => [...prev, trimmed]);
+      } catch (err) {
+        setError(err?.message ?? String(err));
+      }
+      return;
+    }
+
     setLoading(true);
     setError(null);
     streamingContentRef.current = '';
     setRunStatus((prev) => ({ ...(prev ?? {}), prompt_tokens: 0, completion_tokens: 0 }));
-    const trimmed = prompt.trim();
     setMessages((prev) => [
       ...prev,
       { role: 'user', content: trimmed },
@@ -657,6 +711,8 @@ export default function App() {
 
   async function handleCancel() {
     if (!loading || !app || !currentProject) return;
+    // Stopping discards the queue on both sides — see App.CancelRun.
+    setQueuedMessages([]);
     try {
       await app.CancelRun(currentProject.id);
     } catch (err) {
@@ -744,6 +800,22 @@ export default function App() {
       ),
     }];
   });
+
+  // Queued messages sit at the end of the transcript, dimmed: typed and accepted,
+  // but not sent to the model yet.
+  for (const [i, queued] of queuedMessages.entries()) {
+    threadItems.push({
+      id: `queued-${i}`,
+      role: 'user',
+      label: 'You (queued)',
+      hideAvatar: true,
+      body: (
+        <div className="page-chat__msg-content page-chat__msg-content--queued">
+          <MarkdownMessage content={queued} />
+        </div>
+      ),
+    });
+  }
 
   return (
     <ThemeProvider>
@@ -1767,7 +1839,8 @@ function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentPr
 
   function handleSubmit() {
     const value = prompt.trim();
-    if (!value || loading) return;
+    if (!value) return;
+    // No loading guard: onSend queues the message when a run is in flight.
     onSend(value);
     setPrompt('');
   }
@@ -1842,6 +1915,8 @@ function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentPr
         loading={loading}
         error={error}
         placeholder="Type a message… (/ for skills, Enter to send)"
+        queueWhileLoading
+        queuePlaceholder="Type a message… (Enter to queue it for the next turn)"
         ariaLabel="Message"
         onKeyDown={handleKeyDown}
       />

@@ -34,6 +34,16 @@ const (
 
 	// EventRunEnd fires when RunLoop exits, whether successfully, on error, or on cancellation.
 	EventRunEnd
+
+	// EventUserInput fires when a message the user submitted while the run was
+	// working is appended to the history at an iteration boundary. Content holds
+	// the message.
+	EventUserInput
+
+	// EventUserInputBlocked fires when a UserPromptSubmit hook refuses such a
+	// message. Content holds the message and DenyReason the hook's reason; the
+	// message is not appended to the history.
+	EventUserInputBlocked
 )
 
 // Deny reason labels for EventToolDenied.
@@ -50,10 +60,10 @@ const (
 type Event struct {
 	Kind EventKind
 
-	// EventIterStart, EventLLMStart, EventLLMEnd
+	// EventIterStart, EventLLMStart, EventLLMEnd, EventUserInput, EventUserInputBlocked
 	Iter int
 
-	// EventLLMDelta, EventLLMEnd
+	// EventLLMDelta, EventLLMEnd, EventUserInput, EventUserInputBlocked
 	Content string
 
 	// EventLLMEnd
@@ -74,7 +84,7 @@ type Event struct {
 	ToolResult   string
 	ToolDuration time.Duration
 
-	// EventToolDenied
+	// EventToolDenied, EventUserInputBlocked
 	DenyReason string
 
 	// EventContextCompacted

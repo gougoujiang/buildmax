@@ -204,7 +204,7 @@ func TestAgentApp_UserPromptSubmitBlockShortCircuits(t *testing.T) {
 		t.Fatalf("OpenSession: %v", err)
 	}
 	before := len(sess.Messages)
-	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", nil, nil, nil)
+	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}

@@ -143,6 +143,9 @@ type Handler struct {
 	cfg          Config
 	hub          streamhub.StreamHub
 	connRegistry *connRegistry
+	// turns serializes the turns of one conversation and queues the rest. It is
+	// server-scoped, not connection-scoped — see turnRegistry.
+	turns *turnRegistry
 }
 
 // NewHandler returns a configured Handler. If cfg.Hub is nil a new StreamHub is created internally.
@@ -155,5 +158,6 @@ func NewHandler(cfg Config) *Handler {
 		cfg:          cfg,
 		hub:          hub,
 		connRegistry: newConnRegistry(),
+		turns:        newTurnRegistry(),
 	}
 }

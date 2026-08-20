@@ -105,6 +105,10 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return true
 	}
+	if errors.Is(err, errTurnQueueFull) {
+		httputil.WriteJSONError(w, http.StatusTooManyRequests, err.Error())
+		return true
+	}
 	var quotaErr *task.QuotaExceededError
 	if errors.As(err, &quotaErr) {
 		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
@@ -113,6 +117,12 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 	return false
 }
 
+// runConversationTurn runs one turn for the conversation, streaming it when asked.
+//
+// The turn goes through the server's turn registry, so a request that arrives while
+// the conversation is busy waits for its turn instead of racing the running one
+// through the same message history. A streaming request writes its headers first,
+// so the client sees the stream open while it waits.
 func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in runConversationTurnInput) (reply string, err error) {
 	cmd := conversation.HandleTurnCmd{
 		UserID:         in.userID,
@@ -125,18 +135,23 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(in.streamStatus)
+		flusher, _ := w.(http.Flusher)
 		if in.streamInitialPayload != "" {
 			writeSSE(w, in.streamInitialPayload)
-			if flusher, _ := w.(http.Flusher); flusher != nil {
+			if flusher != nil {
 				flusher.Flush()
 			}
 		}
-		flusher, _ := w.(http.Flusher)
-		sink := &sseSink{w: w, flusher: flusher}
-		cmd.StreamSink = sink
-		_, err := h.conversationService().HandleTurn(r.Context(), cmd)
-		if err != nil {
-			errJSON, _ := json.Marshal(err.Error())
+		cmd.StreamSink = &sseSink{w: w, flusher: flusher}
+		var turnErr error
+		waitErr := h.turns.RunSync(r.Context(), in.conversationID, func() {
+			_, turnErr = h.conversationService().HandleTurn(r.Context(), cmd)
+		})
+		if turnErr == nil {
+			turnErr = waitErr
+		}
+		if turnErr != nil {
+			errJSON, _ := json.Marshal(turnErr.Error())
 			writeSSE(w, `{"error":`+string(errJSON)+`}`)
 		}
 		writeSSE(w, "done")
@@ -145,9 +160,15 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 		}
 		return "", nil
 	}
-	result, err := h.conversationService().HandleTurn(r.Context(), cmd)
-	if err != nil {
-		return "", err
+	var result conversation.ConversationResult
+	var turnErr error
+	if waitErr := h.turns.RunSync(r.Context(), in.conversationID, func() {
+		result, turnErr = h.conversationService().HandleTurn(r.Context(), cmd)
+	}); waitErr != nil {
+		return "", waitErr
+	}
+	if turnErr != nil {
+		return "", turnErr
 	}
 	return result.Reply, nil
 }

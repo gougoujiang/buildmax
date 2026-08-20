@@ -51,6 +51,23 @@ callbacks, and scheduler startup. Business workflows are delegated to
   `/llm/completions` so a worker needs no provider credential
 - Inbound webhook: `/api/webhook`
 
+## Conversation Turns
+
+One turn per conversation runs at a time. `turnRegistry` on the `Handler`
+(`internal/server/handlers/conversation_turns.go`) owns a queue per conversation
+and serializes every path into it — WebSocket messages, system turns reporting a
+finished task run, and the HTTP `POST .../messages` and `POST .../conversations`
+routes. It is server-scoped rather than connection-scoped because one
+conversation is reachable from several connections at once.
+
+A message that arrives while a turn is running is queued, up to 10 per
+conversation, and runs as its own turn afterwards. WebSocket clients see
+`conversation.message.queued`, then `conversation.message.dequeued` when it
+starts; `conversation.message.completed` carries `queued_remaining`. Past the cap
+the message is refused with `conversation.error` carrying `code: "queue_full"`
+(HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
+[Queued messages](../../design/queued-messages.md).
+
 ## Cancelling A Run
 
 `POST /api/teams/{team_id}/tasks/{task_id}/cancel` stops the task's run. What

@@ -556,7 +556,25 @@ func (a *AgentApp) resolveRunContext(sess *SessionContext) (*SessionContext, str
 	return sess, modelName, client, nil
 }
 
-func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt string, stream cllm.StreamSink, approval agent.ApprovalHandler, eventSink func(agent.Event)) (RunResult, error) {
+// RunPromptOpts is the optional per-run wiring a surface supplies. The zero value
+// is a valid non-interactive run: no streaming, no approvals, no events.
+type RunPromptOpts struct {
+	// Stream receives content deltas. Nil runs the LLM in blocking mode.
+	Stream cllm.StreamSink
+	// Approval resolves tool calls the policy sends to "ask". Nil collapses ask
+	// to deny, which is what a surface with nobody to ask should do.
+	Approval agent.ApprovalHandler
+	// EventSink receives runtime events. Nil disables the caller's leg only — the
+	// durable trace records the run either way.
+	EventSink func(agent.Event)
+	// Pending carries messages the user submits while this run is working. They
+	// are appended to the history at the next iteration boundary instead of
+	// waiting for the run to finish. Nil disables mid-run injection, leaving the
+	// surface to drain its own queue between runs.
+	Pending agent.PendingInput
+}
+
+func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt string, opts RunPromptOpts) (RunResult, error) {
 	sess, modelName, client, err := a.resolveRunContext(sess)
 	if err != nil {
 		return RunResult{}, err
@@ -638,13 +656,14 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		ToolRegistry: registry,
 		MaxIter:      agent.DefaultMaxIterations,
 		History:      sess,
-		StreamSink:   stream,
+		StreamSink:   opts.Stream,
 		Policy:       a.policy,
-		Approval:     approval,
+		Approval:     opts.Approval,
+		PendingInput: opts.Pending,
 		Compactor:    NewLLMCompactor(client),
 		Checkpointer: NewNoteCheckpointer(client),
 		Invariants:   agent.ExtractInvariants(extraPrompt),
-		EventSink:    teeEventSink(recorder.Record, eventSink),
+		EventSink:    teeEventSink(recorder.Record, opts.EventSink),
 		Hooks:        a.hooks,
 		SessionID:    sess.ID,
 		Workspace:    a.workspaceRoot,

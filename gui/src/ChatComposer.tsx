@@ -19,6 +19,14 @@ export interface ChatComposerProps {
   // run. When omitted, loading-state behavior is unchanged.
   onCancel?: () => void
   cancelLabel?: string
+  // queueWhileLoading keeps the input editable during loading and lets submit
+  // through, for surfaces that queue a message typed mid-run instead of refusing
+  // it. The caller decides what submit means then — this component only stops
+  // getting in the way. When onCancel is also set the button stays Stop, because
+  // one button cannot be both, and enter is the way to queue.
+  queueWhileLoading?: boolean
+  queueLabel?: string
+  queuePlaceholder?: string
 }
 
 const DEFAULT_PLACEHOLDER = "Type a message… (Enter to send, Shift+Enter for new line)"
@@ -39,9 +47,14 @@ export function ChatComposer({
   allowShiftEnter = true,
   onCancel,
   cancelLabel = "Stop",
+  queueWhileLoading = false,
+  queueLabel = "Queue",
+  queuePlaceholder,
 }: ChatComposerProps) {
+  const queueing = loading && queueWhileLoading
   const showCancel = loading && !!onCancel
-  const isSubmitDisabled = disabled || loading || !value.trim()
+  const inputDisabled = disabled || (loading && !queueing)
+  const isSubmitDisabled = disabled || !value.trim() || (loading && !queueing)
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Let the parent intercept first (e.g. for slash command navigation).
@@ -64,9 +77,9 @@ export function ChatComposer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={queueing && queuePlaceholder ? queuePlaceholder : placeholder}
           rows={rows}
-          disabled={disabled || loading}
+          disabled={inputDisabled}
           aria-label={ariaLabel}
         />
         {showCancel ? (
@@ -84,7 +97,7 @@ export function ChatComposer({
             onClick={onSubmit}
             disabled={isSubmitDisabled}
           >
-            {loading ? loadingLabel : submitLabel}
+            {queueing ? queueLabel : loading ? loadingLabel : submitLabel}
           </button>
         )}
       </div>
