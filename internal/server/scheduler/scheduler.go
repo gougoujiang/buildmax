@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 )
 
@@ -100,7 +100,7 @@ func (s *Scheduler) creatorIsDisabled(ctx context.Context, run *model.TaskRun) b
 	}
 	user, err := s.users.GetUser(ctx, run.CreatedBy)
 	if err != nil {
-		slog.Warn("scheduler: could not check the run creator's account", "task_run_id", run.TaskRunID, "err", err)
+		s.log().WarnContext(ctx, "could not check the run creator's account", "err", err)
 		return false
 	}
 	return user != nil && user.Disabled()
@@ -109,14 +109,14 @@ func (s *Scheduler) creatorIsDisabled(ctx context.Context, run *model.TaskRun) b
 // Start launches the poll loop in a background goroutine.
 func (s *Scheduler) Start() {
 	go s.loop()
-	slog.Info("scheduler started", "poll_interval", s.pollInterval)
+	s.log().Info("started", "poll_interval", s.pollInterval)
 }
 
 // Stop signals the loop to exit and blocks until it has finished.
 func (s *Scheduler) Stop() {
 	close(s.stopCh)
 	<-s.doneCh
-	slog.Info("scheduler stopped")
+	s.log().Info("stopped")
 }
 
 // loop is the main poll loop: on each tick it fetches the next PENDING run, claims it (PENDING→SCHEDULED), runs the worker, and persists worker info on success.
@@ -134,7 +134,7 @@ func (s *Scheduler) loop() {
 			ctx := context.Background()
 			run, err := s.taskRuns.GetNextPendingTaskRun(ctx)
 			if err != nil {
-				slog.Warn("scheduler: poll failed", "err", err)
+				s.log().WarnContext(ctx, "poll failed", "err", err)
 				continue
 			}
 			if run == nil {
@@ -146,12 +146,15 @@ func (s *Scheduler) loop() {
 				NewStatus:      model.RunStatusScheduled,
 			})
 			if err != nil {
-				slog.Warn("scheduler: claim failed", "task_run_id", run.TaskRunID, "err", err)
+				s.log().WarnContext(ctx, "claim failed", "err", err)
 				continue
 			}
 			if !updated {
 				continue // another scheduler claimed it
 			}
+			// From here the run is ours, so its id goes on the context once and
+			// every record below -- including failRun's -- carries it.
+			ctx = buildmaxlog.With(ctx, "task_run_id", run.TaskRunID)
 			// Work queued by an account that has since been disabled does not
 			// start. It fails here rather than being left PENDING for the same
 			// reason the credential failure below does: a run nobody will ever
@@ -159,7 +162,7 @@ func (s *Scheduler) loop() {
 			// terminal one that says why. There is no CANCELED status to use —
 			// see docs/design/system-administration.md section 8.
 			if s.creatorIsDisabled(ctx, run) {
-				slog.Info("scheduler: run creator is disabled, marking run as FAILED", "task_run_id", run.TaskRunID, "user_id", run.CreatedBy)
+				s.log().WarnContext(ctx, "run creator is disabled; marking run FAILED", "user_id", run.CreatedBy)
 				s.failRun(ctx, run.TaskRunID, errCreatorDisabled)
 				continue
 			}
@@ -168,18 +171,18 @@ func (s *Scheduler) loop() {
 			// would read as a model error instead of a dispatch one.
 			runToken, err := s.runTokenFor(ctx, run)
 			if err != nil {
-				slog.Warn("scheduler: could not mint a run token, marking run as FAILED", "task_run_id", run.TaskRunID, "err", err)
+				s.log().ErrorContext(ctx, "could not mint a run token; marking run FAILED", "err", err)
 				s.failRun(ctx, run.TaskRunID, err)
 				continue
 			}
 			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run, runToken)
 			if err != nil {
-				slog.Warn("scheduler: worker spawn failed, marking run as FAILED", "task_run_id", run.TaskRunID, "err", err)
+				s.log().ErrorContext(ctx, "worker spawn failed; marking run FAILED", "err", err)
 				s.failRun(ctx, run.TaskRunID, err)
 				continue
 			}
 			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.TaskRunID, workerType, k8sName, k8sAt); err != nil {
-				slog.Warn("scheduler: failed to persist worker info", "task_run_id", run.TaskRunID, "err", err)
+				s.log().WarnContext(ctx, "could not persist worker info", "err", err)
 			}
 		}
 	}
@@ -217,9 +220,10 @@ func (s *Scheduler) runTokenFor(ctx context.Context, run *model.TaskRun) (string
 // worker reported as CANCELED or FAILED must not be overwritten with the
 // process error, which says less and is about the wrong thing.
 func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) {
+	ctx = buildmaxlog.With(ctx, "task_run_id", taskRunID)
 	if run, err := s.taskRuns.GetTaskRun(ctx, taskRunID); err == nil && run != nil && model.RunStatusTerminal(run.Status) {
-		slog.Info("scheduler: worker exited non-zero but the run already reported an outcome",
-			"task_run_id", taskRunID, "status", run.Status, "err", cause)
+		s.log().InfoContext(ctx, "worker exited non-zero but the run already reported an outcome",
+			"status", run.Status, "err", cause)
 		return
 	}
 	errorMsg := cause.Error()
@@ -233,10 +237,10 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 		EndedAt:      &endedAt,
 		ErrorMessage: &errorMsg,
 	}); err != nil {
-		slog.Error("scheduler: failed to set run to FAILED", "task_run_id", taskRunID, "err", err)
+		s.log().ErrorContext(ctx, "could not set run to FAILED", "err", err)
 		return
 	}
 	if err := s.taskRuns.SyncTaskFromRun(ctx, taskRunID); err != nil {
-		slog.Warn("scheduler: failed to sync task from run", "task_run_id", taskRunID, "err", err)
+		s.log().WarnContext(ctx, "could not sync task from run", "err", err)
 	}
 }
