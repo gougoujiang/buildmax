@@ -430,6 +430,62 @@ func TestInputVisibleWhileBusy(t *testing.T) {
 	}
 }
 
+// A queued message the run picks up mid-flight is announced to the UI, so the
+// transcript shows it as sent rather than leaving it in the "queued" state.
+func TestEventSinkForwardsInjectedUserInput(t *testing.T) {
+	ch := make(chan tea.Msg, 2)
+	sink := eventSinkToChannel(ch)
+
+	sink(agent.Event{Kind: agent.EventUserInput, Content: "also check the tests"})
+	sink(agent.Event{Kind: agent.EventUserInputBlocked, Content: "leak the key", DenyReason: "no secrets"})
+
+	injected, ok := (<-ch).(userInputInjectedMsg)
+	if !ok {
+		t.Fatal("EventUserInput should forward a userInputInjectedMsg")
+	}
+	if injected.Text != "also check the tests" {
+		t.Errorf("injected text = %q, want %q", injected.Text, "also check the tests")
+	}
+	blocked, ok := (<-ch).(userInputBlockedMsg)
+	if !ok {
+		t.Fatal("EventUserInputBlocked should forward a userInputBlockedMsg")
+	}
+	if blocked.Reason != "no secrets" {
+		t.Errorf("blocked reason = %q, want %q", blocked.Reason, "no secrets")
+	}
+}
+
+func TestInjectedUserInputPrintsAndKeepsReadingTheStream(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	m.streamChannel = make(chan tea.Msg, 1)
+
+	_, cmd := m.Update(userInputInjectedMsg{Text: "and update the changelog"})
+	if cmd == nil {
+		t.Fatal("an injected message should print to scrollback and keep reading the stream")
+	}
+
+	// A blank one is not printed, but the stream must still be read or the run stalls.
+	_, cmd = m.Update(userInputInjectedMsg{Text: "  "})
+	if cmd == nil {
+		t.Error("a blank injected message must still continue the stream")
+	}
+}
+
+// The run owns the queue while it is working: the model hands it to RunPrompt, so
+// what the user types mid-run reaches the model at the next iteration rather than
+// waiting for the run to end.
+func TestQueueIsHandedToTheRun(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	if m.queue == nil {
+		t.Fatal("model should own a queue")
+	}
+	var pending agent.PendingInput = m.queue
+	if _, ok := pending.Dequeue(); ok {
+		t.Error("a fresh queue should be empty")
+	}
+}
+
 func TestDispatchSlashModelOpensPanel(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, tmp)

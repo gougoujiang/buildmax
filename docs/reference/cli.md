@@ -124,11 +124,12 @@ Slash commands are unavailable while the agent is running.
 
 ## Typing While The Agent Works
 
-The input stays open during a run. `Enter` queues what you typed and it runs as
-its own turn once the current one finishes; the transcript shows it as
-`⏸ queued #n` and the footer counts what is waiting. Up to ten messages can
-wait. `Esc` clears the input, or takes back the last queued message when the
-input is already empty.
+The input stays open during a run. `Enter` queues what you typed; the transcript
+shows it as `⏸ queued #n` and the footer counts what is waiting. The agent picks
+it up at its next step — usually as soon as the tool it is running finishes,
+without waiting for the whole run to end — and the transcript then shows it as a
+sent message. Up to ten messages can wait. `Esc` clears the input, or takes back
+the last queued message when the input is already empty.
 
 ## Examples
 

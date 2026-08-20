@@ -43,9 +43,13 @@ all cached runtimes.
 
 At most one run per project is in flight. A prompt submitted while one is running
 is queued: `SendMessageStream` returns its 1-based queue position (0 means it
-started a run), the run goroutine drains one queued prompt per turn and announces
-each with `desktop/message-dequeued`, and `QueuedMessages` re-reads a project's
-queue. `CancelRun` discards the queue before cancelling. See
+started a run), and `QueuedMessages` re-reads a project's queue. The queue is
+passed to the run as `RunPromptOpts.Pending`, so a queued prompt usually joins the
+turn in progress at its next iteration boundary; the run goroutine's turn loop
+picks up anything queued after that. Either way the frontend hears
+`desktop/message-dequeued`, and `desktop/message-blocked` when a hook refuses one
+— a refusal that leaves the run itself going. `CancelRun` discards the queue
+before cancelling. See
 [Queued messages](../../design/queued-messages.md).
 
 Project metadata is stored in

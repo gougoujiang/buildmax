@@ -183,6 +183,11 @@ func formatQueuedMsgForScrollback(text string, position int) string {
 	return queuedPrefixedLines(fmt.Sprintf("⏸ queued #%d ", position), text)
 }
 
+// formatBlockedMsgForScrollback formats a queued message a hook refused.
+func formatBlockedMsgForScrollback(text, reason string) string {
+	return queuedPrefixedLines("⨯ blocked ("+reason+") ", text)
+}
+
 // formatUnqueuedMsgForScrollback formats a queued message the user took back.
 func formatUnqueuedMsgForScrollback(text string) string {
 	return queuedPrefixedLines("⏵ unqueued ", text)

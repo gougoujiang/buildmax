@@ -80,6 +80,15 @@ type MessageDequeuedPayload struct {
 	Queued []string `json:"queued"`
 }
 
+// MessageBlockedPayload is emitted when a hook refuses a queued prompt
+// (event desktop/message-blocked). It reports one message, not the end of the
+// run — the run carries on with what it already had.
+type MessageBlockedPayload struct {
+	Prompt string   `json:"prompt"`
+	Reason string   `json:"reason"`
+	Queued []string `json:"queued"`
+}
+
 const (
 	eventStreamDelta     = "desktop/stream-delta"
 	eventStreamDone      = "desktop/stream-done"
@@ -89,6 +98,7 @@ const (
 	eventToolEnd         = "desktop/tool-end"
 	eventRunStatus       = "desktop/run-status"
 	eventMessageDequeued = "desktop/message-dequeued"
+	eventMessageBlocked  = "desktop/message-blocked"
 )
 
 // App holds desktop application state and implements Wails lifecycle hooks.
@@ -496,7 +506,9 @@ func (s *desktopStreamSink) OnDelta(delta string) {
 }
 
 // desktopEventSink returns an agent.EventSink that forwards tool events to the frontend via Wails events.
-func desktopEventSink(ctx context.Context) func(agent.Event) {
+// queue is the project's pending-prompt queue, read when a queued prompt joins the
+// running turn so the frontend can show what is still waiting.
+func desktopEventSink(ctx context.Context, queue *agent.MessageQueue) func(agent.Event) {
 	return func(e agent.Event) {
 		switch e.Kind {
 		case agent.EventLLMStart:
@@ -523,6 +535,17 @@ func desktopEventSink(ctx context.Context) func(agent.Event) {
 			})
 		case agent.EventToolDenied:
 			runtime.EventsEmit(ctx, eventToolEnd, &ToolEndPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, IsError: true, Denied: true, Reason: e.DenyReason})
+		case agent.EventUserInput:
+			// A queued prompt joined the running turn: it is sent now, not waiting.
+			runtime.EventsEmit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: e.Content, Queued: queue.Snapshot()})
+		case agent.EventUserInputBlocked:
+			// Its own event, not stream-error: the run is still going, and the
+			// frontend ends the run on stream-error.
+			runtime.EventsEmit(ctx, eventMessageBlocked, &MessageBlockedPayload{
+				Prompt: e.Content,
+				Reason: e.DenyReason,
+				Queued: queue.Snapshot(),
+			})
 		}
 	}
 }
@@ -599,7 +622,7 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 
 	queue := a.queueForProject(projectID)
 	sink := &desktopStreamSink{ctx: ctx}
-	evSink := desktopEventSink(ctx)
+	evSink := desktopEventSink(ctx, queue)
 	go func() {
 		defer func() {
 			a.mu.Lock()
@@ -607,10 +630,16 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 			a.mu.Unlock()
 			cancel()
 		}()
-		// One turn per iteration. The queue is only drained here, at a turn
-		// boundary, so a queued prompt never lands in the middle of a run.
+		// One turn per iteration. Most queued prompts never reach this loop — the
+		// run itself drains them at its next iteration boundary (RunPromptOpts.Pending).
+		// This is the backstop for one queued after the run stopped reading.
 		for current := prompt; ; {
-			out, err := ag.RunPrompt(runCtx, sess, current, sink, handler, evSink)
+			out, err := ag.RunPrompt(runCtx, sess, current, agentapp.RunPromptOpts{
+				Stream:    sink,
+				Approval:  handler,
+				EventSink: evSink,
+				Pending:   queue,
+			})
 			if err != nil {
 				runtime.EventsEmit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
 			} else {

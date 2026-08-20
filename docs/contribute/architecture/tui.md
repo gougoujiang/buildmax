@@ -81,10 +81,14 @@ input, or takes back the last queued message when there is nothing to clear.
 Slash commands are refused rather than queued — they act on live UI state, which
 a turn later is not the state the user was looking at.
 
-When the run ends, `agentDoneMsg` returns a `drainQueueMsg`, whose handler starts
-one queued message as a normal run. Going through a message rather than a direct
-call orders the next turn behind whatever the finished one was still printing. A
-failed run drains too; see [Queued messages](../../design/queued-messages.md).
+The queue is handed to the run as `RunPromptOpts.Pending`, so a queued message
+normally joins the turn already in progress at its next iteration boundary rather
+than waiting for the whole run: `EventUserInput` arrives on the stream channel and
+the message is printed as sent. `agentDoneMsg` still returns a `drainQueueMsg`,
+which starts anything queued after the run stopped reading — going through a
+message rather than a direct call orders that next turn behind whatever the
+finished one was still printing. A failed run drains too; see
+[Queued messages](../../design/queued-messages.md).
 
 ## Approval
 

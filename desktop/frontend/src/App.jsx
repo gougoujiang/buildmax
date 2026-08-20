@@ -337,6 +337,7 @@ export default function App() {
   const EV_TOOL_END = 'desktop/tool-end';
   const EV_RUN_STATUS = 'desktop/run-status';
   const EV_MESSAGE_DEQUEUED = 'desktop/message-dequeued';
+  const EV_MESSAGE_BLOCKED = 'desktop/message-blocked';
 
   const [approvalRequest, setApprovalRequest] = useState(null);
   const [toolActivity, setToolActivity] = useState('');
@@ -443,8 +444,14 @@ export default function App() {
       streamingContentRef.current = '';
       setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
     });
+    // A hook refused a queued message. The run is still going, so this reports the
+    // one message and leaves the loading state alone.
+    const unsubBlocked = EventsOn(EV_MESSAGE_BLOCKED, (payload) => {
+      setQueuedMessages(payload?.queued ?? []);
+      setError(`Message blocked by hook: ${payload?.reason ?? 'no reason given'}`);
+    });
     return () => {
-      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED);
+      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED);
       unsubDelta?.();
       unsubDone?.();
       unsubError?.();
@@ -454,6 +461,7 @@ export default function App() {
       unsubToolEnd?.();
       unsubRunStatus?.();
       unsubDequeued?.();
+      unsubBlocked?.();
     };
   }, []);
 

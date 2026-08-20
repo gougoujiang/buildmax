@@ -156,15 +156,24 @@ pre-releases and must be called out in release notes.
   space with no limits reports nothing rather than reporting comfort.
 
 - A message typed while the agent is working is now queued instead of refused,
-  on the CLI/TUI, Desktop, and Portal alike. It runs as its own turn as soon as
-  the current one finishes, up to ten waiting messages per conversation; past
-  that the message is refused rather than the oldest being dropped, so nothing
-  the user believes is scheduled disappears. In the TUI the input stays visible
-  and editable during a run, `Enter` queues, and `Esc` takes the last queued
-  message back; Portal and Desktop show what is waiting at the end of the
-  thread. Stopping a run discards everything queued behind it — those messages
-  were written for work that has just been called off. A run that *fails* keeps
-  the queue, and each message gets its own turn.
+  on the CLI/TUI, Desktop, and Portal alike. Up to ten can wait per
+  conversation; past that the message is refused rather than the oldest being
+  dropped, so nothing the user believes is scheduled disappears. In the TUI the
+  input stays visible and editable during a run, `Enter` queues, and `Esc` takes
+  the last queued message back; Portal and Desktop show what is waiting at the
+  end of the thread. Stopping a run discards everything queued behind it — those
+  messages were written for work that has just been called off. A run that
+  *fails* keeps the queue, and each message still gets its turn.
+
+- On the CLI/TUI and Desktop a queued message no longer waits for the whole run.
+  The agent picks it up at its next step — as soon as the tool batch it is
+  running finishes — so a correction reaches the model while the work it
+  corrects is still in progress, instead of after it. Such a message passes the
+  same `UserPromptSubmit` hook as any other prompt, and appears in the run trace
+  as `user_input`: a message that entered a run after it started is part of what
+  that run was told to do. Portal keeps delivering a queued message as its own
+  turn — its foreground turns are short, and its queue is shared by every client
+  watching the conversation.
 
 ### Changed
 

@@ -83,6 +83,17 @@ type toolDeniedMsg struct {
 	Reason string
 }
 
+// userInputInjectedMsg is sent when a queued message joins the running turn.
+type userInputInjectedMsg struct {
+	Text string
+}
+
+// userInputBlockedMsg is sent when a hook refuses a queued message.
+type userInputBlockedMsg struct {
+	Text   string
+	Reason string
+}
+
 // carouselTickMsg is sent by tea.Tick to advance the assistant "..." carousel.
 type carouselTickMsg struct{}
 
@@ -165,6 +176,10 @@ func eventSinkToChannel(channel chan tea.Msg) func(agent.Event) {
 			channel <- toolEndMsg{Name: e.ToolName, Duration: e.ToolDuration, IsError: strings.HasPrefix(e.ToolResult, "error:")}
 		case agent.EventToolDenied:
 			channel <- toolDeniedMsg{Name: e.ToolName, Reason: e.DenyReason}
+		case agent.EventUserInput:
+			channel <- userInputInjectedMsg{Text: e.Content}
+		case agent.EventUserInputBlocked:
+			channel <- userInputBlockedMsg{Text: e.Content, Reason: e.DenyReason}
 		}
 	}
 }
@@ -199,11 +214,18 @@ func (m *Model) FocusInput() bool {
 }
 
 // runAgentWithStream starts the agent in a goroutine and returns a Cmd that reads the first event.
-func runAgentWithStream(opts TUIOpts, text string, channel chan tea.Msg) tea.Cmd {
+// queue is handed to the run so a message typed mid-run joins it at the next
+// iteration boundary rather than waiting for the whole run to finish.
+func runAgentWithStream(opts TUIOpts, text string, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
 	sink := &streamSinkToChannel{channel: channel}
 	evSink := eventSinkToChannel(channel)
 	go func() {
-		result, err := opts.App.RunPrompt(context.Background(), opts.Session, text, sink, opts.Approval, evSink)
+		result, err := opts.App.RunPrompt(context.Background(), opts.Session, text, agentapp.RunPromptOpts{
+			Stream:    sink,
+			Approval:  opts.Approval,
+			EventSink: evSink,
+			Pending:   queue,
+		})
 		channel <- agentDoneMsg{Result: result, Err: err}
 		close(channel)
 	}()
@@ -382,7 +404,7 @@ func startRun(m *Model, text string) tea.Cmd {
 		tea.Println(userLine+"\n"),
 		tea.Batch(
 			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
-			runAgentWithStream(m.opts, text, channel),
+			runAgentWithStream(m.opts, text, channel, m.queue),
 		),
 	)
 }
@@ -605,6 +627,22 @@ func handleToolDenied(m *Model, msg toolDeniedMsg) (tea.Model, tea.Cmd) {
 }
 
 // renderApprovalPanel renders the tool-approval prompt when a tool call is waiting.
+// handleUserInputInjected prints a queued message as sent, now that the run has
+// picked it up. The dim "queued" line printed when it was typed stays above it:
+// the pair reads as accepted, then sent.
+func handleUserInputInjected(m *Model, msg userInputInjectedMsg) (tea.Model, tea.Cmd) {
+	if strings.TrimSpace(msg.Text) == "" {
+		return m, nextStreamMsgCmd(m.streamChannel)
+	}
+	line := formatUserMsgForScrollback(msg.Text)
+	return m, tea.Sequence(tea.Println(line+"\n"), nextStreamMsgCmd(m.streamChannel))
+}
+
+func handleUserInputBlocked(m *Model, msg userInputBlockedMsg) (tea.Model, tea.Cmd) {
+	line := formatBlockedMsgForScrollback(msg.Text, msg.Reason)
+	return m, tea.Sequence(tea.Println(line+"\n"), nextStreamMsgCmd(m.streamChannel))
+}
+
 func (m *Model) renderApprovalPanel() string {
 	if m.pendingApproval == nil {
 		return ""
@@ -751,6 +789,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleToolEnd(m, msg)
 	case toolDeniedMsg:
 		return handleToolDenied(m, msg)
+	case userInputInjectedMsg:
+		return handleUserInputInjected(m, msg)
+	case userInputBlockedMsg:
+		return handleUserInputBlocked(m, msg)
 	case carouselTickMsg:
 		return handleCarouselTick(m, msg)
 	case drainQueueMsg:
