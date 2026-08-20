@@ -17,14 +17,20 @@ var importRules = []struct {
 	forbidden []string
 }{
 	{
+		// AGENTS.md and docs/contribute/repo-layout.md both state that core
+		// imports nothing from config, infra, service, server, agentapp, or
+		// interface. All six are listed here so the document and the test say
+		// the same thing.
 		name: "core stays independent of adapters",
 		dir:  "internal/core",
 		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/agentapp",
 			"github.com/gougoujiang/buildmax/internal/bootstrap",
 			"github.com/gougoujiang/buildmax/internal/config",
 			"github.com/gougoujiang/buildmax/internal/infra",
 			"github.com/gougoujiang/buildmax/internal/interface",
 			"github.com/gougoujiang/buildmax/internal/server",
+			"github.com/gougoujiang/buildmax/internal/service",
 		},
 	},
 	{
@@ -41,8 +47,38 @@ var importRules = []struct {
 		dir:  "internal/server",
 		forbidden: []string{
 			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/config",
 			"github.com/gougoujiang/buildmax/internal/interface",
+			"github.com/gougoujiang/buildmax/internal/config",
+		},
+	},
+	{
+		// A service coordinates stores and enforces rules. It is reached by a
+		// transport, never the other way round, so it must not know which
+		// transport called it or how the process started.
+		//
+		// internal/agentapp is deliberately absent: service/conversation/runtime
+		// imports it today for NewNonInteractivePolicy. That call is the whole
+		// dependency, and the policy it returns needs only core — so the import
+		// is removable, but it is real until someone removes it, and a rule
+		// that fails is worse than a rule that is honest about its scope.
+		name: "service is reached by transports, not the reverse",
+		dir:  "internal/service",
+		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/bootstrap",
+			"github.com/gougoujiang/buildmax/internal/interface",
+			"github.com/gougoujiang/buildmax/internal/server",
+		},
+	},
+	{
+		// agentapp assembles the agent runtime for CLI, Desktop, eval, and
+		// workers. Every one of those surfaces sits above it, so it must not
+		// reach back up into any of them.
+		name: "agentapp does not depend on the surfaces that assemble it",
+		dir:  "internal/agentapp",
+		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/bootstrap",
+			"github.com/gougoujiang/buildmax/internal/interface",
+			"github.com/gougoujiang/buildmax/internal/server",
 		},
 	},
 }

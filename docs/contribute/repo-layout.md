@@ -173,10 +173,22 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   `agentapp`, or `interface`. It is pure domain.
 - `config` does env and file loading only; it does not import infra
   implementations.
+- `infra` imports nothing from `bootstrap`, `interface`, or `server`.
+- `server` imports nothing from `bootstrap`, `config`, or `interface`.
+- `service` imports nothing from `bootstrap`, `interface`, or `server`. A
+  service is reached by a transport and never reaches back for one.
+- `agentapp` imports nothing from `bootstrap`, `interface`, or `server`. Every
+  surface that assembles it sits above it.
 - `internal/tool` is not pure — it imports infra (MCP, git) as needed.
 
 These rules are enforced by tests in `internal/architecture`. If a change trips
 one, the import is the problem, not the test.
+
+One exception is recorded rather than enforced: `service/conversation/runtime`
+imports `agentapp` for `NewNonInteractivePolicy`. That one call is the whole
+dependency and the policy it returns needs only `core`, so the import is
+removable — but it is real today, and a rule that fails teaches contributors to
+ignore the suite.
 
 ## Frontends
 
