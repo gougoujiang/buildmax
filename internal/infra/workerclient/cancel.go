@@ -3,7 +3,7 @@ package workerclient
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"log/slog"
 	"net/http"
 	"time"
@@ -33,7 +33,7 @@ func IsCancelRequested(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID
 		return false, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
+		return false, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
 	}
 	var got GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
