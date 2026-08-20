@@ -39,7 +39,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		if a, aerr := h.cfg.AgentStore.GetAgentIncludingDeleted(r.Context(), *task.AgentID); aerr != nil {
 			// A run missing its instructions is worse than a run that never had any, but
 			// refusing to dispatch it is worse still. Say so and continue.
-			slog.Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
+			workerAPILog().Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
 		} else if a != nil && a.TeamID == task.TeamID {
 			agentInstructions = a.Instructions
 		}
@@ -192,7 +192,7 @@ func (h *Handler) announceTaskRunTerminal(ctx context.Context, taskRunID, status
 		ErrorMessage:   errorMessage,
 	}
 	go func() {
-		slog.Info("worker: firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)
+		workerAPILog().Info("firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)
 		h.connRegistry.OnTaskRunTerminal(context.Background(), info)
 		if h.cfg.OnTaskRunTerminal != nil {
 			h.cfg.OnTaskRunTerminal(context.Background(), info)
@@ -227,3 +227,6 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
+
+// Identity belongs in an attr, not in every message string.
+func workerAPILog() *slog.Logger { return slog.With("component", "worker_api") }

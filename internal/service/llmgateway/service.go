@@ -286,7 +286,7 @@ func (s *Service) closeLedger(ctx context.Context, llmCallID string, outcome mod
 	// is still live so the terminal record is written anyway.
 	writeCtx := context.WithoutCancel(ctx)
 	if err := s.Ledger.CompleteLLMCall(writeCtx, llmCallID, outcome); err != nil {
-		slog.Error("llm gateway: call ledger not closed; row stays ACCEPTED",
+		gatewayLog().Error("call ledger not closed; row stays ACCEPTED",
 			"err", err, "llm_call_id", llmCallID, "status", outcome.Status)
 	}
 }
@@ -319,3 +319,6 @@ func (s *Service) rejectDuplicate(ctx context.Context, req CompleteRequest) erro
 	}
 	return &DuplicateCallError{LLMCallID: existing.LLMCallID, Status: existing.Status}
 }
+
+// Identity belongs in an attr, not in every message string.
+func gatewayLog() *slog.Logger { return slog.With("component", "llm_gateway") }

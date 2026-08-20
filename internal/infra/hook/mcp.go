@@ -3,7 +3,6 @@ package hook
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -33,18 +32,18 @@ func (MCPDriver) Type() string { return config.HookTypeMCP }
 // Run invokes the configured MCP tool.
 func (d *MCPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
 	if d == nil || d.caller == nil {
-		slog.Warn("hook: mcp_tool driver has no caller; failing open", "event", in.Event)
+		componentLog().Warn("mcp_tool driver has no caller; failing open", "event", in.Event)
 		return agent.HookOutput{}
 	}
 	if entry.Server == "" || entry.Tool == "" {
-		slog.Warn("hook: mcp_tool entry missing server or tool",
+		componentLog().Warn("mcp_tool entry missing server or tool",
 			"event", in.Event, "server", entry.Server, "tool", entry.Tool)
 		return agent.HookOutput{}
 	}
 
 	mcpInput, err := materializeMCPInput(entry.Input, in)
 	if err != nil {
-		slog.Warn("hook: build mcp input failed; failing open", "event", in.Event, "err", err)
+		componentLog().Warn("build mcp input failed; failing open", "event", in.Event, "err", err)
 		return agent.HookOutput{}
 	}
 
@@ -53,7 +52,7 @@ func (d *MCPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.Ho
 
 	result, err := d.caller.CallMCPTool(callCtx, entry.Server, entry.Tool, mcpInput)
 	if err != nil {
-		slog.Warn("hook: mcp call failed; failing open",
+		componentLog().Warn("mcp call failed; failing open",
 			"event", in.Event,
 			"server", entry.Server,
 			"tool", entry.Tool,
@@ -64,11 +63,11 @@ func (d *MCPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.Ho
 
 	out, ok := parseHookOutput([]byte(result))
 	if !ok {
-		slog.Debug("hook: mcp tool returned no decision", "event", in.Event, "server", entry.Server, "tool", entry.Tool)
+		componentLog().Debug("mcp tool returned no decision", "event", in.Event, "server", entry.Server, "tool", entry.Tool)
 		return agent.HookOutput{}
 	}
 	if out.Blocked() {
-		slog.Info("hook: mcp tool blocked", "event", in.Event, "tool", in.ToolName, "server", entry.Server, "mcp_tool", entry.Tool, "reason", out.Reason)
+		componentLog().Info("mcp tool blocked", "event", in.Event, "tool", in.ToolName, "server", entry.Server, "mcp_tool", entry.Tool, "reason", out.Reason)
 	}
 	return out
 }

@@ -166,7 +166,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-		slog.Error("runtime: run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
+		componentLog().Error("run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
 		reportRunFailure(ctx, run.TaskRunID, err, result.TracePath, input.Updater)
 		return err
 	}
@@ -175,7 +175,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, input.ArtifactStorage, input.Updater); err != nil {
 		return err
 	}
-	slog.Info("runtime: run succeeded", "task_run_id", run.TaskRunID)
+	componentLog().Info("run succeeded", "task_run_id", run.TaskRunID)
 	return nil
 }
 
@@ -207,10 +207,10 @@ func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, di
 	}
 	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
 	if err := reportRunOutcome(reportCtx, scope, result, model.RunStatusCanceled, input.ArtifactStorage, input.Updater); err != nil {
-		slog.Error("runtime: could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
+		componentLog().Error("could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
-	slog.Info("runtime: run canceled", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
+	componentLog().Info("run canceled", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
 	return model.ErrRunCanceled
 }
 
@@ -229,11 +229,11 @@ func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task 
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
 	if err := persist.MaterializeToDir(ctx, task.TeamID, dirs.runHome); err != nil {
-		slog.Error("runtime: failed to materialize team files", "task_run_id", run.TaskRunID, "team_id", task.TeamID, "err", err)
+		componentLog().Error("failed to materialize team files", "task_run_id", run.TaskRunID, "team_id", task.TeamID, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
-		slog.Error("runtime: failed to prepare run AGENTS.md", "task_run_id", run.TaskRunID, "err", err)
+		componentLog().Error("failed to prepare run AGENTS.md", "task_run_id", run.TaskRunID, "err", err)
 		return err
 	}
 	return nil
@@ -353,7 +353,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		flushCtx, cancelFlush := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
 		defer cancelFlush()
 		if flushErr := streamSender.Flush(flushCtx, run.TaskRunID); flushErr != nil {
-			slog.Warn("runtime: stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
+			componentLog().Warn("stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
 		}
 	}
 	// RunPrompt carries the trace path out on its error paths too, so a failed
@@ -383,7 +383,7 @@ func traceRelPath(runGlobalDir, tracePath string) string {
 	}
 	rel, err := filepath.Rel(runGlobalDir, tracePath)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		slog.Warn("runtime: trace written outside the uploaded run dir; not recording a path",
+		componentLog().Warn("trace written outside the uploaded run dir; not recording a path",
 			"trace_path", tracePath, "run_global_dir", runGlobalDir, "err", err)
 		return ""
 	}
@@ -401,7 +401,7 @@ func (s *streamSinkAdapter) OnDelta(delta string) {
 		return
 	}
 	if err := s.streamSender.SendDelta(s.ctx, s.taskRunID, delta); err != nil {
-		slog.Warn("runtime: stream send delta failed", "task_run_id", s.taskRunID, "err", err)
+		componentLog().Warn("stream send delta failed", "task_run_id", s.taskRunID, "err", err)
 	}
 }
 
@@ -412,7 +412,7 @@ func withBuildmaxHome(home string, fn func() error) error {
 func persistRunResult(runArtifactsDir string, output []byte) {
 	resultPath := filepath.Join(runArtifactsDir, "result.md")
 	if err := os.WriteFile(resultPath, output, 0644); err != nil {
-		slog.Error("runtime: failed to write result file", "path", resultPath, "err", err)
+		componentLog().Error("failed to write result file", "path", resultPath, "err", err)
 	}
 }
 
@@ -441,7 +441,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // answer or as far as the run got.
 func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
 	if putErr := artifactStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
-		slog.Error("runtime: failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
+		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}
 	relativePaths := uploadRunArtifactsToStorage(ctx, result.RunArtifactsDir, scope, artifactStorage)
 	if len(relativePaths) == 0 {
@@ -572,7 +572,7 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		}
 		f, err := os.Open(fullPath)
 		if err != nil {
-			slog.Warn("runtime: upload run global open failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
+			componentLog().Warn("upload run global open failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
 			continue
 		}
 		putErr := persist.PutRunGlobal(ctx, blob.RunObjectRef{
@@ -584,7 +584,7 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 		}, f)
 		_ = f.Close()
 		if putErr != nil {
-			slog.Warn("runtime: upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
+			componentLog().Warn("upload run global put failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", putErr)
 		}
 	}
 }
