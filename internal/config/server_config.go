@@ -78,6 +78,10 @@ type ServerModelEntry struct {
 	APIKey        string `mapstructure:"api_key"`
 	ContextWindow int    `mapstructure:"context_window"`
 	CallTimeout   int    `mapstructure:"call_timeout"` // seconds; 0 = uses DefaultCallTimeoutSecs
+	MaxTokens     int    `mapstructure:"max_tokens"`   // 0 = the adapter's own default
+	// Provider is the wire protocol this model speaks. Empty means
+	// LLMProviderOpenAICompatible.
+	Provider string `mapstructure:"provider"`
 }
 
 // RuntimeModelEntry converts the server's resolved model configuration into
@@ -96,6 +100,8 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		APIKey:        m.APIKey,
 		ContextWindow: m.ContextWindow,
 		CallTimeout:   m.CallTimeout,
+		MaxTokens:     m.MaxTokens,
+		Provider:      m.Provider,
 		Transport:     TransportDirect,
 	}
 }

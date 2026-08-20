@@ -27,6 +27,7 @@ type llmModelRow struct {
 	Model         string `gorm:"type:varchar(128);not null"`
 	ContextWindow int    `gorm:"not null;default:0"`
 	CallTimeout   int    `gorm:"not null;default:0"`
+	MaxTokens     int    `gorm:"not null;default:0"`
 	// Capabilities is a comma-separated list. The set is small, closed, and only
 	// ever read whole, so a join table would buy nothing.
 	Capabilities string `gorm:"type:varchar(255)"`
@@ -50,6 +51,7 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		Model:         row.Model,
 		ContextWindow: row.ContextWindow,
 		CallTimeout:   row.CallTimeout,
+		MaxTokens:     row.MaxTokens,
 		Capabilities:  splitCapabilities(row.Capabilities),
 		Enabled:       row.Enabled,
 		CreatedAt:     row.CreatedAt,
@@ -88,7 +90,7 @@ func joinCapabilities(in []string) string {
 // explicitly so adding a column later cannot silently start returning the key.
 var llmModelColumns = []string{
 	"id", "llm_model_id", "name", "provider_type", "api_url", "model",
-	"context_window", "call_timeout", "capabilities", "enabled",
+	"context_window", "call_timeout", "max_tokens", "capabilities", "enabled",
 	"created_at", "updated_at",
 }
 
@@ -105,6 +107,7 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 		Model:         in.Model,
 		ContextWindow: in.ContextWindow,
 		CallTimeout:   in.CallTimeout,
+		MaxTokens:     in.MaxTokens,
 		Capabilities:  joinCapabilities(in.Capabilities),
 		Enabled:       true,
 		CreatedAt:     now,

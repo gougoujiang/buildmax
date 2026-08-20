@@ -65,7 +65,7 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 		Router: &llmgateway.Router{
 			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
 			Factory: func(_ context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
-				return directClient(target.Endpoint), nil
+				return directClient(t, target.Endpoint), nil
 			},
 		},
 		Ledger: &llmStubLedger{},
@@ -89,13 +89,18 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	})
 }
 
-func directClient(upstreamURL string) cllm.LLMClient {
-	return llm.NewClient(llm.Config{
+func directClient(t *testing.T, upstreamURL string) cllm.LLMClient {
+	t.Helper()
+	client, err := llm.NewClient(llm.Config{
 		APIKey:      "upstream-key",
 		BaseURL:     upstreamURL,
 		Model:       "vendor/x",
 		CallTimeout: 10 * time.Second,
 	})
+	if err != nil {
+		t.Fatalf("build direct client: %v", err)
+	}
+	return client
 }
 
 func TestManagedCallMatchesADirectCall(t *testing.T) {
@@ -156,7 +161,7 @@ func TestManagedCallMatchesADirectCall(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := fakeUpstream(t, tc.upstream)
 
-			wantContent, wantToolCalls, wantUsage, err := directClient(upstream.URL).
+			wantContent, wantToolCalls, wantUsage, err := directClient(t, upstream.URL).
 				ChatCompletionBlocking(context.Background(), messages, tools)
 			if err != nil {
 				t.Fatalf("direct call: %v", err)
@@ -218,7 +223,7 @@ func TestManagedStreamMatchesADirectStream(t *testing.T) {
 	messages := []cllm.Message{{Role: "user", Content: "hi"}}
 
 	var directDeltas []string
-	wantContent, _, wantUsage, err := directClient(upstream.URL).ChatCompletionStreaming(
+	wantContent, _, wantUsage, err := directClient(t, upstream.URL).ChatCompletionStreaming(
 		context.Background(), messages, nil,
 		func(d string) { directDeltas = append(directDeltas, d) })
 	if err != nil {
@@ -308,7 +313,7 @@ func TestManagedClientSatisfiesTheAgentContract(t *testing.T) {
 	}`)
 
 	clients := map[string]cllm.LLMClient{
-		"direct":  directClient(upstream.URL),
+		"direct":  directClient(t, upstream.URL),
 		"managed": managedGateway(t, upstream.URL),
 	}
 	for name, client := range clients {

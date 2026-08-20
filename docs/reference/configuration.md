@@ -171,6 +171,14 @@ models:                              # first entry is the default model
     context_window: 16385            # 0 = built-in default (32000)
     call_timeout: 300                # seconds; 0 = default (300)
 
+  # - model: claude-sonnet-4-5       # Anthropic's own endpoint, not a gateway
+  #   name: Claude Sonnet 4.5
+  #   provider: anthropic
+  #   api_url: https://api.anthropic.com
+  #   api_key: your-api-key
+  #   context_window: 200000
+  #   max_tokens: 8192               # 0 = built-in default (8192)
+
   # - model: default                 # a team alias, not a provider model id
   #   name: Team Default
   #   transport: buildmax
@@ -185,10 +193,30 @@ sandbox: {}                          # see guide/sandbox.md
 |---|---|---|
 | `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
 | `server_url` | — | Only used as the prompt default for `buildmax login`. |
-| `models[]` | — | Any OpenAI-compatible endpoint. Select one per run with `--model <id or name>`. |
+| `models[]` | — | One model the CLI can run. Select one per run with `--model <id or name>`. |
+| `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. Ignored by a `buildmax` entry, where the deployment's catalog decides. |
+| `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
 | `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
 | `models[].team_id` | — | Required for `buildmax` transport: which team the call is billed and authorized against. |
+
+### Model providers
+
+`provider` names the **wire protocol** an endpoint speaks, not a vendor. Which
+value to use follows from the endpoint's API, not from who made the model:
+Claude served through OpenRouter is `openai_compatible`, and Claude served from
+`api.anthropic.com` is `anthropic`.
+
+| Value | API | Typical endpoint |
+|---|---|---|
+| `openai_compatible` | OpenAI Chat Completions | OpenRouter, LiteLLM, vLLM, Ollama, and other compatible gateways. The default, and what every entry written before this option existed keeps using. |
+| `openai` | OpenAI Responses | OpenAI's own `api.openai.com`. Runs stateless: BuildMax sends the whole conversation on each call and stores nothing server-side. |
+| `anthropic` | Anthropic Messages | `api.anthropic.com` |
+
+Text, tool calling, streaming, and token usage work the same on all three.
+Extended thinking, reasoning continuity across tool calls, prompt caching, and
+image input are not available on any of them yet — see
+[design/llm-provider-adapters.md](../design/llm-provider-adapters.md).
 
 ### Managed models
 
@@ -258,6 +286,8 @@ conversation:                        # Tier 1 model used by the Portal agent loo
     api_url: https://openrouter.ai/api/v1
     api_key: your-api-key
     context_window: 128000
+  # provider: openai_compatible      # wire protocol; see settings.yaml above
+  # max_tokens: 0                    # cap on one response; 0 = protocol default
   # model_target: fast               # use an llm.targets id for Tier 1 instead
 
 # llm:                               # team model policy; catalog is in the DB
@@ -395,9 +425,24 @@ buildmax-server model add --name Fast \
     --api-url https://openrouter.ai/api/v1 \
     --api-key your-openrouter-api-key \
     --model openai/gpt-4o-mini --context-window 128000
+
+buildmax-server model add --name Claude --provider anthropic \
+    --api-url https://api.anthropic.com \
+    --api-key your-anthropic-api-key \
+    --model claude-sonnet-4-5 --context-window 200000 --max-tokens 8192
+
 buildmax-server model list
 buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
 ```
+
+`--provider` is the wire protocol the upstream speaks — the same three values
+`settings.yaml` uses, described under
+[Model providers](#model-providers). It defaults to `openai_compatible`, so a
+catalog written before this option existed keeps working unchanged.
+`--max-tokens` caps one response; leaving it unset means the protocol's default,
+which for `anthropic` is the built-in 8192. Changing either on a running server
+takes effect on the next call: the router rebuilds a client whose target's
+connection details changed.
 
 | Key | Meaning |
 |---|---|

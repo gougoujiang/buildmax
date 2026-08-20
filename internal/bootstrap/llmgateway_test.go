@@ -3,10 +3,14 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -371,5 +375,48 @@ func TestWireLLMFailsStartupOnBadAliases(t *testing.T) {
 	}
 	if cfg.Conv.ConversationLLMClient != nil {
 		t.Error("a failed wiring left a client behind")
+	}
+}
+
+// TestStoredModelOutputCapReachesTheUpstream closes the loop an operator cares
+// about: a cap set on a catalog row has to arrive on the wire, not stop at the
+// resolved target. It runs against the Anthropic protocol because that one
+// requires the field, so the cap is always visible in the request.
+func TestStoredModelOutputCapReachesTheUpstream(t *testing.T) {
+	var body []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"m",` +
+			`"content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`))
+	}))
+	defer upstream.Close()
+
+	row := catalogRow("lm_capped")
+	row.ProviderType = llmgateway.ProviderAnthropic
+	row.APIURL = upstream.URL
+	row.MaxTokens = 1234
+
+	sc := config.ServerConfig{
+		Conversation: config.ServerConvConfig{Model: conversationModel()},
+		LLM: config.ServerLLMConfig{
+			DefaultAlias: "default",
+			Aliases:      map[string]string{"default": "lm_capped"},
+		},
+	}
+	routing, err := buildLLMRouting(sc, newFakeModels(row))
+	if err != nil {
+		t.Fatalf("buildLLMRouting: %v", err)
+	}
+	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"})
+	if err != nil {
+		t.Fatalf("ClientFor: %v", err)
+	}
+	if _, _, _, err := routed.Client.ChatCompletionBlocking(context.Background(),
+		[]cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	if !strings.Contains(string(body), `"max_tokens":1234`) {
+		t.Errorf("request %s does not carry the catalog's output cap", body)
 	}
 }

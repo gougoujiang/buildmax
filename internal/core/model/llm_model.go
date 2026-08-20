@@ -29,6 +29,9 @@ type LLMModel struct {
 	ContextWindow int `json:"context_window,omitempty"`
 	// CallTimeout bounds one upstream call in seconds; 0 uses the client default.
 	CallTimeout int `json:"call_timeout,omitempty"`
+	// MaxTokens caps one response; 0 uses the client default. The Anthropic
+	// protocol requires the field, so a target speaking it always sends one.
+	MaxTokens int `json:"max_tokens,omitempty"`
 	// Capabilities is what this model supports, e.g. "text_chat".
 	Capabilities []string `json:"capabilities,omitempty"`
 	// Enabled lets an operator retire a model without deleting it.
@@ -47,6 +50,7 @@ type CreateLLMModelInput struct {
 	Model         string
 	ContextWindow int
 	CallTimeout   int
+	MaxTokens     int
 	Capabilities  []string
 }
 

@@ -7,7 +7,9 @@
 > resolution, capability set, router, error classes), the `llm_model` catalog
 > and `llm_call` ledger rows in `internal/infra/db`, the
 > `internal/infra/llmremote` client, `buildmax-server model`, and all three
-> routes in `internal/server/handlers/routes.go` including SSE streaming. CLI,
+> routes in `internal/server/handlers/routes.go` including SSE streaming. A
+> catalog target may declare any of the three wire protocols in
+> [llm-provider-adapters.md](llm-provider-adapters.md). CLI,
 > TUI, and Desktop reach managed models through `AppConfig.ManagedToken`. Quota
 > runs at the §10 visibility/soft-enforcement stage.
 >
@@ -50,12 +52,14 @@ OpenAI-compatible passthrough. A new remote implementation of
 `internal/core/llm.LLMClient` translates between the in-process contract and
 that protocol. The Agent loop and tools remain where the run is executing.
 
-The first upstream implementation remains the existing OpenAI-compatible
-client. OpenRouter, LiteLLM, or another operator-managed compatible gateway
-continues to provide broad provider coverage. Native Anthropic, Bedrock, or
-other adapters are added only when a required capability cannot be represented
-by the shared LLM contract and cannot be supplied through a compatible
-upstream.
+A catalog target names the wire protocol it speaks, and the gateway builds the
+matching client. OpenRouter, LiteLLM, or another operator-managed compatible
+gateway still provides broad provider coverage under `openai_compatible`; a
+target may instead speak OpenAI Responses (`openai`) or Anthropic Messages
+(`anthropic`). The test a further adapter must pass is in section 13, and it is
+unchanged: an adapter is justified by a capability the shared contract can
+represent, not by a vendor having an API. See
+[llm-provider-adapters.md](llm-provider-adapters.md).
 
 The reason to own this gateway is **BuildMax governance**, not provider count:
 
@@ -493,10 +497,16 @@ silently redirect governed traffic to a personal provider key.
 
 ## 13. Provider Strategy
 
-The initial model router constructs the existing OpenAI-compatible client.
-Operators may point it at OpenRouter, LiteLLM, a compatible provider endpoint,
-or local inference. BuildMax does not promise that every provider-specific
-feature survives an OpenAI-compatible intermediary.
+The model router constructs a client for the protocol the resolved target
+declares — `openai_compatible`, `openai`, or `anthropic`. Operators may point a
+compatible target at OpenRouter, LiteLLM, a compatible provider endpoint, or
+local inference. BuildMax does not promise that every provider-specific feature
+survives an OpenAI-compatible intermediary.
+
+The adapters are specified in
+[llm-provider-adapters.md](llm-provider-adapters.md). They changed nothing about
+this protocol: `llmwire` carries messages, tool definitions, tool calls, and
+usage, so it already described every protocol the gateway can serve.
 
 A native provider adapter is justified only when all of the following hold:
 

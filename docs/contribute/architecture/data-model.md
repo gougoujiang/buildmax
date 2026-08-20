@@ -834,12 +834,13 @@ on the machine that holds the database credentials.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `llm_model_id` | `varchar(64)` | no | Public ID, `lm_` prefix, unique |
 | `name` | `varchar(128)` | no | Operator-facing catalog name, unique |
-| `provider_type` | `varchar(32)` | no | Provider family |
+| `provider_type` | `varchar(32)` | no | Wire protocol: `openai_compatible`, `openai`, or `anthropic` |
 | `api_url` | `varchar(512)` | no | Upstream base URL |
 | `api_key` | `varchar(512)` | no | **Provider credential in plaintext** — see below |
 | `model` | `varchar(128)` | no | Upstream model identifier |
 | `context_window` | `int` | no | Default `0`, meaning unspecified |
 | `call_timeout` | `int` | no | Seconds; default `0`, meaning unspecified |
+| `max_tokens` | `int` | no | Cap on one response; default `0`, meaning the client default |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
 | `enabled` | `bool` | no | Default `true` |
 | `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |

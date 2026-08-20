@@ -38,6 +38,7 @@ type clientKey struct {
 	upstreamModel string
 	contextWindow int
 	callTimeout   time.Duration
+	maxTokens     int
 }
 
 func keyOf(target Target) clientKey {
@@ -48,6 +49,7 @@ func keyOf(target Target) clientKey {
 		upstreamModel: target.UpstreamModel,
 		contextWindow: target.ContextWindow,
 		callTimeout:   target.CallTimeout,
+		maxTokens:     target.MaxTokens,
 	}
 }
 

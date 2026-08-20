@@ -38,6 +38,7 @@ func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in model.CreateLLM
 		Model:         in.Model,
 		ContextWindow: in.ContextWindow,
 		CallTimeout:   in.CallTimeout,
+		MaxTokens:     in.MaxTokens,
 		Capabilities:  in.Capabilities,
 		Enabled:       true,
 	}

@@ -1,33 +1,54 @@
-// Package llm provides LLM client implementations (OpenRouter/OpenAI-compatible).
+// Package llm implements the core/llm.LLMClient contract over the LLM wire
+// protocols BuildMax speaks: OpenAI Chat Completions, OpenAI Responses, and
+// Anthropic Messages.
+//
+// One package, one entry point. Config.Provider selects an adapter; everything
+// a real network call needs to survive — the per-call timeout, the retry loop,
+// and error classification — is shared, so the three protocols cannot drift
+// apart on the parts a caller depends on.
+//
+// Mirrors the design in docs/design/llm-provider-adapters.md.
 package llm
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-
-	openai "github.com/sashabaranov/go-openai"
 )
 
-// Config holds OpenAI-compatible LLM client settings.
+// Config holds the settings for one LLM client.
 type Config struct {
+	// Provider is the wire protocol to speak. Empty means
+	// config.LLMProviderOpenAICompatible.
+	Provider      string
 	APIKey        string
 	BaseURL       string
 	Model         string
-	ContextWindow int           // 0 = no windowing
+	ContextWindow int           // 0 = look up, then fall back to config.DefaultContextWindow
+	MaxTokens     int           // 0 = the adapter's own default
 	CallTimeout   time.Duration // 0 = use DefaultCallTimeoutSecs
+	// HTTPClient overrides the transport. Tests use it; production leaves it nil.
+	HTTPClient *http.Client
 }
 
-// LLMClient calls an OpenAI-compatible API (e.g. OpenRouter) and holds configuration for those calls.
+// adapter speaks one wire protocol. It performs a single attempt and reports
+// failures as *apiError where it can classify them, so the shared retry and
+// classification logic never has to know which library produced the error.
+type adapter interface {
+	// name is the provider value this adapter implements.
+	name() string
+	blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error)
+	streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error)
+}
+
+// LLMClient calls one model through one wire protocol and holds the
+// configuration for those calls.
 type LLMClient struct {
-	client        *openai.Client
-	model         string
+	adapter       adapter
 	contextWindow int
 	callTimeout   time.Duration
 }
@@ -35,15 +56,16 @@ type LLMClient struct {
 // ContextWindow returns the configured context window size (0 = no windowing).
 func (c *LLMClient) ContextWindow() int { return c.contextWindow }
 
-// NewClient builds an LLM client from the provided settings.
-func NewClient(cfg Config) *LLMClient {
-	clientConfig := openai.DefaultConfig(cfg.APIKey)
-	clientConfig.BaseURL = cfg.BaseURL
-	base := clientConfig.HTTPClient
-	if base == nil {
-		base = http.DefaultClient
-	}
-	clientConfig.HTTPClient = &usageCaptureHTTPClient{base: base}
+// Provider returns the wire protocol this client speaks. Diagnostics and the
+// trace use it to say which protocol served a call.
+func (c *LLMClient) Provider() string { return c.adapter.name() }
+
+// NewClient builds an LLM client for the configured wire protocol.
+//
+// An unknown provider is an error rather than a fallback: a model that cannot
+// be reached the way it was configured must fail at selection, not send its
+// prompt somewhere the operator did not name.
+func NewClient(cfg Config) (*LLMClient, error) {
 	cw := cfg.ContextWindow
 	if cw == 0 {
 		cw = lookupContextWindow(cfg.Model)
@@ -55,76 +77,34 @@ func NewClient(cfg Config) *LLMClient {
 	if callTimeout == 0 {
 		callTimeout = time.Duration(config.DefaultCallTimeoutSecs) * time.Second
 	}
+
+	var (
+		impl adapter
+		err  error
+	)
+	switch cfg.Provider {
+	case "", config.LLMProviderOpenAICompatible:
+		impl = newOpenAIChatAdapter(cfg)
+	case config.LLMProviderOpenAI:
+		impl = newOpenAIResponsesAdapter(cfg)
+	case config.LLMProviderAnthropic:
+		impl, err = newAnthropicAdapter(cfg)
+	default:
+		return nil, fmt.Errorf("unknown llm provider %q: use %s, %s, or %s",
+			cfg.Provider,
+			config.LLMProviderOpenAICompatible,
+			config.LLMProviderOpenAI,
+			config.LLMProviderAnthropic)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	return &LLMClient{
-		client:        openai.NewClientWithConfig(clientConfig),
-		model:         cfg.Model,
+		adapter:       impl,
 		contextWindow: cw,
 		callTimeout:   callTimeout,
-	}
-}
-
-func buildChatCompletionRequest(modelName string, messages []cllm.Message, tools []cllm.ToolDef) openai.ChatCompletionRequest {
-	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
-	for _, m := range messages {
-		openaiMsgs = append(openaiMsgs, toOpenAIMessage(m))
-	}
-	openaiTools := make([]openai.Tool, 0, len(tools))
-	for _, t := range tools {
-		openaiTools = append(openaiTools, toOpenAITool(t))
-	}
-	return openai.ChatCompletionRequest{
-		Model:    modelName,
-		Messages: openaiMsgs,
-		Tools:    openaiTools,
-	}
-}
-
-func toOpenAIMessage(m cllm.Message) openai.ChatCompletionMessage {
-	msg := openai.ChatCompletionMessage{
-		Role:       m.Role,
-		Content:    m.Content,
-		ToolCallID: m.ToolCallID,
-	}
-	if len(m.ToolCalls) > 0 {
-		msg.ToolCalls = make([]openai.ToolCall, 0, len(m.ToolCalls))
-		for _, tc := range m.ToolCalls {
-			msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
-				ID:   tc.ID,
-				Type: openai.ToolTypeFunction,
-				Function: openai.FunctionCall{
-					Name:      tc.Name,
-					Arguments: tc.Arguments,
-				},
-			})
-		}
-	}
-	return msg
-}
-
-func toOpenAITool(t cllm.ToolDef) openai.Tool {
-	return openai.Tool{
-		Type: openai.ToolTypeFunction,
-		Function: &openai.FunctionDefinition{
-			Name:        t.Name,
-			Description: t.Description,
-			Parameters:  t.Parameters,
-		},
-	}
-}
-
-func toToolCalls(toolCalls []openai.ToolCall) []cllm.ToolCall {
-	if len(toolCalls) == 0 {
-		return nil
-	}
-	out := make([]cllm.ToolCall, 0, len(toolCalls))
-	for _, tc := range toolCalls {
-		out = append(out, cllm.ToolCall{
-			ID:        tc.ID,
-			Name:      tc.Function.Name,
-			Arguments: tc.Function.Arguments,
-		})
-	}
-	return out
+	}, nil
 }
 
 // ChatCompletionBlocking sends messages and tool definitions, returns assistant content, any tool calls, and usage.
@@ -138,7 +118,9 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.
 				return "", nil, cllm.Usage{}, wrapLLMError(sleepErr)
 			}
 		}
-		content, toolCalls, usage, err = c.doBlocking(ctx, messages, tools)
+		callCtx, cancel := c.withCallTimeout(ctx)
+		content, toolCalls, usage, err = c.adapter.blocking(callCtx, messages, tools)
+		cancel()
 		if err == nil || !isRetryableError(err) {
 			break
 		}
@@ -149,31 +131,8 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.
 	return
 }
 
-func (c *LLMClient) doBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
-	if c.callTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.callTimeout)
-		defer cancel()
-	}
-	req := buildChatCompletionRequest(c.model, messages, tools)
-	resp, err := c.client.CreateChatCompletion(ctx, req)
-	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("chat completion: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return "", nil, cllm.Usage{}, fmt.Errorf("no choices in response")
-	}
-	msg := resp.Choices[0].Message
-	usage := cllm.Usage{
-		PromptTokens:     resp.Usage.PromptTokens,
-		CompletionTokens: resp.Usage.CompletionTokens,
-		TotalTokens:      resp.Usage.TotalTokens,
-	}
-	return msg.Content, toToolCalls(msg.ToolCalls), usage, nil
-}
-
 // ChatCompletionStreaming sends messages and tool definitions, streams content deltas via onDelta,
-// and returns full content, any tool calls, and usage (when the provider sends it in a chunk).
+// and returns full content, any tool calls, and usage (when the provider reports it).
 // Retries on transient errors only when no delta has been emitted yet, to avoid duplicate output.
 // Errors are wrapped with a human-readable classification before being returned.
 // If onDelta is nil, it is not called.
@@ -192,7 +151,9 @@ func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, messages []cllm
 				onDelta(delta)
 			}
 		}
-		content, toolCalls, usage, err = c.doStreaming(ctx, messages, tools, guardedDelta)
+		callCtx, cancel := c.withCallTimeout(ctx)
+		content, toolCalls, usage, err = c.adapter.streaming(callCtx, messages, tools, guardedDelta)
+		cancel()
 		if err == nil || !isRetryableError(err) || deltaEmitted {
 			break
 		}
@@ -203,89 +164,22 @@ func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, messages []cllm
 	return
 }
 
-func (c *LLMClient) doStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
-	if c.callTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.callTimeout)
-		defer cancel()
+// withCallTimeout bounds one attempt. The returned cancel is always safe to
+// call, so the caller does not branch on whether a timeout is configured.
+func (c *LLMClient) withCallTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if c.callTimeout <= 0 {
+		return context.WithCancel(ctx)
 	}
-	req := buildChatCompletionRequest(c.model, messages, tools)
-	var streamUsage cllm.Usage
-	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
-	stream, err := c.client.CreateChatCompletionStream(ctx, req)
-	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("chat completion stream: %w", err)
-	}
-	defer func() { _ = stream.Close() }()
+	return context.WithTimeout(ctx, c.callTimeout)
+}
 
-	var fullContent strings.Builder
-	// Accumulate tool calls from stream deltas (index -> id, name, arguments).
-	toolCallAccum := make(map[int]*struct {
-		id        string
-		name      string
-		arguments string
-	})
-	for {
-		resp, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fullContent.String(), nil, cllm.Usage{}, fmt.Errorf("stream recv: %w", err)
-		}
-		if len(resp.Choices) == 0 {
-			continue
-		}
-		// cllm.Usage is captured from raw SSE by usageCaptureTransport when the provider sends it.
-		delta := resp.Choices[0].Delta
-		if delta.Content != "" {
-			fullContent.WriteString(delta.Content)
-			if onDelta != nil {
-				onDelta(delta.Content)
-			}
-		}
-		for _, tc := range delta.ToolCalls {
-			idx := 0
-			if tc.Index != nil {
-				idx = *tc.Index
-			}
-			if toolCallAccum[idx] == nil {
-				toolCallAccum[idx] = &struct {
-					id        string
-					name      string
-					arguments string
-				}{}
-			}
-			acc := toolCallAccum[idx]
-			if tc.ID != "" {
-				acc.id = tc.ID
-			}
-			if tc.Function.Name != "" {
-				acc.name = tc.Function.Name
-			}
-			if tc.Function.Arguments != "" {
-				acc.arguments += tc.Function.Arguments
-			}
-		}
+// maxTokensOrDefault returns the configured output cap, substituting the
+// built-in default when a protocol requires the field and the operator set none.
+func maxTokensOrDefault(configured int) int {
+	if configured > 0 {
+		return configured
 	}
-	// Build final toolCalls in index order.
-	maxIdx := -1
-	for i := range toolCallAccum {
-		if i > maxIdx {
-			maxIdx = i
-		}
-	}
-	var toolCalls []cllm.ToolCall
-	for i := 0; i <= maxIdx; i++ {
-		if acc := toolCallAccum[i]; acc != nil && acc.id != "" {
-			toolCalls = append(toolCalls, cllm.ToolCall{
-				ID:        acc.id,
-				Name:      acc.name,
-				Arguments: acc.arguments,
-			})
-		}
-	}
-	return fullContent.String(), toolCalls, streamUsage, nil
+	return config.DefaultMaxTokens
 }
 
 // Ensure *LLMClient implements cllm.LLMClient.
