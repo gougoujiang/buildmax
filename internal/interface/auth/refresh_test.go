@@ -10,7 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // storeSession writes a full login — both credentials — into an isolated
@@ -66,8 +66,8 @@ func useFakeRefresh(t *testing.T, f *fakeRefresh) {
 
 func TestTokenForServerRenewsAnExpiredAccessToken(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
-	fresh := util.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
+	fresh := testsupport.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
 	f := &fakeRefresh{resp: &client.RefreshResponse{
 		AccessToken:  fresh,
 		RefreshToken: "bmxrefresh_2",
@@ -104,8 +104,8 @@ func TestTokenForServerRenewsAnExpiredAccessToken(t *testing.T) {
 // and may run for minutes afterwards.
 func TestTokenForServerRenewsBeforeExpiryNotAtIt(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", refreshSkew/2), "bmxrefresh_1")
-	fresh := util.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
+		testsupport.SignJWTWithExp("u_1", "secret", refreshSkew/2), "bmxrefresh_1")
+	fresh := testsupport.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
 	f := &fakeRefresh{resp: &client.RefreshResponse{AccessToken: fresh, RefreshToken: "bmxrefresh_2"}}
 	useFakeRefresh(t, f)
 
@@ -119,7 +119,7 @@ func TestTokenForServerRenewsBeforeExpiryNotAtIt(t *testing.T) {
 }
 
 func TestTokenForServerLeavesAGoodTokenAlone(t *testing.T) {
-	token := util.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
+	token := testsupport.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
 	storeSession(t, "https://buildmax.example.com", token, "bmxrefresh_1")
 	f := &fakeRefresh{}
 	useFakeRefresh(t, f)
@@ -141,8 +141,8 @@ func TestTokenForServerLeavesAGoodTokenAlone(t *testing.T) {
 // here would leave nothing for the case it was built for.
 func TestConcurrentCallersRefreshOnce(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
-	fresh := util.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
+	fresh := testsupport.SignJWTWithExp("u_1", "secret", 7*24*time.Hour)
 	f := &fakeRefresh{resp: &client.RefreshResponse{AccessToken: fresh, RefreshToken: "bmxrefresh_2"}}
 	useFakeRefresh(t, f)
 
@@ -181,7 +181,7 @@ func TestConcurrentCallersRefreshOnce(t *testing.T) {
 // credential the server has retired.
 func TestRejectedRefreshClearsTheStoredLogin(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
 	useFakeRefresh(t, &fakeRefresh{err: client.ErrRefreshRejected})
 
 	_, err := TokenForServer("https://buildmax.example.com")
@@ -201,7 +201,7 @@ func TestRejectedRefreshClearsTheStoredLogin(t *testing.T) {
 // would cost the user a login code they did not need to spend.
 func TestUnreachableServerKeepsTheStoredLogin(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
 	useFakeRefresh(t, &fakeRefresh{err: errors.New("dial tcp: connection refused")})
 
 	if _, err := TokenForServer("https://buildmax.example.com"); err == nil {
@@ -221,7 +221,7 @@ func TestUnreachableServerKeepsTheStoredLogin(t *testing.T) {
 // need.
 func TestInfoTreatsARenewableSessionAsSignedIn(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
 
 	info, err := Info()
 	if err != nil {
@@ -237,7 +237,7 @@ func TestInfoTreatsARenewableSessionAsSignedIn(t *testing.T) {
 
 func TestInfoReportsAnUnrenewableExpiredSessionAsSignedOut(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "")
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "")
 
 	info, err := Info()
 	if err != nil {
@@ -252,7 +252,7 @@ func TestInfoReportsAnUnrenewableExpiredSessionAsSignedOut(t *testing.T) {
 // the user's refresh token would be changing what it claims to be inspecting.
 func TestCanAuthenticateMakesNoNetworkCall(t *testing.T) {
 	storeSession(t, "https://buildmax.example.com",
-		util.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
+		testsupport.SignJWTWithExp("u_1", "secret", -time.Hour), "bmxrefresh_1")
 	f := &fakeRefresh{}
 	useFakeRefresh(t, f)
 

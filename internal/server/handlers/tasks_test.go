@@ -11,6 +11,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -47,7 +48,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		{
 			name:         "conversation not owned returns 404",
 			taskStore:    &mock.MockTaskStore{},
-			authHeader:   "Bearer " + util.SignJWT("u1", secret),
+			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/conv-other/tasks",
 			wantStatus:   http.StatusNotFound,
 			wantBodyHas:  "conversation not found",
@@ -56,7 +57,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		{
 			name:         "owned conversation empty list returns 200",
 			taskStore:    &mock.MockTaskStore{List: []model.Task{}},
-			authHeader:   "Bearer " + util.SignJWT("u1", secret),
+			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "[]",
@@ -65,7 +66,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		{
 			name:         "owned conversation with tasks returns 200",
 			taskStore:    &mock.MockTaskStore{List: []model.Task{task1, task2}},
-			authHeader:   "Bearer " + util.SignJWT("u1", secret),
+			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "t1",
@@ -141,7 +142,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		{
 			name:        "conversation not owned returns 404",
 			taskStore:   &mock.MockTaskStore{},
-			authHeader:  "Bearer " + util.SignJWT("u1", secret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u1", secret),
 			path:        "/api/teams/" + teamID + "/conversations/conv-other/tasks",
 			body:        `{"input":"Do X"}`,
 			wantStatus:  http.StatusNotFound,
@@ -150,7 +151,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		{
 			name:        "missing input returns 400",
 			taskStore:   &mock.MockTaskStore{},
-			authHeader:  "Bearer " + util.SignJWT("u1", secret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u1", secret),
 			path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:        `{}`,
 			wantStatus:  http.StatusBadRequest,
@@ -164,7 +165,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
-			authHeader:   "Bearer " + util.SignJWT("u1", secret),
+			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:         `{"input":"Do X"}`,
 			wantStatus:   http.StatusCreated,
@@ -179,7 +180,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 					{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},
-			authHeader:   "Bearer " + util.SignJWT("u1", secret),
+			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			body:         `{"agent_id":"a_1"}`,
 			wantStatus:   http.StatusCreated,
@@ -206,7 +207,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	}{
 		name:        "quota exceeded returns 429",
 		taskStore:   &mock.MockTaskStore{},
-		authHeader:  "Bearer " + util.SignJWT("u1", secret),
+		authHeader:  "Bearer " + testsupport.SignJWT("u1", secret),
 		path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 		body:        `{"input":"Do X"}`,
 		wantStatus:  http.StatusTooManyRequests,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -63,7 +64,7 @@ func retryFixture(t *testing.T, run model.TaskRun, workflows *mock.MockWorkflowS
 func postRetry(t *testing.T, mux *http.ServeMux) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/teams/"+retryTeam+"/tasks/"+retryTaskID+"/retry", nil)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(retryUser, retrySecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(retryUser, retrySecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec

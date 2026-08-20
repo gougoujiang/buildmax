@@ -141,6 +141,39 @@ func TestNoInternalTypeAliases(t *testing.T) {
 	}
 }
 
+// testOnlyPackages may be imported from _test.go files and nowhere else.
+//
+// The rule is about what ships, not about tidiness: internal/testsupport mints
+// JWTs and internal/mock stands in for every store. Either one reached from
+// production code is either a capability in a binary that should not have it or
+// a real dependency wired to a fake.
+var testOnlyPackages = []string{
+	"github.com/gougoujiang/buildmax/internal/mock",
+	"github.com/gougoujiang/buildmax/internal/testsupport",
+}
+
+func TestTestOnlyPackagesStayInTests(t *testing.T) {
+	root := moduleRoot(t)
+	for _, path := range goFiles(t, filepath.Join(root, "internal")) {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		f := parseFile(t, path)
+		for _, imp := range f.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				t.Fatalf("unquote import in %s: %v", path, err)
+			}
+			for _, pkg := range testOnlyPackages {
+				if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
+					t.Errorf("%s is not a test file but imports test-only package %s",
+						rel(root, path), importPath)
+				}
+			}
+		}
+	}
+}
+
 // excluded reports whether relPath, a slash-separated repository-relative file
 // path, sits in or under one of the exempt directories.
 func excluded(relPath string, exempt []string) bool {

@@ -70,6 +70,8 @@ Important ownership boundaries:
   reference and the rules for changing them are in
   [`docs/contribute/architecture/data-model.md`](docs/contribute/architecture/data-model.md).
   GORM stays inside that package: above it, "no such row" is `model.ErrNotFound`.
+- `internal/mock` and `internal/testsupport` are test-only. Production code must
+  not import either; a test enforces it.
 
 Team is the ownership and authorization boundary for Portal resources. Issue is
 the primary user-facing work object. Workflows are team-scoped reusable linear

@@ -14,7 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // stubTurnEngine satisfies the webhook route's engine dependency. It is never
@@ -82,7 +82,7 @@ func (f *disableFixture) do(t *testing.T, method, path, userID, body string) *ht
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if userID != "" {
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT(userID, matrixSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, matrixSecret))
 	}
 	rec := httptest.NewRecorder()
 	f.mux.ServeHTTP(rec, req)

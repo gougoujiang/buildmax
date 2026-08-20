@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -54,7 +55,7 @@ func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockT
 func postCancel(t *testing.T, mux *http.ServeMux) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/teams/"+cancelTeam+"/tasks/"+cancelTaskID+"/cancel", nil)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(cancelUser, cancelSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(cancelUser, cancelSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec

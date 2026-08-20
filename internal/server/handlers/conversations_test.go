@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -71,7 +72,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	h.Register(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations/"+conversationID+"/messages", nil)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", secret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

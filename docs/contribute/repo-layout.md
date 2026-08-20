@@ -159,8 +159,10 @@ internal/
 │
 ├── agenteval/          Evaluation harness: task catalog and runner
 ├── architecture/       Architectural constraint tests (import boundaries)
-├── mock/               Test-only mocks and helpers
-└── util/               ID generation, workspace helpers, git, argparse
+├── mock/               Test-only in-memory stores
+├── testsupport/        Test-only helpers that must not ship (JWT signing)
+└── util/               ID generation, prefixed IDs, workspace path resolution,
+                        small string and time helpers
 ```
 
 ## Dependency Direction
@@ -181,6 +183,8 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   surface that assembles it sits above it.
 - `gorm.io` is imported only by `infra/db`. Above that boundary, "no such row"
   is `model.ErrNotFound`, which the store translates to.
+- `mock` and `testsupport` are imported only from `_test.go` files. Neither may
+  be reached from code that ships.
 - `internal/tool` is not pure — it imports infra (MCP, git) as needed.
 
 These rules are enforced by tests in `internal/architecture`. If a change trips

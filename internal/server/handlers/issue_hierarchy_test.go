@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -49,7 +50,7 @@ func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 func hierarchyRequest(t *testing.T, mux *http.ServeMux, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT("u_owner", hierarchyTestSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u_owner", hierarchyTestSecret))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

@@ -14,6 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 
 	"github.com/gorilla/websocket"
@@ -107,7 +108,7 @@ func TestWSConversationCreateFlow(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	token := util.SignJWT("u1", wsTestSecret)
+	token := testsupport.SignJWT("u1", wsTestSecret)
 	conn := dialWS(t, server, token)
 	defer conn.Close()
 
@@ -148,7 +149,7 @@ func TestWSUnknownEventType(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	token := util.SignJWT("u1", wsTestSecret)
+	token := testsupport.SignJWT("u1", wsTestSecret)
 	conn := dialWS(t, server, token)
 	defer conn.Close()
 
@@ -213,7 +214,7 @@ func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	conn := dialWS(t, server, util.SignJWT("u1", wsTestSecret))
+	conn := dialWS(t, server, testsupport.SignJWT("u1", wsTestSecret))
 	defer conn.Close()
 
 	sendEnvelope(t, conn, wsconn.TypeConversationCreate, wsconn.ConversationCreate{Message: "first"})

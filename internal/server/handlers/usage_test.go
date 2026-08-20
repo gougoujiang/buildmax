@@ -11,6 +11,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -63,7 +64,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:        "no QuotaService returns 503",
-			authHeader:  "Bearer " + util.SignJWT(userID, secret),
+			authHeader:  "Bearer " + testsupport.SignJWT(userID, secret),
 			path:        "/api/usage",
 			checker:     nil,
 			jwtSecret:   secret,
@@ -72,7 +73,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:       "legacy usage route returns personal team usage",
-			authHeader: "Bearer " + util.SignJWT(userID, secret),
+			authHeader: "Bearer " + testsupport.SignJWT(userID, secret),
 			path:       "/api/usage",
 			checker:    checker,
 			jwtSecret:  secret,
@@ -83,7 +84,7 @@ func TestUsageHandler(t *testing.T) {
 		},
 		{
 			name:       "team usage route returns team usage",
-			authHeader: "Bearer " + util.SignJWT(userID, secret),
+			authHeader: "Bearer " + testsupport.SignJWT(userID, secret),
 			path:       "/api/teams/" + teamID + "/usage",
 			checker:    checker,
 			jwtSecret:  secret,

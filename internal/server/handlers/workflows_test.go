@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -64,7 +65,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("GET list workflows", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/workflows", nil)
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -81,7 +82,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("POST create workflow", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows", strings.NewReader(`{"name":"WF 2","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -99,7 +100,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("POST direct workflow run", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows/w_1/runs", nil)
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusCreated {
@@ -116,7 +117,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("POST create workflow forbidden for member", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u2", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -127,7 +128,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("PATCH publish workflow by admin", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+teamID+"/workflows/w_1", strings.NewReader(`{"status":"published"}`))
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u3", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u3", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -138,7 +139,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("POST issue workflow run", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/issues/i_1/workflow-runs", nil)
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusCreated {
@@ -148,7 +149,7 @@ func TestWorkflowHandlers(t *testing.T) {
 
 	t.Run("GET issue flow", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/issues/i_1/flow", nil)
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT("u1", workflowTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {

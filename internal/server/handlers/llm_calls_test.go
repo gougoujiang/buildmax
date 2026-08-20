@@ -11,7 +11,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -37,7 +37,7 @@ func getLLMCalls(t *testing.T, cfg Config, teamID, taskRunID string, auth bool) 
 	NewHandler(cfg).Register(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/llm-calls", nil)
 	if auth {
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT(llmTestUser, llmTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(llmTestUser, llmTestSecret))
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

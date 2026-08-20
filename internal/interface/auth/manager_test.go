@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // storeLogin writes credentials into an isolated BUILDMAX_HOME.
@@ -22,7 +22,7 @@ func storeLogin(t *testing.T, serverURL, token string) {
 }
 
 func TestTokenForServerReturnsTheStoredToken(t *testing.T) {
-	token := util.SignJWTWithExp("u_1", "secret", 24*time.Hour)
+	token := testsupport.SignJWTWithExp("u_1", "secret", 24*time.Hour)
 	storeLogin(t, "https://buildmax.example.com", token)
 
 	got, err := TokenForServer("https://buildmax.example.com")
@@ -43,7 +43,7 @@ func TestTokenForServerReturnsTheStoredToken(t *testing.T) {
 // settings.yaml is writable by anything running as the user, so a managed entry
 // naming a different server must not be handed the BuildMax credential.
 func TestTokenForServerRefusesAnotherHost(t *testing.T) {
-	token := util.SignJWTWithExp("u_1", "secret", 24*time.Hour)
+	token := testsupport.SignJWTWithExp("u_1", "secret", 24*time.Hour)
 	storeLogin(t, "https://buildmax.example.com", token)
 
 	got, err := TokenForServer("https://attacker.example.net")
@@ -79,7 +79,7 @@ func TestTokenForServerRequiresAUsableLogin(t *testing.T) {
 		{
 			name:      "login expired",
 			serverURL: "https://buildmax.example.com",
-			token:     util.SignJWTWithExp("u_1", "secret", -time.Hour),
+			token:     testsupport.SignJWTWithExp("u_1", "secret", -time.Hour),
 			ask:       "https://buildmax.example.com",
 			wantIn:    "expired",
 		},
