@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -31,9 +32,16 @@ type Config struct {
 	ContextWindow int           // 0 = look up, then fall back to config.DefaultContextWindow
 	MaxTokens     int           // 0 = the adapter's own default
 	CallTimeout   time.Duration // 0 = use DefaultCallTimeoutSecs
-	// Reasoning asks the protocol for reasoning state and replays it on later
-	// turns. It does nothing on a protocol that has none.
-	Reasoning bool
+	// Reasoning is the effort level (config.Reasoning*). Any level other than
+	// off also replays reasoning state on later turns. It does nothing on a
+	// protocol that has none.
+	Reasoning string
+	// PromptCache asks the protocol to cache the stable prefix of a request.
+	// It does nothing on a protocol that caches automatically.
+	PromptCache bool
+	// Vision says the model accepts image input. When false, an adapter drops
+	// image parts and sends only the text describing them.
+	Vision bool
 	// HTTPClient overrides the transport. Tests use it; production leaves it nil.
 	HTTPClient *http.Client
 }
@@ -98,6 +106,10 @@ func NewClient(cfg Config) (*LLMClient, error) {
 			config.LLMProviderOpenAICompatible,
 			config.LLMProviderOpenAI,
 			config.LLMProviderAnthropic)
+	}
+	if !config.KnownReasoningEffort(cfg.Reasoning) {
+		return nil, fmt.Errorf("unknown reasoning effort %q: use one of %s",
+			cfg.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
 	}
 	if err != nil {
 		return nil, err

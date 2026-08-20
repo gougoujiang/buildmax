@@ -27,7 +27,10 @@ type ConversationMessage struct {
 	// ProviderStateJSON is opaque reasoning state for an assistant message,
 	// stored and replayed but never read here. See core/llm.ProviderState.
 	ProviderStateJSON *string `json:"provider_state,omitempty"`
-	CreatedAt         int64   `json:"created_at"`
+	// PartsJSON is non-text content on the message, stored as the canonical
+	// part list. Content remains the text describing it.
+	PartsJSON *string `json:"parts,omitempty"`
+	CreatedAt int64   `json:"created_at"`
 }
 
 // AppendMessageInput is one message to store.
@@ -44,6 +47,8 @@ type AppendMessageInput struct {
 	// ProviderStateJSON is set only for an assistant message from a protocol
 	// that produced reasoning state.
 	ProviderStateJSON *string
+	// PartsJSON is set when the message carries non-text content.
+	PartsJSON *string
 }
 
 // ConversationStore provides Tier 1 conversation persistence. Conversations are user-scoped.

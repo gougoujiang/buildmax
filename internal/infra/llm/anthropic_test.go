@@ -51,7 +51,7 @@ func TestAnthropicLiftsSystemMessagesOutOfHistory(t *testing.T) {
 		{Role: "system", Content: "You are an agent."},
 		{Role: "user", Content: "Hi"},
 		{Role: "system", Content: "Stay terse."},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("anthropicMessages: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestAnthropicMergesConsecutiveToolResults(t *testing.T) {
 		}},
 		{Role: "tool", ToolCallID: "call_1", Content: "a"},
 		{Role: "tool", ToolCallID: "call_2", Content: "b"},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("anthropicMessages: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestAnthropicDropsUnpairedToolCallsAndResults(t *testing.T) {
 		}},
 		{Role: "tool", ToolCallID: "call_answered", Content: "ok"},
 		{Role: "tool", ToolCallID: "call_never_made", Content: "orphan"},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("anthropicMessages: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestAnthropicDropsMessagesBeforeTheFirstUserTurn(t *testing.T) {
 	_, messages, err := anthropicMessages([]cllm.Message{
 		{Role: "assistant", Content: "leftover from a trimmed turn"},
 		{Role: "user", Content: "Hello"},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("anthropicMessages: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestAnthropicRejectsHistoryWithNoUserTurn(t *testing.T) {
 	_, _, err := anthropicMessages([]cllm.Message{
 		{Role: "system", Content: "prompt"},
 		{Role: "assistant", Content: "orphan"},
-	})
+	}, false)
 	if err == nil {
 		t.Fatal("expected an error: this protocol cannot be called without a user turn")
 	}
@@ -156,7 +156,7 @@ func TestAnthropicSkipsEmptyContent(t *testing.T) {
 		{Role: "user", Content: "Hello"},
 		{Role: "assistant", Content: ""},
 		{Role: "user", Content: ""},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("anthropicMessages: %v", err)
 	}

@@ -112,6 +112,8 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 			PromptTokens:     result.Usage.PromptTokens,
 			CompletionTokens: result.Usage.CompletionTokens,
 			TotalTokens:      result.Usage.TotalTokens,
+			CacheReadTokens:  result.Usage.CacheReadTokens,
+			CacheWriteTokens: result.Usage.CacheWriteTokens,
 		}
 	}
 	httputil.WriteJSON(w, http.StatusOK, resp)
@@ -132,6 +134,7 @@ func toCoreMessages(in []llmwire.Message) ([]cllm.Message, error) {
 			ToolCallID:    m.ToolCallID,
 			ToolCalls:     toCoreToolCalls(m.ToolCalls),
 			ProviderState: toCoreProviderState(m.ProviderState),
+			Parts:         toCoreParts(m.Parts),
 		})
 	}
 	return out, nil
@@ -152,6 +155,19 @@ func fromCoreProviderState(in *cllm.ProviderState) *llmwire.ProviderState {
 		return nil
 	}
 	return &llmwire.ProviderState{Protocol: in.Protocol, Data: in.Data}
+}
+
+func toCoreParts(in []llmwire.ContentPart) []cllm.ContentPart {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]cllm.ContentPart, 0, len(in))
+	for _, part := range in {
+		out = append(out, cllm.ContentPart{
+			Type: part.Type, Text: part.Text, MediaType: part.MediaType, Data: part.Data,
+		})
+	}
+	return out
 }
 
 func toCoreToolCalls(in []llmwire.ToolCall) []cllm.ToolCall {
@@ -242,6 +258,8 @@ func (h *Handler) streamLLMCompletion(w http.ResponseWriter, r *http.Request, cm
 			PromptTokens:     result.Usage.PromptTokens,
 			CompletionTokens: result.Usage.CompletionTokens,
 			TotalTokens:      result.Usage.TotalTokens,
+			CacheReadTokens:  result.Usage.CacheReadTokens,
+			CacheWriteTokens: result.Usage.CacheWriteTokens,
 		}
 	}
 	_ = stream.send(llmwire.EventResult, final)

@@ -82,14 +82,21 @@ type LLMCall struct {
 	PromptTokens     *int   `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int   `json:"completion_tokens,omitempty"`
 	TotalTokens      *int   `json:"total_tokens,omitempty"`
+	CacheReadTokens  *int   `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens *int   `json:"cache_write_tokens,omitempty"`
 	UsageSource      string `json:"usage_source,omitempty"`
 }
 
 // LLMCallUsage is the token usage reported for one call.
 type LLMCallUsage struct {
-	PromptTokens     int    `json:"prompt_tokens"`
-	CompletionTokens int    `json:"completion_tokens"`
-	TotalTokens      int    `json:"total_tokens"`
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	// CacheReadTokens and CacheWriteTokens are the cached parts of the prompt.
+	// They break PromptTokens down rather than adding to it, so a spend report
+	// must not sum them alongside it.
+	CacheReadTokens  int    `json:"cache_read_tokens"`
+	CacheWriteTokens int    `json:"cache_write_tokens"`
 	Source           string `json:"source"`
 }
 

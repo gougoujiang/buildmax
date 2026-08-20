@@ -82,8 +82,12 @@ type ServerModelEntry struct {
 	// Provider is the wire protocol this model speaks. Empty means
 	// LLMProviderOpenAICompatible.
 	Provider string `mapstructure:"provider"`
-	// Reasoning asks for reasoning state and replays it on later turns.
-	Reasoning bool `mapstructure:"reasoning"`
+	// Reasoning is the effort level: off (the default), low, medium, or high.
+	Reasoning string `mapstructure:"reasoning"`
+	// PromptCache caches the stable prefix of a request.
+	PromptCache bool `mapstructure:"prompt_cache"`
+	// Vision says this model accepts image input.
+	Vision bool `mapstructure:"vision"`
 }
 
 // RuntimeModelEntry converts the server's resolved model configuration into
@@ -105,6 +109,8 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		MaxTokens:     m.MaxTokens,
 		Provider:      m.Provider,
 		Reasoning:     m.Reasoning,
+		PromptCache:   m.PromptCache,
+		Vision:        m.Vision,
 		Transport:     TransportDirect,
 	}
 }

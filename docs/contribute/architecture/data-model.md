@@ -580,6 +580,7 @@ One message in a Tier 1 conversation, including tool traffic.
 | `tool_call_id` | `varchar(64)` | yes | Set on a tool result, linking it to the call that produced it |
 | `tool_calls` | `text` | yes | JSON array of tool calls on an assistant message; the Go field is `ToolCallsJSON` but the column is `tool_calls` |
 | `provider_state` | `text` | yes | Opaque reasoning state on an assistant message, stored and replayed but never read here; the Go field is `ProviderStateJSON` |
+| `parts` | `mediumtext` | yes | Non-text content on the message, such as an image a tool returned; `content` stays the text describing it. The Go field is `PartsJSON` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `conversation_message_id`; index `conversation_id`.
@@ -850,7 +851,9 @@ on the machine that holds the database credentials.
 | `context_window` | `int` | no | Default `0`, meaning unspecified |
 | `call_timeout` | `int` | no | Seconds; default `0`, meaning unspecified |
 | `max_tokens` | `int` | no | Cap on one response; default `0`, meaning the client default |
-| `reasoning` | `bool` | no | Default `false`; ask the upstream for reasoning state and replay it |
+| `reasoning` | `varchar(16)` | no | Effort level: empty or `off`, `low`, `medium`, `high` |
+| `prompt_cache` | `bool` | no | Default `false`; cache the stable prefix of a request |
+| `vision` | `bool` | no | Default `false`; the upstream accepts image input |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
 | `enabled` | `bool` | no | Default `true` |
 | `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
@@ -900,6 +903,8 @@ One managed inference call. The metering and debugging record.
 | `prompt_tokens` | `int` | yes | |
 | `completion_tokens` | `int` | yes | |
 | `total_tokens` | `int` | yes | |
+| `cache_read_tokens` | `int` | yes | Part of the prompt served from the provider's cache |
+| `cache_write_tokens` | `int` | yes | Part of the prompt written into it |
 | `usage_source` | `varchar(16)` | yes | `reported`, `estimated`, or `unavailable` |
 
 Indexes: PK `id`; unique `llm_call_id`; unique composite `idx_llm_call_client`
@@ -909,6 +914,9 @@ on (`team_id`, `client_call_id`); index `user_id`; index `task_run_id`; index
 The composite unique index leads with `team_id`, which both scopes idempotency
 per team and serves team-scoped lookups — so there is deliberately no second
 index on `team_id` alone.
+
+The cache counts **break `prompt_tokens` down rather than adding to it**. A
+spend report that summed all three would count the same tokens twice.
 
 `provider_type` and `upstream_model` are copied onto the row rather than joined
 from `llm_model`, so a completed call still describes what actually ran after

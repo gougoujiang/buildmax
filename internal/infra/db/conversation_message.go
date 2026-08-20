@@ -18,6 +18,7 @@ type conversationMessageRow struct {
 	ToolCallID            *string `gorm:"type:varchar(64);column:tool_call_id"`
 	ToolCallsJSON         *string `gorm:"type:text;column:tool_calls"`
 	ProviderStateJSON     *string `gorm:"type:text;column:provider_state"`
+	PartsJSON             *string `gorm:"type:mediumtext;column:parts"`
 	CreatedAt             int64   `gorm:"autoCreateTime"`
 }
 
@@ -37,6 +38,7 @@ func toConversationMessage(row *conversationMessageRow) *model.ConversationMessa
 		ToolCallID:            row.ToolCallID,
 		ToolCallsJSON:         row.ToolCallsJSON,
 		ProviderStateJSON:     row.ProviderStateJSON,
+		PartsJSON:             row.PartsJSON,
 		CreatedAt:             row.CreatedAt,
 	}
 }
@@ -63,6 +65,7 @@ func toConversationMessageRow(m *model.ConversationMessage) *conversationMessage
 		ToolCallID:            m.ToolCallID,
 		ToolCallsJSON:         m.ToolCallsJSON,
 		ProviderStateJSON:     m.ProviderStateJSON,
+		PartsJSON:             m.PartsJSON,
 		CreatedAt:             m.CreatedAt,
 	}
 }
@@ -80,6 +83,7 @@ func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) 
 		ToolCallID:            in.ToolCallID,
 		ToolCallsJSON:         in.ToolCallsJSON,
 		ProviderStateJSON:     in.ProviderStateJSON,
+		PartsJSON:             in.PartsJSON,
 		CreatedAt:             time.Now().Unix(),
 	}
 	if err := s.db.WithContext(ctx).Create(toConversationMessageRow(msg)).Error; err != nil {

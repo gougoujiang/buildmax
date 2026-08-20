@@ -196,7 +196,9 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[]` | — | One model the CLI can run. Select one per run with `--model <id or name>`. |
 | `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. Ignored by a `buildmax` entry, where the deployment's catalog decides. |
 | `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
-| `models[].reasoning` | `false` | Ask the model to reason before answering and replay that reasoning on later turns — see below. No effect on `openai_compatible`, which carries none. |
+| `models[].reasoning` | `off` | How much the model reasons before answering: `off`, `low`, `medium`, or `high` — see below. No effect on `openai_compatible`, which carries none. |
+| `models[].prompt_cache` | `false` | Cache the stable prefix of a request — the tool definitions and system prompt — so later calls in a run pay less for them. |
+| `models[].vision` | `false` | This model accepts image input. Leave it off and an image a tool returns is described in text rather than sent. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
 | `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
 | `models[].team_id` | — | Required for `buildmax` transport: which team the call is billed and authorized against. |
@@ -214,25 +216,27 @@ Claude served through OpenRouter is `openai_compatible`, and Claude served from
 | `openai` | OpenAI Responses | OpenAI's own `api.openai.com`. Runs stateless: BuildMax sends the whole conversation on each call and stores nothing server-side. |
 | `anthropic` | Anthropic Messages | `api.anthropic.com` |
 
-Text, tool calling, streaming, and token usage work the same on all three.
-Prompt caching and image input are not available on any of them yet — see
-[design/llm-provider-adapters.md](../design/llm-provider-adapters.md).
+Text, tool calling, streaming, and token usage work the same on all three. So do
+reasoning, prompt caching, and image input, each described below — what differs
+is only how much a given protocol can do.
 
 ### Reasoning
 
-`reasoning: true` asks the model to reason before answering and carries that
-reasoning forward, so a run that spans several tool calls keeps the thread
-instead of starting over on each one.
+`reasoning` sets how much the model reasons before answering, and carries that
+reasoning forward, so a run spanning several tool calls keeps the thread instead
+of starting over on each one. The levels are `off` (the default), `low`,
+`medium`, and `high`.
 
-| Provider | What it does |
+| Provider | What a level other than `off` does |
 |---|---|
 | `openai_compatible` | Nothing. The protocol has no reasoning state. |
-| `openai` | Requests encrypted reasoning content and replays it on later turns. |
-| `anthropic` | Enables adaptive extended thinking and replays the thinking blocks. |
+| `openai` | Sets the reasoning effort, requests encrypted reasoning content, and replays it on later turns. |
+| `anthropic` | Enables adaptive extended thinking at that effort and replays the thinking blocks. |
 
 It is off by default, because it changes what a call costs and some older models
 reject the request outright. Turning it on for a model that does not support it
 fails the call with the provider's own error rather than silently doing nothing.
+An unrecognized level is refused before any call is made.
 
 The reasoning itself never reaches the transcript. BuildMax stores it as opaque
 state alongside the assistant message and sends it back unread — a signature
@@ -241,6 +245,47 @@ with the protocol that produced it, so continuing a session under a different
 provider drops what that provider cannot use and keeps everything else. Both the
 CLI session file and Portal conversations persist it, and the managed gateway
 carries it, so a run that resumes after a restart keeps its continuity.
+
+### Prompt caching
+
+`prompt_cache: true` asks the provider to cache the part of a request that does
+not change between calls — the tool definitions and system prompt — so the rest
+of a run pays a reduced rate for them.
+
+| Provider | What it does |
+|---|---|
+| `openai_compatible`, `openai` | Nothing to the request: these cache automatically. Cached tokens are reported either way. |
+| `anthropic` | Places cache breakpoints after the system prompt and at the end of the request. |
+
+It is off by default because caching changes what a call costs: writing a cache
+entry is more expensive than not caching, and it only pays back if later calls
+read it. A single short call is worse off; an agent run of many calls is better
+off.
+
+Cached tokens are reported as `cache_read_tokens` and `cache_write_tokens`,
+which **break the prompt count down rather than adding to it**. A spend report
+that summed all of them alongside `prompt_tokens` would count the same tokens
+twice. Managed deployments record both on the `llm_call` ledger row.
+
+### Image input
+
+`vision: true` says the model accepts images. It matters because an MCP server
+can return one — a screenshot, a rendered chart — and what happens next depends
+on whether the model can read it.
+
+| `vision` | What the model receives |
+|---|---|
+| `false` (default) | A line of text saying what came back, such as `(image: image/png, 43.2 KB)`. The image is not sent. |
+| `true` | The same text, plus the image itself. |
+
+The default is off because a model without image support **rejects** a request
+carrying one rather than ignoring it. Both branches send a usable tool result,
+so turning it on is a capability statement, not a repair.
+
+Where the image lands depends on the protocol: `anthropic` puts it inside the
+tool result, while both OpenAI protocols cannot and send it as a short user turn
+immediately after. Managed deployments declare this with the `image_input`
+capability on a catalog model.
 
 ### Managed models
 
@@ -454,7 +499,7 @@ buildmax-server model add --name Claude --provider anthropic \
     --api-url https://api.anthropic.com \
     --api-key your-anthropic-api-key \
     --model claude-sonnet-4-5 --context-window 200000 --max-tokens 8192 \
-    --reasoning
+    --reasoning medium --prompt-cache --vision
 
 buildmax-server model list
 buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
@@ -465,8 +510,10 @@ buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
 [Model providers](#model-providers). It defaults to `openai_compatible`, so a
 catalog written before this option existed keeps working unchanged.
 `--max-tokens` caps one response; leaving it unset means the protocol's default,
-which for `anthropic` is the built-in 8192. `--reasoning` turns on the behavior
-described under [Reasoning](#reasoning). Changing either on a running server
+which for `anthropic` is the built-in 8192. `--reasoning`, `--prompt-cache`, and
+`--vision` are the catalog equivalents of the `settings.yaml` keys described
+under [Reasoning](#reasoning), [Prompt caching](#prompt-caching), and
+[Image input](#image-input). Changing either on a running server
 takes effect on the next call: the router rebuilds a client whose target's
 connection details changed.
 

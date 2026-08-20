@@ -72,6 +72,8 @@ func targetFromModel(m model.LLMModel) (Target, error) {
 		CallTimeout:   time.Duration(m.CallTimeout) * time.Second,
 		MaxTokens:     m.MaxTokens,
 		Reasoning:     m.Reasoning,
+		PromptCache:   m.PromptCache,
+		Vision:        m.Vision,
 		Capabilities:  NewCapabilitySet(capabilities...),
 		Enabled:       m.Enabled,
 	}

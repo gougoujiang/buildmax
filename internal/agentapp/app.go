@@ -153,8 +153,12 @@ type ModelConfig struct {
 	ContextWindow int // 0 = no windowing; from settings.yaml model entry
 	CallTimeout   int // seconds; 0 = uses DefaultCallTimeoutSecs
 	MaxTokens     int // 0 = the adapter's own default
-	// Reasoning asks for reasoning state and replays it on later turns.
-	Reasoning bool
+	// Reasoning is the effort level (config.Reasoning*); off means none.
+	Reasoning string
+	// PromptCache caches the stable prefix of a request.
+	PromptCache bool
+	// Vision says this model accepts image input.
+	Vision bool
 	// Provider is the wire protocol a direct entry speaks. Empty means
 	// config.LLMProviderOpenAICompatible. A managed entry ignores it: the
 	// operator's catalog decides which protocol serves the call.
@@ -864,6 +868,8 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		ContextWindow: cfg.ContextWindow,
 		MaxTokens:     cfg.MaxTokens,
 		Reasoning:     cfg.Reasoning,
+		PromptCache:   cfg.PromptCache,
+		Vision:        cfg.Vision,
 		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
 	})
 	if err != nil {
@@ -962,6 +968,8 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		CallTimeout:   entry.CallTimeout,
 		MaxTokens:     entry.MaxTokens,
 		Reasoning:     entry.Reasoning,
+		PromptCache:   entry.PromptCache,
+		Vision:        entry.Vision,
 		Provider:      entry.Provider,
 		Transport:     entry.Transport,
 		ServerURL:     entry.ServerURL,

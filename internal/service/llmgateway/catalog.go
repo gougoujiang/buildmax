@@ -75,9 +75,13 @@ type Target struct {
 	CallTimeout time.Duration
 	// MaxTokens caps one response; 0 means the client default.
 	MaxTokens int
-	// Reasoning asks the upstream for reasoning state and replays it. The
-	// gateway carries that state without reading it.
-	Reasoning bool
+	// Reasoning is the effort level the upstream is asked for; off means none.
+	// The gateway carries the resulting state without reading it.
+	Reasoning string
+	// PromptCache caches the stable prefix of a request.
+	PromptCache bool
+	// Vision says the upstream accepts image input.
+	Vision bool
 	// Capabilities is what this target declares it can do.
 	Capabilities CapabilitySet
 	// Enabled allows an operator to retire a target without deleting it.

@@ -438,6 +438,7 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 
 		tool := opts.ToolRegistry.Lookup(tc.Name)
 		var result string
+		var parts []llm.ContentPart
 		emit(opts.EventSink, Event{
 			Kind:       EventToolStart,
 			ToolName:   tc.Name,
@@ -453,15 +454,34 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: tc.Name, ToolCallID: tc.ID, DenyReason: DenyReasonLoopGuard})
 			result = fmt.Sprintf(denyMsgLoopGuard, tc.Name)
 		default:
-			result = applyPolicyAndExecute(ctx, opts, policy, tool, tc.Name, tc.ID, args)
+			result, parts = applyPolicyAndExecute(ctx, opts, policy, tool, tc.Name, tc.ID, args)
 		}
 		logToolResult(tc.Name, result)
-		if err := opts.History.Append(llm.Message{Role: "tool", Content: result, ToolCallID: tc.ID}); err != nil {
+		if err := opts.History.Append(llm.Message{
+			Role:       "tool",
+			Content:    result,
+			ToolCallID: tc.ID,
+			Parts:      parts,
+		}); err != nil {
 			return count, err
 		}
 		count++
 	}
 	return count, nil
+}
+
+// executeTool runs a tool, taking its multimodal result when it has one.
+//
+// A tool that returns non-text content still returns text describing it, so the
+// caller does not branch: everything downstream reads the text, and only the
+// history message carries the parts.
+func executeTool(ctx context.Context, tool llm.Tool, args map[string]any) (string, []llm.ContentPart, error) {
+	if multimodal, ok := tool.(llm.MultimodalTool); ok {
+		out, err := multimodal.ExecuteMultimodal(ctx, args)
+		return out.Text, out.Parts, err
+	}
+	result, err := tool.Execute(ctx, args)
+	return result, nil, err
 }
 
 // applyPolicyAndExecute resolves the policy for a tool call and executes it if allowed.
@@ -474,13 +494,13 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 //  5. Allow (safe default for tools that declare nothing).
 //
 // Ask handling: calls ApprovalHandler if set; nil handler collapses Ask to Deny.
-func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, tool llm.Tool, name, callID string, args map[string]any) string {
+func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, tool llm.Tool, name, callID string, args map[string]any) (string, []llm.ContentPart) {
 	action := resolveAction(policy, tool, name, args)
 	switch action {
 	case llm.ToolActionDeny:
 		slog.Info("tool denied by policy", "tool", name)
 		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonPolicy})
-		return fmt.Sprintf(denyMsgPolicy, name)
+		return fmt.Sprintf(denyMsgPolicy, name), nil
 	case llm.ToolActionAsk:
 		// Notify hooks before invoking the approval handler so external
 		// systems (Slack, desktop badge, audit) see the prompt.
@@ -489,13 +509,13 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 			slog.Info("tool denied: Ask with no approval handler", "tool", name)
 			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonPolicy})
 			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "no approval handler configured")
-			return fmt.Sprintf(denyMsgPolicy, name)
+			return fmt.Sprintf(denyMsgPolicy, name), nil
 		}
 		if !opts.Approval.RequestApproval(name, args) {
 			slog.Info("tool denied by user", "tool", name)
 			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonUser})
 			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "denied by user")
-			return fmt.Sprintf(denyMsgUser, name)
+			return fmt.Sprintf(denyMsgUser, name), nil
 		}
 		fallthrough
 	case llm.ToolActionAllow:
@@ -511,10 +531,10 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 			}
 			slog.Info("tool denied by hook", "tool", name, "reason", reason)
 			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonHook})
-			return fmt.Sprintf(denyMsgHook, name, reason)
+			return fmt.Sprintf(denyMsgHook, name, reason), nil
 		}
 		start := time.Now()
-		result, err := tool.Execute(ctx, args)
+		result, parts, err := executeTool(ctx, tool, args)
 		dur := time.Since(start)
 		if err != nil {
 			errMsg := fmt.Sprintf("error: %v", err)
@@ -525,7 +545,7 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 			fail.ToolArgs = args
 			fail.ToolError = errMsg
 			runHook(ctx, opts.Hooks, fail)
-			return errMsg
+			return errMsg, nil
 		}
 		emit(opts.EventSink, Event{Kind: EventToolEnd, ToolName: name, ToolCallID: callID, ToolResult: result, ToolDuration: dur})
 		post := baseHookInput(opts, HookPostToolUse)
@@ -534,9 +554,9 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 		post.ToolArgs = args
 		post.ToolResult = result
 		runHook(ctx, opts.Hooks, post)
-		return result
+		return result, parts
 	default:
-		return fmt.Sprintf("error: unknown policy action for %q", name)
+		return fmt.Sprintf("error: unknown policy action for %q", name), nil
 	}
 }
 

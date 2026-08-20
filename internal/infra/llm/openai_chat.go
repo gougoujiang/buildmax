@@ -21,6 +21,7 @@ type openAIChatAdapter struct {
 	client    *openai.Client
 	model     string
 	maxTokens int
+	vision    bool
 }
 
 func newOpenAIChatAdapter(cfg Config) *openAIChatAdapter {
@@ -44,6 +45,7 @@ func newOpenAIChatAdapter(cfg Config) *openAIChatAdapter {
 		client:    openai.NewClientWithConfig(clientConfig),
 		model:     cfg.Model,
 		maxTokens: cfg.MaxTokens,
+		vision:    cfg.Vision,
 	}
 }
 
@@ -53,6 +55,14 @@ func (a *openAIChatAdapter) buildRequest(messages []cllm.Message, tools []cllm.T
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
 		openaiMsgs = append(openaiMsgs, toOpenAIMessage(m))
+		// This protocol takes images only in a user message, so an image a tool
+		// returned follows the result as its own turn. The tool result itself
+		// stays text, which is what the protocol requires.
+		if a.vision {
+			if follow, ok := imageFollowUpMessage(m); ok {
+				openaiMsgs = append(openaiMsgs, follow)
+			}
+		}
 	}
 	openaiTools := make([]openai.Tool, 0, len(tools))
 	for _, t := range tools {
@@ -72,6 +82,27 @@ func toOpenAIMessage(m cllm.Message) openai.ChatCompletionMessage {
 		Content:    m.Content,
 		ToolCallID: m.ToolCallID,
 	}
+	// The library refuses a message that sets both content forms, so a user
+	// turn with images moves entirely into parts.
+	if m.Role == "user" {
+		if images := m.Images(); len(images) > 0 {
+			parts := make([]openai.ChatMessagePart, 0, len(images)+1)
+			if m.Content != "" {
+				parts = append(parts, openai.ChatMessagePart{
+					Type: openai.ChatMessagePartTypeText,
+					Text: m.Content,
+				})
+			}
+			for _, image := range images {
+				parts = append(parts, openai.ChatMessagePart{
+					Type:     openai.ChatMessagePartTypeImageURL,
+					ImageURL: &openai.ChatMessageImageURL{URL: dataURL(image)},
+				})
+			}
+			msg.Content = ""
+			msg.MultiContent = parts
+		}
+	}
 	if len(m.ToolCalls) > 0 {
 		msg.ToolCalls = make([]openai.ToolCall, 0, len(m.ToolCalls))
 		for _, tc := range m.ToolCalls {
@@ -88,6 +119,30 @@ func toOpenAIMessage(m cllm.Message) openai.ChatCompletionMessage {
 	return msg
 }
 
+// imageFollowUpMessage builds the user turn that carries a tool result's images.
+//
+// It exists because neither OpenAI protocol accepts image content on a tool
+// message, and dropping the image silently would leave the model answering
+// about something it was never shown.
+func imageFollowUpMessage(m cllm.Message) (openai.ChatCompletionMessage, bool) {
+	images := m.Images()
+	if len(images) == 0 {
+		return openai.ChatCompletionMessage{}, false
+	}
+	parts := make([]openai.ChatMessagePart, 0, len(images)+1)
+	parts = append(parts, openai.ChatMessagePart{
+		Type: openai.ChatMessagePartTypeText,
+		Text: imageFollowUpPreamble,
+	})
+	for _, image := range images {
+		parts = append(parts, openai.ChatMessagePart{
+			Type:     openai.ChatMessagePartTypeImageURL,
+			ImageURL: &openai.ChatMessageImageURL{URL: dataURL(image)},
+		})
+	}
+	return openai.ChatCompletionMessage{Role: "user", MultiContent: parts}, true
+}
+
 func toOpenAITool(t cllm.ToolDef) openai.Tool {
 	return openai.Tool{
 		Type: openai.ToolTypeFunction,
@@ -97,6 +152,21 @@ func toOpenAITool(t cllm.ToolDef) openai.Tool {
 			Parameters:  t.Parameters,
 		},
 	}
+}
+
+// chatUsage maps reported tokens. This protocol caches automatically, and
+// reports the cached part as a breakdown of the prompt rather than in addition
+// to it. It has no cache-write count of its own.
+func chatUsage(usage openai.Usage) cllm.Usage {
+	out := cllm.Usage{
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		TotalTokens:      usage.TotalTokens,
+	}
+	if usage.PromptTokensDetails != nil {
+		out.CacheReadTokens = usage.PromptTokensDetails.CachedTokens
+	}
+	return out
 }
 
 func toToolCalls(toolCalls []openai.ToolCall) []cllm.ToolCall {
@@ -149,11 +219,7 @@ func (a *openAIChatAdapter) blocking(ctx context.Context, messages []cllm.Messag
 	return cllm.Completion{
 		Content:   msg.Content,
 		ToolCalls: toToolCalls(msg.ToolCalls),
-		Usage: cllm.Usage{
-			PromptTokens:     resp.Usage.PromptTokens,
-			CompletionTokens: resp.Usage.CompletionTokens,
-			TotalTokens:      resp.Usage.TotalTokens,
-		},
+		Usage:     chatUsage(resp.Usage),
 	}, nil
 }
 

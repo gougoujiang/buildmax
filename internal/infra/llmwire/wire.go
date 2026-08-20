@@ -41,6 +41,19 @@ type Message struct {
 	// ProviderState is opaque reasoning state, present only for role
 	// "assistant" and only when the upstream protocol produced some.
 	ProviderState *ProviderState `json:"provider_state,omitempty"`
+	// Parts is non-text content this message carries. Content stays the text
+	// describing it, so a deployment whose target cannot take images still
+	// serves the call.
+	Parts []ContentPart `json:"parts,omitempty"`
+}
+
+// ContentPart is one piece of a message's content: text, or an image as base64
+// with its media type.
+type ContentPart struct {
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	MediaType string `json:"media_type,omitempty"`
+	Data      string `json:"data,omitempty"`
 }
 
 // ProviderState is reasoning state the upstream protocol requires unchanged on
@@ -95,10 +108,15 @@ type CompletionRequest struct {
 }
 
 // Usage is the token usage for one call.
+//
+// The cache counts break the prompt down rather than adding to it, so a caller
+// that sums all four is double-counting.
 type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
 // CompletionResponse is a finished managed call.

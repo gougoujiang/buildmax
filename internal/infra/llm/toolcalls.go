@@ -67,3 +67,13 @@ func (a *toolCallAccumulator) toolCalls() []cllm.ToolCall {
 	}
 	return out
 }
+
+// imageFollowUpPreamble introduces images that a tool returned but its protocol
+// could not attach to the result. Without it the images arrive as a user turn
+// with no explanation, which reads as the user having sent them.
+const imageFollowUpPreamble = "Images returned by the tool call above:"
+
+// dataURL renders an image part the way the OpenAI protocols take one.
+func dataURL(image cllm.ContentPart) string {
+	return "data:" + image.MediaType + ";base64," + image.Data
+}

@@ -25,7 +25,8 @@ type openAIResponsesAdapter struct {
 	client    *openai.Client
 	model     string
 	maxTokens int
-	reasoning bool
+	reasoning string
+	vision    bool
 }
 
 func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
@@ -44,6 +45,7 @@ func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
 		model:     cfg.Model,
 		maxTokens: cfg.MaxTokens,
 		reasoning: cfg.Reasoning,
+		vision:    cfg.Vision,
 	}
 }
 
@@ -68,6 +70,13 @@ func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []c
 				CallID: m.ToolCallID,
 				Output: m.Content,
 			})
+			// A function call output takes text only, so images a tool returned
+			// follow it as their own user turn.
+			if a.vision {
+				if follow, ok := responsesImageFollowUp(m); ok {
+					input = append(input, follow)
+				}
+			}
 		case "assistant":
 			// Reasoning precedes the output it produced, and is replayed
 			// verbatim: the items are encrypted, so they are carried, not read.
@@ -84,6 +93,12 @@ func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []c
 				})
 			}
 		default:
+			if a.vision {
+				if images := m.Images(); len(images) > 0 {
+					input = append(input, responsesImageMessage(m.Role, m.Content, images))
+					continue
+				}
+			}
 			input = append(input, openai.ResponseInputMessage{Role: m.Role, Content: m.Content})
 		}
 	}
@@ -108,7 +123,8 @@ func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []c
 	// conversation itself, so opt out rather than leave copies behind.
 	store := false
 	req.Store = &store
-	if a.reasoning {
+	if config.ReasoningEnabled(a.reasoning) {
+		req.Reasoning = &openai.ResponseReasoning{Effort: a.reasoning}
 		// Reasoning items are only returned in a form that can be replayed when
 		// asked for explicitly. Without storage there is no previous_response_id
 		// to point at, so the encrypted content has to come back in the response
@@ -157,6 +173,28 @@ func responsesReasoningItems(state *cllm.ProviderState) []any {
 		return nil
 	}
 	return items
+}
+
+// responsesImageFollowUp builds the user turn carrying a tool result's images.
+func responsesImageFollowUp(m cllm.Message) (any, bool) {
+	images := m.Images()
+	if len(images) == 0 {
+		return nil, false
+	}
+	return responsesImageMessage("user", imageFollowUpPreamble, images), true
+}
+
+// responsesImageMessage builds an input message whose content is a list of
+// parts, which is how this protocol carries anything but plain text.
+func responsesImageMessage(role, text string, images []cllm.ContentPart) openai.ResponseInputMessage {
+	content := make([]any, 0, len(images)+1)
+	if text != "" {
+		content = append(content, openai.ResponseInputText{Type: "input_text", Text: text})
+	}
+	for _, image := range images {
+		content = append(content, openai.ResponseInputImage{Type: "input_image", ImageURL: dataURL(image)})
+	}
+	return openai.ResponseInputMessage{Role: role, Content: content}
 }
 
 // responsesOutput reads the protocol's output items into canonical content and
@@ -209,15 +247,23 @@ func responsesItem(item openai.ResponseOutputItem) (string, *cllm.ToolCall) {
 	}
 }
 
+// responsesUsage maps reported tokens. This protocol caches automatically, so
+// the cached counts are read whether or not caching was asked for; they are a
+// breakdown of InputTokens rather than an addition to it.
 func responsesUsage(usage *openai.ResponseUsage) cllm.Usage {
 	if usage == nil {
 		return cllm.Usage{}
 	}
-	return cllm.Usage{
+	out := cllm.Usage{
 		PromptTokens:     usage.InputTokens,
 		CompletionTokens: usage.OutputTokens,
 		TotalTokens:      usage.TotalTokens,
 	}
+	if usage.InputTokensDetails != nil {
+		out.CacheReadTokens = usage.InputTokensDetails.CachedTokens
+		out.CacheWriteTokens = usage.InputTokensDetails.CacheWriteTokens
+	}
+	return out
 }
 
 func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {

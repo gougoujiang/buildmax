@@ -115,6 +115,16 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 			providerStateJSON = &js
 		}
 	}
+	// Non-text content is stored the same way and for the same reason: a Tier 1
+	// turn replays from these rows, so an image a tool returned has to survive
+	// or the next turn discusses something it can no longer see.
+	var partsJSON *string
+	if len(m.Parts) > 0 {
+		if encoded, err := json.Marshal(m.Parts); err == nil {
+			js := string(encoded)
+			partsJSON = &js
+		}
+	}
 	_, err := b.msgStore.AppendMessage(b.ctx, model.AppendMessageInput{
 		ConversationID:    b.conversationID,
 		Role:              m.Role,
@@ -122,6 +132,7 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 		ToolCallID:        toolCallID,
 		ToolCallsJSON:     toolCallsJSON,
 		ProviderStateJSON: providerStateJSON,
+		PartsJSON:         partsJSON,
 	})
 	return err
 }
@@ -147,6 +158,12 @@ func replayMessageFromStore(m model.ConversationMessage) llm.Message {
 		var state llm.ProviderState
 		if err := json.Unmarshal([]byte(*m.ProviderStateJSON), &state); err == nil {
 			msg.ProviderState = &state
+		}
+	}
+	if m.PartsJSON != nil && *m.PartsJSON != "" {
+		var parts []llm.ContentPart
+		if err := json.Unmarshal([]byte(*m.PartsJSON), &parts); err == nil {
+			msg.Parts = parts
 		}
 	}
 	return msg

@@ -100,11 +100,13 @@ persistence, so server-side conversation state would compete with all four.
 
 ## Reasoning State
 
-`Config.Reasoning` asks a protocol for the reasoning it does before answering,
-and replays it on later turns. Anthropic gets adaptive extended thinking with
-`display: omitted`; Responses gets `include: ["reasoning.encrypted_content"]`,
-which is the only way to replay reasoning when nothing is stored server-side.
-Chat Completions has no such state and ignores the flag.
+`Config.Reasoning` is an effort level — `off`, `low`, `medium`, `high` — and any
+level but off also replays the reasoning on later turns. Anthropic gets adaptive
+extended thinking at that effort with `display: omitted`; Responses gets the
+effort plus `include: ["reasoning.encrypted_content"]`, which is the only way to
+replay reasoning when nothing is stored server-side. Chat Completions has no such
+state and ignores the setting. An unrecognized level fails `NewClient` rather
+than reaching a provider.
 
 What comes back is recorded on the assistant message as `ProviderState`, an
 opaque payload tagged with the protocol that produced it. Three properties
@@ -122,6 +124,41 @@ State that cannot be encoded is dropped rather than half-written, and a stored
 payload that no longer parses replays as no state at all. In both cases the turn
 proceeds without continuity, which is exactly what a protocol without reasoning
 does anyway.
+
+## Prompt Caching
+
+`Config.PromptCache` only changes a request on Anthropic, which needs explicit
+breakpoints: one after the system prompt, which covers the tools and system
+prompt that are identical on every call in a run, and one at the end of the
+request, so the next turn reads the whole prefix rather than only the part before
+the conversation. Both OpenAI protocols cache on their own; the flag does nothing
+there.
+
+Cached counts are reported by all three and land on `core/llm.Usage` as
+`CacheReadTokens` and `CacheWriteTokens`. They are a **breakdown of
+`PromptTokens`, not an addition to it**. Anthropic reports cached input apart
+from `input_tokens`, so its adapter adds it back before reporting a prompt total;
+the OpenAI protocols already include it. Getting that wrong in either direction
+misreports what a run cost.
+
+## Image Input
+
+`Config.Vision` says the model accepts images. It exists because a model without
+image support rejects a request carrying one rather than ignoring it, and the
+producer — an MCP server returning a screenshot — cannot know which model it is
+talking to.
+
+A message carries images in `Parts`, with `Content` holding the text that
+describes them. When `Vision` is false, an adapter sends the text alone, which is
+still a complete tool result. When it is true, placement follows the protocol:
+
+| Protocol | Where a tool's image goes |
+|---|---|
+| Anthropic | Inside the `tool_result` block, where the protocol accepts it |
+| Chat Completions, Responses | A short user turn immediately after the tool result, because neither accepts image content on a tool message |
+
+The follow-up turn carries a one-line preamble. Without it the images arrive as a
+user turn with no explanation, which reads as though the user sent them.
 
 ## Retries
 

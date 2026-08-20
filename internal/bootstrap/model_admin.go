@@ -41,7 +41,9 @@ Flags for add:
   --context-window int    Usable context size; 0 uses the client default
   --call-timeout int      Per-call timeout in seconds; 0 uses the client default
   --max-tokens int        Cap on one response; 0 uses the client default
-  --reasoning             Ask for reasoning state and replay it on later turns
+  --reasoning string      Reasoning effort: off (default), low, medium, high
+  --prompt-cache          Cache the stable prefix of a request
+  --vision                The upstream accepts image input
   --capabilities string   Comma-separated; defaults to the provider contract
 
 Flags for enable and disable:
@@ -87,7 +89,9 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	contextWindow := fs.Int("context-window", 0, "usable context size")
 	callTimeout := fs.Int("call-timeout", 0, "per-call timeout in seconds")
 	maxTokens := fs.Int("max-tokens", 0, "cap on one response")
-	reasoning := fs.Bool("reasoning", false, "ask for reasoning state and replay it")
+	reasoning := fs.String("reasoning", "", "reasoning effort: off, low, medium, high")
+	promptCache := fs.Bool("prompt-cache", false, "cache the stable prefix of a request")
+	vision := fs.Bool("vision", false, "the upstream accepts image input")
 	capabilities := fs.String("capabilities", "", "comma-separated capability list")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -102,7 +106,9 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		ContextWindow: *contextWindow,
 		CallTimeout:   *callTimeout,
 		MaxTokens:     *maxTokens,
-		Reasoning:     *reasoning,
+		Reasoning:     strings.TrimSpace(*reasoning),
+		PromptCache:   *promptCache,
+		Vision:        *vision,
 		Capabilities:  parseCapabilityList(*capabilities),
 	}
 	if err := validateModelInput(in); err != nil {
@@ -211,6 +217,9 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 		return errors.New("model add: --call-timeout cannot be negative")
 	case in.MaxTokens < 0:
 		return errors.New("model add: --max-tokens cannot be negative")
+	case !config.KnownReasoningEffort(in.Reasoning):
+		return fmt.Errorf("model add: --reasoning %q is not a level; use one of %s",
+			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
 	case !llmgateway.KnownProvider(in.ProviderType):
 		return fmt.Errorf("model add: --provider %q is not implemented; use one of %s",
 			in.ProviderType, strings.Join(llmgateway.Providers(), ", "))

@@ -99,6 +99,10 @@ func TestAnthropicCapturesThinkingAsProviderState(t *testing.T) {
 	if thinking["type"] != "adaptive" || thinking["display"] != "omitted" {
 		t.Errorf("thinking = %+v, want adaptive with display omitted", thinking)
 	}
+	output, ok := request["output_config"].(map[string]any)
+	if !ok || output["effort"] != config.ReasoningMedium {
+		t.Errorf("output_config = %+v, want the configured effort", request["output_config"])
+	}
 }
 
 func TestAnthropicReplaysThinkingOnTheNextTurn(t *testing.T) {
@@ -226,7 +230,7 @@ func newReasoningClient(t *testing.T, provider, baseURL string) *LLMClient {
 		BaseURL:       baseURL,
 		Model:         "test-model",
 		ContextWindow: 32_000,
-		Reasoning:     true,
+		Reasoning:     config.ReasoningMedium,
 	})
 	if err != nil {
 		t.Fatalf("NewClient(%s): %v", provider, err)

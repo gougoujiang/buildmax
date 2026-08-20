@@ -53,9 +53,19 @@ type ModelEntry struct {
 	// Anthropic Messages protocol requires the field, so its adapter substitutes
 	// DefaultMaxTokens; the OpenAI protocols send it only when set.
 	MaxTokens int `mapstructure:"max_tokens"`
-	// Reasoning asks the model for reasoning state and replays it on later
-	// turns. It has no effect on a protocol that carries none.
-	Reasoning bool `mapstructure:"reasoning"`
+	// Reasoning is how much the model should reason before answering:
+	// ReasoningOff (the default), ReasoningLow, ReasoningMedium, or
+	// ReasoningHigh. Any level other than off also replays the reasoning on
+	// later turns. It has no effect on a protocol that carries none.
+	Reasoning string `mapstructure:"reasoning"`
+	// Vision says this model accepts image input. When false, an image a tool
+	// returns is described in text rather than sent, because a model that
+	// cannot read images rejects the request rather than ignoring the image.
+	Vision bool `mapstructure:"vision"`
+	// PromptCache asks the provider to cache the stable prefix of a request —
+	// the tool definitions and system prompt — so later calls in the same run
+	// pay less for them.
+	PromptCache bool `mapstructure:"prompt_cache"`
 	// Provider is the wire protocol a direct entry speaks: LLMProviderOpenAICompatible
 	// (the default), LLMProviderOpenAI, or LLMProviderAnthropic. It is ignored by a
 	// "buildmax" entry, where the operator's catalog decides.
@@ -94,6 +104,38 @@ func (m ModelEntry) LLMProvider() string {
 		return LLMProviderOpenAICompatible
 	}
 	return m.Provider
+}
+
+// Reasoning effort levels. They are a neutral scale: each protocol maps them to
+// its own vocabulary, and a level a model does not support fails that model's
+// call rather than being silently downgraded.
+const (
+	// ReasoningOff does no extra reasoning. It is the default.
+	ReasoningOff    = "off"
+	ReasoningLow    = "low"
+	ReasoningMedium = "medium"
+	ReasoningHigh   = "high"
+)
+
+// ReasoningEnabled reports whether a configured level asks for reasoning.
+func ReasoningEnabled(level string) bool {
+	return level != "" && level != ReasoningOff
+}
+
+// KnownReasoningEffort reports whether level is one BuildMax implements. The
+// empty string is known: it means off.
+func KnownReasoningEffort(level string) bool {
+	switch level {
+	case "", ReasoningOff, ReasoningLow, ReasoningMedium, ReasoningHigh:
+		return true
+	}
+	return false
+}
+
+// ReasoningEfforts returns every level an operator may set, for help text and
+// error messages that must not drift from the list above.
+func ReasoningEfforts() []string {
+	return []string{ReasoningOff, ReasoningLow, ReasoningMedium, ReasoningHigh}
 }
 
 // KnownLLMProvider reports whether name is a wire protocol BuildMax implements.

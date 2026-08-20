@@ -134,6 +134,8 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 		CallTimeout:   time.Duration(entry.CallTimeout) * time.Second,
 		MaxTokens:     entry.MaxTokens,
 		Reasoning:     entry.Reasoning,
+		PromptCache:   entry.PromptCache,
+		Vision:        entry.Vision,
 		Capabilities:  llmgateway.NewCapabilitySet(llmgateway.BaselineCapabilities()...),
 		Enabled:       true,
 	}
@@ -190,6 +192,8 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 			ContextWindow: target.ContextWindow,
 			MaxTokens:     target.MaxTokens,
 			Reasoning:     target.Reasoning,
+			PromptCache:   target.PromptCache,
+			Vision:        target.Vision,
 			CallTimeout:   target.CallTimeout,
 		})
 		if err != nil {

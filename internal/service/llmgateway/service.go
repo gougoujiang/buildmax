@@ -260,6 +260,8 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			TotalTokens:      usage.TotalTokens,
+			CacheReadTokens:  usage.CacheReadTokens,
+			CacheWriteTokens: usage.CacheWriteTokens,
 			Source:           model.LLMUsageSourceReported,
 		}
 	}

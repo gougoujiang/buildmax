@@ -23,10 +23,12 @@ import (
 // mid-conversation, so repairing it into a valid request is this adapter's job
 // rather than a constraint pushed back onto core/llm.
 type anthropicAdapter struct {
-	client    anthropic.Client
-	model     string
-	maxTokens int
-	reasoning bool
+	client      anthropic.Client
+	model       string
+	maxTokens   int
+	reasoning   string
+	promptCache bool
+	vision      bool
 }
 
 func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
@@ -46,17 +48,19 @@ func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
 		opts = append(opts, option.WithHTTPClient(cfg.HTTPClient))
 	}
 	return &anthropicAdapter{
-		client:    anthropic.NewClient(opts...),
-		model:     cfg.Model,
-		maxTokens: maxTokensOrDefault(cfg.MaxTokens),
-		reasoning: cfg.Reasoning,
+		client:      anthropic.NewClient(opts...),
+		model:       cfg.Model,
+		maxTokens:   maxTokensOrDefault(cfg.MaxTokens),
+		reasoning:   cfg.Reasoning,
+		promptCache: cfg.PromptCache,
+		vision:      cfg.Vision,
 	}, nil
 }
 
 func (a *anthropicAdapter) name() string { return config.LLMProviderAnthropic }
 
 func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.ToolDef) (anthropic.MessageNewParams, error) {
-	system, converted, err := anthropicMessages(messages)
+	system, converted, err := anthropicMessages(messages, a.vision)
 	if err != nil {
 		return anthropic.MessageNewParams{}, err
 	}
@@ -67,9 +71,24 @@ func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.Too
 		Tools:     anthropicTools(tools),
 	}
 	if system != "" {
-		params.System = []anthropic.TextBlockParam{{Text: system}}
+		block := anthropic.TextBlockParam{Text: system}
+		if a.promptCache {
+			// Tools and the system prompt render before the messages and are
+			// the same on every call in a run, so one breakpoint at the end of
+			// the system prompt caches both. History is not cached here: a
+			// second breakpoint is placed on the last block below, where it
+			// covers whatever the turn actually ended with.
+			block.CacheControl = anthropic.NewCacheControlEphemeralParam()
+		}
+		params.System = []anthropic.TextBlockParam{block}
 	}
-	if a.reasoning {
+	if a.promptCache {
+		// The top-level marker attaches to the last cacheable block in the
+		// request, so the next turn reads the whole prefix rather than only the
+		// part before the conversation.
+		params.CacheControl = anthropic.NewCacheControlEphemeralParam()
+	}
+	if config.ReasoningEnabled(a.reasoning) {
 		// Adaptive is the only supported mode on current models; a fixed token
 		// budget is rejected by them. Display is omitted rather than summarized
 		// because BuildMax needs the signature for multi-turn continuity, not
@@ -79,6 +98,9 @@ func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.Too
 			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{
 				Display: anthropic.ThinkingConfigAdaptiveDisplayOmitted,
 			},
+		}
+		params.OutputConfig = anthropic.OutputConfigParam{
+			Effort: anthropic.OutputConfigEffort(a.reasoning),
 		}
 	}
 	return params, nil
@@ -97,7 +119,7 @@ func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.Too
 //   - messages before the first user message are dropped, because a
 //     conversation cannot open with model output;
 //   - empty text is never emitted, because an empty block is rejected.
-func anthropicMessages(messages []cllm.Message) (string, []anthropic.MessageParam, error) {
+func anthropicMessages(messages []cllm.Message, vision bool) (string, []anthropic.MessageParam, error) {
 	var systemParts []string
 	body := make([]cllm.Message, 0, len(messages))
 	for _, m := range messages {
@@ -146,7 +168,7 @@ func anthropicMessages(messages []cllm.Message) (string, []anthropic.MessagePara
 				if _, called := calledIDs[result.ToolCallID]; !called {
 					continue
 				}
-				blocks = append(blocks, anthropic.NewToolResultBlock(result.ToolCallID, result.Content, false))
+				blocks = append(blocks, anthropicToolResult(result, vision))
 			}
 			if len(blocks) > 0 {
 				out = append(out, anthropic.NewUserMessage(blocks...))
@@ -177,8 +199,17 @@ func anthropicMessages(messages []cllm.Message) (string, []anthropic.MessagePara
 			}
 			i++
 		default:
+			var blocks []anthropic.ContentBlockParamUnion
 			if m.Content != "" {
-				out = append(out, anthropic.NewUserMessage(anthropic.NewTextBlock(m.Content)))
+				blocks = append(blocks, anthropic.NewTextBlock(m.Content))
+			}
+			if vision {
+				for _, image := range m.Images() {
+					blocks = append(blocks, anthropic.NewImageBlockBase64(image.MediaType, image.Data))
+				}
+			}
+			if len(blocks) > 0 {
+				out = append(out, anthropic.NewUserMessage(blocks...))
 			}
 			i++
 		}
@@ -187,6 +218,40 @@ func anthropicMessages(messages []cllm.Message) (string, []anthropic.MessagePara
 		return "", nil, errors.New("anthropic messages are empty after normalization")
 	}
 	return strings.Join(systemParts, "\n\n"), out, nil
+}
+
+// anthropicToolResult renders one tool result. This protocol takes image blocks
+// inside a tool_result, so a returned image reaches the model where it belongs
+// rather than as a separate turn.
+func anthropicToolResult(result cllm.Message, vision bool) anthropic.ContentBlockParamUnion {
+	images := result.Images()
+	if !vision || len(images) == 0 {
+		return anthropic.NewToolResultBlock(result.ToolCallID, result.Content, false)
+	}
+	content := make([]anthropic.ToolResultBlockParamContentUnion, 0, len(images)+1)
+	if result.Content != "" {
+		content = append(content, anthropic.ToolResultBlockParamContentUnion{
+			OfText: &anthropic.TextBlockParam{Text: result.Content},
+		})
+	}
+	for _, image := range images {
+		content = append(content, anthropic.ToolResultBlockParamContentUnion{
+			OfImage: &anthropic.ImageBlockParam{
+				Source: anthropic.ImageBlockParamSourceUnion{
+					OfBase64: &anthropic.Base64ImageSourceParam{
+						Data:      image.Data,
+						MediaType: anthropic.Base64ImageSourceMediaType(image.MediaType),
+					},
+				},
+			},
+		})
+	}
+	return anthropic.ContentBlockParamUnion{
+		OfToolResult: &anthropic.ToolResultBlockParam{
+			ToolUseID: result.ToolCallID,
+			Content:   content,
+		},
+	}
 }
 
 // anthropicToolInput turns recorded argument JSON back into a value the request
@@ -362,12 +427,19 @@ func anthropicContent(blocks []anthropic.ContentBlockUnion) (string, []cllm.Tool
 // reports no total, so one is computed: metering reads TotalTokens, and leaving
 // it zero would report a call that cost nothing.
 func anthropicUsage(usage anthropic.Usage) cllm.Usage {
-	prompt := int(usage.InputTokens)
+	// Cached input is reported apart from InputTokens here, so the prompt total
+	// has to add it back: a cached call would otherwise look like it read
+	// almost no prompt at all.
+	cacheRead := int(usage.CacheReadInputTokens)
+	cacheWrite := int(usage.CacheCreationInputTokens)
+	prompt := int(usage.InputTokens) + cacheRead + cacheWrite
 	completion := int(usage.OutputTokens)
 	return cllm.Usage{
 		PromptTokens:     prompt,
 		CompletionTokens: completion,
 		TotalTokens:      prompt + completion,
+		CacheReadTokens:  cacheRead,
+		CacheWriteTokens: cacheWrite,
 	}
 }
 

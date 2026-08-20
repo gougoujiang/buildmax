@@ -1,6 +1,6 @@
 # LLM Provider Adapters
 
-> **Audience:** contributors · **Status:** phases 1 and 2 shipped; phase 3 open
+> **Audience:** contributors · **Status:** all three phases shipped
 >
 > Shipped: the three adapters and the shared retry, timeout, and error
 > classification in `internal/infra/llm`; `provider` and `max_tokens` on a
@@ -16,8 +16,15 @@
 > column on `conversation_message`, and the matching field in `llmwire` so
 > managed callers keep continuity too.
 >
-> Not shipped: phase 3 — prompt caching and its usage counters, and multimodal
-> input.
+> Phase 3 added the last two capabilities the canonical format could not
+> express: prompt caching with `CacheReadTokens`/`CacheWriteTokens` on `Usage`
+> and on the `llm_call` ledger, and image input through `ContentPart` beside
+> `Content`, with `MultimodalTool` letting the MCP gateway forward what a server
+> returns. Reasoning also became an effort level rather than a boolean.
+>
+> The three capability knobs — `reasoning`, `prompt_cache`, `vision` — are all
+> opt-in, because each changes either what a call costs or whether a model
+> accepts it at all.
 >
 > Extends [llm-gateway.md](llm-gateway.md), which owns the `direct` vs
 > `buildmax` transport split and the model catalog. This document owns the
@@ -192,20 +199,16 @@ Consequences that follow, and that the implementation must honor:
 
 Recorded so the next reader does not mistake them for oversights:
 
-- `Content` is a single string, so there are no content blocks and no
-  multimodal input. One cost is already being paid, independent of this work:
-  `internal/infra/mcp/registry.go` flattens non-text MCP tool results by JSON
-  encoding them, so an MCP server returning an image sends the model a base64
-  blob as text.
-- `Usage` has no cache-read or cache-write counters, so Anthropic prompt
-  caching cannot be metered.
+- `Content` is a single string. Phase 3 added `Parts` beside it rather than
+  replacing it, so text stays the projection every consumer reads. Only images
+  are carried; audio, video, and documents still flatten to a line of JSON.
 
-When multimodal is needed, the extension is `Parts []ContentPart` **beside**
-`Content`, keeping `Content` as the text projection — not a replacement.
-Replacing it would touch the session file format, the message table, `llmwire`,
-and the roughly fifty places that read `.Content` for rendering, token
-estimation, compaction, titles, and traces. Adding beside it touches none of
-them.
+Phase 3 took the extension route this section argued for: `Parts []ContentPart`
+**beside** `Content`, keeping `Content` as the text projection. Replacing it
+would have touched the session file format, the message table, `llmwire`, and
+the roughly fifty places that read `.Content` for rendering, token estimation,
+compaction, titles, and traces. Adding beside it touched none of them, and the
+same route is open for the content kinds still flattened.
 
 ## 7. Adapter Responsibilities
 
@@ -343,16 +346,32 @@ not move.
 the LLM contract does, and a seven-argument positional list had stopped saying
 which `nil` meant what.
 
-### Phase 3 and later — deferred capabilities
+### Phase 3 — prompt caching and image input — shipped
 
-Anthropic prompt caching, which needs cache counters on `Usage`; multimodal
-input, which needs `Parts` beside `Content`. Neither is on
-[ROADMAP.md](../ROADMAP.md) today.
+Both landed the way §6.1 predicted: as fields beside the existing ones. Old
+session files and message rows read as having none, and nothing that reads
+`.Content` changed.
 
-Phase 2 is evidence for how §6.1 said this would go: reasoning state was added
-as a tagged field beside the existing ones, old session files and message rows
-read as having none, and nothing that reads `.Content` changed. Multimodal is
-expected to cost the same shape of change.
+**Prompt caching** is a request change on Anthropic only — two breakpoints, one
+after the system prompt and one at the end — and pure reporting on the two
+OpenAI protocols, which cache on their own. The counters break `PromptTokens`
+down rather than adding to it, and Anthropic is the one protocol that reports
+cached input *outside* its input count, so its adapter adds it back. That
+asymmetry is the whole reason the mapping needed a test per protocol.
+
+**Image input** needed a producer to be worth having, and there was exactly one:
+the MCP gateway, whose results used to have non-text content JSON-encoded into
+the result text — the loss §6.1 recorded. Rather than widen `Tool.Execute` for
+sixteen text-only tools, `MultimodalTool` is an optional upgrade the agent loop
+asks for, following the `NotesHistory` precedent in the same file.
+
+Two things fell out of the protocols rather than the design. Only Anthropic
+accepts an image inside a tool result; the OpenAI protocols need it as a
+following user turn, with a preamble so it does not read as something the user
+sent. And a model without image support *rejects* a request carrying one, which
+is why `vision` is a per-model statement rather than something inferred — with
+it off, the text describing the image is still a complete tool result, so both
+branches work.
 
 Note that prompt caching is **not** blocked by the single-string `Content`:
 cache breakpoints attach to blocks the adapter itself constructs. It is
@@ -380,14 +399,14 @@ kind smokes to three protocols would test the mock more than the product.
 
 ## 13. Out Of Scope
 
-Reasoning and thinking state (phase 2); prompt caching and cache-token metering
-(phase 3); multimodal input (phase 3); Bedrock, Vertex, and Azure endpoint
-families; per-request protocol selection by a managed caller; server-side
-conversation state via `previous_response_id`.
+Bedrock, Vertex, and Azure endpoint families; per-request protocol selection by
+a managed caller; server-side conversation state via `previous_response_id`;
+audio, video, and document content, which still flatten to text; caching the
+conversation prefix rather than only the tools and system prompt.
 
 ## 14. Open Questions
 
-Phases 1 and 2 settled the first four:
+Every question this design opened is settled:
 
 1. `config.DefaultMaxTokens` is 8192, beside the other defaults. The Anthropic
    adapter substitutes it; the OpenAI adapters send a cap only when one is set.
@@ -405,8 +424,9 @@ Phases 1 and 2 settled the first four:
    produces this state rejects a turn that drops it, so an operator enabling
    reasoning on a catalog target would break every managed tool-calling run.
 
-Still open:
+5. Reasoning is an effort level — `off`, `low`, `medium`, `high` — mapped to
+   each protocol's own vocabulary. The scale stops at `high` because that is
+   the highest level both protocols share; a level a model does not support
+   fails that model's call rather than being quietly downgraded.
 
-5. Reasoning is a boolean. Both protocols also accept an effort or depth
-   setting, and neither is exposed. A single neutral scale across three
-   protocols is a guess until there is a reason to make it.
+Nothing in this design is open. What remains is listed under §13.

@@ -14,6 +14,43 @@ type Message struct {
 	// ProviderState is opaque reasoning state the producing protocol requires
 	// back on later turns. For role "assistant" only. See ProviderState.
 	ProviderState *ProviderState `json:"provider_state,omitempty"`
+	// Parts is non-text content this message carries. Content stays the text
+	// projection of the same message, so nothing that reads it has to know
+	// parts exist. See ContentPart.
+	Parts []ContentPart `json:"parts,omitempty"`
+}
+
+// Content part kinds.
+const (
+	ContentPartText  = "text"
+	ContentPartImage = "image"
+)
+
+// ContentPart is one piece of a message's content.
+//
+// Parts sit beside Content rather than replacing it. A message with an image
+// still carries text saying what the image is, so token estimation, trimming,
+// compaction, traces, and the terminal renderer keep working unchanged and a
+// protocol that cannot take images still receives a sensible turn.
+type ContentPart struct {
+	Type string `json:"type"`
+	// Text is set on a text part.
+	Text string `json:"text,omitempty"`
+	// MediaType and Data are set on an image part. Data is base64 with no
+	// data: prefix, which is the form every protocol here wants.
+	MediaType string `json:"media_type,omitempty"`
+	Data      string `json:"data,omitempty"`
+}
+
+// Images returns the image parts of a message, or nil when it has none.
+func (m Message) Images() []ContentPart {
+	var out []ContentPart
+	for _, part := range m.Parts {
+		if part.Type == ContentPartImage && part.Data != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 // ProviderState is provider-owned content that a protocol produces and then
@@ -83,6 +120,13 @@ type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	// CacheReadTokens is the part of the prompt served from a provider's cache,
+	// and CacheWriteTokens the part written into it. Both are subsets of the
+	// prompt: adding them to PromptTokens would count the same tokens twice.
+	// Zero means the provider reported none, which is also what a provider
+	// without caching reports.
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
 // LLMClient can perform chat completions with tools and exposes its configuration.

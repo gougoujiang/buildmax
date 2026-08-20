@@ -585,3 +585,67 @@ func TestSystemPromptOption(t *testing.T) {
 		t.Errorf("messages[0].Content = %q, want custom prompt", rec.firstMsg[0].Content)
 	}
 }
+
+// multimodalTool returns content text cannot hold, the way the MCP gateway does.
+type multimodalTool struct{ mockTool }
+
+func (m *multimodalTool) ExecuteMultimodal(_ context.Context, _ map[string]any) (llm.ToolResult, error) {
+	return llm.ToolResult{
+		Text:  "(image: image/png, 3 B)",
+		Parts: []llm.ContentPart{{Type: llm.ContentPartImage, MediaType: "image/png", Data: "aGk="}},
+	}, nil
+}
+
+// A tool that has more than text to say puts it on the history message, while
+// everything that reads the result text keeps reading text.
+func TestMultimodalToolResultReachesTheHistory(t *testing.T) {
+	tool := &multimodalTool{mockTool{name: "screenshot", result: "unused"}}
+	client := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: []llm.ToolCall{{ID: "call_1", Name: "screenshot", Arguments: "{}"}}},
+		{content: "done"},
+	}}
+	history := newTestBuffer()
+	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+		LLMClient: client, ToolRegistry: newTestToolRegistry(tool), History: history, MaxIter: 3,
+	}); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+
+	messages := history.HistoryMessages()
+	var toolMsg *llm.Message
+	for i := range messages {
+		if messages[i].Role == "tool" {
+			toolMsg = &messages[i]
+		}
+	}
+	if toolMsg == nil {
+		t.Fatal("no tool message was appended")
+	}
+	if len(toolMsg.Images()) != 1 {
+		t.Fatalf("tool message parts = %+v, want one image", toolMsg.Parts)
+	}
+	if toolMsg.Content != "(image: image/png, 3 B)" {
+		t.Errorf("tool message content = %q, want the text describing the image", toolMsg.Content)
+	}
+}
+
+// A tool that only returns text is unaffected: the optional upgrade exists so
+// sixteen text-only tools do not have to carry a field they never set.
+func TestTextOnlyToolResultCarriesNoParts(t *testing.T) {
+	client := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: []llm.ToolCall{{ID: "call_1", Name: "echo", Arguments: "{}"}}},
+		{content: "done"},
+	}}
+	history := newTestBuffer()
+	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+		LLMClient: client, ToolRegistry: newTestToolRegistry(&mockTool{name: "echo", result: "plain"}),
+		History: history, MaxIter: 3,
+	}); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	for _, msg := range history.HistoryMessages() {
+		if msg.Role == "tool" && len(msg.Parts) != 0 {
+			t.Errorf("tool message = %+v, want no parts", msg)
+		}
+	}
+}

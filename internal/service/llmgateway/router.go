@@ -39,7 +39,9 @@ type clientKey struct {
 	contextWindow int
 	callTimeout   time.Duration
 	maxTokens     int
-	reasoning     bool
+	reasoning     string
+	promptCache   bool
+	vision        bool
 }
 
 func keyOf(target Target) clientKey {
@@ -52,6 +54,8 @@ func keyOf(target Target) clientKey {
 		callTimeout:   target.CallTimeout,
 		maxTokens:     target.MaxTokens,
 		reasoning:     target.Reasoning,
+		promptCache:   target.PromptCache,
+		vision:        target.Vision,
 	}
 }
 

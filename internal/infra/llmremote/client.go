@@ -176,6 +176,8 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Mes
 			PromptTokens:     out.Usage.PromptTokens,
 			CompletionTokens: out.Usage.CompletionTokens,
 			TotalTokens:      out.Usage.TotalTokens,
+			CacheReadTokens:  out.Usage.CacheReadTokens,
+			CacheWriteTokens: out.Usage.CacheWriteTokens,
 		}
 	}
 	return cllm.Completion{
@@ -305,6 +307,8 @@ func (s *streamState) finish() (cllm.Completion, error) {
 			PromptTokens:     s.result.Usage.PromptTokens,
 			CompletionTokens: s.result.Usage.CompletionTokens,
 			TotalTokens:      s.result.Usage.TotalTokens,
+			CacheReadTokens:  s.result.Usage.CacheReadTokens,
+			CacheWriteTokens: s.result.Usage.CacheWriteTokens,
 		}
 	}
 	return cllm.Completion{
@@ -414,6 +418,7 @@ func toWireMessages(in []cllm.Message) []llmwire.Message {
 			ToolCallID:    m.ToolCallID,
 			ToolCalls:     toWireToolCalls(m.ToolCalls),
 			ProviderState: toWireProviderState(m.ProviderState),
+			Parts:         toWireParts(m.Parts),
 		})
 	}
 	return out
@@ -442,6 +447,19 @@ func fromWireProviderState(in *llmwire.ProviderState) *cllm.ProviderState {
 		return nil
 	}
 	return &cllm.ProviderState{Protocol: in.Protocol, Data: in.Data}
+}
+
+func toWireParts(in []cllm.ContentPart) []llmwire.ContentPart {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]llmwire.ContentPart, 0, len(in))
+	for _, part := range in {
+		out = append(out, llmwire.ContentPart{
+			Type: part.Type, Text: part.Text, MediaType: part.MediaType, Data: part.Data,
+		})
+	}
+	return out
 }
 
 func fromWireToolCalls(in []llmwire.ToolCall) []cllm.ToolCall {
