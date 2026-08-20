@@ -1,14 +1,9 @@
 package architecture_test
 
-// docs/contribute/repo-layout.md calls itself "the single source of truth for
-// the repository tree", and README, AGENTS.md, and the architecture reference
-// all link there rather than repeating it. A package missing from that file is
-// therefore not a documentation gap somewhere — it is a package with no
-// documented owner anywhere.
-//
-// These tests read the `internal/` tree out of that document and compare it to
-// what is on disk, in both directions: a new package must be added to the file,
-// and a deleted one must be removed from it.
+// README, AGENTS.md, and the architecture reference all link to
+// repo-layout.md rather than repeat the tree, so a package missing from it has
+// no documented owner anywhere. These tests compare its `internal/` tree to
+// disk in both directions.
 
 import (
 	"os"
@@ -19,18 +14,13 @@ import (
 	"testing"
 )
 
-// treeEntryRe matches one directory line of the ASCII tree, capturing the
-// indentation before the branch marker and the directory name after it. Lines
-// that continue a description onto a second row carry no marker and so do not
-// match.
+// Continuation lines carry no branch marker, so a wrapped description does not
+// match as a directory.
 var treeEntryRe = regexp.MustCompile(`^([│ ]*)(?:├──|└──) ([A-Za-z0-9_.-]+)/`)
 
-// indentPerLevel is the width of one nesting level in the tree, e.g. the four
-// columns between "├── core/" and "│   ├── model/".
+// Columns between "├── core/" and "│   ├── model/".
 const indentPerLevel = 4
 
-// documentedInternalPackages reads the `internal/` code fence out of
-// repo-layout.md and returns the full slash-separated paths it names.
 func documentedInternalPackages(t *testing.T, root string) map[string]bool {
 	t.Helper()
 	path := filepath.Join(root, "docs", "contribute", "repo-layout.md")
@@ -74,9 +64,8 @@ func documentedInternalPackages(t *testing.T, root string) map[string]bool {
 	return out
 }
 
-// goPackageDirs returns every directory under internal/ that holds Go source.
-// Directories that only group others, such as internal/core, hold none and are
-// not packages.
+// Grouping directories such as internal/core hold no Go source and so are not
+// packages.
 func goPackageDirs(t *testing.T, root string) map[string]bool {
 	t.Helper()
 	out := map[string]bool{}

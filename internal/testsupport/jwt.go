@@ -1,11 +1,8 @@
 // Package testsupport holds helpers that exist only for tests.
 //
-// It is a separate package because of what it contains rather than what it
-// does: signing a JWT is exactly the capability a shipped binary should not
-// carry around by accident. These helpers used to live in internal/util, which
-// nearly every production package imports, so a token minter compiled into
-// every binary BuildMax ships. Nothing here is imported outside _test.go files,
-// and this package exists to keep that true and visible.
+// Separate from internal/util because of what it contains: nearly every
+// production package imports util, which put a JWT minter in every shipped
+// binary. internal/architecture keeps this package out of production code.
 package testsupport
 
 import (

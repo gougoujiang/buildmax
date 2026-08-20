@@ -62,11 +62,7 @@ type AgentStore interface {
 	// DeleteAgent and DeleteAgentInTeam mark the agent deleted rather than
 	// removing the row. Deleting an agent a published workflow still names is
 	// refused above this layer; see the delete handler.
-	//
 	// Both return ErrNotFound when there is no such live agent for that owner.
-	// Their only return is an error, so the sentinel is the whole answer — an
-	// implementation that returns anything else for a missing agent leaves the
-	// caller unable to tell "gone" from "broken".
 	DeleteAgent(ctx context.Context, agentID, userID string) error
 	DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error
 	// ListAgentRevisions returns an agent's revisions, newest first, with the

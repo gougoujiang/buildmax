@@ -15,17 +15,11 @@ var importRules = []struct {
 	name      string
 	dir       string
 	forbidden []string
-	// except lists repository-relative directories inside dir that the rule
-	// does not apply to, along with everything under them. Use it for a rule
-	// that constrains a whole tree apart from the one package that owns the
-	// dependency.
+	// except exempts directories, and everything under them, for a rule whose
+	// dependency exactly one package legitimately owns.
 	except []string
 }{
 	{
-		// AGENTS.md and docs/contribute/repo-layout.md both state that core
-		// imports nothing from config, infra, service, server, agentapp, or
-		// interface. All six are listed here so the document and the test say
-		// the same thing.
 		name: "core stays independent of adapters",
 		dir:  "internal/core",
 		forbidden: []string{
@@ -57,15 +51,10 @@ var importRules = []struct {
 		},
 	},
 	{
-		// A service coordinates stores and enforces rules. It is reached by a
-		// transport, never the other way round, so it must not know which
-		// transport called it or how the process started.
-		//
-		// internal/agentapp is deliberately absent: service/conversation/runtime
-		// imports it today for NewNonInteractivePolicy. That call is the whole
-		// dependency, and the policy it returns needs only core — so the import
-		// is removable, but it is real until someone removes it, and a rule
-		// that fails is worse than a rule that is honest about its scope.
+		// agentapp is deliberately absent: service/conversation/runtime imports
+		// it for NewNonInteractivePolicy, and that one call is the whole
+		// dependency. Removable, but real — and a rule that fails on main
+		// teaches contributors to skip the suite.
 		name: "service is reached by transports, not the reverse",
 		dir:  "internal/service",
 		forbidden: []string{
@@ -75,9 +64,6 @@ var importRules = []struct {
 		},
 	},
 	{
-		// agentapp assembles the agent runtime for CLI, Desktop, eval, and
-		// workers. Every one of those surfaces sits above it, so it must not
-		// reach back up into any of them.
 		name: "agentapp does not depend on the surfaces that assemble it",
 		dir:  "internal/agentapp",
 		forbidden: []string{
@@ -87,9 +73,7 @@ var importRules = []struct {
 		},
 	},
 	{
-		// GORM is an implementation detail of internal/infra/db. Nothing above
-		// it should need the library — a caller that wants "no such row" wants
-		// model.ErrNotFound, which the store translates to at this boundary.
+		// Above this boundary, "no such row" is model.ErrNotFound.
 		name: "gorm stays inside the db implementation",
 		dir:  "internal",
 		forbidden: []string{
@@ -141,12 +125,8 @@ func TestNoInternalTypeAliases(t *testing.T) {
 	}
 }
 
-// testOnlyPackages may be imported from _test.go files and nowhere else.
-//
-// The rule is about what ships, not about tidiness: internal/testsupport mints
-// JWTs and internal/mock stands in for every store. Either one reached from
-// production code is either a capability in a binary that should not have it or
-// a real dependency wired to a fake.
+// Reached from production code, each of these is either a shipped capability
+// that should not exist or a real dependency wired to a fake.
 var testOnlyPackages = []string{
 	"github.com/gougoujiang/buildmax/internal/mock",
 	"github.com/gougoujiang/buildmax/internal/testsupport",
@@ -174,8 +154,6 @@ func TestTestOnlyPackagesStayInTests(t *testing.T) {
 	}
 }
 
-// excluded reports whether relPath, a slash-separated repository-relative file
-// path, sits in or under one of the exempt directories.
 func excluded(relPath string, exempt []string) bool {
 	for _, dir := range exempt {
 		if relPath == dir || strings.HasPrefix(relPath, dir+"/") {

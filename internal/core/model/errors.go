@@ -2,15 +2,8 @@ package model
 
 import "errors"
 
-// ErrNotFound is what a store returns when an operation names a row that is not
-// there, for the cases where "not there" is the answer rather than an empty
-// result. A store that can return a nil value instead should keep doing that;
-// this is for the operations whose only return is an error.
-//
-// It exists so a caller can ask "did that exist?" without importing the
-// persistence library to find out. internal/architecture forbids gorm.io
-// imports outside internal/infra/db precisely so that translation happens once,
-// at the store boundary.
+// ErrNotFound is returned when an operation's only return is an error and the
+// row it names does not exist. Callers that can get a nil value keep using that.
 var ErrNotFound = errors.New("not found")
 
 // ErrEmailExists is returned by CreateUser when the email is already registered.
