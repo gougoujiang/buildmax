@@ -54,7 +54,7 @@ func Init(cfg LogConfig) {
 
 	if err := os.MkdirAll(cfg.LogsDir, 0750); err != nil {
 		fileWriter = nil
-		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: parsedLevel})))
+		slog.SetDefault(slog.New(newHandler(io.Discard, parsedLevel)))
 		return
 	}
 
@@ -70,7 +70,13 @@ func Init(cfg LogConfig) {
 	if cfg.AlsoStdout {
 		out = io.MultiWriter(lj, os.Stdout)
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: parsedLevel})))
+	slog.SetDefault(slog.New(newHandler(out, parsedLevel)))
+}
+
+// newHandler is the one place a handler is built, so every logger in the
+// process reads context attrs. See context.go.
+func newHandler(w io.Writer, level slog.Level) slog.Handler {
+	return contextHandler{slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})}
 }
 
 // DisableConsole reconfigures slog.Default() to write only to the file (or
@@ -78,9 +84,9 @@ func Init(cfg LogConfig) {
 // callers that need to re-apply file-only after changing the default logger.
 func DisableConsole() {
 	if fileWriter != nil {
-		slog.SetDefault(slog.New(slog.NewTextHandler(fileWriter, &slog.HandlerOptions{Level: currentLevel})))
+		slog.SetDefault(slog.New(newHandler(fileWriter, currentLevel)))
 	} else {
-		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: currentLevel})))
+		slog.SetDefault(slog.New(newHandler(io.Discard, currentLevel)))
 	}
 }
 
@@ -88,7 +94,7 @@ func DisableConsole() {
 // using the current minimum level (from Init or default Info). Used by tests
 // to capture log output without writing to stderr or the real file.
 func SetOutput(w io.Writer) {
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: currentLevel})))
+	slog.SetDefault(slog.New(newHandler(w, currentLevel)))
 }
 
 // parseLevel maps s (case-insensitive) to a slog.Level: "debug", "info", "warn",
