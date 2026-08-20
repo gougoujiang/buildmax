@@ -216,7 +216,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		// SystemPrompt must not already carry the block — RunLoop is its only renderer.
 		effectiveSysPrompt := opts.SystemPrompt + RenderCompactionBlock(compactionSummary)
 
-		content, toolCalls, usage, err := callLLM(ctx, opts, history, effectiveSysPrompt, i+1, s)
+		completion, err := callLLM(ctx, opts, history, effectiveSysPrompt, i+1, s)
+		content, toolCalls := completion.Content, completion.ToolCalls
 		if err != nil {
 			if ctx.Err() != nil {
 				slog.Warn("agent run interrupted by context cancellation", "iter", i+1, "last_content_len", len(lastContent))
@@ -230,8 +231,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			fireRunEndHook(ctx, opts, s, runErr)
 			return "", s, runErr
 		}
-		s.PromptTokens += usage.PromptTokens
-		s.CompletionTokens += usage.CompletionTokens
+		s.PromptTokens += completion.Usage.PromptTokens
+		s.CompletionTokens += completion.Usage.CompletionTokens
 
 		if content != "" {
 			lastContent = content
@@ -248,7 +249,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 
 		if len(toolCalls) == 0 {
 			slog.Debug("agent reply", "content", content)
-			if err := opts.History.Append(llm.Message{Role: "assistant", Content: content}); err != nil {
+			if err := opts.History.Append(completion.AssistantMessage()); err != nil {
 				return "", s, err
 			}
 			emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
@@ -257,7 +258,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		}
 
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
-		if err := opts.History.Append(llm.Message{Role: "assistant", Content: content, ToolCalls: toolCalls}); err != nil {
+		if err := opts.History.Append(completion.AssistantMessage()); err != nil {
 			return "", s, err
 		}
 
@@ -367,7 +368,7 @@ func fireRunEndHook(ctx context.Context, opts RunLoopOpts, stats RunStats, err e
 // callLLM dispatches to streaming or blocking LLM call based on whether a StreamSink is set.
 // When EventSink is also set, content deltas are forwarded to it as EventLLMDelta events.
 // history and systemPrompt are passed explicitly so the caller can inject a compacted view.
-func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, systemPrompt string, iter int, stats RunStats) (string, []llm.ToolCall, llm.Usage, error) {
+func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, systemPrompt string, iter int, stats RunStats) (llm.Completion, error) {
 	// Durable session state is rendered fresh on every call and placed after the messages, so
 	// it is never subject to trimming and never accumulates in the history. An empty block
 	// renders nothing, which is what a run that keeps no state should cost.

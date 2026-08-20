@@ -48,15 +48,15 @@ type windowedClient struct {
 	lastSent []llm.Message
 }
 
-func (c *windowedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *windowedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	if len(messages) > 0 && messages[0].Role == "system" {
 		c.systems = append(c.systems, messages[0].Content)
 	}
 	c.lastSent = append([]llm.Message(nil), messages...)
-	return "done", nil, llm.Usage{}, nil
+	return llm.Completion{Content: "done"}, nil
 }
 
-func (c *windowedClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *windowedClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return c.ChatCompletionBlocking(ctx, messages, tools)
 }
 

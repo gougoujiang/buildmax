@@ -196,6 +196,7 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[]` | — | One model the CLI can run. Select one per run with `--model <id or name>`. |
 | `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. Ignored by a `buildmax` entry, where the deployment's catalog decides. |
 | `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
+| `models[].reasoning` | `false` | Ask the model to reason before answering and replay that reasoning on later turns — see below. No effect on `openai_compatible`, which carries none. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
 | `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
 | `models[].team_id` | — | Required for `buildmax` transport: which team the call is billed and authorized against. |
@@ -214,9 +215,32 @@ Claude served through OpenRouter is `openai_compatible`, and Claude served from
 | `anthropic` | Anthropic Messages | `api.anthropic.com` |
 
 Text, tool calling, streaming, and token usage work the same on all three.
-Extended thinking, reasoning continuity across tool calls, prompt caching, and
-image input are not available on any of them yet — see
+Prompt caching and image input are not available on any of them yet — see
 [design/llm-provider-adapters.md](../design/llm-provider-adapters.md).
+
+### Reasoning
+
+`reasoning: true` asks the model to reason before answering and carries that
+reasoning forward, so a run that spans several tool calls keeps the thread
+instead of starting over on each one.
+
+| Provider | What it does |
+|---|---|
+| `openai_compatible` | Nothing. The protocol has no reasoning state. |
+| `openai` | Requests encrypted reasoning content and replays it on later turns. |
+| `anthropic` | Enables adaptive extended thinking and replays the thinking blocks. |
+
+It is off by default, because it changes what a call costs and some older models
+reject the request outright. Turning it on for a model that does not support it
+fails the call with the provider's own error rather than silently doing nothing.
+
+The reasoning itself never reaches the transcript. BuildMax stores it as opaque
+state alongside the assistant message and sends it back unread — a signature
+covers the content, so editing it is worse than omitting it. State is tagged
+with the protocol that produced it, so continuing a session under a different
+provider drops what that provider cannot use and keeps everything else. Both the
+CLI session file and Portal conversations persist it, and the managed gateway
+carries it, so a run that resumes after a restart keeps its continuity.
 
 ### Managed models
 
@@ -429,7 +453,8 @@ buildmax-server model add --name Fast \
 buildmax-server model add --name Claude --provider anthropic \
     --api-url https://api.anthropic.com \
     --api-key your-anthropic-api-key \
-    --model claude-sonnet-4-5 --context-window 200000 --max-tokens 8192
+    --model claude-sonnet-4-5 --context-window 200000 --max-tokens 8192 \
+    --reasoning
 
 buildmax-server model list
 buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
@@ -440,7 +465,8 @@ buildmax-server model disable --id lm_xxxxxxxxxxxxxxxxxxxx
 [Model providers](#model-providers). It defaults to `openai_compatible`, so a
 catalog written before this option existed keeps working unchanged.
 `--max-tokens` caps one response; leaving it unset means the protocol's default,
-which for `anthropic` is the built-in 8192. Changing either on a running server
+which for `anthropic` is the built-in 8192. `--reasoning` turns on the behavior
+described under [Reasoning](#reasoning). Changing either on a running server
 takes effect on the next call: the router rebuilds a client whose target's
 connection details changed.
 

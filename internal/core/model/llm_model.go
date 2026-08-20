@@ -32,6 +32,8 @@ type LLMModel struct {
 	// MaxTokens caps one response; 0 uses the client default. The Anthropic
 	// protocol requires the field, so a target speaking it always sends one.
 	MaxTokens int `json:"max_tokens,omitempty"`
+	// Reasoning asks the upstream for reasoning state and replays it.
+	Reasoning bool `json:"reasoning,omitempty"`
 	// Capabilities is what this model supports, e.g. "text_chat".
 	Capabilities []string `json:"capabilities,omitempty"`
 	// Enabled lets an operator retire a model without deleting it.
@@ -51,6 +53,7 @@ type CreateLLMModelInput struct {
 	ContextWindow int
 	CallTimeout   int
 	MaxTokens     int
+	Reasoning     bool
 	Capabilities  []string
 }
 

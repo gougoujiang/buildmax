@@ -82,6 +82,8 @@ type ServerModelEntry struct {
 	// Provider is the wire protocol this model speaks. Empty means
 	// LLMProviderOpenAICompatible.
 	Provider string `mapstructure:"provider"`
+	// Reasoning asks for reasoning state and replays it on later turns.
+	Reasoning bool `mapstructure:"reasoning"`
 }
 
 // RuntimeModelEntry converts the server's resolved model configuration into
@@ -102,6 +104,7 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		CallTimeout:   m.CallTimeout,
 		MaxTokens:     m.MaxTokens,
 		Provider:      m.Provider,
+		Reasoning:     m.Reasoning,
 		Transport:     TransportDirect,
 	}
 }

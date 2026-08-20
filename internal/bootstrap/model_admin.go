@@ -41,6 +41,7 @@ Flags for add:
   --context-window int    Usable context size; 0 uses the client default
   --call-timeout int      Per-call timeout in seconds; 0 uses the client default
   --max-tokens int        Cap on one response; 0 uses the client default
+  --reasoning             Ask for reasoning state and replay it on later turns
   --capabilities string   Comma-separated; defaults to the provider contract
 
 Flags for enable and disable:
@@ -86,6 +87,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	contextWindow := fs.Int("context-window", 0, "usable context size")
 	callTimeout := fs.Int("call-timeout", 0, "per-call timeout in seconds")
 	maxTokens := fs.Int("max-tokens", 0, "cap on one response")
+	reasoning := fs.Bool("reasoning", false, "ask for reasoning state and replay it")
 	capabilities := fs.String("capabilities", "", "comma-separated capability list")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -100,6 +102,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		ContextWindow: *contextWindow,
 		CallTimeout:   *callTimeout,
 		MaxTokens:     *maxTokens,
+		Reasoning:     *reasoning,
 		Capabilities:  parseCapabilityList(*capabilities),
 	}
 	if err := validateModelInput(in); err != nil {

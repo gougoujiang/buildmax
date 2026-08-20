@@ -147,24 +147,24 @@ func (c *Client) ContextWindow() int {
 }
 
 // ChatCompletionBlocking runs one managed call.
-func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
 	if c == nil {
-		return "", nil, cllm.Usage{}, errors.New("managed llm client is not configured")
+		return cllm.Completion{}, errors.New("managed llm client is not configured")
 	}
 
 	resp, err := c.post(ctx, false, messages, tools)
 	if err != nil {
-		return "", nil, cllm.Usage{}, err
+		return cllm.Completion{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", nil, cllm.Usage{}, gatewayError(resp)
+		return cllm.Completion{}, gatewayError(resp)
 	}
 
 	var out llmwire.CompletionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("decode managed response: %w", err)
+		return cllm.Completion{}, fmt.Errorf("decode managed response: %w", err)
 	}
 
 	// An absent usage object means the provider reported none. The zero value
@@ -178,7 +178,12 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Mes
 			TotalTokens:      out.Usage.TotalTokens,
 		}
 	}
-	return out.Content, fromWireToolCalls(out.ToolCalls), usage, nil
+	return cllm.Completion{
+		Content:       out.Content,
+		ToolCalls:     fromWireToolCalls(out.ToolCalls),
+		Usage:         usage,
+		ProviderState: fromWireProviderState(out.ProviderState),
+	}, nil
 }
 
 // ChatCompletionStreaming runs one managed call, delivering content deltas to
@@ -187,18 +192,18 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Mes
 // It never retries. The server-side provider client owns retry policy and stops
 // once a delta has been emitted; adding a retry here would replay output the
 // caller has already seen.
-func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	if c == nil {
-		return "", nil, cllm.Usage{}, errors.New("managed llm client is not configured")
+		return cllm.Completion{}, errors.New("managed llm client is not configured")
 	}
 	resp, err := c.post(ctx, true, messages, tools)
 	if err != nil {
-		return "", nil, cllm.Usage{}, err
+		return cllm.Completion{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", nil, cllm.Usage{}, gatewayError(resp)
+		return cllm.Completion{}, gatewayError(resp)
 	}
 	return consumeStream(resp.Body, onDelta)
 }
@@ -208,7 +213,7 @@ func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []cllm.Me
 // A stream that ends without a result or an error event is a failure, not an
 // empty answer: silently returning "" would hide a dropped connection as a
 // model that had nothing to say.
-func consumeStream(body io.Reader, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func consumeStream(body io.Reader, onDelta func(string)) (cllm.Completion, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64<<10), maxSSEEventBytes)
 
@@ -231,7 +236,7 @@ func consumeStream(body io.Reader, onDelta func(string)) (string, []cllm.ToolCal
 			done, err := state.apply(event, data, onDelta)
 			event, data = "", nil
 			if err != nil {
-				return "", nil, cllm.Usage{}, err
+				return cllm.Completion{}, err
 			}
 			if done {
 				return state.finish()
@@ -239,9 +244,9 @@ func consumeStream(body io.Reader, onDelta func(string)) (string, []cllm.ToolCal
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("managed stream interrupted: %w", err)
+		return cllm.Completion{}, fmt.Errorf("managed stream interrupted: %w", err)
 	}
-	return "", nil, cllm.Usage{}, errors.New("managed stream ended without a result")
+	return cllm.Completion{}, errors.New("managed stream ended without a result")
 }
 
 // streamState accumulates one call's events.
@@ -287,7 +292,7 @@ func (s *streamState) apply(event string, data []byte, onDelta func(string)) (bo
 	}
 }
 
-func (s *streamState) finish() (string, []cllm.ToolCall, cllm.Usage, error) {
+func (s *streamState) finish() (cllm.Completion, error) {
 	// The result carries the assembled content; fall back to the deltas we
 	// accumulated if a server ever omits it.
 	content := s.result.Content
@@ -302,7 +307,12 @@ func (s *streamState) finish() (string, []cllm.ToolCall, cllm.Usage, error) {
 			TotalTokens:      s.result.Usage.TotalTokens,
 		}
 	}
-	return content, fromWireToolCalls(s.result.ToolCalls), usage, nil
+	return cllm.Completion{
+		Content:       content,
+		ToolCalls:     fromWireToolCalls(s.result.ToolCalls),
+		Usage:         usage,
+		ProviderState: fromWireProviderState(s.result.ProviderState),
+	}, nil
 }
 
 // post sends one completion request. The caller closes the response body.
@@ -399,10 +409,11 @@ func toWireMessages(in []cllm.Message) []llmwire.Message {
 	out := make([]llmwire.Message, 0, len(in))
 	for _, m := range in {
 		out = append(out, llmwire.Message{
-			Role:       m.Role,
-			Content:    m.Content,
-			ToolCallID: m.ToolCallID,
-			ToolCalls:  toWireToolCalls(m.ToolCalls),
+			Role:          m.Role,
+			Content:       m.Content,
+			ToolCallID:    m.ToolCallID,
+			ToolCalls:     toWireToolCalls(m.ToolCalls),
+			ProviderState: toWireProviderState(m.ProviderState),
 		})
 	}
 	return out
@@ -417,6 +428,20 @@ func toWireToolCalls(in []cllm.ToolCall) []llmwire.ToolCall {
 		out = append(out, llmwire.ToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 	}
 	return out
+}
+
+func toWireProviderState(in *cllm.ProviderState) *llmwire.ProviderState {
+	if in == nil {
+		return nil
+	}
+	return &llmwire.ProviderState{Protocol: in.Protocol, Data: in.Data}
+}
+
+func fromWireProviderState(in *llmwire.ProviderState) *cllm.ProviderState {
+	if in == nil {
+		return nil
+	}
+	return &cllm.ProviderState{Protocol: in.Protocol, Data: in.Data}
 }
 
 func fromWireToolCalls(in []llmwire.ToolCall) []cllm.ToolCall {

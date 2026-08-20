@@ -579,12 +579,21 @@ One message in a Tier 1 conversation, including tool traffic.
 | `channel` | `varchar(32)` | yes | Overrides the conversation channel for this message |
 | `tool_call_id` | `varchar(64)` | yes | Set on a tool result, linking it to the call that produced it |
 | `tool_calls` | `text` | yes | JSON array of tool calls on an assistant message; the Go field is `ToolCallsJSON` but the column is `tool_calls` |
+| `provider_state` | `text` | yes | Opaque reasoning state on an assistant message, stored and replayed but never read here; the Go field is `ProviderStateJSON` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `conversation_message_id`; index `conversation_id`.
 
 Ordering is by `created_at`, then `id`. Prefixed IDs are random, not
 time-ordered, so never sort by `conversation_message_id`.
+
+`provider_state` holds what a protocol produced and requires back unchanged —
+Anthropic thinking blocks, OpenAI Responses reasoning items. A Tier 1 turn
+resumes from these rows, so without it a second turn would send the upstream a
+conversation it rejects. A row written before the column existed, or one holding
+something that no longer parses, replays as a message without state rather than
+failing the turn. See
+[design/llm-provider-adapters.md](../../design/llm-provider-adapters.md).
 
 ## Background Execution
 
@@ -841,6 +850,7 @@ on the machine that holds the database credentials.
 | `context_window` | `int` | no | Default `0`, meaning unspecified |
 | `call_timeout` | `int` | no | Seconds; default `0`, meaning unspecified |
 | `max_tokens` | `int` | no | Cap on one response; default `0`, meaning the client default |
+| `reasoning` | `bool` | no | Default `false`; ask the upstream for reasoning state and replay it |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
 | `enabled` | `bool` | no | Default `true` |
 | `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |

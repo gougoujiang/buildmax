@@ -75,6 +75,9 @@ type Target struct {
 	CallTimeout time.Duration
 	// MaxTokens caps one response; 0 means the client default.
 	MaxTokens int
+	// Reasoning asks the upstream for reasoning state and replays it. The
+	// gateway carries that state without reading it.
+	Reasoning bool
 	// Capabilities is what this target declares it can do.
 	Capabilities CapabilitySet
 	// Enabled allows an operator to retire a target without deleting it.

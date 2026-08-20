@@ -59,6 +59,7 @@ conversation:
     # provider: openai_compatible  # wire protocol: openai_compatible (default),
                                    # openai (Responses API), or anthropic
     # max_tokens: 0                # cap on one response; 0 = the adapter default
+    # reasoning: false             # ask for reasoning state and replay it
 
   # Use a catalog model for Tier 1 instead of the model above. This is an
   # llm_model ID, not a team alias: the server picks its own model rather than

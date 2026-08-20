@@ -407,6 +407,25 @@ type upstream struct {
 	bodies   []string
 }
 
+// newUpstreamWithBody answers every request with one fixed body, for a test
+// that supplies its own protocol-shaped fixture.
+func newUpstreamWithBody(t *testing.T, body string) *upstream {
+	t.Helper()
+	up := &upstream{}
+	up.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		up.requests++
+		requestBody, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+		}
+		up.bodies = append(up.bodies, string(requestBody))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(up.server.Close)
+	return up
+}
+
 func newUpstream(t *testing.T, p protocol, r reply, failStatus int) *upstream {
 	t.Helper()
 	up := &upstream{}
@@ -461,12 +480,12 @@ func TestAdaptersAgreeOnBlockingReplies(t *testing.T) {
 				up := newUpstream(t, p, scenario.reply, 0)
 				client := newTestClient(t, p.provider, up.server.URL)
 
-				content, toolCalls, usage, err := client.ChatCompletionBlocking(
+				completion, err := client.ChatCompletionBlocking(
 					context.Background(), conformanceHistory(), conformanceTools())
 				if err != nil {
 					t.Fatalf("ChatCompletionBlocking: %v", err)
 				}
-				assertReply(t, scenario.reply, content, toolCalls, usage)
+				assertReply(t, scenario.reply, completion)
 			})
 		}
 	}
@@ -480,13 +499,13 @@ func TestAdaptersAgreeOnStreamedReplies(t *testing.T) {
 				client := newTestClient(t, p.provider, up.server.URL)
 
 				var delivered strings.Builder
-				content, toolCalls, usage, err := client.ChatCompletionStreaming(
+				completion, err := client.ChatCompletionStreaming(
 					context.Background(), conformanceHistory(), conformanceTools(),
 					func(delta string) { delivered.WriteString(delta) })
 				if err != nil {
 					t.Fatalf("ChatCompletionStreaming: %v", err)
 				}
-				assertReply(t, scenario.reply, content, toolCalls, usage)
+				assertReply(t, scenario.reply, completion)
 				if delivered.String() != scenario.reply.text {
 					t.Errorf("deltas delivered %q, want %q", delivered.String(), scenario.reply.text)
 				}
@@ -495,22 +514,26 @@ func TestAdaptersAgreeOnStreamedReplies(t *testing.T) {
 	}
 }
 
-func assertReply(t *testing.T, want reply, content string, toolCalls []cllm.ToolCall, usage cllm.Usage) {
+func assertReply(t *testing.T, want reply, got cllm.Completion) {
 	t.Helper()
-	if content != want.text {
-		t.Errorf("content = %q, want %q", content, want.text)
+	if got.Content != want.text {
+		t.Errorf("content = %q, want %q", got.Content, want.text)
 	}
-	if len(toolCalls) != len(want.toolCalls) {
-		t.Fatalf("got %d tool calls, want %d: %+v", len(toolCalls), len(want.toolCalls), toolCalls)
+	if len(got.ToolCalls) != len(want.toolCalls) {
+		t.Fatalf("got %d tool calls, want %d: %+v", len(got.ToolCalls), len(want.toolCalls), got.ToolCalls)
 	}
-	for i, got := range toolCalls {
+	for i, call := range got.ToolCalls {
 		expected := want.toolCalls[i]
-		if got.ID != expected.ID || got.Name != expected.Name || got.Arguments != expected.Arguments {
-			t.Errorf("tool call %d = %+v, want %+v", i, got, expected)
+		if call.ID != expected.ID || call.Name != expected.Name || call.Arguments != expected.Arguments {
+			t.Errorf("tool call %d = %+v, want %+v", i, call, expected)
 		}
 	}
-	if usage != want.wantUsage() {
-		t.Errorf("usage = %+v, want %+v", usage, want.wantUsage())
+	if got.Usage != want.wantUsage() {
+		t.Errorf("usage = %+v, want %+v", got.Usage, want.wantUsage())
+	}
+	// Reasoning is off in these scenarios, so no protocol may invent state.
+	if got.ProviderState != nil {
+		t.Errorf("provider state = %+v, want none when reasoning is off", got.ProviderState)
 	}
 }
 
@@ -537,7 +560,7 @@ func TestAdaptersAgreeOnErrorClassification(t *testing.T) {
 				restore := shortenRetryBackoff()
 				defer restore()
 
-				_, _, _, err := client.ChatCompletionBlocking(
+				_, err := client.ChatCompletionBlocking(
 					context.Background(), conformanceHistory(), conformanceTools())
 				if err == nil {
 					t.Fatal("expected an error")
@@ -602,7 +625,7 @@ func TestToolCallIDsSurviveAcrossProtocols(t *testing.T) {
 					}},
 					{Role: "tool", ToolCallID: id, Content: "package a"},
 				}
-				if _, _, _, err := client.ChatCompletionBlocking(
+				if _, err := client.ChatCompletionBlocking(
 					context.Background(), history, conformanceTools()); err != nil {
 					t.Fatalf("ChatCompletionBlocking: %v", err)
 				}
@@ -629,7 +652,7 @@ func TestSystemPromptReachesEveryProtocol(t *testing.T) {
 			up := newUpstream(t, p, reply{text: "ok"}, 0)
 			client := newTestClient(t, p.provider, up.server.URL)
 
-			if _, _, _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+			if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
 				{Role: "system", Content: prompt},
 				{Role: "user", Content: "Hello"},
 			}, nil); err != nil {

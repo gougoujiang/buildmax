@@ -72,23 +72,23 @@ type mockResponse struct {
 	usage     llm.Usage
 }
 
-func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.responses) {
-		return "", nil, llm.Usage{}, nil
+		return llm.Completion{}, nil
 	}
 	r := m.responses[m.calls]
 	m.calls++
-	return r.content, r.toolCalls, r.usage, nil
+	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
 }
 
-func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
-	content, toolCalls, usage, err = m.ChatCompletionBlocking(ctx, messages, tools)
-	if err == nil && onDelta != nil && content != "" {
-		onDelta(content)
+func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+	completion, err := m.ChatCompletionBlocking(ctx, messages, tools)
+	if err == nil && onDelta != nil && completion.Content != "" {
+		onDelta(completion.Content)
 	}
-	return content, toolCalls, usage, err
+	return completion, err
 }
 
 func (m *mockLLMClient) ContextWindow() int { return 0 }
@@ -258,7 +258,7 @@ type recordingLLMClient struct {
 	once     sync.Once
 }
 
-func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	r.once.Do(func() {
 		r.firstMsg = make([]llm.Message, len(messages))
 		copy(r.firstMsg, messages)
@@ -266,7 +266,7 @@ func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, message
 	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
 }
 
-func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
 }
 
@@ -279,7 +279,7 @@ type lastCallLLMClient struct {
 	lastMu  sync.Mutex
 }
 
-func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	r.lastMu.Lock()
 	r.lastMsg = make([]llm.Message, len(messages))
 	copy(r.lastMsg, messages)
@@ -287,7 +287,7 @@ func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages
 	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
 }
 
-func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
 }
 
@@ -540,19 +540,19 @@ type cancelOnSecondCallClient struct {
 	mu       sync.Mutex
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	c.mu.Lock()
 	n := c.calls
 	c.calls++
 	c.mu.Unlock()
 	if n == 0 {
-		return c.first.content, c.first.toolCalls, c.first.usage, nil
+		return llm.Completion{Content: c.first.content, ToolCalls: c.first.toolCalls, Usage: c.first.usage}, nil
 	}
 	c.cancelFn()
-	return "", nil, llm.Usage{}, context.Canceled
+	return llm.Completion{}, context.Canceled
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return c.ChatCompletionBlocking(ctx, messages, tools)
 }
 

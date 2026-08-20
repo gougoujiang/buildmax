@@ -209,7 +209,7 @@ func TestAnthropicUnrepresentableHistoryIsNotRetried(t *testing.T) {
 	up := newUpstream(t, protocols[2], reply{text: "unused"}, 0)
 	client := newTestClient(t, "anthropic", up.server.URL)
 
-	_, _, _, err := client.ChatCompletionBlocking(t.Context(), []cllm.Message{
+	_, err := client.ChatCompletionBlocking(t.Context(), []cllm.Message{
 		{Role: "system", Content: "prompt"},
 		{Role: "assistant", Content: "orphan"},
 	}, nil)

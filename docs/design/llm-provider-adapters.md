@@ -1,6 +1,6 @@
 # LLM Provider Adapters
 
-> **Audience:** contributors · **Status:** phase 1 shipped; phases 2 and 3 open
+> **Audience:** contributors · **Status:** phases 1 and 2 shipped; phase 3 open
 >
 > Shipped: the three adapters and the shared retry, timeout, and error
 > classification in `internal/infra/llm`; `provider` and `max_tokens` on a
@@ -10,10 +10,14 @@
 > `internal/service/llmgateway`; `buildmax-server model add --provider`; and the
 > cross-adapter conformance suite.
 >
-> Not shipped: everything in phases 2 and 3 — reasoning and thinking state,
-> prompt caching and its usage counters, and multimodal input. The shared
-> contract in `internal/core/llm` is unchanged, which is what phase 1 committed
-> to.
+> Phase 2 added reasoning state: `Completion` and `ProviderState` in
+> `internal/core/llm`, Anthropic extended thinking and Responses reasoning items,
+> the `reasoning` knob on a model entry and a catalog target, a `provider_state`
+> column on `conversation_message`, and the matching field in `llmwire` so
+> managed callers keep continuity too.
+>
+> Not shipped: phase 3 — prompt caching and its usage counters, and multimodal
+> input.
 >
 > Extends [llm-gateway.md](llm-gateway.md), which owns the `direct` vs
 > `buildmax` transport split and the model catalog. This document owns the
@@ -195,7 +199,6 @@ Recorded so the next reader does not mistake them for oversights:
   blob as text.
 - `Usage` has no cache-read or cache-write counters, so Anthropic prompt
   caching cannot be metered.
-- There is nowhere to carry reasoning or thinking state across turns.
 
 When multimodal is needed, the extension is `Parts []ContentPart` **beside**
 `Content`, keeping `Content` as the text projection — not a replacement.
@@ -302,9 +305,9 @@ adapters; neutral error and retry classification; dispatch at both construction
 points; managed gateway included, which needs no `llmwire` change because that
 protocol is already neutral.
 
-### Phase 2 — Reasoning and thinking state
+### Phase 2 — Reasoning and thinking state — shipped
 
-Adds the first contract change, an opaque per-message field:
+The first contract change, an opaque per-message field:
 
 ```go
 type ProviderState struct {
@@ -315,14 +318,41 @@ type ProviderState struct {
 
 Written and read only by the adapter that produced it, tagged so a session
 replayed under another protocol discards it rather than sending a foreign
-payload. Requires a nullable column on `conversation_message` and a decision on
-whether `llmwire` carries it.
+payload.
+
+Two things this phase turned out to require that the plan above did not name.
+
+**The return signature had to change.** Reasoning state belongs to the assistant
+turn, and the four-value return had no slot for it — nor does an optional
+interface work, since a client is shared across concurrent runs and could not
+hold per-call state. `Completion` replaces the positional list, and
+`Completion.AssistantMessage()` is what the agent loop appends, so nothing
+between the adapter and the history has to know the field exists. The cost was
+mechanical: two implementations, eight test doubles, and about seventy call
+sites.
+
+**`llmwire` had to carry it.** Section 8 says the protocol says nothing about
+where a call goes, and `provider_state` is the one field that is upstream-shaped.
+It is carried anyway, and the reason is not convenience: an operator can enable
+reasoning on a catalog target, and the protocols that produce this state reject a
+turn that drops it. Without the field, managed plus reasoning would be a broken
+combination rather than a degraded one. The field is additive, so `Version` does
+not move.
+
+`AppendMessage` became a struct input in the same pass. The column set grows as
+the LLM contract does, and a seven-argument positional list had stopped saying
+which `nil` meant what.
 
 ### Phase 3 and later — deferred capabilities
 
 Anthropic prompt caching, which needs cache counters on `Usage`; multimodal
 input, which needs `Parts` beside `Content`. Neither is on
 [ROADMAP.md](../ROADMAP.md) today.
+
+Phase 2 is evidence for how §6.1 said this would go: reasoning state was added
+as a tagged field beside the existing ones, old session files and message rows
+read as having none, and nothing that reads `.Content` changed. Multimodal is
+expected to cost the same shape of change.
 
 Note that prompt caching is **not** blocked by the single-string `Content`:
 cache breakpoints attach to blocks the adapter itself constructs. It is
@@ -357,7 +387,7 @@ conversation state via `previous_response_id`.
 
 ## 14. Open Questions
 
-Phase 1 settled the first three:
+Phases 1 and 2 settled the first four:
 
 1. `config.DefaultMaxTokens` is 8192, beside the other defaults. The Anthropic
    adapter substitutes it; the OpenAI adapters send a cap only when one is set.
@@ -370,7 +400,13 @@ Phase 1 settled the first three:
    cache key, so changing it on a running server takes effect on the next call
    rather than being served by a client built with the old cap.
 
+4. `llmwire` carries reasoning state. The alternative — managed callers without
+   continuity — is not a degraded mode but a broken one, because a protocol that
+   produces this state rejects a turn that drops it, so an operator enabling
+   reasoning on a catalog target would break every managed tool-calling run.
+
 Still open:
 
-4. Does phase 2 extend `llmwire`, or do managed callers simply not get
-   reasoning continuity?
+5. Reasoning is a boolean. Both protocols also accept an effort or depth
+   setting, and neither is exposed. A single neutral scale across three
+   protocols is a guess until there is a reason to make it.

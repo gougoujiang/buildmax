@@ -26,6 +26,7 @@ type anthropicAdapter struct {
 	client    anthropic.Client
 	model     string
 	maxTokens int
+	reasoning bool
 }
 
 func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
@@ -48,6 +49,7 @@ func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
 		client:    anthropic.NewClient(opts...),
 		model:     cfg.Model,
 		maxTokens: maxTokensOrDefault(cfg.MaxTokens),
+		reasoning: cfg.Reasoning,
 	}, nil
 }
 
@@ -66,6 +68,18 @@ func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.Too
 	}
 	if system != "" {
 		params.System = []anthropic.TextBlockParam{{Text: system}}
+	}
+	if a.reasoning {
+		// Adaptive is the only supported mode on current models; a fixed token
+		// budget is rejected by them. Display is omitted rather than summarized
+		// because BuildMax needs the signature for multi-turn continuity, not
+		// the reasoning text: the agent's transcript is what the user reads, and
+		// thinking narration in it would be indistinguishable from an answer.
+		params.Thinking = anthropic.ThinkingConfigParamUnion{
+			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{
+				Display: anthropic.ThinkingConfigAdaptiveDisplayOmitted,
+			},
+		}
 	}
 	return params, nil
 }
@@ -138,15 +152,25 @@ func anthropicMessages(messages []cllm.Message) (string, []anthropic.MessagePara
 				out = append(out, anthropic.NewUserMessage(blocks...))
 			}
 		case "assistant":
-			var blocks []anthropic.ContentBlockParamUnion
+			// Thinking comes first in the turn that produced it, and is replayed
+			// exactly as received: the signature covers the block, so editing it
+			// is worse than omitting it.
+			blocks := anthropicThinkingBlocks(m.ProviderState)
 			if m.Content != "" {
 				blocks = append(blocks, anthropic.NewTextBlock(m.Content))
 			}
+			thinkingOnly := len(blocks)
 			for _, tc := range m.ToolCalls {
 				if _, answered := answeredIDs[tc.ID]; !answered {
 					continue
 				}
 				blocks = append(blocks, anthropic.NewToolUseBlock(tc.ID, anthropicToolInput(tc.Arguments), tc.Name))
+			}
+			// A turn of nothing but thinking says nothing, and this protocol
+			// rejects an assistant message with no visible content.
+			if m.Content == "" && len(blocks) == thinkingOnly {
+				i++
+				continue
 			}
 			if len(blocks) > 0 {
 				out = append(out, anthropic.NewAssistantMessage(blocks...))
@@ -251,7 +275,71 @@ func anthropicError(err error) error {
 	return &apiError{err: err}
 }
 
+// anthropicThinking is one recorded reasoning block. The fields are the whole
+// of what the two block types carry, so recording them is lossless — and the
+// signature is opaque by contract, never inspected, only returned.
+type anthropicThinking struct {
+	Type      string `json:"type"`
+	Thinking  string `json:"thinking,omitempty"`
+	Signature string `json:"signature,omitempty"`
+	Data      string `json:"data,omitempty"`
+}
+
+// anthropicProviderState records the turn's reasoning blocks, or nil when the
+// model produced none. An absent state and an empty one are the same fact here,
+// and nil is the one that costs nothing to store.
+func anthropicProviderState(blocks []anthropic.ContentBlockUnion) *cllm.ProviderState {
+	var recorded []anthropicThinking
+	for _, block := range blocks {
+		switch variant := block.AsAny().(type) {
+		case anthropic.ThinkingBlock:
+			recorded = append(recorded, anthropicThinking{
+				Type:      "thinking",
+				Thinking:  variant.Thinking,
+				Signature: variant.Signature,
+			})
+		case anthropic.RedactedThinkingBlock:
+			recorded = append(recorded, anthropicThinking{Type: "redacted_thinking", Data: variant.Data})
+		}
+	}
+	if len(recorded) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(recorded)
+	if err != nil {
+		// State that cannot be recorded is dropped rather than half-written:
+		// a partial signature would be rejected on the next turn.
+		return nil
+	}
+	return &cllm.ProviderState{Protocol: config.LLMProviderAnthropic, Data: data}
+}
+
+// anthropicThinkingBlocks rebuilds the blocks to replay. State from another
+// protocol is ignored: this one would reject it, and the turn is still valid
+// without it.
+func anthropicThinkingBlocks(state *cllm.ProviderState) []anthropic.ContentBlockParamUnion {
+	if !state.Belongs(config.LLMProviderAnthropic) {
+		return nil
+	}
+	var recorded []anthropicThinking
+	if err := json.Unmarshal(state.Data, &recorded); err != nil {
+		return nil
+	}
+	var blocks []anthropic.ContentBlockParamUnion
+	for _, block := range recorded {
+		switch block.Type {
+		case "thinking":
+			blocks = append(blocks, anthropic.NewThinkingBlock(block.Signature, block.Thinking))
+		case "redacted_thinking":
+			blocks = append(blocks, anthropic.NewRedactedThinkingBlock(block.Data))
+		}
+	}
+	return blocks
+}
+
 // anthropicContent reads response blocks into canonical content and tool calls.
+// Thinking is not content: it is recorded as provider state and never joins the
+// text a user reads.
 func anthropicContent(blocks []anthropic.ContentBlockUnion) (string, []cllm.ToolCall) {
 	var text strings.Builder
 	var toolCalls []cllm.ToolCall
@@ -283,23 +371,28 @@ func anthropicUsage(usage anthropic.Usage) cllm.Usage {
 	}
 }
 
-func (a *anthropicAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (a *anthropicAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
 	params, err := a.buildParams(messages, tools)
 	if err != nil {
-		return "", nil, cllm.Usage{}, &requestError{err: err}
+		return cllm.Completion{}, &requestError{err: err}
 	}
 	message, err := a.client.Messages.New(ctx, params)
 	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("messages: %w", anthropicError(err))
+		return cllm.Completion{}, fmt.Errorf("messages: %w", anthropicError(err))
 	}
 	content, toolCalls := anthropicContent(message.Content)
-	return content, toolCalls, anthropicUsage(message.Usage), nil
+	return cllm.Completion{
+		Content:       content,
+		ToolCalls:     toolCalls,
+		Usage:         anthropicUsage(message.Usage),
+		ProviderState: anthropicProviderState(message.Content),
+	}, nil
 }
 
-func (a *anthropicAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (a *anthropicAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	params, err := a.buildParams(messages, tools)
 	if err != nil {
-		return "", nil, cllm.Usage{}, &requestError{err: err}
+		return cllm.Completion{}, &requestError{err: err}
 	}
 	stream := a.client.Messages.NewStreaming(ctx, params)
 	defer func() { _ = stream.Close() }()
@@ -311,7 +404,7 @@ func (a *anthropicAdapter) streaming(ctx context.Context, messages []cllm.Messag
 	for stream.Next() {
 		event := stream.Current()
 		if err := message.Accumulate(event); err != nil {
-			return delivered.String(), nil, cllm.Usage{}, fmt.Errorf("stream accumulate: %w", err)
+			return cllm.Completion{Content: delivered.String()}, fmt.Errorf("stream accumulate: %w", err)
 		}
 		deltaEvent, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent)
 		if !ok {
@@ -327,8 +420,13 @@ func (a *anthropicAdapter) streaming(ctx context.Context, messages []cllm.Messag
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return delivered.String(), nil, cllm.Usage{}, fmt.Errorf("messages stream: %w", anthropicError(err))
+		return cllm.Completion{Content: delivered.String()}, fmt.Errorf("messages stream: %w", anthropicError(err))
 	}
 	content, toolCalls := anthropicContent(message.Content)
-	return content, toolCalls, anthropicUsage(message.Usage), nil
+	return cllm.Completion{
+		Content:       content,
+		ToolCalls:     toolCalls,
+		Usage:         anthropicUsage(message.Usage),
+		ProviderState: anthropicProviderState(message.Content),
+	}, nil
 }

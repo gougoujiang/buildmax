@@ -31,17 +31,29 @@ Rationale and the phases beyond this one:
 ```go
 // internal/core/llm
 type LLMClient interface {
-    ChatCompletionBlocking(ctx, messages []Message, tools []ToolDef)
-        (content string, toolCalls []ToolCall, usage Usage, err error)
-    ChatCompletionStreaming(ctx, messages []Message, tools []ToolDef, onDelta func(string))
-        (content string, toolCalls []ToolCall, usage Usage, err error)
+    ChatCompletionBlocking(ctx, messages []Message, tools []ToolDef) (Completion, error)
+    ChatCompletionStreaming(ctx, messages []Message, tools []ToolDef, onDelta func(string)) (Completion, error)
     ContextWindow() int   // 0 = no windowing configured
+}
+
+type Completion struct {
+    Content       string
+    ToolCalls     []ToolCall
+    Usage         Usage
+    ProviderState *ProviderState   // reasoning state, when the protocol has any
 }
 ```
 
-`Message`, `ToolDef`, `ToolCall`, and `Usage` are all defined in
-`internal/core/llm` — not in this package, and not in `internal/core/model`,
-which holds domain entities and repository contracts instead.
+`Message`, `ToolDef`, `ToolCall`, `Usage`, `Completion`, and `ProviderState` are
+all defined in `internal/core/llm` — not in this package, and not in
+`internal/core/model`, which holds domain entities and repository contracts
+instead.
+
+`Completion` is a struct rather than a longer return list because every
+capability the contract has gained wanted another slot, and a fifth positional
+value is where that stops being readable. `Completion.AssistantMessage()` is the
+history entry a turn becomes, so the agent loop appends it verbatim and no layer
+in between has to know reasoning state exists.
 
 ## Construction
 
@@ -85,6 +97,31 @@ for constraints they do not have.
 The Responses adapter runs **stateless**: it sends the whole input every call and
 sets `store: false`. BuildMax owns history, trimming, compaction, and session
 persistence, so server-side conversation state would compete with all four.
+
+## Reasoning State
+
+`Config.Reasoning` asks a protocol for the reasoning it does before answering,
+and replays it on later turns. Anthropic gets adaptive extended thinking with
+`display: omitted`; Responses gets `include: ["reasoning.encrypted_content"]`,
+which is the only way to replay reasoning when nothing is stored server-side.
+Chat Completions has no such state and ignores the flag.
+
+What comes back is recorded on the assistant message as `ProviderState`, an
+opaque payload tagged with the protocol that produced it. Three properties
+follow, and each is load-bearing:
+
+- **It is never read outside its adapter.** A signature covers the content, so
+  rewriting it is worse than dropping it.
+- **It never becomes content.** Thinking is not an answer; putting it in the
+  transcript would make it indistinguishable from a conclusion.
+- **A foreign tag is discarded, not sent.** That is what lets a session stay
+  portable across providers while carrying state that is not: continuing under a
+  different protocol loses reasoning continuity and nothing else.
+
+State that cannot be encoded is dropped rather than half-written, and a stored
+payload that no longer parses replays as no state at all. In both cases the turn
+proceeds without continuity, which is exactly what a protocol without reasoning
+does anyway.
 
 ## Retries
 

@@ -412,7 +412,7 @@ func TestStoredModelOutputCapReachesTheUpstream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
-	if _, _, _, err := routed.Client.ChatCompletionBlocking(context.Background(),
+	if _, err := routed.Client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}

@@ -42,11 +42,11 @@ func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (stri
 		{Role: "system", Content: taskTitlePrompt},
 		{Role: "user", Content: input},
 	}
-	content, _, usage, err := a.client.ChatCompletionBlocking(ctx, msgs, nil)
+	completion, err := a.client.ChatCompletionBlocking(ctx, msgs, nil)
 	if err != nil {
 		return "", 0, 0, err
 	}
-	return cleanTaskTitle(content), usage.PromptTokens, usage.CompletionTokens, nil
+	return cleanTaskTitle(completion.Content), completion.Usage.PromptTokens, completion.Usage.CompletionTokens, nil
 }
 
 func cleanTaskTitle(s string) string {

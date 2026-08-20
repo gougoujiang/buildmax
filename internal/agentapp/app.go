@@ -153,6 +153,8 @@ type ModelConfig struct {
 	ContextWindow int // 0 = no windowing; from settings.yaml model entry
 	CallTimeout   int // seconds; 0 = uses DefaultCallTimeoutSecs
 	MaxTokens     int // 0 = the adapter's own default
+	// Reasoning asks for reasoning state and replays it on later turns.
+	Reasoning bool
 	// Provider is the wire protocol a direct entry speaks. Empty means
 	// config.LLMProviderOpenAICompatible. A managed entry ignores it: the
 	// operator's catalog decides which protocol serves the call.
@@ -861,6 +863,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		Model:         cfg.ProviderModel,
 		ContextWindow: cfg.ContextWindow,
 		MaxTokens:     cfg.MaxTokens,
+		Reasoning:     cfg.Reasoning,
 		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
 	})
 	if err != nil {
@@ -958,6 +961,7 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		ContextWindow: entry.ContextWindow,
 		CallTimeout:   entry.CallTimeout,
 		MaxTokens:     entry.MaxTokens,
+		Reasoning:     entry.Reasoning,
 		Provider:      entry.Provider,
 		Transport:     entry.Transport,
 		ServerURL:     entry.ServerURL,

@@ -25,6 +25,7 @@ type openAIResponsesAdapter struct {
 	client    *openai.Client
 	model     string
 	maxTokens int
+	reasoning bool
 }
 
 func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
@@ -42,6 +43,7 @@ func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
 		client:    openai.NewClientWithConfig(clientConfig),
 		model:     cfg.Model,
 		maxTokens: cfg.MaxTokens,
+		reasoning: cfg.Reasoning,
 	}
 }
 
@@ -67,6 +69,9 @@ func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []c
 				Output: m.Content,
 			})
 		case "assistant":
+			// Reasoning precedes the output it produced, and is replayed
+			// verbatim: the items are encrypted, so they are carried, not read.
+			input = append(input, responsesReasoningItems(m.ProviderState)...)
 			if m.Content != "" {
 				input = append(input, openai.ResponseInputMessage{Role: "assistant", Content: m.Content})
 			}
@@ -103,7 +108,55 @@ func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []c
 	// conversation itself, so opt out rather than leave copies behind.
 	store := false
 	req.Store = &store
+	if a.reasoning {
+		// Reasoning items are only returned in a form that can be replayed when
+		// asked for explicitly. Without storage there is no previous_response_id
+		// to point at, so the encrypted content has to come back in the response
+		// or continuity is lost between tool calls.
+		req.Include = []openai.ResponseInclude{openai.ResponseIncludeReasoningEncryptedContent}
+	}
 	return req
+}
+
+// responsesReasoning collects the reasoning items from one response.
+//
+// The items are captured as the raw values the protocol sent. Decoding them
+// into the library's item type and re-encoding would drop the encrypted content,
+// because that field is not modelled — and the encrypted content is the whole
+// point of keeping them.
+func responsesReasoning(items []any) *cllm.ProviderState {
+	var reasoning []any
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if item["type"] == "reasoning" {
+			reasoning = append(reasoning, item)
+		}
+	}
+	if len(reasoning) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(reasoning)
+	if err != nil {
+		return nil
+	}
+	return &cllm.ProviderState{Protocol: config.LLMProviderOpenAI, Data: data}
+}
+
+// responsesReasoningItems rebuilds the input items to replay. State from another
+// protocol is ignored: this one would reject it, and the turn is still valid
+// without it.
+func responsesReasoningItems(state *cllm.ProviderState) []any {
+	if !state.Belongs(config.LLMProviderOpenAI) {
+		return nil
+	}
+	var items []any
+	if err := json.Unmarshal(state.Data, &items); err != nil {
+		return nil
+	}
+	return items
 }
 
 // responsesOutput reads the protocol's output items into canonical content and
@@ -167,25 +220,30 @@ func responsesUsage(usage *openai.ResponseUsage) cllm.Usage {
 	}
 }
 
-func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
 	resp, err := a.client.CreateResponse(ctx, a.buildRequest(messages, tools))
 	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("create response: %w", openAIAPIError(err))
+		return cllm.Completion{}, fmt.Errorf("create response: %w", openAIAPIError(err))
 	}
 	if resp.Error != nil {
-		return "", nil, cllm.Usage{}, &apiError{message: resp.Error.Message, err: errors.New(resp.Error.Code)}
+		return cllm.Completion{}, &apiError{message: resp.Error.Message, err: errors.New(resp.Error.Code)}
 	}
 	content, toolCalls, err := responsesOutput(resp.Output)
 	if err != nil {
-		return "", nil, cllm.Usage{}, err
+		return cllm.Completion{}, err
 	}
-	return content, toolCalls, responsesUsage(resp.Usage), nil
+	return cllm.Completion{
+		Content:       content,
+		ToolCalls:     toolCalls,
+		Usage:         responsesUsage(resp.Usage),
+		ProviderState: responsesReasoning(resp.Output),
+	}, nil
 }
 
-func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	stream, err := a.client.CreateResponseStream(ctx, a.buildRequest(messages, tools))
 	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("create response stream: %w", openAIAPIError(err))
+		return cllm.Completion{}, fmt.Errorf("create response stream: %w", openAIAPIError(err))
 	}
 	defer func() { _ = stream.Close() }()
 
@@ -193,6 +251,7 @@ func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.
 		fullContent strings.Builder
 		toolCalls   []cllm.ToolCall
 		usage       cllm.Usage
+		reasoning   *cllm.ProviderState
 	)
 	for {
 		event, err := stream.Recv()
@@ -200,7 +259,7 @@ func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return fullContent.String(), nil, cllm.Usage{}, fmt.Errorf("stream recv: %w", openAIAPIError(err))
+			return cllm.Completion{Content: fullContent.String()}, fmt.Errorf("stream recv: %w", openAIAPIError(err))
 		}
 		switch event.Type {
 		case openai.ResponseStreamEventOutputTextDelta:
@@ -225,6 +284,9 @@ func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.
 				continue
 			}
 			usage = responsesUsage(event.Response.Usage)
+			// Reasoning is read from the finished response rather than the
+			// per-item events, whose decoded form drops the encrypted content.
+			reasoning = responsesReasoning(event.Response.Output)
 			if len(toolCalls) == 0 {
 				// A provider that omitted per-item events still reports the
 				// finished output here.
@@ -235,11 +297,16 @@ func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.
 			}
 		case openai.ResponseStreamEventFailed, openai.ResponseStreamEventIncomplete:
 			if event.Response != nil && event.Response.Error != nil {
-				return fullContent.String(), nil, cllm.Usage{},
+				return cllm.Completion{Content: fullContent.String()},
 					&apiError{message: event.Response.Error.Message, err: errors.New(event.Response.Error.Code)}
 			}
-			return fullContent.String(), nil, cllm.Usage{}, &apiError{message: string(event.Type)}
+			return cllm.Completion{Content: fullContent.String()}, &apiError{message: string(event.Type)}
 		}
 	}
-	return fullContent.String(), toolCalls, usage, nil
+	return cllm.Completion{
+		Content:       fullContent.String(),
+		ToolCalls:     toolCalls,
+		Usage:         usage,
+		ProviderState: reasoning,
+	}, nil
 }

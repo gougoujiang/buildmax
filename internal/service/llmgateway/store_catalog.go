@@ -71,6 +71,7 @@ func targetFromModel(m model.LLMModel) (Target, error) {
 		ContextWindow: m.ContextWindow,
 		CallTimeout:   time.Duration(m.CallTimeout) * time.Second,
 		MaxTokens:     m.MaxTokens,
+		Reasoning:     m.Reasoning,
 		Capabilities:  NewCapabilitySet(capabilities...),
 		Enabled:       m.Enabled,
 	}

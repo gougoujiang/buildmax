@@ -113,6 +113,9 @@ type CompleteResult struct {
 	// UsageReported is false when the provider returned no token counts. The
 	// zero Usage then means "unknown", not "free".
 	UsageReported bool
+	// ProviderState is reasoning state the upstream needs back on the next
+	// request. The gateway carries it without reading it.
+	ProviderState *cllm.ProviderState
 }
 
 // Models lists the aliases a team may use.
@@ -214,9 +217,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	upstreamStartedAt := s.now().Unix()
 	var firstDeltaAt *int64
 
-	var content string
-	var toolCalls []cllm.ToolCall
-	var usage cllm.Usage
+	var completion cllm.Completion
 	var callErr error
 	if streaming {
 		observed := func(delta string) {
@@ -226,9 +227,9 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			}
 			onDelta(delta)
 		}
-		content, toolCalls, usage, callErr = routed.Client.ChatCompletionStreaming(ctx, req.Messages, req.Tools, observed)
+		completion, callErr = routed.Client.ChatCompletionStreaming(ctx, req.Messages, req.Tools, observed)
 	} else {
-		content, toolCalls, usage, callErr = routed.Client.ChatCompletionBlocking(ctx, req.Messages, req.Tools)
+		completion, callErr = routed.Client.ChatCompletionBlocking(ctx, req.Messages, req.Tools)
 	}
 
 	outcome := model.LLMCallOutcome{
@@ -251,6 +252,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		return CompleteResult{LLMCallID: call.LLMCallID}, fmt.Errorf("%w: %w", ErrUpstream, callErr)
 	}
 
+	usage := completion.Usage
 	reported := usage.TotalTokens > 0 || usage.PromptTokens > 0 || usage.CompletionTokens > 0
 	outcome.Status = model.LLMCallStatusSucceeded
 	if reported {
@@ -266,10 +268,11 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	return CompleteResult{
 		LLMCallID:     call.LLMCallID,
 		Alias:         routed.Resolution.Alias,
-		Content:       content,
-		ToolCalls:     toolCalls,
+		Content:       completion.Content,
+		ToolCalls:     completion.ToolCalls,
 		Usage:         usage,
 		UsageReported: reported,
+		ProviderState: completion.ProviderState,
 	}, nil
 }
 

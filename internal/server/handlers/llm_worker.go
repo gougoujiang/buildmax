@@ -107,10 +107,11 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	resp := llmwire.CompletionResponse{
-		LLMCallID: result.LLMCallID,
-		Model:     result.Alias,
-		Content:   result.Content,
-		ToolCalls: fromCoreToolCalls(result.ToolCalls),
+		LLMCallID:     result.LLMCallID,
+		Model:         result.Alias,
+		Content:       result.Content,
+		ToolCalls:     fromCoreToolCalls(result.ToolCalls),
+		ProviderState: fromCoreProviderState(result.ProviderState),
 	}
 	if result.UsageReported {
 		resp.Usage = &llmwire.Usage{

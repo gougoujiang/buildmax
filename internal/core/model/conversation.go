@@ -24,7 +24,26 @@ type ConversationMessage struct {
 	Channel               *string `json:"channel,omitempty"`
 	ToolCallID            *string `json:"tool_call_id,omitempty"`
 	ToolCallsJSON         *string `json:"tool_calls,omitempty"`
-	CreatedAt             int64   `json:"created_at"`
+	// ProviderStateJSON is opaque reasoning state for an assistant message,
+	// stored and replayed but never read here. See core/llm.ProviderState.
+	ProviderStateJSON *string `json:"provider_state,omitempty"`
+	CreatedAt         int64   `json:"created_at"`
+}
+
+// AppendMessageInput is one message to store.
+//
+// It is a struct because the column set grows as the LLM contract does, and a
+// positional list this long stops saying which nil means what.
+type AppendMessageInput struct {
+	ConversationID string
+	Role           string
+	Content        string
+	Channel        *string
+	ToolCallID     *string
+	ToolCallsJSON  *string
+	// ProviderStateJSON is set only for an assistant message from a protocol
+	// that produced reasoning state.
+	ProviderStateJSON *string
 }
 
 // ConversationStore provides Tier 1 conversation persistence. Conversations are user-scoped.
@@ -40,6 +59,6 @@ type ConversationStore interface {
 // ConversationMessageStore provides Tier 1 conversation message persistence.
 // For role=assistant with tool calls, toolCallsJSON should be the JSON-encoded array of tool calls (id, name, arguments).
 type ConversationMessageStore interface {
-	AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*ConversationMessage, error)
+	AppendMessage(ctx context.Context, in AppendMessageInput) (*ConversationMessage, error)
 	ListMessages(ctx context.Context, conversationID string) ([]ConversationMessage, error)
 }

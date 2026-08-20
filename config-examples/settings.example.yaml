@@ -39,6 +39,9 @@ models:
   #   api_key: your-anthropic-api-key
   #   context_window: 200000
   #   max_tokens: 8192
+  #   reasoning: true              # ask for reasoning state and replay it on
+                                   # later turns. No effect on
+                                   # openai_compatible, which carries none.
 
   # A managed entry calls a BuildMax server instead of a provider, so the
   # deployment holds the provider credential and decides which models the team

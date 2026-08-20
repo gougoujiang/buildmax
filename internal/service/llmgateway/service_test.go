@@ -20,30 +20,42 @@ type scriptedClient struct {
 	toolCalls []cllm.ToolCall
 	usage     cllm.Usage
 	err       error
+	// providerState is what an upstream that carries reasoning state returns.
+	providerState *cllm.ProviderState
 
 	gotMessages []cllm.Message
 	gotTools    []cllm.ToolDef
 }
 
-func (c *scriptedClient) ChatCompletionBlocking(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (c *scriptedClient) ChatCompletionBlocking(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
 	c.gotMessages = messages
 	c.gotTools = tools
 	if c.err != nil {
-		return "", nil, cllm.Usage{}, c.err
+		return cllm.Completion{}, c.err
 	}
-	return c.content, c.toolCalls, c.usage, nil
+	return cllm.Completion{
+		Content:       c.content,
+		ToolCalls:     c.toolCalls,
+		Usage:         c.usage,
+		ProviderState: c.providerState,
+	}, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (c *scriptedClient) ChatCompletionStreaming(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	c.gotMessages = messages
 	c.gotTools = tools
 	for _, delta := range c.deltas {
 		onDelta(delta)
 	}
 	if c.err != nil {
-		return "", nil, cllm.Usage{}, c.err
+		return cllm.Completion{}, c.err
 	}
-	return c.content, c.toolCalls, c.usage, nil
+	return cllm.Completion{
+		Content:       c.content,
+		ToolCalls:     c.toolCalls,
+		Usage:         c.usage,
+		ProviderState: c.providerState,
+	}, nil
 }
 
 func (c *scriptedClient) ContextWindow() int { return 0 }

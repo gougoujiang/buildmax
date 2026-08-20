@@ -1,9 +1,12 @@
 package session
 
 import (
-	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 
 	"github.com/google/uuid"
 )
@@ -192,5 +195,44 @@ func TestAddCompaction_ClampsToBounds(t *testing.T) {
 	}
 	if s.CompactionIdx != 1 {
 		t.Errorf("CompactionIdx = %d, want 1 (clamped)", s.CompactionIdx)
+	}
+}
+
+// The session file is the canonical Message shape serialized directly, so
+// reasoning state persists without any conversion layer — and a file written
+// before the field existed still loads.
+func TestSessionFileCarriesReasoningState(t *testing.T) {
+	original := &Session{
+		ID: "s1",
+		Messages: []llm.Message{
+			{Role: "user", Content: "hi"},
+			{Role: "assistant", Content: "hello", ProviderState: &llm.ProviderState{
+				Protocol: "anthropic",
+				Data:     json.RawMessage(`[{"type":"thinking","signature":"sig-1"}]`),
+			}},
+		},
+	}
+	encoded, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal session: %v", err)
+	}
+	var reloaded Session
+	if err := json.Unmarshal(encoded, &reloaded); err != nil {
+		t.Fatalf("unmarshal session: %v", err)
+	}
+	state := reloaded.Messages[1].ProviderState
+	if !state.Belongs("anthropic") || !strings.Contains(string(state.Data), "sig-1") {
+		t.Fatalf("reloaded state = %+v, want the anthropic state intact", state)
+	}
+}
+
+func TestSessionFileWithoutReasoningStateStillLoads(t *testing.T) {
+	var loaded Session
+	if err := json.Unmarshal([]byte(
+		`{"id":"s1","messages":[{"role":"assistant","content":"hello"}]}`), &loaded); err != nil {
+		t.Fatalf("unmarshal a session written before the field existed: %v", err)
+	}
+	if loaded.Messages[0].ProviderState != nil {
+		t.Error("a message with no stored state must load without one")
 	}
 }

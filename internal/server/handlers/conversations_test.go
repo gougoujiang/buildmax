@@ -16,15 +16,16 @@ type mockConversationMessageStore struct {
 	messages []model.ConversationMessage
 }
 
-func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, conversationID, role, content string, channel *string, toolCallID *string, toolCallsJSON *string) (*model.ConversationMessage, error) {
+func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
 	msg := model.ConversationMessage{
 		ConversationMessageID: "cm_mock",
-		ConversationID:        conversationID,
-		Role:                  role,
-		Content:               content,
-		Channel:               channel,
-		ToolCallID:            toolCallID,
-		ToolCallsJSON:         toolCallsJSON,
+		ConversationID:        in.ConversationID,
+		Role:                  in.Role,
+		Content:               in.Content,
+		Channel:               in.Channel,
+		ToolCallID:            in.ToolCallID,
+		ToolCallsJSON:         in.ToolCallsJSON,
+		ProviderStateJSON:     in.ProviderStateJSON,
 	}
 	m.messages = append(m.messages, msg)
 	return &msg, nil

@@ -53,6 +53,9 @@ type ModelEntry struct {
 	// Anthropic Messages protocol requires the field, so its adapter substitutes
 	// DefaultMaxTokens; the OpenAI protocols send it only when set.
 	MaxTokens int `mapstructure:"max_tokens"`
+	// Reasoning asks the model for reasoning state and replays it on later
+	// turns. It has no effect on a protocol that carries none.
+	Reasoning bool `mapstructure:"reasoning"`
 	// Provider is the wire protocol a direct entry speaks: LLMProviderOpenAICompatible
 	// (the default), LLMProviderOpenAI, or LLMProviderAnthropic. It is ignored by a
 	// "buildmax" entry, where the operator's catalog decides.

@@ -135,29 +135,34 @@ func openAIAPIError(err error) error {
 	return &apiError{err: err}
 }
 
-func (a *openAIChatAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (a *openAIChatAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
 	resp, err := a.client.CreateChatCompletion(ctx, a.buildRequest(messages, tools))
 	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("chat completion: %w", openAIAPIError(err))
+		return cllm.Completion{}, fmt.Errorf("chat completion: %w", openAIAPIError(err))
 	}
 	if len(resp.Choices) == 0 {
-		return "", nil, cllm.Usage{}, fmt.Errorf("no choices in response")
+		return cllm.Completion{}, fmt.Errorf("no choices in response")
 	}
 	msg := resp.Choices[0].Message
-	usage := cllm.Usage{
-		PromptTokens:     resp.Usage.PromptTokens,
-		CompletionTokens: resp.Usage.CompletionTokens,
-		TotalTokens:      resp.Usage.TotalTokens,
-	}
-	return msg.Content, toToolCalls(msg.ToolCalls), usage, nil
+	// This protocol carries no reasoning state, so a completion from it never
+	// sets ProviderState.
+	return cllm.Completion{
+		Content:   msg.Content,
+		ToolCalls: toToolCalls(msg.ToolCalls),
+		Usage: cllm.Usage{
+			PromptTokens:     resp.Usage.PromptTokens,
+			CompletionTokens: resp.Usage.CompletionTokens,
+			TotalTokens:      resp.Usage.TotalTokens,
+		},
+	}, nil
 }
 
-func (a *openAIChatAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (string, []cllm.ToolCall, cllm.Usage, error) {
+func (a *openAIChatAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	var streamUsage cllm.Usage
 	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
 	stream, err := a.client.CreateChatCompletionStream(ctx, a.buildRequest(messages, tools))
 	if err != nil {
-		return "", nil, cllm.Usage{}, fmt.Errorf("chat completion stream: %w", openAIAPIError(err))
+		return cllm.Completion{}, fmt.Errorf("chat completion stream: %w", openAIAPIError(err))
 	}
 	defer func() { _ = stream.Close() }()
 
@@ -169,7 +174,7 @@ func (a *openAIChatAdapter) streaming(ctx context.Context, messages []cllm.Messa
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return fullContent.String(), nil, cllm.Usage{}, fmt.Errorf("stream recv: %w", openAIAPIError(err))
+			return cllm.Completion{Content: fullContent.String()}, fmt.Errorf("stream recv: %w", openAIAPIError(err))
 		}
 		if len(resp.Choices) == 0 {
 			continue
@@ -190,5 +195,9 @@ func (a *openAIChatAdapter) streaming(ctx context.Context, messages []cllm.Messa
 			accum.add(idx, tc.ID, tc.Function.Name, tc.Function.Arguments)
 		}
 	}
-	return fullContent.String(), accum.toolCalls(), streamUsage, nil
+	return cllm.Completion{
+		Content:   fullContent.String(),
+		ToolCalls: accum.toolCalls(),
+		Usage:     streamUsage,
+	}, nil
 }
