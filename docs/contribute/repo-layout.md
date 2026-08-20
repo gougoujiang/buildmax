@@ -144,6 +144,7 @@ internal/
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API
+│   ├── httpclient/     Decodes the server's error envelope for its Go clients
 │   ├── git/            Branch and diff helpers
 │   └── log/            slog + lumberjack logging
 │
