@@ -45,10 +45,15 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      # Restored on every run but written only from main. A per-commit key on
-      # pull requests would push a few hundred megabytes into the repository's
-      # shared 10 GB cache budget on every push to every branch, and evict the
-      # entries the other jobs depend on.
+      # Restored on every run, written only from main, and keyed on the
+      # toolchain rather than the commit: this entry measured 1035 MB, and one
+      # per commit would have filled the repository's shared 10 GB budget in
+      # days and evicted the entries the other jobs depend on. Keying it on
+      # go.mod and go.sum holds exactly one, refreshed when the dependencies or
+      # the Go version move. What that leaves stale is this module's own
+      # packages, which any source change recompiles regardless; the compiled
+      # dependencies and the race-instrumented standard library are the bulk of
+      # what the cache is for, and those move with go.sum.
       - name: Restore Go build cache
         id: go-build-cache
         uses: actions/cache/restore@v6
@@ -56,9 +61,8 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: |
-            go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-
             go-build-${{ runner.os }}-
 
       # These tools live outside this module, so the module cache never held
