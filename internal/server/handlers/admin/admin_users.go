@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"encoding/json"
@@ -90,11 +90,11 @@ func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) 
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.Users, "accounts not configured") {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
-	users, total, err := h.cfg.UserStore.ListUsers(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
+	users, total, err := h.cfg.Users.ListUsers(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_users")
 		return
@@ -119,15 +119,15 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Team names and roles, not team contents. An administrator learns that the
 	// account can reach a team, never what is in it.
-	if h.cfg.TeamStore != nil {
-		teams, err := h.cfg.TeamStore.ListTeamsByUser(r.Context(), user.UserID)
+	if h.cfg.Teams != nil {
+		teams, err := h.cfg.Teams.ListTeamsByUser(r.Context(), user.UserID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "user_id", user.UserID)
 			return
 		}
 		for _, team := range teams {
 			role := ""
-			members, err := h.cfg.TeamStore.ListTeamMembers(r.Context(), team.TeamID)
+			members, err := h.cfg.Teams.ListTeamMembers(r.Context(), team.TeamID)
 			if err != nil {
 				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "team_id", team.TeamID)
 				return
@@ -141,15 +141,15 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 			detail.Teams = append(detail.Teams, AdminUserTeam{TeamID: team.TeamID, Name: team.Name, Role: role})
 		}
 	}
-	if h.cfg.RefreshTokenStore != nil {
-		count, err := h.cfg.RefreshTokenStore.CountUserSessions(r.Context(), user.UserID, time.Now().Unix())
+	if h.cfg.RefreshTokens != nil {
+		count, err := h.cfg.RefreshTokens.CountUserSessions(r.Context(), user.UserID, time.Now().Unix())
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "sessions")
 			return
 		}
 		detail.SessionCount = count
 	}
-	roles, err := h.cfg.SystemGrantStore.ActiveSystemRoles(r.Context(), user.UserID)
+	roles, err := h.cfg.Grants.ActiveSystemRoles(r.Context(), user.UserID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "roles")
 		return
@@ -170,7 +170,7 @@ func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.Users, "accounts not configured") {
 		return
 	}
 	var req AdminCreateUserRequest
@@ -183,7 +183,7 @@ func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request)
 		httputil.WriteJSONError(w, http.StatusBadRequest, "a valid email is required")
 		return
 	}
-	user, err := h.cfg.UserStore.CreateUser(r.Context(), email, h.cfg.DefaultQuotaTier)
+	user, err := h.cfg.Users.CreateUser(r.Context(), email, h.cfg.DefaultQuotaTier)
 	if err != nil {
 		if errors.Is(err, model.ErrEmailExists) {
 			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
@@ -202,7 +202,7 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.LoginCodeStore, "login codes not configured") {
+	if !httputil.RequireStore(w, h.cfg.LoginCodes, "login codes not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
@@ -216,7 +216,7 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusConflict, "the account is disabled; enable it before issuing a code")
 		return
 	}
-	code, expiresAt, err := h.cfg.LoginCodeStore.CreateLoginCode(r.Context(), user.UserID, model.LoginCodeTTLDefault)
+	code, expiresAt, err := h.cfg.LoginCodes.CreateLoginCode(r.Context(), user.UserID, model.LoginCodeTTLDefault)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_login_code", "user_id", user.UserID)
 		return
@@ -254,7 +254,7 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 			disabledAt = &now
 			action = model.AuditUserDisabled
 		}
-		if err := h.cfg.UserStore.SetUserDisabled(r.Context(), user.UserID, disabledAt); err != nil {
+		if err := h.cfg.Users.SetUserDisabled(r.Context(), user.UserID, disabledAt); err != nil {
 			if errors.Is(err, model.ErrUserNotFound) {
 				httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
 				return
@@ -264,11 +264,11 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 		}
 
 		revoked := int64(0)
-		if disable && h.cfg.RefreshTokenStore != nil {
+		if disable && h.cfg.RefreshTokens != nil {
 			// The stored half of every login, retired now rather than left to
 			// expire. The access token cannot be revoked at all; what stops it
 			// is requireActiveUser refusing on the next request.
-			n, err := h.cfg.RefreshTokenStore.RevokeUserSessions(r.Context(), user.UserID, time.Now().Unix())
+			n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.UserID, time.Now().Unix())
 			if err != nil {
 				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
 				return
@@ -277,7 +277,7 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 		}
 		h.recordAdminUserAction(r, actorID, action, user.UserID, "")
 
-		updated, err := h.cfg.UserStore.GetUser(r.Context(), user.UserID)
+		updated, err := h.cfg.Users.GetUser(r.Context(), user.UserID)
 		if err != nil || updated == nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "reload")
 			return
@@ -295,14 +295,14 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.RefreshTokenStore, "sessions not configured") {
+	if !httputil.RequireStore(w, h.cfg.RefreshTokens, "sessions not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
 	if !ok {
 		return
 	}
-	n, err := h.cfg.RefreshTokenStore.RevokeUserSessions(r.Context(), user.UserID, time.Now().Unix())
+	n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.UserID, time.Now().Unix())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_sessions", "user_id", user.UserID)
 		return
@@ -313,14 +313,14 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 
 // adminTargetUser resolves the {user_id} an admin route acts on.
 func (h *Handler) adminTargetUser(w http.ResponseWriter, r *http.Request) (*model.User, bool) {
-	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.Users, "accounts not configured") {
 		return nil, false
 	}
 	userID, ok := httputil.PathValue(w, r, "user_id")
 	if !ok {
 		return nil, false
 	}
-	user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
+	user, err := h.cfg.Users.GetUser(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_target_user", "user_id", userID)
 		return nil, false

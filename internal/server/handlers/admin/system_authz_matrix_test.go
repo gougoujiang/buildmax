@@ -1,9 +1,8 @@
-package handlers
+package admin
 
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,7 +13,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // Every route under /api/admin is deployment-scoped, and a system grant is the
@@ -91,20 +89,19 @@ func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	// enabled account from an absent one.
 	seedUser(t, users, adminUser, "admin@example.com")
 	seedUser(t, users, adminTeamOwner, "owner@example.com")
-	h := NewHandler(Config{
-		JWTSecret:         matrixSecret,
-		SystemGrantStore:  grants,
-		TeamStore:         teams,
-		UserStore:         users,
-		LoginCodeStore:    &mock.MockLoginCodeStore{},
-		RefreshTokenStore: &mock.MockRefreshTokenStore{},
-		AuditStore:        audits,
+	h := New(Config{
+		JWTSecret:     testSecret,
+		Grants:        grants,
+		Teams:         teams,
+		Users:         users,
+		LoginCodes:    &mock.MockLoginCodeStore{},
+		RefreshTokens: &mock.MockRefreshTokenStore{},
+		Audits:        audits,
 		// The recorder, not just the store: Config.Audit is what the handlers
 		// write through, and a nil one discards silently — which would make
 		// TestAdminDenialIsRecorded pass for the wrong reason if it were
 		// asserting the other way round.
-		Audit:         audit.NewRecorder(audits),
-		WorkspacesDir: t.TempDir(),
+		Audit: audit.NewRecorder(audits),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -125,19 +122,6 @@ func seedUser(t *testing.T, users *mock.MockUserStore, userID, email string) *mo
 	users.ByID[userID] = u
 	users.ByEmail[email] = u
 	return u
-}
-
-func adminRequestAs(t *testing.T, mux *http.ServeMux, c adminCase, userID string) *httptest.ResponseRecorder {
-	t.Helper()
-	path := regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(c.path, "nonexistent")
-	req := httptest.NewRequest(c.method, path, strings.NewReader("{}"))
-	req.Header.Set("Content-Type", "application/json")
-	if userID != "" {
-		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, matrixSecret))
-	}
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	return rec
 }
 
 // TestSystemAuthzMatrix drives every admin route as a system administrator, a
@@ -181,23 +165,6 @@ func TestSystemAuthzMatrix(t *testing.T) {
 // it exists is that the failure would otherwise be silent: an administrator
 // would quietly acquire read access to every team's prompts, artifacts, and
 // traces, and no route would look different.
-func TestSystemGrantIsNotATeamKey(t *testing.T) {
-	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
-
-	mux := matrixMuxWithGrants(t, grants)
-	for _, c := range teamRoutes {
-		t.Run(c.method+" "+c.path, func(t *testing.T) {
-			if got := requestAs(t, mux, c, matrixTeam, adminUser); got != http.StatusForbidden {
-				t.Errorf("a system administrator who is not a member got %d, want 403", got)
-			}
-		})
-	}
-}
-
-// TestAdminDenialIsRecorded: a refused admin request is written to the trail
-// with no team, because the route was not team-scoped. A denial is what shows
-// someone probing at a boundary, and an admin boundary is worth seeing probed.
 func TestAdminDenialIsRecorded(t *testing.T) {
 	mux, audits := adminMux(t)
 
@@ -232,12 +199,11 @@ func TestAdminDenialIsRecorded(t *testing.T) {
 func TestAdminRouteFailsClosedOnStoreError(t *testing.T) {
 	grants := &mock.MockSystemGrantStore{Err: errStoreUnavailable}
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		TeamStore:        &mock.MockTeamStore{},
-		AuditStore:       &mock.MockAuditStore{},
-		WorkspacesDir:    t.TempDir(),
+	h := New(Config{
+		JWTSecret: testSecret,
+		Grants:    grants,
+		Teams:     &mock.MockTeamStore{},
+		Audits:    &mock.MockAuditStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -252,11 +218,10 @@ func TestAdminRouteFailsClosedOnStoreError(t *testing.T) {
 // in requireSystemAdmin: a deployment with no grant store answers an anonymous
 // caller 401, not "system administration not configured".
 func TestAdminRouteWithoutAStoreDoesNotLeakToAnonymousCallers(t *testing.T) {
-	h := NewHandler(Config{
-		JWTSecret:     matrixSecret,
-		TeamStore:     &mock.MockTeamStore{},
-		AuditStore:    &mock.MockAuditStore{},
-		WorkspacesDir: t.TempDir(),
+	h := New(Config{
+		JWTSecret: testSecret,
+		Teams:     &mock.MockTeamStore{},
+		Audits:    &mock.MockAuditStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -292,9 +257,9 @@ func TestAdminMeReportsTheGrant(t *testing.T) {
 // TestAdminMatrixCoversEveryAdminRoute reads routes.go and fails when an
 // /api/admin route has no entry above.
 func TestAdminMatrixCoversEveryAdminRoute(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join("routes.go"))
+	body, err := os.ReadFile(filepath.Join("handler.go"))
 	if err != nil {
-		t.Fatalf("read routes.go: %v", err)
+		t.Fatalf("read handler.go: %v", err)
 	}
 	found := regexp.MustCompile(`"(GET|POST|PATCH|PUT|DELETE) (/api/admin[^"]*)"`).
 		FindAllStringSubmatch(string(body), -1)

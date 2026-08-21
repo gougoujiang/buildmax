@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"encoding/json"
@@ -37,7 +37,7 @@ func (h *Handler) listAdminGrantsHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	includeRevoked := r.URL.Query().Get("include_revoked") == "true"
-	grants, err := h.cfg.SystemGrantStore.ListSystemGrants(r.Context(), includeRevoked)
+	grants, err := h.cfg.Grants.ListSystemGrants(r.Context(), includeRevoked)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_grants")
 		return
@@ -45,10 +45,10 @@ func (h *Handler) listAdminGrantsHandler(w http.ResponseWriter, r *http.Request)
 	out := make([]AdminGrant, 0, len(grants))
 	for _, g := range grants {
 		row := AdminGrant{SystemGrant: g}
-		if h.cfg.UserStore != nil {
+		if h.cfg.Users != nil {
 			// A grant outliving the account it names is not expected. Showing
 			// the row without an email beats refusing to list authority.
-			if user, err := h.cfg.UserStore.GetUser(r.Context(), g.UserID); err == nil && user != nil {
+			if user, err := h.cfg.Users.GetUser(r.Context(), g.UserID); err == nil && user != nil {
 				row.Email = user.Email
 			}
 		}
@@ -63,7 +63,7 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.Users, "accounts not configured") {
 		return
 	}
 	var req AdminGrantRequest
@@ -82,7 +82,7 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 	// Granting does not create an account, for the same reason the operator
 	// command does not: creating an account and minting deployment authority
 	// are two decisions.
-	user, err := h.cfg.UserStore.GetUser(r.Context(), req.UserID)
+	user, err := h.cfg.Users.GetUser(r.Context(), req.UserID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_create_grant", "user_id", req.UserID)
 		return
@@ -92,7 +92,7 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	grant, err := h.cfg.SystemGrantStore.GrantSystemRole(r.Context(), req.UserID, role, actorID, time.Now().Unix())
+	grant, err := h.cfg.Grants.GrantSystemRole(r.Context(), req.UserID, role, actorID, time.Now().Unix())
 	switch {
 	case errors.Is(err, model.ErrSystemGrantExists):
 		httputil.WriteJSONError(w, http.StatusConflict, "the account already holds this role")
@@ -135,7 +135,7 @@ func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		role = model.SystemRoleAdmin
 	}
 
-	remaining, err := h.cfg.SystemGrantStore.CountActiveSystemGrants(r.Context(), role)
+	remaining, err := h.cfg.Grants.CountActiveSystemGrants(r.Context(), role)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_delete_grant", "role", role)
 		return
@@ -146,7 +146,7 @@ func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	revoked, err := h.cfg.SystemGrantStore.RevokeSystemRole(r.Context(), userID, role, time.Now().Unix())
+	revoked, err := h.cfg.Grants.RevokeSystemRole(r.Context(), userID, role, time.Now().Unix())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_delete_grant", "user_id", userID)
 		return

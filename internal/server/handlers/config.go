@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -115,11 +116,11 @@ type Config struct {
 
 	// Deployment describes facts about this deployment that do not change
 	// while it runs, for the admin system status.
-	Deployment DeploymentInfo
+	Deployment admin.DeploymentInfo
 	// DependencyProbes are the same checks the readiness endpoint runs. The
 	// admin status reports them so an operator sees what /readyz sees without
 	// needing to reach it.
-	DependencyProbes []DependencyProbe
+	DependencyProbes []admin.DependencyProbe
 	// RedactedConfig is the operator-facing view of server.yaml, built by
 	// internal/config so that the decision about which fields may be shown
 	// lives next to the struct. Nil means the deployment reports none.

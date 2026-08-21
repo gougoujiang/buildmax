@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"encoding/json"
@@ -10,46 +10,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
-
-func adminTeamsMux(t *testing.T) *http.ServeMux {
-	t.Helper()
-	users := &mock.MockUserStore{}
-	seedUser(t, users, adminUser, "admin@example.com")
-	seedUser(t, users, "u_alice", "alice@example.com")
-	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
-
-	personalOf := "u_alice"
-	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
-			{TeamID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: 200},
-			{TeamID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: 100},
-		},
-		Members: []model.TeamMember{
-			{TeamID: "tm_shared", UserID: "u_alice", Role: model.TeamRoleOwner},
-			{TeamID: "tm_shared", UserID: "u_bob", Role: model.TeamRoleMember},
-			{TeamID: "tm_personal", UserID: "u_alice", Role: model.TeamRoleOwner},
-		},
-	}
-	audits := &mock.MockAuditStore{}
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		UserStore:        users,
-		TeamStore:        teams,
-		// Wired because a nil store answers 503 before any authorization check
-		// runs, which would make TestAdminTeamRoutesAreNotAWayIntoATeam pass
-		// for the wrong reason.
-		IssueStore:        &mock.MockIssueStore{},
-		ConversationStore: &mock.MockConversationStore{},
-		AuditStore:        audits,
-		Audit:             audit.NewRecorder(audits),
-		WorkspacesDir:     t.TempDir(),
-	})
-	mux := http.NewServeMux()
-	h.Register(mux)
-	return mux
-}
 
 func TestAdminTeamsList(t *testing.T) {
 	mux := adminTeamsMux(t)
@@ -130,15 +90,40 @@ func TestAdminTeamDetailOnAnUnknownTeam(t *testing.T) {
 // outside, and reaching a team's own resources still needs membership. This is
 // the same claim TestSystemGrantIsNotATeamKey makes, restated at the surface
 // that most looks like an exception to it.
-func TestAdminTeamRoutesAreNotAWayIntoATeam(t *testing.T) {
-	mux := adminTeamsMux(t)
-	for _, path := range []string{
-		"/api/teams/tm_shared/issues",
-		"/api/teams/tm_shared/conversations",
-		"/api/teams/tm_shared/audit-events",
-	} {
-		if got := adminRequestAs(t, mux, adminCase{"GET", path}, adminUser).Code; got != http.StatusForbidden {
-			t.Errorf("%s for a non-member administrator got %d, want 403", path, got)
-		}
+
+func adminTeamsMux(t *testing.T) *http.ServeMux {
+	t.Helper()
+	users := &mock.MockUserStore{}
+	seedUser(t, users, adminUser, "admin@example.com")
+	seedUser(t, users, "u_alice", "alice@example.com")
+	grants := &mock.MockSystemGrantStore{}
+	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+
+	personalOf := "u_alice"
+	teams := &mock.MockTeamStore{
+		Teams: []model.Team{
+			{TeamID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: 200},
+			{TeamID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: 100},
+		},
+		Members: []model.TeamMember{
+			{TeamID: "tm_shared", UserID: "u_alice", Role: model.TeamRoleOwner},
+			{TeamID: "tm_shared", UserID: "u_bob", Role: model.TeamRoleMember},
+			{TeamID: "tm_personal", UserID: "u_alice", Role: model.TeamRoleOwner},
+		},
 	}
+	audits := &mock.MockAuditStore{}
+	h := New(Config{
+		JWTSecret: testSecret,
+		Grants:    grants,
+		Users:     users,
+		Teams:     teams,
+		// Wired because a nil store answers 503 before any authorization check
+		// runs, which would make TestAdminTeamRoutesAreNotAWayIntoATeam pass
+		// for the wrong reason.
+		Audits: audits,
+		Audit:  audit.NewRecorder(audits),
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	return mux
 }

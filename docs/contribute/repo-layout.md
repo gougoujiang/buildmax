@@ -159,6 +159,8 @@ internal/
 │
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
+│   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a team
+│   │   └── auditexport/  CSV export shared by the team and admin audit routes
 │   ├── access/         Who is calling, which team, and whether they may
 │   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers

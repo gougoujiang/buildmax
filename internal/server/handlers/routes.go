@@ -99,30 +99,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// WebSocket
 	mux.HandleFunc("GET /api/teams/{team_id}/ws", h.wsUpgradeHandler)
 
-	// System administration — deployment-scoped, never team-scoped. Every route
-	// here requires a system_admin grant and none takes a {team_id}: an admin
-	// route that looked team-scoped would invite exactly the confusion the
-	// boundary exists to prevent. See docs/design/system-administration.md.
-	mux.HandleFunc("GET /api/admin/me", h.adminMeHandler)
-	mux.HandleFunc("GET /api/admin/grants", h.listAdminGrantsHandler)
-	mux.HandleFunc("POST /api/admin/grants", h.createAdminGrantHandler)
-	mux.HandleFunc("DELETE /api/admin/grants/{user_id}", h.deleteAdminGrantHandler)
-	mux.HandleFunc("GET /api/admin/users", h.listAdminUsersHandler)
-	mux.HandleFunc("POST /api/admin/users", h.createAdminUserHandler)
-	mux.HandleFunc("GET /api/admin/users/{user_id}", h.getAdminUserHandler)
-	mux.HandleFunc("POST /api/admin/users/{user_id}/login-code", h.issueAdminLoginCodeHandler)
-	mux.HandleFunc("POST /api/admin/users/{user_id}/disable", h.setAdminUserDisabledHandler(true))
-	mux.HandleFunc("POST /api/admin/users/{user_id}/enable", h.setAdminUserDisabledHandler(false))
-	mux.HandleFunc("DELETE /api/admin/users/{user_id}/sessions", h.revokeAdminUserSessionsHandler)
-	mux.HandleFunc("GET /api/admin/system", h.adminSystemHandler)
-	mux.HandleFunc("GET /api/admin/config", h.adminConfigHandler)
-	mux.HandleFunc("GET /api/admin/audit-events", h.listAdminAuditEventsHandler)
-	mux.HandleFunc("GET /api/admin/audit-events/export", h.exportAdminAuditEventsHandler)
-	mux.HandleFunc("GET /api/admin/teams", h.listAdminTeamsHandler)
-	mux.HandleFunc("GET /api/admin/teams/{team_id}", h.getAdminTeamHandler)
-	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
-	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/enable", h.setAdminModelEnabledHandler(true))
-	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/disable", h.setAdminModelEnabledHandler(false))
+	// System administration lives in its own package: every route there requires
+	// a system_admin grant and none is team-scoped, so it holds a Config that
+	// cannot reach a team's data at all.
+	h.adminHandler().Register(mux)
 
 	// Worker API — every route is scoped to one run, so every route authenticates
 	// with that run's token. The deployment-wide worker token is still accepted

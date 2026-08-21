@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"context"
@@ -36,15 +36,15 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 		{TaskRunID: "r_3", Status: "PENDING"},
 	}}
 	audits := &mock.MockAuditStore{}
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		UserStore:        users,
-		TeamStore:        &mock.MockTeamStore{},
-		TaskRunStore:     runs,
-		SchemaStore:      stubSchemaStore{migrations: []model.SchemaMigration{{ID: "0001_first", AppliedAt: 100}}},
-		AuditStore:       audits,
-		Audit:            audit.NewRecorder(audits),
+	h := New(Config{
+		JWTSecret: testSecret,
+		Grants:    grants,
+		Users:     users,
+		Teams:     &mock.MockTeamStore{},
+		TaskRuns:  runs,
+		Schema:    stubSchemaStore{migrations: []model.SchemaMigration{{ID: "0001_first", AppliedAt: 100}}},
+		Audits:    audits,
+		Audit:     audit.NewRecorder(audits),
 		Deployment: DeploymentInfo{
 			Version:            "1.2.3 (abcdef)",
 			WorkerRunMode:      "k8s_job",
@@ -53,7 +53,6 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 		},
 		DependencyProbes: probes,
 		RedactedConfig:   redacted,
-		WorkspacesDir:    t.TempDir(),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -119,16 +118,15 @@ func TestAdminSystemStatusSurvivesAPartialOutage(t *testing.T) {
 	grants := &mock.MockSystemGrantStore{}
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 	audits := &mock.MockAuditStore{}
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		UserStore:        users,
-		TeamStore:        &mock.MockTeamStore{},
-		SchemaStore:      stubSchemaStore{err: errors.New("database is gone")},
-		AuditStore:       audits,
-		Audit:            audit.NewRecorder(audits),
-		Deployment:       DeploymentInfo{Version: "dev"},
-		WorkspacesDir:    t.TempDir(),
+	h := New(Config{
+		JWTSecret:  testSecret,
+		Grants:     grants,
+		Users:      users,
+		Teams:      &mock.MockTeamStore{},
+		Schema:     stubSchemaStore{err: errors.New("database is gone")},
+		Audits:     audits,
+		Audit:      audit.NewRecorder(audits),
+		Deployment: DeploymentInfo{Version: "dev"},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

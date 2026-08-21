@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"encoding/json"
@@ -27,14 +27,13 @@ func auditSearchMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 		{AuditEventID: "ae_4", TeamID: "tm_two", ActorType: model.AuditActorUser, ActorID: "u_carol", Action: model.AuditAccessDenied, CreatedAt: 400},
 	}}
 
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		UserStore:        users,
-		TeamStore:        &mock.MockTeamStore{},
-		AuditStore:       audits,
-		Audit:            audit.NewRecorder(audits),
-		WorkspacesDir:    t.TempDir(),
+	h := New(Config{
+		JWTSecret: testSecret,
+		Grants:    grants,
+		Users:     users,
+		Teams:     &mock.MockTeamStore{},
+		Audits:    audits,
+		Audit:     audit.NewRecorder(audits),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
