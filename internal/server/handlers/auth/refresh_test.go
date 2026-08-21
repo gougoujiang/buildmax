@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"bytes"
@@ -25,27 +25,27 @@ func newAuthTestMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockRefresh
 	t.Helper()
 	user := refreshTestUser()
 	store := &mock.MockRefreshTokenStore{}
-	if cfg.UserStore == nil {
-		cfg.UserStore = &mock.MockUserStore{
+	if cfg.Users == nil {
+		cfg.Users = &mock.MockUserStore{
 			ByEmail: map[string]*model.User{"a@b.c": user},
 			ByID:    map[string]*model.User{"u1": user},
 		}
 	}
-	if cfg.LoginCodeStore == nil {
-		cfg.LoginCodeStore = &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+	if cfg.LoginCodes == nil {
+		cfg.LoginCodes = &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 		}}
 	}
-	if cfg.RefreshTokenStore == nil {
-		cfg.RefreshTokenStore = store
-	} else if s, ok := cfg.RefreshTokenStore.(*mock.MockRefreshTokenStore); ok {
+	if cfg.RefreshTokens == nil {
+		cfg.RefreshTokens = store
+	} else if s, ok := cfg.RefreshTokens.(*mock.MockRefreshTokenStore); ok {
 		store = s
 	}
 	if cfg.JWTSecret == "" {
 		cfg.JWTSecret = refreshTestSecret
 	}
 	mux := http.NewServeMux()
-	NewHandler(cfg).Register(mux)
+	New(cfg).Register(mux)
 	return mux, store
 }
 
@@ -113,12 +113,12 @@ func TestLoginIssuesBothCredentials(t *testing.T) {
 func TestLoginWithoutRefreshStoreStillIssuesAnAccessToken(t *testing.T) {
 	user := refreshTestUser()
 	mux := http.NewServeMux()
-	NewHandler(Config{
-		UserStore: &mock.MockUserStore{
+	New(Config{
+		Users: &mock.MockUserStore{
 			ByEmail: map[string]*model.User{"a@b.c": user},
 			ByID:    map[string]*model.User{"u1": user},
 		},
-		LoginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 		}},
 		JWTSecret: refreshTestSecret,
@@ -216,7 +216,7 @@ func TestRefreshKeepsTheSession(t *testing.T) {
 // revoke the first.
 func TestEachLoginOpensItsOwnSession(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{
-		LoginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 			"code-2": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 		}},
@@ -343,8 +343,8 @@ func TestRefreshRejectsADeletedUser(t *testing.T) {
 	// Rebuild the handler with the user gone but the same token store behind
 	// it. That is the shape of an account removed between two refreshes.
 	deleted, _ := newAuthTestMux(t, Config{
-		UserStore:         &mock.MockUserStore{ByID: map[string]*model.User{}},
-		RefreshTokenStore: store,
+		Users:         &mock.MockUserStore{ByID: map[string]*model.User{}},
+		RefreshTokens: store,
 	})
 	rec := postJSON(t, deleted, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)
 	if rec.Code != http.StatusUnauthorized {

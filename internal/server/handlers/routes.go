@@ -6,14 +6,10 @@ import (
 
 // Register adds all routes to mux: auth (unauthenticated), user API (JWT), worker API (worker token), inbound webhook.
 func (h *Handler) Register(mux *http.ServeMux) {
-	// Auth — unauthenticated
-	mux.HandleFunc("POST /api/otp/request", h.otpRequestHandler)
-	mux.HandleFunc("POST /api/login", h.loginHandler)
-	mux.HandleFunc("POST /api/token/refresh", h.refreshHandler)
-	mux.HandleFunc("POST /api/logout", h.logoutHandler)
-
-	// Password — authenticated; sets or changes the caller's own password
-	mux.HandleFunc("POST /api/password", h.setPasswordHandler)
+	// Establishing a session lives in its own package: those routes run before a
+	// caller has one, and its Config holds no team store, so nothing there can
+	// decide what a session may reach.
+	h.authHandler().Register(mux)
 
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)

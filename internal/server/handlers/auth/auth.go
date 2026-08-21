@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"context"
@@ -13,8 +13,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/util"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 // LoginRequest is the JSON body for POST /api/login. Exactly one of Password
@@ -98,21 +96,6 @@ type OtpRequestResponse struct {
 	Message string `json:"message"`
 }
 
-type jwtClaims struct {
-	jwt.RegisteredClaims
-	Sub string `json:"sub"`
-	// Typ separates an access token from anything else this key might ever
-	// sign. Refresh tokens are opaque random strings rather than JWTs, so today
-	// there is nothing to confuse an access token with; the claim is here so
-	// that stays true if that ever changes.
-	Typ string `json:"typ,omitempty"`
-	// Sid names the login chain this token belongs to, matching session_id in
-	// user_refresh_token. It is what lets a logout revoke the right session.
-	Sid string `json:"sid,omitempty"`
-}
-
-const tokenTypeAccess = "access"
-
 func (h *Handler) accessTokenTTL() time.Duration {
 	if h.cfg.AccessTokenTTL > 0 {
 		return h.cfg.AccessTokenTTL
@@ -143,22 +126,12 @@ func (h *Handler) refreshRotationGrace() time.Duration {
 // existed, which makes the store optional rather than required.
 func (h *Handler) issueTokenPair(ctx context.Context, userID, platform, sessionID string, now time.Time) (accessToken, refreshToken string, expiresIn int64, err error) {
 	ttl := h.accessTokenTTL()
-	claims := jwtClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        util.NewPrefixedID(util.PrefixAuthSession),
-			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
-			IssuedAt:  jwt.NewNumericDate(now),
-		},
-		Sub: userID,
-		Typ: tokenTypeAccess,
-		Sid: sessionID,
-	}
-	accessToken, err = jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(h.cfg.JWTSecret))
+	accessToken, err = access.Mint(h.cfg.JWTSecret, userID, sessionID, now, ttl)
 	if err != nil {
 		return "", "", 0, err
 	}
-	if h.cfg.RefreshTokenStore != nil {
-		refreshToken, _, err = h.cfg.RefreshTokenStore.CreateRefreshToken(ctx, model.NewRefreshToken{
+	if h.cfg.RefreshTokens != nil {
+		refreshToken, _, err = h.cfg.RefreshTokens.CreateRefreshToken(ctx, model.NewRefreshToken{
 			UserID:    userID,
 			SessionID: sessionID,
 			Platform:  platform,
@@ -172,11 +145,11 @@ func (h *Handler) issueTokenPair(ctx context.Context, userID, platform, sessionI
 }
 
 func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.UserStore == nil || h.cfg.JWTSecret == "" {
+	if h.cfg.Users == nil || h.cfg.JWTSecret == "" {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
-	if h.cfg.LoginCodeStore == nil && h.cfg.PasswordStore == nil {
+	if h.cfg.LoginCodes == nil && h.cfg.Passwords == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured: no way to verify a credential")
 		return
 	}
@@ -229,7 +202,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "issue_token_pair")
 		return
 	}
-	if err := h.cfg.UserStore.UpdateLoginMeta(r.Context(), user.UserID, now.Unix(), platform); err != nil {
+	if err := h.cfg.Users.UpdateLoginMeta(r.Context(), user.UserID, now.Unix(), platform); err != nil {
 		slog.Error("update login meta failed", "err", err, "handler", "login", "user_id", user.UserID)
 	}
 	// Recorded after the login succeeds, so the trail holds sessions that were
@@ -262,11 +235,11 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 // proof, and requiring a live access token alongside it would make the endpoint
 // useless in the one situation it exists for.
 func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.UserStore == nil || h.cfg.JWTSecret == "" {
+	if h.cfg.Users == nil || h.cfg.JWTSecret == "" {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login not configured")
 		return
 	}
-	if h.cfg.RefreshTokenStore == nil {
+	if h.cfg.RefreshTokens == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "refresh not configured")
 		return
 	}
@@ -280,7 +253,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	rotated, err := h.cfg.RefreshTokenStore.RotateRefreshToken(
+	rotated, err := h.cfg.RefreshTokens.RotateRefreshToken(
 		r.Context(), req.RefreshToken, now.Unix(), h.refreshTokenTTL(), h.refreshRotationGrace())
 	switch {
 	case errors.Is(err, model.ErrRefreshTokenReused):
@@ -308,13 +281,13 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 
 	// The refresh token outlives many access tokens, so the account behind it
 	// is re-checked here rather than trusted from the login it descends from.
-	user, err := h.cfg.UserStore.GetUser(r.Context(), rotated.UserID)
+	user, err := h.cfg.Users.GetUser(r.Context(), rotated.UserID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh", "user_id", rotated.UserID)
 		return
 	}
 	if user == nil {
-		if _, err := h.cfg.RefreshTokenStore.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
+		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
 			slog.Error("revoke session for missing user failed", "err", err, "session_id", rotated.SessionID)
 		}
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
@@ -325,7 +298,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	// sweep. Either way the account is the authority, not the row: revoke the
 	// session this one belongs to and say why.
 	if user.Disabled() {
-		if _, err := h.cfg.RefreshTokenStore.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
+		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
 			slog.Error("revoke session for disabled user failed", "err", err, "session_id", rotated.SessionID)
 		}
 		httputil.WriteJSONError(w, http.StatusForbidden, access.DisabledMessage)
@@ -333,17 +306,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ttl := h.accessTokenTTL()
-	claims := jwtClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        util.NewPrefixedID(util.PrefixAuthSession),
-			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
-			IssuedAt:  jwt.NewNumericDate(now),
-		},
-		Sub: user.UserID,
-		Typ: tokenTypeAccess,
-		Sid: rotated.SessionID,
-	}
-	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(h.cfg.JWTSecret))
+	accessToken, err := access.Mint(h.cfg.JWTSecret, user.UserID, rotated.SessionID, now, ttl)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh", "sign_token")
 		return
@@ -373,7 +336,7 @@ type SetPasswordRequest struct {
 // alone — that session came from a login code an operator issued by hand, which
 // is the strongest proof this deployment has.
 func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.PasswordStore == nil || h.cfg.UserStore == nil {
+	if h.cfg.Passwords == nil || h.cfg.Users == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
 		return
 	}
@@ -390,7 +353,7 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := h.cfg.PasswordStore.PasswordHash(r.Context(), userID)
+	existing, err := h.cfg.Passwords.PasswordHash(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "password_hash")
 		return
@@ -405,7 +368,7 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.cfg.PasswordStore.SetPassword(r.Context(), userID, hash, time.Now().Unix()); err != nil {
+	if err := h.cfg.Passwords.SetPassword(r.Context(), userID, hash, time.Now().Unix()); err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "user_id", userID)
 		return
 	}
@@ -425,7 +388,7 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 // access token carries the session in its sid claim. A caller holding neither
 // has nothing to revoke, and clearing its own state is all that is left.
 func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.RefreshTokenStore == nil {
+	if h.cfg.RefreshTokens == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "refresh not configured")
 		return
 	}
@@ -439,7 +402,7 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	var userID, sessionID string
 	if req.RefreshToken != "" {
 		var err error
-		userID, sessionID, err = h.cfg.RefreshTokenStore.RevokeRefreshTokenSession(r.Context(), req.RefreshToken, now)
+		userID, sessionID, err = h.cfg.RefreshTokens.RevokeRefreshTokenSession(r.Context(), req.RefreshToken, now)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "auth handler error", "handler", "logout", "revoke_by_token")
 			return
@@ -451,7 +414,7 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		userID, sessionID = claims.Sub, claims.Sid
-		if _, err := h.cfg.RefreshTokenStore.RevokeSession(r.Context(), sessionID, now); err != nil {
+		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), sessionID, now); err != nil {
 			httputil.WriteInternalError(w, err, "auth handler error", "handler", "logout", "revoke_session")
 			return
 		}
@@ -486,11 +449,11 @@ const invalidPasswordMessage = "invalid email or password"
 
 // verifyPassword resolves the user a submitted password authenticates.
 func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
-	if h.cfg.PasswordStore == nil {
+	if h.cfg.Passwords == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
 		return nil, false
 	}
-	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
+	user, err := h.cfg.Users.UserByEmail(r.Context(), req.Email)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "email", req.Email)
 		return nil, false
@@ -498,7 +461,7 @@ func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req Log
 
 	var hash string
 	if user != nil {
-		hash, err = h.cfg.PasswordStore.PasswordHash(r.Context(), user.UserID)
+		hash, err = h.cfg.Passwords.PasswordHash(r.Context(), user.UserID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "password_hash")
 			return nil, false
@@ -526,11 +489,11 @@ func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req Log
 // succeeds — that is what "single use" has to mean for a replay to be
 // impossible.
 func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
-	if h.cfg.LoginCodeStore == nil {
+	if h.cfg.LoginCodes == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login codes are not configured")
 		return nil, false
 	}
-	userID, err := h.cfg.LoginCodeStore.ConsumeLoginCode(r.Context(), req.Otp, time.Now().Unix())
+	userID, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, time.Now().Unix())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "consume_login_code")
 		return nil, false
@@ -539,7 +502,7 @@ func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req Lo
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}
-	user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
+	user, err := h.cfg.Users.GetUser(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "user_id", userID)
 		return nil, false
@@ -555,7 +518,7 @@ func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req Lo
 }
 
 func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.UserStore == nil {
+	if h.cfg.Users == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "otp not configured")
 		return
 	}
@@ -576,7 +539,7 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "intent must be signup or login")
 		return
 	}
-	user, err := h.cfg.UserStore.UserByEmail(r.Context(), req.Email)
+	user, err := h.cfg.Users.UserByEmail(r.Context(), req.Email)
 	if err != nil {
 		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
 		return
@@ -607,7 +570,7 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 		return
 	}
-	_, err = h.cfg.UserStore.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
+	_, err = h.cfg.Users.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
 	if err != nil {
 		if errors.Is(err, model.ErrEmailExists) {
 			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")

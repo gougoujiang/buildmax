@@ -160,6 +160,7 @@ internal/
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
 │   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a team
+│   │   ├── auth/       Establishing a session: login, refresh, logout, password
 │   │   ├── auditexport/  CSV export shared by the team and admin audit routes
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the team and worker routes
 │   │   ├── runterminal/  Announces a finished run to whoever is watching
