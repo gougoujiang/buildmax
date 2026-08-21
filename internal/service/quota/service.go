@@ -7,8 +7,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-// QuotaService enforces team-scoped quota (run count and token limits) using tier limits from the store.
-type QuotaService struct {
+// Service enforces team-scoped quota (run count and token limits) using tier limits from the store.
+type Service struct {
 	TeamStore   model.TeamStore
 	UsageReader model.UsageInWindowReader
 	TierStore   model.QuotaTierStore
@@ -34,7 +34,7 @@ type UsageInfo struct {
 
 const defaultUsagePeriodDays = 30
 
-func (c *QuotaService) now() time.Time {
+func (c *Service) now() time.Time {
 	if c.clock != nil {
 		return c.clock()
 	}
@@ -43,7 +43,7 @@ func (c *QuotaService) now() time.Time {
 
 // GetUsage returns the current team's usage and tier info in the same rolling window used by Check.
 // When team or tier is not found, returns usage for a default 30-day window with limits nil.
-func (c *QuotaService) GetUsage(ctx context.Context, teamID string) (*UsageInfo, error) {
+func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, error) {
 	team, err := c.TeamStore.GetTeam(ctx, teamID)
 	if err != nil {
 		return &UsageInfo{}, nil
@@ -96,7 +96,7 @@ func (c *QuotaService) GetUsage(ctx context.Context, teamID string) (*UsageInfo,
 }
 
 // Check returns whether the team is allowed to add addRuns and addTokens. If not allowed, reason is the 429 message.
-func (c *QuotaService) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string) {
+func (c *Service) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string) {
 	team, err := c.TeamStore.GetTeam(ctx, teamID)
 	if err != nil || team == nil {
 		return true, "" // backward compatibility: no team or error => allow
@@ -137,7 +137,7 @@ func (c *QuotaService) Check(ctx context.Context, teamID string, addRuns, addTok
 }
 
 // warnIfNear records a threshold crossing, and does nothing below it.
-func (c *QuotaService) warnIfNear(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart int64) {
+func (c *Service) warnIfNear(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart int64) {
 	if c.Audit == nil || max <= 0 {
 		return
 	}

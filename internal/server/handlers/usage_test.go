@@ -36,7 +36,7 @@ func TestUsageHandler(t *testing.T) {
 			PeriodDays:         30,
 		},
 	}
-	checker := &quota.QuotaService{
+	checker := &quota.Service{
 		TeamStore:   teamStore,
 		UsageReader: usageReader,
 		TierStore:   tierStore,
@@ -47,7 +47,7 @@ func TestUsageHandler(t *testing.T) {
 		name        string
 		authHeader  string
 		path        string
-		checker     *quota.QuotaService
+		checker     *quota.Service
 		jwtSecret   string
 		wantStatus  int
 		wantBodyHas string

@@ -12,9 +12,9 @@ import (
 
 // hierarchyService builds a service over the given issues. Every test here uses
 // team tm_1 unless it is specifically about crossing a team boundary.
-func hierarchyService(issues ...model.Issue) (*IssueService, *mock.MockIssueStore) {
+func hierarchyService(issues ...model.Issue) (*Service, *mock.MockIssueStore) {
 	store := &mock.MockIssueStore{Issues: issues}
-	return &IssueService{Issues: store}, store
+	return &Service{Issues: store}, store
 }
 
 func TestCreateIssue_WithParent(t *testing.T) {

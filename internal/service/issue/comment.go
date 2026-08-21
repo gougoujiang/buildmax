@@ -52,7 +52,7 @@ type DeleteCommentCmd struct {
 
 // CreateComment appends a comment to an issue. The caller is responsible for
 // having authorized the issue's team.
-func (s *IssueService) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*model.IssueComment, error) {
+func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*model.IssueComment, error) {
 	if s.Comments == nil {
 		return nil, ErrCommentsNotConfigured
 	}
@@ -75,7 +75,7 @@ func (s *IssueService) CreateComment(ctx context.Context, cmd CreateCommentCmd) 
 }
 
 // ListComments returns an issue's thread, oldest first.
-func (s *IssueService) ListComments(ctx context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
+func (s *Service) ListComments(ctx context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
 	if s.Comments == nil {
 		return nil, 0, ErrCommentsNotConfigured
 	}
@@ -88,7 +88,7 @@ func (s *IssueService) ListComments(ctx context.Context, issueID string, limit, 
 // not rewriting: an edit puts words in another person's mouth, and an agent or
 // system comment is the record of what a run reported — a record anyone can
 // rewrite is not one.
-func (s *IssueService) UpdateComment(ctx context.Context, cmd UpdateCommentCmd) (*model.IssueComment, error) {
+func (s *Service) UpdateComment(ctx context.Context, cmd UpdateCommentCmd) (*model.IssueComment, error) {
 	comment, err := s.loadComment(ctx, cmd.IssueID, cmd.CommentID)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (s *IssueService) UpdateComment(ctx context.Context, cmd UpdateCommentCmd) 
 
 // DeleteComment removes a comment. The author may delete their own; a moderator
 // may delete any comment on the issue, including one an agent wrote.
-func (s *IssueService) DeleteComment(ctx context.Context, cmd DeleteCommentCmd) error {
+func (s *Service) DeleteComment(ctx context.Context, cmd DeleteCommentCmd) error {
 	comment, err := s.loadComment(ctx, cmd.IssueID, cmd.CommentID)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func (s *IssueService) DeleteComment(ctx context.Context, cmd DeleteCommentCmd) 
 // loadComment resolves a comment and verifies it belongs to the issue the
 // caller was authorized against. A comment ID from another issue is not found,
 // not a successful write to somewhere else.
-func (s *IssueService) loadComment(ctx context.Context, issueID, commentID string) (*model.IssueComment, error) {
+func (s *Service) loadComment(ctx context.Context, issueID, commentID string) (*model.IssueComment, error) {
 	if s.Comments == nil {
 		return nil, ErrCommentsNotConfigured
 	}

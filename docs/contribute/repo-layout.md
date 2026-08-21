@@ -120,11 +120,13 @@ internal/
 │   │   ├── channel/    Normalized turn types and channel adapters (webhook)
 │   │   ├── runtime/    Turn-loop mechanics: replay, tool assembly, streaming
 │   │   └── tool/       Tier 1 tools and the task-runner bridge
+│   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
 │   ├── audit/          Records that a sensitive action happened (governance,
 │   │                   not diagnostics — see the package doc)
+│   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
 │

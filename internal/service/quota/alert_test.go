@@ -9,9 +9,9 @@ import (
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
-func alertingService(runs, tokens int, maxRuns, maxTokens int) (*QuotaService, *mock.MockAuditStore) {
+func alertingService(runs, tokens int, maxRuns, maxTokens int) (*Service, *mock.MockAuditStore) {
 	audits := &mock.MockAuditStore{}
-	return &QuotaService{
+	return &Service{
 		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: runs, totalTokens: tokens},
 		TierStore: &mockTierStore{tier: &model.QuotaTier{

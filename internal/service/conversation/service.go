@@ -17,9 +17,9 @@ var (
 	ErrLLMRequired   = apierr.New(apierr.KindNotConfigured, "conversation LLM not configured")
 )
 
-// ConversationService is the single Tier 1 orchestration entry point for portal turns.
-type ConversationService struct {
-	TaskService       *task.TaskService
+// Service is the single Tier 1 orchestration entry point for portal turns.
+type Service struct {
+	TaskService       *task.Service
 	ConversationStore model.ConversationStore
 	MessageStore      model.ConversationMessageStore
 	LLMClient         llm.LLMClient
@@ -45,7 +45,7 @@ type RerunTaskCmd struct {
 }
 
 // HandleTurn runs one conversation turn through the Tier 1 LLM loop.
-func (s *ConversationService) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
+func (s *Service) HandleTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	if cmd.ConversationID == "" {
 		return ConversationResult{}, ErrInvalidTarget
 	}
@@ -53,7 +53,7 @@ func (s *ConversationService) HandleTurn(ctx context.Context, cmd HandleTurnCmd)
 }
 
 // RerunTask creates a new task run for an existing task, bypassing the LLM layer.
-func (s *ConversationService) RerunTask(ctx context.Context, cmd RerunTaskCmd) (ConversationResult, error) {
+func (s *Service) RerunTask(ctx context.Context, cmd RerunTaskCmd) (ConversationResult, error) {
 	if s.TaskService == nil {
 		return ConversationResult{}, task.ErrTaskRunsNotConfigured
 	}
@@ -76,7 +76,7 @@ func (s *ConversationService) RerunTask(ctx context.Context, cmd RerunTaskCmd) (
 	return ConversationResult{TaskRunIDs: []string{run.TaskRunID}}, nil
 }
 
-func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
+func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
 	if s.ConversationStore == nil || s.MessageStore == nil {
 		return ConversationResult{}, fmt.Errorf("conversation stores not configured")
 	}
@@ -101,7 +101,7 @@ func (s *ConversationService) handleConversationTurn(ctx context.Context, cmd Ha
 	return ConversationResult{Reply: reply}, err
 }
 
-func (s *ConversationService) taskServiceForChannel(channel string) *task.TaskService {
+func (s *Service) taskServiceForChannel(channel string) *task.Service {
 	if channel == ChannelSystem {
 		return nil
 	}
@@ -110,7 +110,7 @@ func (s *ConversationService) taskServiceForChannel(channel string) *task.TaskSe
 
 // fetchTeamID looks up the conversation's team once so StartTask and agent listing share it.
 // Returns "" when the channel is system or no TaskService is configured (task tools disabled).
-func (s *ConversationService) fetchTeamID(ctx context.Context, conversationID, channel string) string {
+func (s *Service) fetchTeamID(ctx context.Context, conversationID, channel string) string {
 	if channel == ChannelSystem || s.TaskService == nil || s.ConversationStore == nil {
 		return ""
 	}
@@ -121,7 +121,7 @@ func (s *ConversationService) fetchTeamID(ctx context.Context, conversationID, c
 	return conv.TeamID
 }
 
-func (s *ConversationService) fetchAgentSummaries(ctx context.Context, teamID, channel string) []convtool.AgentSummary {
+func (s *Service) fetchAgentSummaries(ctx context.Context, teamID, channel string) []convtool.AgentSummary {
 	if s.AgentStore == nil || teamID == "" || channel == ChannelSystem {
 		return nil
 	}

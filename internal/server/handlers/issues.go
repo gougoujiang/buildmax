@@ -93,11 +93,9 @@ func issueToResponse(issue model.Issue) IssueResponse {
 	}
 }
 
-// decorateIssueResponses fills the derived counts for a page of issues with one
-// grouped query each, rather than a count per row.
-//
-// Failures degrade to zero counts instead of failing the listing: a missing
-// progress badge is a worse-looking page, an error is no page at all.
+// decorateIssueResponses fills the derived counts for a page of issues. The
+// rules for loading them, including that a failure degrades to zero, live in
+// the service; this only places them on the response.
 func (h *Handler) decorateIssueResponses(ctx context.Context, out []IssueResponse) {
 	if len(out) == 0 {
 		return
@@ -106,26 +104,12 @@ func (h *Handler) decorateIssueResponses(ctx context.Context, out []IssueRespons
 	for i := range out {
 		ids[i] = out[i].ID
 	}
-	if h.cfg.IssueStore != nil {
-		if stats, err := h.cfg.IssueStore.ChildStatsForIssues(ctx, ids); err == nil {
-			for i := range out {
-				if s, ok := stats[out[i].ID]; ok {
-					out[i].ChildCount = s.Total
-					out[i].DoneChildCount = s.Done
-				}
-			}
-		} else {
-			slog.Warn("issue child stats not loaded", "err", err)
-		}
-	}
-	if h.cfg.IssueCommentStore != nil {
-		if counts, err := h.cfg.IssueCommentStore.CountIssueComments(ctx, ids); err == nil {
-			for i := range out {
-				out[i].CommentCount = counts[out[i].ID]
-			}
-		} else {
-			slog.Warn("issue comment counts not loaded", "err", err)
-		}
+	counts := h.issueService().CountsFor(ctx, ids)
+	for i := range out {
+		c := counts[out[i].ID]
+		out[i].ChildCount = c.Children
+		out[i].DoneChildCount = c.DoneChildren
+		out[i].CommentCount = c.Comments
 	}
 }
 
@@ -141,8 +125,8 @@ func buildIssueAgentRunInput(issue model.Issue) string {
 	return b.String()
 }
 
-func (h *Handler) issueService() *issue.IssueService {
-	return &issue.IssueService{
+func (h *Handler) issueService() *issue.Service {
+	return &issue.Service{
 		Issues:    h.cfg.IssueStore,
 		Comments:  h.cfg.IssueCommentStore,
 		Agents:    h.cfg.AgentStore,
@@ -172,8 +156,11 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		filter.ParentIssueID = parentID
 	}
-	list, total, err := h.cfg.IssueStore.ListIssuesByTeam(r.Context(), teamID, filter, limit, offset)
+	list, total, err := h.issueService().ListIssues(r.Context(), teamID, filter, limit, offset)
 	if err != nil {
+		if h.writeIssueServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_issues", "user_id", userID, "team_id", teamID)
 		return
 	}
@@ -220,13 +207,12 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	issue, err := h.issueService().GetIssue(r.Context(), teamID, issueID)
 	if err != nil {
+		if h.writeIssueServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue", "issue_id", issueID)
-		return
-	}
-	if issue == nil || issue.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
 	out := []IssueResponse{issueToResponse(*issue)}

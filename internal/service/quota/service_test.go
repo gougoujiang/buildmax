@@ -67,7 +67,7 @@ func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaT
 }
 
 func TestCheck_NoTeam_Allows(t *testing.T) {
-	c := &QuotaService{
+	c := &Service{
 		TeamStore:   &mockTeamStore{team: nil},
 		UsageReader: &mockUsageReader{},
 		TierStore:   &mockTierStore{},
@@ -80,7 +80,7 @@ func TestCheck_NoTeam_Allows(t *testing.T) {
 }
 
 func TestCheck_UnknownTier_Allows(t *testing.T) {
-	c := &QuotaService{
+	c := &Service{
 		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "unknown"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: nil},
@@ -93,7 +93,7 @@ func TestCheck_UnknownTier_Allows(t *testing.T) {
 }
 
 func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
-	c := &QuotaService{
+	c := &Service{
 		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
@@ -109,7 +109,7 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 }
 
 func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
-	c := &QuotaService{
+	c := &Service{
 		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 100000},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
@@ -125,7 +125,7 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 }
 
 func TestCheck_UnderLimit_Allows(t *testing.T) {
-	c := &QuotaService{
+	c := &Service{
 		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 5, totalTokens: 50000},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
@@ -141,7 +141,7 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 }
 
 func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
-	c := &QuotaService{
+	c := &Service{
 		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: ""}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},

@@ -209,7 +209,7 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 }
 
 func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, persistStorage blob.PersistStorage, artifactStorage blob.ArtifactStorage) (httpserver.Config, error) {
-	quotaService := &quota.QuotaService{
+	quotaService := &quota.Service{
 		TeamStore:   st,
 		UsageReader: st,
 		TierStore:   st,
@@ -340,7 +340,7 @@ func readinessChecks(st *db.Store, persist blob.PersistStorage) []httpserver.Rea
 	}
 }
 
-func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.QuotaService) error {
+func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quotaService *quota.Service) error {
 	// A nil *db.Store put straight into an interface parameter is a non-nil
 	// interface holding a nil pointer, so the absence of a store has to be
 	// stated rather than passed along.

@@ -11,7 +11,7 @@ import (
 )
 
 func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
-	svc := &WorkflowService{
+	svc := &Service{
 		Workflows: &mock.MockWorkflowStore{},
 		Agents: &mock.MockAgentStore{
 			Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
@@ -52,11 +52,11 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
 	}
-	svc := &WorkflowService{
+	svc := &Service{
 		Workflows:     workflowStore,
 		Agents:        agentStore,
 		Conversations: &mock.MockConversationStore{},
-		TaskService: &task.TaskService{
+		TaskService: &task.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,
 		},
@@ -122,11 +122,11 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Description: "summarizes", Instructions: "summarize carefully", Revision: 2},
 		},
 	}
-	svc := &WorkflowService{
+	svc := &Service{
 		Workflows:     workflowStore,
 		Agents:        agentStore,
 		Conversations: &mock.MockConversationStore{},
-		TaskService: &task.TaskService{
+		TaskService: &task.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,
 		},
@@ -192,7 +192,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
-	svc := &WorkflowService{Workflows: workflowStore, Agents: agentStore}
+	svc := &Service{Workflows: workflowStore, Agents: agentStore}
 	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		TeamID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
@@ -242,7 +242,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
-	svc := &WorkflowService{Workflows: workflowStore, Agents: agentStore}
+	svc := &Service{Workflows: workflowStore, Agents: agentStore}
 	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
 	created, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
 		TeamID: "tm_1", UserID: "u1", Name: "WF", Definition: first,
@@ -309,11 +309,11 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize carefully", Revision: 1},
 		},
 	}
-	svc := &WorkflowService{
+	svc := &Service{
 		Workflows:     workflowStore,
 		Agents:        agentStore,
 		Conversations: &mock.MockConversationStore{},
-		TaskService: &task.TaskService{
+		TaskService: &task.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,
 		},
@@ -376,7 +376,7 @@ func TestPublishedWorkflowsUsingAgent(t *testing.T) {
 			{WorkflowID: "w_broken", TeamID: "tm_1", Name: "Broken", Definition: "not json", Status: model.WorkflowStatusPublished},
 		},
 	}
-	svc := &WorkflowService{Workflows: workflowStore}
+	svc := &Service{Workflows: workflowStore}
 	found, err := svc.PublishedWorkflowsUsingAgent(context.Background(), "tm_1", "a_1")
 	if err != nil {
 		t.Fatalf("PublishedWorkflowsUsingAgent: %v", err)
@@ -390,7 +390,7 @@ func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"}},
 	}
-	svc := &WorkflowService{Agents: agentStore}
+	svc := &Service{Agents: agentStore}
 	agent, err := svc.stepAgent(context.Background(), "tm_1", "a_1", model.WorkflowStepRun{})
 	if err != nil {
 		t.Fatalf("stepAgent: %v", err)
@@ -423,11 +423,11 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
 	}
-	svc := &WorkflowService{
+	svc := &Service{
 		Workflows:     workflowStore,
 		Agents:        agentStore,
 		Conversations: &mock.MockConversationStore{},
-		TaskService:   &task.TaskService{Agents: agentStore, Tasks: &mock.MockTaskStore{}},
+		TaskService:   &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}},
 	}
 	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
 		TeamID: "tm_1", UserID: "u1", WorkflowID: "w_1",
