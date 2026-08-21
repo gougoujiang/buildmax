@@ -116,8 +116,8 @@ Two things it does *not* mean:
 - **It is not a concurrency claim.** `AccessReadOnly` says the call changes
   nothing; it does not promise `Execute` is safe on several goroutines.
   `CallMcpTool` reports read-only on a third party's word, which this runtime
-  cannot underwrite. A scheduler must require concurrency safety separately —
-  see [design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
+  cannot underwrite, which is why it declares `AccessWrite` at the tool level and
+  makes its per-call decision in `CheckArgs` instead.
 - **It is not the permission answer.** Permission is *derived* from it, and the
   derivation is deliberately not the tool's to make. A tool that could name its
   own action would eventually name `allow`.
@@ -138,9 +138,30 @@ implement it, all writes that must not prompt:
 **`GrantScope` is for tools that dispatch.** Without it, one session grant for
 `CallMcpTool` would cover every tool on every configured server.
 
+### Concurrency
+
+The scheduler runs adjacent `AccessReadOnly` calls from one model message at the
+same time, so declaring read-only carries a second obligation the type system
+cannot check: **`Execute` must be safe to call from several goroutines at
+once.** Read-only in the effect sense does not imply it. `WebFetch` is the case
+to keep in mind — it changes nothing a user owns, and is only schedulable
+because the response cache it writes is guarded by `cacheMu`. Remove that mutex
+and it stays read-only and stops being safe to run in a batch.
+
+What that means in practice: no unsynchronised package-level or struct-level
+mutable state, and no assumption that a sibling is not touching the same file.
+`./make test race` is the check; write the test that would catch it.
+
+If a tool is read-only but genuinely cannot run concurrently, declare
+`AccessWrite` and say why in the comment. `TodoWrite` and `NoteWrite` do exactly
+that — they write only the agent's own scratch state, which is why they declare
+`DefaultAction() = Allow` for permission, but that state has no lock, so the
+write classification is what keeps them out of a batch.
+
 ### Adding a tool
 
-Declare `Access`. Add `CheckArgs` if some arguments are riskier than others.
+Declare `Access`, and read the concurrency obligation above before choosing
+`AccessReadOnly`. Add `CheckArgs` if some arguments are riskier than others.
 Reach for `DefaultAction` only when the tool genuinely knows better than the
 category, and say why in the comment. Then add a row to the table in
 [design/tool-permissions.md](../../design/tool-permissions.md) section 6 —

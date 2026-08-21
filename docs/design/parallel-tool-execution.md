@@ -4,7 +4,7 @@
 
 - roadmap_priority: `unscheduled` — performance work, not yet placed in
   [../ROADMAP.md](../ROADMAP.md)
-- status: `phases 1-2 implemented; the concurrency itself (phases 3-4) open`
+- status: `phases 1-3 implemented; phase 4 (documentation) in progress`
 - depends on: [tool-permissions.md](./tool-permissions.md), which defines the
   `Access` classification this design schedules on. That record ships first —
   see §11.
@@ -280,7 +280,8 @@ the results themselves.
 | Policy resolution, approval prompt | loop | call order — one prompt at a time |
 | `PreToolUse` hook | loop | call order, before any sibling executes |
 | `tool.Execute` | worker | overlapped |
-| `EventToolEnd` / `EventToolDenied` | worker | completion order |
+| `EventToolEnd` | worker | completion order |
+| `EventToolDenied` | loop | call order — every denial is decided in the gate |
 | `PostToolUse` / `PostToolUseFailure` | loop | call order, after the group joins |
 | `History.Append` | loop | call order |
 
@@ -485,15 +486,21 @@ any concurrency limit.
   and limit 8. It passes today because grouping alone does not reorder; it is
   written now so phase 3 cannot land without keeping it true.
 
-### Phase 3 — the declaration and the workers
+### Phase 3 — the declaration and the workers — shipped ✅
 
-- `llm.Access` and its declarations already exist — tool-permissions.md
-  phase 1 is a prerequisite. This phase adds only the scheduler's read of it
-  and the goroutine-safety obligation in the tool authoring docs.
-- Add `runGroup` with the semaphore and the panic recovery.
-- Add `agent.max_parallel_tools` to `config.Settings`, wire it through
-  `internal/agentapp` into `RunLoopOpts`, default 4, clamp `[1, 16]`.
-- Add the `//nolint`-free race test described in §9.
+- `runGroup` runs a group's calls on bounded workers, recovering from a
+  panicking tool so it cannot take the run down or strand its siblings.
+- The gate moved with it. `applyPolicyAndExecute` is gone: policy resolution,
+  the approval prompt, and `PreToolUse` are now part of `gateCall` on the loop
+  goroutine (D1), execution is `executeCall` on a worker, and the post hooks
+  fire at the join. That was not framed as phase 3 work, but §5.4 requires it
+  and adding goroutines without it would have put approval prompts on workers.
+- `agent.max_parallel_tools` in `settings.yaml`, resolved through
+  `config.ResolveMaxParallelTools`, default 4, clamped to `[1, 16]`. A load test
+  guards the mapstructure tag: a wrong tag yields zero, which resolves to the
+  default, so the setting would appear to work while doing nothing.
+- `runGroup` still runs inline for a single-call group, which is every group at
+  the default until a batch of reads arrives. No goroutine for the common case.
 
 ### Phase 4 — documentation
 

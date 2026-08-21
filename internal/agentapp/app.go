@@ -721,13 +721,15 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		Policy:       a.policy,
 		Approval:     approval,
 		Grants:       a.grantsFor(sess.ID),
-		Compactor:    NewLLMCompactor(client),
-		Checkpointer: NewNoteCheckpointer(client),
-		Invariants:   agent.ExtractInvariants(extraPrompt),
-		EventSink:    teeEventSink(recorder.Record, eventSink),
-		Hooks:        a.hooks,
-		SessionID:    sess.ID,
-		Workspace:    a.workspaceRoot,
+
+		MaxParallelTools: config.ResolveMaxParallelTools(a.settings.Agent),
+		Compactor:        NewLLMCompactor(client),
+		Checkpointer:     NewNoteCheckpointer(client),
+		Invariants:       agent.ExtractInvariants(extraPrompt),
+		EventSink:        teeEventSink(recorder.Record, eventSink),
+		Hooks:            a.hooks,
+		SessionID:        sess.ID,
+		Workspace:        a.workspaceRoot,
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is

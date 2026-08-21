@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -364,8 +365,12 @@ type pendingCall struct {
 	tool   llm.Tool // nil when the registry has no such tool
 	result string
 	// decided is true once result is final without executing: bad arguments,
-	// an unknown tool, or the loop guard.
+	// an unknown tool, the loop guard, or a permission denial.
 	decided bool
+	// executed and failed record what the run stage did, so the commit stage
+	// can fire the right post hook without re-deriving it from the result.
+	executed bool
+	failed   bool
 }
 
 // executeToolCalls runs the calls from one assistant message in four stages:
@@ -385,11 +390,12 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 	count := 0
 	for _, group := range groupCalls(pending, opts.MaxParallelTools) {
 		for i := range group {
-			gateCall(opts, guard, &group[i])
+			gateCall(ctx, opts, policy, guard, &group[i])
 		}
-		runGroup(ctx, opts, policy, group)
+		runGroup(ctx, opts, group)
 		for i := range group {
 			c := &group[i]
+			firePostHook(ctx, opts, c)
 			logToolResult(c.call.Name, c.result)
 			if err := opts.History.Append(llm.Message{Role: "tool", Content: c.result, ToolCallID: c.call.ID}); err != nil {
 				return count, err
@@ -460,56 +466,42 @@ func eligibleForGroup(c *pendingCall) bool {
 	return DeclaredAccess(c.tool, c.args) == llm.AccessReadOnly
 }
 
-// gateCall applies the checks that must happen in call order, on the loop
-// goroutine: the tool exists, and the loop guard has not fired.
-func gateCall(opts RunLoopOpts, guard *loopGuard, c *pendingCall) {
+// gateCall makes every decision that must happen in call order, on the loop
+// goroutine: the tool exists, the loop guard has not fired, the permission
+// layer allows it, the user approved it, and no PreToolUse hook blocked it.
+//
+// Deciding serially is what keeps concurrency cheap. The loop guard needs no
+// lock, approval prompts stay one at a time so neither UI handler has to become
+// re-entrant, and hooks still see calls in the order the model made them. Only
+// Execute overlaps. See docs/design/parallel-tool-execution.md §5.4.
+func gateCall(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, guard *loopGuard, c *pendingCall) {
 	if c.decided {
 		return
 	}
+	name, callID := c.call.Name, c.call.ID
 	emit(opts.EventSink, Event{
 		Kind:       EventToolStart,
-		ToolName:   c.call.Name,
-		ToolCallID: c.call.ID,
+		ToolName:   name,
+		ToolCallID: callID,
 		ToolArgs:   c.call.Arguments,
 	})
+	deny := func(reason, result string) {
+		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: reason})
+		c.result = result
+		c.decided = true
+	}
 	switch {
 	case c.tool == nil:
-		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: c.call.Name, ToolCallID: c.call.ID, DenyReason: DenyReasonUnknown})
-		c.result = fmt.Sprintf("error: unknown tool %q", c.call.Name)
-		c.decided = true
-	case guard.exceeded(c.call.Name, c.args):
-		slog.Warn("loop guard triggered", "tool", c.call.Name)
-		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: c.call.Name, ToolCallID: c.call.ID, DenyReason: DenyReasonLoopGuard})
-		c.result = fmt.Sprintf(denyMsgLoopGuard, c.call.Name)
-		c.decided = true
+		deny(DenyReasonUnknown, fmt.Sprintf("error: unknown tool %q", name))
+		return
+	case guard.exceeded(name, c.args):
+		slog.Warn("loop guard triggered", "tool", name)
+		deny(DenyReasonLoopGuard, fmt.Sprintf(denyMsgLoopGuard, name))
+		return
 	}
-}
 
-// runGroup executes the calls the gate let through. Sequential for now; the
-// concurrency this shape exists for is a later phase.
-func runGroup(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, group []pendingCall) {
-	for i := range group {
-		c := &group[i]
-		if c.decided {
-			continue
-		}
-		c.result = applyPolicyAndExecute(ctx, opts, policy, c.tool, c.call.Name, c.call.ID, c.args)
-	}
-}
-
-// applyPolicyAndExecute resolves the policy for a tool call and executes it if allowed.
-//
-// Resolution order:
-//  1. Configured ToolPolicy override — if Deny or Ask, short-circuit.
-//  2. Tool's ArgChecker.CheckArgs — arg-level decision declared by the tool itself.
-//  3. Tool's PolicyProvider.DefaultAction — category-level default declared by the tool.
-//  4. PreToolUse hook — may block the call after policy resolution.
-//  5. Allow (safe default for tools that declare nothing).
-//
-// Ask handling: calls ApprovalHandler if set; nil handler collapses Ask to Deny.
-func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, tool llm.Tool, name, callID string, args map[string]any) string {
-	scope := grantScope(tool, name, args)
-	action := resolveAction(policy, tool, name, scope, args, opts.interactive())
+	scope := grantScope(c.tool, name, c.args)
+	action := resolveAction(policy, c.tool, name, scope, c.args, opts.interactive())
 	// A session grant answers an Ask that was already put to the user. It is
 	// applied here rather than before resolution so it can never soften a Deny.
 	if action == llm.ToolActionAsk && opts.Grants.granted(scope) {
@@ -518,70 +510,136 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 	switch action {
 	case llm.ToolActionDeny:
 		slog.Info("tool denied by policy", "tool", name)
-		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonPolicy})
-		return fmt.Sprintf(denyMsgPolicy, name)
+		deny(DenyReasonPolicy, fmt.Sprintf(denyMsgPolicy, name))
+		return
 	case llm.ToolActionAsk:
 		// Notify hooks before invoking the approval handler so external
 		// systems (Slack, desktop badge, audit) see the prompt.
-		fireNotification(ctx, opts, NotificationApprovalRequired, name, callID, args, "")
+		fireNotification(ctx, opts, NotificationApprovalRequired, name, callID, c.args, "")
 		if opts.Approval == nil {
 			slog.Info("tool denied: Ask with no approval handler", "tool", name)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonPolicy})
-			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "no approval handler configured")
-			return fmt.Sprintf(denyMsgPolicy, name)
+			deny(DenyReasonPolicy, fmt.Sprintf(denyMsgPolicy, name))
+			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, c.args, "no approval handler configured")
+			return
 		}
-		decision := opts.Approval.RequestApproval(ctx, name, args)
+		decision := opts.Approval.RequestApproval(ctx, name, c.args)
 		if decision == ApprovalDeny {
 			slog.Info("tool denied by user", "tool", name)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonUser})
-			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "denied by user")
-			return fmt.Sprintf(denyMsgUser, name)
+			deny(DenyReasonUser, fmt.Sprintf(denyMsgUser, name))
+			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, c.args, "denied by user")
+			return
 		}
 		if decision == ApprovalAllowSession {
 			opts.Grants.grant(scope)
 			slog.Info("tool granted for session", "tool", name, "scope", scope)
 		}
-		fallthrough
 	case llm.ToolActionAllow:
-		pre := baseHookInput(opts, HookPreToolUse)
-		pre.ToolName = name
-		pre.ToolCallID = callID
-		pre.ToolArgs = args
-		preOut := runHook(ctx, opts.Hooks, pre)
-		if preOut.Blocked() {
-			reason := preOut.Reason
-			if reason == "" {
-				reason = "blocked by hook"
-			}
-			slog.Info("tool denied by hook", "tool", name, "reason", reason)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonHook})
-			return fmt.Sprintf(denyMsgHook, name, reason)
-		}
-		start := time.Now()
-		result, err := tool.Execute(ctx, args)
-		dur := time.Since(start)
-		if err != nil {
-			errMsg := fmt.Sprintf("error: %v", err)
-			emit(opts.EventSink, Event{Kind: EventToolEnd, ToolName: name, ToolCallID: callID, ToolResult: errMsg, ToolDuration: dur})
-			fail := baseHookInput(opts, HookPostToolUseFailure)
-			fail.ToolName = name
-			fail.ToolCallID = callID
-			fail.ToolArgs = args
-			fail.ToolError = errMsg
-			runHook(ctx, opts.Hooks, fail)
-			return errMsg
-		}
-		emit(opts.EventSink, Event{Kind: EventToolEnd, ToolName: name, ToolCallID: callID, ToolResult: result, ToolDuration: dur})
-		post := baseHookInput(opts, HookPostToolUse)
-		post.ToolName = name
-		post.ToolCallID = callID
-		post.ToolArgs = args
-		post.ToolResult = result
-		runHook(ctx, opts.Hooks, post)
-		return result
 	default:
-		return fmt.Sprintf("error: unknown policy action for %q", name)
+		c.result = fmt.Sprintf("error: unknown policy action for %q", name)
+		c.decided = true
+		return
 	}
+
+	pre := baseHookInput(opts, HookPreToolUse)
+	pre.ToolName = name
+	pre.ToolCallID = callID
+	pre.ToolArgs = c.args
+	if preOut := runHook(ctx, opts.Hooks, pre); preOut.Blocked() {
+		reason := preOut.Reason
+		if reason == "" {
+			reason = "blocked by hook"
+		}
+		slog.Info("tool denied by hook", "tool", name, "reason", reason)
+		deny(DenyReasonHook, fmt.Sprintf(denyMsgHook, name, reason))
+	}
+}
+
+// runGroup executes the calls the gate let through, up to maxParallel at once.
+//
+// Each worker writes only to its own element and wg.Wait is the happens-before
+// edge before the commit stage reads them, so the results need no lock.
+func runGroup(ctx context.Context, opts RunLoopOpts, group []pendingCall) {
+	limit := opts.MaxParallelTools
+	if limit < 1 || len(group) == 1 {
+		for i := range group {
+			executeCall(ctx, opts, &group[i])
+		}
+		return
+	}
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i := range group {
+		if group[i].decided {
+			continue
+		}
+		wg.Add(1)
+		go func(c *pendingCall) {
+			defer wg.Done()
+			defer func() {
+				// A panicking tool must not take the run down or strand its
+				// siblings, which are mid-flight in their own goroutines.
+				if r := recover(); r != nil {
+					slog.Error("tool panicked", "tool", c.call.Name, "panic", r)
+					c.result = fmt.Sprintf("error: tool %q panicked: %v", c.call.Name, r)
+					c.executed, c.failed = true, true
+				}
+			}()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			executeCall(ctx, opts, c)
+		}(&group[i])
+	}
+	wg.Wait()
+}
+
+// executeCall runs one tool and records what happened. Emitted from whichever
+// goroutine ran it, because the event stream is live: holding a completion
+// until the slowest sibling returns would misreport what is still running.
+func executeCall(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
+	if c.decided {
+		return
+	}
+	start := time.Now()
+	result, err := c.tool.Execute(ctx, c.args)
+	dur := time.Since(start)
+	c.executed = true
+	if err != nil {
+		c.failed = true
+		c.result = fmt.Sprintf("error: %v", err)
+	} else {
+		c.result = result
+	}
+	emit(opts.EventSink, Event{
+		Kind:         EventToolEnd,
+		ToolName:     c.call.Name,
+		ToolCallID:   c.call.ID,
+		ToolResult:   c.result,
+		ToolDuration: dur,
+	})
+}
+
+// firePostHook reports one finished call. Fired at the join in call order
+// rather than from the worker: a post hook is advisory, but it is also an audit
+// surface, and one that reorders under load is worse than one that arrives a
+// few hundred milliseconds late.
+func firePostHook(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
+	if !c.executed {
+		return
+	}
+	event := HookPostToolUse
+	if c.failed {
+		event = HookPostToolUseFailure
+	}
+	in := baseHookInput(opts, event)
+	in.ToolName = c.call.Name
+	in.ToolCallID = c.call.ID
+	in.ToolArgs = c.args
+	if c.failed {
+		in.ToolError = c.result
+	} else {
+		in.ToolResult = c.result
+	}
+	runHook(ctx, opts.Hooks, in)
 }
 
 // fireNotification emits a HookNotification event tied to a tool/approval

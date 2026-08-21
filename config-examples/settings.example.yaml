@@ -205,3 +205,14 @@ models:
 #     Bash: deny                          # no shell at all
 #     "CallMcpTool:github/*": allow       # trust one server's tools
 #     "CallMcpTool:jira/delete_issue": deny
+
+# Agent loop tuning.
+#
+# max_parallel_tools bounds how many tool calls from one model message run at
+# the same time. Only calls the tool itself declares read-only ever overlap --
+# writes, shell commands, and MCP calls always run alone and in order, so a
+# batch means the same thing at any setting. 1 disables parallel execution.
+# Range 1-16; the default is 4.
+#
+# agent:
+#   max_parallel_tools: 4

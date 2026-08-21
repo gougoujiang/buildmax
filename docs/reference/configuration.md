@@ -238,6 +238,7 @@ destination.
 | `hooks` | empty | Lifecycle hooks. Reference: [guide/hooks.md](../guide/hooks.md). |
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
 | `tools.permissions` | empty | Per-tool approval rules. See below. |
+| `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
 
 ### `tools.permissions`
 
@@ -281,6 +282,26 @@ process exits.
 Run `buildmax tools status` to see every tool's classification, its resolved
 action, and which layer decided it. Design:
 [design/tool-permissions.md](../design/tool-permissions.md).
+
+### `agent.max_parallel_tools`
+
+When the model asks for several tool calls in one message, BuildMax can run
+them at the same time:
+
+```yaml
+agent:
+  max_parallel_tools: 4     # 1 disables it; range 1-16
+```
+
+Only calls the tool itself declares read-only ever overlap — `Read`, `Glob`,
+`Grep`, `Skill`, and `WebFetch`. Writes, shell commands, `Task`, and MCP calls
+always run alone, and calls are never reordered, so a batch means the same thing
+at any setting: the message history a run produces is identical whatever the
+limit. `buildmax tools status` shows which tools are read-only.
+
+Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
+it to 1 to make a run reproduce exactly one call at a time. Design:
+[design/parallel-tool-execution.md](../design/parallel-tool-execution.md).
 
 ## `server.yaml` — Server and Worker
 
