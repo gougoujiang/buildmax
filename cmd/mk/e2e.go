@@ -47,6 +47,8 @@ func cmdE2E(args []string) error {
 		return e2eCLI()
 	case "desktop":
 		return e2eDesktopBridge()
+	case "all":
+		return e2eFullMatrix()
 	case "local":
 		return e2eOwningCompose()
 	case "kind", "compose":
@@ -62,12 +64,13 @@ func cmdE2E(args []string) error {
 }
 
 func e2eUsage() error {
-	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli|desktop]\n"+
+	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli|desktop|all]\n"+
 		"  kind     Portal browser tests against a running kind deployment (the default)\n"+
 		"  compose  Portal browser tests against a running Compose stack\n"+
 		"  local    the same tests against a Compose stack this command starts and stops\n"+
 		"  cli      the CLI and TUI suite: the built binary, a temporary home, no deployment\n"+
-		"  desktop  the Desktop bridge suite: bound methods, events, and approvals, no window", mk())
+		"  desktop  the Desktop bridge suite: bound methods, events, and approvals, no window\n"+
+		"  all      every suite that needs no cluster: cli, desktop, then local", mk())
 }
 
 // e2eCLI runs the suite that needs no deployment at all. It is listed here so
@@ -86,6 +89,30 @@ func e2eCLI() error {
 func e2eDesktopBridge() error {
 	fmt.Println("[e2e] Desktop bridge suite: bound methods, frontend events, and approvals — no window")
 	return runCmd("go", "test", "-count=1", "-run", "^TestBridge", "./internal/interface/desktop/")
+}
+
+// e2eFullMatrix runs every suite that this machine can run on its own, cheapest
+// first, and stops at the first failure.
+//
+// kind is not in it. That suite needs a cluster this command would have to
+// create, and a release check that quietly builds a Kubernetes cluster is a
+// surprise; run `./make e2e kind` against one deliberately.
+func e2eFullMatrix() error {
+	for _, suite := range []struct {
+		name string
+		run  func() error
+	}{
+		{"cli", e2eCLI},
+		{"desktop", e2eDesktopBridge},
+		{"local", e2eOwningCompose},
+	} {
+		fmt.Printf("[e2e] matrix: %s\n", suite.name)
+		if err := suite.run(); err != nil {
+			return fmt.Errorf("the %s suite failed, so the rest were not run: %w", suite.name, err)
+		}
+	}
+	fmt.Println("[e2e] matrix passed: cli, desktop, and local")
+	return nil
 }
 
 // e2eOwningCompose brings up a Compose stack, runs the browser tests, and takes

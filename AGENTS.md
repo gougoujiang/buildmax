@@ -132,8 +132,21 @@ Use the cross-platform task runner from the repository root:
 ./make lint            # pinned golangci-lint and govulncheck
 ./make check <scope>   # go, portal, desktop, docs, all, or ci
 ./make check ci        # everything a pull request runs, except the Windows job
+./make e2e <suite>     # one end-to-end suite: cli, desktop, local, compose, kind, all
 ./make help            # common contributor commands; add `all` for everything
 ```
+
+End-to-end suites are a local feedback loop, not a pull-request gate. `cli` and
+`desktop` need nothing but Go and run in seconds, so `./make test` includes
+them; `local` owns a Compose stack for one run; `compose` and `kind` attach to a
+deployment someone else started. None needs a provider API key — every suite
+answers the model from a committed scenario. Pick a suite, read the artifacts it
+leaves in `.artifacts/e2e/`, and see
+[`docs/contribute/testing.md`](docs/contribute/testing.md) for which suite
+covers what and what each one needs.
+
+`./make agent-smoke` is not a test: it drives the agent's tools with a real
+model, needs an API key, and reports a table the model wrote about itself.
 
 On Windows use `make.bat`. Add or change commands under `cmd/mk`; the `make`
 and `make.bat` files remain one-line shims. Do not introduce a parallel shell

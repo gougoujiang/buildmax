@@ -4,17 +4,17 @@
 
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `in progress` — §9 step 1 is done: the model harness of §4 is
-  `internal/testsupport/mockllm`, serving both the local suites and the
-  deployment smokes from one implementation. Step 2 is done: `internal/e2e/cli`
-  covers the print-mode paths and answers an approval prompt on a
-  pseudo-terminal. Step 3 is done: the deployment workflow is post-merge,
-  scheduled, and dispatchable and reports what verified a commit, and the suites
-  have names, preflight, artifacts, and a lifecycle-owning local mode. Step 4
-  has landed files, workflows, and the ungranted-account view in the browser,
-  and retry and the team boundary in the deployment smoke. Open: workflow
-  execution and space settings in the browser, the two deployment paths §6.1
-  leaves for later, and steps 5-6
+- status: `in progress` — §9 steps 1, 2, 3, and 6 are done: the model harness of
+  §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
+  CLI suite covers print mode and answers an approval on a pseudo-terminal; the
+  deployment workflow is post-merge, scheduled, and dispatchable and reports
+  what verified a commit; the suites have names, preflight, artifacts, and an
+  owning local mode; and the runbook is
+  [../contribute/testing.md](../contribute/testing.md). Step 4 landed files,
+  workflows, and the ungranted-account view in the browser, and retry and the
+  team boundary in the deployment smoke. Step 5 landed the Desktop bridge.
+  Open: workflow execution and space settings in the browser, the two
+  deployment paths §6.1 leaves for later, and the native packaged-app smoke
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -322,10 +322,10 @@ before changing code, fixes the named boundary, and reruns the same suite. It
 does not replace an E2E failure with a hand-waved manual test or run the full
 matrix by default.
 
-The runbook itself is current behavior, not rationale, so it belongs in
-`docs/contribute/` — a testing document that does not exist yet — with
-`AGENTS.md` carrying only the suite-selection summary and a link. This design
-record keeps the trade-offs; it must not become the runbook.
+The runbook itself is current behavior, not rationale, so it lives in
+[`../contribute/testing.md`](../contribute/testing.md), with `AGENTS.md`
+carrying only the suite-selection summary and a link. This design record keeps
+the trade-offs; it must not become the runbook.
 
 ## 8. CI Policy
 
@@ -394,7 +394,9 @@ rather than discovered later.
    React app.
 6. **Publish the contributor and agent runbook** in `docs/contribute/`,
    including suite selection, prerequisite checks, artifact locations, and a
-   release-time full-matrix command.
+   release-time full-matrix command. Landed as
+   [`../contribute/testing.md`](../contribute/testing.md), with `AGENTS.md`
+   carrying the summary and the link, and `./make e2e all` as the matrix.
 
 Renaming the model-driven `./make smoke` rode along with step 3. Giving `gui`
 tests is still open and belongs with step 4, which is when Portal paths start

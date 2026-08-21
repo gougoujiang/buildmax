@@ -40,7 +40,7 @@ reference, then delete the plan.
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
-| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, CI policy, named suites, and the Desktop bridge done (§9 steps 1-3, 5 partly); some Portal paths, the packaged-app smoke, and the runbook open |
+| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths and the packaged-app smoke open |
 
 ## Subsystem Specifications
 
