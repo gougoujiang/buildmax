@@ -1,10 +1,25 @@
 # Local End-to-End Verification
 
-> **Audience:** contributors · **Status:** planned — the Portal deployment and
-> browser suites exist; the deterministic model harness and the local
-> cross-surface suites described here do not.
+## Status
 
-## Decision
+- roadmap_priority: `unscheduled` — contributor and agent productivity work,
+  not yet placed in [../ROADMAP.md](../ROADMAP.md)
+- status: `planned` — the deployment smoke and the Portal browser suite exist;
+  the deterministic model harness and every local cross-surface suite described
+  here do not
+- depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
+  the CLI and Desktop paths exist to drive, and which decides what a surface
+  with no human attached does with an `Ask`;
+  [parallel-tool-execution.md](./parallel-tool-execution.md), whose promise that
+  concurrency changes nothing observable is itself a golden path, and whose
+  batching the model harness must be able to script — see §4 and §6
+- relates: [llm-provider-adapters.md](./llm-provider-adapters.md) — the three
+  wire protocols the harness has to serve
+- touches: `internal/testsupport`, `deployment/smoke/mock-llm`, `cmd/mk`,
+  `portal/e2e`, `internal/interface/cli`, `.github/workflows`
+- created_at: `2026-08-21`
+
+## 1. Decision
 
 End-to-end (E2E) verification is a local development and AI-agent feedback
 loop. It is not a required pull-request gate.
@@ -21,7 +36,7 @@ deterministic end-to-end path. It does not mean rebuilding the unit-test suite
 through the UI. The latter is slower, less diagnosable, and makes the feedback
 loop worse.
 
-## Why
+## 2. Why
 
 BuildMax has four execution surfaces with boundaries that ordinary tests cannot
 prove together:
@@ -30,7 +45,7 @@ prove together:
 |---|---|
 | Portal | The published browser bundle, runtime API configuration, authentication, and the visible team workflow work against a real deployment. |
 | Server and worker | The deployed server, storage, scheduler, worker, artifact path, and managed-model transport cooperate. |
-| CLI and TUI | The released binary, terminal interaction, local workspace, session persistence, policy, and trace behavior cooperate. |
+| CLI and TUI | The released binary, terminal interaction, the approval gate, the local workspace, session persistence, policy, and trace behavior cooperate. |
 | Desktop | The React UI, Wails bindings and events, local runtime, approvals, and persistent project/session state cooperate. |
 
 The normal test pyramid remains the primary regression mechanism. A pure
@@ -38,7 +53,7 @@ display decision belongs in a frontend unit test, a service contract in a Go
 test, and a handler rule in an HTTP/integration test. E2E tests are reserved
 for a boundary that would otherwise remain unproved.
 
-## Current Baseline
+## 3. Current Baseline
 
 The repository already has useful deployment evidence, and one gap that is
 larger than it looks.
@@ -70,7 +85,25 @@ larger than it looks.
 - `gui` has neither tests nor an ESLint step in CI; the Portal browser suite is
   today the only thing that executes the shared component package at all. Since
   Portal and Desktop both consume it, moving E2E out of PR gating removes that
-  package's only pull-request-time coverage. See [CI Policy](#ci-policy).
+  package's only pull-request-time coverage. See §8.
+
+Two recent designs changed what these suites have to cover and how they can be
+driven:
+
+- **The approval gate is real.** [tool-permissions.md](./tool-permissions.md)
+  filled the empty permission layer, so a write tool now asks before it runs.
+  `tools.permissions` in `settings.yaml` pins any tool to allow, ask, or deny,
+  which is what lets a suite reach an approval prompt deterministically instead
+  of hoping the model produces one. It also constrains how: a non-interactive
+  surface has no approval handler, so an `Ask` collapses to `Deny` there. Print
+  mode is one of those surfaces — see §6.
+- **A turn carries several tool calls.**
+  [parallel-tool-execution.md](./parallel-tool-execution.md) runs adjacent
+  read-only calls concurrently and promises that nothing observable changes:
+  the same message history, hook sequence, and approval prompts, in the same
+  order, whatever the scheduler does. That promise is exactly the kind of claim
+  a unit test cannot hold, and it makes batched replies a requirement of the
+  model harness rather than a nicety.
 
 The Portal architecture document is the source of truth for the existing
 browser suite and its deliberate division from the API deployment smoke; see
@@ -81,33 +114,41 @@ requests. This design changes the intended policy: comprehensive deployment
 and browser E2E must move out of required PR gating. They remain valuable
 post-merge, scheduled, and manually dispatched evidence.
 
-## Prerequisite: The Deterministic Model Harness
+## 4. Prerequisite: The Deterministic Model Harness
 
 Every suite below depends on a mock model, and the existing one cannot carry
 them. `deployment/smoke/mock-llm` answers a single wire protocol with one
 hard-coded sentence and holds no state. That is sufficient for "a task
-completed"; it cannot express a tool call, a second turn, a refusal, or a
-failure. The golden paths that matter most — approving and denying a tool call,
-verifying an intended file change, resuming a session, handling an approval in
-Desktop — are all multi-turn tool-calling paths. Treating the mock as a solved
-primitive would leave the hardest design problem undesigned inside a one-line
-contract row, so it is the first delivery rather than an unexamined detail of a
-later one.
+completed"; it cannot express a tool call, a batch of them, a second turn, a
+refusal, or a failure. The golden paths that matter most — approving and
+denying a tool call, verifying an intended file change, resuming a session,
+handling an approval in Desktop — are all multi-turn tool-calling paths.
+Treating the mock as a solved primitive would leave the hardest design problem
+undesigned inside a one-line contract row, so it is the first delivery rather
+than an unexamined detail of a later one.
 
 The harness must satisfy the following.
 
 | Concern | Required behavior |
 |---|---|
-| Scripted turns | A scenario fixture declares the ordered replies for one run: assistant text, a tool call with exact arguments, a streaming shape, a provider error, or a token/usage payload. The mock replays them in order and never infers a reply from request content. |
+| Scripted turns | A scenario fixture declares the ordered replies for one run: assistant text, tool calls with exact arguments, a streaming shape, a provider error, or a token/usage payload. The mock replays them in order and never infers a reply from request content. |
+| A turn is a batch | One scenario entry can carry several tool calls, because the runtime now schedules them concurrently. A format that assumes one call per turn cannot express the case §6 exists to protect, and retrofitting it would invalidate every committed scenario. |
 | Exhaustion is a failure | A scenario that ends with unconsumed entries fails the suite. This is what catches the agent that stopped calling the model one turn early — a bug no assertion on the final output can see. |
-| Every wire protocol | The mock serves all three protocols in `internal/infra/llm` — Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses — selected by route, and each suite declares which one it runs. A single-protocol mock silently exempts two of the three adapters described in [LLM provider adapters](llm-provider-adapters.md), which is precisely the code most likely to break on a provider change. |
-| No container requirement | It runs as a plain Go process for the CLI, Desktop, and Go-level suites, and as the existing image for Compose and kind. One implementation, two packagings; the deployment smoke keeps working unchanged. |
+| Every wire protocol | The mock serves all three protocols in `internal/infra/llm` — Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses — selected by route, and each suite declares which one it runs. A single-protocol mock silently exempts two of the three adapters described in [llm-provider-adapters.md](./llm-provider-adapters.md), which is precisely the code most likely to break on a provider change. |
+| No container requirement | It runs as a plain Go process for the CLI, Desktop, and Go-level suites, and as the existing image for Compose and kind. One implementation, two packagings; the deployment smoke keeps working unchanged, including the reply it asserts today. |
 | Fixtures live with their suite | Scenarios are committed next to the suite that uses them and are readable without running anything, so a failure can be diagnosed by reading the script against the retained transcript. |
+
+The harness is test support, so it belongs in `internal/testsupport`, which
+production code may not import and a test in `internal/architecture` enforces.
+That rule scans `internal/`, so the thin `main` under `deployment/smoke/` that
+packages the harness as a container is outside it and may import the package.
+This is deliberate rather than an oversight, and a change that moves either
+half should say so.
 
 Until this exists, the CLI and Desktop suites cannot start, and the Portal
 paths are limited to the ones whose model interaction is a single completion.
 
-## Local Harness Contract
+## 5. Local Harness Contract
 
 Every local E2E suite must meet these conditions.
 
@@ -115,14 +156,15 @@ Every local E2E suite must meet these conditions.
 |---|---|
 | Determinism | Use the model harness above and its committed scenarios. No provider API key, paid model, personal account, or external SaaS is required. A suite that cannot meet this is not a suite; it is a manual exercise and must be named as one. |
 | Isolation | Create a temporary `BUILDMAX_HOME`, workspace, and uniquely named test resources for each run. Never use a contributor's real home, sessions, credentials, or workspace. |
+| Policy is written, not hoped for | A suite that depends on an approval pins the tool with `tools.permissions` in its temporary `settings.yaml`. Reaching a prompt by guessing what the model will call, or what a builtin currently defaults to, makes the suite fail the day a default changes for a good reason. |
 | Test data | Fixture helpers create the minimum account, role, team, project, and content through public boundaries where practical. They clean up what they create, or report an exact safe cleanup target when a deployment must retain evidence. |
 | Lifecycle | A suite can either attach to a named running deployment for diagnosis or own its disposable local deployment lifecycle. The command must say which mode it chose. |
 | Diagnostics | On failure retain Playwright traces/screenshots, command output, redacted server/worker logs, the model scenario and the transcript it produced, and a short reproduction command under one predictable artifact directory. |
 | Portability | Add task-runner commands under `cmd/mk`; do not create an OS-specific shell-script testing path. Platform-specific native Desktop smoke is an explicit exception and reports its unsupported platforms. |
-| Time | Each suite declares a normal duration and a timeout, and holds to the budget below. A failed preflight names the missing dependency or service rather than timing out later in a browser assertion. |
+| Time | Each suite declares a normal duration and a timeout, and holds to the budget in §5.1. A failed preflight names the missing dependency or service rather than timing out later in a browser assertion. |
 | Naming | A command name states what it is. `smoke` currently means three different things — a model-driven skill run, a deterministic deployment check, and, if nothing changes, a future CLI suite. The model-driven one must be renamed and must announce its API-key requirement in preflight before any new suite reuses the word. |
 
-### Duration Budget
+### 5.1 Duration Budget
 
 A budget is part of the design, not an outcome to be measured afterwards. A
 suite that misses its budget is a defect in the suite: the loop it was built to
@@ -130,12 +172,12 @@ serve stops being run.
 
 | Suite | Normal | Timeout | Why this number |
 |---|---|---|---|
-| CLI + TUI | under 60 s | 3 min | It must be cheap enough to join the default `./make test` loop. A five-minute CLI suite would be correct and unused. |
+| CLI + TUI | under 60 s | 3 min | It must be cheap enough to join the default `./make test` loop. A five-minute CLI suite would be correct and unused. The budget covers the pseudo-terminal paths §6 requires, so a terminal driver that costs seconds per keystroke is out of scope by arithmetic. |
 | Desktop bridge | under 5 min | 10 min | One Wails development process plus a handful of streamed interactions. |
 | Portal + Compose | under 10 min | 20 min | Includes bringing the stack up; this is the daily deployment default. |
 | Portal + kind | under 20 min | 35 min | Cluster creation and image loading dominate; run it for deployment, ingress, storage, or worker changes. |
 
-### Fixture Isolation Versus The Attached Deployment
+### 5.2 Fixture Isolation Versus The Attached Deployment
 
 Unique-per-run resources and the existing attach-to-deployment mode pull in
 opposite directions, and the existing behavior was deliberate: the deployment
@@ -154,7 +196,7 @@ The two modes therefore take different rules rather than one compromise:
   and never assumes it is the only client. Its command output states which
   deployment it attached to and what it left behind.
 
-## Golden Paths
+## 6. Golden Paths
 
 The first paths are deliberately few and representative. New functionality
 adds an E2E path only when its cross-boundary outcome has no lower, faster
@@ -164,8 +206,8 @@ test.
 |---|---|
 | Portal + Compose | Sign in; create and use team resources; start a run; read its output, trace, and artifact; verify the important role-specific views. Compose is the daily default because it is the fastest real deployment. |
 | Portal + kind | Prove the same published-bundle contract through ingress and the Kubernetes worker path. Run locally for deployment, ingress, storage, or worker changes. |
-| Server + worker | Preserve the existing direct and managed deployment smoke, then add the deployment-level half of cancellation, retry, authorization denial, and failure recovery — see below. |
-| CLI + TUI | Start the built binary in an isolated workspace with the mock model; send a prompt; approve and deny a tool call; verify an intended file change, session resume, trace, and a useful failure. Use a pseudo-terminal only for behavior unique to the TUI. |
+| Server + worker | Preserve the existing direct and managed deployment smoke, then add the deployment-level half of cancellation, retry, authorization denial, and failure recovery — see §6.1. |
+| CLI + TUI | Start the built binary in an isolated workspace with the mock model; send a prompt; approve and deny a pinned tool call; verify an intended file change, session resume, trace, and a useful failure. Prove that a batched turn produces one canonical history and prompt order. |
 | Desktop bridge | Run the Wails development bridge with the mock runtime; create a project; stream a response; handle an approval; reopen a session; and surface a runtime error. |
 | Native Desktop smoke | On supported native runners, launch the packaged app and prove one critical interaction. This is lower frequency than the bridge suite because native WebViews differ by platform. |
 
@@ -174,7 +216,26 @@ subject of a test may use a fixture API, but the asserted user outcome must go
 through the surface being tested. This preserves the existing run-trace pattern
 without turning every setup form into a dependency of every assertion.
 
-### What The Server And Worker Paths Must Add
+**A pseudo-terminal is required, not optional.** Approval is an interactive
+capability: a surface with no approval handler collapses an `Ask` into a
+`Deny`, and print mode is such a surface. So `buildmax -p` can prove a denial
+and can never prove an approval, and the CLI suite's central path — a write
+tool that asks, is approved, and changes a file — only exists under a terminal.
+Print mode still carries everything that is not gated: output shape, session
+persistence and resume, trace contents, and failure text. Splitting the suite
+this way is what keeps the terminal-driven part small enough to stay inside the
+§5.1 budget.
+
+**Concurrency must be proved to change nothing.**
+[parallel-tool-execution.md](./parallel-tool-execution.md) promises identical
+observable behavior whatever the scheduler does. A batched scenario — several
+read-only calls in one turn, and a batch mixing a gated write with read-only
+neighbours — asserts the resulting message history, hook sequence, and prompt
+order against a fixture. Nothing below this level can make that assertion,
+because nothing below it runs the real scheduler against the real approval
+gate.
+
+### 6.1 What The Server And Worker Paths Must Add
 
 Cancellation, retry, and authorization denial already have handler-level Go
 tests over a real router and store. Repeating their rules here would be exactly
@@ -192,7 +253,7 @@ deployment-level fact no handler test can reach:
 - **Failure recovery** — a worker that dies mid-run leaves the run in a
   terminal, diagnosable state with its artifacts and logs retrievable.
 
-## AI Agent Workflow
+## 7. AI Agent Workflow
 
 The harness is a first-class tool for code-changing agents, not merely a CI
 afterthought. A contributor-facing guide and the workspace `AGENTS.md` must
@@ -215,7 +276,7 @@ The runbook itself is current behavior, not rationale, so it belongs in
 `AGENTS.md` carrying only the suite-selection summary and a link. This design
 record keeps the trade-offs; it must not become the runbook.
 
-## CI Policy
+## 8. CI Policy
 
 | Trigger | Verification |
 |---|---|
@@ -250,30 +311,31 @@ rather than discovered later.
   lint step in the frontend job. Until it has them, a shared-component
   regression reaches `main` before anything executes it.
 
-## Delivery Order
+## 9. Delivery Order
 
 1. **Build the deterministic model harness.** Scripted multi-turn scenarios,
-   tool calls, all three wire protocols, runnable as a plain process and as the
-   existing image. Every suite that involves a tool call waits on this.
+   batched tool calls, all three wire protocols, runnable as a plain process
+   and as the existing image. Every suite that involves a tool call waits on
+   this.
 2. **Add the CLI path first among the surfaces.** The CLI is the primary
    single-binary surface, it has no deterministic verification today, and it is
    the only suite that can run in seconds without Docker — so it is the one
    that actually delivers the feedback loop this design is for. Real binary,
-   temporary home, scripted model; then a small pseudo-terminal suite for
+   temporary home, pinned permissions, scripted model; print mode for the
+   ungated paths and a small pseudo-terminal suite for approval and
    TUI-specific behavior. Ordering it after the container suites would postpone
    the whole point of the work.
 3. **Stabilize the existing Portal and deployment suite.** This can run
    alongside step 2 if two people are available: isolated fixtures under the
    two lifecycle modes above, cleanup, reproducible artifacts, preflight
    diagnostics, and one local lifecycle-owning wrapper alongside the current
-   attach-to-deployment mode.
-   Move the comprehensive workflow from PR gating to post-merge, scheduled, and
-   manual triggers, and fix the concurrency and ownership rules named in
-   [CI Policy](#ci-policy) in the same change.
+   attach-to-deployment mode. Move the comprehensive workflow from PR gating to
+   post-merge, scheduled, and manual triggers, and fix the concurrency and
+   ownership rules named in §8 in the same change.
 4. **Add Portal golden paths** for issue/agent execution, workflow execution,
    files, settings, and the member/owner/system-administrator authorization
    matrix. Keep the original API smoke focused on deployment behavior, and give
-   the server and worker paths the deployment-level assertions named above.
+   the server and worker paths the deployment-level assertions in §6.1.
 5. **Add the Wails bridge suite**, then a small native packaged-app smoke on
    supported platform runners.
 6. **Publish the contributor and agent runbook** in `docs/contribute/`,
@@ -284,7 +346,7 @@ Renaming the model-driven `./make smoke` and giving `gui` tests and lint are
 small enough to ride along with steps 2 and 3 respectively; they are named here
 so they are not forgotten rather than because they deserve their own phase.
 
-## Success Criteria
+## 10. Success Criteria
 
 This direction is complete when a developer or AI agent can start from a clean
 checkout, select the relevant local suite without hidden credentials, execute
@@ -293,7 +355,9 @@ repair a failure. Concretely:
 
 - no suite requires a provider API key, and no command named like a test
   silently does;
-- the CLI suite runs inside the default `./make test` loop within its budget;
+- the CLI suite runs inside the default `./make test` loop within its budget,
+  including the terminal-driven approval path;
+- a batched turn is proved to produce one canonical history and prompt order;
 - every post-merge run reports each suite as run, skipped by policy, cancelled,
   or failed, and no commit reaches a release with its verification silently
   cancelled;

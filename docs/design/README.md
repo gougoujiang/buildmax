@@ -18,7 +18,6 @@ Durable product decisions that guide more than one roadmap phase.
 |---|---|
 | [Product vision](product-vision.md) | Long-range direction for the AI-native workspace |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
-| [Local end-to-end verification](end-to-end-testing.md) | Developer- and agent-run E2E strategy across every surface |
 
 ## Active Roadmap Plans
 
@@ -41,6 +40,7 @@ reference, then delete the plan.
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
+| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Planned; the deployment smoke and Portal browser suite exist, the model harness and the local cross-surface suites do not |
 
 ## Subsystem Specifications
 
