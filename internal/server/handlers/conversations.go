@@ -97,14 +97,8 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 	if h.writeTaskServiceError(w, r, err, agentID) {
 		return true
 	}
-	switch {
-	case errors.Is(err, conversation.ErrInvalidTarget):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid conversation target")
-		return true
-	case errors.Is(err, conversation.ErrLLMRequired):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
-		return true
-	}
+	// errTurnQueueFull is this package's own, and its text names the queue depth,
+	// so it is answered here rather than given a Kind.
 	if errors.Is(err, errTurnQueueFull) {
 		httputil.WriteJSONError(w, http.StatusTooManyRequests, err.Error())
 		return true

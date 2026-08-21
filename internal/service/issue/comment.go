@@ -2,18 +2,18 @@ package issue
 
 import (
 	"context"
-	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
 var (
-	ErrCommentsNotConfigured = errors.New("comments not configured")
-	ErrCommentBodyRequired   = errors.New("comment body required")
-	ErrCommentTooLong        = errors.New("comment too long")
-	ErrCommentNotFound       = errors.New("comment not found")
-	ErrCommentNotEditable    = errors.New("comment not editable")
+	ErrCommentsNotConfigured = apierr.New(apierr.KindNotConfigured, "comments not configured")
+	ErrCommentBodyRequired   = apierr.New(apierr.KindInvalid, "comment body required")
+	ErrCommentTooLong        = apierr.New(apierr.KindInvalid, "comment too long")
+	ErrCommentNotFound       = apierr.New(apierr.KindNotFound, "comment not found")
+	ErrCommentNotEditable    = apierr.New(apierr.KindForbidden, "comment not editable")
 )
 
 // CommentBodyLimit bounds a comment body in bytes.

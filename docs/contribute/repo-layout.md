@@ -105,6 +105,7 @@ internal/
 │
 ├── core/               Pure domain layer — no infra imports
 │   ├── model/          Domain entities and repository contracts
+│   ├── apierr/         Why a service refused: a Kind a transport maps to a status
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract

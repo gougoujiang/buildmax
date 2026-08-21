@@ -2,32 +2,32 @@ package issue
 
 import (
 	"context"
-	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
 var (
-	ErrIssuesNotConfigured    = errors.New("issues not configured")
-	ErrTeamsNotConfigured     = errors.New("teams not configured")
-	ErrTitleRequired          = errors.New("title required")
-	ErrInvalidStatus          = errors.New("invalid status")
-	ErrInvalidAssigneeKind    = errors.New("invalid assignee_kind")
-	ErrInvalidAssigneeID      = errors.New("invalid assignee_id")
-	ErrIssueNotFound          = errors.New("issue not found")
-	ErrAgentsNotConfigured    = errors.New("agents not configured")
-	ErrAgentNotFound          = errors.New("agent not found or not owned by user")
-	ErrWorkflowsNotConfigured = errors.New("workflows not configured")
-	ErrWorkflowNotFound       = errors.New("workflow not found or not owned by team")
-	ErrWorkflowNotPublished   = errors.New("workflow not published")
+	ErrIssuesNotConfigured    = apierr.New(apierr.KindNotConfigured, "issues not configured")
+	ErrTeamsNotConfigured     = apierr.New(apierr.KindNotConfigured, "teams not configured")
+	ErrTitleRequired          = apierr.New(apierr.KindInvalid, "title required")
+	ErrInvalidStatus          = apierr.New(apierr.KindInvalid, "invalid status")
+	ErrInvalidAssigneeKind    = apierr.New(apierr.KindInvalid, "invalid assignee_kind")
+	ErrInvalidAssigneeID      = apierr.New(apierr.KindInvalid, "invalid assignee_id")
+	ErrIssueNotFound          = apierr.New(apierr.KindNotFound, "issue not found")
+	ErrAgentsNotConfigured    = apierr.New(apierr.KindNotConfigured, "agents not configured")
+	ErrAgentNotFound          = apierr.New(apierr.KindInvalid, "agent not found")
+	ErrWorkflowsNotConfigured = apierr.New(apierr.KindNotConfigured, "workflows not configured")
+	ErrWorkflowNotFound       = apierr.New(apierr.KindInvalid, "workflow not found")
+	ErrWorkflowNotPublished   = apierr.New(apierr.KindInvalid, "workflow not published")
 	// ErrParentNotFound covers both a parent that does not exist and one that
 	// belongs to another team. The two are reported identically on purpose:
 	// distinguishing them would confirm that an issue ID exists somewhere the
 	// caller cannot see, and issue IDs are what Portal puts in URLs.
-	ErrParentNotFound   = errors.New("parent issue not found")
-	ErrHierarchyTooDeep = errors.New("issue hierarchy too deep")
-	ErrIssueHasChildren = errors.New("issue has sub-issues")
-	ErrInvalidParent    = errors.New("invalid parent_issue_id")
+	ErrParentNotFound   = apierr.New(apierr.KindInvalid, "parent issue not found")
+	ErrHierarchyTooDeep = apierr.New(apierr.KindInvalid, "issue hierarchy too deep")
+	ErrIssueHasChildren = apierr.New(apierr.KindInvalid, "issue has sub-issues")
+	ErrInvalidParent    = apierr.New(apierr.KindInvalid, "invalid parent_issue_id")
 )
 
 type IssueService struct {

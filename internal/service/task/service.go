@@ -2,8 +2,8 @@ package task
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -13,21 +13,21 @@ import (
 const defaultTitleRunes = 50
 
 var (
-	ErrInputRequired         = errors.New("input required")
-	ErrAgentsNotConfigured   = errors.New("agents not configured")
-	ErrTasksNotConfigured    = errors.New("tasks not configured")
-	ErrTaskRunsNotConfigured = errors.New("task runs not configured")
-	ErrAgentNotFound         = errors.New("agent not found or not owned by team")
-	ErrTaskNotFound          = errors.New("task not found")
+	ErrInputRequired         = apierr.New(apierr.KindInvalid, "input required")
+	ErrAgentsNotConfigured   = apierr.New(apierr.KindNotConfigured, "agents not configured")
+	ErrTasksNotConfigured    = apierr.New(apierr.KindNotConfigured, "tasks not configured")
+	ErrTaskRunsNotConfigured = apierr.New(apierr.KindNotConfigured, "task runs not configured")
+	ErrAgentNotFound         = apierr.New(apierr.KindInvalid, "agent not found")
+	ErrTaskNotFound          = apierr.New(apierr.KindNotFound, "task not found")
 	// ErrNoRunToRetry means the task has no finished run to repeat: it has
 	// never run, or its only run is still in flight.
-	ErrNoRunToRetry = errors.New("this task has no finished run to retry")
+	ErrNoRunToRetry = apierr.New(apierr.KindConflict, "this task has no finished run to retry")
 	// ErrRetryOfWorkflowStep means the task belongs to a workflow step. The
 	// workflow owns that task's lifecycle — it reacts to the step run's
 	// outcome — so a run started behind its back would mark a settled step
 	// succeeded and dispatch the next step of a workflow run that is already
 	// over.
-	ErrRetryOfWorkflowStep = errors.New("this run belongs to a workflow step")
+	ErrRetryOfWorkflowStep = apierr.New(apierr.KindConflict, "this run belongs to a workflow step and cannot be retried on its own")
 )
 
 // WorkflowStepLookup answers whether a task is a workflow step's task. It is
