@@ -49,7 +49,7 @@ type TurnRunInput struct {
 	Channel        string
 	UserID         string
 	TeamID         string
-	TaskService    *task.TaskService
+	TaskService    *task.Service
 	AgentSummaries []convtool.AgentSummary
 	TitleGenerator llm.TitleGenerator
 	StreamSink     llm.StreamSink

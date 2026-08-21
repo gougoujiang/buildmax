@@ -46,7 +46,7 @@ func TestWebhookEngine_Process_chatNil(t *testing.T) {
 
 func TestWebhookEngine_Process_webhookEmptyMessage(t *testing.T) {
 	e := &WebhookEngine{
-		TaskService:   &task.TaskService{},
+		TaskService:   &task.Service{},
 		Conversations: &mock.MockConversationStore{},
 	} // Task service has nil stores; CreateTask will fail later, but we validate message first
 	ctx := context.Background()
@@ -62,7 +62,7 @@ func TestWebhookEngine_Process_webhookEmptyMessage(t *testing.T) {
 }
 
 func TestWebhookEngine_Process_requiresConversationStore(t *testing.T) {
-	e := &WebhookEngine{TaskService: &task.TaskService{}}
+	e := &WebhookEngine{TaskService: &task.Service{}}
 	ctx := context.Background()
 	turn := convchannel.Turn{
 		Channel: ChannelWebhook,

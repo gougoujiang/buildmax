@@ -30,7 +30,7 @@ var (
 	ErrInvalidParent    = apierr.New(apierr.KindInvalid, "invalid parent_issue_id")
 )
 
-type IssueService struct {
+type Service struct {
 	Issues    model.IssueStore
 	Comments  model.IssueCommentStore
 	Agents    model.AgentStore
@@ -58,7 +58,7 @@ type UpdateIssueCmd struct {
 	ParentIssueID *string
 }
 
-func (s *IssueService) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.Issue, error) {
+func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -79,7 +79,7 @@ func (s *IssueService) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*mo
 	})
 }
 
-func (s *IssueService) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*model.Issue, error) {
+func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*model.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -126,7 +126,7 @@ func (s *IssueService) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*mo
 //
 // childID is the issue being reparented, or "" when the child does not exist
 // yet. A new issue cannot have children, so only the update path checks H3.
-func (s *IssueService) normalizeParent(ctx context.Context, teamID, childID string, parentIssueID *string) (*string, error) {
+func (s *Service) normalizeParent(ctx context.Context, teamID, childID string, parentIssueID *string) (*string, error) {
 	if parentIssueID == nil || *parentIssueID == "" {
 		return nil, nil
 	}
@@ -168,7 +168,7 @@ func isValidStatus(status string) bool {
 	}
 }
 
-func (s *IssueService) validateAssignee(ctx context.Context, teamID, userID string, kind, id *string) error {
+func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, kind, id *string) error {
 	if kind == nil && id == nil {
 		return nil
 	}

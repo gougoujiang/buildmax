@@ -7,8 +7,8 @@ import (
 )
 
 func TestTaskServiceForChannel_systemDisablesTaskTools(t *testing.T) {
-	ts := &task.TaskService{}
-	svc := &ConversationService{TaskService: ts}
+	ts := &task.Service{}
+	svc := &Service{TaskService: ts}
 
 	result := svc.taskServiceForChannel(ChannelSystem)
 
@@ -18,8 +18,8 @@ func TestTaskServiceForChannel_systemDisablesTaskTools(t *testing.T) {
 }
 
 func TestTaskServiceForChannel_portalAllowsTaskTools(t *testing.T) {
-	ts := &task.TaskService{}
-	svc := &ConversationService{TaskService: ts}
+	ts := &task.Service{}
+	svc := &Service{TaskService: ts}
 
 	result := svc.taskServiceForChannel(ChannelPortal)
 

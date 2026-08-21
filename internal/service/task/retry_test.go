@@ -11,7 +11,7 @@ import (
 )
 
 // retryFixture builds a task whose last run finished in the given status.
-func retryFixture(status string) (*TaskService, *mock.MockTaskRunStore) {
+func retryFixture(status string) (*Service, *mock.MockTaskRunStore) {
 	previous := model.TaskRun{
 		TaskRunID:     "tr_1",
 		TaskID:        "t_1",
@@ -27,7 +27,7 @@ func retryFixture(status string) (*TaskService, *mock.MockTaskRunStore) {
 		Input:     "the task's original input",
 		LastRunID: util.Ptr("tr_1"),
 	}}}
-	return &TaskService{Tasks: tasks, TaskRuns: runs}, runs
+	return &Service{Tasks: tasks, TaskRuns: runs}, runs
 }
 
 // The retry repeats what the last run was asked to do, not what the task was
@@ -100,7 +100,7 @@ func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
 
 // A task that has never run has nothing to repeat.
 func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
-	svc := &TaskService{
+	svc := &Service{
 		Tasks:    &mock.MockTaskStore{List: []model.Task{{TaskID: "t_1", TeamID: "tm_1", Status: "PENDING"}}},
 		TaskRuns: &mock.MockTaskRunStore{},
 	}

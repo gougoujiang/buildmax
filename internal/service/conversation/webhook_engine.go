@@ -13,7 +13,7 @@ var ErrWebhookChannelRequired = errors.New("webhook engine only accepts webhook 
 
 // WebhookEngine implements TurnEngine for webhook turns: no LLM, create one TaskRun.
 type WebhookEngine struct {
-	TaskService   *task.TaskService
+	TaskService   *task.Service
 	Conversations model.ConversationStore
 }
 

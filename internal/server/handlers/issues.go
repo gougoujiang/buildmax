@@ -141,8 +141,8 @@ func buildIssueAgentRunInput(issue model.Issue) string {
 	return b.String()
 }
 
-func (h *Handler) issueService() *issue.IssueService {
-	return &issue.IssueService{
+func (h *Handler) issueService() *issue.Service {
+	return &issue.Service{
 		Issues:    h.cfg.IssueStore,
 		Comments:  h.cfg.IssueCommentStore,
 		Agents:    h.cfg.AgentStore,

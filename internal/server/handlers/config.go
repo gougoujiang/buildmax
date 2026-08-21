@@ -99,7 +99,7 @@ type Config struct {
 
 	// Auth / quota
 	DefaultQuotaTier string
-	QuotaService     *quota.QuotaService
+	QuotaService     *quota.Service
 
 	// Conversation / LLM
 	TitleGenerator        llm.TitleGenerator

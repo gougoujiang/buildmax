@@ -10,7 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-func NewStartTaskServiceRunner(taskService *task.TaskService, conversationID, teamID, userID string) StartTaskRunner {
+func NewStartTaskServiceRunner(taskService *task.Service, conversationID, teamID, userID string) StartTaskRunner {
 	if taskService == nil {
 		return nil
 	}
@@ -36,7 +36,7 @@ func NewGetTaskStoreRunner(tasks model.TaskStore) GetTaskRunner {
 	return &getTaskStoreRunner{tasks: tasks}
 }
 
-func NewContinueTaskServiceRunner(taskService *task.TaskService) ContinueTaskRunner {
+func NewContinueTaskServiceRunner(taskService *task.Service) ContinueTaskRunner {
 	if taskService == nil {
 		return nil
 	}
@@ -44,7 +44,7 @@ func NewContinueTaskServiceRunner(taskService *task.TaskService) ContinueTaskRun
 }
 
 type startTaskServiceRunner struct {
-	taskService    *task.TaskService
+	taskService    *task.Service
 	userID         string
 	conversationID string
 	teamID         string
@@ -119,7 +119,7 @@ func (r *getTaskStoreRunner) GetTask(ctx context.Context, conversationID, taskID
 }
 
 type continueTaskServiceRunner struct {
-	taskService *task.TaskService
+	taskService *task.Service
 }
 
 func (r *continueTaskServiceRunner) ContinueTask(ctx context.Context, conversationID, userID, taskID, input string) (runID string, err error) {
