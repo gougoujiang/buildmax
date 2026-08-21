@@ -2,8 +2,8 @@ package conversation
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	ErrInvalidTarget = errors.New("conversation turn target required")
-	ErrLLMRequired   = errors.New("conversation LLM not configured")
+	ErrInvalidTarget = apierr.New(apierr.KindInvalid, "invalid conversation target")
+	ErrLLMRequired   = apierr.New(apierr.KindNotConfigured, "conversation LLM not configured")
 )
 
 // ConversationService is the single Tier 1 orchestration entry point for portal turns.

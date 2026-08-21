@@ -76,31 +76,21 @@ func (h *Handler) taskService() *task.TaskService {
 	}
 }
 
+// writeTaskServiceError answers a task-service refusal.
+//
+// agentID is still a parameter because one case is genuinely ambiguous: with no
+// agent named in the request, "agent not found" means the task was not found.
 func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, err error, agentID *string) bool {
-	switch {
-	case errors.Is(err, task.ErrInputRequired):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
-	case errors.Is(err, task.ErrAgentsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
-	case errors.Is(err, task.ErrTasksNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-	case errors.Is(err, task.ErrTaskRunsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
-	case errors.Is(err, task.ErrAgentNotFound):
-		if agentID != nil && *agentID != "" {
-			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
-		} else {
-			httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
-		}
-	default:
-		var quotaErr *task.QuotaExceededError
-		if errors.As(err, &quotaErr) {
-			httputil.WriteQuotaExceeded(w, quotaErr.Reason)
-			return true
-		}
-		return false
+	if errors.Is(err, task.ErrAgentNotFound) && (agentID == nil || *agentID == "") {
+		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
+		return true
 	}
-	return true
+	var quotaErr *task.QuotaExceededError
+	if errors.As(err, &quotaErr) {
+		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
+		return true
+	}
+	return httputil.WriteServiceError(w, err)
 }
 
 func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *model.Conversation, bool) {
@@ -312,18 +302,13 @@ func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if h.writeTaskServiceError(w, r, err, nil) {
 			return
 		}
-		switch {
-		case errors.Is(err, task.ErrNoRunToRetry):
-			httputil.WriteJSONError(w, http.StatusConflict, "this task has no finished run to retry")
-		case errors.Is(err, task.ErrRetryOfWorkflowStep):
-			httputil.WriteJSONError(w, http.StatusConflict, "this run belongs to a workflow step and cannot be retried on its own")
-		case errors.Is(err, model.ErrRunInProgress):
+		// model.ErrRunInProgress comes from the store, below the service, so it
+		// carries no Kind of its own.
+		if errors.Is(err, model.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
-		case errors.Is(err, task.ErrTaskNotFound):
-			httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
-		default:
-			httputil.WriteInternalError(w, err, "handler error", "handler", "retry_task", "task_id", taskID)
+			return
 		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "retry_task", "task_id", taskID)
 		return
 	}
 	slog.Info("task run retried", "task_id", target.TaskID, "task_run_id", result.Run.TaskRunID, "retry_of_task_run_id", result.RetriedRun.TaskRunID, "user_id", userID)

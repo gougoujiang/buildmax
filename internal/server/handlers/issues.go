@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -153,53 +152,7 @@ func (h *Handler) issueService() *issue.IssueService {
 }
 
 func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool {
-	switch {
-	case errors.Is(err, issue.ErrIssuesNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "issues not configured")
-	case errors.Is(err, issue.ErrTitleRequired):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "title required")
-	case errors.Is(err, issue.ErrTeamsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "teams not configured")
-	case errors.Is(err, issue.ErrInvalidStatus):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid status")
-	case errors.Is(err, issue.ErrInvalidAssigneeKind):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid assignee_kind")
-	case errors.Is(err, issue.ErrInvalidAssigneeID):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid assignee_id")
-	case errors.Is(err, issue.ErrAgentsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
-	case errors.Is(err, issue.ErrAgentNotFound):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
-	case errors.Is(err, issue.ErrWorkflowsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "workflows not configured")
-	case errors.Is(err, issue.ErrWorkflowNotFound):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not found")
-	case errors.Is(err, issue.ErrWorkflowNotPublished):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not published")
-	case errors.Is(err, issue.ErrParentNotFound):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "parent issue not found")
-	case errors.Is(err, issue.ErrHierarchyTooDeep):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "issue hierarchy too deep")
-	case errors.Is(err, issue.ErrIssueHasChildren):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "issue has sub-issues")
-	case errors.Is(err, issue.ErrInvalidParent):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid parent_issue_id")
-	case errors.Is(err, issue.ErrCommentsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "comments not configured")
-	case errors.Is(err, issue.ErrCommentBodyRequired):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "comment body required")
-	case errors.Is(err, issue.ErrCommentTooLong):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "comment too long")
-	case errors.Is(err, issue.ErrCommentNotFound):
-		httputil.WriteJSONError(w, http.StatusNotFound, "comment not found")
-	case errors.Is(err, issue.ErrCommentNotEditable):
-		httputil.WriteJSONError(w, http.StatusForbidden, "comment not editable")
-	case errors.Is(err, issue.ErrIssueNotFound):
-		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
-	default:
-		return false
-	}
-	return true
+	return httputil.WriteServiceError(w, err)
 }
 
 func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
