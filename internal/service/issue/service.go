@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	"log/slog"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -229,4 +230,75 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 	default:
 		return ErrInvalidAssigneeKind
 	}
+}
+
+// Counts are the derived numbers a list of issues carries: how many sub-issues
+// each has, how many are done, how many comments.
+type Counts struct {
+	Children     int
+	DoneChildren int
+	Comments     int
+}
+
+// GetIssue resolves an issue the team owns.
+//
+// An issue belonging to another team reads as not found rather than forbidden,
+// so the answer does not confirm that an id exists elsewhere.
+func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*model.Issue, error) {
+	if s.Issues == nil {
+		return nil, ErrIssuesNotConfigured
+	}
+	found, err := s.Issues.GetIssue(ctx, issueID)
+	if err != nil {
+		return nil, err
+	}
+	if found == nil || found.TeamID != teamID {
+		return nil, ErrIssueNotFound
+	}
+	return found, nil
+}
+
+func (s *Service) ListIssues(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
+	if s.Issues == nil {
+		return nil, 0, ErrIssuesNotConfigured
+	}
+	return s.Issues.ListIssuesByTeam(ctx, teamID, filter, limit, offset)
+}
+
+// CountsFor loads the derived counts for a page of issues with one grouped
+// query each, rather than a count per row.
+//
+// A failure degrades to zero for that count instead of failing the page: a
+// missing progress badge is a worse-looking list, an error is no list at all.
+// Both stores are optional, and a deployment without one simply reports zero.
+func (s *Service) CountsFor(ctx context.Context, issueIDs []string) map[string]Counts {
+	out := make(map[string]Counts, len(issueIDs))
+	if len(issueIDs) == 0 {
+		return out
+	}
+	if s.Issues != nil {
+		stats, err := s.Issues.ChildStatsForIssues(ctx, issueIDs)
+		if err != nil {
+			slog.WarnContext(ctx, "issue child stats not loaded", "err", err)
+		} else {
+			for id, st := range stats {
+				c := out[id]
+				c.Children, c.DoneChildren = st.Total, st.Done
+				out[id] = c
+			}
+		}
+	}
+	if s.Comments != nil {
+		counts, err := s.Comments.CountIssueComments(ctx, issueIDs)
+		if err != nil {
+			slog.WarnContext(ctx, "issue comment counts not loaded", "err", err)
+		} else {
+			for id, n := range counts {
+				c := out[id]
+				c.Comments = n
+				out[id] = c
+			}
+		}
+	}
+	return out
 }
