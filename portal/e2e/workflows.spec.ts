@@ -28,13 +28,24 @@ test("a workflow is listed, and its detail view opens by URL", async ({ page }) 
 
   await page.goto("/#/workflows")
   await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible()
-  await expect(page.getByText(name, { exact: true })).toBeVisible()
+  const list = page.locator(".issues-page__panel").filter({
+    has: page.getByRole("heading", { name: "All Workflows" }),
+  })
+  await expect(list.getByText(name, { exact: true })).toBeVisible()
 
   // The detail route carries the id, so linking to it is the same claim as
   // reaching it by clicking — and it is the one an operator pastes to a
   // colleague.
   await page.goto(`/#/workflow/${workflow.id}`)
   await expect(page.getByRole("heading", { name: "Workflow Detail" })).toBeVisible()
-  await expect(page.getByText(workflow.id, { exact: true })).toBeVisible()
+  // The id is on the page twice, and both places are worth asserting rather
+  // than working around: the breadcrumb says where the reader is, and the
+  // Definition panel says which workflow it is showing. A single unscoped
+  // match would resolve to both and fail on whichever rendered first.
+  await expect(page.getByLabel("Breadcrumb").getByText(workflow.id, { exact: true })).toBeVisible()
+  const definition = page.locator(".issues-page__panel").filter({
+    has: page.getByRole("heading", { name: "Definition" }),
+  })
+  await expect(definition.getByText(workflow.id, { exact: true })).toBeVisible()
   await expect(page.getByText("Workflow not found.")).toHaveCount(0)
 })
