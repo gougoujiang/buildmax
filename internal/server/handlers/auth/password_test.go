@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"bytes"
@@ -26,25 +26,25 @@ func newPasswordMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockPasswor
 	t.Helper()
 	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 	passwords := &mock.MockPasswordStore{Hashes: map[string]string{"u1": hashFor(t, testPassword)}}
-	if cfg.UserStore == nil {
-		cfg.UserStore = &mock.MockUserStore{
+	if cfg.Users == nil {
+		cfg.Users = &mock.MockUserStore{
 			ByEmail: map[string]*model.User{"a@b.c": user},
 			ByID:    map[string]*model.User{"u1": user},
 		}
 	}
-	if cfg.PasswordStore == nil {
-		cfg.PasswordStore = passwords
-	} else if s, ok := cfg.PasswordStore.(*mock.MockPasswordStore); ok {
+	if cfg.Passwords == nil {
+		cfg.Passwords = passwords
+	} else if s, ok := cfg.Passwords.(*mock.MockPasswordStore); ok {
 		passwords = s
 	}
 	if cfg.JWTSecret == "" {
 		cfg.JWTSecret = "test-jwt-secret"
 	}
-	if cfg.RefreshTokenStore == nil {
-		cfg.RefreshTokenStore = &mock.MockRefreshTokenStore{}
+	if cfg.RefreshTokens == nil {
+		cfg.RefreshTokens = &mock.MockRefreshTokenStore{}
 	}
 	mux := http.NewServeMux()
-	NewHandler(cfg).Register(mux)
+	New(cfg).Register(mux)
 	return mux, passwords
 }
 
@@ -70,7 +70,7 @@ func TestPasswordLoginIssuesASession(t *testing.T) {
 func TestPasswordLoginFailuresAreIndistinguishable(t *testing.T) {
 	noPassword := &model.User{UserID: "u2", Email: "nopass@b.c"}
 	mux, _ := newPasswordMux(t, Config{
-		UserStore: &mock.MockUserStore{
+		Users: &mock.MockUserStore{
 			ByEmail: map[string]*model.User{
 				"a@b.c":      {UserID: "u1", Email: "a@b.c", Name: "Alice"},
 				"nopass@b.c": noPassword,
@@ -146,17 +146,17 @@ func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
 	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 	passwords := &mock.MockPasswordStore{}
 	mux := http.NewServeMux()
-	NewHandler(Config{
-		UserStore: &mock.MockUserStore{
+	New(Config{
+		Users: &mock.MockUserStore{
 			ByEmail: map[string]*model.User{"a@b.c": user},
 			ByID:    map[string]*model.User{"u1": user},
 		},
-		LoginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 		}},
-		PasswordStore:     passwords,
-		RefreshTokenStore: &mock.MockRefreshTokenStore{},
-		JWTSecret:         "test-jwt-secret",
+		Passwords:     passwords,
+		RefreshTokens: &mock.MockRefreshTokenStore{},
+		JWTSecret:     "test-jwt-secret",
 	}).Register(mux)
 
 	rec := postJSON(t, mux, "/api/login", `{"email":"a@b.c","otp":"code-1"}`, nil)

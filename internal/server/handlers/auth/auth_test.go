@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"bytes"
@@ -154,9 +154,9 @@ func TestLoginHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mux := http.NewServeMux()
-			NewHandler(Config{
-				UserStore:        tt.userStore,
-				LoginCodeStore:   tt.loginCodeStore,
+			New(Config{
+				Users:            tt.userStore,
+				LoginCodes:       tt.loginCodeStore,
 				JWTSecret:        tt.jwtSecret,
 				DefaultQuotaTier: "",
 			}).Register(mux)
@@ -291,8 +291,8 @@ func TestOtpRequestHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mux := http.NewServeMux()
-			NewHandler(Config{
-				UserStore:        tt.userStore,
+			New(Config{
+				Users:            tt.userStore,
 				AllowSignup:      tt.allowSignup,
 				JWTSecret:        "",
 				DefaultQuotaTier: "free_trial",
@@ -321,10 +321,10 @@ func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 	}}
 	mux := http.NewServeMux()
-	NewHandler(Config{
-		UserStore:      &mock.MockUserStore{ByID: map[string]*model.User{"u1": user}},
-		LoginCodeStore: codes,
-		JWTSecret:      "test-jwt-secret",
+	New(Config{
+		Users:      &mock.MockUserStore{ByID: map[string]*model.User{"u1": user}},
+		LoginCodes: codes,
+		JWTSecret:  "test-jwt-secret",
 	}).Register(mux)
 
 	post := func() int {
@@ -349,10 +349,10 @@ func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 func TestLoginHandlerStoreErrorIsNotARejection(t *testing.T) {
 	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
 	mux := http.NewServeMux()
-	NewHandler(Config{
-		UserStore:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": user}},
-		LoginCodeStore: &mock.MockLoginCodeStore{ConsumeErr: errors.New("database is down")},
-		JWTSecret:      "test-jwt-secret",
+	New(Config{
+		Users:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": user}},
+		LoginCodes: &mock.MockLoginCodeStore{ConsumeErr: errors.New("database is down")},
+		JWTSecret:  "test-jwt-secret",
 	}).Register(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/login",

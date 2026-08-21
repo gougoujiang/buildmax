@@ -3,10 +3,9 @@ package handlers
 import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
-	"log/slog"
-	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -29,14 +28,6 @@ func (h *Handler) guard() *access.Guard {
 // refuseDisabled answers a disabled account and reports whether the caller may
 // continue.
 //
-// The log line names which login path refused, which the guard cannot know.
-func (h *Handler) refuseDisabled(w http.ResponseWriter, r *http.Request, user *model.User, handler string) bool {
-	if user != nil && user.Disabled() {
-		slog.InfoContext(r.Context(), "refused a disabled account",
-			"handler", handler, "user_id", user.UserID, "remote", r.RemoteAddr)
-	}
-	return h.guard().RejectDisabled(w, user)
-}
 
 // adminHandler builds the deployment-scoped surface from the fields it needs.
 //
@@ -92,4 +83,21 @@ func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTermi
 	if h.cfg.OnTaskRunTerminal != nil {
 		h.cfg.OnTaskRunTerminal(ctx, info)
 	}
+}
+
+// authHandler builds the session routes from the fields they need.
+func (h *Handler) authHandler() *authroutes.Handler {
+	return authroutes.New(authroutes.Config{
+		JWTSecret:            h.cfg.JWTSecret,
+		AllowSignup:          h.cfg.AllowSignup,
+		DefaultQuotaTier:     h.cfg.DefaultQuotaTier,
+		AccessTokenTTL:       h.cfg.AccessTokenTTL,
+		RefreshTokenTTL:      h.cfg.RefreshTokenTTL,
+		RefreshRotationGrace: h.cfg.RefreshRotationGrace,
+		Users:                h.cfg.UserStore,
+		LoginCodes:           h.cfg.LoginCodeStore,
+		Passwords:            h.cfg.PasswordStore,
+		RefreshTokens:        h.cfg.RefreshTokenStore,
+		Audit:                h.cfg.Audit,
+	})
 }
