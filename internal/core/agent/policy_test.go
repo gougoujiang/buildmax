@@ -11,22 +11,34 @@ import (
 // denyPolicy denies all tool calls unconditionally.
 type denyPolicy struct{}
 
-func (denyPolicy) Check(_ string, _ map[string]any) llm.ToolAction { return llm.ToolActionDeny }
+func (denyPolicy) Check(_, _ string, _ map[string]any) (llm.ToolAction, bool) {
+	return llm.ToolActionDeny, true
+}
 
 // askPolicy returns Ask for all tool calls.
 type askPolicy struct{}
 
-func (askPolicy) Check(_ string, _ map[string]any) llm.ToolAction { return llm.ToolActionAsk }
+func (askPolicy) Check(_, _ string, _ map[string]any) (llm.ToolAction, bool) {
+	return llm.ToolActionAsk, true
+}
 
 // countingApproval counts how many times RequestApproval is called.
 type countingApproval struct {
 	calls   int
 	approve bool
+	session bool // when approving, keep the grant for the rest of the session
 }
 
-func (a *countingApproval) RequestApproval(_ string, _ map[string]any) bool {
+func (a *countingApproval) RequestApproval(_ context.Context, _ string, _ map[string]any) ApprovalDecision {
 	a.calls++
-	return a.approve
+	switch {
+	case !a.approve:
+		return ApprovalDeny
+	case a.session:
+		return ApprovalAllowSession
+	default:
+		return ApprovalAllowOnce
+	}
 }
 
 // TestPolicyDeny verifies that ToolActionDeny prevents execution and returns an error result to the model.

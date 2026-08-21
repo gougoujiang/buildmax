@@ -485,14 +485,24 @@ func (a *App) Logout() error {
 
 // --- Chat bindings ---
 
-// RespondApproval is called by the frontend when the user approves or denies a tool call.
-// projectID must match the project that triggered the desktop/approval-request event.
-func (a *App) RespondApproval(projectID string, approved bool) {
+// RespondApproval is called by the frontend when the user answers a tool
+// approval prompt. projectID must match the project that triggered the
+// desktop/approval-request event. decision is "once", "session", or "deny";
+// anything else denies, so a frontend that falls out of step fails closed.
+func (a *App) RespondApproval(projectID string, decision string) {
 	a.mu.Lock()
 	handler := a.approvalHandlers[projectID]
 	a.mu.Unlock()
-	if handler != nil {
-		handler.respond(approved)
+	if handler == nil {
+		return
+	}
+	switch decision {
+	case "once":
+		handler.respond(agent.ApprovalAllowOnce)
+	case "session":
+		handler.respond(agent.ApprovalAllowSession)
+	default:
+		handler.respond(agent.ApprovalDeny)
 	}
 }
 

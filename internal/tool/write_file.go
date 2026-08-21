@@ -21,6 +21,9 @@ func NewWriteFile(workspaceRoot string) *WriteFile {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (w *WriteFile) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
+
 func (w *WriteFile) Name() string { return ToolNameWrite }
 
 // Description returns a short description so the LLM knows when to use this tool.

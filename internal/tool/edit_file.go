@@ -21,6 +21,9 @@ func NewEditFile(workspaceRoot string) *EditFile {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (e *EditFile) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
+
 func (e *EditFile) Name() string { return ToolNameEdit }
 
 // Description returns a short description so the LLM knows when to use this tool.

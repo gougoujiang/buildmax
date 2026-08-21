@@ -64,6 +64,9 @@ func NewGrep(workspaceRoot string) *Grep {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (g *Grep) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (g *Grep) Name() string { return ToolNameGrep }
 
 // Description returns a short description so the LLM knows when to use this tool.

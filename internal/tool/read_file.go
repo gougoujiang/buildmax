@@ -20,6 +20,9 @@ func NewReadFile(workspaceRoot string) *ReadFile {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (r *ReadFile) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (r *ReadFile) Name() string { return ToolNameRead }
 
 // DefaultLimit is the default number of lines returned when limit is not specified.

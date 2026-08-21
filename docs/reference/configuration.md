@@ -334,6 +334,71 @@ goes — which is why the model picker and `buildmax models` always name the
 destination.
 | `hooks` | empty | Lifecycle hooks. Reference: [guide/hooks.md](../guide/hooks.md). |
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
+| `tools.permissions` | empty | Per-tool approval rules. See below. |
+| `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
+
+### `tools.permissions`
+
+BuildMax asks before a tool call that changes something, on surfaces where
+somebody can answer — the CLI TUI and Desktop. Out of the box `Write`, `Edit`,
+`Task`, and non-read-only MCP calls prompt; read-only tools do not, and `Bash`
+follows its own risk classifier rather than the category default.
+
+Set a rule to change that:
+
+```yaml
+tools:
+  permissions:
+    Write: allow                        # stop asking before file writes
+    Task: ask
+    Bash: deny                          # no shell at all
+    "CallMcpTool:github/*": allow       # trust one server's tools
+    "CallMcpTool:jira/delete_issue": deny
+```
+
+| Field | Meaning |
+|---|---|
+| key | A tool name, or a tool plus the target it dispatches to, with an optional trailing `*`. Case-insensitive. |
+| value | `allow`, `ask`, or `deny`. An unrecognised value is ignored, and `buildmax tools status` lists it. |
+
+The most specific rule wins: an exact target, then the longest matching
+pattern, then the bare tool name.
+
+Two limits worth knowing:
+
+- **`allow` turns off the category prompt, not the safety checks.** Reading a
+  sensitive path and running a risky shell command still prompt. Only `deny`
+  outranks those.
+- **`ask` means a human must look**, so on a surface with no human — print
+  mode, a worker, a Portal conversation — the call is refused rather than run.
+
+Answering a prompt with `a` allows that tool for the rest of the session
+without writing a rule. Session grants are held in memory and are gone when the
+process exits.
+
+Run `buildmax tools status` to see every tool's classification, its resolved
+action, and which layer decided it. Design:
+[design/tool-permissions.md](../design/tool-permissions.md).
+
+### `agent.max_parallel_tools`
+
+When the model asks for several tool calls in one message, BuildMax can run
+them at the same time:
+
+```yaml
+agent:
+  max_parallel_tools: 4     # 1 disables it; range 1-16
+```
+
+Only calls the tool itself declares read-only ever overlap — `Read`, `Glob`,
+`Grep`, `Skill`, and `WebFetch`. Writes, shell commands, `Task`, and MCP calls
+always run alone, and calls are never reordered, so a batch means the same thing
+at any setting: the message history a run produces is identical whatever the
+limit. `buildmax tools status` shows which tools are read-only.
+
+Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
+it to 1 to make a run reproduce exactly one call at a time. Design:
+[design/parallel-tool-execution.md](../design/parallel-tool-execution.md).
 
 ## `server.yaml` — Server and Worker
 

@@ -77,3 +77,41 @@ func (r ToolRegistry) Lookup(name string) Tool {
 	}
 	return nil
 }
+
+// Access describes what a tool call does to the world. The zero value is
+// AccessWrite so an undeclared tool is treated conservatively. Read by the
+// permission layer and the tool scheduler; see docs/design/tool-permissions.md.
+type Access uint8
+
+const (
+	// AccessWrite means the call changes durable or process state.
+	AccessWrite Access = iota
+	// AccessReadOnly means the call observes and returns.
+	AccessReadOnly
+)
+
+func (a Access) String() string {
+	if a == AccessReadOnly {
+		return "read-only"
+	}
+	return "write"
+}
+
+// AccessDeclarer is an optional interface a Tool can implement to classify its
+// own calls. Args are passed so the answer can depend on the call.
+//
+// AccessReadOnly is a claim about effect only. It does not promise that Execute
+// is safe on several goroutines at once — CallMcpTool reports what a third
+// party says about itself, which is not something this runtime can underwrite.
+// A scheduler must require concurrency safety separately.
+type AccessDeclarer interface {
+	Access(args map[string]any) Access
+}
+
+// GrantScoper is an optional interface a Tool can implement to narrow what a
+// session grant covers. A tool that dispatches to something else — an MCP
+// server, another agent — would otherwise have one approval cover every target
+// it can reach.
+type GrantScoper interface {
+	GrantScope(args map[string]any) string
+}

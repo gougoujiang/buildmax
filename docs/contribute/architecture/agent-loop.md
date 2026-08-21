@@ -41,7 +41,10 @@ type RunLoopOpts struct {
     StreamSink   llm.StreamSink     // non-nil selects the streaming call
 
     Policy    ToolPolicy            // nil = AllowAllPolicy
-    Approval  ApprovalHandler       // nil + ToolActionAsk falls through to allow
+    Approval  ApprovalHandler       // nil collapses ToolActionAsk to Deny, and marks
+                                    //   the surface as having nobody to prompt
+    Grants    *SessionGrants        // caller-owned; nil grants nothing
+    MaxParallelTools int            // read-only calls per group; 0 or 1 is sequential
     PendingInput PendingInput       // nil disables mid-run injection
     Compactor ContextCompactor      // nil disables compaction; TrimHistory is the fallback
     EventSink func(Event)           // nil disables event emission entirely
@@ -68,9 +71,9 @@ history + system prompt ──▶ LLMClient
                          └───┬────────┬───┘
                           No │        │ Yes
                              ▼        ▼
-                      return reply   for each call:
-                                       policy → approval → hook
-                                       execute, append result
+                      return reply   parse → group calls
+                                       gate each: policy → approval → hook
+                                       run the group, append results in order
                                        ↺ next iteration
 ```
 
@@ -92,11 +95,46 @@ history + system prompt ──▶ LLMClient
 4. **Call the LLM** — `ChatCompletionStreaming` when `StreamSink` is set,
    otherwise `ChatCompletionBlocking`.
 5. **No tool calls** → append the assistant reply and return.
-6. **Tool calls** → append the assistant message, then run each call through the
-   gates below.
+6. **Tool calls** → append the assistant message, then run the batch through the
+   stages below. Adjacent read-only calls execute together; everything else runs
+   alone and in order.
 7. **Repeat**, up to `MaxIter`.
 
-## Tool Call Gates
+## Tool Execution
+
+The calls in one assistant message run through four stages:
+`parseCalls` → `groupCalls` → `gateCall` → `runGroup` → commit.
+
+| Stage | Goroutine | Order | Does |
+|---|---|---|---|
+| parse | loop | batch | unmarshal arguments, resolve tools — no side effects, which is what lets it run ahead |
+| group | loop | batch | cut the batch into units that execute together |
+| gate | loop | call order | `EventToolStart`, the checks below, `PreToolUse` |
+| run | worker | overlapped | `tool.Execute`, then `EventToolEnd` |
+| commit | loop | call order | post hooks, then `History.Append` |
+
+**Only `Execute` overlaps.** Everything that decides — the loop guard,
+permission resolution, the approval prompt, `PreToolUse` — stays on the loop
+goroutine in call order. That is what keeps concurrency cheap: the guard needs
+no lock, approval prompts stay one at a time so neither UI handler has to become
+re-entrant, and hooks still observe calls in the order the model made them.
+
+**Grouping merges only adjacent read-only calls**, and never reorders. A write,
+a shell command, an unknown tool, or a call that failed to parse is a barrier.
+`agent.max_parallel_tools` bounds a group; at 1 every call is its own group,
+which is the sequential behaviour exactly. The message history a run produces is
+identical at any limit — `TestHistoryIsSchedulerIndependent` pins it.
+
+Two asymmetries are deliberate. `EventToolEnd` is emitted from the worker that
+ran the call, because the event stream is live and holding a completion until
+the slowest sibling returns would misreport what is still running; a consumer
+pairs it with `EventToolStart` by `ToolCallID`, never by arrival. Post hooks
+fire at the join in call order, because they are an audit surface and one that
+reorders under load is worse than one that arrives late.
+
+Design: [design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
+
+### Gates
 
 Each requested call passes four checks before it runs. Every rejection is
 appended to history as a tool-role message beginning with `error:`, so the model
@@ -106,12 +144,44 @@ sees the refusal and can choose a different approach rather than stalling:
 |---|---|
 | Tool exists, arguments parse as JSON | lookup or parse error |
 | **Loop guard** — the same call repeated too many times | `blocked — repeated identical call detected (loop guard)` |
-| **Policy** — `ToolPolicy`, then `ApprovalHandler` on `ToolActionAsk` | `denied by policy` / `denied by user` |
+| **Permission** — the layered resolution below, then `ApprovalHandler` on `ToolActionAsk` | `denied by policy` / `denied by user` |
 | **PreToolUse hook** | `denied by hook: <reason>` |
 
 The loop guard exists because a model that gets an unhelpful tool result will
 often retry the identical call forever; the counter turns that into a message it
 must react to.
+
+### Permission resolution
+
+`resolveAction` walks five layers, first decision wins. Rationale and the
+per-tool table: [design/tool-permissions.md](../../design/tool-permissions.md).
+
+| # | Layer | Source |
+|---|---|---|
+| 1 | configured `deny` — a prohibition | `tools.permissions` |
+| 2 | `ArgChecker.CheckArgs` — argument-level risk | the tool |
+| 3 | configured `allow`/`ask` — category preference | `tools.permissions` |
+| 4 | `PolicyProvider.DefaultAction` — explicit tool default | the tool |
+| 5 | derived from `AccessDeclarer.Access` — writes ask | the tool |
+
+Two properties of that order are load-bearing:
+
+- **The configured layers straddle the risk check.** `Read: allow` quiets the
+  category prompt without consenting to open a sensitive path; only a
+  configured `deny` outranks layer 2.
+- **Layer 5 runs only when `Approval != nil`.** A category prompt is a question
+  for a person, so a surface with nobody attached does not raise it rather than
+  answering it with a default. Without that gate, giving `Write` a default of
+  `Ask` would deny every file write on a worker. Layers 1–4 are unaffected, so a
+  risky shell command is still refused there.
+
+`ToolPolicy.Check` returns `(action, bool)` because `ToolActionAllow` means
+*abstain* everywhere else — a policy returning it could never say "allow this,
+stop asking".
+
+After resolution, a session grant (`SessionGrants`) can turn an `Ask` into an
+`Allow`. It is applied after resolution, never before, so it cannot soften a
+denial.
 
 ## Events
 

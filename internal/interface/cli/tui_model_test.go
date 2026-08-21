@@ -860,3 +860,55 @@ func TestWrapLine(t *testing.T) {
 		t.Errorf("wrapLine(\"**File Operations:**\", 12) = %q, want [\"**File \", \"Operations:*\", \"*\"]", got)
 	}
 }
+
+// TestToolEndPairsWithItsOwnCall is the defect phase 1 of
+// docs/design/parallel-tool-execution.md exists to prevent: with one slot for
+// the live call's arguments, a result arriving for the first of two overlapping
+// calls rendered the second call's arguments.
+func TestToolEndPairsWithItsOwnCall(t *testing.T) {
+	m := &Model{width: 80}
+	handleToolStart(m, toolStartMsg{CallID: "a", Name: "Read", Args: `{"file_path":"first.go"}`})
+	handleToolStart(m, toolStartMsg{CallID: "b", Name: "Read", Args: `{"file_path":"second.go"}`})
+
+	if len(m.activeTools) != 2 {
+		t.Fatalf("activeTools = %d, want 2 in flight", len(m.activeTools))
+	}
+
+	// Finish the second call first: completion order need not match call order.
+	if line := m.finishTool("b", "Read", "*", ""); !strings.Contains(line, "second.go") {
+		t.Errorf("line = %q, want the arguments of call b", line)
+	}
+	if line := m.finishTool("a", "Read", "*", ""); !strings.Contains(line, "first.go") {
+		t.Errorf("line = %q, want the arguments of call a", line)
+	}
+	if len(m.activeTools) != 0 {
+		t.Errorf("activeTools = %d, want the live view emptied", len(m.activeTools))
+	}
+}
+
+// TestToolEndWithoutCallIDFallsBack keeps a surface that emits no id working
+// the way it does today rather than leaking a spinner forever.
+func TestToolEndWithoutCallIDFallsBack(t *testing.T) {
+	m := &Model{width: 80}
+	handleToolStart(m, toolStartMsg{Name: "Bash", Args: `{"command":"ls"}`})
+	if line := m.finishTool("", "Bash", "*", ""); !strings.Contains(line, "ls") {
+		t.Errorf("line = %q, want the pending call's arguments", line)
+	}
+	if len(m.activeTools) != 0 {
+		t.Errorf("activeTools = %d, want the call cleared", len(m.activeTools))
+	}
+}
+
+// TestUnknownToolEndDoesNotDropAnotherCall guards the fallback from clearing an
+// unrelated call when an id does not match anything in flight.
+func TestUnknownToolEndDoesNotDropAnotherCall(t *testing.T) {
+	m := &Model{width: 80}
+	handleToolStart(m, toolStartMsg{CallID: "a", Name: "Read", Args: `{"file_path":"keep.go"}`})
+	line := m.finishTool("zzz", "Write", "*", "")
+	if strings.Contains(line, "keep.go") {
+		t.Errorf("line = %q, want no arguments borrowed from another call", line)
+	}
+	if len(m.activeTools) != 1 {
+		t.Errorf("activeTools = %d, want the unrelated call still in flight", len(m.activeTools))
+	}
+}

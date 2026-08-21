@@ -80,6 +80,32 @@ type AgentApp struct {
 	sandboxManager         *sandbox.Manager
 	sandboxResolved        config.SandboxResolution
 	additionalSystemPrompt string
+	grantsMu               sync.Mutex
+	grants                 map[string]*agent.SessionGrants
+}
+
+// grantsFor returns the approval grants for one session, creating the store on
+// first use. Keyed by session rather than held on SessionContext because
+// Desktop rebuilds that wrapper on every message, and a grant that does not
+// outlive the turn it was given in is not a session grant.
+//
+// Entries are never evicted. One store is a small map, and the alternative is a
+// session-close hook that no surface currently has.
+func (a *AgentApp) grantsFor(sessionID string) *agent.SessionGrants {
+	if a == nil || sessionID == "" {
+		return nil
+	}
+	a.grantsMu.Lock()
+	defer a.grantsMu.Unlock()
+	if a.grants == nil {
+		a.grants = make(map[string]*agent.SessionGrants)
+	}
+	g := a.grants[sessionID]
+	if g == nil {
+		g = agent.NewSessionGrants()
+		a.grants[sessionID] = g
+	}
+	return g
 }
 
 type SkillRegistry struct {
@@ -236,7 +262,7 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		sessionManager:         &SessionManager{dir: config.SessionsDir()},
 		skillsRegistry:         &SkillRegistry{},
 		subagentsRegistry:      &SubAgentRegistry{},
-		policy:                 cfg.Policy,
+		policy:                 NewConfiguredPolicy(config.ResolvePermissions(settings.Tools), cfg.Policy),
 		additionalSystemPrompt: cfg.AdditionalSystemPrompt,
 		sandbox:                sandboxView,
 		sandboxManager:         sandboxManager,
@@ -385,6 +411,15 @@ func (a *AgentApp) ModelConfigs() []ModelConfig {
 type ToolEntry struct {
 	Name        string
 	Description string
+	// Access is what the tool says the call does: "read-only" or "write".
+	Access string
+	// Action is what the call resolves to with no arguments and a human
+	// present: "allow", "ask", or "deny". Argument-dependent tools can resolve
+	// differently for a real call — Bash asks only for a risky command — so
+	// this is the category answer, not a promise about every invocation.
+	Action string
+	// Source names where Action came from: "settings" or "derived".
+	Source string
 }
 
 // ToolEntries returns the name and description of every tool available to the agent.
@@ -409,9 +444,53 @@ func (a *AgentApp) ToolEntries() []ToolEntry {
 	all := registry.Tools()
 	entries := make([]ToolEntry, 0, len(all))
 	for _, t := range all {
-		entries = append(entries, ToolEntry{Name: t.Name(), Description: t.Description()})
+		entries = append(entries, ToolEntry{
+			Name:        t.Name(),
+			Description: t.Description(),
+			Access:      agent.DeclaredAccess(t, nil).String(),
+			Action:      actionLabel(agent.ResolveToolAction(a.policy, t, nil, true)),
+			Source:      a.permissionSource(t.Name()),
+		})
 	}
 	return entries
+}
+
+func actionLabel(a cllm.ToolAction) string {
+	switch a {
+	case cllm.ToolActionDeny:
+		return config.PermissionDeny
+	case cllm.ToolActionAsk:
+		return config.PermissionAsk
+	default:
+		return config.PermissionAllow
+	}
+}
+
+// permissionSource names the layer that decided a tool's category action.
+func (a *AgentApp) permissionSource(name string) string {
+	if e, ok := config.ResolvePermissions(a.settings.Tools).Lookup(name, ""); ok {
+		return e.Source
+	}
+	return "derived"
+}
+
+// PermissionRules returns the configured rules in resolution order, for display
+// alongside ToolEntries. Rules naming a dispatch target have no tool row of
+// their own.
+func (a *AgentApp) PermissionRules() []config.PermissionEntry {
+	if a == nil {
+		return nil
+	}
+	return config.ResolvePermissions(a.settings.Tools).Entries
+}
+
+// PermissionIssues returns rules that were ignored because their action was not
+// recognised. A rule silently dropped looks exactly like one that is in force.
+func (a *AgentApp) PermissionIssues() []string {
+	if a == nil {
+		return nil
+	}
+	return config.ResolvePermissions(a.settings.Tools).Invalid
 }
 
 func (a *AgentApp) MCPStatus() MCPStatus {
@@ -671,13 +750,16 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 		Policy:       a.policy,
 		Approval:     opts.Approval,
 		PendingInput: opts.Pending,
-		Compactor:    NewLLMCompactor(client),
-		Checkpointer: NewNoteCheckpointer(client),
-		Invariants:   agent.ExtractInvariants(extraPrompt),
-		EventSink:    teeEventSink(recorder.Record, opts.EventSink),
-		Hooks:        a.hooks,
-		SessionID:    sess.ID,
-		Workspace:    a.workspaceRoot,
+		Grants:       a.grantsFor(sess.ID),
+
+		MaxParallelTools: config.ResolveMaxParallelTools(a.settings.Agent),
+		Compactor:        NewLLMCompactor(client),
+		Checkpointer:     NewNoteCheckpointer(client),
+		Invariants:       agent.ExtractInvariants(extraPrompt),
+		EventSink:        teeEventSink(recorder.Record, opts.EventSink),
+		Hooks:            a.hooks,
+		SessionID:        sess.ID,
+		Workspace:        a.workspaceRoot,
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is

@@ -374,6 +374,22 @@ The manager is one object the rest of the runtime sees as
               caller decides: gate vs advisory
 ```
 
+`PreToolUse` fires after the permission layer has already allowed the call, so
+a hook sees only what policy, approval, and any session grant let through. It
+cannot un-deny a refusal; it is the last gate, not an override. Layering:
+[tool-permissions.md](./tool-permissions.md).
+
+Two ordering properties changed when tool calls started overlapping
+([parallel-tool-execution.md](./parallel-tool-execution.md)). When a batch of
+read-only calls is grouped, `PreToolUse` fires for **every** member of the group
+before **any** of them executes — a hook that inspects the filesystem between
+calls sees the state before the whole group, not before each call. This is
+unavoidable: the calls overlap by construction. It is confined to calls a tool
+declared read-only, which by that design do not write. `PostToolUse` and
+`PostToolUseFailure` fire once the group joins, still in call order, so an audit
+hook's sequence is unchanged at the cost of waiting for the group's slowest
+member.
+
 Gating events (`PreToolUse`, `PreCompact`, `UserPromptSubmit`) check
 `out.Blocked()` and short-circuit. Advisory events
 (`PostToolUse`, `Notification`, `Stop`, `SessionStart`, etc.) discard the
@@ -401,7 +417,7 @@ Hooks are configured; the model decides to call `writefile`.
            │
            ├─ applyPolicyAndExecute("writefile", args)
            │   │
-           │   ├─ policy: Allow
+           │   ├─ permission: Allow (see tool-permissions.md for the layering)
            │   ├─ HookManager.Run(PreToolUse{tool, args})              [GATING]
            │   │     • HTTPDriver POSTs to https://policy.internal
            │   │           ← 200 {"decision":"allow"}

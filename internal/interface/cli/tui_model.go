@@ -66,12 +66,14 @@ type runStatusMsg struct {
 
 // toolStartMsg is sent when the agent begins executing a tool call.
 type toolStartMsg struct {
-	Name string
-	Args string
+	CallID string
+	Name   string
+	Args   string
 }
 
 // toolEndMsg is sent when a tool call completes (success or error result).
 type toolEndMsg struct {
+	CallID   string
 	Name     string
 	Duration time.Duration
 	IsError  bool
@@ -79,8 +81,19 @@ type toolEndMsg struct {
 
 // toolDeniedMsg is sent when a tool call is blocked before execution.
 type toolDeniedMsg struct {
+	CallID string
 	Name   string
 	Reason string
+}
+
+// activeTool is one tool call in flight. Held as a slice keyed by call id
+// rather than a single set of arguments: once several calls overlap, a result
+// has to find its own arguments, and arrival order stops identifying them.
+// Slice, not map, so the live view does not reorder between frames.
+type activeTool struct {
+	CallID string
+	Name   string
+	Args   string
 }
 
 // userInputInjectedMsg is sent when a queued message joins the running turn.
@@ -118,9 +131,8 @@ type Model struct {
 	carouselDots     int          // 0, 1, 2 for ".", "..", "..."
 	focusInput       bool         // true = input has focus (slash panels may override)
 	streamingBuffer  string       // current LLM response text while streaming
-	toolActivity     string       // in-flight tool status shown in live view; cleared on tool end/deny
+	activeTools      []activeTool // tool calls in flight, shown in the live view
 	streamChannel    chan tea.Msg // receives streamDeltaMsg, tool events, and agentDoneMsg
-	currentToolArgs  string       // raw JSON args of the tool currently executing; used in toolEndMsg handler
 	slashMCP         *slashMCPState
 	slashModel       *slashModelState
 	slashSkills      *slashSkillsState
@@ -171,11 +183,11 @@ func eventSinkToChannel(channel chan tea.Msg) func(agent.Event) {
 		case agent.EventLLMEnd:
 			channel <- llmEndMsg{Content: e.Content, PromptTokens: e.PromptTokens, CompletionTokens: e.CompletionTokens}
 		case agent.EventToolStart:
-			channel <- toolStartMsg{Name: e.ToolName, Args: e.ToolArgs}
+			channel <- toolStartMsg{CallID: e.ToolCallID, Name: e.ToolName, Args: e.ToolArgs}
 		case agent.EventToolEnd:
-			channel <- toolEndMsg{Name: e.ToolName, Duration: e.ToolDuration, IsError: strings.HasPrefix(e.ToolResult, "error:")}
+			channel <- toolEndMsg{CallID: e.ToolCallID, Name: e.ToolName, Duration: e.ToolDuration, IsError: strings.HasPrefix(e.ToolResult, "error:")}
 		case agent.EventToolDenied:
-			channel <- toolDeniedMsg{Name: e.ToolName, Reason: e.DenyReason}
+			channel <- toolDeniedMsg{CallID: e.ToolCallID, Name: e.ToolName, Reason: e.DenyReason}
 		case agent.EventUserInput:
 			channel <- userInputInjectedMsg{Text: e.Content}
 		case agent.EventUserInputBlocked:
@@ -293,19 +305,21 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.pendingApproval != nil {
 		switch msg.String() {
 		case "left", "h":
-			m.approvalSelected = 0
+			if m.approvalSelected > 0 {
+				m.approvalSelected--
+			}
 		case "right", "l":
-			m.approvalSelected = 1
+			if m.approvalSelected < len(approvalChoices)-1 {
+				m.approvalSelected++
+			}
 		case "enter":
-			approved := m.approvalSelected == 0
-			m.pendingApproval.response <- approved
-			m.pendingApproval = nil
+			m.answerApproval(approvalChoices[m.approvalSelected].decision)
 		case "y", "Y":
-			m.pendingApproval.response <- true
-			m.pendingApproval = nil
+			m.answerApproval(agent.ApprovalAllowOnce)
+		case "a", "A":
+			m.answerApproval(agent.ApprovalAllowSession)
 		case "n", "N", "esc":
-			m.pendingApproval.response <- false
-			m.pendingApproval = nil
+			m.answerApproval(agent.ApprovalDeny)
 		}
 		return m, nil
 	}
@@ -485,8 +499,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 	m.busy = false
 	m.carouselDots = 0
 	m.streamingBuffer = ""
-	m.toolActivity = ""
-	m.currentToolArgs = ""
+	m.activeTools = nil
 	m.streamChannel = nil
 	if msg.Err != nil {
 		m.err = msg.Err.Error()
@@ -578,52 +591,79 @@ func updateRunStatusContext(prev, next agentapp.RunStatus) agentapp.RunStatus {
 	return next
 }
 
-func handleToolStart(m *Model, msg toolStartMsg) (tea.Model, tea.Cmd) {
-	m.currentToolArgs = msg.Args
-	args := shortArgs(msg.Args)
-	displayName := toolDisplayName(msg.Name)
-	// Store plain text; the spinner glyph is added dynamically in View().
-	if args != "" {
-		m.toolActivity = displayName + " (" + args + ")"
-	} else {
-		m.toolActivity = displayName
+// finishTool removes a completed call from the live view and renders its
+// transcript line. It matches on call id and falls back to the oldest call of
+// the same name, so a surface that ever emits an event without an id degrades
+// to today's behaviour instead of leaking a spinner.
+func (m *Model) finishTool(callID, name, glyph, suffix string) string {
+	idx := -1
+	for i, t := range m.activeTools {
+		if callID != "" && t.CallID == callID {
+			idx = i
+			break
+		}
+		if callID == "" && t.Name == name && idx < 0 {
+			idx = i
+		}
 	}
+	var args string
+	if idx >= 0 {
+		args = shortArgs(m.activeTools[idx].Args)
+		m.activeTools = append(m.activeTools[:idx], m.activeTools[idx+1:]...)
+	}
+	line := "  " + glyph + " " + toolDisplayName(name)
+	if args != "" {
+		line += " (" + args + ")"
+	}
+	return line + suffix
+}
+
+// label renders one in-flight call. The spinner glyph is added in View().
+func (t activeTool) label() string {
+	if args := shortArgs(t.Args); args != "" {
+		return toolDisplayName(t.Name) + " (" + args + ")"
+	}
+	return toolDisplayName(t.Name)
+}
+
+func handleToolStart(m *Model, msg toolStartMsg) (tea.Model, tea.Cmd) {
+	m.activeTools = append(m.activeTools, activeTool(msg))
 	return m, nextStreamMsgCmd(m.streamChannel)
 }
 
 func handleToolEnd(m *Model, msg toolEndMsg) (tea.Model, tea.Cmd) {
-	args := shortArgs(m.currentToolArgs)
-	displayName := toolDisplayName(msg.Name)
-	var glyph string
+	glyph := toolGlyphSuccessStyle.Render("•")
 	if msg.IsError {
 		glyph = toolGlyphFailStyle.Render("•")
-	} else {
-		glyph = toolGlyphSuccessStyle.Render("•")
 	}
-	var toolLine string
-	if args != "" {
-		toolLine = "  " + glyph + " " + displayName + " (" + args + ")"
-	} else {
-		toolLine = "  " + glyph + " " + displayName
-	}
-	m.toolActivity = ""
-	m.currentToolArgs = ""
-	return m, tea.Sequence(tea.Println(toolLine+"\n"), nextStreamMsgCmd(m.streamChannel))
+	line := m.finishTool(msg.CallID, msg.Name, glyph, "")
+	return m, tea.Sequence(tea.Println(line+"\n"), nextStreamMsgCmd(m.streamChannel))
 }
 
 func handleToolDenied(m *Model, msg toolDeniedMsg) (tea.Model, tea.Cmd) {
-	args := shortArgs(m.currentToolArgs)
-	displayName := toolDisplayName(msg.Name)
-	glyph := toolGlyphFailStyle.Render("•")
-	var toolLine string
-	if args != "" {
-		toolLine = "  " + glyph + " " + displayName + " (" + args + ") [denied]"
-	} else {
-		toolLine = "  " + glyph + " " + displayName + " [denied]"
+	line := m.finishTool(msg.CallID, msg.Name, toolGlyphFailStyle.Render("•"), " [denied]")
+	return m, tea.Sequence(tea.Println(line+"\n"), nextStreamMsgCmd(m.streamChannel))
+}
+
+// approvalChoices is the prompt's outcome set, left to right. Session grants
+// are what keep a per-write prompt from becoming something users turn off.
+var approvalChoices = []struct {
+	label    string
+	decision agent.ApprovalDecision
+}{
+	{"Allow once(y)", agent.ApprovalAllowOnce},
+	{"Allow session(a)", agent.ApprovalAllowSession},
+	{"Deny(n)", agent.ApprovalDeny},
+}
+
+// answerApproval resolves the waiting tool call and clears the prompt.
+func (m *Model) answerApproval(d agent.ApprovalDecision) {
+	if m.pendingApproval == nil {
+		return
 	}
-	m.toolActivity = ""
-	m.currentToolArgs = ""
-	return m, tea.Sequence(tea.Println(toolLine+"\n"), nextStreamMsgCmd(m.streamChannel))
+	m.pendingApproval.response <- d
+	m.pendingApproval = nil
+	m.approvalSelected = 0
 }
 
 // renderApprovalPanel renders the tool-approval prompt when a tool call is waiting.
@@ -661,18 +701,19 @@ func (m *Model) renderApprovalPanel() string {
 		argLines = append(argLines, line)
 	}
 
-	allowBtn, denyBtn := approvalUnselectedStyle.Render("Allow(y)"), approvalUnselectedStyle.Render("Deny(n)")
-	if m.approvalSelected == 0 {
-		allowBtn = approvalSelectedStyle.Render("Allow(y)")
-	} else {
-		denyBtn = approvalSelectedStyle.Render("Deny(n)")
+	buttons := make([]string, len(approvalChoices))
+	for i, c := range approvalChoices {
+		if i == m.approvalSelected {
+			buttons[i] = approvalSelectedStyle.Render(c.label)
+			continue
+		}
+		buttons[i] = approvalUnselectedStyle.Render(c.label)
 	}
 
-	body := fmt.Sprintf("Tool: %s\n%s\n\n%s  %s    ←→ select  enter: confirm",
+	body := fmt.Sprintf("Tool: %s\n%s\n\n%s    ←→ select  enter: confirm",
 		m.pendingApproval.ToolName,
 		strings.Join(argLines, "\n"),
-		allowBtn,
-		denyBtn,
+		strings.Join(buttons, "  "),
 	)
 	return approvalPanelStyle.Width(m.width - 4).Render(body)
 }
@@ -838,9 +879,11 @@ func (m *Model) View() tea.View {
 		if m.streamingBuffer != "" {
 			parts = append(parts, m.renderStreamingPreview())
 		}
-		if m.toolActivity != "" {
+		if len(m.activeTools) > 0 {
 			spinner := toolGlyphPendingStyle.Render(toolSpinnerFrames[m.carouselDots])
-			parts = append(parts, "  "+spinner+" "+m.toolActivity)
+			for _, t := range m.activeTools {
+				parts = append(parts, "  "+spinner+" "+t.label())
+			}
 		}
 		parts = append(parts, m.renderBusyHint())
 	}

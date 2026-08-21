@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // NoteWrite records durable session notes. Unlike a tool result, a note is not a message: it
@@ -21,6 +22,20 @@ type NoteWrite struct{}
 func NewNoteWrite() *NoteWrite { return &NoteWrite{} }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer. Session notes have no lock, so this is a
+// write and cannot run concurrently with a sibling call.
+func (t *NoteWrite) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
+
+// DefaultAction implements llm.PolicyProvider, overriding the action the
+// permission layer would otherwise derive from Access.
+//
+// What this writes is the agent's own scratch state, not anything the user
+// owns. Asking a user to approve the agent taking a note would be noise, and
+// the noise would arrive on every run. The write classification above is still
+// the honest one — it is what keeps this tool out of a parallel batch.
+// See docs/design/tool-permissions.md §5.2.
+func (t *NoteWrite) DefaultAction() llm.ToolAction { return llm.ToolActionAllow }
+
 func (t *NoteWrite) Name() string { return ToolNameNoteWrite }
 
 // Description tells the LLM what belongs in a note. The behavioural contract matters more than

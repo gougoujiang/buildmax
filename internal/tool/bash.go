@@ -51,6 +51,19 @@ func (b *Bash) WithSandbox(v agent.SandboxView) *Bash {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (b *Bash) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
+
+// DefaultAction overrides the action derived from Access, leaving CheckArgs
+// above as the only authority on shell commands.
+//
+// The derived tier is a fallback for tools with no judgement of their own.
+// Bash has one, and a sharper one: catastrophic denies, risky asks, the rest
+// runs. Letting the category default apply on top would prompt for every `ls`
+// and `git status`, which is how a permission prompt becomes something people
+// switch off. See docs/design/tool-permissions.md §6.
+func (b *Bash) DefaultAction() llm.ToolAction { return llm.ToolActionAllow }
+
 func (b *Bash) Name() string { return ToolNameBash }
 
 // Description returns a short description so the LLM knows when to use this tool.

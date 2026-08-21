@@ -25,6 +25,8 @@ type Settings struct {
 	Models    []ModelEntry  `mapstructure:"models"`
 	Hooks     HooksConfig   `mapstructure:"hooks"`
 	Sandbox   SandboxConfig `mapstructure:"sandbox"`
+	Tools     ToolsConfig   `mapstructure:"tools"`
+	Agent     AgentConfig   `mapstructure:"agent"`
 }
 
 // LLM connection modes for a model entry.

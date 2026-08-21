@@ -175,6 +175,15 @@ pre-releases and must be called out in release notes.
   turn — its foreground turns are short, and its queue is shared by every client
   watching the conversation.
 
+- Read-only tool calls from the same model message now run at the same time.
+  When the model asks for several files or searches at once, they no longer
+  queue behind each other -- three 100ms reads take about 100ms rather than
+  300ms, and `WebFetch` batches gain the most. Only calls a tool declares
+  read-only overlap: writes, shell commands, `Task`, and MCP calls still run
+  alone and in order, calls are never reordered, and the message history a run
+  produces is identical whatever the limit. Tune with `agent.max_parallel_tools`
+  in `settings.yaml` (default 4, range 1-16; 1 restores one-at-a-time).
+
 ### Changed
 
 - Deleting an agent no longer removes the record. Tasks, workflow step runs, and
@@ -189,6 +198,37 @@ pre-releases and must be called out in release notes.
   delete rather than at the next run; draft and archived workflows do not block
   it. There is no undelete: the row exists so references resolve, not as a
   recycle bin.
+
+- Tools now classify what a call does, and the ones that write ask before they
+  run. On the CLI TUI and Desktop, `Write`, `Edit`, `Task`, and `CallMcpTool`
+  request approval where they previously ran unannounced; read-only tools are
+  unchanged, and `Bash` keeps its own risk classifier as the authority. Surfaces
+  with nobody to ask — print mode, workers, eval, and Portal conversations —
+  behave exactly as before: the category prompt is only raised where a person
+  can answer it, so a task run's file writes and shell commands are unaffected.
+  The prompt itself now offers three answers rather than two — allow once (`y`),
+  allow for the rest of the session (`a`), or deny (`n`) — and a session grant
+  covers the tool by name, or the specific `server/tool` for an MCP call.
+  Grants are held in memory and are gone when the process exits.
+- MCP calls are gated by what the server says about the tool. `CallMcpTool` now
+  reads the `readOnlyHint` annotation from `tools/list`, which BuildMax fetched
+  and discarded until now: a tool the server advertises as read-only runs
+  unprompted, and anything else asks. **This tightens autonomous surfaces**, the
+  one behavior change there — a task run, print-mode run, or Portal conversation
+  calling an MCP tool that is not advertised as read-only is now refused rather
+  than run silently. A server that omits the annotation is treated the same as
+  one that says `false`, because the protocol cannot distinguish them. The hint
+  decides whether BuildMax asks; it never grants trust.
+- Tool permissions are configurable. A `tools.permissions` block in
+  `settings.yaml` sets any tool to `allow`, `ask`, or `deny`, keyed by tool name
+  or by the target it dispatches to (`CallMcpTool:github/*`), most specific rule
+  winning. `allow` turns off the category prompt but not the safety checks — a
+  sensitive path and a risky shell command still prompt, and only `deny`
+  outranks them. `ask` means a person must look, so on a surface with no person
+  the call is refused rather than run. `buildmax tools status` prints every
+  tool's classification, its resolved action, the layer that decided it, and any
+  rule ignored for an unrecognised action; `/tools` in the TUI marks tools that
+  do not simply run.
 
 ### Security
 
@@ -402,6 +442,12 @@ pre-releases and must be called out in release notes.
   catalog model. Left off, which is the default, the tool result says what came
   back (`(image: image/png, 43.2 KB)`) and the image is not sent, because a
   model without image support rejects such a request rather than ignoring it.
+
+- Cancelling a Desktop run while a tool approval prompt was showing left the
+  project stuck. The run goroutine waited forever for an answer nobody would
+  give, so its cleanup never ran and every later message was refused with "a run
+  is already in progress". Approval prompts now return when the run is
+  cancelled.
 
 ## [0.1.0-alpha.1] - 2026-08-17
 

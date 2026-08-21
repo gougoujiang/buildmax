@@ -28,6 +28,12 @@ so they are worth knowing exactly.
 Run `/tools` in the TUI to see the set active for the current run — it varies
 with what is configured.
 
+When the agent asks for several tools at once, the read-only ones run at the
+same time: `Read`, `Glob`, `Grep`, `Skill`, and `WebFetch`. Anything that
+changes something runs alone and in order, so a batch does the same thing
+however it is scheduled. Tune it with `agent.max_parallel_tools`
+([reference/configuration.md](../reference/configuration.md)).
+
 ## Behavior Worth Knowing
 
 **`Edit` fails loudly on ambiguity.** If `old_string` matches more than once and
@@ -86,6 +92,7 @@ was. When you see the agent recover gracefully from a bad edit, this is why.
 
 ## Related
 
+- [tool-permissions.md](tool-permissions.md) — which of these stop and ask before running
 - [hooks.md](hooks.md) — gate tool calls by name, using the names above
 - [sandbox.md](sandbox.md) — confine what `Bash` can reach
 - [contribute/architecture/tools.md](../contribute/architecture/tools.md) — how the registry is built

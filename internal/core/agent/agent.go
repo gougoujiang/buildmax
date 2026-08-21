@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -101,6 +102,15 @@ type RunLoopOpts struct {
 	// reach the model after the current batch of tool calls rather than after the
 	// whole run. Nil disables mid-run injection entirely.
 	PendingInput PendingInput
+	// Grants holds approvals the user chose to keep for the session. It is owned
+	// by the caller because a session outlives one RunLoop; nil grants nothing,
+	// which makes every Ask a fresh prompt.
+	Grants *SessionGrants
+	// MaxParallelTools bounds how many calls from one assistant message may be
+	// grouped to run together. Zero or one keeps every call in its own group,
+	// which is the sequential behaviour and the current default on every
+	// surface. See docs/design/parallel-tool-execution.md.
+	MaxParallelTools int
 	// Compactor summarizes old messages when the context window is filling up.
 	// Nil disables compaction; TrimHistory is used as a fallback.
 	Compactor ContextCompactor
@@ -114,7 +124,10 @@ type RunLoopOpts struct {
 	Invariants string
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
-	// The callback is invoked synchronously from the RunLoop goroutine; it must not block.
+	// The callback may be invoked from the RunLoop goroutine or from a tool
+	// worker. The runtime serialises the calls, so a sink sees one event at a
+	// time, but it must not block and must not assume one tool is in flight:
+	// pair EventToolStart with EventToolEnd by ToolCallID, not by arrival.
 	EventSink func(Event)
 	// Hooks runs lifecycle hooks at fixed points (PreToolUse, PostToolUse,
 	// PostToolUseFailure, Notification, PreCompact, PostCompact, Stop /
@@ -141,6 +154,7 @@ type RunLoopOpts struct {
 // When ctx is cancelled mid-run, RunLoop returns the last assistant content produced (if any) and a nil error,
 // so callers receive a partial result rather than an empty failure.
 func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
+	opts.EventSink = serializedSink(opts.EventSink)
 	var s RunStats
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
 	// Most recent compaction summary, rendered into the system prompt when non-empty.
@@ -413,61 +427,121 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	return opts.LLMClient.ChatCompletionBlocking(ctx, messages, defs)
 }
 
-// executeToolCalls runs each tool call, applying the policy and loop guard before execution.
+// pendingCall is one tool call moving through the four stages below. Workers
+// write only to their own element, so the stages need no lock between them.
+type pendingCall struct {
+	call   llm.ToolCall
+	args   map[string]any
+	tool   llm.Tool // nil when the registry has no such tool
+	result string
+	// decided is true once result is final without executing: bad arguments,
+	// an unknown tool, the loop guard, or a permission denial.
+	decided bool
+	// parts is non-text content the tool returned, carried to the history
+	// message. Only the MCP gateway sets it today.
+	parts []llm.ContentPart
+	// executed and failed record what the run stage did, so the commit stage
+	// can fire the right post hook without re-deriving it from the result.
+	executed bool
+	failed   bool
+}
+
+// executeToolCalls runs the calls from one assistant message in four stages:
+// parse, gate, run, commit. Parse has no side effects, so it covers the whole
+// batch; the other three run per group.
+//
+// The shape exists for docs/design/parallel-tool-execution.md, where a group's
+// calls overlap. Today every group holds one call and the effect is the
+// sequential loop this replaced.
 func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (int, error) {
 	policy := opts.Policy
 	if policy == nil {
 		policy = AllowAllPolicy
 	}
+	pending := parseCalls(opts, toolCalls)
+
 	count := 0
-	for _, tc := range toolCalls {
-		var args map[string]any
+	for _, group := range groupCalls(pending, opts.MaxParallelTools) {
+		for i := range group {
+			gateCall(ctx, opts, policy, guard, &group[i])
+		}
+		runGroup(ctx, opts, group)
+		for i := range group {
+			c := &group[i]
+			firePostHook(ctx, opts, c)
+			logToolResult(c.call.Name, c.result)
+			if err := opts.History.Append(llm.Message{
+				Role:       "tool",
+				Content:    c.result,
+				ToolCallID: c.call.ID,
+				Parts:      c.parts,
+			}); err != nil {
+				return count, err
+			}
+			count++
+		}
+	}
+	return count, nil
+}
+
+// parseCalls unmarshals arguments and resolves tools. Both are side-effect
+// free, which is what lets them run ahead of any execution: grouping needs the
+// arguments to ask a tool what the call does.
+func parseCalls(opts RunLoopOpts, toolCalls []llm.ToolCall) []pendingCall {
+	out := make([]pendingCall, len(toolCalls))
+	for i, tc := range toolCalls {
+		c := pendingCall{call: tc}
 		if tc.Arguments != "" {
-			if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-				result := fmt.Sprintf("error: invalid arguments: %v", err)
-				if err := opts.History.Append(llm.Message{Role: "tool", Content: result, ToolCallID: tc.ID}); err != nil {
-					return count, err
-				}
-				count++
+			if err := json.Unmarshal([]byte(tc.Arguments), &c.args); err != nil {
+				// No EventToolStart for a call that never became one.
+				c.result = fmt.Sprintf("error: invalid arguments: %v", err)
+				c.decided = true
+				out[i] = c
 				continue
 			}
 		}
-		if args == nil {
-			args = make(map[string]any)
+		if c.args == nil {
+			c.args = make(map[string]any)
 		}
-
-		tool := opts.ToolRegistry.Lookup(tc.Name)
-		var result string
-		var parts []llm.ContentPart
-		emit(opts.EventSink, Event{
-			Kind:       EventToolStart,
-			ToolName:   tc.Name,
-			ToolCallID: tc.ID,
-			ToolArgs:   tc.Arguments,
-		})
-		switch {
-		case tool == nil:
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: tc.Name, ToolCallID: tc.ID, DenyReason: DenyReasonUnknown})
-			result = fmt.Sprintf("error: unknown tool %q", tc.Name)
-		case guard.exceeded(tc.Name, args):
-			slog.Warn("loop guard triggered", "tool", tc.Name)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: tc.Name, ToolCallID: tc.ID, DenyReason: DenyReasonLoopGuard})
-			result = fmt.Sprintf(denyMsgLoopGuard, tc.Name)
-		default:
-			result, parts = applyPolicyAndExecute(ctx, opts, policy, tool, tc.Name, tc.ID, args)
-		}
-		logToolResult(tc.Name, result)
-		if err := opts.History.Append(llm.Message{
-			Role:       "tool",
-			Content:    result,
-			ToolCallID: tc.ID,
-			Parts:      parts,
-		}); err != nil {
-			return count, err
-		}
-		count++
+		c.tool = opts.ToolRegistry.Lookup(tc.Name)
+		out[i] = c
 	}
-	return count, nil
+	return out
+}
+
+// groupCalls cuts the batch into units that execute together. Groups are
+// windows into calls, not copies, so the stages mutate the original elements.
+//
+// Calls are never reordered: only adjacent read-only calls merge, and every
+// other call is a barrier. Reordering would change what a batch means —
+// [Write a, Read a] is not [Read a, Write a].
+func groupCalls(calls []pendingCall, maxParallel int) [][]pendingCall {
+	if maxParallel <= 1 {
+		groups := make([][]pendingCall, 0, len(calls))
+		for i := range calls {
+			groups = append(groups, calls[i:i+1])
+		}
+		return groups
+	}
+	var groups [][]pendingCall
+	start := 0
+	for i := range calls {
+		if eligibleForGroup(&calls[i]) && i+1 < len(calls) && eligibleForGroup(&calls[i+1]) {
+			continue
+		}
+		groups = append(groups, calls[start:i+1])
+		start = i + 1
+	}
+	return groups
+}
+
+// eligibleForGroup reports whether a call may overlap its neighbours. A call
+// already decided keeps its own group so its ordering is unambiguous.
+func eligibleForGroup(c *pendingCall) bool {
+	if c.decided || c.tool == nil {
+		return false
+	}
+	return DeclaredAccess(c.tool, c.args) == llm.AccessReadOnly
 }
 
 // executeTool runs a tool, taking its multimodal result when it has one.
@@ -484,80 +558,180 @@ func executeTool(ctx context.Context, tool llm.Tool, args map[string]any) (strin
 	return result, nil, err
 }
 
-// applyPolicyAndExecute resolves the policy for a tool call and executes it if allowed.
+// gateCall makes every decision that must happen in call order, on the loop
+// goroutine: the tool exists, the loop guard has not fired, the permission
+// layer allows it, the user approved it, and no PreToolUse hook blocked it.
 //
-// Resolution order:
-//  1. Configured ToolPolicy override — if Deny or Ask, short-circuit.
-//  2. Tool's ArgChecker.CheckArgs — arg-level decision declared by the tool itself.
-//  3. Tool's PolicyProvider.DefaultAction — category-level default declared by the tool.
-//  4. PreToolUse hook — may block the call after policy resolution.
-//  5. Allow (safe default for tools that declare nothing).
-//
-// Ask handling: calls ApprovalHandler if set; nil handler collapses Ask to Deny.
-func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, tool llm.Tool, name, callID string, args map[string]any) (string, []llm.ContentPart) {
-	action := resolveAction(policy, tool, name, args)
+// Deciding serially is what keeps concurrency cheap. The loop guard needs no
+// lock, approval prompts stay one at a time so neither UI handler has to become
+// re-entrant, and hooks still see calls in the order the model made them. Only
+// Execute overlaps. See docs/design/parallel-tool-execution.md §5.4.
+func gateCall(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, guard *loopGuard, c *pendingCall) {
+	if c.decided {
+		return
+	}
+	name, callID := c.call.Name, c.call.ID
+	emit(opts.EventSink, Event{
+		Kind:       EventToolStart,
+		ToolName:   name,
+		ToolCallID: callID,
+		ToolArgs:   c.call.Arguments,
+	})
+	deny := func(reason, result string) {
+		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: reason})
+		c.result = result
+		c.decided = true
+	}
+	switch {
+	case c.tool == nil:
+		deny(DenyReasonUnknown, fmt.Sprintf("error: unknown tool %q", name))
+		return
+	case guard.exceeded(name, c.args):
+		slog.Warn("loop guard triggered", "tool", name)
+		deny(DenyReasonLoopGuard, fmt.Sprintf(denyMsgLoopGuard, name))
+		return
+	}
+
+	scope := grantScope(c.tool, name, c.args)
+	action := resolveAction(policy, c.tool, name, scope, c.args, opts.interactive())
+	// A session grant answers an Ask that was already put to the user. It is
+	// applied here rather than before resolution so it can never soften a Deny.
+	if action == llm.ToolActionAsk && opts.Grants.granted(scope) {
+		action = llm.ToolActionAllow
+	}
 	switch action {
 	case llm.ToolActionDeny:
 		slog.Info("tool denied by policy", "tool", name)
-		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonPolicy})
-		return fmt.Sprintf(denyMsgPolicy, name), nil
+		deny(DenyReasonPolicy, fmt.Sprintf(denyMsgPolicy, name))
+		return
 	case llm.ToolActionAsk:
 		// Notify hooks before invoking the approval handler so external
 		// systems (Slack, desktop badge, audit) see the prompt.
-		fireNotification(ctx, opts, NotificationApprovalRequired, name, callID, args, "")
+		fireNotification(ctx, opts, NotificationApprovalRequired, name, callID, c.args, "")
 		if opts.Approval == nil {
 			slog.Info("tool denied: Ask with no approval handler", "tool", name)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonPolicy})
-			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "no approval handler configured")
-			return fmt.Sprintf(denyMsgPolicy, name), nil
+			deny(DenyReasonPolicy, fmt.Sprintf(denyMsgPolicy, name))
+			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, c.args, "no approval handler configured")
+			return
 		}
-		if !opts.Approval.RequestApproval(name, args) {
+		decision := opts.Approval.RequestApproval(ctx, name, c.args)
+		if decision == ApprovalDeny {
 			slog.Info("tool denied by user", "tool", name)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonUser})
-			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "denied by user")
-			return fmt.Sprintf(denyMsgUser, name), nil
+			deny(DenyReasonUser, fmt.Sprintf(denyMsgUser, name))
+			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, c.args, "denied by user")
+			return
 		}
-		fallthrough
+		if decision == ApprovalAllowSession {
+			opts.Grants.grant(scope)
+			slog.Info("tool granted for session", "tool", name, "scope", scope)
+		}
 	case llm.ToolActionAllow:
-		pre := baseHookInput(opts, HookPreToolUse)
-		pre.ToolName = name
-		pre.ToolCallID = callID
-		pre.ToolArgs = args
-		preOut := runHook(ctx, opts.Hooks, pre)
-		if preOut.Blocked() {
-			reason := preOut.Reason
-			if reason == "" {
-				reason = "blocked by hook"
-			}
-			slog.Info("tool denied by hook", "tool", name, "reason", reason)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonHook})
-			return fmt.Sprintf(denyMsgHook, name, reason), nil
-		}
-		start := time.Now()
-		result, parts, err := executeTool(ctx, tool, args)
-		dur := time.Since(start)
-		if err != nil {
-			errMsg := fmt.Sprintf("error: %v", err)
-			emit(opts.EventSink, Event{Kind: EventToolEnd, ToolName: name, ToolCallID: callID, ToolResult: errMsg, ToolDuration: dur})
-			fail := baseHookInput(opts, HookPostToolUseFailure)
-			fail.ToolName = name
-			fail.ToolCallID = callID
-			fail.ToolArgs = args
-			fail.ToolError = errMsg
-			runHook(ctx, opts.Hooks, fail)
-			return errMsg, nil
-		}
-		emit(opts.EventSink, Event{Kind: EventToolEnd, ToolName: name, ToolCallID: callID, ToolResult: result, ToolDuration: dur})
-		post := baseHookInput(opts, HookPostToolUse)
-		post.ToolName = name
-		post.ToolCallID = callID
-		post.ToolArgs = args
-		post.ToolResult = result
-		runHook(ctx, opts.Hooks, post)
-		return result, parts
 	default:
-		return fmt.Sprintf("error: unknown policy action for %q", name), nil
+		c.result = fmt.Sprintf("error: unknown policy action for %q", name)
+		c.decided = true
+		return
 	}
+
+	pre := baseHookInput(opts, HookPreToolUse)
+	pre.ToolName = name
+	pre.ToolCallID = callID
+	pre.ToolArgs = c.args
+	if preOut := runHook(ctx, opts.Hooks, pre); preOut.Blocked() {
+		reason := preOut.Reason
+		if reason == "" {
+			reason = "blocked by hook"
+		}
+		slog.Info("tool denied by hook", "tool", name, "reason", reason)
+		deny(DenyReasonHook, fmt.Sprintf(denyMsgHook, name, reason))
+	}
+}
+
+// runGroup executes the calls the gate let through, up to maxParallel at once.
+//
+// Each worker writes only to its own element and wg.Wait is the happens-before
+// edge before the commit stage reads them, so the results need no lock.
+func runGroup(ctx context.Context, opts RunLoopOpts, group []pendingCall) {
+	limit := opts.MaxParallelTools
+	if limit < 1 || len(group) == 1 {
+		for i := range group {
+			executeCall(ctx, opts, &group[i])
+		}
+		return
+	}
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i := range group {
+		if group[i].decided {
+			continue
+		}
+		wg.Add(1)
+		go func(c *pendingCall) {
+			defer wg.Done()
+			defer func() {
+				// A panicking tool must not take the run down or strand its
+				// siblings, which are mid-flight in their own goroutines.
+				if r := recover(); r != nil {
+					slog.Error("tool panicked", "tool", c.call.Name, "panic", r)
+					c.result = fmt.Sprintf("error: tool %q panicked: %v", c.call.Name, r)
+					c.executed, c.failed = true, true
+				}
+			}()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			executeCall(ctx, opts, c)
+		}(&group[i])
+	}
+	wg.Wait()
+}
+
+// executeCall runs one tool and records what happened. Emitted from whichever
+// goroutine ran it, because the event stream is live: holding a completion
+// until the slowest sibling returns would misreport what is still running.
+func executeCall(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
+	if c.decided {
+		return
+	}
+	start := time.Now()
+	result, parts, err := executeTool(ctx, c.tool, c.args)
+	dur := time.Since(start)
+	c.executed = true
+	if err != nil {
+		c.failed = true
+		c.result = fmt.Sprintf("error: %v", err)
+	} else {
+		c.result, c.parts = result, parts
+	}
+	emit(opts.EventSink, Event{
+		Kind:         EventToolEnd,
+		ToolName:     c.call.Name,
+		ToolCallID:   c.call.ID,
+		ToolResult:   c.result,
+		ToolDuration: dur,
+	})
+}
+
+// firePostHook reports one finished call. Fired at the join in call order
+// rather than from the worker: a post hook is advisory, but it is also an audit
+// surface, and one that reorders under load is worse than one that arrives a
+// few hundred milliseconds late.
+func firePostHook(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
+	if !c.executed {
+		return
+	}
+	event := HookPostToolUse
+	if c.failed {
+		event = HookPostToolUseFailure
+	}
+	in := baseHookInput(opts, event)
+	in.ToolName = c.call.Name
+	in.ToolCallID = c.call.ID
+	in.ToolArgs = c.args
+	if c.failed {
+		in.ToolError = c.result
+	} else {
+		in.ToolResult = c.result
+	}
+	runHook(ctx, opts.Hooks, in)
 }
 
 // fireNotification emits a HookNotification event tied to a tool/approval
@@ -576,24 +750,80 @@ func fireNotification(ctx context.Context, opts RunLoopOpts, kind, toolName, cal
 }
 
 // resolveAction applies the layered policy resolution for one tool call.
-func resolveAction(policy ToolPolicy, tool llm.Tool, name string, args map[string]any) llm.ToolAction {
-	// 1. Configured override — Deny/Ask wins immediately; Allow defers to tool.
+//
+// interactive gates layer 4 and nothing else: a category default is a question
+// for a user, so a surface with nobody attached does not ask it rather than
+// answering it with a default. See docs/design/tool-permissions.md §5.3.
+func resolveAction(policy ToolPolicy, tool llm.Tool, name, scope string, args map[string]any, interactive bool) llm.ToolAction {
+	configured, hasConfig := llm.ToolActionAllow, false
 	if policy != nil {
-		if override := policy.Check(name, args); override != llm.ToolActionAllow {
-			return override
-		}
+		configured, hasConfig = policy.Check(name, scope, args)
 	}
-	// 2. Tool arg-level check.
+
+	// 1. A configured deny is a prohibition and wins outright.
+	if hasConfig && configured == llm.ToolActionDeny {
+		return llm.ToolActionDeny
+	}
+	// 2. Tool arg-level check. Deliberately above the configured allow: "stop
+	//    asking me about Read" is a statement about the category, not consent to
+	//    open ~/.ssh/id_rsa unannounced. Only a configured deny outranks it.
 	if checker, ok := tool.(llm.ArgChecker); ok {
 		if action := checker.CheckArgs(args); action != llm.ToolActionAllow {
 			return action
 		}
 	}
-	// 3. Tool category default.
+	// 3. Configured preference for the category, above the tool's own default
+	//    because the user outranks the tool author.
+	//
+	//    A configured Ask is not gated on the surface the way the derived tier
+	//    is. The derived tier is the runtime guessing, and guessing a worker
+	//    into uselessness helps nobody; a configured Ask is a person saying
+	//    "somebody look at this", and where nobody can, the honest answer is to
+	//    refuse. It reaches the existing Ask-without-a-handler denial.
+	if hasConfig {
+		return configured
+	}
+	// 4. Explicit tool default, overriding the derivation below.
 	if provider, ok := tool.(llm.PolicyProvider); ok {
 		return provider.DefaultAction()
 	}
+	// 5. Derived from the tool's declared access: writing calls ask.
+	if interactive && DeclaredAccess(tool, args) == llm.AccessWrite {
+		return llm.ToolActionAsk
+	}
 	return llm.ToolActionAllow
+}
+
+// ResolveToolAction reports the action one tool call resolves to, without
+// executing or prompting. An Ask returned here is a question that would be
+// asked, not an outcome: with no handler the loop turns it into a denial.
+func ResolveToolAction(policy ToolPolicy, tool llm.Tool, args map[string]any, interactive bool) llm.ToolAction {
+	if args == nil {
+		args = map[string]any{}
+	}
+	name := tool.Name()
+	return resolveAction(policy, tool, name, grantScope(tool, name, args), args, interactive)
+}
+
+// grantScope is what one session grant covers. Defaults to the tool name, which
+// is what the prompt showed the user; a dispatching tool narrows it so one
+// approval does not cover every target it can reach.
+func grantScope(tool llm.Tool, name string, args map[string]any) string {
+	if s, ok := tool.(llm.GrantScoper); ok {
+		if scope := s.GrantScope(args); scope != "" {
+			return name + ":" + scope
+		}
+	}
+	return name
+}
+
+// DeclaredAccess returns what a tool says this call does. A tool that declares
+// nothing is llm.AccessWrite.
+func DeclaredAccess(tool llm.Tool, args map[string]any) llm.Access {
+	if d, ok := tool.(llm.AccessDeclarer); ok {
+		return d.Access(args)
+	}
+	return llm.AccessWrite
 }
 
 func logToolResult(name, result string) {

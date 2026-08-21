@@ -70,6 +70,26 @@ them:
 This keeps the tool list small no matter how many servers are connected, at the
 cost of one extra round trip when the agent first reaches for a server.
 
+## Approval
+
+A server describes each of its tools, and can mark one read-only. BuildMax uses
+that to decide whether to ask you before the call: a tool advertised as
+read-only runs unprompted, anything else prompts on the CLI TUI and Desktop, and
+is refused on surfaces with nobody to ask — print mode, workers, and Portal
+conversations.
+
+A server that omits the annotation is treated as writing, because the protocol
+cannot tell "not read-only" apart from "did not say". To stop being asked about
+a server you trust, answer a prompt with `a` for the session, or write a rule:
+
+```yaml
+tools:
+  permissions:
+    "CallMcpTool:github/*": allow
+```
+
+Full detail: [tool-permissions.md](tool-permissions.md).
+
 ## Checking It Works
 
 Run `/mcp` in the TUI to see connected servers and their status. A server that
@@ -90,4 +110,5 @@ without a real backend.
 ## Related
 
 - [tools.md](tools.md) — the built-in tool set
+- [tool-permissions.md](tool-permissions.md) — which calls stop and ask
 - [hooks.md](hooks.md) — `mcp_tool` is also available as a hook transport
