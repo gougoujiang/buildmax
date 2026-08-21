@@ -178,8 +178,11 @@ internal/
 │
 ├── agenteval/          Evaluation harness: task catalog and runner
 ├── architecture/       Architectural constraint tests (import boundaries)
+├── e2e/                End-to-end suites that drive a built binary
+│   └── cli/            CLI golden paths: real binary, temporary home, scripted model
 ├── mock/               Test-only in-memory stores
 ├── testsupport/        Test-only helpers that must not ship (JWT signing)
+│   └── mockllm/        Scripted model replies over the three LLM wire protocols
 └── util/               ID generation, prefixed IDs, workspace path resolution,
                         small string and time helpers
 ```

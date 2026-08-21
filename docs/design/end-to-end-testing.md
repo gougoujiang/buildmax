@@ -4,9 +4,12 @@
 
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `planned` — the deployment smoke and the Portal browser suite exist;
-  the deterministic model harness and every local cross-surface suite described
-  here do not
+- status: `in progress` — the deployment smoke and the Portal browser suite
+  exist; the model harness of §4 landed as `internal/testsupport/mockllm` and
+  the first CLI golden path as `internal/e2e/cli` (§9 steps 1-2, partly). Open:
+  Anthropic and Responses streaming in the harness, folding
+  `deployment/smoke/mock-llm` onto it, the pseudo-terminal approval path, and
+  §9 steps 3-6
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -72,9 +75,9 @@ larger than it looks.
   skill: a real model executes the tool checks and reports its own PASS/FAIL
   table. It therefore needs a provider API key, produces a different transcript
   every run, judges itself, and returns an exit code that reflects only whether
-  the process finished. It is a useful manual agent exercise. It is not a test,
-  and the CLI/TUI surface currently has no deterministic executable
-  verification at all.
+  the process finished. It is a useful manual agent exercise, and it is not the
+  CLI suite: that is `internal/e2e/cli`, which drives the built binary against a
+  scripted model. The name still has to move — see §5.
 - `./make eval` and `internal/agenteval` run the real agent against the task
   catalog in `eval/`. This is behavioral evaluation of agent quality, not
   boundary verification, and it is deliberately outside the suites below — but
@@ -145,8 +148,17 @@ packages the harness as a container is outside it and may import the package.
 This is deliberate rather than an oversight, and a change that moves either
 half should say so.
 
-Until this exists, the CLI and Desktop suites cannot start, and the Portal
-paths are limited to the ones whose model interaction is a single completion.
+The harness landed as `internal/testsupport/mockllm`. It serves all three
+protocols for a blocking call and OpenAI Chat Completions for a streaming one;
+a streaming request on either other protocol is refused with a message naming
+what is missing, rather than answered with a blocking body that would fail
+somewhere less informative. Two contract items are still open: those two
+streaming shapes, and folding `deployment/smoke/mock-llm` onto the same
+implementation so the Compose and kind smokes replay scenarios too.
+
+Until the streaming shapes exist, a suite on those protocols runs blocking
+calls, and the Desktop paths that stream are limited to what a blocking call
+can prove.
 
 ## 5. Local Harness Contract
 
