@@ -45,6 +45,8 @@ func cmdE2E(args []string) error {
 	switch suite {
 	case "cli":
 		return e2eCLI()
+	case "desktop":
+		return e2eDesktopBridge()
 	case "local":
 		return e2eOwningCompose()
 	case "kind", "compose":
@@ -60,11 +62,12 @@ func cmdE2E(args []string) error {
 }
 
 func e2eUsage() error {
-	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli]\n"+
+	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli|desktop]\n"+
 		"  kind     Portal browser tests against a running kind deployment (the default)\n"+
 		"  compose  Portal browser tests against a running Compose stack\n"+
 		"  local    the same tests against a Compose stack this command starts and stops\n"+
-		"  cli      the CLI and TUI suite: the built binary, a temporary home, no deployment", mk())
+		"  cli      the CLI and TUI suite: the built binary, a temporary home, no deployment\n"+
+		"  desktop  the Desktop bridge suite: bound methods, events, and approvals, no window", mk())
 }
 
 // e2eCLI runs the suite that needs no deployment at all. It is listed here so
@@ -75,6 +78,14 @@ func e2eCLI() error {
 	// -count=1 because a cached pass is not evidence that the binary built from
 	// the current tree still works.
 	return runCmd("go", "test", "-count=1", "./internal/e2e/cli/...")
+}
+
+// e2eDesktopBridge runs the Wails bridge suite. It stops at the bridge: the
+// window, the webview, and the React app need a display and a running
+// `wails dev`, which is the packaged-app smoke this design still defers.
+func e2eDesktopBridge() error {
+	fmt.Println("[e2e] Desktop bridge suite: bound methods, frontend events, and approvals — no window")
+	return runCmd("go", "test", "-count=1", "-run", "^TestBridge", "./internal/interface/desktop/")
 }
 
 // e2eOwningCompose brings up a Compose stack, runs the browser tests, and takes

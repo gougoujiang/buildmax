@@ -101,6 +101,18 @@ const (
 	eventMessageBlocked  = "desktop/message-blocked"
 )
 
+// uiEmitter delivers one event to the frontend.
+//
+// The indirection exists because Wails' own events interface lives in one of
+// its internal packages: nothing outside that module can implement it, so a
+// test cannot stand in for the frontend unless the seam is on this side.
+// Production always uses wailsEmit.
+type uiEmitter func(ctx context.Context, name string, data any)
+
+func wailsEmit(ctx context.Context, name string, data any) {
+	runtime.EventsEmit(ctx, name, data)
+}
+
 // App holds desktop application state and implements Wails lifecycle hooks.
 // Each project gets its own AgentApp and ApprovalHandler instance, created lazily on first use.
 type App struct {
@@ -114,6 +126,8 @@ type App struct {
 	// queues hold prompts submitted while that project's run was in flight, keyed
 	// by project ID. They are drained one prompt per turn by the run goroutine.
 	queues map[string]*agent.MessageQueue
+	// emit sends an event to the frontend. See uiEmitter.
+	emit uiEmitter
 }
 
 // NewApp returns a new App instance.
@@ -123,6 +137,7 @@ func NewApp() *App {
 		approvalHandlers: make(map[string]*DesktopApprovalHandler),
 		runCancels:       make(map[string]context.CancelFunc),
 		queues:           make(map[string]*agent.MessageQueue),
+		emit:             wailsEmit,
 	}
 }
 
@@ -506,52 +521,53 @@ func (a *App) RespondApproval(projectID string, decision string) {
 	}
 }
 
-// desktopStreamSink emits each delta to the frontend via Wails events.
+// desktopStreamSink emits each delta to the frontend.
 type desktopStreamSink struct {
-	ctx context.Context
+	ctx  context.Context
+	emit uiEmitter
 }
 
 func (s *desktopStreamSink) OnDelta(delta string) {
-	runtime.EventsEmit(s.ctx, eventStreamDelta, delta)
+	s.emit(s.ctx, eventStreamDelta, delta)
 }
 
 // desktopEventSink returns an agent.EventSink that forwards tool events to the frontend via Wails events.
 // queue is the project's pending-prompt queue, read when a queued prompt joins the
 // running turn so the frontend can show what is still waiting.
-func desktopEventSink(ctx context.Context, queue *agent.MessageQueue) func(agent.Event) {
+func desktopEventSink(emit uiEmitter, ctx context.Context, queue *agent.MessageQueue) func(agent.Event) {
 	return func(e agent.Event) {
 		switch e.Kind {
 		case agent.EventLLMStart:
-			runtime.EventsEmit(ctx, eventLLMStart, nil)
-			runtime.EventsEmit(ctx, eventRunStatus, &RunStatusPayload{
+			emit(ctx, eventLLMStart, nil)
+			emit(ctx, eventRunStatus, &RunStatusPayload{
 				ContextTokens:    e.ContextTokens,
 				ContextWindow:    e.ContextWindow,
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
 			})
 		case agent.EventLLMEnd:
-			runtime.EventsEmit(ctx, eventRunStatus, &RunStatusPayload{
+			emit(ctx, eventRunStatus, &RunStatusPayload{
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
 			})
 		case agent.EventToolStart:
-			runtime.EventsEmit(ctx, eventToolStart, &ToolStartPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, Args: e.ToolArgs})
+			emit(ctx, eventToolStart, &ToolStartPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, Args: e.ToolArgs})
 		case agent.EventToolEnd:
-			runtime.EventsEmit(ctx, eventToolEnd, &ToolEndPayload{
+			emit(ctx, eventToolEnd, &ToolEndPayload{
 				ToolCallID: e.ToolCallID,
 				ToolName:   e.ToolName,
 				DurationMs: e.ToolDuration.Milliseconds(),
 				IsError:    strings.HasPrefix(e.ToolResult, "error:"),
 			})
 		case agent.EventToolDenied:
-			runtime.EventsEmit(ctx, eventToolEnd, &ToolEndPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, IsError: true, Denied: true, Reason: e.DenyReason})
+			emit(ctx, eventToolEnd, &ToolEndPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, IsError: true, Denied: true, Reason: e.DenyReason})
 		case agent.EventUserInput:
 			// A queued prompt joined the running turn: it is sent now, not waiting.
-			runtime.EventsEmit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: e.Content, Queued: queue.Snapshot()})
+			emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: e.Content, Queued: queue.Snapshot()})
 		case agent.EventUserInputBlocked:
 			// Its own event, not stream-error: the run is still going, and the
 			// frontend ends the run on stream-error.
-			runtime.EventsEmit(ctx, eventMessageBlocked, &MessageBlockedPayload{
+			emit(ctx, eventMessageBlocked, &MessageBlockedPayload{
 				Prompt: e.Content,
 				Reason: e.DenyReason,
 				Queued: queue.Snapshot(),
@@ -631,8 +647,8 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	a.mu.Unlock()
 
 	queue := a.queueForProject(projectID)
-	sink := &desktopStreamSink{ctx: ctx}
-	evSink := desktopEventSink(ctx, queue)
+	sink := &desktopStreamSink{ctx: ctx, emit: a.emit}
+	evSink := desktopEventSink(a.emit, ctx, queue)
 	go func() {
 		defer func() {
 			a.mu.Lock()
@@ -651,7 +667,7 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 				Pending:   queue,
 			})
 			if err != nil {
-				runtime.EventsEmit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
+				a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
 			} else {
 				// Update last_used_at so the sidebar can order projects by recency.
 				touchProjectLastUsed(projectID)
@@ -659,14 +675,14 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 			next, ok := queue.Dequeue()
 			if !ok {
 				if err == nil {
-					runtime.EventsEmit(ctx, eventStreamDone, replyPayload(out))
+					a.emit(ctx, eventStreamDone, replyPayload(out))
 				}
 				return
 			}
 			// A failed turn still drains: the queue holds what the user asked for,
 			// and stranding it with no run to release it is worse than letting it
 			// fail on its own turn.
-			runtime.EventsEmit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: next, Queued: queue.Snapshot()})
+			a.emit(ctx, eventMessageDequeued, &MessageDequeuedPayload{Prompt: next, Queued: queue.Snapshot()})
 			current = next
 		}
 	}()

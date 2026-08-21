@@ -231,8 +231,8 @@ test.
 | Portal + kind | Prove the same published-bundle contract through ingress and the Kubernetes worker path. Run locally for deployment, ingress, storage, or worker changes. |
 | Server + worker | Preserve the existing direct and managed deployment smoke, then add the deployment-level half of cancellation, retry, authorization denial, and failure recovery — see §6.1. |
 | CLI + TUI | Start the built binary in an isolated workspace with the mock model; send a prompt; approve and deny a pinned tool call; verify an intended file change, session resume, trace, and a useful failure. Prove that a batched turn produces one canonical history and prompt order. |
-| Desktop bridge | Run the Wails development bridge with the mock runtime; create a project; stream a response; handle an approval; reopen a session; and surface a runtime error. |
-| Native Desktop smoke | On supported native runners, launch the packaged app and prove one critical interaction. This is lower frequency than the bridge suite because native WebViews differ by platform. |
+| Desktop bridge | Drive the bound methods with the scripted model: create a project; stream a response; handle an approval and a denial; reopen a session; and surface a provider failure. It asserts on the events the frontend would have received, because those are the whole of what the React app can know. |
+| Native Desktop smoke | On supported native runners, launch the packaged app and prove one critical interaction. This is lower frequency than the bridge suite because native WebViews differ by platform, and it is what covers the window, the webview, and the React app — none of which the bridge suite reaches. |
 
 Portal paths should prefer semantic accessible locators. Setup that is not the
 subject of a test may use a fixture API, but the asserted user outcome must go
@@ -253,6 +253,15 @@ A pseudo-terminal has no emulator behind it, so the harness plays that part and
 answers the capability queries the TUI writes on startup. Left unanswered they
 cost five seconds a test while the TUI waits out its own timeout, which reads
 as the agent being slow rather than as the terminal being absent.
+
+**The Desktop bridge needed a seam, and that is worth saying out loud.** Wails
+emits to the frontend through an interface that lives in one of its internal
+packages, so nothing outside that module can stand in for the frontend. The app
+now emits through a one-line indirection of its own, which production never
+reassigns and a test replaces with a recorder. Without it the Desktop surface
+would have had no deterministic coverage at all — the alternative being a
+running `wails dev` and a display, which is the packaged-app smoke, not a suite
+anyone runs while changing code.
 
 **Concurrency must be proved to change nothing.**
 [parallel-tool-execution.md](./parallel-tool-execution.md) promises identical
@@ -379,7 +388,10 @@ rather than discovered later.
    matrix. Keep the original API smoke focused on deployment behavior, and give
    the server and worker paths the deployment-level assertions in §6.1.
 5. **Add the Wails bridge suite**, then a small native packaged-app smoke on
-   supported platform runners.
+   supported platform runners. The bridge suite has landed as
+   `TestBridge*` in `internal/interface/desktop`, run by `./make e2e desktop`;
+   the packaged-app smoke is open, and it is what covers the window and the
+   React app.
 6. **Publish the contributor and agent runbook** in `docs/contribute/`,
    including suite selection, prerequisite checks, artifact locations, and a
    release-time full-matrix command.
