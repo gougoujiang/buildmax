@@ -184,7 +184,7 @@ func allHelpSections() []helpSection {
 			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local, cli, desktop, or all"},
 		}},
 		{"Release", []helpRow{
-			{"changelog", "Preview unreleased entries; 'release <version>' folds them in"},
+			{"changelog [new]", "Add or preview unreleased entries; 'release <version>' folds them in"},
 			{"release <action>", "Run bump, verify, notices, or licenses"},
 			{"install", "Install binaries to ~/.local/bin"},
 		}},

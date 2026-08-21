@@ -1,9 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -25,8 +28,14 @@ func cmdChangelog(args []string) error {
 		}
 		return releaseChangelog(args[1])
 	}
+	if len(args) > 0 && args[0] == "new" {
+		if len(args) != 3 {
+			return fmt.Errorf("usage: changelog new <%s> <slug>", strings.Join(changelogCategories, "|"))
+		}
+		return newChangelogEntry(args[1], args[2])
+	}
 	if len(args) > 0 {
-		return fmt.Errorf("usage: changelog [release <version>]")
+		return fmt.Errorf("usage: changelog [new <category> <slug>|release <version>]")
 	}
 	section, count, err := unreleasedSection()
 	if err != nil {
@@ -38,6 +47,50 @@ func cmdChangelog(args []string) error {
 	}
 	fmt.Print(section)
 	fmt.Fprintf(os.Stderr, "\n%d entries in %s\n", count, changelogDir)
+	return nil
+}
+
+// newChangelogEntry writes an empty entry at the right path with the shape a
+// release expects.
+//
+// Forgetting the entry is one of the two most common first-contribution review
+// comments, and the command could only ever preview entries that already
+// existed: the category directories, the "one Markdown list item" rule, and the
+// wrapping were all things to look up first. A test rejects a malformed entry,
+// but only after it is written.
+func newChangelogEntry(category, slug string) error {
+	if !slices.Contains(changelogCategories, category) {
+		return fmt.Errorf("%q is not a changelog category; expected one of %s", category, strings.Join(changelogCategories, ", "))
+	}
+	if slug == "" || strings.ContainsAny(slug, `/\ `) || strings.HasPrefix(slug, ".") {
+		return fmt.Errorf("%q is not a usable slug; use a short kebab-case name for the change, like request-id-header", slug)
+	}
+	slug = strings.TrimSuffix(slug, ".md")
+
+	dir := filepath.Join(changelogDir, category)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, slug+".md")
+	// O_EXCL: two branches choosing the same filename are describing the same
+	// change, and silently overwriting the other one's text would lose it.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("%s already exists; edit it, or choose a slug for a different change", path)
+		}
+		return err
+	}
+	const template = "- TODO: one sentence a user or operator would recognise, wrapped at 80\n" +
+		"  columns with continuation lines indented two spaces.\n"
+	if _, err := file.WriteString(template); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	fmt.Printf("Created %s. Replace the TODO line with the entry.\n", path)
 	return nil
 }
 

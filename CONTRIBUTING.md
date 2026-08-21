@@ -259,11 +259,12 @@ The rest:
   footer or assistant session link in the description. The reasoning is in
   [conventions.md](docs/contribute/conventions.md#commit-messages-and-pull-requests).
 - Add or update focused tests for behavioral changes.
-- Add a changelog entry — a new file under
-  [`docs/changelog/`](docs/changelog/README.md) — when a user or operator would
-  notice the change: new or changed behavior, new configuration, removals, fixes
-  to released behavior. Internal refactors, test-only changes, and documentation
-  edits do not need one.
+- Add a changelog entry when a user or operator would notice the change: new or
+  changed behavior, new configuration, removals, fixes to released behavior.
+  `./make changelog new fixed <slug>` writes the file under
+  [`docs/changelog/`](docs/changelog/README.md) with the shape a release
+  expects. Internal refactors, test-only changes, and documentation edits do not
+  need one.
 - Update documentation alongside the code:
   - behavior or package boundaries change → update the matching document in
     [docs/contribute/architecture/](docs/contribute/architecture/README.md)

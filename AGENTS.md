@@ -187,8 +187,9 @@ inspect their help and use them only when the task authorizes that effect.
 - Keep user documentation task-oriented. Keep contributor architecture factual.
   Keep rationale in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).
-- Add a changelog entry for user-visible changes as a new file,
-  `docs/changelog/<category>/<slug>.md`, holding the one list item it will
+- Add a changelog entry for user-visible changes with
+  `./make changelog new <added|changed|fixed|security> <slug>`, which writes
+  `docs/changelog/<category>/<slug>.md` holding the one list item it will
   become. One file per entry so parallel branches never conflict; the release
   step folds them into `CHANGELOG.md`.
 - Commit subjects are one imperative line. Do not add assistant attribution,

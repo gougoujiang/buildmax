@@ -393,6 +393,39 @@ func TestBatchArgsSplitsLongCommandLines(t *testing.T) {
 	}
 }
 
+func TestNewChangelogEntry(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	if err := newChangelogEntry("nonsense", "a-change"); err == nil {
+		t.Error("an unknown category was accepted")
+	}
+	for _, slug := range []string{"", "with space", "a/b", ".hidden"} {
+		if err := newChangelogEntry("fixed", slug); err == nil {
+			t.Errorf("slug %q was accepted", slug)
+		}
+	}
+
+	if err := newChangelogEntry("fixed", "request-id-header"); err != nil {
+		t.Fatalf("newChangelogEntry: %v", err)
+	}
+	path := filepath.Join(changelogDir, "fixed", "request-id-header.md")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	// The release step refuses anything that is not one Markdown list item, so
+	// the template has to already be one.
+	if !strings.HasPrefix(string(body), "- ") {
+		t.Errorf("template does not start with \"- \": %q", body)
+	}
+
+	// Two branches picking the same filename are describing the same change;
+	// overwriting the other one's text would lose it.
+	if err := newChangelogEntry("fixed", "request-id-header"); err == nil {
+		t.Error("an existing entry was overwritten")
+	}
+}
+
 func TestExactVersionDoesNotAcceptPrefixMatch(t *testing.T) {
 	if got := requiredExactVersion("Go", "go", []string{"env", "GOOS"}, "dar"); got != 1 {
 		t.Fatalf("requiredExactVersion returned %d for a partial match; want 1", got)
