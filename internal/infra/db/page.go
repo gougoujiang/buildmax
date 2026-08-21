@@ -24,3 +24,27 @@ func clampPage(limit, offset int) (int, int) {
 	}
 	return limit, offset
 }
+
+// maxUnboundedPage is the ceiling on a query whose callers use limit <= 0 to
+// mean "everything".
+//
+// Those callers are asking for a whole set that is small by construction -- one
+// issue's comments, one agent's revisions -- so a cap this high changes no
+// answer they get today. What it changes is the failure: a caller that reaches
+// one of these with a genuinely large set reads 1000 rows instead of the table.
+const maxUnboundedPage = 1000
+
+// capPage bounds a query without giving it a default.
+//
+// Unlike clampPage it leaves limit <= 0 meaning "as many as there are", because
+// that is the contract these queries already have with their callers. It only
+// stops that from meaning "without limit".
+func capPage(limit, offset int) (int, int) {
+	if limit <= 0 || limit > maxUnboundedPage {
+		limit = maxUnboundedPage
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
+}

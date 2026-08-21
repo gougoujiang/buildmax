@@ -253,6 +253,7 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name
 
 // ListAgentRevisions returns an agent's revisions, newest first.
 func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
+	limit, offset = capPage(limit, offset)
 	rows, total, err := listRevisions[agentRevisionRow](ctx, s.db, "agent_id", agentID, limit, offset)
 	if err != nil {
 		return nil, 0, err
