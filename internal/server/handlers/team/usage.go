@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"net/http"
@@ -17,15 +17,15 @@ type usageResponse struct {
 
 // usageHandler keeps the legacy /api/usage route as a personal-team alias.
 func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
-	if h.cfg.TeamStore == nil {
+	if h.cfg.Teams == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "teams not configured")
 		return
 	}
-	team, err := h.cfg.TeamStore.GetPersonalTeamByUser(r.Context(), userID)
+	team, err := h.cfg.Teams.GetPersonalTeamByUser(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "usage_get_personal_team", "user_id", userID)
 		return
@@ -38,7 +38,7 @@ func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) teamUsageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
@@ -53,11 +53,11 @@ func (h *Handler) teamUsageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeUsageForTeam(w http.ResponseWriter, r *http.Request, teamID string) {
-	if h.cfg.QuotaService == nil {
+	if h.cfg.Quota == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "usage not available")
 		return
 	}
-	info, err := h.cfg.QuotaService.GetUsage(r.Context(), teamID)
+	info, err := h.cfg.Quota.GetUsage(r.Context(), teamID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "usage", "team_id", teamID)
 		return

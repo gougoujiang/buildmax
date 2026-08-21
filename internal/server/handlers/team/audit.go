@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"net/http"
@@ -21,7 +21,7 @@ type AuditEventsResponse struct {
 // is administrative rather than collaborative information — a member does not
 // need to see that a colleague was denied something.
 func (h *Handler) listAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AuditStore, "audit trail not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Audits, "audit trail not configured")
 	if !ok {
 		return
 	}
@@ -31,7 +31,7 @@ func (h *Handler) listAuditEventsHandler(w http.ResponseWriter, r *http.Request)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 
-	events, total, err := h.cfg.AuditStore.ListAuditEvents(r.Context(), teamID, limit, offset)
+	events, total, err := h.cfg.Audits.ListAuditEvents(r.Context(), teamID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_audit_events", "team_id", teamID)
 		return

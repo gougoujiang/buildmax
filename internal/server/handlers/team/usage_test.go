@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"encoding/json"
@@ -96,10 +96,10 @@ func TestUsageHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler(Config{
-				JWTSecret:    tt.jwtSecret,
-				TeamStore:    teamStore,
-				QuotaService: tt.checker,
+			h := New(Config{
+				JWTSecret: tt.jwtSecret,
+				Teams:     teamStore,
+				Quota:     tt.checker,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)
