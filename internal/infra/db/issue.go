@@ -114,6 +114,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 
 // ListIssuesByUser returns issues for the user ordered by updated_at DESC.
 func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]model.Issue, int, error) {
+	limit, offset = capPage(limit, offset)
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -134,6 +135,7 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 // A zero filter lists every issue in the team, sub-issues included, which is
 // what callers predating the hierarchy expect.
 func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
+	limit, offset = capPage(limit, offset)
 	scope := func(q *gorm.DB) *gorm.DB {
 		q = q.Where("team_id = ?", teamID)
 		switch {

@@ -357,6 +357,7 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 
 // ListWorkflowRevisions returns a workflow's revisions, newest first.
 func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
+	limit, offset = capPage(limit, offset)
 	rows, total, err := listRevisions[workflowRevisionRow](ctx, s.db, "workflow_id", workflowID, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -393,6 +394,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRu
 }
 
 func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
+	limit, offset = capPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("workflow_id = ?", workflowID)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -410,6 +412,7 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 }
 
 func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
+	limit, offset = capPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("issue_id = ?", issueID)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
