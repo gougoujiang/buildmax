@@ -16,6 +16,10 @@ results are sent back to the model as tool-role messages.
 | Name | Kind | Role |
 |------|------|------|
 | **llm.Tool** | interface | Contract: `Name()`, `Description()`, `Parameters()`, `Execute(ctx, args)` |
+| **llm.AccessDeclarer** | interface | Optional: `Access(args) Access` — does this call change anything |
+| **llm.ArgChecker** | interface | Optional: `CheckArgs(args) ToolAction` — argument-level risk |
+| **llm.PolicyProvider** | interface | Optional: `DefaultAction() ToolAction` — override the derived default |
+| **llm.GrantScoper** | interface | Optional: `GrantScope(args) string` — narrow what one session grant covers |
 | **ReadFile** | struct | Reads files under a root directory |
 | **WriteFile** | struct | Creates/overwrites files under a root directory |
 | **EditFile** | struct | Performs exact string replacements in files |
@@ -97,6 +101,52 @@ LLM-facing names are the camelCase constants in `names.go` — `Read`, `Write`,
 source of truth; hook matchers and subagent `tools:` fields match against these
 exact strings.
 
+## What A Tool Declares About Itself
+
+Beyond `llm.Tool`, four optional interfaces feed the permission layer. Full
+layering: [design/tool-permissions.md](../../design/tool-permissions.md).
+
+**`Access(args)` is the one every tool should implement.** It answers whether
+the call changes anything the user owns. The zero value is `AccessWrite`, so
+omitting it is safe but uninformative — the tool will prompt on interactive
+surfaces for no stated reason.
+
+Two things it does *not* mean:
+
+- **It is not a concurrency claim.** `AccessReadOnly` says the call changes
+  nothing; it does not promise `Execute` is safe on several goroutines.
+  `CallMcpTool` reports read-only on a third party's word, which this runtime
+  cannot underwrite. A scheduler must require concurrency safety separately —
+  see [design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
+- **It is not the permission answer.** Permission is *derived* from it, and the
+  derivation is deliberately not the tool's to make. A tool that could name its
+  own action would eventually name `allow`.
+
+**`CheckArgs` is for risk, not category.** `ReadFile` and `WriteFile` return
+identical results from it — `Ask` for a sensitive path, `Allow` otherwise —
+because the axis is how dangerous *this* call is, not what kind of act it is.
+Note that `Allow` here means *abstain*: resolution continues to later layers.
+
+**`DefaultAction` overrides the derivation, and needs a reason.** Three tools
+implement it, all writes that must not prompt:
+
+| Tool | Why |
+|---|---|
+| `TodoWrite`, `NoteWrite` | write the agent's own scratch state, not the user's files |
+| `Bash` | has a sharper judgement of its own in `CheckArgs`; the category default would prompt for every `ls` |
+
+**`GrantScope` is for tools that dispatch.** Without it, one session grant for
+`CallMcpTool` would cover every tool on every configured server.
+
+### Adding a tool
+
+Declare `Access`. Add `CheckArgs` if some arguments are riskier than others.
+Reach for `DefaultAction` only when the tool genuinely knows better than the
+category, and say why in the comment. Then add a row to the table in
+[design/tool-permissions.md](../../design/tool-permissions.md) section 6 —
+`internal/tool/permission_test.go` is table-driven against it and will fail
+until you do.
+
 ## How It Works
 
 1. `internal/agentapp` resolves the workspace root and builds the base tool registry.
@@ -115,4 +165,4 @@ exact strings.
 - All tools enforce path security — file operations must be under the configured root directory.
 - Tool output is designed for LLM consumption: meaningful messages on both success and failure.
 - Error messages are prefixed with `error:` by the agent when sent to the LLM.
-- See also: [Agent Loop](agent-loop.md), [CLI](cli.md).
+- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [guide/tool-permissions.md](../../guide/tool-permissions.md).

@@ -374,6 +374,11 @@ The manager is one object the rest of the runtime sees as
               caller decides: gate vs advisory
 ```
 
+`PreToolUse` fires after the permission layer has already allowed the call, so
+a hook sees only what policy, approval, and any session grant let through. It
+cannot un-deny a refusal; it is the last gate, not an override. Layering:
+[tool-permissions.md](./tool-permissions.md).
+
 Gating events (`PreToolUse`, `PreCompact`, `UserPromptSubmit`) check
 `out.Blocked()` and short-circuit. Advisory events
 (`PostToolUse`, `Notification`, `Stop`, `SessionStart`, etc.) discard the
@@ -401,7 +406,7 @@ Hooks are configured; the model decides to call `writefile`.
            │
            ├─ applyPolicyAndExecute("writefile", args)
            │   │
-           │   ├─ policy: Allow
+           │   ├─ permission: Allow (see tool-permissions.md for the layering)
            │   ├─ HookManager.Run(PreToolUse{tool, args})              [GATING]
            │   │     • HTTPDriver POSTs to https://policy.internal
            │   │           ← 200 {"decision":"allow"}

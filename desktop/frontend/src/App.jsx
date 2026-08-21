@@ -619,12 +619,12 @@ export default function App() {
     }
   }
 
-  async function handleRespond(approved) {
+  async function handleRespond(decision) {
     if (!approvalRequest || !app) return;
     const req = approvalRequest;
     setApprovalRequest(null);
     try {
-      await app.RespondApproval(req.project_id, approved);
+      await app.RespondApproval(req.project_id, decision);
     } catch (err) {
       console.error('RespondApproval failed:', err);
     }
@@ -1013,17 +1013,26 @@ function HomeDashboard({ recentSessions, recentProjects, projectByWorkspace, onS
 
 // --- ApprovalPanel ---
 
+// Session grants are what keep a per-write prompt from being something users
+// turn off. Keep the outcomes and keys identical to the TUI panel.
+const APPROVAL_CHOICES = [
+  { decision: 'once',    label: 'Allow once(y)',    variant: 'allow' },
+  { decision: 'session', label: 'Allow session(a)', variant: 'allow' },
+  { decision: 'deny',    label: 'Deny(n)',          variant: 'deny'  },
+];
+
 function ApprovalPanel({ request, onRespond }) {
-  const [selected, setSelected] = useState(0); // 0 = Allow, 1 = Deny
+  const [selected, setSelected] = useState(0);
 
   useEffect(() => {
     function onKey(e) {
       switch (e.key) {
-        case 'ArrowLeft':  setSelected(0); break;
-        case 'ArrowRight': setSelected(1); break;
-        case 'Enter':      onRespond(selected === 0); break;
-        case 'y': case 'Y': onRespond(true); break;
-        case 'n': case 'N': case 'Escape': onRespond(false); break;
+        case 'ArrowLeft':  setSelected((i) => Math.max(0, i - 1)); break;
+        case 'ArrowRight': setSelected((i) => Math.min(APPROVAL_CHOICES.length - 1, i + 1)); break;
+        case 'Enter':      onRespond(APPROVAL_CHOICES[selected].decision); break;
+        case 'y': case 'Y': onRespond('once'); break;
+        case 'a': case 'A': onRespond('session'); break;
+        case 'n': case 'N': case 'Escape': onRespond('deny'); break;
       }
     }
     window.addEventListener('keydown', onKey);
@@ -1057,22 +1066,17 @@ function ApprovalPanel({ request, onRespond }) {
       )}
 
       <div className="approval-panel__footer">
-        <button
-          type="button"
-          className={`approval-panel__btn ${selected === 0 ? 'approval-panel__btn--allow' : 'approval-panel__btn--muted'}`}
-          onClick={() => onRespond(true)}
-          onMouseEnter={() => setSelected(0)}
-        >
-          Allow(y)
-        </button>
-        <button
-          type="button"
-          className={`approval-panel__btn ${selected === 1 ? 'approval-panel__btn--deny' : 'approval-panel__btn--muted'}`}
-          onClick={() => onRespond(false)}
-          onMouseEnter={() => setSelected(1)}
-        >
-          Deny(n)
-        </button>
+        {APPROVAL_CHOICES.map((choice, i) => (
+          <button
+            key={choice.decision}
+            type="button"
+            className={`approval-panel__btn ${selected === i ? `approval-panel__btn--${choice.variant}` : 'approval-panel__btn--muted'}`}
+            onClick={() => onRespond(choice.decision)}
+            onMouseEnter={() => setSelected(i)}
+          >
+            {choice.label}
+          </button>
+        ))}
         <span className="approval-panel__hint">← → select · Enter confirm</span>
       </div>
     </div>

@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // Glob lists files matching a glob pattern under a workspace root.
@@ -25,6 +27,9 @@ func NewGlob(workspaceRoot string) *Glob {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (g *Glob) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (g *Glob) Name() string { return ToolNameGlob }
 
 // Description returns a short description so the LLM knows when to use this tool.

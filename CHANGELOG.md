@@ -170,6 +170,37 @@ pre-releases and must be called out in release notes.
   it. There is no undelete: the row exists so references resolve, not as a
   recycle bin.
 
+- Tools now classify what a call does, and the ones that write ask before they
+  run. On the CLI TUI and Desktop, `Write`, `Edit`, `Task`, and `CallMcpTool`
+  request approval where they previously ran unannounced; read-only tools are
+  unchanged, and `Bash` keeps its own risk classifier as the authority. Surfaces
+  with nobody to ask — print mode, workers, eval, and Portal conversations —
+  behave exactly as before: the category prompt is only raised where a person
+  can answer it, so a task run's file writes and shell commands are unaffected.
+  The prompt itself now offers three answers rather than two — allow once (`y`),
+  allow for the rest of the session (`a`), or deny (`n`) — and a session grant
+  covers the tool by name, or the specific `server/tool` for an MCP call.
+  Grants are held in memory and are gone when the process exits.
+- MCP calls are gated by what the server says about the tool. `CallMcpTool` now
+  reads the `readOnlyHint` annotation from `tools/list`, which BuildMax fetched
+  and discarded until now: a tool the server advertises as read-only runs
+  unprompted, and anything else asks. **This tightens autonomous surfaces**, the
+  one behavior change there — a task run, print-mode run, or Portal conversation
+  calling an MCP tool that is not advertised as read-only is now refused rather
+  than run silently. A server that omits the annotation is treated the same as
+  one that says `false`, because the protocol cannot distinguish them. The hint
+  decides whether BuildMax asks; it never grants trust.
+- Tool permissions are configurable. A `tools.permissions` block in
+  `settings.yaml` sets any tool to `allow`, `ask`, or `deny`, keyed by tool name
+  or by the target it dispatches to (`CallMcpTool:github/*`), most specific rule
+  winning. `allow` turns off the category prompt but not the safety checks — a
+  sensitive path and a risky shell command still prompt, and only `deny`
+  outranks them. `ask` means a person must look, so on a surface with no person
+  the call is refused rather than run. `buildmax tools status` prints every
+  tool's classification, its resolved action, the layer that decided it, and any
+  rule ignored for an unrecognised action; `/tools` in the TUI marks tools that
+  do not simply run.
+
 ### Security
 
 - An account can be disabled, and disabling it stops access immediately rather

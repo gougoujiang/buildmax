@@ -345,7 +345,9 @@ func assertBefore(t *testing.T, events []Event, a, b EventKind) {
 // denyAllPolicy denies every tool call.
 type denyAllPolicy struct{}
 
-func (denyAllPolicy) Check(_ string, _ map[string]any) llm.ToolAction { return llm.ToolActionDeny }
+func (denyAllPolicy) Check(_, _ string, _ map[string]any) (llm.ToolAction, bool) {
+	return llm.ToolActionDeny, true
+}
 
 // smallWindowLLMClient wraps a mock with a small context window to trigger compaction.
 type smallWindowLLMClient struct {

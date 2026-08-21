@@ -386,12 +386,16 @@ func (e stringError) Error() string { return string(e) }
 // askAlwaysPolicy resolves every tool to Ask so the approval branch runs.
 type askAlwaysPolicy struct{}
 
-func (askAlwaysPolicy) Check(_ string, _ map[string]any) llm.ToolAction { return llm.ToolActionAsk }
+func (askAlwaysPolicy) Check(_, _ string, _ map[string]any) (llm.ToolAction, bool) {
+	return llm.ToolActionAsk, true
+}
 
 // denyAlwaysApproval denies every approval request.
 type denyAlwaysApproval struct{}
 
-func (denyAlwaysApproval) RequestApproval(_ string, _ map[string]any) bool { return false }
+func (denyAlwaysApproval) RequestApproval(_ string, _ map[string]any) ApprovalDecision {
+	return ApprovalDeny
+}
 
 // TestHook_NilRunnerIsAllowed verifies nil Hooks behaves the same as no hooks.
 func TestHook_NilRunnerIsAllowed(t *testing.T) {

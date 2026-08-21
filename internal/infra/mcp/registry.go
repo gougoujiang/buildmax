@@ -245,6 +245,26 @@ func (r *Registry) CallMcp(ctx context.Context, serverID, toolName string, argum
 	return out, nil
 }
 
+// ToolIsReadOnly reports whether a server advertised readOnlyHint for one of
+// its tools. Unknown server, unknown tool, and a server that says nothing all
+// report false.
+//
+// The hint is the server's claim about itself and grants nothing — it only
+// decides whether the runtime asks. In go-sdk v1.7.0 ReadOnlyHint is a bool
+// rather than a pointer, so "absent" and "false" are indistinguishable after
+// decode; both land on the asking side, which is the safe direction.
+func (r *Registry) ToolIsReadOnly(serverID, toolName string) bool {
+	st := r.lookupServer(serverID)
+	if st == nil {
+		return false
+	}
+	t, ok := st.toolsByName[toolName]
+	if !ok || t == nil || t.Annotations == nil {
+		return false
+	}
+	return t.Annotations.ReadOnlyHint
+}
+
 func (r *Registry) lookupServer(serverID string) *serverState {
 	if r == nil {
 		return nil

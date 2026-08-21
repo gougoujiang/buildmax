@@ -83,6 +83,10 @@ type RunLoopOpts struct {
 	// Approval is invoked when Policy returns ToolActionAsk.
 	// Nil approval with ToolActionAsk falls through to Allow for backward compatibility.
 	Approval ApprovalHandler
+	// Grants holds approvals the user chose to keep for the session. It is owned
+	// by the caller because a session outlives one RunLoop; nil grants nothing,
+	// which makes every Ask a fresh prompt.
+	Grants *SessionGrants
 	// Compactor summarizes old messages when the context window is filling up.
 	// Nil disables compaction; TrimHistory is used as a fallback.
 	Compactor ContextCompactor
@@ -405,7 +409,13 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 //
 // Ask handling: calls ApprovalHandler if set; nil handler collapses Ask to Deny.
 func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, tool llm.Tool, name, callID string, args map[string]any) string {
-	action := resolveAction(policy, tool, name, args)
+	scope := grantScope(tool, name, args)
+	action := resolveAction(policy, tool, name, scope, args, opts.interactive())
+	// A session grant answers an Ask that was already put to the user. It is
+	// applied here rather than before resolution so it can never soften a Deny.
+	if action == llm.ToolActionAsk && opts.Grants.granted(scope) {
+		action = llm.ToolActionAllow
+	}
 	switch action {
 	case llm.ToolActionDeny:
 		slog.Info("tool denied by policy", "tool", name)
@@ -421,11 +431,16 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "no approval handler configured")
 			return fmt.Sprintf(denyMsgPolicy, name)
 		}
-		if !opts.Approval.RequestApproval(name, args) {
+		decision := opts.Approval.RequestApproval(name, args)
+		if decision == ApprovalDeny {
 			slog.Info("tool denied by user", "tool", name)
 			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonUser})
 			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "denied by user")
 			return fmt.Sprintf(denyMsgUser, name)
+		}
+		if decision == ApprovalAllowSession {
+			opts.Grants.grant(scope)
+			slog.Info("tool granted for session", "tool", name, "scope", scope)
 		}
 		fallthrough
 	case llm.ToolActionAllow:
@@ -486,24 +501,80 @@ func fireNotification(ctx context.Context, opts RunLoopOpts, kind, toolName, cal
 }
 
 // resolveAction applies the layered policy resolution for one tool call.
-func resolveAction(policy ToolPolicy, tool llm.Tool, name string, args map[string]any) llm.ToolAction {
-	// 1. Configured override — Deny/Ask wins immediately; Allow defers to tool.
+//
+// interactive gates layer 4 and nothing else: a category default is a question
+// for a user, so a surface with nobody attached does not ask it rather than
+// answering it with a default. See docs/design/tool-permissions.md §5.3.
+func resolveAction(policy ToolPolicy, tool llm.Tool, name, scope string, args map[string]any, interactive bool) llm.ToolAction {
+	configured, hasConfig := llm.ToolActionAllow, false
 	if policy != nil {
-		if override := policy.Check(name, args); override != llm.ToolActionAllow {
-			return override
-		}
+		configured, hasConfig = policy.Check(name, scope, args)
 	}
-	// 2. Tool arg-level check.
+
+	// 1. A configured deny is a prohibition and wins outright.
+	if hasConfig && configured == llm.ToolActionDeny {
+		return llm.ToolActionDeny
+	}
+	// 2. Tool arg-level check. Deliberately above the configured allow: "stop
+	//    asking me about Read" is a statement about the category, not consent to
+	//    open ~/.ssh/id_rsa unannounced. Only a configured deny outranks it.
 	if checker, ok := tool.(llm.ArgChecker); ok {
 		if action := checker.CheckArgs(args); action != llm.ToolActionAllow {
 			return action
 		}
 	}
-	// 3. Tool category default.
+	// 3. Configured preference for the category, above the tool's own default
+	//    because the user outranks the tool author.
+	//
+	//    A configured Ask is not gated on the surface the way the derived tier
+	//    is. The derived tier is the runtime guessing, and guessing a worker
+	//    into uselessness helps nobody; a configured Ask is a person saying
+	//    "somebody look at this", and where nobody can, the honest answer is to
+	//    refuse. It reaches the existing Ask-without-a-handler denial.
+	if hasConfig {
+		return configured
+	}
+	// 4. Explicit tool default, overriding the derivation below.
 	if provider, ok := tool.(llm.PolicyProvider); ok {
 		return provider.DefaultAction()
 	}
+	// 5. Derived from the tool's declared access: writing calls ask.
+	if interactive && DeclaredAccess(tool, args) == llm.AccessWrite {
+		return llm.ToolActionAsk
+	}
 	return llm.ToolActionAllow
+}
+
+// ResolveToolAction reports the action one tool call resolves to, without
+// executing or prompting. An Ask returned here is a question that would be
+// asked, not an outcome: with no handler the loop turns it into a denial.
+func ResolveToolAction(policy ToolPolicy, tool llm.Tool, args map[string]any, interactive bool) llm.ToolAction {
+	if args == nil {
+		args = map[string]any{}
+	}
+	name := tool.Name()
+	return resolveAction(policy, tool, name, grantScope(tool, name, args), args, interactive)
+}
+
+// grantScope is what one session grant covers. Defaults to the tool name, which
+// is what the prompt showed the user; a dispatching tool narrows it so one
+// approval does not cover every target it can reach.
+func grantScope(tool llm.Tool, name string, args map[string]any) string {
+	if s, ok := tool.(llm.GrantScoper); ok {
+		if scope := s.GrantScope(args); scope != "" {
+			return name + ":" + scope
+		}
+	}
+	return name
+}
+
+// DeclaredAccess returns what a tool says this call does. A tool that declares
+// nothing is llm.AccessWrite.
+func DeclaredAccess(tool llm.Tool, args map[string]any) llm.Access {
+	if d, ok := tool.(llm.AccessDeclarer); ok {
+		return d.Access(args)
+	}
+	return llm.AccessWrite
 }
 
 func logToolResult(name, result string) {

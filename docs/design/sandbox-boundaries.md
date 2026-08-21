@@ -213,6 +213,13 @@ Mode is selected by `sandbox.auto_allow_bash_if_sandboxed`:
 Both modes apply the same OS-level FS + network restrictions; only
 the approval behavior differs.
 
+`auto_allow` is the one place where containment substitutes for a prompt, and
+it stays confined to `Bash`. It is deliberately not extended to `Write` and
+`Edit`: the sandbox exists to contain writes *outside* the workspace, and a
+write inside the workspace is precisely what it permits, so it does not contain
+the act the prompt is about. See
+[tool-permissions.md](./tool-permissions.md) §5.7.
+
 ## 6. The `dangerously_disable_sandbox` escape hatch
 
 Mirrors Claude Code's `dangerouslyDisableSandbox`.

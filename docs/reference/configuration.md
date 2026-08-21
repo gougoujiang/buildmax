@@ -237,6 +237,50 @@ goes — which is why the model picker and `buildmax models` always name the
 destination.
 | `hooks` | empty | Lifecycle hooks. Reference: [guide/hooks.md](../guide/hooks.md). |
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
+| `tools.permissions` | empty | Per-tool approval rules. See below. |
+
+### `tools.permissions`
+
+BuildMax asks before a tool call that changes something, on surfaces where
+somebody can answer — the CLI TUI and Desktop. Out of the box `Write`, `Edit`,
+`Task`, and non-read-only MCP calls prompt; read-only tools do not, and `Bash`
+follows its own risk classifier rather than the category default.
+
+Set a rule to change that:
+
+```yaml
+tools:
+  permissions:
+    Write: allow                        # stop asking before file writes
+    Task: ask
+    Bash: deny                          # no shell at all
+    "CallMcpTool:github/*": allow       # trust one server's tools
+    "CallMcpTool:jira/delete_issue": deny
+```
+
+| Field | Meaning |
+|---|---|
+| key | A tool name, or a tool plus the target it dispatches to, with an optional trailing `*`. Case-insensitive. |
+| value | `allow`, `ask`, or `deny`. An unrecognised value is ignored, and `buildmax tools status` lists it. |
+
+The most specific rule wins: an exact target, then the longest matching
+pattern, then the bare tool name.
+
+Two limits worth knowing:
+
+- **`allow` turns off the category prompt, not the safety checks.** Reading a
+  sensitive path and running a risky shell command still prompt. Only `deny`
+  outranks those.
+- **`ask` means a human must look**, so on a surface with no human — print
+  mode, a worker, a Portal conversation — the call is refused rather than run.
+
+Answering a prompt with `a` allows that tool for the rest of the session
+without writing a rule. Session grants are held in memory and are gone when the
+process exits.
+
+Run `buildmax tools status` to see every tool's classification, its resolved
+action, and which layer decided it. Design:
+[design/tool-permissions.md](../design/tool-permissions.md).
 
 ## `server.yaml` — Server and Worker
 

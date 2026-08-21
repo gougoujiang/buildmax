@@ -65,6 +65,9 @@ type loadMCPToolsTool struct {
 	reg *mcp.Registry
 }
 
+// Access implements llm.AccessDeclarer.
+func (t *loadMCPToolsTool) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (t *loadMCPToolsTool) Name() string { return ToolNameLoadMCPTools }
 
 func (t *loadMCPToolsTool) Description() string {
@@ -87,6 +90,51 @@ func (t *loadMCPToolsTool) Execute(ctx context.Context, args map[string]any) (st
 
 type callMCPToolTool struct {
 	reg *mcp.Registry
+}
+
+// GrantScope implements llm.GrantScoper. Without it, approving one MCP call for
+// the session would approve every tool on every configured server.
+func (t *callMCPToolTool) GrantScope(args map[string]any) string {
+	server, _ := args["server"].(string)
+	name, _ := args["tool_name"].(string)
+	if server == "" || name == "" {
+		return ""
+	}
+	return server + "/" + name
+}
+
+// Access implements llm.AccessDeclarer, reporting what the server says the
+// named tool does. A server that says nothing is a write.
+func (t *callMCPToolTool) Access(args map[string]any) llm.Access {
+	if t.readOnly(args) {
+		return llm.AccessReadOnly
+	}
+	return llm.AccessWrite
+}
+
+// CheckArgs implements llm.ArgChecker. Access above already stops a read-only
+// call from prompting; this exists for the other half, which the derived tier
+// cannot reach: a write must also be refused where nobody can be asked, and
+// layer 4 does not run on an autonomous surface.
+//
+// Returning Allow here is an abstention, not a grant — the read-only case falls
+// through to Access.
+func (t *callMCPToolTool) CheckArgs(args map[string]any) llm.ToolAction {
+	if t.readOnly(args) {
+		return llm.ToolActionAllow
+	}
+	return llm.ToolActionAsk
+}
+
+// readOnly reports the server's claim about the named tool. The claim decides
+// whether the runtime asks; it never decides whether the call is trusted.
+func (t *callMCPToolTool) readOnly(args map[string]any) bool {
+	server, _ := args["server"].(string)
+	name, _ := args["tool_name"].(string)
+	if server == "" || name == "" {
+		return false
+	}
+	return t.reg.ToolIsReadOnly(server, name)
 }
 
 func (t *callMCPToolTool) Name() string { return ToolNameCallMCPTool }

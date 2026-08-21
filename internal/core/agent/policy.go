@@ -8,26 +8,39 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
-// ToolPolicy is a configured override layer consulted before tool-declared checks.
-// Returning ToolActionAllow defers the decision to the tool's own ArgChecker / PolicyProvider.
-// Returning ToolActionDeny or ToolActionAsk overrides the tool entirely.
+// ToolPolicy is the configured override layer: what a user asked for, ahead of
+// what a tool declares about itself.
+//
+// The bool is whether the policy has an opinion at all. It exists because
+// ToolActionAllow cannot carry that distinction: at every other layer Allow
+// means "abstain, keep resolving", so a policy that returned it could never
+// say "allow this, stop asking" — which is the whole point of configuring one.
+//
+// scope is the call's target when the tool dispatches somewhere (see
+// grantScope), so a rule can name one MCP tool rather than every one.
 type ToolPolicy interface {
-	Check(name string, args map[string]any) llm.ToolAction
+	Check(name, scope string, args map[string]any) (llm.ToolAction, bool)
 }
 
 // ApprovalHandler is invoked when the resolved action is ToolActionAsk.
-// Returns true to allow execution, false to deny.
 // If nil, Ask collapses to Deny.
 type ApprovalHandler interface {
-	RequestApproval(name string, args map[string]any) bool
+	RequestApproval(name string, args map[string]any) ApprovalDecision
 }
+
+// interactive reports whether a human can answer a permission prompt. Derived
+// from the approval handler rather than carried as its own field: the handler's
+// presence already is that fact, and a second source could only disagree.
+func (o RunLoopOpts) interactive() bool { return o.Approval != nil }
 
 // AllowAllPolicy defers all decisions to each tool's own declarations.
 var AllowAllPolicy ToolPolicy = allowAll{}
 
 type allowAll struct{}
 
-func (allowAll) Check(_ string, _ map[string]any) llm.ToolAction { return llm.ToolActionAllow }
+func (allowAll) Check(_, _ string, _ map[string]any) (llm.ToolAction, bool) {
+	return llm.ToolActionAllow, false
+}
 
 // defaultMaxRepeatedCalls is the loop guard threshold: the same tool+args combination
 // is blocked after this many repetitions within one run.

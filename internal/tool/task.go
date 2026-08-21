@@ -125,6 +125,9 @@ func NewTask(runner SubAgentRunner, agentTypes map[string]AgentTypeConfig) (*Tas
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer. A subagent writes whatever its tools write.
+func (t *TaskTool) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
+
 func (t *TaskTool) Name() string { return ToolNameTask }
 
 // Description returns a dynamically built description listing all available agent types.

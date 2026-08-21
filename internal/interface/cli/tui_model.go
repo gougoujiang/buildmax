@@ -258,19 +258,21 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.pendingApproval != nil {
 		switch msg.String() {
 		case "left", "h":
-			m.approvalSelected = 0
+			if m.approvalSelected > 0 {
+				m.approvalSelected--
+			}
 		case "right", "l":
-			m.approvalSelected = 1
+			if m.approvalSelected < len(approvalChoices)-1 {
+				m.approvalSelected++
+			}
 		case "enter":
-			approved := m.approvalSelected == 0
-			m.pendingApproval.response <- approved
-			m.pendingApproval = nil
+			m.answerApproval(approvalChoices[m.approvalSelected].decision)
 		case "y", "Y":
-			m.pendingApproval.response <- true
-			m.pendingApproval = nil
+			m.answerApproval(agent.ApprovalAllowOnce)
+		case "a", "A":
+			m.answerApproval(agent.ApprovalAllowSession)
 		case "n", "N", "esc":
-			m.pendingApproval.response <- false
-			m.pendingApproval = nil
+			m.answerApproval(agent.ApprovalDeny)
 		}
 		return m, nil
 	}
@@ -528,6 +530,27 @@ func handleToolDenied(m *Model, msg toolDeniedMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Sequence(tea.Println(toolLine+"\n"), nextStreamMsgCmd(m.streamChannel))
 }
 
+// approvalChoices is the prompt's outcome set, left to right. Session grants
+// are what keep a per-write prompt from becoming something users turn off.
+var approvalChoices = []struct {
+	label    string
+	decision agent.ApprovalDecision
+}{
+	{"Allow once(y)", agent.ApprovalAllowOnce},
+	{"Allow session(a)", agent.ApprovalAllowSession},
+	{"Deny(n)", agent.ApprovalDeny},
+}
+
+// answerApproval resolves the waiting tool call and clears the prompt.
+func (m *Model) answerApproval(d agent.ApprovalDecision) {
+	if m.pendingApproval == nil {
+		return
+	}
+	m.pendingApproval.response <- d
+	m.pendingApproval = nil
+	m.approvalSelected = 0
+}
+
 // renderApprovalPanel renders the tool-approval prompt when a tool call is waiting.
 func (m *Model) renderApprovalPanel() string {
 	if m.pendingApproval == nil {
@@ -547,18 +570,19 @@ func (m *Model) renderApprovalPanel() string {
 		argLines = append(argLines, line)
 	}
 
-	allowBtn, denyBtn := approvalUnselectedStyle.Render("Allow(y)"), approvalUnselectedStyle.Render("Deny(n)")
-	if m.approvalSelected == 0 {
-		allowBtn = approvalSelectedStyle.Render("Allow(y)")
-	} else {
-		denyBtn = approvalSelectedStyle.Render("Deny(n)")
+	buttons := make([]string, len(approvalChoices))
+	for i, c := range approvalChoices {
+		if i == m.approvalSelected {
+			buttons[i] = approvalSelectedStyle.Render(c.label)
+			continue
+		}
+		buttons[i] = approvalUnselectedStyle.Render(c.label)
 	}
 
-	body := fmt.Sprintf("Tool: %s\n%s\n\n%s  %s    ←→ select  enter: confirm",
+	body := fmt.Sprintf("Tool: %s\n%s\n\n%s    ←→ select  enter: confirm",
 		m.pendingApproval.ToolName,
 		strings.Join(argLines, "\n"),
-		allowBtn,
-		denyBtn,
+		strings.Join(buttons, "  "),
 	)
 	return approvalPanelStyle.Width(m.width - 4).Render(body)
 }

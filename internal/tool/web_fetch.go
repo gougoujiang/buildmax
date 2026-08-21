@@ -80,6 +80,10 @@ func (w *WebFetch) WithSandbox(v agent.SandboxView) *WebFetch {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer. The only thing it writes is its own
+// response cache, which cacheMu guards.
+func (w *WebFetch) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (w *WebFetch) Name() string { return ToolNameWebFetch }
 
 // Description returns a short description so the LLM knows when to use this tool.

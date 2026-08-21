@@ -179,3 +179,29 @@ models:
 #   stop:
 #     - type: command
 #       command: "/usr/local/bin/audit.sh"
+
+# Tool permissions. BuildMax asks before a tool call that changes something,
+# on surfaces where somebody can answer — the CLI TUI and Desktop. Print mode,
+# workers, and Portal conversations raise no prompt of their own.
+#
+# A rule set to "ask" is you asking for a human to look, so where there is no
+# human — a worker, print mode — the call is refused rather than run.
+#
+# Answer a prompt with `a` to allow that tool for the rest of the session
+# without writing anything here.
+#
+# Actions: allow | ask | deny. A key is a tool name, or a tool plus the target
+# it dispatches to, with an optional trailing "*". The most specific rule wins.
+#
+# A rule set to "allow" turns off the category prompt, not the safety checks:
+# reading a sensitive path and running a risky shell command still prompt. Only
+# "deny" outranks those. Full design: design/tool-permissions.md.
+#
+# tools:
+#   permissions:
+#     Write: allow                        # stop asking before file writes
+#     Edit: allow
+#     Task: ask                           # the default for a writing tool
+#     Bash: deny                          # no shell at all
+#     "CallMcpTool:github/*": allow       # trust one server's tools
+#     "CallMcpTool:jira/delete_issue": deny

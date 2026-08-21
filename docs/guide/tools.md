@@ -86,6 +86,7 @@ was. When you see the agent recover gracefully from a bad edit, this is why.
 
 ## Related
 
+- [tool-permissions.md](tool-permissions.md) — which of these stop and ask before running
 - [hooks.md](hooks.md) — gate tool calls by name, using the names above
 - [sandbox.md](sandbox.md) — confine what `Bash` can reach
 - [contribute/architecture/tools.md](../contribute/architecture/tools.md) — how the registry is built

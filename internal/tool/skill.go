@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // SkillEntry holds metadata for one discovered skill.
@@ -45,6 +47,9 @@ func NewSkillFromEntries(entries []SkillEntry) *SkillTool {
 }
 
 // Name returns the tool name for the LLM.
+// Access implements llm.AccessDeclarer.
+func (s *SkillTool) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (s *SkillTool) Name() string { return ToolNameSkill }
 
 // Description returns a static preamble followed by a dynamic listing of discovered skills.

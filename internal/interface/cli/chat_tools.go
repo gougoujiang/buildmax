@@ -56,7 +56,13 @@ func (p *slashToolsPanel) Render(_ *Model, maxLineWidth int) string {
 			break
 		}
 		desc := truncateRunes(e.Description, slashToolsDescriptionMaxRunes)
-		main := truncateRunes(e.Name+" — "+desc, maxLineWidth)
+		// The action is why a tool prompts, and the panel is where someone looks
+		// after being prompted. Allow is the unremarkable case and stays silent.
+		label := e.Name
+		if e.Action != "" && e.Action != "allow" {
+			label += " [" + e.Action + "]"
+		}
+		main := truncateRunes(label+" — "+desc, maxLineWidth)
 		b.WriteString(main)
 		b.WriteByte('\n')
 		linesOut++

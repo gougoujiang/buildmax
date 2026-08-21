@@ -40,7 +40,9 @@ type RunLoopOpts struct {
     StreamSink   llm.StreamSink     // non-nil selects the streaming call
 
     Policy    ToolPolicy            // nil = AllowAllPolicy
-    Approval  ApprovalHandler       // nil + ToolActionAsk falls through to allow
+    Approval  ApprovalHandler       // nil collapses ToolActionAsk to Deny, and marks
+                                    //   the surface as having nobody to prompt
+    Grants    *SessionGrants        // caller-owned; nil grants nothing
     Compactor ContextCompactor      // nil disables compaction; TrimHistory is the fallback
     EventSink func(Event)           // nil disables event emission entirely
     Hooks     HookRunner            // nil or NoopHookRunner disables hooks
@@ -95,12 +97,44 @@ sees the refusal and can choose a different approach rather than stalling:
 |---|---|
 | Tool exists, arguments parse as JSON | lookup or parse error |
 | **Loop guard** — the same call repeated too many times | `blocked — repeated identical call detected (loop guard)` |
-| **Policy** — `ToolPolicy`, then `ApprovalHandler` on `ToolActionAsk` | `denied by policy` / `denied by user` |
+| **Permission** — the layered resolution below, then `ApprovalHandler` on `ToolActionAsk` | `denied by policy` / `denied by user` |
 | **PreToolUse hook** | `denied by hook: <reason>` |
 
 The loop guard exists because a model that gets an unhelpful tool result will
 often retry the identical call forever; the counter turns that into a message it
 must react to.
+
+### Permission resolution
+
+`resolveAction` walks five layers, first decision wins. Rationale and the
+per-tool table: [design/tool-permissions.md](../../design/tool-permissions.md).
+
+| # | Layer | Source |
+|---|---|---|
+| 1 | configured `deny` — a prohibition | `tools.permissions` |
+| 2 | `ArgChecker.CheckArgs` — argument-level risk | the tool |
+| 3 | configured `allow`/`ask` — category preference | `tools.permissions` |
+| 4 | `PolicyProvider.DefaultAction` — explicit tool default | the tool |
+| 5 | derived from `AccessDeclarer.Access` — writes ask | the tool |
+
+Two properties of that order are load-bearing:
+
+- **The configured layers straddle the risk check.** `Read: allow` quiets the
+  category prompt without consenting to open a sensitive path; only a
+  configured `deny` outranks layer 2.
+- **Layer 5 runs only when `Approval != nil`.** A category prompt is a question
+  for a person, so a surface with nobody attached does not raise it rather than
+  answering it with a default. Without that gate, giving `Write` a default of
+  `Ask` would deny every file write on a worker. Layers 1–4 are unaffected, so a
+  risky shell command is still refused there.
+
+`ToolPolicy.Check` returns `(action, bool)` because `ToolActionAllow` means
+*abstain* everywhere else — a policy returning it could never say "allow this,
+stop asking".
+
+After resolution, a session grant (`SessionGrants`) can turn an `Ask` into an
+`Allow`. It is applied after resolution, never before, so it cannot soften a
+denial.
 
 ## Events
 
