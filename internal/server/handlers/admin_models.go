@@ -31,10 +31,10 @@ type AdminModelsResponse struct {
 
 // listAdminModelsHandler serves GET /api/admin/llm/models.
 func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.LLMModelStore, "the model catalog is not configured") {
+	if !httputil.RequireStore(w, h.cfg.LLMModelStore, "the model catalog is not configured") {
 		return
 	}
 	models, err := h.cfg.LLMModelStore.ListLLMModels(r.Context())
@@ -68,14 +68,14 @@ func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request)
 // whatever the browser did with the form.
 func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		actorID, ok := h.requireSystemAdmin(w, r)
+		actorID, ok := h.guard().SystemAdmin(w, r)
 		if !ok {
 			return
 		}
-		if !h.requireStore(w, h.cfg.LLMModelStore, "the model catalog is not configured") {
+		if !httputil.RequireStore(w, h.cfg.LLMModelStore, "the model catalog is not configured") {
 			return
 		}
-		modelID, ok := pathValueRequired(w, r, "model_id")
+		modelID, ok := httputil.PathValue(w, r, "model_id")
 		if !ok {
 			return
 		}

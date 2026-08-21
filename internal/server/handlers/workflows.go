@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
@@ -189,7 +190,7 @@ func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
 }
 
 func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -209,15 +210,15 @@ func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageWorkflows); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageWorkflows); !ok {
 		return
 	}
 	var req createWorkflowRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	createdWorkflow, err := h.workflowService().CreateWorkflow(r.Context(), workflow.CreateWorkflowCmd{
@@ -238,11 +239,11 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
 	if !ok {
 		return
 	}
@@ -258,19 +259,19 @@ func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageWorkflows); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageWorkflows); !ok {
 		return
 	}
-	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
 	if !ok {
 		return
 	}
 	var req patchWorkflowRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	updatedWorkflow, err := h.workflowService().UpdateWorkflow(r.Context(), workflow.UpdateWorkflowCmd{
@@ -295,15 +296,15 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 // listWorkflowRevisionsHandler returns a workflow's recorded versions, newest
 // first. Reading history needs no more than team membership.
 func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
 	list, total, err := h.workflowService().ListWorkflowRevisions(r.Context(), teamID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
@@ -322,18 +323,18 @@ func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Re
 // restoreWorkflowRevisionHandler writes an earlier revision's content back to
 // the workflow. It is an ordinary edit and needs the permission an edit needs.
 func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageWorkflows); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageWorkflows); !ok {
 		return
 	}
-	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
 	if !ok {
 		return
 	}
-	revision, ok := pathValueInt(w, r, "revision")
+	revision, ok := httputil.PathValueInt(w, r, "revision")
 	if !ok {
 		return
 	}
@@ -354,15 +355,15 @@ func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
 	runs, total, err := h.workflowService().ListWorkflowRuns(r.Context(), teamID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
@@ -379,11 +380,11 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	runID, ok := pathValueRequired(w, r, "workflow_run_id")
+	runID, ok := httputil.PathValue(w, r, "workflow_run_id")
 	if !ok {
 		return
 	}
@@ -403,20 +404,20 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionRunWorkflow); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionRunWorkflow); !ok {
 		return
 	}
-	workflowID, ok := pathValueRequired(w, r, "workflow_id")
+	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
 	if !ok {
 		return
 	}
 	var req createWorkflowRunRequest
 	if r.ContentLength != 0 {
-		if !decodeJSONBody(w, r, &req) {
+		if !httputil.DecodeJSONBody(w, r, &req) {
 			return
 		}
 	}
@@ -441,18 +442,18 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionRunWorkflow); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionRunWorkflow); !ok {
 		return
 	}
-	issueID, ok := pathValueRequired(w, r, "issue_id")
+	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.IssueStore, "issues not configured") {
+	if !httputil.RequireStore(w, h.cfg.IssueStore, "issues not configured") {
 		return
 	}
 	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)

@@ -54,14 +54,14 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 	// learns nothing about whether this deployment records managed calls. Every
 	// other team-scoped route authenticates first, and an authorization matrix is
 	// only meaningful if they all agree.
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.LLMCallStore, "managed model calls not configured") {
+	if !httputil.RequireStore(w, h.cfg.LLMCallStore, "managed model calls not configured") {
 		return
 	}
-	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
 	if !ok {
 		return
 	}

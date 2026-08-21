@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -49,11 +50,11 @@ type auditPageFunc func(ctx context.Context, after model.AuditCursor, limit int)
 // the reason to export is to keep or examine the record elsewhere, and a filter
 // applied on the way out is a decision the file cannot show it made.
 func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AuditStore, "audit trail not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AuditStore, "audit trail not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionReadAuditTrail); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionReadAuditTrail); !ok {
 		return
 	}
 	store := h.cfg.AuditStore
@@ -76,11 +77,11 @@ func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Reques
 // operator's own narrowing of a read they are already permitted, which is why
 // they are accepted here and not on the team-scoped route.
 func (h *Handler) exportAdminAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
-	adminID, ok := h.requireSystemAdmin(w, r)
+	adminID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.AuditStore, "audit trail not configured") {
+	if !httputil.RequireStore(w, h.cfg.AuditStore, "audit trail not configured") {
 		return
 	}
 	filter := adminAuditFilter(r.URL.Query())

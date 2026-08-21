@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -86,7 +88,7 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token required", http.StatusUnauthorized)
 		return
 	}
-	userID, ok := userIDFromToken(tokenStr, h.cfg.JWTSecret)
+	userID, ok := access.UserIDFromToken(tokenStr, h.cfg.JWTSecret)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -95,11 +97,11 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "teams not configured", http.StatusServiceUnavailable)
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	_, teamID, ok = h.withExplicitTeam(w, r, userID, teamID)
+	_, teamID, ok = h.guard().ExplicitTeam(w, r, userID, teamID)
 	if !ok {
 		return
 	}

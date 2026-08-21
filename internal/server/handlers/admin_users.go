@@ -87,13 +87,13 @@ type AdminSessionsRevokedResponse struct {
 
 // listAdminUsersHandler serves GET /api/admin/users.
 func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", bulkPageDefault, bulkPageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
 	users, total, err := h.cfg.UserStore.ListUsers(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_users")
@@ -108,7 +108,7 @@ func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) 
 
 // getAdminUserHandler serves GET /api/admin/users/{user_id}.
 func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
@@ -166,11 +166,11 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 // for the same reason: creating an account and minting access to it are
 // different decisions.
 func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request) {
-	actorID, ok := h.requireSystemAdmin(w, r)
+	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
 		return
 	}
 	var req AdminCreateUserRequest
@@ -198,11 +198,11 @@ func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request)
 
 // issueAdminLoginCodeHandler serves POST /api/admin/users/{user_id}/login-code.
 func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Request) {
-	actorID, ok := h.requireSystemAdmin(w, r)
+	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.LoginCodeStore, "login codes not configured") {
+	if !httputil.RequireStore(w, h.cfg.LoginCodeStore, "login codes not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
@@ -230,7 +230,7 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 // setAdminUserDisabledHandler serves the disable and enable routes.
 func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		actorID, ok := h.requireSystemAdmin(w, r)
+		actorID, ok := h.guard().SystemAdmin(w, r)
 		if !ok {
 			return
 		}
@@ -291,11 +291,11 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 
 // revokeAdminUserSessionsHandler serves DELETE /api/admin/users/{user_id}/sessions.
 func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.Request) {
-	actorID, ok := h.requireSystemAdmin(w, r)
+	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.RefreshTokenStore, "sessions not configured") {
+	if !httputil.RequireStore(w, h.cfg.RefreshTokenStore, "sessions not configured") {
 		return
 	}
 	user, ok := h.adminTargetUser(w, r)
@@ -313,10 +313,10 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 
 // adminTargetUser resolves the {user_id} an admin route acts on.
 func (h *Handler) adminTargetUser(w http.ResponseWriter, r *http.Request) (*model.User, bool) {
-	if !h.requireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
 		return nil, false
 	}
-	userID, ok := pathValueRequired(w, r, "user_id")
+	userID, ok := httputil.PathValue(w, r, "user_id")
 	if !ok {
 		return nil, false
 	}

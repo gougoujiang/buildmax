@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -20,11 +21,11 @@ type AuditEventsResponse struct {
 // is administrative rather than collaborative information — a member does not
 // need to see that a colleague was denied something.
 func (h *Handler) listAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AuditStore, "audit trail not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AuditStore, "audit trail not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionReadAuditTrail); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionReadAuditTrail); !ok {
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))

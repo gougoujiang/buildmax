@@ -1,4 +1,4 @@
-package handlers
+package access
 
 import (
 	"context"
@@ -8,27 +8,27 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
-type teamAction string
+type Action string
 
 const (
-	actionManageTeamMembers   teamAction = "manage_team_members"
-	actionManageAgents        teamAction = "manage_agents"
-	actionManageWorkflows     teamAction = "manage_workflows"
-	actionAssignIssueWorkflow teamAction = "assign_issue_workflow"
-	actionRunWorkflow         teamAction = "run_workflow"
-	actionReadAuditTrail      teamAction = "read_audit_trail"
-	actionCommentIssue        teamAction = "comment_issue"
-	// actionModerateIssueComments covers deleting a comment the caller did not
+	ActionManageTeamMembers   Action = "manage_team_members"
+	ActionManageAgents        Action = "manage_agents"
+	ActionManageWorkflows     Action = "manage_workflows"
+	ActionAssignIssueWorkflow Action = "assign_issue_workflow"
+	ActionRunWorkflow         Action = "run_workflow"
+	ActionReadAuditTrail      Action = "read_audit_trail"
+	ActionCommentIssue        Action = "comment_issue"
+	// ActionModerateIssueComments covers deleting a comment the caller did not
 	// write. Editing another author's comment is permitted to nobody, so it is
 	// not an action here — see internal/service/issue.
-	actionModerateIssueComments teamAction = "moderate_issue_comments"
+	ActionModerateIssueComments Action = "moderate_issue_comments"
 )
 
-func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, userID, teamID string, action teamAction) (string, bool) {
-	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
+func (g *Guard) TeamAction(w http.ResponseWriter, r *http.Request, userID, teamID string, action Action) (string, bool) {
+	if !httputil.RequireStore(w, g.Teams, "teams not configured") {
 		return "", false
 	}
-	members, err := h.cfg.TeamStore.ListTeamMembers(r.Context(), teamID)
+	members, err := g.Teams.ListTeamMembers(r.Context(), teamID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "authorize_team_action", "user_id", userID, "team_id", teamID, "action", string(action))
 		return "", false
@@ -41,12 +41,12 @@ func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, us
 		}
 	}
 	if role == "" {
-		h.cfg.Audit.Denied(r.Context(), userID, teamID, string(action))
+		g.denied(r, userID, teamID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", false
 	}
 	if !isRoleAllowed(role, action) {
-		h.cfg.Audit.Denied(r.Context(), userID, teamID, string(action))
+		g.denied(r, userID, teamID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", false
 	}
@@ -60,11 +60,11 @@ func (h *Handler) authorizeTeamAction(w http.ResponseWriter, r *http.Request, us
 // answers a question a handler asks before it knows whether the permission is
 // needed at all — deleting a comment requires it only when the comment is
 // someone else's — so a false here is not a refused request.
-func (h *Handler) memberAllows(ctx context.Context, userID, teamID string, action teamAction) bool {
-	if h.cfg.TeamStore == nil {
+func (g *Guard) MemberAllows(ctx context.Context, userID, teamID string, action Action) bool {
+	if g.Teams == nil {
 		return false
 	}
-	members, err := h.cfg.TeamStore.ListTeamMembers(ctx, teamID)
+	members, err := g.Teams.ListTeamMembers(ctx, teamID)
 	if err != nil {
 		return false
 	}
@@ -76,13 +76,13 @@ func (h *Handler) memberAllows(ctx context.Context, userID, teamID string, actio
 	return false
 }
 
-func isRoleAllowed(role string, action teamAction) bool {
+func isRoleAllowed(role string, action Action) bool {
 	switch action {
-	case actionManageTeamMembers, actionReadAuditTrail, actionModerateIssueComments:
+	case ActionManageTeamMembers, ActionReadAuditTrail, ActionModerateIssueComments:
 		return role == model.TeamRoleOwner
-	case actionManageAgents, actionManageWorkflows, actionAssignIssueWorkflow:
+	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow:
 		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin
-	case actionRunWorkflow, actionCommentIssue:
+	case ActionRunWorkflow, ActionCommentIssue:
 		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin || role == model.TeamRoleMember
 	default:
 		return false

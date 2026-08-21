@@ -84,7 +84,7 @@ type adminDependency struct {
 // carry DSNs, endpoints, and bucket names, and the reason belongs in the server
 // log where an operator already has to be.
 func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), systemProbeTimeout)
@@ -145,7 +145,7 @@ func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
 // change one replica's view of the world, or none. Configuration stays
 // source-controlled — see docs/design/system-administration.md section 7.2.
 func (h *Handler) adminConfigHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
 	if h.cfg.RedactedConfig == nil {

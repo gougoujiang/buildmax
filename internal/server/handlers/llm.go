@@ -22,7 +22,7 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 	// caller learns nothing about whether this deployment offers managed
 	// inference. Every other team-scoped route authenticates first, and an
 	// authorization matrix is only meaningful if they all agree.
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
@@ -53,7 +53,7 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 // llmCompletionsHandler serves POST /api/teams/{team_id}/llm/completions.
 func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	// Authorize before the gateway check; see listLLMModelsHandler.
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}

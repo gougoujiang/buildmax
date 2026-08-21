@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 )
@@ -47,14 +48,14 @@ func issueCommentToResponse(comment model.IssueComment) issueCommentResponse {
 // what owns the team. A comment carries no team of its own, so every route
 // starts here.
 func (h *Handler) resolveCommentIssue(w http.ResponseWriter, r *http.Request) (userID, teamID, issueID string, ok bool) {
-	userID, teamID, ok = h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok = h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return "", "", "", false
 	}
-	if !h.requireStore(w, h.cfg.IssueCommentStore, "comments not configured") {
+	if !httputil.RequireStore(w, h.cfg.IssueCommentStore, "comments not configured") {
 		return "", "", "", false
 	}
-	issueID, ok = pathValueRequired(w, r, "issue_id")
+	issueID, ok = httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return "", "", "", false
 	}
@@ -75,7 +76,7 @@ func (h *Handler) listIssueCommentsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", bulkPageDefault, bulkPageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
 	list, total, err := h.issueService().ListComments(r.Context(), issueID, limit, offset)
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {
@@ -96,11 +97,11 @@ func (h *Handler) createIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionCommentIssue); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionCommentIssue); !ok {
 		return
 	}
 	var req issueCommentRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	created, err := h.issueService().CreateComment(r.Context(), issue.CreateCommentCmd{
@@ -124,12 +125,12 @@ func (h *Handler) patchIssueCommentHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	commentID, ok := pathValueRequired(w, r, "comment_id")
+	commentID, ok := httputil.PathValue(w, r, "comment_id")
 	if !ok {
 		return
 	}
 	var req issueCommentRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	updated, err := h.issueService().UpdateComment(r.Context(), issue.UpdateCommentCmd{
@@ -153,7 +154,7 @@ func (h *Handler) deleteIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	commentID, ok := pathValueRequired(w, r, "comment_id")
+	commentID, ok := httputil.PathValue(w, r, "comment_id")
 	if !ok {
 		return
 	}
@@ -163,7 +164,7 @@ func (h *Handler) deleteIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 		IssueID:     issueID,
 		CommentID:   commentID,
 		UserID:      userID,
-		CanModerate: h.memberAllows(r.Context(), userID, teamID, actionModerateIssueComments),
+		CanModerate: h.guard().MemberAllows(r.Context(), userID, teamID, access.ActionModerateIssueComments),
 	})
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {

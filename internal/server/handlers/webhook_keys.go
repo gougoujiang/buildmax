@@ -27,7 +27,7 @@ type webhookKeyMetaResponse struct {
 }
 
 func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
 	if !ok {
 		return
 	}
@@ -45,7 +45,7 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
 	if !ok {
 		return
 	}
@@ -62,7 +62,7 @@ func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) revokeWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
 	if !ok {
 		return
 	}

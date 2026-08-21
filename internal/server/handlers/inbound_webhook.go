@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -46,7 +47,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if owner != nil && owner.Disabled() {
-			httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
+			httputil.WriteJSONError(w, http.StatusForbidden, access.DisabledMessage)
 			return
 		}
 	}

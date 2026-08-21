@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/util"
 
@@ -112,11 +113,6 @@ type jwtClaims struct {
 
 const tokenTypeAccess = "access"
 
-// jwtLeeway absorbs clock skew between the server that signed a token and the
-// one validating it. A deployment running more than one replica has no
-// guarantee their clocks agree to the second.
-const jwtLeeway = 30 * time.Second
-
 func (h *Handler) accessTokenTTL() time.Duration {
 	if h.cfg.AccessTokenTTL > 0 {
 		return h.cfg.AccessTokenTTL
@@ -216,7 +212,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	// registered but switched off", which is more than a wrong password is
 	// told. Someone who just proved the account is theirs, on the other hand,
 	// should hear the real reason rather than "wrong password".
-	if !h.rejectDisabled(w, r, user, "login") {
+	if !h.refuseDisabled(w, r, user, "login") {
 		return
 	}
 	now := time.Now()
@@ -332,7 +328,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		if _, err := h.cfg.RefreshTokenStore.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
 			slog.Error("revoke session for disabled user failed", "err", err, "session_id", rotated.SessionID)
 		}
-		httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
+		httputil.WriteJSONError(w, http.StatusForbidden, access.DisabledMessage)
 		return
 	}
 
@@ -381,12 +377,12 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
 		return
 	}
-	userID, ok := h.requireActiveUser(w, r)
+	userID, ok := h.guard().ActiveUser(w, r)
 	if !ok {
 		return
 	}
 	var req SetPasswordRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	if err := model.ValidatePassword(req.NewPassword); err != nil {
@@ -449,7 +445,7 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		claims, ok := claimsFromRequest(r, h.cfg.JWTSecret)
+		claims, ok := access.ClaimsFromRequest(r, h.cfg.JWTSecret)
 		if !ok || claims.Sid == "" {
 			httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
@@ -625,225 +621,4 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 	// `buildmax-server user login-code` before anyone can sign in — which is why
 	// no BuildMax client offers a sign-up form.
 	httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "account_created"})
-}
-
-// --- JWT auth middleware helpers ---
-
-func requireAuth(w http.ResponseWriter, r *http.Request, jwtSecret string) (string, bool) {
-	userID, ok := userIDFromRequest(r, jwtSecret)
-	if !ok {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
-		return "", false
-	}
-	return userID, true
-}
-
-// accountDisabledMessage is what a disabled account is told, and it is
-// deliberately specific: the person holding the credential has already proved
-// it is theirs, and "wrong password" would send them to reset one that works.
-const accountDisabledMessage = "account_disabled"
-
-// requireActiveUser authenticates the caller and refuses a disabled account.
-//
-// This is where "disable this account" becomes immediate. The access token is a
-// signed JWT the server never stores, so it cannot be retired — the only way to
-// stop honouring one is to check at the point the identity is resolved, and
-// requireAuth is the single funnel every authenticated route reaches. The cost
-// is one primary-key read per request, which is strictly less than the
-// ListTeamMembers every team-scoped route already does. Waiting out the access
-// token instead would make "disable" mean "in about a week", which is not the
-// feature.
-func (h *Handler) requireActiveUser(w http.ResponseWriter, r *http.Request) (string, bool) {
-	userID, ok := requireAuth(w, r, h.cfg.JWTSecret)
-	if !ok {
-		return "", false
-	}
-	if h.cfg.UserStore == nil {
-		// No store to ask. A deployment without one has no accounts to
-		// disable, so there is nothing this check could have found.
-		return userID, true
-	}
-	user, err := h.cfg.UserStore.GetUser(r.Context(), userID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "require_active_user", "user_id", userID)
-		return "", false
-	}
-	// A token naming an account the store does not have is allowed through
-	// unchanged. Nothing deletes accounts, so this is not a state a deployment
-	// reaches; tightening it is a separate decision from disablement, and
-	// making it here would change what an unknown subject means on every route
-	// at once.
-	if user != nil && user.Disabled() {
-		httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
-		return "", false
-	}
-	return userID, true
-}
-
-// rejectDisabled writes the refusal for a disabled account and reports whether
-// the caller may continue. It exists so the login paths state the rule once.
-func (h *Handler) rejectDisabled(w http.ResponseWriter, r *http.Request, user *model.User, handler string) bool {
-	if user == nil || !user.Disabled() {
-		return true
-	}
-	slog.Info("refused a disabled account", "handler", handler, "user_id", user.UserID, "remote", r.RemoteAddr)
-	httputil.WriteJSONError(w, http.StatusForbidden, accountDisabledMessage)
-	return false
-}
-
-func (h *Handler) requireStore(w http.ResponseWriter, store interface{}, unavailableMessage string) bool {
-	if store == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, unavailableMessage)
-		return false
-	}
-	return true
-}
-
-func pathValueRequired(w http.ResponseWriter, r *http.Request, key string) (value string, ok bool) {
-	value = r.PathValue(key)
-	if value == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, key+" required")
-		return "", false
-	}
-	return value, true
-}
-
-func (h *Handler) withUserAndStore(w http.ResponseWriter, r *http.Request, store interface{}, unavailableMsg string) (userID string, ok bool) {
-	if !h.requireStore(w, store, unavailableMsg) {
-		return "", false
-	}
-	userID, ok = h.requireActiveUser(w, r)
-	if !ok {
-		return "", false
-	}
-	return userID, true
-}
-
-func (h *Handler) withUserPathTeamAndStore(w http.ResponseWriter, r *http.Request, store interface{}, unavailableMsg string) (userID, teamID string, ok bool) {
-	userID, ok = h.withUserAndStore(w, r, store, unavailableMsg)
-	if !ok {
-		return "", "", false
-	}
-	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
-		return "", "", false
-	}
-	teamID, ok = pathValueRequired(w, r, "team_id")
-	if !ok {
-		return "", "", false
-	}
-	_, resolvedTeamID, ok := h.withExplicitTeam(w, r, userID, teamID)
-	if !ok {
-		return "", "", false
-	}
-	return userID, resolvedTeamID, true
-}
-
-func (h *Handler) withExplicitTeam(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, string, bool) {
-	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
-		return "", "", false
-	}
-	resolvedTeamID, ok := h.resolveTeamID(w, r, userID, teamID)
-	if !ok {
-		return "", "", false
-	}
-	return userID, resolvedTeamID, true
-}
-
-func (h *Handler) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, explicitTeamID string) (string, bool) {
-	if explicitTeamID == "" {
-		team, err := h.cfg.TeamStore.GetPersonalTeamByUser(r.Context(), userID)
-		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_current_team", "user_id", userID)
-			return "", false
-		}
-		if team == nil {
-			httputil.WriteJSONError(w, http.StatusForbidden, "team not found")
-			return "", false
-		}
-		return team.TeamID, true
-	}
-	teams, err := h.cfg.TeamStore.ListTeamsByUser(r.Context(), userID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_current_team", "user_id", userID)
-		return "", false
-	}
-	for _, team := range teams {
-		if team.TeamID == explicitTeamID {
-			return team.TeamID, true
-		}
-	}
-	// Every team-scoped route passes through here, so this one call covers
-	// reaching into a team you are not a member of, whatever the route.
-	h.cfg.Audit.Denied(r.Context(), userID, explicitTeamID, r.Pattern)
-	httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
-	return "", false
-}
-
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
-		return false
-	}
-	return true
-}
-
-func userIDFromRequest(r *http.Request, jwtSecret string) (string, bool) {
-	claims, ok := claimsFromRequest(r, jwtSecret)
-	if !ok {
-		return "", false
-	}
-	return claims.Sub, true
-}
-
-func claimsFromRequest(r *http.Request, jwtSecret string) (*jwtClaims, bool) {
-	if jwtSecret == "" {
-		return nil, false
-	}
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return nil, false
-	}
-	const prefix = "Bearer "
-	if !strings.HasPrefix(auth, prefix) {
-		return nil, false
-	}
-	tokenStr := strings.TrimSpace(auth[len(prefix):])
-	if tokenStr == "" {
-		return nil, false
-	}
-	return parseAccessToken(tokenStr, jwtSecret)
-}
-
-func userIDFromToken(tokenStr string, jwtSecret string) (string, bool) {
-	if jwtSecret == "" || tokenStr == "" {
-		return "", false
-	}
-	claims, ok := parseAccessToken(strings.TrimSpace(tokenStr), jwtSecret)
-	if !ok {
-		return "", false
-	}
-	return claims.Sub, true
-}
-
-// parseAccessToken verifies a token and confirms it is an access token.
-//
-// An empty typ is accepted: tokens signed before the claim existed are still
-// valid until they expire, and rejecting them would sign every user out at
-// upgrade — which in a deployment with no email means an operator issuing a
-// login code to each of them by hand.
-func parseAccessToken(tokenStr, jwtSecret string) (*jwtClaims, bool) {
-	token, err := jwt.ParseWithClaims(tokenStr, &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithLeeway(jwtLeeway))
-	if err != nil || !token.Valid {
-		return nil, false
-	}
-	claims, ok := token.Claims.(*jwtClaims)
-	if !ok || claims.Sub == "" {
-		return nil, false
-	}
-	if claims.Typ != "" && claims.Typ != tokenTypeAccess {
-		return nil, false
-	}
-	return claims, true
 }

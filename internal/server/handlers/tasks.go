@@ -120,11 +120,11 @@ type tasksListResponse struct {
 }
 
 func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
-	conversationID, ok := pathValueRequired(w, r, "conversation_id")
+	conversationID, ok := httputil.PathValue(w, r, "conversation_id")
 	if !ok {
 		return
 	}
@@ -134,7 +134,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	q := r.URL.Query()
 	usePaginated := q.Has("limit") || q.Has("offset") || q.Get("executed_only") == "true"
 	if usePaginated {
-		limit, offset := parseLimitOffset(q, "limit", "offset", bulkPageDefault, bulkPageMax)
+		limit, offset := httputil.LimitOffset(q, "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
 		executedOnly := q.Get("executed_only") == "true"
 		list, total, err := h.cfg.TaskStore.ListTasksByConversationPaginated(r.Context(), conversationID, executedOnly, limit, offset)
 		if err != nil {
@@ -165,11 +165,11 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
-	conversationID, ok := pathValueRequired(w, r, "conversation_id")
+	conversationID, ok := httputil.PathValue(w, r, "conversation_id")
 	if !ok {
 		return
 	}
@@ -177,7 +177,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	var req createTaskRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
@@ -200,11 +200,11 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}
-	taskID, ok := pathValueRequired(w, r, "task_id")
+	taskID, ok := httputil.PathValue(w, r, "task_id")
 	if !ok {
 		return
 	}
@@ -246,11 +246,11 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
 	if !ok {
 		return
 	}
-	taskID, ok := pathValueRequired(w, r, "task_id")
+	taskID, ok := httputil.PathValue(w, r, "task_id")
 	if !ok {
 		return
 	}
@@ -259,7 +259,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req createTaskRunRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.Input == "" {
@@ -285,11 +285,11 @@ type retryTaskResponse struct {
 // with what the run was asked to do, and making someone retype the instructions
 // to recover from it invites them to retype them differently.
 func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
 	if !ok {
 		return
 	}
-	taskID, ok := pathValueRequired(w, r, "task_id")
+	taskID, ok := httputil.PathValue(w, r, "task_id")
 	if !ok {
 		return
 	}
@@ -343,11 +343,11 @@ type cancelTaskResponse struct {
 // loop, and pretending otherwise would leave the run's own record lying about
 // what it was doing. `StaleRunReaper` finishes the ones no worker answers for.
 func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
 	if !ok {
 		return
 	}
-	taskID, ok := pathValueRequired(w, r, "task_id")
+	taskID, ok := httputil.PathValue(w, r, "task_id")
 	if !ok {
 		return
 	}
@@ -455,7 +455,7 @@ type ConversationResponse struct {
 }
 
 func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
 	if !ok {
 		return
 	}

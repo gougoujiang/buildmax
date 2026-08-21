@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,10 +33,10 @@ func TestRunTokenIsNotAUserLogin(t *testing.T) {
 		t.Fatalf("MintRun: %v", err)
 	}
 
-	if claims, ok := parseAccessToken(token, secret); ok {
+	if claims, ok := access.Verify(token, secret); ok {
 		t.Errorf("a run token was accepted as an access token for %q", claims.Sub)
 	}
-	if userID, ok := userIDFromToken(token, secret); ok {
+	if userID, ok := access.UserIDFromToken(token, secret); ok {
 		t.Errorf("a run token resolved to user %q", userID)
 	}
 }

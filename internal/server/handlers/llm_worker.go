@@ -28,7 +28,7 @@ const workerSurface = "worker"
 // its run cannot go on spending a team's quota, and the run's team must match
 // the token's, so a token and a reassigned run cannot disagree silently.
 func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Request) {
-	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
 	if !ok {
 		return
 	}
@@ -39,7 +39,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	if !h.requireLLMGateway(w) {
 		return
 	}
-	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
+	if !httputil.RequireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
 		return
 	}
 	run, task, err := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)

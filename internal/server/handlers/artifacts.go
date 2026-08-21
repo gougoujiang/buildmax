@@ -31,14 +31,14 @@ func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
 }
 
 func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
+	if !httputil.RequireStore(w, h.cfg.TaskStore, "tasks not configured") {
 		return
 	}
-	taskID, ok := pathValueRequired(w, r, "task_id")
+	taskID, ok := httputil.PathValue(w, r, "task_id")
 	if !ok {
 		return
 	}
@@ -63,7 +63,7 @@ type ArtifactItemResponse struct {
 }
 
 func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Request, taskRunID string) (run *model.TaskRun, task *model.Task, ok bool) {
-	if !h.requireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
+	if !httputil.RequireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
 		return nil, nil, false
 	}
 	var err error
@@ -92,11 +92,11 @@ func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
-	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
 	if !ok {
 		return
 	}
@@ -151,14 +151,14 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ta
 }
 
 func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.RunOutputLister, "artifacts not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.RunOutputLister, "artifacts not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !h.requireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
+	if !httputil.RequireStore(w, h.cfg.RunOutputLister, "artifacts not configured") || !httputil.RequireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
 		return
 	}
-	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
 	if !ok {
 		return
 	}
