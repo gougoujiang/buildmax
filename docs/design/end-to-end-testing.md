@@ -277,6 +277,20 @@ deployment-level fact no handler test can reach:
 - **Failure recovery** — a worker that dies mid-run leaves the run in a
   terminal, diagnosable state with its artifacts and logs retrievable.
 
+Retry and authorization denial are covered by the deployment smoke. The other
+two are not, and the reason belongs here rather than in a backlog: both need a
+run that is slow, or that fails on purpose, and the deployment's mock answers
+every call with the same scripted reply. Covering them means letting the
+deployment mock serve more than one scenario — selected by the model alias a
+run uses, never inferred from what a request says — and giving the smoke stack
+a second alias to point at. That is an enabling change, not a test someone
+forgot to write.
+
+Both assertions poll rather than read once. A task reports `SUCCEEDED` before
+its run output is queryable, so a single read fails on a run that did
+everything right; that ordering is a property of the deployment, and an
+assertion that ignores it measures the clock instead of the system.
+
 ## 7. AI Agent Workflow
 
 The harness is a first-class tool for code-changing agents, not merely a CI
