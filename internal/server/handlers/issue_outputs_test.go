@@ -12,6 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -102,7 +103,7 @@ func newOutputsFixtures(t *testing.T, artifactStorage blob.ArtifactStorage) *out
 func fetchIssueFlow(t *testing.T, mux *http.ServeMux, teamID, issueID, userID string) (*httptest.ResponseRecorder, issueFlowResponse) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/issues/"+issueID+"/flow", nil)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(userID, outputsTestSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, outputsTestSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	var flow issueFlowResponse

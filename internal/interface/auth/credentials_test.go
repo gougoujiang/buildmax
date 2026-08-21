@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 func TestSaveAndLoad(t *testing.T) {
@@ -103,8 +103,8 @@ func TestClear(t *testing.T) {
 
 func TestIsValid(t *testing.T) {
 	secret := "test-secret"
-	validToken := util.SignJWTWithExp("u_1", secret, 24*time.Hour)
-	expiredToken := util.SignJWTWithExp("u_1", secret, -1*time.Hour)
+	validToken := testsupport.SignJWTWithExp("u_1", secret, 24*time.Hour)
+	expiredToken := testsupport.SignJWTWithExp("u_1", secret, -1*time.Hour)
 
 	tests := []struct {
 		name  string

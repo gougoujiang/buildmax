@@ -10,7 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // auditFixture returns a mux plus the store the handlers write into.
@@ -45,7 +45,7 @@ func TestDenialIsRecorded(t *testing.T) {
 
 	// A member attempting an admin-only action.
 	req := httptest.NewRequest(http.MethodPost, "/api/teams/"+matrixTeam+"/agents", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(matrixMember, matrixSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(matrixMember, matrixSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
@@ -77,7 +77,7 @@ func TestAuditTrailIsOwnerOnly(t *testing.T) {
 		{matrixMember, http.StatusForbidden},
 	} {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+matrixTeam+"/audit-events", nil)
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT(tc.user, matrixSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(tc.user, matrixSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != tc.want {
@@ -98,7 +98,7 @@ func TestAuditTrailCarriesNoContent(t *testing.T) {
 	}}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+matrixTeam+"/audit-events", nil)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(matrixOwner, matrixSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(matrixOwner, matrixSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

@@ -1,4 +1,9 @@
-package util
+// Package testsupport holds helpers that exist only for tests.
+//
+// Separate from internal/util because of what it contains: nearly every
+// production package imports util, which put a JWT minter in every shipped
+// binary. internal/architecture keeps this package out of production code.
+package testsupport
 
 import (
 	"time"

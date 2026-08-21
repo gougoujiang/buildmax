@@ -69,6 +69,9 @@ Important ownership boundaries:
   database schema; `AutoMigrate` in `store.go` applies them. The full table
   reference and the rules for changing them are in
   [`docs/contribute/architecture/data-model.md`](docs/contribute/architecture/data-model.md).
+  GORM stays inside that package: above it, "no such row" is `model.ErrNotFound`.
+- `internal/mock` and `internal/testsupport` are test-only. Production code must
+  not import either; a test enforces it.
 
 Team is the ownership and authorization boundary for Portal resources. Issue is
 the primary user-facing work object. Workflows are team-scoped reusable linear
@@ -158,6 +161,10 @@ inspect their help and use them only when the task authorizes that effect.
   documented prefix convention.
 - Tool output is written for the LLM and must be meaningful on success and
   failure.
+- Keep code comments short. Comment the background and the decision — why this
+  approach, what was rejected, what breaks if it changes — not what the code
+  already says. A comment that restates its own function is noise to maintain;
+  delete it rather than update it. Longer rationale belongs in a design record.
 - Keep user documentation task-oriented. Keep contributor architecture factual.
   Keep rationale in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).

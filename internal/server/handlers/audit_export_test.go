@@ -11,7 +11,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // teamAuditExport drives the team-scoped export as one user.
@@ -43,7 +43,7 @@ func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID s
 	h.Register(mux)
 
 	req := httptest.NewRequest("GET", "/api/teams/"+teamID+"/audit-events/export?format=jsonl", nil)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(userID, matrixSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, matrixSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec

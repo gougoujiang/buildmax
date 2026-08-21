@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -91,7 +92,7 @@ func TestTeamScopedFilesHandlers(t *testing.T) {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	token := util.SignJWT("u1", filesTestSecret)
+	token := testsupport.SignJWT("u1", filesTestSecret)
 
 	t.Run("list files uses team scope", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamA+"/files", nil)

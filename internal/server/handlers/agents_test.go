@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -34,7 +35,7 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 	h := NewHandler(Config{JWTSecret: agentTestSecret, TeamStore: teamStore, AgentStore: agentStore})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	token := "Bearer " + util.SignJWT("u1", agentTestSecret)
+	token := "Bearer " + testsupport.SignJWT("u1", agentTestSecret)
 	base := "/api/teams/" + teamID + "/agents/" + created.AgentID
 
 	req := httptest.NewRequest(http.MethodGet, base+"/revisions", nil)
@@ -129,7 +130,7 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	token := "Bearer " + util.SignJWT("u1", agentTestSecret)
+	token := "Bearer " + testsupport.SignJWT("u1", agentTestSecret)
 	url := "/api/teams/" + teamID + "/agents/a_1"
 
 	req := httptest.NewRequest(http.MethodDelete, url, nil)
@@ -190,7 +191,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
-			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "Updated",
 		},
@@ -199,7 +200,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":""}`,
-			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "name required",
 		},
@@ -208,7 +209,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
 			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
-			authHeader:  "Bearer " + util.SignJWT("u2", agentTestSecret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u2", agentTestSecret),
 			wantStatus:  http.StatusForbidden,
 			wantBodyHas: "forbidden",
 		},
@@ -217,7 +218,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_999",
 			body:        `{"name":"X","description":"","instructions":""}`,
-			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},
@@ -282,13 +283,13 @@ func TestDeleteAgentHandler(t *testing.T) {
 		{
 			name:       "DELETE success returns 204",
 			url:        "/api/teams/" + personalTeamID + "/agents/a_1",
-			authHeader: "Bearer " + util.SignJWT("u1", agentTestSecret),
+			authHeader: "Bearer " + testsupport.SignJWT("u1", agentTestSecret),
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:        "DELETE non-existent agent returns 404",
 			url:         "/api/teams/" + personalTeamID + "/agents/a_999",
-			authHeader:  "Bearer " + util.SignJWT("u1", agentTestSecret),
+			authHeader:  "Bearer " + testsupport.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "not found",
 		},

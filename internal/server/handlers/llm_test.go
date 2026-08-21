@@ -14,7 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 const (
@@ -163,7 +163,7 @@ func llmRequest(t *testing.T, method, path, body string, gateway *llmgateway.Ser
 		req = httptest.NewRequest(method, path, strings.NewReader(body))
 	}
 	if auth {
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT(llmTestUser, llmTestSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(llmTestUser, llmTestSecret))
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -350,7 +350,7 @@ func TestLLMCompletionsRejectsNonMembers(t *testing.T) {
 	h.Register(mux)
 
 	req := httptest.NewRequest(http.MethodPost, completionsPath(), strings.NewReader(helloBody))
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT("u_outsider", llmTestSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u_outsider", llmTestSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

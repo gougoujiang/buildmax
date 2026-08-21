@@ -12,7 +12,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // Every route under /api/teams/{team_id} is a team-scoped resource, and Team is
@@ -199,12 +199,12 @@ func requestAs(t *testing.T, mux *http.ServeMux, c authzCase, teamID, userID str
 	// and a 404 for a missing object still proves the caller got past the gate.
 	path = regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "nonexistent")
 	if c.tokenInQuery && userID != "" {
-		path += "?token=" + util.SignJWT(userID, matrixSecret)
+		path += "?token=" + testsupport.SignJWT(userID, matrixSecret)
 	}
 	req := httptest.NewRequest(c.method, path, strings.NewReader("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	if userID != "" && !c.tokenInQuery {
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT(userID, matrixSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, matrixSecret))
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

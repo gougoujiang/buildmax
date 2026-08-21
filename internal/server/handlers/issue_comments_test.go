@@ -9,7 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 const commentTestSecret = "comment-test-secret"
@@ -62,7 +62,7 @@ func commentRequest(t *testing.T, mux *http.ServeMux, method, path, userID, body
 		reader = strings.NewReader(body)
 	}
 	req := httptest.NewRequest(method, path, reader)
-	req.Header.Set("Authorization", "Bearer "+util.SignJWT(userID, commentTestSecret))
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, commentTestSecret))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

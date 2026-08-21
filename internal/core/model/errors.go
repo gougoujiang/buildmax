@@ -2,6 +2,10 @@ package model
 
 import "errors"
 
+// ErrNotFound is returned when an operation's only return is an error and the
+// row it names does not exist. Callers that can get a nil value keep using that.
+var ErrNotFound = errors.New("not found")
+
 // ErrEmailExists is returned by CreateUser when the email is already registered.
 var ErrEmailExists = errors.New("email already exists")
 

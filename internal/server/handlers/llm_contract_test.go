@@ -11,7 +11,7 @@ import (
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // The managed contract: a call through the gateway must produce the same core
@@ -83,7 +83,7 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 
 	return llmremote.NewClient(llmremote.Config{
 		ServerURL:   server.URL,
-		Token:       util.SignJWT(llmTestUser, llmTestSecret),
+		Token:       testsupport.SignJWT(llmTestUser, llmTestSecret),
 		TeamID:      llmTestTeam,
 		CallTimeout: 10 * time.Second,
 	})

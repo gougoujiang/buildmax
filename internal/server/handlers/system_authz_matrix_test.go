@@ -14,7 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
 
 // Every route under /api/admin is deployment-scoped, and a system grant is the
@@ -133,7 +133,7 @@ func adminRequestAs(t *testing.T, mux *http.ServeMux, c adminCase, userID string
 	req := httptest.NewRequest(c.method, path, strings.NewReader("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	if userID != "" {
-		req.Header.Set("Authorization", "Bearer "+util.SignJWT(userID, matrixSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, matrixSecret))
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

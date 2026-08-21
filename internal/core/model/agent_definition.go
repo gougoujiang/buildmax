@@ -62,6 +62,7 @@ type AgentStore interface {
 	// DeleteAgent and DeleteAgentInTeam mark the agent deleted rather than
 	// removing the row. Deleting an agent a published workflow still names is
 	// refused above this layer; see the delete handler.
+	// Both return ErrNotFound when there is no such live agent for that owner.
 	DeleteAgent(ctx context.Context, agentID, userID string) error
 	DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error
 	// ListAgentRevisions returns an agent's revisions, newest first, with the

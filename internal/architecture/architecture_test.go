@@ -15,16 +15,21 @@ var importRules = []struct {
 	name      string
 	dir       string
 	forbidden []string
+	// except exempts directories, and everything under them, for a rule whose
+	// dependency exactly one package legitimately owns.
+	except []string
 }{
 	{
 		name: "core stays independent of adapters",
 		dir:  "internal/core",
 		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/agentapp",
 			"github.com/gougoujiang/buildmax/internal/bootstrap",
 			"github.com/gougoujiang/buildmax/internal/config",
 			"github.com/gougoujiang/buildmax/internal/infra",
 			"github.com/gougoujiang/buildmax/internal/interface",
 			"github.com/gougoujiang/buildmax/internal/server",
+			"github.com/gougoujiang/buildmax/internal/service",
 		},
 	},
 	{
@@ -41,9 +46,41 @@ var importRules = []struct {
 		dir:  "internal/server",
 		forbidden: []string{
 			"github.com/gougoujiang/buildmax/internal/bootstrap",
-			"github.com/gougoujiang/buildmax/internal/config",
 			"github.com/gougoujiang/buildmax/internal/interface",
+			"github.com/gougoujiang/buildmax/internal/config",
 		},
+	},
+	{
+		// agentapp is deliberately absent: service/conversation/runtime imports
+		// it for NewNonInteractivePolicy, and that one call is the whole
+		// dependency. Removable, but real — and a rule that fails on main
+		// teaches contributors to skip the suite.
+		name: "service is reached by transports, not the reverse",
+		dir:  "internal/service",
+		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/bootstrap",
+			"github.com/gougoujiang/buildmax/internal/interface",
+			"github.com/gougoujiang/buildmax/internal/server",
+		},
+	},
+	{
+		name: "agentapp does not depend on the surfaces that assemble it",
+		dir:  "internal/agentapp",
+		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/bootstrap",
+			"github.com/gougoujiang/buildmax/internal/interface",
+			"github.com/gougoujiang/buildmax/internal/server",
+		},
+	},
+	{
+		// Above this boundary, "no such row" is model.ErrNotFound.
+		name: "gorm stays inside the db implementation",
+		dir:  "internal",
+		forbidden: []string{
+			"gorm.io/gorm",
+			"gorm.io/driver",
+		},
+		except: []string{"internal/infra/db"},
 	},
 }
 
@@ -53,6 +90,9 @@ func TestInternalLayerImports(t *testing.T) {
 		t.Run(rule.name, func(t *testing.T) {
 			files := goFiles(t, filepath.Join(root, rule.dir))
 			for _, path := range files {
+				if excluded(rel(root, path), rule.except) {
+					continue
+				}
 				f := parseFile(t, path)
 				for _, imp := range f.Imports {
 					importPath, err := strconv.Unquote(imp.Path.Value)
@@ -83,6 +123,44 @@ func TestNoInternalTypeAliases(t *testing.T) {
 			return true
 		})
 	}
+}
+
+// Reached from production code, each of these is either a shipped capability
+// that should not exist or a real dependency wired to a fake.
+var testOnlyPackages = []string{
+	"github.com/gougoujiang/buildmax/internal/mock",
+	"github.com/gougoujiang/buildmax/internal/testsupport",
+}
+
+func TestTestOnlyPackagesStayInTests(t *testing.T) {
+	root := moduleRoot(t)
+	for _, path := range goFiles(t, filepath.Join(root, "internal")) {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		f := parseFile(t, path)
+		for _, imp := range f.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				t.Fatalf("unquote import in %s: %v", path, err)
+			}
+			for _, pkg := range testOnlyPackages {
+				if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
+					t.Errorf("%s is not a test file but imports test-only package %s",
+						rel(root, path), importPath)
+				}
+			}
+		}
+	}
+}
+
+func excluded(relPath string, exempt []string) bool {
+	for _, dir := range exempt {
+		if relPath == dir || strings.HasPrefix(relPath, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func moduleRoot(t *testing.T) string {

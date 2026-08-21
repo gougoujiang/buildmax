@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -19,7 +20,7 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 	teamID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskID := "task-1"
-	token := util.SignJWT(userID, secret)
+	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
@@ -72,7 +73,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	teamID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskRunID := "run-1"
-	token := util.SignJWT(userID, secret)
+	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
@@ -117,7 +118,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	conversationID := "conv-1"
 	taskRunID := "run-1"
 	taskID := "task-1"
-	token := util.SignJWT(userID, secret)
+	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{

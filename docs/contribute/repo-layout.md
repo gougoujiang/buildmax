@@ -122,6 +122,8 @@ internal/
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
+│   ├── audit/          Records that a sensitive action happened (governance,
+│   │                   not diagnostics — see the package doc)
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
 │
@@ -132,7 +134,8 @@ internal/
 ├── infra/              External-system implementations
 │   ├── db/             MySQL/GORM implementation of the core repositories
 │   ├── objectstore/    Local FS and S3/MinIO persist + artifact storage
-│   ├── llm/            OpenAI-compatible LLM client
+│   ├── llm/            LLMClient over the wire protocols BuildMax speaks:
+│   │                   OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
 │   ├── llmwire/        Versioned wire contract for managed inference
 │   ├── llmremote/      LLM client that calls a BuildMax managed gateway
 │   ├── mcp/            MCP protocol, client transport, registry
@@ -152,6 +155,7 @@ internal/
 │
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
+│   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers
 │   ├── scheduler/      Claims pending task runs and spawns workers
 │   ├── websocket/      Team websocket hub and stream fan-out
@@ -159,8 +163,10 @@ internal/
 │
 ├── agenteval/          Evaluation harness: task catalog and runner
 ├── architecture/       Architectural constraint tests (import boundaries)
-├── mock/               Test-only mocks and helpers
-└── util/               ID generation, workspace helpers, git, argparse
+├── mock/               Test-only in-memory stores
+├── testsupport/        Test-only helpers that must not ship (JWT signing)
+└── util/               ID generation, prefixed IDs, workspace path resolution,
+                        small string and time helpers
 ```
 
 ## Dependency Direction
@@ -173,10 +179,26 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   `agentapp`, or `interface`. It is pure domain.
 - `config` does env and file loading only; it does not import infra
   implementations.
+- `infra` imports nothing from `bootstrap`, `interface`, or `server`.
+- `server` imports nothing from `bootstrap`, `config`, or `interface`.
+- `service` imports nothing from `bootstrap`, `interface`, or `server`. A
+  service is reached by a transport and never reaches back for one.
+- `agentapp` imports nothing from `bootstrap`, `interface`, or `server`. Every
+  surface that assembles it sits above it.
+- `gorm.io` is imported only by `infra/db`. Above that boundary, "no such row"
+  is `model.ErrNotFound`, which the store translates to.
+- `mock` and `testsupport` are imported only from `_test.go` files. Neither may
+  be reached from code that ships.
 - `internal/tool` is not pure — it imports infra (MCP, git) as needed.
 
 These rules are enforced by tests in `internal/architecture`. If a change trips
 one, the import is the problem, not the test.
+
+One exception is recorded rather than enforced: `service/conversation/runtime`
+imports `agentapp` for `NewNonInteractivePolicy`. That one call is the whole
+dependency and the policy it returns needs only `core`, so the import is
+removable — but it is real today, and a rule that fails teaches contributors to
+ignore the suite.
 
 ## Frontends
 

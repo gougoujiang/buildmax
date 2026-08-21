@@ -12,6 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -45,7 +46,7 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 		taskID         = traceTestTaskID
 		taskRunID      = traceTestTaskRunID
 	)
-	token := util.SignJWT(userID, secret)
+	token := testsupport.SignJWT(userID, secret)
 
 	h := NewHandler(Config{
 		JWTSecret:     secret,
@@ -251,7 +252,7 @@ func TestGetTaskRunTraceHandler_RejectsEscapingTracePath(t *testing.T) {
 func TestGetTaskRunTraceHandler_DeniesOtherTeams(t *testing.T) {
 	tracePath := util.Ptr("traces/c_s1/rt_abc.jsonl")
 	mux, _, teamID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
-	outsider := util.SignJWT("user-2", "test-secret")
+	outsider := testsupport.SignJWT("user-2", "test-secret")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
 	req.Header.Set("Authorization", "Bearer "+outsider)
