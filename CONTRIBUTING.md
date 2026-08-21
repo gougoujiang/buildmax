@@ -222,17 +222,18 @@ prefixed entity IDs, LLM-facing tool output — are in
 
 ## Pull Requests
 
-**Pull requests are squash-merged.** Two things follow from that, and they are
-the two most common review comments on a first contribution:
+**Pull requests are merged with a merge commit**, so every commit on the branch
+lands on `main`. Two things follow from that, and they are the two most common
+review comments on a first contribution:
 
-- **The pull request title becomes the commit subject on `main`.** Write it as a
-  single imperative line that reads on its own in `git log --oneline` — `Add a
-  login-code expiry check`, not `fixed login stuff`, `WIP`, or a bare issue
-  number. How you organize the commits on your branch is up to you; only the
-  title survives the merge.
-- **One coherent change per pull request.** Everything on the branch collapses
-  into one commit, so three unrelated fixes become one commit that cannot be
-  reverted separately. Two changes, two pull requests.
+- **Every commit subject is public.** Write each one as a single imperative line
+  that reads on its own in `git log --oneline` — `Add a login-code expiry
+  check`, not `fixed login stuff`, `WIP`, or a bare issue number. Tidy the
+  branch before review rather than after; `wip` and `address review` are
+  permanent once merged.
+- **One coherent change per pull request.** The merge commit is the revert
+  handle, so a pull request that does three unrelated things cannot have one of
+  them backed out. Two changes, two pull requests.
 
 The rest:
 

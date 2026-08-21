@@ -99,17 +99,18 @@ attribution is noise in a history that anyone can read.
 - Commit subjects are a **single imperative line** — `Move the Dockerfiles into
   deployment/docker`, not `moved dockerfiles` or `fix stuff`. Add a body when
   the reason is not obvious from the diff.
-- **Pull requests are squash-merged, so the pull request title becomes the
-  commit subject on `main`.** Write the title to the rule above: one imperative
-  line, specific enough to read on its own in `git log --oneline`. `Fix the
-  worker artifact path` — not `Bug fix`, not `WIP`, not an issue number alone.
-  The commits on your branch are yours to organize however you like; only the
-  title survives.
-- Keep the branch to **one coherent change**. Squash merging collapses whatever
-  is on the branch into a single commit, so a pull request that does three
-  unrelated things becomes one commit that does three unrelated things, and
-  reverting one of them means reverting all three. Two changes, two pull
-  requests.
+- **Pull requests are merged with a merge commit, so every commit on the branch
+  lands on `main`.** Each subject follows the rule above, not just the pull
+  request title: `Fix the worker artifact path` — not `Bug fix`, not `WIP`, not
+  an issue number alone. Organize the branch into the commits you want in the
+  history, and rewrite it before merge rather than appending `fix review
+  comments` — that commit is permanent.
+- **The pull request title becomes the merge commit subject.** It is what the
+  history shows for the change as a whole, so write it as one imperative line
+  that reads without the branch under it.
+- Keep the branch to **one coherent change**. The merge commit is what a revert
+  targets, so a pull request that does three unrelated things cannot have one of
+  them backed out later. Two changes, two pull requests.
 - Do **not** add `Co-Authored-By` or `Claude-Session` trailers to commits.
 - Do **not** add a "Generated with …" footer or an assistant session link to a
   pull request description.

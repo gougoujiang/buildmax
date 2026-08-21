@@ -1,6 +1,7 @@
 <!--
-This PR will be squash-merged, so the TITLE above becomes the commit subject on
-main: one imperative line that reads on its own in `git log --oneline`.
+This PR is merged with a merge commit: the TITLE above becomes the merge commit
+subject, and every commit on the branch lands on main too. One imperative line
+each, reading on its own in `git log --oneline`.
 
 CONTRIBUTING.md has the full guidance. The short version: one concern per PR,
 tests for behavioral changes, and documentation updated alongside the code.
