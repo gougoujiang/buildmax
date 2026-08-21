@@ -143,3 +143,56 @@ func TestFilePermissions(t *testing.T) {
 		t.Fatalf("expected 0600, got %04o", perm)
 	}
 }
+
+// TestLoadWaitsForAReplacementInFlight pins the reason credentialsMu exists: a
+// reader waits for a replacement instead of racing it.
+//
+// POSIX would let the read through either way, so the platform this protects is
+// Windows, where opening the file while the rename is in flight fails with a
+// sharing violation — which is how it was found, as an intermittent CI failure
+// with eight concurrent callers. Asserting the wait rather than the absence of
+// an error is what keeps the invariant testable on every platform.
+func TestLoadWaitsForAReplacementInFlight(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auth.json")
+	if err := Save(&Credentials{Token: "first"}, path); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	renaming := make(chan struct{})
+	release := make(chan struct{})
+	originalRename := renameCredentialsFile
+	renameCredentialsFile = func(oldPath, newPath string) error {
+		close(renaming)
+		<-release
+		return originalRename(oldPath, newPath)
+	}
+	t.Cleanup(func() { renameCredentialsFile = originalRename })
+
+	saved := make(chan error, 1)
+	go func() { saved <- Save(&Credentials{Token: "second"}, path) }()
+	<-renaming
+
+	loaded := make(chan *Credentials, 1)
+	go func() {
+		creds, err := Load(path)
+		if err != nil {
+			t.Errorf("load during a replacement: %v", err)
+		}
+		loaded <- creds
+	}()
+
+	select {
+	case creds := <-loaded:
+		t.Fatalf("Load returned %+v while the replacement was in flight; it must wait for it", creds)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	if err := <-saved; err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	creds := <-loaded
+	if creds == nil || creds.Token != "second" {
+		t.Fatalf("loaded %+v after the replacement, want the token it wrote", creds)
+	}
+}
