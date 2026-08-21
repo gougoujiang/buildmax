@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,8 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	binary = filepath.Join(dir, "buildmax")
+	// Windows will not execute a file without the extension, whatever -o names.
+	binary = filepath.Join(dir, exeName("buildmax"))
 	if _, statErr := os.Stat(filepath.Join(root, "go.mod")); statErr != nil {
 		fmt.Fprintln(os.Stderr, statErr)
 		os.Exit(1)
@@ -44,6 +46,13 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)
+}
+
+func exeName(name string) string {
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
 }
 
 func moduleRoot() (string, error) {
