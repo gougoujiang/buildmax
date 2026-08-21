@@ -1,0 +1,22 @@
+{
+  "name": "write a file, then report it",
+  "steps": [
+    {
+      "text": "writing it now",
+      "tool_calls": [
+        {
+          "name": "Write",
+          "args": {
+            "file_path": "notes.txt",
+            "content": "scripted content\n"
+          }
+        }
+      ],
+      "usage": { "prompt_tokens": 120, "completion_tokens": 18 }
+    },
+    {
+      "text": "wrote notes.txt",
+      "usage": { "prompt_tokens": 140, "completion_tokens": 4 }
+    }
+  ]
+}
