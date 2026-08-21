@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"net/http"
@@ -75,9 +75,9 @@ func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
 }
 
 func (h *Handler) agentService() *agent.Service {
-	svc := &agent.Service{Agents: h.cfg.AgentStore}
-	if h.cfg.WorkflowStore != nil {
-		svc.Workflows = h.workflowService()
+	svc := &agent.Service{Agents: h.cfg.Agents}
+	if h.cfg.Workflows != nil {
+		svc.Workflows = h.workflowUsage()
 	}
 	return svc
 }
@@ -87,7 +87,7 @@ func (h *Handler) writeAgentServiceError(w http.ResponseWriter, err error) bool 
 }
 
 func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}
@@ -107,7 +107,7 @@ func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}
@@ -136,7 +136,7 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}
@@ -156,7 +156,7 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}
@@ -193,7 +193,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 // first. Reading history needs no more than team membership: it is the same
 // content the agent itself exposes, at earlier points in time.
 func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}
@@ -218,7 +218,7 @@ func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}
@@ -250,7 +250,7 @@ func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Agents, "agents not configured")
 	if !ok {
 		return
 	}

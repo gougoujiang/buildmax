@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"encoding/json"
@@ -30,13 +30,12 @@ func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID s
 			{TeamID: matrixOther, UserID: matrixOutside, Role: model.TeamRoleOwner},
 		},
 	}
-	h := NewHandler(Config{
-		JWTSecret:     matrixSecret,
-		TeamStore:     teams,
-		UserStore:     &mock.MockUserStore{},
-		AuditStore:    audits,
-		Audit:         audit.NewRecorder(audits),
-		WorkspacesDir: t.TempDir(),
+	h := New(Config{
+		JWTSecret: matrixSecret,
+		Teams:     teams,
+		Users:     &mock.MockUserStore{},
+		Audits:    audits,
+		Audit:     audit.NewRecorder(audits),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

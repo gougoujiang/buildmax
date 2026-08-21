@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 		t.Fatalf("UpdateAgentInTeam: %v", err)
 	}
 
-	h := NewHandler(Config{JWTSecret: agentTestSecret, TeamStore: teamStore, AgentStore: agentStore})
+	h := New(Config{JWTSecret: agentTestSecret, Teams: teamStore, Agents: agentStore})
 	mux := http.NewServeMux()
 	h.Register(mux)
 	token := "Bearer " + testsupport.SignJWT("u1", agentTestSecret)
@@ -122,11 +122,11 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 		Teams:   []model.Team{{TeamID: teamID, Name: "Team", CreatedBy: "u1"}},
 		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
 	}
-	h := NewHandler(Config{
-		JWTSecret:     agentTestSecret,
-		TeamStore:     teamStore,
-		AgentStore:    agentStore,
-		WorkflowStore: workflowStore,
+	h := New(Config{
+		JWTSecret: agentTestSecret,
+		Teams:     teamStore,
+		Agents:    agentStore,
+		Workflows: workflowStore,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -233,10 +233,10 @@ func TestPatchAgentHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler(Config{
-				JWTSecret:  agentTestSecret,
-				TeamStore:  teamStore,
-				AgentStore: agentStore,
+			h := New(Config{
+				JWTSecret: agentTestSecret,
+				Teams:     teamStore,
+				Agents:    agentStore,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)
@@ -311,10 +311,10 @@ func TestDeleteAgentHandler(t *testing.T) {
 				Teams:   []model.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
 				Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
 			}
-			h := NewHandler(Config{
-				JWTSecret:  agentTestSecret,
-				TeamStore:  teamStore,
-				AgentStore: store,
+			h := New(Config{
+				JWTSecret: agentTestSecret,
+				Teams:     teamStore,
+				Agents:    store,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)

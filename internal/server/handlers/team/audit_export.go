@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"context"
@@ -10,14 +10,14 @@ import (
 )
 
 func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AuditStore, "audit trail not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Audits, "audit trail not configured")
 	if !ok {
 		return
 	}
 	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionReadAuditTrail); !ok {
 		return
 	}
-	store := h.cfg.AuditStore
+	store := h.cfg.Audits
 	page := func(ctx context.Context, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
 		return store.ExportTeamAuditEvents(ctx, teamID, after, limit)
 	}

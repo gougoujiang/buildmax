@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"encoding/json"
@@ -18,19 +18,19 @@ func auditFixture(t *testing.T) (*http.ServeMux, *mock.MockAuditStore, *mock.Moc
 	t.Helper()
 	users := &mock.MockUserStore{}
 	store := &mock.MockAuditStore{}
-	h := NewHandler(Config{
+	h := New(Config{
 		JWTSecret: matrixSecret,
-		TeamStore: &mock.MockTeamStore{
+		Teams: &mock.MockTeamStore{
 			Teams: []model.Team{{TeamID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner}},
 			Members: []model.TeamMember{
 				{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
 				{TeamID: matrixTeam, UserID: matrixMember, Role: model.TeamRoleMember},
 			},
 		},
-		UserStore:  users,
-		AgentStore: &mock.MockAgentStore{},
-		AuditStore: store,
-		Audit:      audit.NewRecorder(store),
+		Users:  users,
+		Agents: &mock.MockAgentStore{},
+		Audits: store,
+		Audit:  audit.NewRecorder(store),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

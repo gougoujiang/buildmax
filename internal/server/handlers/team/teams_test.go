@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"bytes"
@@ -41,10 +41,10 @@ func TestTeamHandlers(t *testing.T) {
 			"u3": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},
 		},
 	}
-	h := NewHandler(Config{
+	h := New(Config{
 		JWTSecret: teamTestSecret,
-		UserStore: userStore,
-		TeamStore: teamStore,
+		Users:     userStore,
+		Teams:     teamStore,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

@@ -1,0 +1,91 @@
+// Package team serves what a team owns: its membership, its agents, its
+// webhook keys, its consumption, and its audit trail.
+//
+// The boundary is the one the product already has. Team is the ownership and
+// authorization unit for Portal resources, so a package holding exactly the
+// stores a team's own routes read makes that unit something the compiler knows
+// about rather than something every reviewer has to remember.
+package team
+
+import (
+	"net/http"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/gougoujiang/buildmax/internal/service/quota"
+	"github.com/gougoujiang/buildmax/internal/service/workflow"
+)
+
+type Config struct {
+	JWTSecret        string
+	DefaultQuotaTier string
+
+	Teams       model.TeamStore
+	Users       model.UserStore
+	Agents      model.AgentStore
+	WebhookKeys model.UserWebhookKeyStore
+	Audits      model.AuditStore
+	// Workflows answers one question here -- which published workflows still
+	// name an agent -- so that deleting one cannot silently break them. Nil
+	// leaves that check unmade, which is what a deployment without workflows
+	// has.
+	Workflows model.WorkflowStore
+
+	Quota *quota.Service
+	Audit *audit.Recorder
+}
+
+type Handler struct{ cfg Config }
+
+func New(cfg Config) *Handler { return &Handler{cfg: cfg} }
+
+func (h *Handler) guard() *access.Guard {
+	return &access.Guard{
+		JWTSecret: h.cfg.JWTSecret,
+		Users:     h.cfg.Users,
+		Teams:     h.cfg.Teams,
+		Audit:     h.cfg.Audit,
+	}
+}
+
+// workflowUsage answers only "which published workflows name this agent".
+//
+// Built from the workflow store alone rather than from a full workflow service:
+// the delete guard needs one query, and a service wired for orchestration would
+// tie an agent edit to task dispatch.
+func (h *Handler) workflowUsage() *workflow.Service {
+	if h.cfg.Workflows == nil {
+		return nil
+	}
+	return &workflow.Service{Workflows: h.cfg.Workflows}
+}
+
+func (h *Handler) Register(mux *http.ServeMux) {
+	// Teams and members
+	mux.HandleFunc("GET /api/teams", h.listTeamsHandler)
+	mux.HandleFunc("POST /api/teams", h.createTeamHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/members", h.listTeamMembersHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/members", h.addTeamMemberHandler)
+	mux.HandleFunc("DELETE /api/teams/{team_id}/members/{user_id}", h.removeTeamMemberHandler)
+
+	// Agents
+	mux.HandleFunc("GET /api/teams/{team_id}/agents", h.listAgentsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/agents", h.createAgentHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}", h.getAgentHandler)
+	mux.HandleFunc("PATCH /api/teams/{team_id}/agents/{agent_id}", h.patchAgentHandler)
+	mux.HandleFunc("DELETE /api/teams/{team_id}/agents/{agent_id}", h.deleteAgentHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}/revisions", h.listAgentRevisionsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", h.restoreAgentRevisionHandler)
+
+	// Webhook keys
+	mux.HandleFunc("POST /api/webhook-keys", h.createWebhookKeyHandler)
+	mux.HandleFunc("GET /api/webhook-keys", h.listWebhookKeysHandler)
+	mux.HandleFunc("DELETE /api/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
+
+	// Usage and the audit trail
+	mux.HandleFunc("GET /api/usage", h.usageHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/audit-events", h.listAuditEventsHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/audit-events/export", h.exportAuditEventsHandler)
+}

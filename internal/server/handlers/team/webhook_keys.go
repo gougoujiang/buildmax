@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"encoding/json"
@@ -27,7 +27,7 @@ type webhookKeyMetaResponse struct {
 }
 
 func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.WebhookKeys, "webhook keys not configured")
 	if !ok {
 		return
 	}
@@ -36,7 +36,7 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	plaintextKey, keyID, err := h.cfg.UserWebhookKeyStore.CreateKey(r.Context(), userID, req.Name)
+	plaintextKey, keyID, err := h.cfg.WebhookKeys.CreateKey(r.Context(), userID, req.Name)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_webhook_key", "user_id", userID)
 		return
@@ -45,11 +45,11 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.WebhookKeys, "webhook keys not configured")
 	if !ok {
 		return
 	}
-	list, err := h.cfg.UserWebhookKeyStore.ListKeys(r.Context(), userID)
+	list, err := h.cfg.WebhookKeys.ListKeys(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_webhook_keys", "user_id", userID)
 		return
@@ -62,7 +62,7 @@ func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) revokeWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.UserWebhookKeyStore, "webhook keys not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.WebhookKeys, "webhook keys not configured")
 	if !ok {
 		return
 	}
@@ -71,7 +71,7 @@ func (h *Handler) revokeWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteJSONError(w, http.StatusBadRequest, "key_id required")
 		return
 	}
-	err := h.cfg.UserWebhookKeyStore.RevokeKey(r.Context(), userID, keyID)
+	err := h.cfg.WebhookKeys.RevokeKey(r.Context(), userID, keyID)
 	if err != nil {
 		httputil.WriteJSONError(w, http.StatusNotFound, "webhook key not found")
 		return

@@ -5,6 +5,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
+	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -99,5 +100,21 @@ func (h *Handler) authHandler() *authroutes.Handler {
 		Passwords:            h.cfg.PasswordStore,
 		RefreshTokens:        h.cfg.RefreshTokenStore,
 		Audit:                h.cfg.Audit,
+	})
+}
+
+// teamHandler builds the team surface from the stores a team's own routes read.
+func (h *Handler) teamHandler() *teamroutes.Handler {
+	return teamroutes.New(teamroutes.Config{
+		JWTSecret:        h.cfg.JWTSecret,
+		DefaultQuotaTier: h.cfg.DefaultQuotaTier,
+		Teams:            h.cfg.TeamStore,
+		Users:            h.cfg.UserStore,
+		Agents:           h.cfg.AgentStore,
+		WebhookKeys:      h.cfg.UserWebhookKeyStore,
+		Audits:           h.cfg.AuditStore,
+		Workflows:        h.cfg.WorkflowStore,
+		Quota:            h.cfg.QuotaService,
+		Audit:            h.cfg.Audit,
 	})
 }

@@ -1,4 +1,4 @@
-package handlers
+package team
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/team"
+	teamsvc "github.com/gougoujiang/buildmax/internal/service/team"
 )
 
 type teamResponse struct {
@@ -66,11 +66,11 @@ func teamMemberToResponse(member model.TeamMember, user *model.User) teamMemberR
 }
 
 func (h *Handler) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
-	list, err := h.cfg.TeamStore.ListTeamsByUser(r.Context(), userID)
+	list, err := h.cfg.Teams.ListTeamsByUser(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_teams", "user_id", userID)
 		return
@@ -83,7 +83,7 @@ func (h *Handler) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createTeamHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
@@ -96,7 +96,7 @@ func (h *Handler) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	team, err := h.cfg.TeamStore.CreateTeam(r.Context(), name, userID, h.cfg.DefaultQuotaTier)
+	team, err := h.cfg.Teams.CreateTeam(r.Context(), name, userID, h.cfg.DefaultQuotaTier)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_team", "user_id", userID)
 		return
@@ -104,12 +104,12 @@ func (h *Handler) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusCreated, teamToResponse(*team))
 }
 
-func (h *Handler) teamService() *team.Service {
-	return &team.Service{Teams: h.cfg.TeamStore, Users: h.cfg.UserStore}
+func (h *Handler) teamService() *teamsvc.Service {
+	return &teamsvc.Service{Teams: h.cfg.Teams, Users: h.cfg.Users}
 }
 
 func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
@@ -136,7 +136,7 @@ func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
@@ -151,7 +151,7 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	member, user, err := h.teamService().AddMember(r.Context(), team.AddMemberCmd{
+	member, user, err := h.teamService().AddMember(r.Context(), teamsvc.AddMemberCmd{
 		TeamID:  teamID,
 		ActorID: userID,
 		Email:   req.Email,
@@ -169,7 +169,7 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
@@ -184,7 +184,7 @@ func (h *Handler) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request
 	if _, resolvedTeamID, ok := h.guard().ExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
 		return
 	}
-	err := h.teamService().RemoveMember(r.Context(), team.RemoveMemberCmd{
+	err := h.teamService().RemoveMember(r.Context(), teamsvc.RemoveMemberCmd{
 		TeamID:       teamID,
 		ActorID:      userID,
 		TargetUserID: targetUserID,

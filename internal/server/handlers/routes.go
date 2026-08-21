@@ -11,31 +11,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// decide what a session may reach.
 	h.authHandler().Register(mux)
 
+	// What a team owns -- membership, agents, webhook keys, usage, audit trail --
+	// lives in its own package, holding exactly the stores those routes read.
+	h.teamHandler().Register(mux)
+
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)
-
-	// Usage
-	mux.HandleFunc("GET /api/usage", h.usageHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/audit-events", h.listAuditEventsHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/audit-events/export", h.exportAuditEventsHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)
-
-	// Teams and members
-	mux.HandleFunc("GET /api/teams", h.listTeamsHandler)
-	mux.HandleFunc("POST /api/teams", h.createTeamHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/members", h.listTeamMembersHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/members", h.addTeamMemberHandler)
-	mux.HandleFunc("DELETE /api/teams/{team_id}/members/{user_id}", h.removeTeamMemberHandler)
-
-	// Agents
-	mux.HandleFunc("GET /api/teams/{team_id}/agents", h.listAgentsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/agents", h.createAgentHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}", h.getAgentHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/agents/{agent_id}", h.patchAgentHandler)
-	mux.HandleFunc("DELETE /api/teams/{team_id}/agents/{agent_id}", h.deleteAgentHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}/revisions", h.listAgentRevisionsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", h.restoreAgentRevisionHandler)
 
 	// Issues
 	mux.HandleFunc("GET /api/teams/{team_id}/issues", h.listIssuesHandler)
@@ -65,11 +47,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/teams/{team_id}/upload", h.uploadHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/files", h.filesTreeHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/files/{path...}", h.fileContentHandler)
-
-	// Webhook keys
-	mux.HandleFunc("POST /api/webhook-keys", h.createWebhookKeyHandler)
-	mux.HandleFunc("GET /api/webhook-keys", h.listWebhookKeysHandler)
-	mux.HandleFunc("DELETE /api/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
 
 	// Conversations
 	mux.HandleFunc("GET /api/teams/{team_id}/conversations", h.listConversationsHandler)
