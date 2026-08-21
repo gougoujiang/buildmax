@@ -6,9 +6,9 @@
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
 - status: `in progress` — §9 step 1 is done: the model harness of §4 is
   `internal/testsupport/mockllm`, serving both the local suites and the
-  deployment smokes from one implementation. Step 2 landed its print-mode
-  golden paths as `internal/e2e/cli`. Open: the pseudo-terminal approval path
-  and §9 steps 3-6
+  deployment smokes from one implementation. Step 2 is done: `internal/e2e/cli`
+  covers the print-mode paths and answers an approval prompt on a
+  pseudo-terminal. Open: §9 steps 3-6
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -237,7 +237,12 @@ tool that asks, is approved, and changes a file — only exists under a terminal
 Print mode still carries everything that is not gated: output shape, session
 persistence and resume, trace contents, and failure text. Splitting the suite
 this way is what keeps the terminal-driven part small enough to stay inside the
-§5.1 budget.
+§5.1 budget: two tests answer the prompt, and everything else stays cheap.
+
+A pseudo-terminal has no emulator behind it, so the harness plays that part and
+answers the capability queries the TUI writes on startup. Left unanswered they
+cost five seconds a test while the TUI waits out its own timeout, which reads
+as the agent being slow rather than as the terminal being absent.
 
 **Concurrency must be proved to change nothing.**
 [parallel-tool-execution.md](./parallel-tool-execution.md) promises identical

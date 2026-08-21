@@ -40,7 +40,7 @@ reference, then delete the plan.
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
-| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Model harness complete and serving both the local suites and the deployment smokes (§9 step 1); CLI print-mode paths landed; the terminal approval path and §9 steps 3-6 open |
+| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Model harness and CLI suite complete, print mode and terminal approval both covered (§9 steps 1-2); §9 steps 3-6 open |
 
 ## Subsystem Specifications
 
