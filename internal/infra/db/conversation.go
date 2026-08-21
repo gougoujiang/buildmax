@@ -105,6 +105,7 @@ func (s *Store) GetConversation(ctx context.Context, conversationID string) (*mo
 // ListConversationsByUser returns conversations for the user ordered by created_at DESC.
 // total is the total count of matching conversations (ignoring limit/offset).
 func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]model.Conversation, int, error) {
+	limit, offset = capPage(limit, offset)
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&conversationRow{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -119,6 +120,7 @@ func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limi
 
 // ListConversationsByTeam returns conversations for the team ordered by created_at DESC.
 func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Conversation, int, error) {
+	limit, offset = capPage(limit, offset)
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&conversationRow{}).Where("team_id = ?", teamID).Count(&total).Error; err != nil {
 		return nil, 0, err

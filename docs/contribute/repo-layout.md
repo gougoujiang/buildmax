@@ -13,7 +13,8 @@ buildmax/
 ├── cmd/                  Binary entry points (main.go only)
 ├── internal/             All Go implementation
 ├── portal/               Portal web app (React 19 + Vite + TypeScript)
-├── desktop/frontend/     Desktop frontend (React 19 + Vite)
+├── desktop/frontend/     Desktop frontend (React 19 + Vite); src/lib holds the
+│                      pure helpers, src/components the panels and modals
 ├── gui/                  Shared React package @buildmax/gui, used by both
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
@@ -207,12 +208,6 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
 
 These rules are enforced by tests in `internal/architecture`. If a change trips
 one, the import is the problem, not the test.
-
-Eleven list queries in `infra/db` still have no ceiling: a caller passing
-`limit <= 0` reads every matching row. `clampPage` is not applied to them
-because their callers use 0 to mean "all", so capping them would silently
-truncate a result someone asked for in full. Giving them a bound is a decision
-about those callers, not a refactor.
 
 One exception is recorded rather than enforced: `service/conversation/runtime`
 imports `agentapp` for `NewNonInteractivePolicy`. That one call is the whole

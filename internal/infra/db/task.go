@@ -116,6 +116,7 @@ func (s *Store) ListTasksByConversation(ctx context.Context, conversationID stri
 // executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
 // total is the total number of matching tasks (ignoring limit/offset).
 func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]model.Task, int, error) {
+	limit, offset = capPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&taskRow{}).Where("conversation_id = ?", conversationID)
 	if executedOnly {
 		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
@@ -134,6 +135,7 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 }
 
 func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
+	limit, offset = capPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&taskRow{}).Where("issue_id = ?", issueID)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

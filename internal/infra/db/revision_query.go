@@ -15,6 +15,7 @@ import (
 // package and never a value from a request.
 
 func listRevisions[R any](ctx context.Context, db *gorm.DB, ownerCol, ownerID string, limit, offset int) ([]R, int, error) {
+	limit, offset = capPage(limit, offset)
 	var total int64
 	if err := db.WithContext(ctx).Model(new(R)).Where(ownerCol+" = ?", ownerID).Count(&total).Error; err != nil {
 		return nil, 0, err

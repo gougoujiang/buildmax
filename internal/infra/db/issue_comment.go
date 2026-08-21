@@ -80,6 +80,7 @@ func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueComm
 // Ordering is created_at then id. Prefixed IDs are random rather than
 // time-ordered, so issue_comment_id is never a sort key.
 func (s *Store) ListIssueComments(ctx context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
+	limit, offset = capPage(limit, offset)
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&issueCommentRow{}).Where("issue_id = ?", issueID).Count(&total).Error; err != nil {
 		return nil, 0, err
