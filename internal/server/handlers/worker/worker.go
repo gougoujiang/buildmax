@@ -1,7 +1,6 @@
-package handlers
+package worker
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -17,11 +16,11 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_run_id required")
 		return
 	}
-	if h.cfg.TaskRunStore == nil {
+	if h.cfg.TaskRuns == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return
 	}
-	run, task, err := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
+	run, task, err := h.cfg.TaskRuns.GetTaskRunWithTask(r.Context(), taskRunID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "get_worker_task_run", "task_run_id", taskRunID)
 		return
@@ -35,11 +34,11 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	// which is what someone editing the field expects. A deleted agent still answers, because
 	// a run that already names it has to finish under the identity it was started with.
 	agentInstructions := ""
-	if task.AgentID != nil && *task.AgentID != "" && h.cfg.AgentStore != nil {
-		if a, aerr := h.cfg.AgentStore.GetAgentIncludingDeleted(r.Context(), *task.AgentID); aerr != nil {
+	if task.AgentID != nil && *task.AgentID != "" && h.cfg.Agents != nil {
+		if a, aerr := h.cfg.Agents.GetAgentIncludingDeleted(r.Context(), *task.AgentID); aerr != nil {
 			// A run missing its instructions is worse than a run that never had any, but
 			// refusing to dispatch it is worse still. Say so and continue.
-			workerAPILog().Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
+			componentLog().Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
 		} else if a != nil && a.TeamID == task.TeamID {
 			agentInstructions = a.Instructions
 		}
@@ -79,11 +78,11 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_run_id required")
 		return
 	}
-	if h.cfg.TaskRunStore == nil {
+	if h.cfg.TaskRuns == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return
 	}
-	run, _, err := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
+	run, _, err := h.cfg.TaskRuns.GetTaskRunWithTask(r.Context(), taskRunID)
 	if err != nil || run == nil {
 		if err != nil {
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "post_worker_stream", "task_run_id", taskRunID)
@@ -97,7 +96,7 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	h.hub.Append(run.TaskID, req.Delta)
+	h.cfg.Hub.Append(run.TaskID, req.Delta)
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -105,7 +104,7 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, tas
 	if req.Status != string(model.RunStatusRunning) {
 		return false
 	}
-	updated, err := h.cfg.TaskRunStore.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
+	updated, err := h.cfg.TaskRuns.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
 		TaskRunID:      taskRunID,
 		ExpectedStatus: model.RunStatusScheduled,
 		NewStatus:      model.RunStatusRunning,
@@ -124,7 +123,7 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, tas
 }
 
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
-	if err := h.cfg.TaskRunStore.UpdateRun(r.Context(), model.UpdateTaskRunInput{
+	if err := h.cfg.TaskRuns.UpdateRun(r.Context(), model.UpdateTaskRunInput{
 		TaskRunID:        taskRunID,
 		Status:           model.RunStatus(req.Status),
 		StartedAt:        req.StartedAt,
@@ -152,53 +151,23 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		if len(relativePaths) == 0 {
 			relativePaths = []string{"result.md"}
 		}
-		if err := h.cfg.TaskRunStore.OnRunComplete(r.Context(), taskRunID, relativePaths); err != nil {
+		if err := h.cfg.TaskRuns.OnRunComplete(r.Context(), taskRunID, relativePaths); err != nil {
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_on_complete", "task_run_id", taskRunID)
 			return false
 		}
 	case req.Status == string(model.RunStatusFailed) || req.Status == string(model.RunStatusCanceled):
-		if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
+		if err := h.cfg.TaskRuns.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
 			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_sync", "task_run_id", taskRunID)
 			return false
 		}
 	}
-	h.announceTaskRunTerminal(r.Context(), taskRunID, req.Status, req.Output, req.ErrorMessage)
+	h.announcer().Announce(r.Context(), taskRunID, req.Status, req.Output, req.ErrorMessage)
 	return true
 }
 
 // announceTaskRunTerminal closes the run's output stream and tells Tier 1 that
 // the run is over.
 //
-// Every terminal outcome goes through here — reported by a worker or written by
-// the server on a cancel — because a conversation that started a task waits for
-// exactly one of these. Losing it leaves the conversation waiting for a run that
-// has already stopped.
-func (h *Handler) announceTaskRunTerminal(ctx context.Context, taskRunID, status string, output, errorMessage *string) {
-	run, task, _ := h.cfg.TaskRunStore.GetTaskRunWithTask(ctx, taskRunID)
-	if run == nil {
-		return
-	}
-	h.hub.Done(run.TaskID)
-	if task == nil {
-		return
-	}
-	info := TaskRunTerminalInfo{
-		TaskRunID:      run.TaskRunID,
-		TaskID:         run.TaskID,
-		ConversationID: task.ConversationID,
-		UserID:         task.CreatedBy,
-		Status:         status,
-		Output:         output,
-		ErrorMessage:   errorMessage,
-	}
-	go func() {
-		workerAPILog().Info("firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)
-		h.connRegistry.OnTaskRunTerminal(context.Background(), info)
-		if h.cfg.OnTaskRunTerminal != nil {
-			h.cfg.OnTaskRunTerminal(context.Background(), info)
-		}
-	}()
-}
 
 func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 	taskRunID := r.PathValue("task_run_id")
@@ -206,7 +175,7 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_run_id required")
 		return
 	}
-	if h.cfg.TaskRunStore == nil {
+	if h.cfg.TaskRuns == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "task runs not configured")
 		return
 	}
@@ -229,4 +198,4 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // Identity belongs in an attr, not in every message string.
-func workerAPILog() *slog.Logger { return slog.With("component", "worker_api") }
+func componentLog() *slog.Logger { return slog.With("component", "worker_api") }

@@ -52,7 +52,7 @@ const taskResultMaxOutputLen = 4000
 
 // OnTaskRunTerminal is called when a task run reaches terminal status. It finds the user's active
 // WebSocket connection and triggers a system Tier 1 conversation turn with the task result.
-func (r *connRegistry) OnTaskRunTerminal(ctx context.Context, info TaskRunTerminalInfo) {
+func (r *connRegistry) OnTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) {
 	conns := r.ForUser(info.UserID)
 	if len(conns) == 0 {
 		runTerminalLog().Info("user not connected, skipping", "user_id", info.UserID, "task_id", info.TaskID)
@@ -64,7 +64,7 @@ func (r *connRegistry) OnTaskRunTerminal(ctx context.Context, info TaskRunTermin
 	wc.RunSystemConversationTurn(ctx, info.ConversationID, msg)
 }
 
-func formatTaskResultMessage(info TaskRunTerminalInfo) string {
+func formatTaskResultMessage(info model.TaskRunTerminalInfo) string {
 	if info.Status == string(model.RunStatusCanceled) {
 		// A cancel is an instruction, not a fault. Saying so keeps Tier 1 from
 		// treating the stop as a failure worth retrying or apologising for.

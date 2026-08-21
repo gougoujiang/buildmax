@@ -1,4 +1,4 @@
-package handlers
+package worker
 
 import (
 	"bytes"
@@ -20,10 +20,10 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	task := model.Task{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken:  "worker-token-123",
-		TaskRunStore: mockRun,
+		WorkerToken: "worker-token-123",
+		TaskRuns:    mockRun,
 	}
-	h := NewHandler(cfg)
+	h := New(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -65,7 +65,7 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 		}},
 		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
-	h := NewHandler(Config{WorkerToken: "worker-token-123", TaskRunStore: runs})
+	h := New(Config{WorkerToken: "worker-token-123", TaskRuns: runs})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -95,7 +95,7 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 		Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
 		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
 	}
-	h := NewHandler(Config{WorkerToken: "worker-token-123", TaskRunStore: runs})
+	h := New(Config{WorkerToken: "worker-token-123", TaskRuns: runs})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -131,10 +131,10 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 
 func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
-		WorkerToken:  "token",
-		TaskRunStore: &mock.MockTaskRunStore{Runs: []model.TaskRun{}},
+		WorkerToken: "token",
+		TaskRuns:    &mock.MockTaskRunStore{Runs: []model.TaskRun{}},
 	}
-	h := NewHandler(cfg)
+	h := New(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -154,10 +154,10 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	task := model.Task{TaskID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken:  "token",
-		TaskRunStore: mockRun,
+		WorkerToken: "token",
+		TaskRuns:    mockRun,
 	}
-	h := NewHandler(cfg)
+	h := New(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -184,10 +184,10 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	task := model.Task{TaskID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken:  "token",
-		TaskRunStore: mockRun,
+		WorkerToken: "token",
+		TaskRuns:    mockRun,
 	}
-	h := NewHandler(cfg)
+	h := New(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -222,7 +222,7 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	get := func(t *testing.T, cfg Config) workerclient.GetTaskRunResponse {
 		t.Helper()
 		mux := http.NewServeMux()
-		NewHandler(cfg).Register(mux)
+		New(cfg).Register(mux)
 		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
 		req.Header.Set("Authorization", "Bearer worker-token-123")
 		w := httptest.NewRecorder()
@@ -239,9 +239,9 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 
 	t.Run("managed", func(t *testing.T) {
 		got := get(t, Config{
-			WorkerToken:  "worker-token-123",
-			TaskRunStore: store,
-			WorkerLLM:    &workerclient.TaskRunLLM{Transport: "buildmax", Alias: "deep", ContextWindow: 128000},
+			WorkerToken: "worker-token-123",
+			TaskRuns:    store,
+			WorkerLLM:   &workerclient.TaskRunLLM{Transport: "buildmax", Alias: "deep", ContextWindow: 128000},
 		})
 		if got.LLM == nil {
 			t.Fatal("a managed deployment told the run nothing about models")
@@ -255,7 +255,7 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	// always did.
 	t.Run("direct omits the field entirely", func(t *testing.T) {
 		mux := http.NewServeMux()
-		NewHandler(Config{WorkerToken: "worker-token-123", TaskRunStore: store}).Register(mux)
+		New(Config{WorkerToken: "worker-token-123", TaskRuns: store}).Register(mux)
 		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
 		req.Header.Set("Authorization", "Bearer worker-token-123")
 		w := httptest.NewRecorder()

@@ -1,4 +1,4 @@
-package handlers
+package worker
 
 import (
 	"net/http"
@@ -41,11 +41,10 @@ func validWorkerRunToken(t *testing.T) string {
 }
 
 func workerLLMHandler(gateway *llmgateway.Service, runStatus string) http.Handler {
-	h := NewHandler(Config{
-		JWTSecret:  llmTestSecret,
-		TeamStore:  llmTestTeamStore(),
-		LLMGateway: gateway,
-		TaskRunStore: &mock.MockTaskRunStore{
+	h := New(Config{
+		JWTSecret: llmTestSecret,
+		Gateway:   gateway,
+		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: 1}},
 			TaskList: []model.Task{{TaskID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: 1}},
 		},
@@ -214,12 +213,11 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 
 	t.Run("404s a run the server does not have", func(t *testing.T) {
-		h := NewHandler(Config{
-			JWTSecret:    llmTestSecret,
-			TeamStore:    llmTestTeamStore(),
-			LLMGateway:   gateway,
-			TaskRunStore: &mock.MockTaskRunStore{},
-			WorkerToken:  workerTestToken,
+		h := New(Config{
+			JWTSecret:   llmTestSecret,
+			Gateway:     gateway,
+			TaskRuns:    &mock.MockTaskRunStore{},
+			WorkerToken: workerTestToken,
 		})
 		mux := http.NewServeMux()
 		h.Register(mux)

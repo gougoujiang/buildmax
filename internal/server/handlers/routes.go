@@ -104,16 +104,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// cannot reach a team's data at all.
 	h.adminHandler().Register(mux)
 
-	// Worker API — every route is scoped to one run, so every route authenticates
-	// with that run's token. The deployment-wide worker token is still accepted
-	// here for one release; see docs/design/worker-run-token.md.
-	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRun)))
-	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
-	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
-	// Managed inference takes the run token only. It never accepted the shared
-	// worker token, so it has no upgrade window to keep open and no reason to
-	// grow a fallback the other three are already shedding.
-	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
+	// The worker API lives in its own package: its routes authenticate with a
+	// run token rather than a user's session, and a Config that holds neither
+	// user store nor team store cannot be talked into honouring one.
+	h.workerHandler().Register(mux)
 
 	// Inbound webhook
 	mux.HandleFunc("POST /api/webhook", h.serveWebhook)

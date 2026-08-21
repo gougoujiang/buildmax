@@ -1,7 +1,8 @@
-package handlers
+package worker
 
 import (
 	"encoding/json"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/llmhttp"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -36,13 +37,13 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	if !h.requireLLMGateway(w) {
+	if !llmhttp.RequireGateway(w, h.cfg.Gateway) {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.TaskRunStore, "task runs not configured") {
+	if !httputil.RequireStore(w, h.cfg.TaskRuns, "task runs not configured") {
 		return
 	}
-	run, task, err := h.cfg.TaskRunStore.GetTaskRunWithTask(r.Context(), taskRunID)
+	run, task, err := h.cfg.TaskRuns.GetTaskRunWithTask(r.Context(), taskRunID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "worker_llm_completions", "task_run_id", taskRunID)
 		return
@@ -70,7 +71,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	messages, err := toCoreMessages(req.Messages)
+	messages, err := llmhttp.CoreMessages(req.Messages)
 	if err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
@@ -88,7 +89,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		ClientCallID: req.CallID,
 		Alias:        req.Model,
 		Messages:     messages,
-		Tools:        toCoreTools(req.Tools),
+		Tools:        llmhttp.CoreTools(req.Tools),
 		Surface:      workerSurface,
 	}
 	if req.Metadata != nil {
@@ -96,13 +97,13 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	if req.Stream {
-		h.streamLLMCompletion(w, r, cmd, claims.TeamID)
+		llmhttp.Stream(w, r, h.cfg.Gateway, cmd, claims.TeamID)
 		return
 	}
 
-	result, err := h.cfg.LLMGateway.Complete(r.Context(), cmd)
+	result, err := h.cfg.Gateway.Complete(r.Context(), cmd)
 	if err != nil {
-		h.writeLLMGatewayError(w, err, "worker_llm_completions", claims.TeamID)
+		llmhttp.WriteError(w, err, "worker_llm_completions", claims.TeamID)
 		return
 	}
 
@@ -110,8 +111,8 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		LLMCallID:     result.LLMCallID,
 		Model:         result.Alias,
 		Content:       result.Content,
-		ToolCalls:     fromCoreToolCalls(result.ToolCalls),
-		ProviderState: fromCoreProviderState(result.ProviderState),
+		ToolCalls:     llmhttp.WireToolCalls(result.ToolCalls),
+		ProviderState: llmhttp.WireProviderState(result.ProviderState),
 	}
 	if result.UsageReported {
 		resp.Usage = &llmwire.Usage{
