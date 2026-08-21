@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"bytes"
@@ -85,9 +85,9 @@ func TestTeamScopedFilesHandlers(t *testing.T) {
 	persist.files[teamA] = map[string][]byte{"team-a.txt": []byte("alpha")}
 	persist.files[teamB] = map[string][]byte{"team-b.txt": []byte("beta")}
 
-	h := NewHandler(Config{
+	h := New(Config{
 		JWTSecret:      filesTestSecret,
-		TeamStore:      &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamA, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: model.TeamRoleOwner}}},
+		Teams:          &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamA, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: model.TeamRoleOwner}}},
 		PersistStorage: persist,
 	})
 	mux := http.NewServeMux()

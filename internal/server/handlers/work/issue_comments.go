@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"net/http"
@@ -48,18 +48,18 @@ func issueCommentToResponse(comment model.IssueComment) issueCommentResponse {
 // what owns the team. A comment carries no team of its own, so every route
 // starts here.
 func (h *Handler) resolveCommentIssue(w http.ResponseWriter, r *http.Request) (userID, teamID, issueID string, ok bool) {
-	userID, teamID, ok = h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok = h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return "", "", "", false
 	}
-	if !httputil.RequireStore(w, h.cfg.IssueCommentStore, "comments not configured") {
+	if !httputil.RequireStore(w, h.cfg.IssueComments, "comments not configured") {
 		return "", "", "", false
 	}
 	issueID, ok = httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return "", "", "", false
 	}
-	found, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	found, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_comment_issue", "issue_id", issueID)
 		return "", "", "", false

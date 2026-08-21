@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"net/http"
@@ -54,11 +54,11 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 	// learns nothing about whether this deployment records managed calls. Every
 	// other team-scoped route authenticates first, and an authorization matrix is
 	// only meaningful if they all agree.
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TeamStore, "teams not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.LLMCallStore, "managed model calls not configured") {
+	if !httputil.RequireStore(w, h.cfg.LLMCalls, "managed model calls not configured") {
 		return
 	}
 	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
@@ -72,7 +72,7 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	calls, err := h.cfg.LLMCallStore.ListLLMCallsByTaskRun(r.Context(), teamID, taskRunID)
+	calls, err := h.cfg.LLMCalls.ListLLMCallsByTaskRun(r.Context(), teamID, taskRunID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "task_run_llm_calls", "task_run_id", taskRunID)
 		return

@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"context"
@@ -128,11 +128,11 @@ func buildIssueAgentRunInput(issue model.Issue) string {
 
 func (h *Handler) issueService() *issue.Service {
 	return &issue.Service{
-		Issues:    h.cfg.IssueStore,
-		Comments:  h.cfg.IssueCommentStore,
-		Agents:    h.cfg.AgentStore,
-		Teams:     h.cfg.TeamStore,
-		Workflows: h.cfg.WorkflowStore,
+		Issues:    h.cfg.Issues,
+		Comments:  h.cfg.IssueComments,
+		Agents:    h.cfg.Agents,
+		Teams:     h.cfg.Teams,
+		Workflows: h.cfg.Workflows,
 	}
 }
 
@@ -141,7 +141,7 @@ func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool 
 }
 
 func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -174,7 +174,7 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -200,7 +200,7 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
@@ -230,7 +230,7 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) issueRelatives(ctx context.Context, issue model.Issue, teamID string) (*IssueResponse, []IssueResponse) {
 	children := []IssueResponse{}
 	if issue.ParentIssueID != nil && *issue.ParentIssueID != "" {
-		parent, err := h.cfg.IssueStore.GetIssue(ctx, *issue.ParentIssueID)
+		parent, err := h.cfg.Issues.GetIssue(ctx, *issue.ParentIssueID)
 		if err != nil {
 			slog.Warn("issue parent not loaded", "err", err, "issue_id", issue.IssueID)
 			return nil, children
@@ -241,7 +241,7 @@ func (h *Handler) issueRelatives(ctx context.Context, issue model.Issue, teamID 
 		out := issueToResponse(*parent)
 		return &out, children
 	}
-	list, err := h.cfg.IssueStore.ListIssueChildren(ctx, issue.IssueID)
+	list, err := h.cfg.Issues.ListIssueChildren(ctx, issue.IssueID)
 	if err != nil {
 		slog.Warn("issue children not loaded", "err", err, "issue_id", issue.IssueID)
 		return nil, children
@@ -255,18 +255,18 @@ func (h *Handler) issueRelatives(ctx context.Context, issue model.Issue, teamID 
 }
 
 func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.WorkflowStore, "workflows not configured") {
+	if !httputil.RequireStore(w, h.cfg.Workflows, "workflows not configured") {
 		return
 	}
 	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
 	}
-	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	issue, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_issue", "issue_id", issueID)
 		return
@@ -277,7 +277,7 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var workflowOut *workflowResponse
 	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == model.IssueAssigneeWorkflow {
-		workflow, err := h.cfg.WorkflowStore.GetWorkflow(r.Context(), *issue.AssigneeID)
+		workflow, err := h.cfg.Workflows.GetWorkflow(r.Context(), *issue.AssigneeID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_workflow", "issue_id", issueID)
 			return
@@ -288,15 +288,15 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
-	runs, total, err := h.cfg.WorkflowStore.ListWorkflowRunsByIssue(r.Context(), issueID, limit, offset)
+	runs, total, err := h.cfg.Workflows.ListWorkflowRunsByIssue(r.Context(), issueID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_runs", "issue_id", issueID)
 		return
 	}
 	agentTasks := []TaskResponse{}
 	var agentTaskModels []model.Task
-	if h.cfg.TaskStore != nil {
-		tasks, _, err := h.cfg.TaskStore.ListTasksByIssue(r.Context(), issueID, limit, offset)
+	if h.cfg.Tasks != nil {
+		tasks, _, err := h.cfg.Tasks.ListTasksByIssue(r.Context(), issueID, limit, offset)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_agent_tasks", "issue_id", issueID)
 			return
@@ -310,7 +310,7 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 	stepsByTaskID := map[string]model.WorkflowStepRun{}
 	runOut := make([]issueFlowRunResponse, len(runs))
 	for i := range runs {
-		steps, err := h.cfg.WorkflowStore.ListWorkflowStepRuns(r.Context(), runs[i].WorkflowRunID)
+		steps, err := h.cfg.Workflows.ListWorkflowStepRuns(r.Context(), runs[i].WorkflowRunID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_steps", "workflow_run_id", runs[i].WorkflowRunID)
 			return
@@ -345,17 +345,17 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.AgentStore, "agents not configured") {
+	if !httputil.RequireStore(w, h.cfg.Agents, "agents not configured") {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.TaskStore, "tasks not configured") {
+	if !httputil.RequireStore(w, h.cfg.Tasks, "tasks not configured") {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.ConversationStore, "conversations not configured") {
+	if !httputil.RequireStore(w, h.cfg.Conversations, "conversations not configured") {
 		return
 	}
 	issueID, ok := httputil.PathValue(w, r, "issue_id")
@@ -368,7 +368,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	issue, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_agent_run", "issue_id", issueID)
 		return
@@ -381,7 +381,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to agent")
 		return
 	}
-	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), *issue.AssigneeID)
+	agent, err := h.cfg.Agents.GetAgent(r.Context(), *issue.AssigneeID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent_for_issue_run", "issue_id", issueID, "agent_id", *issue.AssigneeID)
 		return
@@ -390,7 +390,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
 		return
 	}
-	conv, err := h.cfg.ConversationStore.CreateConversationInTeam(r.Context(), teamID, userID, "issue_agent", userID)
+	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, "issue_agent", userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_conversation", "issue_id", issueID)
 		return
@@ -420,7 +420,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
 	if !ok {
 		return
 	}

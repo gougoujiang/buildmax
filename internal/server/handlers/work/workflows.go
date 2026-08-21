@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"net/http"
@@ -177,10 +177,10 @@ func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunRespon
 
 func (h *Handler) workflowService() *workflow.Service {
 	return &workflow.Service{
-		Workflows:     h.cfg.WorkflowStore,
-		Agents:        h.cfg.AgentStore,
-		Issues:        h.cfg.IssueStore,
-		Conversations: h.cfg.ConversationStore,
+		Workflows:     h.cfg.Workflows,
+		Agents:        h.cfg.Agents,
+		Issues:        h.cfg.Issues,
+		Conversations: h.cfg.Conversations,
 		TaskService:   h.taskService(),
 	}
 }
@@ -190,7 +190,7 @@ func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
 }
 
 func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -210,7 +210,7 @@ func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -239,7 +239,7 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -259,7 +259,7 @@ func (h *Handler) getWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -296,7 +296,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 // listWorkflowRevisionsHandler returns a workflow's recorded versions, newest
 // first. Reading history needs no more than team membership.
 func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -323,7 +323,7 @@ func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Re
 // restoreWorkflowRevisionHandler writes an earlier revision's content back to
 // the workflow. It is an ordinary edit and needs the permission an edit needs.
 func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -355,7 +355,7 @@ func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -380,7 +380,7 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -404,7 +404,7 @@ func (h *Handler) getWorkflowRunHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -442,7 +442,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.WorkflowStore, "workflows not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Workflows, "workflows not configured")
 	if !ok {
 		return
 	}
@@ -453,10 +453,10 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.IssueStore, "issues not configured") {
+	if !httputil.RequireStore(w, h.cfg.Issues, "issues not configured") {
 		return
 	}
-	issue, err := h.cfg.IssueStore.GetIssue(r.Context(), issueID)
+	issue, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_workflow_run", "team_id", teamID, "issue_id", issueID)
 		return

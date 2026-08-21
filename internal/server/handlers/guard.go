@@ -4,9 +4,11 @@ import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
 	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
+	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	"github.com/gougoujiang/buildmax/internal/service/task"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -73,12 +75,6 @@ func (h *Handler) workerHandler() *worker.Handler {
 	})
 }
 
-// runAnnouncer closes out a run cancelled from the Portal, reaching the same
-// listeners a worker's own report does.
-func (h *Handler) runAnnouncer() *runterminal.Announcer {
-	return &runterminal.Announcer{Runs: h.cfg.TaskRunStore, Hub: h.hub, On: h.terminalListeners}
-}
-
 func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTerminalInfo) {
 	h.connRegistry.OnTaskRunTerminal(ctx, info)
 	if h.cfg.OnTaskRunTerminal != nil {
@@ -117,4 +113,60 @@ func (h *Handler) teamHandler() *teamroutes.Handler {
 		Quota:            h.cfg.QuotaService,
 		Audit:            h.cfg.Audit,
 	})
+}
+
+// workHandler builds the work surface from the stores those routes read.
+func (h *Handler) workHandler() *work.Handler {
+	return work.New(work.Config{
+		JWTSecret:       h.cfg.JWTSecret,
+		Issues:          h.cfg.IssueStore,
+		IssueComments:   h.cfg.IssueCommentStore,
+		Workflows:       h.cfg.WorkflowStore,
+		Tasks:           h.cfg.TaskStore,
+		TaskRuns:        h.cfg.TaskRunStore,
+		Agents:          h.cfg.AgentStore,
+		Teams:           h.cfg.TeamStore,
+		Conversations:   h.cfg.ConversationStore,
+		Messages:        h.cfg.ConversationMessageStore,
+		RunOutputs:      h.cfg.RunOutputLister,
+		LLMCalls:        h.cfg.LLMCallStore,
+		PersistStorage:  h.cfg.PersistStorage,
+		ArtifactStorage: h.cfg.ArtifactStorage,
+		WorkspacesDir:   h.cfg.WorkspacesDir,
+		Quota:           h.cfg.QuotaService,
+		TitleGenerator:  h.cfg.TitleGenerator,
+		ConversationLLM: h.cfg.ConversationLLMClient,
+		Audit:           h.cfg.Audit,
+		Hub:             h.hub,
+		Turns:           h.turns,
+		OnTerminal:      h.terminalListeners,
+	})
+}
+
+// conversationService answers a Tier 1 turn for the socket, which is the only
+// thing the root package still runs itself.
+func (h *Handler) conversationService() *conversation.Service {
+	var quotaChecker task.QuotaChecker
+	if h.cfg.QuotaService != nil {
+		quotaChecker = h.cfg.QuotaService
+	}
+	var workflowSteps task.WorkflowStepLookup
+	if h.cfg.WorkflowStore != nil {
+		workflowSteps = h.cfg.WorkflowStore
+	}
+	return &conversation.Service{
+		TaskService: &task.Service{
+			Agents:         h.cfg.AgentStore,
+			Tasks:          h.cfg.TaskStore,
+			TaskRuns:       h.cfg.TaskRunStore,
+			QuotaChecker:   quotaChecker,
+			WorkflowSteps:  workflowSteps,
+			TitleGenerator: h.cfg.TitleGenerator,
+		},
+		ConversationStore: h.cfg.ConversationStore,
+		MessageStore:      h.cfg.ConversationMessageStore,
+		LLMClient:         h.cfg.ConversationLLMClient,
+		TitleGenerator:    h.cfg.TitleGenerator,
+		AgentStore:        h.cfg.AgentStore,
+	}
 }

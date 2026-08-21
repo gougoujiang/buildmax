@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ type TraceResponse struct {
 // getTaskRunTraceHandler serves GET
 // /api/teams/{team_id}/task-runs/{task_run_id}/trace.
 func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}

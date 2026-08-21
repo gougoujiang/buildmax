@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"context"
@@ -46,12 +46,12 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 		},
 	}
 
-	h := NewHandler(Config{
-		JWTSecret:         secret,
-		TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
-		TaskStore:         mockTasks,
-		ConversationStore: mockConversations,
-		RunOutputLister:   mockLister,
+	h := New(Config{
+		JWTSecret:     secret,
+		Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Tasks:         mockTasks,
+		Conversations: mockConversations,
+		RunOutputs:    mockLister,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -90,12 +90,12 @@ func TestListArtifactItemsHandler(t *testing.T) {
 		},
 	}
 
-	h := NewHandler(Config{
-		JWTSecret:         secret,
-		TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
-		TaskRunStore:      mockTaskRun,
-		RunOutputLister:   mockLister,
-		ConversationStore: mockConversations,
+	h := New(Config{
+		JWTSecret:     secret,
+		Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		TaskRuns:      mockTaskRun,
+		RunOutputs:    mockLister,
+		Conversations: mockConversations,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -144,13 +144,13 @@ func TestArtifactContentHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := NewHandler(Config{
-		JWTSecret:         secret,
-		TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
-		TaskRunStore:      mockTaskRun,
-		RunOutputLister:   mockLister,
-		ArtifactStorage:   artifactStorage,
-		ConversationStore: mockConversations,
+	h := New(Config{
+		JWTSecret:       secret,
+		Teams:           &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		TaskRuns:        mockTaskRun,
+		RunOutputs:      mockLister,
+		ArtifactStorage: artifactStorage,
+		Conversations:   mockConversations,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

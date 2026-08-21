@@ -15,59 +15,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// lives in its own package, holding exactly the stores those routes read.
 	h.teamHandler().Register(mux)
 
+	// The work surface -- issues, workflows, tasks, conversations, and the files
+	// and traces their runs leave behind -- is one package because those
+	// entities are one story, not four that happen to sit together.
+	h.workHandler().Register(mux)
+
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)
-
-	// Issues
-	mux.HandleFunc("GET /api/teams/{team_id}/issues", h.listIssuesHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues", h.createIssueHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}", h.getIssueHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}/flow", h.getIssueFlowHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/issues/{issue_id}", h.patchIssueHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}/comments", h.listIssueCommentsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/comments", h.createIssueCommentHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", h.patchIssueCommentHandler)
-	mux.HandleFunc("DELETE /api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", h.deleteIssueCommentHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/agent-runs", h.createIssueAgentRunHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/workflow-runs", h.createIssueWorkflowRunHandler)
-
-	// Workflows
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows", h.listWorkflowsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/workflows", h.createWorkflowHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}", h.getWorkflowHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/workflows/{workflow_id}", h.patchWorkflowHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}/revisions", h.listWorkflowRevisionsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore", h.restoreWorkflowRevisionHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}/runs", h.listWorkflowRunsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/workflows/{workflow_id}/runs", h.createWorkflowRunHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflow-runs/{workflow_run_id}", h.getWorkflowRunHandler)
-
-	// Files
-	mux.HandleFunc("POST /api/teams/{team_id}/upload", h.uploadHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/files", h.filesTreeHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/files/{path...}", h.fileContentHandler)
-
-	// Conversations
-	mux.HandleFunc("GET /api/teams/{team_id}/conversations", h.listConversationsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/conversations", h.createConversationHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/conversations/{conversation_id}/messages", h.getConversationMessagesHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/conversations/{conversation_id}/messages", h.addConversationMessageHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/conversations/{conversation_id}/tasks", h.listConversationTasksHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/conversations/{conversation_id}/tasks", h.createConversationTaskHandler)
-
-	// Tasks and task runs
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}", h.getTaskHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/runs", h.createTaskRunHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/cancel", h.cancelTaskHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/retry", h.retryTaskHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/conversation", h.getTaskConversationHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/stream", h.getChatStreamHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/artifacts", h.listTaskArtifactsHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/trace", h.getTaskRunTraceHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/llm-calls", h.listTaskRunLLMCallsHandler)
 
 	// WebSocket
 	mux.HandleFunc("GET /api/teams/{team_id}/ws", h.wsUpgradeHandler)

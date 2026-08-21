@@ -165,6 +165,7 @@ internal/
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the team and worker routes
 │   │   ├── runterminal/  Announces a finished run to whoever is watching
 │   │   ├── team/       What a team owns: members, agents, keys, usage, audit
+│   │   ├── work/       Issues, workflows, tasks, conversations, and their runs
 │   │   └── worker/     Worker API; authenticates with a run token, not a session
 │   ├── access/         Who is calling, which team, and whether they may
 │   ├── authtoken/      Signs and verifies the run token a worker presents

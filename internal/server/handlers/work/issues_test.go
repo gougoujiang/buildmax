@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -56,14 +56,14 @@ func TestIssueHandlers(t *testing.T) {
 			{TeamID: otherTeamID, UserID: "u2", Role: model.TeamRoleOwner},
 		},
 	}
-	h := NewHandler(Config{
-		JWTSecret:         issueTestSecret,
-		TeamStore:         teams,
-		IssueStore:        store,
-		AgentStore:        agents,
-		WorkflowStore:     workflows,
-		TaskStore:         tasks,
-		ConversationStore: &mock.MockConversationStore{},
+	h := New(Config{
+		JWTSecret:     issueTestSecret,
+		Teams:         teams,
+		Issues:        store,
+		Agents:        agents,
+		Workflows:     workflows,
+		Tasks:         tasks,
+		Conversations: &mock.MockConversationStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

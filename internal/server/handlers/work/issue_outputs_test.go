@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"context"
@@ -71,16 +71,16 @@ func newOutputsFixtures(t *testing.T, artifactStorage blob.ArtifactStorage) *out
 	workflows := &mock.MockWorkflowStore{}
 	runLister := &mock.MockRunOutputLister{OutputFiles: map[string][]model.TaskRunArtifact{}}
 
-	h := NewHandler(Config{
-		JWTSecret:         outputsTestSecret,
-		TeamStore:         teams,
-		IssueStore:        issues,
-		AgentStore:        &mock.MockAgentStore{},
-		WorkflowStore:     workflows,
-		TaskStore:         tasks,
-		ConversationStore: &mock.MockConversationStore{},
-		RunOutputLister:   runLister,
-		ArtifactStorage:   artifactStorage,
+	h := New(Config{
+		JWTSecret:       outputsTestSecret,
+		Teams:           teams,
+		Issues:          issues,
+		Agents:          &mock.MockAgentStore{},
+		Workflows:       workflows,
+		Tasks:           tasks,
+		Conversations:   &mock.MockConversationStore{},
+		RunOutputs:      runLister,
+		ArtifactStorage: artifactStorage,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

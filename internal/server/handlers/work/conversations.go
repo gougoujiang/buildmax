@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -86,11 +86,11 @@ type runConversationTurnInput struct {
 func (h *Handler) conversationService() *conversation.Service {
 	return &conversation.Service{
 		TaskService:       h.taskService(),
-		ConversationStore: h.cfg.ConversationStore,
-		MessageStore:      h.cfg.ConversationMessageStore,
-		LLMClient:         h.cfg.ConversationLLMClient,
+		ConversationStore: h.cfg.Conversations,
+		MessageStore:      h.cfg.Messages,
+		LLMClient:         h.cfg.ConversationLLM,
 		TitleGenerator:    h.cfg.TitleGenerator,
-		AgentStore:        h.cfg.AgentStore,
+		AgentStore:        h.cfg.Agents,
 	}
 }
 
@@ -139,7 +139,7 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 		}
 		cmd.StreamSink = &sseSink{w: w, flusher: flusher}
 		var turnErr error
-		waitErr := h.turns.RunSync(r.Context(), in.conversationID, func() {
+		waitErr := h.cfg.Turns.RunSync(r.Context(), in.conversationID, func() {
 			_, turnErr = h.conversationService().HandleTurn(r.Context(), cmd)
 		})
 		if turnErr == nil {
@@ -157,7 +157,7 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 	}
 	var result conversation.ConversationResult
 	var turnErr error
-	if waitErr := h.turns.RunSync(r.Context(), in.conversationID, func() {
+	if waitErr := h.cfg.Turns.RunSync(r.Context(), in.conversationID, func() {
 		result, turnErr = h.conversationService().HandleTurn(r.Context(), cmd)
 	}); waitErr != nil {
 		return "", waitErr
@@ -169,12 +169,12 @@ func (h *Handler) runConversationTurn(w http.ResponseWriter, r *http.Request, in
 }
 
 func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.ConversationStore, "conversations not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.ListPageDefault, httputil.ListPageMax)
-	list, total, err := h.cfg.ConversationStore.ListConversationsByTeam(r.Context(), teamID, limit, offset)
+	list, total, err := h.cfg.Conversations.ListConversationsByTeam(r.Context(), teamID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_conversations", "user_id", userID, "team_id", teamID)
 		return
@@ -195,11 +195,11 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.ConversationStore, "conversations not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
+	if !httputil.RequireStore(w, h.cfg.Messages, "conversation messages not configured") {
 		return
 	}
 	var req createConversationRequest
@@ -209,12 +209,12 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 	if req.Channel == "" {
 		req.Channel = "portal"
 	}
-	conv, err := h.cfg.ConversationStore.CreateConversationInTeam(r.Context(), teamID, userID, req.Channel, userID)
+	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, req.Channel, userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_conversation", "user_id", userID, "team_id", teamID)
 		return
 	}
-	if req.Message == "" || h.cfg.ConversationLLMClient == nil {
+	if req.Message == "" || h.cfg.ConversationLLM == nil {
 		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: ""})
 		return
 	}
@@ -245,7 +245,7 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.ConversationStore, "conversations not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -253,13 +253,13 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.ConversationStore, "conversations not configured") {
+	if !httputil.RequireStore(w, h.cfg.Conversations, "conversations not configured") {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
+	if !httputil.RequireStore(w, h.cfg.Messages, "conversation messages not configured") {
 		return
 	}
-	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
+	conv, err := h.cfg.Conversations.GetConversation(r.Context(), conversationID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return
@@ -268,7 +268,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 		httputil.WriteJSONError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
-	msgs, err := h.cfg.ConversationMessageStore.ListMessages(r.Context(), conversationID)
+	msgs, err := h.cfg.Messages.ListMessages(r.Context(), conversationID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_messages", "conversation_id", conversationID)
 		return
@@ -290,7 +290,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.ConversationStore, "conversations not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Conversations, "conversations not configured")
 	if !ok {
 		return
 	}
@@ -302,10 +302,10 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.ConversationMessageStore, "conversation messages not configured") {
+	if !httputil.RequireStore(w, h.cfg.Messages, "conversation messages not configured") {
 		return
 	}
-	if h.cfg.ConversationLLMClient == nil {
+	if h.cfg.ConversationLLM == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversation LLM not configured")
 		return
 	}
@@ -339,10 +339,10 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*model.Conversation, bool) {
-	if !httputil.RequireStore(w, h.cfg.ConversationStore, "conversations not configured") {
+	if !httputil.RequireStore(w, h.cfg.Conversations, "conversations not configured") {
 		return nil, false
 	}
-	conv, err := h.cfg.ConversationStore.GetConversation(r.Context(), conversationID)
+	conv, err := h.cfg.Conversations.GetConversation(r.Context(), conversationID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "conversation_id", conversationID)
 		return nil, false

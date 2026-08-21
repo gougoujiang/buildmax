@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"context"
@@ -68,7 +68,7 @@ func (h *Handler) aggregateIssueOutputs(
 	agentTasks []model.Task,
 	stepsByTaskID map[string]model.WorkflowStepRun,
 ) ([]issueOutputResponse, *issueOutputResponse) {
-	if h.cfg.RunOutputLister == nil {
+	if h.cfg.RunOutputs == nil {
 		return []issueOutputResponse{}, nil
 	}
 	outputs := make([]issueOutputResponse, 0)
@@ -77,7 +77,7 @@ func (h *Handler) aggregateIssueOutputs(
 			continue
 		}
 		taskRunID := *t.LastRunID
-		items, err := h.cfg.RunOutputLister.GetTaskRunOutputFiles(ctx, taskRunID)
+		items, err := h.cfg.RunOutputs.GetTaskRunOutputFiles(ctx, taskRunID)
 		if err != nil {
 			// Tolerate listing failures: try fallback below if any.
 			items = nil
