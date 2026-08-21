@@ -29,7 +29,7 @@ type countingApproval struct {
 	session bool // when approving, keep the grant for the rest of the session
 }
 
-func (a *countingApproval) RequestApproval(_ string, _ map[string]any) ApprovalDecision {
+func (a *countingApproval) RequestApproval(_ context.Context, _ string, _ map[string]any) ApprovalDecision {
 	a.calls++
 	switch {
 	case !a.approve:

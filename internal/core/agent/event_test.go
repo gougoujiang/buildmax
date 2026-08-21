@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -390,3 +392,33 @@ func (c *cancellingClient) ChatCompletionStreaming(ctx context.Context, msgs []l
 	return c.ChatCompletionBlocking(ctx, msgs, tools)
 }
 func (c *cancellingClient) ContextWindow() int { return 0 }
+
+// TestSerializedSink_ConcurrentEmitsDoNotRace covers the contract RunLoopOpts
+// now states: a sink may be called from a tool worker, and the runtime — not
+// each consumer — is what keeps those calls from overlapping. Meaningful under
+// `./make test race`.
+func TestSerializedSink_ConcurrentEmitsDoNotRace(t *testing.T) {
+	var got []Event
+	sink := serializedSink(func(e Event) { got = append(got, e) })
+
+	var wg sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sink(Event{Kind: EventToolEnd, ToolCallID: strconv.Itoa(i)})
+		}(i)
+	}
+	wg.Wait()
+
+	if len(got) != 32 {
+		t.Errorf("received %d events, want 32", len(got))
+	}
+}
+
+// TestSerializedSink_NilStaysNil keeps a run that emits nothing paying nothing.
+func TestSerializedSink_NilStaysNil(t *testing.T) {
+	if serializedSink(nil) != nil {
+		t.Error("a nil sink must stay nil rather than becoming a locked no-op")
+	}
+}

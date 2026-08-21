@@ -100,7 +100,10 @@ type RunLoopOpts struct {
 	Invariants string
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
-	// The callback is invoked synchronously from the RunLoop goroutine; it must not block.
+	// The callback may be invoked from the RunLoop goroutine or from a tool
+	// worker. The runtime serialises the calls, so a sink sees one event at a
+	// time, but it must not block and must not assume one tool is in flight:
+	// pair EventToolStart with EventToolEnd by ToolCallID, not by arrival.
 	EventSink func(Event)
 	// Hooks runs lifecycle hooks at fixed points (PreToolUse, PostToolUse,
 	// PostToolUseFailure, Notification, PreCompact, PostCompact, Stop /
@@ -127,6 +130,7 @@ type RunLoopOpts struct {
 // When ctx is cancelled mid-run, RunLoop returns the last assistant content produced (if any) and a nil error,
 // so callers receive a partial result rather than an empty failure.
 func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
+	opts.EventSink = serializedSink(opts.EventSink)
 	var s RunStats
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
 	// Most recent compaction summary, rendered into the system prompt when non-empty.
@@ -431,7 +435,7 @@ func applyPolicyAndExecute(ctx context.Context, opts RunLoopOpts, policy ToolPol
 			fireNotification(ctx, opts, NotificationPermissionDenied, name, callID, args, "no approval handler configured")
 			return fmt.Sprintf(denyMsgPolicy, name)
 		}
-		decision := opts.Approval.RequestApproval(name, args)
+		decision := opts.Approval.RequestApproval(ctx, name, args)
 		if decision == ApprovalDeny {
 			slog.Info("tool denied by user", "tool", name)
 			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: name, ToolCallID: callID, DenyReason: DenyReasonUser})

@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"context"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -32,11 +33,11 @@ func newDesktopApprovalHandler(app *App, projectID string) *DesktopApprovalHandl
 
 // RequestApproval emits an approval-request event to the frontend and blocks until
 // the user responds via RespondApproval. Denies if the app context is not ready.
-func (h *DesktopApprovalHandler) RequestApproval(name string, args map[string]any) agent.ApprovalDecision {
+func (h *DesktopApprovalHandler) RequestApproval(ctx context.Context, name string, args map[string]any) agent.ApprovalDecision {
 	h.app.mu.Lock()
-	ctx := h.app.ctx
+	uiCtx := h.app.ctx // Wails context for emitting, distinct from the run's ctx
 	h.app.mu.Unlock()
-	if ctx == nil {
+	if uiCtx == nil {
 		return agent.ApprovalDeny
 	}
 
@@ -45,13 +46,26 @@ func (h *DesktopApprovalHandler) RequestApproval(name string, args map[string]an
 	h.pending = respCh
 	h.mu.Unlock()
 
-	runtime.EventsEmit(ctx, eventApprovalRequest, &ApprovalRequestPayload{
+	runtime.EventsEmit(uiCtx, eventApprovalRequest, &ApprovalRequestPayload{
 		ProjectID: h.projectID,
 		ToolName:  name,
 		Args:      args,
 	})
 
-	return <-respCh
+	select {
+	case d := <-respCh:
+		return d
+	case <-ctx.Done():
+		// Cancelled with the prompt still up. Without this the run goroutine
+		// waits forever on an answer nobody will give, its deferred cleanup
+		// never runs, and the project stays permanently "already in progress".
+		h.mu.Lock()
+		if h.pending == respCh {
+			h.pending = nil
+		}
+		h.mu.Unlock()
+		return agent.ApprovalDeny
+	}
 }
 
 // respond resolves a pending approval request. Called by App.RespondApproval.

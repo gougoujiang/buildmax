@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
@@ -144,4 +146,51 @@ func lastToolMessage(t *testing.T, sess *testBuffer) string {
 	}
 	t.Fatal("no tool-role message in history")
 	return ""
+}
+
+// blockingApproval never answers, standing in for a prompt whose owner has
+// walked away.
+type blockingApproval struct {
+	once    *sync.Once
+	entered chan struct{}
+}
+
+func (b blockingApproval) RequestApproval(ctx context.Context, _ string, _ map[string]any) ApprovalDecision {
+	b.once.Do(func() { close(b.entered) })
+	<-ctx.Done()
+	return ApprovalDeny
+}
+
+// TestApproval_ReturnsOnCancellation covers the deadlock this handler contract
+// exists to prevent: a cancelled run whose prompt is still up must not leave
+// the loop goroutine waiting for an answer nobody will give.
+func TestApproval_ReturnsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	approval := blockingApproval{once: &sync.Once{}, entered: make(chan struct{})}
+	tool := &mockTool{name: "bash", result: "should not run"}
+	sess := newTestBuffer()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, _ = runLoopWithUserMsg(ctx, &mockLLMClient{responses: askTwice("bash", `{"command":"echo hi"}`)},
+			newTestToolRegistry(tool), sess, "hi", func(o *RunLoopOpts) {
+				o.Policy = askPolicy{}
+				o.Approval = approval
+			})
+	}()
+
+	<-approval.entered
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunLoop did not return after cancelling a run waiting on approval")
+	}
+	if tool.executionCount() != 0 {
+		t.Errorf("tool executed %d times; want 0", tool.executionCount())
+	}
 }

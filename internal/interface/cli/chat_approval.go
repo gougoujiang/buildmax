@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
@@ -30,7 +32,7 @@ func (h *TUIApprovalHandler) SetProgram(p *tea.Program) {
 
 // RequestApproval sends an approval request to the TUI and blocks until the user
 // answers: y (once), a (session), or n/Esc (deny).
-func (h *TUIApprovalHandler) RequestApproval(name string, args map[string]any) agent.ApprovalDecision {
+func (h *TUIApprovalHandler) RequestApproval(ctx context.Context, name string, args map[string]any) agent.ApprovalDecision {
 	if h.program == nil {
 		return agent.ApprovalDeny
 	}
@@ -40,5 +42,12 @@ func (h *TUIApprovalHandler) RequestApproval(name string, args map[string]any) a
 		Args:     args,
 		response: respCh,
 	})
-	return <-respCh
+	select {
+	case d := <-respCh:
+		return d
+	case <-ctx.Done():
+		// The run was cancelled while the prompt was up. The channel is
+		// buffered, so a later answer lands harmlessly in it.
+		return agent.ApprovalDeny
+	}
 }

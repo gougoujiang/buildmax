@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -24,8 +25,12 @@ type ToolPolicy interface {
 
 // ApprovalHandler is invoked when the resolved action is ToolActionAsk.
 // If nil, Ask collapses to Deny.
+//
+// ctx is the run's context. A handler blocks a goroutine until a person
+// answers, and a cancelled run may never get one -- so it must return on
+// ctx.Done() rather than waiting for a prompt nobody will resolve.
 type ApprovalHandler interface {
-	RequestApproval(name string, args map[string]any) ApprovalDecision
+	RequestApproval(ctx context.Context, name string, args map[string]any) ApprovalDecision
 }
 
 // interactive reports whether a human can answer a permission prompt. Derived

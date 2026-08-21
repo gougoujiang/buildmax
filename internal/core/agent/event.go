@@ -1,6 +1,9 @@
 package agent
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // EventKind identifies the type of a runtime event emitted during a RunLoop execution.
 type EventKind uint8
@@ -89,6 +92,25 @@ type Event struct {
 // emit calls sink with e when sink is non-nil.
 func emit(sink func(Event), e Event) {
 	if sink != nil {
+		sink(e)
+	}
+}
+
+// serializedSink guards a sink so tool workers and the loop goroutine cannot
+// call it at once. The guarantee lives here rather than in each consumer --
+// the TUI, Desktop, the trace recorder, and Portal would otherwise each have to
+// solve it, and one of them would get it wrong.
+//
+// A nil sink stays nil: no allocation, no lock, no cost for a run that emits
+// nothing.
+func serializedSink(sink func(Event)) func(Event) {
+	if sink == nil {
+		return nil
+	}
+	var mu sync.Mutex
+	return func(e Event) {
+		mu.Lock()
+		defer mu.Unlock()
 		sink(e)
 	}
 }

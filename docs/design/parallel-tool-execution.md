@@ -4,7 +4,7 @@
 
 - roadmap_priority: `unscheduled` — performance work, not yet placed in
   [../ROADMAP.md](../ROADMAP.md)
-- status: `design ready for review; implementation not started`
+- status: `phase 1 implemented; phases 2-4 open`
 - depends on: [tool-permissions.md](./tool-permissions.md), which defines the
   `Access` classification this design schedules on. That record ships first —
   see §11.
@@ -104,12 +104,25 @@ one `currentToolArgs` string that `handleToolEnd` reads back. With two calls
 in flight the rendered line pairs the second call's arguments with the first
 call's result.
 
-### 3.5 The Desktop approval handler deadlocks under concurrency
+### 3.5 An approval prompt outlives the run it belongs to — fixed ✅
 
-`RequestApproval` stores a single `pending` channel and blocks on it. A second
-concurrent request overwrites `pending`; the first caller then waits on a
-channel nobody will ever send to, and the run hangs until the context is
-cancelled.
+This gap was originally written as a concurrency defect: `RequestApproval`
+stores a single `pending` channel, so two concurrent prompts would orphan the
+first. That diagnosis was wrong, and implementing phase 1 is what showed it.
+Approval stays on the loop goroutine (D1), so the handler never sees concurrent
+calls — the concurrency problem is prevented by the architecture, not present
+in it.
+
+The real defect was cancellation, and it needed no concurrency at all.
+`ApprovalHandler.RequestApproval` took no context and blocked on a channel. A
+user who cancelled a Desktop run while a prompt was up left the run goroutine
+waiting for an answer nobody would give; its deferred cleanup never ran, so
+`runCancels[projectID]` was never deleted and the project stayed permanently
+"a run is already in progress".
+
+Fixed by giving the handler the run's context and having both implementations
+select on `ctx.Done()`. The single `pending` slot stays, because nothing
+concurrent reaches it.
 
 ## 4. Direction
 
@@ -320,19 +333,19 @@ This keeps the guarantee inside the runtime rather than making every consumer
 ### 5.6 Approval and the two UIs
 
 Approval stays on the loop goroutine (D1), so `ApprovalHandler` never sees
-concurrent calls and neither handler needs to become re-entrant. §3.5 is
-therefore fixed by the architecture, not by code. The Desktop handler's single
-`pending` slot is still replaced with a call-id-keyed map, because a queued
-prompt whose owner has been cancelled must be resolvable independently.
+concurrent calls and neither handler needs to become re-entrant. The single
+`pending` slot on the Desktop handler is therefore left alone: the problem it
+looked like it had was cancellation, not concurrency, and that is fixed by
+giving the handler the run's context (§3.5).
 
 Denial does not cancel siblings. A denied call gets its denial string as its
 result and the rest of the group runs — the same as today, where a denial does
 not stop the following calls in the batch.
 
-The TUI changes in two places: `toolStartMsg`/`toolEndMsg` carry `CallID`,
-and `currentToolArgs string` becomes `activeTools map[string]toolStartMsg`.
-How several concurrent tools should *render* is a UX question, not a
-correctness one — see §10.
+The TUI changes in two places: the tool messages carry `CallID`, and
+`currentToolArgs string` becomes an ordered `[]activeTool`. Both shipped in
+phase 1. How several concurrent tools should *render* is a UX question, not a
+correctness one — see §11.
 
 ### 5.7 Which tools are eligible
 
@@ -442,14 +455,19 @@ any concurrency limit.
 
 ## 8. Implementation Steps
 
-### Phase 1 — make the seams safe (no behaviour change)
+### Phase 1 — make the seams safe (no behaviour change) — shipped ✅
 
-- Wrap `EventSink` with `serializedSink` and update the `RunLoopOpts` doc
-  comment.
-- TUI: carry `CallID` on `toolStartMsg`/`toolEndMsg`, replace
-  `currentToolArgs` with a call-id map.
-- Desktop: key `pending` by call id.
-- Ship-able on its own; fixes §3.4 and §3.5 whether or not phase 3 lands.
+- `RunLoop` wraps `EventSink` with `serializedSink`; the `RunLoopOpts` comment
+  now states that a sink may be called from a worker and must pair tool events
+  by `ToolCallID` rather than by arrival.
+- TUI: `CallID` on `toolStartMsg`/`toolEndMsg`/`toolDeniedMsg`, and
+  `currentToolArgs` replaced by an ordered `[]activeTool`. A slice rather than a
+  map so the live view does not reorder between frames; matching falls back to
+  the oldest call of the same name when an id is absent, so no surface can leak
+  a spinner.
+- Approval takes the run's context and returns on cancellation (§3.5). The
+  Desktop `pending` slot is **not** keyed by call id — see §3.5 for why that
+  was the wrong fix for the right bug.
 
 ### Phase 2 — split the loop (no behaviour change)
 
