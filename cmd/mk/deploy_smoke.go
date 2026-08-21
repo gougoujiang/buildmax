@@ -57,11 +57,7 @@ func cmdCompose(args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := ensureComposeEnv(); err != nil {
-			return err
-		}
-		files := composeSmokeArgs(managed)
-		if err := runCmd("docker", append(files, "up", "-d", "--build", "--wait")...); err != nil {
+		if err := composeUpSmokeStack(managed); err != nil {
 			return err
 		}
 		target := composeSmokeTarget(managed)
@@ -82,6 +78,17 @@ func cmdCompose(args []string) error {
 	default:
 		return fmt.Errorf("unknown compose command %q (want up, smoke, status, logs, or down)", args[0])
 	}
+}
+
+// composeUpSmokeStack brings up the stack with the smoke overlay, which is what
+// puts the deterministic model in front of the server. Plain `compose up` is a
+// real deployment and expects a real provider, so anything that has to make the
+// agent run — the API smoke and the browser tests alike — needs this one.
+func composeUpSmokeStack(managed bool) error {
+	if err := ensureComposeEnv(); err != nil {
+		return err
+	}
+	return runCmd("docker", append(composeSmokeArgs(managed), "up", "-d", "--build", "--wait")...)
 }
 
 // composeSmokeMode reads the optional mode argument. Direct is the default

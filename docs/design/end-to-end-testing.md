@@ -8,7 +8,10 @@
   `internal/testsupport/mockllm`, serving both the local suites and the
   deployment smokes from one implementation. Step 2 is done: `internal/e2e/cli`
   covers the print-mode paths and answers an approval prompt on a
-  pseudo-terminal. Open: §9 steps 3-6
+  pseudo-terminal. Step 3 has landed its CI half — the deployment workflow is
+  post-merge, scheduled, and dispatchable, and reports what verified a commit —
+  along with named suites, preflight, artifacts, and a lifecycle-owning local
+  mode. Open: the Portal golden paths of §9 step 4, and steps 5-6
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -65,18 +68,21 @@ larger than it looks.
   a conversation task, worker completion, and artifact retrieval. Managed-mode
   smoke additionally proves that a worker reaches the model through the
   gateway.
-- `./make e2e [kind|compose]` runs nine serial Chromium Playwright checks in
-  `portal/e2e/` against an already-running deployment. They prove login,
-  session restoration, the Portal shell, runtime API configuration, selected
-  audit/admin routes, and the run-trace view.
-- `./make smoke` is **not** deterministic verification. It builds the CLI and
-  runs `buildmax -p "/smoke 0"`, which drives the `.buildmax/skills/smoke`
+- `./make e2e [kind|compose|local|cli]` selects a suite. The Portal ones run
+  nine serial Chromium Playwright checks in `portal/e2e/`: login, session
+  restoration, the Portal shell, runtime API configuration, selected
+  audit/admin routes, and the run-trace view. `kind` and `compose` attach to a
+  deployment that is already running, `local` owns a Compose stack for one run,
+  and `cli` needs no deployment at all.
+- `./make agent-smoke` is **not** deterministic verification. It builds the CLI
+  and runs `buildmax -p "/smoke 0"`, which drives the `.buildmax/skills/smoke`
   skill: a real model executes the tool checks and reports its own PASS/FAIL
   table. It therefore needs a provider API key, produces a different transcript
   every run, judges itself, and returns an exit code that reflects only whether
   the process finished. It is a useful manual agent exercise, and it is not the
   CLI suite: that is `internal/e2e/cli`, which drives the built binary against a
-  scripted model. The name still has to move — see §5.
+  scripted model. It was called `./make smoke` until the name collided with two
+  deterministic things, and it now says what it needs before it starts.
 - `./make eval` and `internal/agenteval` run the real agent against the task
   catalog in `eval/`. This is behavioral evaluation of agent quality, not
   boundary verification, and it is deliberately outside the suites below — but
@@ -175,7 +181,7 @@ Every local E2E suite must meet these conditions.
 | Diagnostics | On failure retain Playwright traces/screenshots, command output, redacted server/worker logs, the model scenario and the transcript it produced, and a short reproduction command under one predictable artifact directory. |
 | Portability | Add task-runner commands under `cmd/mk`; do not create an OS-specific shell-script testing path. Platform-specific native Desktop smoke is an explicit exception and reports its unsupported platforms. |
 | Time | Each suite declares a normal duration and a timeout, and holds to the budget in §5.1. A failed preflight names the missing dependency or service rather than timing out later in a browser assertion. |
-| Naming | A command name states what it is. `smoke` currently means three different things — a model-driven skill run, a deterministic deployment check, and, if nothing changes, a future CLI suite. The model-driven one must be renamed and must announce its API-key requirement in preflight before any new suite reuses the word. |
+| Naming | A command name states what it is. `smoke` meant three different things — a model-driven skill run, a deterministic deployment check, and a future CLI suite — so the model-driven one is now `./make agent-smoke` and announces its API-key requirement in preflight. |
 
 ### 5.1 Duration Budget
 
@@ -360,9 +366,10 @@ rather than discovered later.
    including suite selection, prerequisite checks, artifact locations, and a
    release-time full-matrix command.
 
-Renaming the model-driven `./make smoke` and giving `gui` tests and lint are
-small enough to ride along with steps 2 and 3 respectively; they are named here
-so they are not forgotten rather than because they deserve their own phase.
+Renaming the model-driven `./make smoke` rode along with step 3. Giving `gui`
+tests is still open and belongs with step 4, which is when Portal paths start
+depending on the shared components; a lint step for it is blocked until
+typescript-eslint supports the TypeScript version it builds with.
 
 ## 10. Success Criteria
 

@@ -10,7 +10,8 @@ import { defineConfig, devices } from "@playwright/test"
  * the Portal bundle works against a real server: the runtime API base, routing,
  * session restoration, and the views that exist only in the UI.
  *
- * The stack has to be running already — see `./make e2e`.
+ * The stack has to be running already — see `./make e2e`, which also decides
+ * where the run's artifacts land.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -24,6 +25,10 @@ export default defineConfig({
   timeout: 30_000,
   reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
   globalSetup: "./e2e/global-setup.ts",
+  // One predictable directory per run, chosen by `./make e2e` and cleared
+  // before it starts, so a failure's evidence is never mixed with an older
+  // run's. Bare `npx playwright test` keeps Playwright's own default.
+  outputDir: process.env.BUILDMAX_E2E_ARTIFACTS ?? "./test-results",
   use: {
     baseURL: process.env.BUILDMAX_E2E_BASE_URL ?? "http://localhost:8080",
     storageState: "./e2e/.auth/state.json",
