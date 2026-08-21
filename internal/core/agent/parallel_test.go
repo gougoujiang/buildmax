@@ -209,3 +209,195 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+// askFor returns Ask for one tool name and abstains otherwise.
+type askFor struct{ name string }
+
+func (p askFor) Check(name, _ string, _ map[string]any) (llm.ToolAction, bool) {
+	if name == p.name {
+		return llm.ToolActionAsk, true
+	}
+	return llm.ToolActionAllow, false
+}
+
+// orderedApproval records the order it was asked in and answers per tool.
+type orderedApproval struct {
+	mu      sync.Mutex
+	asked   []string
+	approve bool
+}
+
+func (a *orderedApproval) RequestApproval(_ context.Context, name string, args map[string]any) ApprovalDecision {
+	a.mu.Lock()
+	id, _ := args["id"].(string)
+	a.asked = append(a.asked, name+":"+id)
+	a.mu.Unlock()
+	if a.approve {
+		return ApprovalAllowOnce
+	}
+	return ApprovalDeny
+}
+
+// TestParallel_AskInsideAGroupPromptsOnceInOrder: approval stays on the loop
+// goroutine, so prompts do not interleave even when the calls they gate do.
+func TestParallel_AskInsideAGroupPromptsOnceInOrder(t *testing.T) {
+	var spans []span
+	read := &timedTool{name: "read", access: llm.AccessReadOnly, sleep: 20 * time.Millisecond, spans: &spans}
+	approval := &orderedApproval{approve: true}
+
+	registry := llm.NewToolRegistry()
+	registry.AppendTools(read)
+	sess := newTestBuffer()
+	mock := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: callsFor("read", "a", "b", "c")},
+		{content: "done"},
+	}}
+	_, _, err := runLoopWithUserMsg(context.Background(), mock, registry, sess, "go", func(o *RunLoopOpts) {
+		o.MaxParallelTools = 8
+		o.Policy = askFor{name: "read"}
+		o.Approval = approval
+	})
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+
+	want := []string{"read:a", "read:b", "read:c"}
+	if len(approval.asked) != len(want) {
+		t.Fatalf("prompted %v; want one prompt per call, in call order", approval.asked)
+	}
+	for i := range want {
+		if approval.asked[i] != want[i] {
+			t.Errorf("prompt %d = %q, want %q", i, approval.asked[i], want[i])
+		}
+	}
+}
+
+// TestParallel_DenialLeavesSiblingsRunning: a refused call must not cancel the
+// group it happened to be scheduled with.
+func TestParallel_DenialLeavesSiblingsRunning(t *testing.T) {
+	var spans []span
+	read := &timedTool{name: "read", access: llm.AccessReadOnly, sleep: 10 * time.Millisecond, spans: &spans}
+	deny := &timedTool{name: "deny", access: llm.AccessReadOnly, sleep: 10 * time.Millisecond, spans: &spans}
+
+	registry := llm.NewToolRegistry()
+	registry.AppendTools(read, deny)
+	sess := newTestBuffer()
+	mock := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: []llm.ToolCall{
+			{ID: "1", Name: "read", Arguments: `{"id":"1"}`},
+			{ID: "2", Name: "deny", Arguments: `{"id":"2"}`},
+			{ID: "3", Name: "read", Arguments: `{"id":"3"}`},
+		}},
+		{content: "done"},
+	}}
+	_, _, err := runLoopWithUserMsg(context.Background(), mock, registry, sess, "go", func(o *RunLoopOpts) {
+		o.MaxParallelTools = 8
+		o.Policy = askFor{name: "deny"}
+		o.Approval = &orderedApproval{approve: false}
+	})
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+
+	results := toolResults(sess)
+	if !contains(results["2"], "denied by user") {
+		t.Errorf("result for the denied call = %q", results["2"])
+	}
+	if results["1"] != "ok" || results["3"] != "ok" {
+		t.Errorf("siblings did not run: %v", results)
+	}
+}
+
+// TestParallel_LoopGuardIsSchedulerIndependent: the guard counts in the gate,
+// which is serial, so repeating a call must be caught identically at any limit.
+func TestParallel_LoopGuardIsSchedulerIndependent(t *testing.T) {
+	run := func(limit int) map[string]string {
+		t.Helper()
+		var spans []span
+		read := &timedTool{name: "read", access: llm.AccessReadOnly, sleep: time.Millisecond, spans: &spans}
+		registry := llm.NewToolRegistry()
+		registry.AppendTools(read)
+
+		// The same call, repeated past the guard threshold, in one batch.
+		var calls []llm.ToolCall
+		for i := 0; i < defaultMaxRepeatedCalls+2; i++ {
+			calls = append(calls, llm.ToolCall{ID: fmt.Sprintf("c%d", i), Name: "read", Arguments: `{"id":"same"}`})
+		}
+		sess := newTestBuffer()
+		mock := &mockLLMClient{responses: []mockResponse{{toolCalls: calls}, {content: "done"}}}
+		_, _, err := runLoopWithUserMsg(context.Background(), mock, registry, sess, "go", func(o *RunLoopOpts) {
+			o.MaxParallelTools = limit
+		})
+		if err != nil {
+			t.Fatalf("RunLoop(limit=%d): %v", limit, err)
+		}
+		return toolResults(sess)
+	}
+
+	sequential, grouped := run(1), run(8)
+	if len(sequential) != len(grouped) {
+		t.Fatalf("result counts differ: %d vs %d", len(sequential), len(grouped))
+	}
+	for id, want := range sequential {
+		if grouped[id] != want {
+			t.Errorf("call %s: limit 1 gave %q, limit 8 gave %q", id, want, grouped[id])
+		}
+	}
+}
+
+// TestParallel_CancellationStillCommitsEveryCall is D4 under the worst case: a
+// batch abandoned mid-flight must still leave one tool message per tool_call,
+// or the next LLM request is malformed.
+func TestParallel_CancellationStillCommitsEveryCall(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	blocking := &ctxTool{name: "block", entered: make(chan struct{}), once: &sync.Once{}}
+
+	registry := llm.NewToolRegistry()
+	registry.AppendTools(blocking)
+	sess := newTestBuffer()
+	mock := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: callsFor("block", "a", "b", "c")},
+		{content: "done"},
+	}}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, _ = runLoopWithUserMsg(ctx, mock, registry, sess, "go", func(o *RunLoopOpts) {
+			o.MaxParallelTools = 8
+		})
+	}()
+
+	<-blocking.entered
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunLoop did not return after cancelling mid-group")
+	}
+
+	results := toolResults(sess)
+	for _, id := range []string{"a", "b", "c"} {
+		if _, ok := results[id]; !ok {
+			t.Errorf("call %q left the history without a tool result", id)
+		}
+	}
+}
+
+// ctxTool blocks until the run's context ends.
+type ctxTool struct {
+	name    string
+	entered chan struct{}
+	once    *sync.Once
+}
+
+func (t *ctxTool) Name() string                       { return t.name }
+func (t *ctxTool) Description() string                { return "blocks" }
+func (t *ctxTool) Parameters() any                    { return map[string]any{} }
+func (t *ctxTool) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+func (t *ctxTool) Execute(ctx context.Context, _ map[string]any) (string, error) {
+	t.once.Do(func() { close(t.entered) })
+	<-ctx.Done()
+	return "", ctx.Err()
+}

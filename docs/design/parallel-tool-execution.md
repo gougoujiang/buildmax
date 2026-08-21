@@ -4,7 +4,7 @@
 
 - roadmap_priority: `unscheduled` — performance work, not yet placed in
   [../ROADMAP.md](../ROADMAP.md)
-- status: `phases 1-3 implemented; phase 4 (documentation) in progress`
+- status: `implemented` (§8 phases 1-4 landed; §6 items and §11 open)
 - depends on: [tool-permissions.md](./tool-permissions.md), which defines the
   `Access` classification this design schedules on. That record ships first —
   see §11.
@@ -502,32 +502,36 @@ any concurrency limit.
 - `runGroup` still runs inline for a single-call group, which is every group at
   the default until a batch of reads arrives. No goroutine for the common case.
 
-### Phase 4 — documentation
+### Phase 4 — documentation — shipped ✅
 
-- `docs/contribute/architecture/agent-loop.md`: the group/gate/run/commit
-  shape and the ordering table from §5.4.
-- `docs/contribute/architecture/tools.md`: the `Access` classification, the
-  two obligations `AccessReadOnly` carries, and how a tool author checks the
-  second one.
-- `docs/reference/configuration.md`: `agent.max_parallel_tools`.
-- `docs/design/hook-system.md`: the `PreToolUse`-per-group note from §5.4.
-- `CHANGELOG.md` under `## [Unreleased]`, appended to the end of its section.
+- `contribute/architecture/agent-loop.md`: a Tool Execution section with the
+  stage table, what overlaps and what does not, and the two deliberate
+  asymmetries.
+- `contribute/architecture/tools.md`: a Concurrency section stating the
+  obligation `AccessReadOnly` carries, with `WebFetch` as the case that shows
+  read-only and concurrency-safe are different properties.
+- `reference/configuration.md` and `guide/tools.md`:
+  `agent.max_parallel_tools`, and one paragraph for users on what overlaps.
+- `design/hook-system.md`: `PreToolUse` fires for a whole group before any
+  member executes; post hooks fire at the join, still in call order.
+- `CHANGELOG.md` under `## [Unreleased]`.
 
-## 9. Acceptance
+## 9. Acceptance — met ✅
 
-- A batch of tools with staggered delays produces a **byte-identical** message
-  history at limits 1, 2, and 8.
-- `./make test race` is clean with an 8-wide group of read-only tools.
-- Three tools that each sleep 100ms complete in under 250ms wall clock;
-  the same batch at limit 1 takes over 300ms.
-- `[Read, Write, Read]` produces three groups; the `Write` never overlaps a
-  neighbour, asserted by a tool that records entry and exit timestamps.
-- Loop-guard counts and denial results for a repeated call are identical at
-  limit 1 and limit 8.
-- An `Ask` tool inside a group prompts exactly once, in call order, and a
-  denial leaves its siblings running.
-- Cancelling mid-group still yields exactly one `role: "tool"` message per
-  `tool_call` in the assistant message.
+Every condition below has a test. Names are in `internal/core/agent`.
+
+| Condition | Test |
+|---|---|
+| Byte-identical history at limits 1, 2, and 8 | `TestHistoryIsSchedulerIndependent` |
+| `./make test race` clean with an 8-wide read-only group | the package suite under `-race` |
+| Three 100ms calls finish in under 250ms; under limit 1 they do not | `TestParallel_ReadsOverlap`, `TestParallel_SequentialWhenLimitIsOne` |
+| A write never overlaps a neighbour, by entry/exit timestamps | `TestParallel_WriteIsABarrier` |
+| Loop-guard results identical at limit 1 and limit 8 | `TestParallel_LoopGuardIsSchedulerIndependent` |
+| An `Ask` inside a group prompts once per call, in call order | `TestParallel_AskInsideAGroupPromptsOnceInOrder` |
+| A denial leaves its siblings running | `TestParallel_DenialLeavesSiblingsRunning` |
+| Cancelling mid-group still commits one result per call | `TestParallel_CancellationStillCommitsEveryCall` |
+| A panicking tool neither kills the run nor strands siblings | `TestParallel_PanicIsContained` |
+| Grouping never reorders, and groups are windows not copies | `TestGroupCalls_NeverReorders`, `TestGroupCalls_GroupsAreWindows` |
 
 ## 10. Sequencing
 

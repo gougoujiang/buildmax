@@ -146,8 +146,20 @@ func TestHistoryIsSchedulerIndependent(t *testing.T) {
 		return sess.messages
 	}
 
+	// Limit 2 as well as 8: an odd batch size against an even limit is where a
+	// grouping bug would land results in the wrong order.
 	sequential := run(1)
+	pairs := run(2)
 	grouped := run(8)
+
+	for i := range sequential {
+		if i < len(pairs) && sequential[i].Content != pairs[i].Content {
+			t.Errorf("message %d differs at limit 2:\n limit 1: %+v\n limit 2: %+v", i, sequential[i], pairs[i])
+		}
+	}
+	if len(pairs) != len(sequential) {
+		t.Errorf("limit 2 produced %d messages, limit 1 produced %d", len(pairs), len(sequential))
+	}
 
 	if len(sequential) != len(grouped) {
 		t.Fatalf("message counts differ: %d vs %d", len(sequential), len(grouped))

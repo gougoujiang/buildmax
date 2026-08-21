@@ -87,7 +87,41 @@ history + system prompt ──▶ LLMClient
    gates below.
 6. **Repeat**, up to `MaxIter`.
 
-## Tool Call Gates
+## Tool Execution
+
+The calls in one assistant message run through four stages:
+`parseCalls` → `groupCalls` → `gateCall` → `runGroup` → commit.
+
+| Stage | Goroutine | Order | Does |
+|---|---|---|---|
+| parse | loop | batch | unmarshal arguments, resolve tools — no side effects, which is what lets it run ahead |
+| group | loop | batch | cut the batch into units that execute together |
+| gate | loop | call order | `EventToolStart`, the checks below, `PreToolUse` |
+| run | worker | overlapped | `tool.Execute`, then `EventToolEnd` |
+| commit | loop | call order | post hooks, then `History.Append` |
+
+**Only `Execute` overlaps.** Everything that decides — the loop guard,
+permission resolution, the approval prompt, `PreToolUse` — stays on the loop
+goroutine in call order. That is what keeps concurrency cheap: the guard needs
+no lock, approval prompts stay one at a time so neither UI handler has to become
+re-entrant, and hooks still observe calls in the order the model made them.
+
+**Grouping merges only adjacent read-only calls**, and never reorders. A write,
+a shell command, an unknown tool, or a call that failed to parse is a barrier.
+`agent.max_parallel_tools` bounds a group; at 1 every call is its own group,
+which is the sequential behaviour exactly. The message history a run produces is
+identical at any limit — `TestHistoryIsSchedulerIndependent` pins it.
+
+Two asymmetries are deliberate. `EventToolEnd` is emitted from the worker that
+ran the call, because the event stream is live and holding a completion until
+the slowest sibling returns would misreport what is still running; a consumer
+pairs it with `EventToolStart` by `ToolCallID`, never by arrival. Post hooks
+fire at the join in call order, because they are an audit surface and one that
+reorders under load is worse than one that arrives late.
+
+Design: [design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
+
+### Gates
 
 Each requested call passes four checks before it runs. Every rejection is
 appended to history as a tool-role message beginning with `error:`, so the model

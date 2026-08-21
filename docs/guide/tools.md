@@ -28,6 +28,12 @@ so they are worth knowing exactly.
 Run `/tools` in the TUI to see the set active for the current run — it varies
 with what is configured.
 
+When the agent asks for several tools at once, the read-only ones run at the
+same time: `Read`, `Glob`, `Grep`, `Skill`, and `WebFetch`. Anything that
+changes something runs alone and in order, so a batch does the same thing
+however it is scheduled. Tune it with `agent.max_parallel_tools`
+([reference/configuration.md](../reference/configuration.md)).
+
 ## Behavior Worth Knowing
 
 **`Edit` fails loudly on ambiguity.** If `old_string` matches more than once and
