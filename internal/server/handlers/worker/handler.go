@@ -1,0 +1,71 @@
+// Package worker serves the routes a running worker calls back on.
+//
+// Its boundary is a different credential, not a different feature: every route
+// here authenticates with the run token that names one task run, never with a
+// user's access token. Sharing a Handler with the user-facing routes meant one
+// type answered to both credentials, and the only thing keeping a worker route
+// from reading a user's session was that nobody had written it.
+package worker
+
+import (
+	"context"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
+	"net/http"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
+	"github.com/gougoujiang/buildmax/internal/server/websocket"
+	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+)
+
+type Config struct {
+	// JWTSecret verifies the run token. Empty means this deployment mints none,
+	// and the run-scoped routes fall back to WorkerToken.
+	JWTSecret string
+	// WorkerToken is the deployment-wide credential, accepted for one release
+	// while runs dispatched without a run token drain. See
+	// docs/design/worker-run-token.md.
+	WorkerToken string
+	// WorkerLLM tells a worker how to reach a model. Nil means direct.
+	WorkerLLM *workerclient.TaskRunLLM
+
+	TaskRuns model.TaskRunStore
+	Agents   model.AgentStore
+	Gateway  *llmgateway.Service
+	Hub      websocket.StreamHub
+
+	// OnTerminal is fired once a run reaches a terminal status, after the hub
+	// has been told. The server supplies it; this package does not know who is
+	// listening.
+	OnTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+}
+
+type Handler struct{ cfg Config }
+
+// New builds the worker API. A nil Hub gets one of its own, which is what the
+// unified handler did: a deployment with nobody watching still has runs to
+// stream.
+func New(cfg Config) *Handler {
+	if cfg.Hub == nil {
+		cfg.Hub = websocket.NewStreamHub()
+	}
+	return &Handler{cfg: cfg}
+}
+
+// Register adds the worker API.
+//
+// Every route is scoped to one run, so every route authenticates with that
+// run's token.
+func (h *Handler) Register(mux *http.ServeMux) {
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRun)))
+	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
+	// Managed inference takes the run token only. It never accepted the shared
+	// worker token, so it has no upgrade window to keep open and no reason to
+	// grow a fallback the other three are already shedding.
+	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
+}
+
+func (h *Handler) announcer() *runterminal.Announcer {
+	return &runterminal.Announcer{Runs: h.cfg.TaskRuns, Hub: h.cfg.Hub, On: h.cfg.OnTerminal}
+}

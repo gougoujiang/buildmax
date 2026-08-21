@@ -430,7 +430,7 @@ func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, ended
 	if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
 		slog.Warn("could not sync a task from its canceled run", "task_run_id", taskRunID, "err", err)
 	}
-	h.announceTaskRunTerminal(r.Context(), taskRunID, string(model.RunStatusCanceled), nil, &message)
+	h.runAnnouncer().Announce(r.Context(), taskRunID, string(model.RunStatusCanceled), nil, &message)
 	return true
 }
 

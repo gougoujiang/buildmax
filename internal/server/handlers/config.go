@@ -23,17 +23,6 @@ type RunOutputLister interface {
 	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
 }
 
-// TaskRunTerminalInfo holds information about a task run that reached terminal status.
-type TaskRunTerminalInfo struct {
-	TaskRunID      string
-	TaskID         string
-	ConversationID string
-	UserID         string
-	Status         string  // SUCCEEDED, FAILED, or CANCELED
-	Output         *string // task output (succeeded, or as far as a canceled run got) — may be nil
-	ErrorMessage   *string // why it ended (failed or canceled) — may be nil
-}
-
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).
 type Config struct {
 	JWTSecret   string
@@ -136,7 +125,7 @@ type Config struct {
 
 	// OnTaskRunTerminal is an optional external callback fired when a worker run reaches
 	// terminal status (after the internal hub/registry callbacks run).
-	OnTaskRunTerminal func(ctx context.Context, info TaskRunTerminalInfo)
+	OnTaskRunTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
 }
 
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.

@@ -1,4 +1,4 @@
-package handlers
+package worker
 
 import (
 	"encoding/json"
@@ -16,8 +16,7 @@ import (
 func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handler {
 	cfg := Config{
 		JWTSecret: llmTestSecret,
-		TeamStore: llmTestTeamStore(),
-		TaskRunStore: &mock.MockTaskRunStore{
+		TaskRuns: &mock.MockTaskRunStore{
 			Runs: []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
 			TaskList: []model.Task{{
 				TaskID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
@@ -28,9 +27,9 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 		WorkerToken: workerTestToken,
 	}
 	if agents != nil {
-		cfg.AgentStore = agents
+		cfg.Agents = agents
 	}
-	h := NewHandler(cfg)
+	h := New(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 	return mux

@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 	"log/slog"
 	"net/http"
 
@@ -58,4 +61,35 @@ func (h *Handler) adminHandler() *admin.Handler {
 		DependencyProbes: h.cfg.DependencyProbes,
 		RedactedConfig:   h.cfg.RedactedConfig,
 	})
+}
+
+// workerHandler builds the worker API from the fields it needs.
+//
+// OnTerminal fans a finished run out to whoever is watching: the connected
+// clients this package tracks, and then the server's own callback. The worker
+// package is told what to call, not who is listening.
+func (h *Handler) workerHandler() *worker.Handler {
+	return worker.New(worker.Config{
+		JWTSecret:   h.cfg.JWTSecret,
+		WorkerToken: h.cfg.WorkerToken,
+		WorkerLLM:   h.cfg.WorkerLLM,
+		TaskRuns:    h.cfg.TaskRunStore,
+		Agents:      h.cfg.AgentStore,
+		Gateway:     h.cfg.LLMGateway,
+		Hub:         h.hub,
+		OnTerminal:  h.terminalListeners,
+	})
+}
+
+// runAnnouncer closes out a run cancelled from the Portal, reaching the same
+// listeners a worker's own report does.
+func (h *Handler) runAnnouncer() *runterminal.Announcer {
+	return &runterminal.Announcer{Runs: h.cfg.TaskRunStore, Hub: h.hub, On: h.terminalListeners}
+}
+
+func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTerminalInfo) {
+	h.connRegistry.OnTaskRunTerminal(ctx, info)
+	if h.cfg.OnTaskRunTerminal != nil {
+		h.cfg.OnTaskRunTerminal(ctx, info)
+	}
 }

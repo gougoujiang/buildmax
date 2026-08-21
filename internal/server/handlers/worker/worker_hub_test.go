@@ -1,4 +1,4 @@
-package handlers
+package worker
 
 import (
 	"bytes"
@@ -17,13 +17,13 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	hub := streamhub.NewStreamHub()
 	cfg := Config{
 		WorkerToken: "worker-tok",
-		TaskRunStore: &mock.MockTaskRunStore{
+		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: taskID}},
 			TaskList: []model.Task{{TaskID: taskID}},
 		},
 		Hub: hub,
 	}
-	h := NewHandler(cfg)
+	h := New(cfg)
 	mux := http.NewServeMux()
 	h.Register(mux)
 

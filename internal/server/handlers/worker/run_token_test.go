@@ -1,4 +1,4 @@
-package handlers
+package worker
 
 import (
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -45,7 +45,7 @@ func TestRunTokenIsNotAUserLogin(t *testing.T) {
 func workerRouteRequest(t *testing.T, cfg Config, method, path, token string) int {
 	t.Helper()
 	mux := http.NewServeMux()
-	NewHandler(cfg).Register(mux)
+	New(cfg).Register(mux)
 	req := httptest.NewRequest(method, path, strings.NewReader(`{}`))
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -59,7 +59,7 @@ func workerRouteConfig() Config {
 	return Config{
 		JWTSecret:   runRouteSecret,
 		WorkerToken: "shared-worker-token",
-		TaskRunStore: &mock.MockTaskRunStore{
+		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
 			TaskList: []model.Task{{TaskID: "t_1", ConversationID: "c_1", TeamID: "tm_1", CreatedBy: "u_1", CreatedAt: 1}},
 		},

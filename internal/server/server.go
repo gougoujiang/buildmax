@@ -237,7 +237,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 // Each half is wired independently and each failure is logged rather than
 // propagated. A deployment without workflows still reports runs on issues, and
 // a comment store that is down does not stop a workflow from advancing.
-func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
+func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info model.TaskRunTerminalInfo) {
 	var workflowSvc *workflow.Service
 	if cfg.Stores.WorkflowStore != nil {
 		taskSvc := &task.Service{
@@ -265,16 +265,8 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.
 	if workflowSvc == nil && runReporter == nil {
 		return nil
 	}
-	return func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
-		terminal := model.TaskRunTerminalInfo{
-			TaskRunID:      info.TaskRunID,
-			TaskID:         info.TaskID,
-			ConversationID: info.ConversationID,
-			UserID:         info.UserID,
-			Status:         info.Status,
-			Output:         info.Output,
-			ErrorMessage:   info.ErrorMessage,
-		}
+	return func(ctx context.Context, info model.TaskRunTerminalInfo) {
+		terminal := info
 		if workflowSvc != nil {
 			if err := workflowSvc.HandleTaskRunTerminal(ctx, terminal); err != nil && !errors.Is(err, workflow.ErrWorkflowRunNotFound) {
 				slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
