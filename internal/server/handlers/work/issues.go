@@ -2,7 +2,8 @@ package work
 
 import (
 	"context"
-	"log/slog"
+	"errors"
+	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	"net/http"
 	"strings"
 
@@ -225,34 +226,6 @@ func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 // is a sub-issue, its children if it is a parent. The hierarchy is two levels
 // deep, so an issue is never both.
 //
-// Lookup failures degrade to no relatives rather than failing the flow
-// response, which is the same rule aggregateIssueOutputs follows.
-func (h *Handler) issueRelatives(ctx context.Context, issue model.Issue, teamID string) (*IssueResponse, []IssueResponse) {
-	children := []IssueResponse{}
-	if issue.ParentIssueID != nil && *issue.ParentIssueID != "" {
-		parent, err := h.cfg.Issues.GetIssue(ctx, *issue.ParentIssueID)
-		if err != nil {
-			slog.Warn("issue parent not loaded", "err", err, "issue_id", issue.IssueID)
-			return nil, children
-		}
-		if parent == nil || parent.TeamID != teamID {
-			return nil, children
-		}
-		out := issueToResponse(*parent)
-		return &out, children
-	}
-	list, err := h.cfg.Issues.ListIssueChildren(ctx, issue.IssueID)
-	if err != nil {
-		slog.Warn("issue children not loaded", "err", err, "issue_id", issue.IssueID)
-		return nil, children
-	}
-	children = make([]IssueResponse, len(list))
-	for i := range list {
-		children[i] = issueToResponse(list[i])
-	}
-	h.decorateIssueResponses(ctx, children)
-	return nil, children
-}
 
 func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Issues, "issues not configured")
@@ -266,72 +239,56 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	issue, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_issue", "issue_id", issueID)
-		return
-	}
-	if issue == nil || issue.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
-		return
-	}
-	var workflowOut *workflowResponse
-	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == model.IssueAssigneeWorkflow {
-		workflow, err := h.cfg.Workflows.GetWorkflow(r.Context(), *issue.AssigneeID)
-		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_workflow", "issue_id", issueID)
-			return
-		}
-		if workflow != nil && workflow.TeamID == teamID {
-			out := workflowToResponse(*workflow)
-			workflowOut = &out
-		}
-	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
-	runs, total, err := h.cfg.Workflows.ListWorkflowRunsByIssue(r.Context(), issueID, limit, offset)
+	flow, err := h.loadIssueFlow(r.Context(), teamID, issueID, limit, offset)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_runs", "issue_id", issueID)
+		if h.writeIssueServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow", "issue_id", issueID)
 		return
 	}
-	agentTasks := []TaskResponse{}
-	var agentTaskModels []model.Task
-	if h.cfg.Tasks != nil {
-		tasks, _, err := h.cfg.Tasks.ListTasksByIssue(r.Context(), issueID, limit, offset)
-		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_agent_tasks", "issue_id", issueID)
-			return
-		}
-		agentTaskModels = tasks
-		agentTasks = make([]TaskResponse, len(tasks))
-		for i := range tasks {
-			agentTasks[i] = taskToResponse(tasks[i])
-		}
+	httputil.WriteJSON(w, http.StatusOK, h.issueFlowToResponse(r.Context(), flow))
+}
+
+// issueFlowToResponse turns the gathered view into the shape the Portal reads.
+func (h *Handler) issueFlowToResponse(ctx context.Context, flow *issueFlow) issueFlowResponse {
+	self := []IssueResponse{issueToResponse(flow.Issue)}
+	h.decorateIssueResponses(ctx, self)
+
+	var parentOut *IssueResponse
+	if flow.Parent != nil {
+		out := issueToResponse(*flow.Parent)
+		parentOut = &out
 	}
-	stepsByTaskID := map[string]model.WorkflowStepRun{}
-	runOut := make([]issueFlowRunResponse, len(runs))
-	for i := range runs {
-		steps, err := h.cfg.Workflows.ListWorkflowStepRuns(r.Context(), runs[i].WorkflowRunID)
-		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_steps", "workflow_run_id", runs[i].WorkflowRunID)
-			return
-		}
-		stepOut := make([]workflowStepRunResponse, len(steps))
-		for j := range steps {
-			stepOut[j] = workflowStepRunToResponse(steps[j])
-			if steps[j].TaskID != nil && *steps[j].TaskID != "" {
-				stepsByTaskID[*steps[j].TaskID] = steps[j]
-			}
-		}
-		runOut[i] = issueFlowRunResponse{
-			Run:   workflowRunToResponse(runs[i]),
-			Steps: stepOut,
-		}
+	childrenOut := make([]IssueResponse, len(flow.Children))
+	for i := range flow.Children {
+		childrenOut[i] = issueToResponse(flow.Children[i])
 	}
-	outputs, latest := h.aggregateIssueOutputs(r.Context(), agentTaskModels, stepsByTaskID)
-	self := []IssueResponse{issueToResponse(*issue)}
-	h.decorateIssueResponses(r.Context(), self)
-	parentOut, childrenOut := h.issueRelatives(r.Context(), *issue, teamID)
-	httputil.WriteJSON(w, http.StatusOK, issueFlowResponse{
+	h.decorateIssueResponses(ctx, childrenOut)
+
+	var workflowOut *workflowResponse
+	if flow.Workflow != nil {
+		out := workflowToResponse(*flow.Workflow)
+		workflowOut = &out
+	}
+
+	runOut := make([]issueFlowRunResponse, len(flow.Runs))
+	for i := range flow.Runs {
+		steps := make([]workflowStepRunResponse, len(flow.Runs[i].Steps))
+		for j := range flow.Runs[i].Steps {
+			steps[j] = workflowStepRunToResponse(flow.Runs[i].Steps[j])
+		}
+		runOut[i] = issueFlowRunResponse{Run: workflowRunToResponse(flow.Runs[i].Run), Steps: steps}
+	}
+
+	agentTasks := make([]TaskResponse, len(flow.AgentTasks))
+	for i := range flow.AgentTasks {
+		agentTasks[i] = taskToResponse(flow.AgentTasks[i])
+	}
+
+	outputs, latest := h.aggregateIssueOutputs(ctx, flow.AgentTasks, flow.StepsByTaskID)
+	return issueFlowResponse{
 		Issue:        self[0],
 		Parent:       parentOut,
 		Children:     childrenOut,
@@ -340,8 +297,8 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 		AgentTasks:   agentTasks,
 		LatestResult: latest,
 		Outputs:      outputs,
-		Total:        total,
-	})
+		Total:        flow.TotalRuns,
+	}
 }
 
 func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Request) {
@@ -368,26 +325,26 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	issue, err := h.cfg.Issues.GetIssue(r.Context(), issueID)
+	issue, err := h.issueService().GetIssue(r.Context(), teamID, issueID)
 	if err != nil {
+		if h.writeIssueServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_agent_run", "issue_id", issueID)
-		return
-	}
-	if issue == nil || issue.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
 	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != model.IssueAssigneeAgent {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to agent")
 		return
 	}
-	agent, err := h.cfg.Agents.GetAgent(r.Context(), *issue.AssigneeID)
-	if err != nil {
+	// The agent has to belong to this team as well, and asking the agent
+	// service is what keeps that one rule rather than a third copy of it.
+	if _, err := h.agentService().GetAgent(r.Context(), teamID, *issue.AssigneeID); err != nil {
+		if errors.Is(err, agentsvc.ErrAgentNotFound) {
+			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent_for_issue_run", "issue_id", issueID, "agent_id", *issue.AssigneeID)
-		return
-	}
-	if agent == nil || agent.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
 		return
 	}
 	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, "issue_agent", userID)
@@ -458,4 +415,11 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	out := []IssueResponse{issueToResponse(*updatedIssue)}
 	h.decorateIssueResponses(r.Context(), out)
 	httputil.WriteJSON(w, http.StatusOK, out[0])
+}
+
+// agentService answers whether an agent belongs to this team. The work package
+// builds its own rather than taking one, because that is the only question it
+// asks of agents.
+func (h *Handler) agentService() *agentsvc.Service {
+	return &agentsvc.Service{Agents: h.cfg.Agents}
 }
