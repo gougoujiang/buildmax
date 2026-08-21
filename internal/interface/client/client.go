@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 )
 
@@ -90,7 +90,7 @@ func (c *Client) RequestOTP(ctx context.Context, email, intent string) error {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	return parseErrorResponse(resp)
+	return httpclient.DecodeError(resp, "")
 }
 
 // Login calls POST /api/login with a single-use login code — the recovery
@@ -129,7 +129,7 @@ func (c *Client) login(ctx context.Context, payload map[string]string) (*LoginRe
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, parseErrorResponse(resp)
+		return nil, httpclient.DecodeError(resp, "")
 	}
 	var lr LoginResponse
 	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
@@ -163,7 +163,7 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*RefreshResp
 		return nil, ErrRefreshRejected
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, parseErrorResponse(resp)
+		return nil, httpclient.DecodeError(resp, "")
 	}
 	var rr RefreshResponse
 	if err := json.NewDecoder(resp.Body).Decode(&rr); err != nil {
@@ -197,7 +197,7 @@ func (c *Client) Logout(ctx context.Context, refreshToken, accessToken string) e
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	return parseErrorResponse(resp)
+	return httpclient.DecodeError(resp, "")
 }
 
 // ListTeamModels calls GET /api/teams/{team_id}/llm/models and returns the
@@ -223,31 +223,11 @@ func (c *Client) ListTeamModels(ctx context.Context, token, teamID string) ([]ll
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, parseErrorResponse(resp)
+		return nil, httpclient.DecodeError(resp, "")
 	}
 	var out llmwire.ModelsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 	return out.Models, nil
-}
-
-// parseErrorResponse reads an error JSON body ({"error":"..."} or {"message":"..."})
-// and returns it as an error with the HTTP status code.
-func parseErrorResponse(resp *http.Response) error {
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	var errBody struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-	}
-	if json.Unmarshal(data, &errBody) == nil {
-		msg := errBody.Error
-		if msg == "" {
-			msg = errBody.Message
-		}
-		if msg != "" {
-			return fmt.Errorf("server %d: %s", resp.StatusCode, msg)
-		}
-	}
-	return fmt.Errorf("server returned %d", resp.StatusCode)
 }

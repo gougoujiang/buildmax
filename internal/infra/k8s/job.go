@@ -261,10 +261,10 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken stri
 	}
 
 	if err := r.client.CreateJob(ctx, r.namespace, job); err != nil {
-		slog.Warn("scheduler: failed to create k8s Job", "task_run_id", run.TaskRunID, "job_name", jobName, "err", err)
+		componentLog().Warn("failed to create k8s Job", "task_run_id", run.TaskRunID, "job_name", jobName, "err", err)
 		return "", nil, nil, err
 	}
-	slog.Info("scheduler: created k8s Job", "task_run_id", run.TaskRunID, "job_name", jobName, "namespace", r.namespace)
+	componentLog().Info("created k8s Job", "task_run_id", run.TaskRunID, "job_name", jobName, "namespace", r.namespace)
 	return "k8s_job", &jobName, &createdAtUnix, nil
 }
 
@@ -325,3 +325,6 @@ func BuildK8sJobCreator() (JobCreator, error) {
 	}
 	return &jobCreatorImpl{clientset: clientset}, nil
 }
+
+// Identity belongs in an attr, not in every message string.
+func componentLog() *slog.Logger { return slog.With("component", "k8s_runner") }

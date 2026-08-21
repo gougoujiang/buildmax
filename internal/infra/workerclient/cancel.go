@@ -3,7 +3,7 @@ package workerclient
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"log/slog"
 	"net/http"
 	"time"
@@ -33,7 +33,7 @@ func IsCancelRequested(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID
 		return false, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
+		return false, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
 	}
 	var got GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -69,15 +69,18 @@ func WatchCancel(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID strin
 			canceled, err := IsCancelRequested(ctx, cfg, taskRunID)
 			if err != nil {
 				if ctx.Err() == nil {
-					slog.Warn("worker: cancel poll failed", "task_run_id", taskRunID, "err", err)
+					cancelPollLog().Warn("cancel poll failed", "task_run_id", taskRunID, "err", err)
 				}
 				continue
 			}
 			if canceled {
-				slog.Info("worker: cancel requested, stopping this run", "task_run_id", taskRunID)
+				cancelPollLog().Info("cancel requested, stopping this run", "task_run_id", taskRunID)
 				onCancel()
 				return
 			}
 		}
 	}
 }
+
+// Identity belongs in an attr, not in every message string.
+func cancelPollLog() *slog.Logger { return slog.With("component", "worker_cancel_poll") }

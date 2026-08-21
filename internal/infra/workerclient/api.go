@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 )
 
 // StreamSender sends run output deltas to the server (e.g. for live streaming). Optional; when nil, run output is not streamed.
@@ -92,7 +92,7 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		return nil, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("worker API GET %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
+		return nil, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
 	}
 	var got GetTaskRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -147,7 +147,7 @@ func (u *WorkerHTTPUpdater) UpdateRunStatus(ctx context.Context, taskRunID strin
 		return ErrTaskRunAlreadyClaimed
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("worker API PATCH %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
+		return httpclient.DecodeError(resp, "worker API PATCH "+cfg.BaseURL+pathSuffix)
 	}
 	return nil
 }
@@ -177,7 +177,7 @@ func (u *WorkerHTTPStreamSender) SendDelta(ctx context.Context, taskRunID, delta
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("worker API POST stream %s: %s", cfg.BaseURL+pathSuffix, resp.Status)
+		return httpclient.DecodeError(resp, "worker API POST stream "+cfg.BaseURL+pathSuffix)
 	}
 	return nil
 }

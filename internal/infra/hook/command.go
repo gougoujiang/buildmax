@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -44,12 +43,12 @@ func (CommandDriver) Type() string { return config.HookTypeCommand }
 // Run executes entry.Command with the HookInput JSON on stdin.
 func (CommandDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
 	if entry.Command == "" {
-		slog.Warn("hook: command entry missing command", "event", in.Event)
+		componentLog().Warn("command entry missing command", "event", in.Event)
 		return agent.HookOutput{}
 	}
 	payload, err := json.Marshal(in)
 	if err != nil {
-		slog.Warn("hook: marshal input failed; failing open", "event", in.Event, "err", err)
+		componentLog().Warn("marshal input failed; failing open", "event", in.Event, "err", err)
 		return agent.HookOutput{}
 	}
 
@@ -76,7 +75,7 @@ func (CommandDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 	dur := time.Since(start)
 
 	if errors.Is(cmdCtx.Err(), context.DeadlineExceeded) {
-		slog.Warn("hook: command timed out; failing open", "event", in.Event, "command", entry.Command, "timeout", timeout)
+		componentLog().Warn("command timed out; failing open", "event", in.Event, "command", entry.Command, "timeout", timeout)
 		return agent.HookOutput{}
 	}
 
@@ -91,10 +90,10 @@ func (CommandDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 			if reason == "" {
 				reason = fmt.Sprintf("hook %q exited with code %d", entry.Command, exitCode)
 			}
-			slog.Info("hook: blocked via exit 2", "event", in.Event, "tool", in.ToolName, "command", entry.Command, "reason", reason, "dur", dur)
+			componentLog().Info("blocked via exit 2", "event", in.Event, "tool", in.ToolName, "command", entry.Command, "reason", reason, "dur", dur)
 			return agent.HookOutput{Decision: agent.HookDecisionBlock, Reason: reason}
 		}
-		slog.Warn("hook: command failed; failing open",
+		componentLog().Warn("command failed; failing open",
 			"event", in.Event,
 			"command", entry.Command,
 			"exit_code", exitCode,
@@ -106,11 +105,11 @@ func (CommandDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 
 	out, ok := parseHookOutput(stdout.Bytes())
 	if !ok {
-		slog.Debug("hook: command ran", "event", in.Event, "command", entry.Command, "dur", dur)
+		componentLog().Debug("command ran", "event", in.Event, "command", entry.Command, "dur", dur)
 		return agent.HookOutput{}
 	}
 	if out.Blocked() {
-		slog.Info("hook: blocked via json", "event", in.Event, "tool", in.ToolName, "command", entry.Command, "reason", out.Reason)
+		componentLog().Info("blocked via json", "event", in.Event, "tool", in.ToolName, "command", entry.Command, "reason", out.Reason)
 	}
 	return out
 }

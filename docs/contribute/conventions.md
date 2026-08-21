@@ -57,6 +57,40 @@ log line and not a user-facing string.
   model decide whether to retry, adjust, or tell the user. `error` alone does
   not. The agent prefixes tool errors with `error:` on the way to the model.
 
+## Logs Are Written For Triage
+
+One rule decides the level, so a threshold selects something meaningful:
+
+| Level | Means |
+|---|---|
+| `Error` | A unit of user work failed or was lost |
+| `Warn` | Degraded, but the work finished — including a fail-open path that ignored something the user configured |
+| `Info` | Lifecycle and state transitions |
+| `Debug` | Per-item detail |
+
+Warn outnumbering Error is expected here rather than a smell: hooks, traces, the
+sandbox, and skill loading all fail open by design, and each of those is a
+genuine "degraded but finished".
+
+Identity goes in attributes, never in the message text. A subsystem sets
+`component` once — `slog.With("component", "scheduler")` — and the message
+describes only the event. Build that logger where it is used rather than in a
+package variable, which would capture `slog.Default()` before `infra/log`
+installs the real handler at startup.
+
+Attribute keys are `snake_case`, and an error is always `"err"`.
+
+Correlation travels on the context. `infra/log.With(ctx, ...)` adds attrs that
+the handler puts on every record logged with that context, so call sites use the
+stdlib `slog.*Context` functions and import nothing. That indirection is what
+lets `internal/core` carry a run's identifiers without importing infra. The
+server puts `request_id` on every request and returns it in `X-Request-Id`; a
+worker puts `component` and `task_run_id` on the default logger, because it runs
+exactly one task run.
+
+Never log a credential, and never log a provider's raw error body — it can carry
+account identifiers and request fragments.
+
 ## Commit Messages And Pull Requests
 
 The repository's public record carries project content only. Tooling

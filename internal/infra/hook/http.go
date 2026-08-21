@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -50,12 +49,12 @@ func (HTTPDriver) Type() string { return config.HookTypeHTTP }
 // Run executes one HTTP hook entry.
 func (d *HTTPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
 	if entry.URL == "" {
-		slog.Warn("hook: http entry missing url", "event", in.Event)
+		componentLog().Warn("http entry missing url", "event", in.Event)
 		return agent.HookOutput{}
 	}
 	body, err := json.Marshal(in)
 	if err != nil {
-		slog.Warn("hook: marshal http body failed; failing open", "event", in.Event, "err", err)
+		componentLog().Warn("marshal http body failed; failing open", "event", in.Event, "err", err)
 		return agent.HookOutput{}
 	}
 
@@ -64,7 +63,7 @@ func (d *HTTPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, entry.URL, bytes.NewReader(body))
 	if err != nil {
-		slog.Warn("hook: build http request failed; failing open", "event", in.Event, "url", entry.URL, "err", err)
+		componentLog().Warn("build http request failed; failing open", "event", in.Event, "url", entry.URL, "err", err)
 		return agent.HookOutput{}
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -77,7 +76,7 @@ func (d *HTTPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 	resp, err := d.Client.Do(req)
 	dur := time.Since(start)
 	if err != nil {
-		slog.Warn("hook: http request failed; failing open",
+		componentLog().Warn("http request failed; failing open",
 			"event", in.Event,
 			"url", entry.URL,
 			"dur", dur,
@@ -89,7 +88,7 @@ func (d *HTTPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 
 	respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if readErr != nil {
-		slog.Warn("hook: read http response failed; failing open", "event", in.Event, "url", entry.URL, "err", readErr)
+		componentLog().Warn("read http response failed; failing open", "event", in.Event, "url", entry.URL, "err", readErr)
 		return agent.HookOutput{}
 	}
 
@@ -105,20 +104,20 @@ func (d *HTTPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.H
 				reason = parsed.Reason
 			}
 		}
-		slog.Info("hook: http blocked via 422", "event", in.Event, "tool", in.ToolName, "url", entry.URL, "reason", reason, "dur", dur)
+		componentLog().Info("http blocked via 422", "event", in.Event, "tool", in.ToolName, "url", entry.URL, "reason", reason, "dur", dur)
 		return agent.HookOutput{Decision: agent.HookDecisionBlock, Reason: reason}
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		out, ok := parseHookOutput(respBody)
 		if !ok {
-			slog.Debug("hook: http ok", "event", in.Event, "url", entry.URL, "dur", dur)
+			componentLog().Debug("http ok", "event", in.Event, "url", entry.URL, "dur", dur)
 			return agent.HookOutput{}
 		}
 		if out.Blocked() {
-			slog.Info("hook: http blocked via json", "event", in.Event, "tool", in.ToolName, "url", entry.URL, "reason", out.Reason)
+			componentLog().Info("http blocked via json", "event", in.Event, "tool", in.ToolName, "url", entry.URL, "reason", out.Reason)
 		}
 		return out
 	default:
-		slog.Warn("hook: http non-2xx; failing open",
+		componentLog().Warn("http non-2xx; failing open",
 			"event", in.Event,
 			"url", entry.URL,
 			"status", resp.StatusCode,

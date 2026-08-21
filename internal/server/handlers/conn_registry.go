@@ -55,12 +55,12 @@ const taskResultMaxOutputLen = 4000
 func (r *connRegistry) OnTaskRunTerminal(ctx context.Context, info TaskRunTerminalInfo) {
 	conns := r.ForUser(info.UserID)
 	if len(conns) == 0 {
-		slog.Info("task run terminal: user not connected, skipping", "user_id", info.UserID, "task_id", info.TaskID)
+		runTerminalLog().Info("user not connected, skipping", "user_id", info.UserID, "task_id", info.TaskID)
 		return
 	}
 	msg := formatTaskResultMessage(info)
 	wc := conns[0]
-	slog.Info("task run terminal: triggering system turn", "user_id", info.UserID, "conversation_id", info.ConversationID, "task_id", info.TaskID, "status", info.Status)
+	runTerminalLog().Info("triggering system turn", "user_id", info.UserID, "conversation_id", info.ConversationID, "task_id", info.TaskID, "status", info.Status)
 	wc.RunSystemConversationTurn(ctx, info.ConversationID, msg)
 }
 
@@ -90,3 +90,6 @@ func formatTaskResultMessage(info TaskRunTerminalInfo) string {
 	}
 	return "[Task Result] task_id: " + info.TaskID + " | status: failed\n\nError: " + errMsg
 }
+
+// Identity belongs in an attr, not in every message string.
+func runTerminalLog() *slog.Logger { return slog.With("component", "task_run_terminal") }

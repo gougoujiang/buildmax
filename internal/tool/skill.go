@@ -128,7 +128,7 @@ func (s *SkillTool) Execute(ctx context.Context, args map[string]any) (string, e
 	b.Write(data)
 	content := b.String()
 
-	slog.Info("skill: invoked", "skill", skillName, "content_len", len(content))
+	skillLog().Info("invoked", "skill", skillName, "content_len", len(content))
 	return content, nil
 }
 
@@ -144,9 +144,9 @@ func DiscoverSkillEntries(searchPaths []string) []SkillEntry {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				slog.Debug("skill: search path does not exist, skipping", "path", dir)
+				skillLog().Debug("search path does not exist, skipping", "path", dir)
 			} else {
-				slog.Warn("skill: error reading search path, skipping", "path", dir, "err", err)
+				skillLog().Warn("error reading search path, skipping", "path", dir, "err", err)
 			}
 			continue
 		}
@@ -168,13 +168,13 @@ func DiscoverSkillEntries(searchPaths []string) []SkillEntry {
 
 			data, err := os.ReadFile(skillPath)
 			if err != nil {
-				slog.Warn("skill: error reading SKILL.md, skipping", "path", skillPath, "err", err)
+				skillLog().Warn("error reading SKILL.md, skipping", "path", skillPath, "err", err)
 				continue
 			}
 
 			absPath, err := filepath.Abs(skillPath)
 			if err != nil {
-				slog.Warn("skill: error resolving path, skipping", "path", skillPath, "err", err)
+				skillLog().Warn("error resolving path, skipping", "path", skillPath, "err", err)
 				continue
 			}
 
@@ -185,7 +185,7 @@ func DiscoverSkillEntries(searchPaths []string) []SkillEntry {
 				Path:        absPath,
 			})
 			seen[name] = true
-			slog.Info("skill: discovered", "name", name, "path", absPath)
+			skillLog().Info("discovered", "name", name, "path", absPath)
 		}
 	}
 
@@ -223,3 +223,6 @@ func cloneSkillEntries(entries []SkillEntry) []SkillEntry {
 	copy(cloned, entries)
 	return cloned
 }
+
+// Identity belongs in an attr, not in every message string.
+func skillLog() *slog.Logger { return slog.With("component", "skill") }

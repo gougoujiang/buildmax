@@ -50,7 +50,7 @@ func resolveRunModel(sc config.ServerConfig, llm *workerclient.TaskRunLLM, serve
 	if alias == "" {
 		// The gateway resolves an empty alias to the team default. Naming it
 		// here would be this worker choosing a model.
-		slog.Info("worker: using the team's default model alias")
+		slog.Info("using the team's default model alias")
 	}
 	return config.ModelEntry{
 			Model:         alias,
@@ -83,6 +83,12 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return fmt.Errorf("task-run-id is required")
 	}
 
+	// A worker process executes exactly one run, so its identity belongs on the
+	// default logger rather than on each call. This reaches the packages a
+	// worker drives -- the agent loop, the LLM client, the tools -- none of
+	// which could be handed a run id any other way.
+	slog.SetDefault(slog.Default().With("component", "worker", "task_run_id", taskRunID))
+
 	sc, err := config.LoadServerConfig()
 	if err != nil {
 		return fmt.Errorf("server config: %w", err)
@@ -90,12 +96,12 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 
 	serverURL := sc.Worker.ServerURL
 	if serverURL == "" {
-		slog.Error("worker: server_url not set in server.yaml", "task_run_id", taskRunID)
+		slog.Error("server_url not set in server.yaml")
 		return fmt.Errorf("worker.server_url is required in server.yaml")
 	}
 	workspacesDir := sc.WorkspacesDir
 	if workspacesDir == "" {
-		slog.Error("worker: workspaces_dir not set in server.yaml", "task_run_id", taskRunID)
+		slog.Error("workspaces_dir not set in server.yaml")
 		return fmt.Errorf("workspaces_dir is required in server.yaml")
 	}
 	if abs, err := filepath.Abs(workspacesDir); err == nil {
@@ -117,31 +123,30 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	if token == "" {
 		token = sc.Worker.Token
 		if token == "" {
-			slog.Error("worker: no run token and no worker.token", "task_run_id", taskRunID)
+			slog.Error("no run token and no worker.token")
 			return fmt.Errorf("this run was dispatched without %s, and worker.token is not set either",
 				config.EnvKeyBuildmaxRunToken)
 		}
-		slog.Warn("worker: falling back to the deployment-wide worker token",
-			"task_run_id", taskRunID, "why", "this run was dispatched without a run token")
+		slog.Warn("falling back to the deployment-wide worker token", "why", "this run was dispatched without a run token")
 	}
 
 	fetched, err := workerclient.GetWorkerTaskRun(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: token}, taskRunID)
 	if err != nil {
-		slog.Error("worker: get run failed", "task_run_id", taskRunID, "err", err)
+		slog.Error("get run failed", "err", err)
 		return fmt.Errorf("get run: %w", err)
 	}
 	if fetched == nil {
-		slog.Error("worker: run not found", "task_run_id", taskRunID)
+		slog.Error("run not found")
 		return fmt.Errorf("run not found")
 	}
 	run, task := fetched.Run, fetched.Task
 	runtimeModel, managed, err := resolveRunModel(sc, fetched.LLM, serverURL, runToken)
 	if err != nil {
-		slog.Error("worker: cannot resolve a model for this run", "task_run_id", taskRunID, "err", err)
+		slog.Error("cannot resolve a model for this run", "err", err)
 		return err
 	}
 	if run.Status != string(model.RunStatusScheduled) {
-		slog.Error("worker: run not in SCHEDULED status", "task_run_id", taskRunID, "status", run.Status)
+		slog.Error("run not in SCHEDULED status", "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
 	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: token}
@@ -163,10 +168,10 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		SessionID: &sessionID,
 	}); err != nil {
 		if errors.Is(err, workerclient.ErrTaskRunAlreadyClaimed) {
-			slog.Info("run already claimed by another worker", "task_run_id", taskRunID)
+			slog.Info("run already claimed by another worker")
 			return ErrAlreadyClaimed
 		}
-		slog.Error("worker: failed to mark run RUNNING", "task_run_id", taskRunID, "err", err)
+		slog.Error("failed to mark run RUNNING", "err", err)
 		return fmt.Errorf("mark RUNNING: %w", err)
 	}
 
@@ -176,7 +181,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		var s3Err error
 		s3Client, s3Err = BuildS3Client(ctx, wsCfg)
 		if s3Err != nil {
-			slog.Error("worker: failed to build S3 client", "task_run_id", taskRunID, "err", s3Err)
+			slog.Error("failed to build S3 client", "err", s3Err)
 			return fmt.Errorf("S3 client: %w", s3Err)
 		}
 	}
@@ -185,7 +190,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	}
 	persistStorage, err := BuildPersistStorage(wsCfg, persistRoot, s3Client)
 	if err != nil {
-		slog.Error("worker: failed to build persist storage", "task_run_id", taskRunID, "err", err)
+		slog.Error("failed to build persist storage", "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
 	artifactRoot := func(userID, conversationID, taskID, taskRunID string) string {
@@ -193,7 +198,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	}
 	artifactStorage, err := BuildArtifactStorage(wsCfg, artifactRoot, s3Client)
 	if err != nil {
-		slog.Error("worker: failed to build artifact storage", "task_run_id", taskRunID, "err", err)
+		slog.Error("failed to build artifact storage", "err", err)
 		return fmt.Errorf("artifact storage: %w", err)
 	}
 
@@ -223,11 +228,11 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		AdditionalSystemPrompt: fetched.AgentInstructions,
 	})
 	if errors.Is(err, model.ErrRunCanceled) {
-		slog.Info("worker: run canceled on request", "task_run_id", taskRunID)
+		slog.Info("run canceled on request")
 		return err
 	}
 	if err != nil {
-		slog.Error("worker: run execution failed", "task_run_id", taskRunID, "err", err)
+		slog.Error("run execution failed", "err", err)
 		return err
 	}
 	return nil
@@ -237,7 +242,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 // and start. Nothing ran, so there is no output and no artifact to register —
 // only a record that says why the run stopped instead of what it produced.
 func reportCanceledBeforeStart(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID string) error {
-	slog.Info("worker: this run was canceled before it started", "task_run_id", taskRunID)
+	slog.Info("this run was canceled before it started")
 	endedAt := time.Now().Unix()
 	message := "this run was canceled before it started"
 	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
@@ -245,7 +250,7 @@ func reportCanceledBeforeStart(ctx context.Context, updater taskrun.TaskRunUpdat
 		EndedAt:      &endedAt,
 		ErrorMessage: &message,
 	}); err != nil {
-		slog.Error("worker: could not report a cancel", "task_run_id", taskRunID, "err", err)
+		slog.Error("could not report a cancel", "err", err)
 		return err
 	}
 	return model.ErrRunCanceled
