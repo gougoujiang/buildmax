@@ -132,22 +132,33 @@ var testOnlyPackages = []string{
 	"github.com/gougoujiang/buildmax/internal/testsupport",
 }
 
+// The rule covers cmd/ and deployment/ as well as internal/, because "must not
+// ship" is a statement about the binaries, and those are where they are built.
+var testOnlyImportTrees = []string{"internal", "cmd", "deployment"}
+
+// deployment/smoke exists only to make a smoke deterministic and is never
+// released, so it is where a test-only import is the point rather than a
+// mistake: its mock model is a packaging of internal/testsupport/mockllm.
+var testOnlyImportExempt = []string{"deployment/smoke"}
+
 func TestTestOnlyPackagesStayInTests(t *testing.T) {
 	root := moduleRoot(t)
-	for _, path := range goFiles(t, filepath.Join(root, "internal")) {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		f := parseFile(t, path)
-		for _, imp := range f.Imports {
-			importPath, err := strconv.Unquote(imp.Path.Value)
-			if err != nil {
-				t.Fatalf("unquote import in %s: %v", path, err)
+	for _, tree := range testOnlyImportTrees {
+		for _, path := range goFiles(t, filepath.Join(root, tree)) {
+			if strings.HasSuffix(path, "_test.go") || excluded(rel(root, path), testOnlyImportExempt) {
+				continue
 			}
-			for _, pkg := range testOnlyPackages {
-				if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
-					t.Errorf("%s is not a test file but imports test-only package %s",
-						rel(root, path), importPath)
+			f := parseFile(t, path)
+			for _, imp := range f.Imports {
+				importPath, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					t.Fatalf("unquote import in %s: %v", path, err)
+				}
+				for _, pkg := range testOnlyPackages {
+					if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
+						t.Errorf("%s is not a test file but imports test-only package %s",
+							rel(root, path), importPath)
+					}
 				}
 			}
 		}

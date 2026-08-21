@@ -4,12 +4,11 @@
 
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `in progress` — the deployment smoke and the Portal browser suite
-  exist; the model harness of §4 landed complete as
-  `internal/testsupport/mockllm` and the first CLI golden paths as
-  `internal/e2e/cli` (§9 step 1 done, step 2 partly). Open: folding
-  `deployment/smoke/mock-llm` onto the harness, the pseudo-terminal approval
-  path, and §9 steps 3-6
+- status: `in progress` — §9 step 1 is done: the model harness of §4 is
+  `internal/testsupport/mockllm`, serving both the local suites and the
+  deployment smokes from one implementation. Step 2 landed its print-mode
+  golden paths as `internal/e2e/cli`. Open: the pseudo-terminal approval path
+  and §9 steps 3-6
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -154,9 +153,13 @@ way it is fetched — a suite that switches between them does not script it
 twice. Its tests drive the real adapters in `internal/infra/llm`, because a
 mock checked against a hand-written parser only proves it agrees with itself.
 
-One contract item is still open: `deployment/smoke/mock-llm` remains a separate
-one-sentence server, so the Compose and kind smokes cannot yet replay a
-scenario.
+`deployment/smoke/mock-llm` is now a packaging of the same code rather than a
+second implementation, so a reply shape is only right or wrong in one place,
+and a deployment smoke can replay a scenario by mounting one. Its default
+scenario repeats its single step: a deployment smoke asserts on what a run
+produced, not on how many model calls producing it took. Repeating is opt-in
+for exactly that reason — everywhere else, the call past the end of the script
+is the finding.
 
 ## 5. Local Harness Contract
 

@@ -262,6 +262,31 @@ func TestUnconsumedStepsAreVisible(t *testing.T) {
 	}
 }
 
+// Repeat is what lets the deployment smoke share this harness. It has to stay
+// opt-in, because everywhere else the call past the end of the script is the
+// finding rather than something to answer.
+func TestRepeatAnswersEveryCallPastTheEnd(t *testing.T) {
+	server := start(t, mockllm.Scenario{Repeat: true, Steps: []mockllm.Step{
+		{Text: "first"},
+		{Text: "always this"},
+	}})
+	c := client(t, server, mockllm.ProtocolOpenAIChat)
+	history := []cllm.Message{{Role: "user", Content: "hi"}}
+	want := []string{"first", "always this", "always this", "always this"}
+	for i, expected := range want {
+		completion, err := c.ChatCompletionBlocking(context.Background(), history, nil)
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+		if completion.Content != expected {
+			t.Fatalf("call %d content = %q, want %q", i, completion.Content, expected)
+		}
+	}
+	if server.Remaining() != 0 {
+		t.Fatalf("remaining steps = %d, want 0", server.Remaining())
+	}
+}
+
 func TestScriptedProviderErrorReachesTheCaller(t *testing.T) {
 	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Status: 400, Error: "scripted refusal"}}})
 	_, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(

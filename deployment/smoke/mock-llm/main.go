@@ -1,69 +1,62 @@
+// Command mock-llm serves the deployment smokes a model that never varies.
+//
+// It is a packaging of internal/testsupport/mockllm, not a second
+// implementation: the CLI suites and the Compose and kind smokes replay the
+// same scenario format, so a reply shape only has to be right in one place.
+// See docs/design/end-to-end-testing.md §4.
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"time"
+
+	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
 )
 
-const responseText = "deployment smoke ok"
+// defaultReply is what the deployment smoke asserts a task run produced.
+const defaultReply = "deployment smoke ok"
 
-type chatRequest struct {
-	Stream bool `json:"stream"`
-}
+// scenarioPath names a scenario file to replay instead of the default. A
+// deployment smoke that wants tool calls mounts one and sets this.
+const scenarioPath = "BUILDMAX_MOCK_SCENARIO"
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
-		resp, err := http.Get("http://127.0.0.1:8080/healthz")
-		if err != nil || resp.StatusCode != http.StatusOK {
-			os.Exit(1)
-		}
-		_ = resp.Body.Close()
+		healthcheck()
 		return
+	}
+	scenario, err := scenario()
+	if err != nil {
+		log.Fatal(err)
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
-	mux.HandleFunc("POST /v1/chat/completions", chatCompletion)
+	mux.Handle("/", mockllm.NewHandler(scenario))
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
-func chatCompletion(w http.ResponseWriter, r *http.Request) {
-	var req chatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
-		return
+// scenario loads the mounted script, or answers every call with the smoke's
+// one sentence. The default repeats because a deployment smoke asserts on what
+// a run produced, not on how many model calls producing it took.
+func scenario() (mockllm.Scenario, error) {
+	if path := os.Getenv(scenarioPath); path != "" {
+		return mockllm.LoadScenario(path)
 	}
-	if req.Stream {
-		writeStream(w)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"id":      "buildmax-smoke",
-		"object":  "chat.completion",
-		"created": time.Now().Unix(),
-		"model":   "buildmax-smoke",
-		"choices": []any{map[string]any{
-			"index":         0,
-			"message":       map[string]any{"role": "assistant", "content": responseText},
-			"finish_reason": "stop",
-		}},
-		"usage": map[string]int{"prompt_tokens": 3, "completion_tokens": 3, "total_tokens": 6},
-	})
+	return mockllm.Scenario{
+		Name:   "deployment smoke",
+		Steps:  []mockllm.Step{{Text: defaultReply, Usage: &mockllm.Usage{PromptTokens: 3, CompletionTokens: 3}}},
+		Repeat: true,
+	}, nil
 }
 
-func writeStream(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	created := time.Now().Unix()
-	chunk := fmt.Sprintf(`{"id":"buildmax-smoke","object":"chat.completion.chunk","created":%d,"model":"buildmax-smoke","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":null}]}`, created, responseText)
-	_, _ = fmt.Fprintf(w, "data: %s\n\n", chunk)
-	finish := fmt.Sprintf(`{"id":"buildmax-smoke","object":"chat.completion.chunk","created":%d,"model":"buildmax-smoke","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":3,"total_tokens":6}}`, created)
-	_, _ = fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", finish)
+func healthcheck() {
+	resp, err := http.Get("http://127.0.0.1:8080/healthz")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		os.Exit(1)
+	}
+	_ = resp.Body.Close()
 }
