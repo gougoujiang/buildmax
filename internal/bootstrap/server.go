@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,7 +19,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
-	"github.com/gougoujiang/buildmax/internal/server/handlers"
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -305,7 +305,7 @@ const readinessProbeTeam = "_readiness_probe"
 // SandboxSurface is deliberately left empty. No worker path passes one today —
 // internal/agentapp/taskrun leaves AppConfig.SandboxSurface unset — and
 // reporting a boundary that is not applied would be worse than reporting none.
-func deploymentInfoFor(sc config.ServerConfig) handlers.DeploymentInfo {
+func deploymentInfoFor(sc config.ServerConfig) admin.DeploymentInfo {
 	transport := sc.Worker.LLM.Transport
 	if transport == "" {
 		transport = config.TransportDirect
@@ -314,7 +314,7 @@ func deploymentInfoFor(sc config.ServerConfig) handlers.DeploymentInfo {
 	if runMode == "" {
 		runMode = "local_process"
 	}
-	return handlers.DeploymentInfo{
+	return admin.DeploymentInfo{
 		Version:            config.VersionString(),
 		ModelAliases:       sc.LLM.Aliases,
 		DefaultModelAlias:  sc.LLM.DefaultAlias,

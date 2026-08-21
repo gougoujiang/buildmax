@@ -271,9 +271,23 @@ func TestTeamAuthzMatrix(t *testing.T) {
 // nobody notices it was never assigned a minimum role, and the gap looks
 // exactly like coverage.
 func TestAuthzMatrixCoversEveryTeamRoute(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join("routes.go"))
+	// Team-scoped routes are registered in routes.go and in each context
+	// package's own table, so the matrix reads every table rather than the one
+	// that happened to hold them all before the split.
+	var body []byte
+	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		part, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		body = append(body, part...)
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("read routes.go: %v", err)
+		t.Fatalf("read the route tables: %v", err)
 	}
 	found := regexp.MustCompile(`"(GET|POST|PATCH|PUT|DELETE) (/api/teams/\{team_id\}[^"]*)"`).
 		FindAllStringSubmatch(string(body), -1)
@@ -304,7 +318,7 @@ func TestAuthzMatrixCoversEveryTeamRoute(t *testing.T) {
 	for _, c := range teamRoutes {
 		key := c.method + " " + c.path
 		if !registered[key] {
-			t.Errorf("%s has an authorization case but is not registered in routes.go", key)
+			t.Errorf("%s has an authorization case but is registered nowhere", key)
 		}
 	}
 }

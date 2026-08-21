@@ -2,13 +2,15 @@ package handlers
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
+	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -20,17 +22,6 @@ import (
 type RunOutputLister interface {
 	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
 	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
-}
-
-// TaskRunTerminalInfo holds information about a task run that reached terminal status.
-type TaskRunTerminalInfo struct {
-	TaskRunID      string
-	TaskID         string
-	ConversationID string
-	UserID         string
-	Status         string  // SUCCEEDED, FAILED, or CANCELED
-	Output         *string // task output (succeeded, or as far as a canceled run got) — may be nil
-	ErrorMessage   *string // why it ended (failed or canceled) — may be nil
 }
 
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).
@@ -115,11 +106,11 @@ type Config struct {
 
 	// Deployment describes facts about this deployment that do not change
 	// while it runs, for the admin system status.
-	Deployment DeploymentInfo
+	Deployment admin.DeploymentInfo
 	// DependencyProbes are the same checks the readiness endpoint runs. The
 	// admin status reports them so an operator sees what /readyz sees without
 	// needing to reach it.
-	DependencyProbes []DependencyProbe
+	DependencyProbes []admin.DependencyProbe
 	// RedactedConfig is the operator-facing view of server.yaml, built by
 	// internal/config so that the decision about which fields may be shown
 	// lives next to the struct. Nil means the deployment reports none.
@@ -131,33 +122,33 @@ type Config struct {
 	WebhookMessagePath string
 
 	// Hub is optional; if nil NewHandler creates one. Injectable for testing.
-	Hub streamhub.StreamHub
+	Hub wsconn.StreamHub
 
 	// OnTaskRunTerminal is an optional external callback fired when a worker run reaches
 	// terminal status (after the internal hub/registry callbacks run).
-	OnTaskRunTerminal func(ctx context.Context, info TaskRunTerminalInfo)
+	OnTaskRunTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
 }
 
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.
 type Handler struct {
 	cfg          Config
-	hub          streamhub.StreamHub
-	connRegistry *connRegistry
+	hub          wsconn.StreamHub
+	connRegistry *wsconn.ConnRegistry
 	// turns serializes the turns of one conversation and queues the rest. It is
-	// server-scoped, not connection-scoped — see turnRegistry.
-	turns *turnRegistry
+	// server-scoped, not connection-scoped — see turnqueue.Registry.
+	turns *turnqueue.Registry
 }
 
 // NewHandler returns a configured Handler. If cfg.Hub is nil a new StreamHub is created internally.
 func NewHandler(cfg Config) *Handler {
 	hub := cfg.Hub
 	if hub == nil {
-		hub = streamhub.NewStreamHub()
+		hub = wsconn.NewStreamHub()
 	}
 	return &Handler{
 		cfg:          cfg,
 		hub:          hub,
-		connRegistry: newConnRegistry(),
-		turns:        newTurnRegistry(),
+		connRegistry: wsconn.NewConnRegistry(),
+		turns:        turnqueue.NewRegistry(),
 	}
 }

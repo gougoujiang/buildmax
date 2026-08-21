@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"log/slog"
 	"net/http"
 	"os"
@@ -117,7 +118,7 @@ type Config struct {
 	// Audit records sensitive actions. Nil discards them.
 	Audit *audit.Recorder
 	// Deployment describes this deployment for the admin system status.
-	Deployment handlers.DeploymentInfo
+	Deployment admin.DeploymentInfo
 	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
 	// admin configuration route answers 503.
 	RedactedConfig any
@@ -236,7 +237,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 // Each half is wired independently and each failure is logged rather than
 // propagated. A deployment without workflows still reports runs on issues, and
 // a comment store that is down does not stop a workflow from advancing.
-func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
+func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info model.TaskRunTerminalInfo) {
 	var workflowSvc *workflow.Service
 	if cfg.Stores.WorkflowStore != nil {
 		taskSvc := &task.Service{
@@ -264,16 +265,8 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.
 	if workflowSvc == nil && runReporter == nil {
 		return nil
 	}
-	return func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
-		terminal := model.TaskRunTerminalInfo{
-			TaskRunID:      info.TaskRunID,
-			TaskID:         info.TaskID,
-			ConversationID: info.ConversationID,
-			UserID:         info.UserID,
-			Status:         info.Status,
-			Output:         info.Output,
-			ErrorMessage:   info.ErrorMessage,
-		}
+	return func(ctx context.Context, info model.TaskRunTerminalInfo) {
+		terminal := info
 		if workflowSvc != nil {
 			if err := workflowSvc.HandleTaskRunTerminal(ctx, terminal); err != nil && !errors.Is(err, workflow.ErrWorkflowRunNotFound) {
 				slog.Warn("workflow terminal callback failed", "task_run_id", info.TaskRunID, "task_id", info.TaskID, "err", err)
@@ -337,10 +330,10 @@ func swaggerUIHandler(w http.ResponseWriter, _ *http.Request) {
 // dependencyProbes converts readiness checks into the shape the admin API
 // reports. Both are a name and a probe; the conversion exists so that the
 // handler package does not import this one, which imports it.
-func dependencyProbes(checks []ReadinessCheck) []handlers.DependencyProbe {
-	out := make([]handlers.DependencyProbe, 0, len(checks))
+func dependencyProbes(checks []ReadinessCheck) []admin.DependencyProbe {
+	out := make([]admin.DependencyProbe, 0, len(checks))
 	for _, check := range checks {
-		out = append(out, handlers.DependencyProbe{Name: check.Name, Probe: check.Probe})
+		out = append(out, admin.DependencyProbe{Name: check.Name, Probe: check.Probe})
 	}
 	return out
 }

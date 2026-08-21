@@ -1,0 +1,73 @@
+// Package auth serves the routes that establish a session.
+//
+// Everything here runs before a caller has one, or changes the credential that
+// produces one: request an account, log in, refresh, log out, set a password.
+// Once a session exists, deciding what it may reach is internal/server/access's
+// job, not this package's -- which is why this Config holds no team store.
+package auth
+
+import (
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
+)
+
+type Config struct {
+	// JWTSecret signs access tokens. Empty means this deployment cannot log
+	// anyone in, and the routes say so rather than minting something unsigned.
+	JWTSecret string
+	// AllowSignup opens POST /api/otp/request to self-registration. False --
+	// the zero value -- means accounts are created by an operator.
+	AllowSignup      bool
+	DefaultQuotaTier string
+
+	// Token lifetimes. Zero means the model package's default. The access token
+	// is signed and unstored, so its lifetime is the window in which a stolen
+	// one still works; the refresh token is a row and can be revoked before it
+	// expires.
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	// RefreshRotationGrace is how long a just-rotated refresh token may be
+	// exchanged again before that counts as reuse. It exists because the CLI
+	// and Desktop share one credentials file between processes.
+	RefreshRotationGrace time.Duration
+
+	Users         model.UserStore
+	LoginCodes    model.LoginCodeStore
+	Passwords     model.PasswordStore
+	RefreshTokens model.RefreshTokenStore
+
+	// Audit records logins and credential changes. Nil discards them.
+	Audit *audit.Recorder
+}
+
+type Handler struct{ cfg Config }
+
+func New(cfg Config) *Handler { return &Handler{cfg: cfg} }
+
+func (h *Handler) guard() *access.Guard {
+	return &access.Guard{JWTSecret: h.cfg.JWTSecret, Users: h.cfg.Users, Audit: h.cfg.Audit}
+}
+
+func (h *Handler) Register(mux *http.ServeMux) {
+	// Unauthenticated.
+	mux.HandleFunc("POST /api/otp/request", h.otpRequestHandler)
+	mux.HandleFunc("POST /api/login", h.loginHandler)
+	mux.HandleFunc("POST /api/token/refresh", h.refreshHandler)
+	mux.HandleFunc("POST /api/logout", h.logoutHandler)
+	// Authenticated; sets or changes the caller's own password.
+	mux.HandleFunc("POST /api/password", h.setPasswordHandler)
+}
+
+// The log line names which login path refused, which the guard cannot know.
+func (h *Handler) refuseDisabled(w http.ResponseWriter, r *http.Request, user *model.User, handler string) bool {
+	if user != nil && user.Disabled() {
+		slog.InfoContext(r.Context(), "refused a disabled account",
+			"handler", handler, "user_id", user.UserID, "remote", r.RemoteAddr)
+	}
+	return h.guard().RejectDisabled(w, user)
+}

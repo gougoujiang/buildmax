@@ -1,92 +1,25 @@
 package handlers
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
-	"sync"
-	"time"
 
+	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
-
-	"github.com/gorilla/websocket"
 )
 
-const (
-	wsWriteChSize  = 256
-	wsPingInterval = 30 * time.Second
-	wsReadDeadline = 60 * time.Second
-	wsWriteWait    = 10 * time.Second
-)
-
-// wsConn manages a single WebSocket connection for one authenticated user.
-type wsConn struct {
-	conn   *websocket.Conn
-	h      *Handler
-	userID string
-	teamID string
-
-	writeCh chan []byte
-	closed  chan struct{}
-
-	// queuedMu guards queuedJobs, the turns this connection has waiting in the
-	// server's turn registry. They are dropped when the connection goes away:
-	// nothing is left to stream them to.
-	queuedMu   sync.Mutex
-	queuedJobs []*turnJob
-
-	cancel context.CancelFunc
-}
-
-// trackQueuedJob remembers a turn this connection queued, pruning the ones that
-// have since run.
-func (wc *wsConn) trackQueuedJob(job *turnJob) {
-	wc.queuedMu.Lock()
-	defer wc.queuedMu.Unlock()
-	live := wc.queuedJobs[:0]
-	for _, j := range wc.queuedJobs {
-		select {
-		case <-j.done:
-		default:
-			live = append(live, j)
-		}
-	}
-	wc.queuedJobs = append(live, job)
-}
-
-// dropQueuedJobs marks this connection's waiting turns as dropped. A turn already
-// running is unaffected — it has a reply to finish writing to the store.
-func (wc *wsConn) dropQueuedJobs() {
-	wc.queuedMu.Lock()
-	jobs := wc.queuedJobs
-	wc.queuedJobs = nil
-	wc.queuedMu.Unlock()
-	for _, j := range jobs {
-		j.dropped.Store(true)
-	}
-}
-
-// wsSink implements model.StreamSink by sending conversation.message.delta events.
-type wsSink struct {
-	c              *wsConn
-	conversationID string
-}
-
-func (s *wsSink) OnDelta(delta string) {
-	s.c.sendEvent(wsconn.TypeMessageDelta, wsconn.MessageDelta{
-		ConversationID: s.conversationID,
-		Delta:          delta,
-	})
-}
-
+// wsUpgradeHandler authenticates the upgrade and hands the socket over.
+//
+// The credential arrives as a query parameter rather than a header because a
+// browser cannot set one on a WebSocket upgrade. Everything after "who is this
+// and which team" belongs to internal/server/websocket.
 func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {
 		http.Error(w, "token required", http.StatusUnauthorized)
 		return
 	}
-	userID, ok := userIDFromToken(tokenStr, h.cfg.JWTSecret)
+	userID, ok := access.UserIDFromToken(tokenStr, h.cfg.JWTSecret)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -95,294 +28,22 @@ func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "teams not configured", http.StatusServiceUnavailable)
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	_, teamID, ok = h.withExplicitTeam(w, r, userID, teamID)
-	if !ok {
+	if _, teamID, ok = h.guard().ExplicitTeam(w, r, userID, teamID); !ok {
 		return
 	}
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			if h.cfg.CORSOrigin == "" || h.cfg.CORSOrigin == "*" {
-				return true
-			}
-			origin := r.Header.Get("Origin")
-			return origin == "" || origin == h.cfg.CORSOrigin
-		},
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		slog.Warn("ws upgrade failed", "err", err, "user_id", userID)
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	wc := &wsConn{
-		conn:    conn,
-		h:       h,
-		userID:  userID,
-		teamID:  teamID,
-		writeCh: make(chan []byte, wsWriteChSize),
-		closed:  make(chan struct{}),
-		cancel:  cancel,
-	}
-
-	h.connRegistry.Register(userID, wc)
-
-	slog.Info("ws connected", "user_id", userID, "remote", r.RemoteAddr)
-	go wc.writeLoop(ctx)
-	wc.readLoop(ctx)
+	wsconn.Serve(w, r, userID, teamID, h.connDeps())
 }
 
-func (wc *wsConn) readLoop(ctx context.Context) {
-	defer func() {
-		slog.Info("ws disconnected", "user_id", wc.userID)
-		wc.cleanup()
-		_ = wc.conn.Close()
-	}()
-
-	// Deadline and close-frame calls only fail on a connection that is already
-	// broken, which the next read or write reports anyway.
-	_ = wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
-	wc.conn.SetPongHandler(func(string) error {
-		return wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
-	})
-
-	for {
-		_, data, err := wc.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-				slog.Info("ws read error", "err", err, "user_id", wc.userID)
-			}
-			return
-		}
-		_ = wc.conn.SetReadDeadline(time.Now().Add(wsReadDeadline))
-
-		env, err := wsconn.Decode(data)
-		if err != nil {
-			slog.Warn("ws recv invalid message", "user_id", wc.userID, "err", err)
-			wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "invalid message format"})
-			continue
-		}
-		slog.Debug("ws recv", "user_id", wc.userID, "type", env.Type)
-		wc.handleClientEvent(ctx, env)
+func (h *Handler) connDeps() wsconn.ConnDeps {
+	return wsconn.ConnDeps{
+		Conversations: h.cfg.ConversationStore,
+		Turns:         h.turns,
+		Turner:        h.conversationService(),
+		Registry:      h.connRegistry,
+		CORSOrigin:    h.cfg.CORSOrigin,
 	}
-}
-
-func (wc *wsConn) writeLoop(ctx context.Context) {
-	ticker := time.NewTicker(wsPingInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			_ = wc.conn.WriteMessage(websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			return
-		case msg, ok := <-wc.writeCh:
-			if !ok {
-				_ = wc.conn.WriteMessage(websocket.CloseMessage,
-					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				return
-			}
-			_ = wc.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
-			if err := wc.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-				slog.Info("ws write error", "err", err, "user_id", wc.userID)
-				return
-			}
-		case <-ticker.C:
-			_ = wc.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
-			if err := wc.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
-		}
-	}
-}
-
-func (wc *wsConn) sendEvent(eventType string, payload any) {
-	data, err := wsconn.Encode(eventType, payload)
-	if err != nil {
-		slog.Warn("ws encode error", "type", eventType, "err", err)
-		return
-	}
-	slog.Debug("ws send", "user_id", wc.userID, "type", eventType)
-	select {
-	case <-wc.closed:
-		return
-	default:
-	}
-	select {
-	case wc.writeCh <- data:
-	case <-wc.closed:
-	default:
-		slog.Warn("ws write channel full, dropping event", "type", eventType, "user_id", wc.userID)
-	}
-}
-
-func (wc *wsConn) handleClientEvent(ctx context.Context, env wsconn.Envelope) {
-	switch env.Type {
-	case wsconn.TypeConversationCreate:
-		p, err := wsconn.DecodePayload[wsconn.ConversationCreate](env)
-		if err != nil {
-			wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{Error: "invalid payload"})
-			return
-		}
-		wc.handleConversationCreate(ctx, p)
-	case wsconn.TypeConversationMessage:
-		p, err := wsconn.DecodePayload[wsconn.ConversationMessage](env)
-		if err != nil {
-			wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{Error: "invalid payload"})
-			return
-		}
-		wc.handleConversationMessage(ctx, p)
-	default:
-		wc.sendEvent(wsconn.TypeSystemError, wsconn.SystemError{Error: "unknown event type: " + env.Type})
-	}
-}
-
-func (wc *wsConn) handleConversationCreate(ctx context.Context, p wsconn.ConversationCreate) {
-	if p.Message == "" {
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{Error: "message required"})
-		return
-	}
-	if wc.h.cfg.ConversationStore == nil {
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{Error: "conversations not configured"})
-		return
-	}
-	channel := p.Channel
-	if channel == "" {
-		channel = "portal"
-	}
-	conv, err := wc.h.cfg.ConversationStore.CreateConversationInTeam(ctx, wc.teamID, wc.userID, channel, wc.userID)
-	if err != nil {
-		slog.Error("ws create conversation", "err", err, "user_id", wc.userID)
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{Error: "failed to create conversation"})
-		return
-	}
-	slog.Info("ws conversation created", "user_id", wc.userID, "conversation_id", conv.ConversationID)
-	wc.sendEvent(wsconn.TypeConversationCreated, wsconn.ConversationCreated{ConversationID: conv.ConversationID})
-	wc.runConversationTurn(ctx, conv.ConversationID, p.Message, channel)
-}
-
-func (wc *wsConn) handleConversationMessage(ctx context.Context, p wsconn.ConversationMessage) {
-	if p.ConversationID == "" || p.Content == "" {
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-			ConversationID: p.ConversationID,
-			Error:          "conversation_id and content required",
-		})
-		return
-	}
-	if wc.h.cfg.ConversationStore == nil {
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-			ConversationID: p.ConversationID,
-			Error:          "conversations not configured",
-		})
-		return
-	}
-	conv, err := wc.h.cfg.ConversationStore.GetConversation(ctx, p.ConversationID)
-	if err != nil {
-		slog.Error("ws get conversation", "err", err, "conversation_id", p.ConversationID)
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-			ConversationID: p.ConversationID,
-			Error:          "failed to load conversation",
-		})
-		return
-	}
-	if conv == nil || conv.TeamID != wc.teamID {
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-			ConversationID: p.ConversationID,
-			Error:          "conversation not found",
-		})
-		return
-	}
-	slog.Info("ws conversation message", "user_id", wc.userID, "conversation_id", p.ConversationID)
-	wc.runConversationTurn(ctx, p.ConversationID, p.Content, conv.Channel)
-}
-
-// runConversationTurn submits a turn for the conversation. A message that arrives
-// while a turn is running is queued and runs as its own turn once that one
-// finishes, rather than being rejected as it used to be.
-func (wc *wsConn) runConversationTurn(ctx context.Context, conversationID, message, channel string) {
-	job := newTurnJob(func() {
-		wc.executeConversationTurn(ctx, conversationID, message, channel)
-	})
-	job.onDequeue = func() {
-		wc.sendEvent(wsconn.TypeMessageDequeued, wsconn.MessageDequeued{
-			ConversationID: conversationID,
-			Content:        message,
-		})
-	}
-	pos, err := wc.h.turns.Submit(conversationID, job)
-	if err != nil {
-		slog.Info("ws turn rejected: queue full", "user_id", wc.userID, "conversation_id", conversationID)
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-			ConversationID: conversationID,
-			Error:          err.Error(),
-			Code:           wsconn.ErrorCodeQueueFull,
-		})
-		return
-	}
-	if pos > 0 {
-		wc.trackQueuedJob(job)
-		slog.Info("ws turn queued", "user_id", wc.userID, "conversation_id", conversationID, "position", pos)
-		wc.sendEvent(wsconn.TypeMessageQueued, wsconn.MessageQueued{
-			ConversationID: conversationID,
-			Content:        message,
-			Position:       pos,
-		})
-	}
-}
-
-// RunSystemConversationTurn runs a system-triggered conversation turn (e.g. task
-// completion). It queues behind whatever the user is doing in that conversation
-// instead of blocking the caller's goroutine until the conversation is free.
-func (wc *wsConn) RunSystemConversationTurn(ctx context.Context, conversationID, message string) {
-	job := newTurnJob(func() {
-		wc.executeConversationTurn(ctx, conversationID, message, conversation.ChannelSystem)
-	})
-	if _, err := wc.h.turns.Submit(conversationID, job); err != nil {
-		slog.Warn("system turn dropped: queue full", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
-	}
-}
-
-func (wc *wsConn) executeConversationTurn(ctx context.Context, conversationID, message, channel string) {
-	slog.Info("ws turn start", "user_id", wc.userID, "conversation_id", conversationID, "channel", channel)
-	sink := &wsSink{c: wc, conversationID: conversationID}
-	svc := wc.h.conversationService()
-	_, err := svc.HandleTurn(ctx, conversation.HandleTurnCmd{
-		UserID:         wc.userID,
-		Channel:        channel,
-		Message:        message,
-		ConversationID: conversationID,
-		StreamSink:     sink,
-	})
-	if err != nil {
-		slog.Error("ws turn error", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
-		wc.sendEvent(wsconn.TypeConversationError, wsconn.ConversationError{
-			ConversationID: conversationID,
-			Error:          err.Error(),
-		})
-	}
-	remaining := wc.h.turns.Waiting(conversationID)
-	slog.Info("ws turn done", "user_id", wc.userID, "conversation_id", conversationID, "queued_remaining", remaining)
-	wc.sendEvent(wsconn.TypeMessageCompleted, wsconn.MessageCompleted{
-		ConversationID:  conversationID,
-		QueuedRemaining: remaining,
-	})
-}
-
-func (wc *wsConn) cleanup() {
-	wc.h.connRegistry.Unregister(wc.userID, wc)
-	wc.dropQueuedJobs()
-	wc.cancel()
-	select {
-	case <-wc.closed:
-	default:
-		close(wc.closed)
-	}
-	close(wc.writeCh)
 }
