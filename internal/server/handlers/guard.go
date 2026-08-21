@@ -119,6 +119,7 @@ func (h *Handler) teamHandler() *teamroutes.Handler {
 func (h *Handler) workHandler() *work.Handler {
 	return work.New(work.Config{
 		JWTSecret:       h.cfg.JWTSecret,
+		Users:           h.cfg.UserStore,
 		Issues:          h.cfg.IssueStore,
 		IssueComments:   h.cfg.IssueCommentStore,
 		Workflows:       h.cfg.WorkflowStore,
