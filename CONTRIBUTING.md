@@ -64,14 +64,21 @@ running the agent yourself and `./make eval`.
 | **Go** — the version in `go.mod` | Everything. The CLI, server, worker, and desktop backend are all Go; the CLI has no Python or Node runtime dependency. |
 | **Node 24 and npm 11** — pinned by `.node-version` and `packageManager` | The frontends only: `gui/`, `portal/`, `desktop/frontend/`. Use `npm ci`; normal CLI work does not need Node. |
 | **Docker** | The Compose deployment smoke and container changes. |
-| **kind and kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
+| **kubectl** | Kubernetes worker, RBAC, shared-storage, or manifest changes. |
 | **shellcheck** | Workflow changes. actionlint skips its shell script pass without it, and says nothing; `./make doctor` reports whether you have it. |
-| **GoReleaser** | Release configuration changes. Nothing in `go.mod` pins it, so `./make doctor` reports your version against the one the workflows run. |
 | **An LLM API key** | Running the agent for real, and `./make eval`. Add a model to `~/.buildmax/settings.yaml`; see [docs/reference/configuration.md](docs/reference/configuration.md). |
 
+That table is the whole list. Several tools a contributor might expect to
+install — golangci-lint, govulncheck, actionlint, gitleaks, go-licenses,
+GoReleaser, kind, and the Wails CLI — are pinned in [`cmd/mk`](cmd/mk) and run
+through `go run`, so the version you get is the version CI runs and there is
+nothing to keep up to date.
+
 The task runner reports missing tools; it does not install system packages for
-you. Free OpenRouter models rate-limit with HTTP 429 when called too frequently;
-if agent runs start failing in bursts, that is usually why.
+you. Go is the one prerequisite it cannot even report, because the task runner
+is itself Go: `./make` checks for it first and prints where to get it. Free
+OpenRouter models rate-limit with HTTP 429 when called too frequently; if agent
+runs start failing in bursts, that is usually why.
 
 Run `./make doctor` after cloning. It checks the Go/git path, reports optional
 tools, and warns about local changes without modifying the workspace. Use
@@ -170,8 +177,10 @@ share the server container and local filesystem storage:
 ```
 
 For Kubernetes Job, RBAC, Ingress, MinIO, or deployment manifest changes, use
-kind. `up` creates the cluster, builds and loads images, deploys every
-dependency, and runs the same TaskRun and artifact assertions:
+kind. You do not install kind: `./make` runs the pinned version through Go, so
+one version creates, inspects, and deletes every cluster. Docker and kubectl are
+still yours to install. `up` creates the cluster, builds and loads images,
+deploys every dependency, and runs the same TaskRun and artifact assertions:
 
 ```bash
 ./make kind up
@@ -295,11 +304,9 @@ than the wait. On top of `check all` it lints the workflows, scans Git history
 for secrets, checks Go and npm production dependency licenses, validates the
 GoReleaser configuration, and cross-compiles for Windows. It runs the tool
 versions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pins; a test
-fails if the two drift. Four gaps remain:
+fails if the two drift. Three gaps remain:
 
 - The Windows job runs the suite on Windows. The local step only cross-compiles.
-- GoReleaser is not a module dependency, so the step is skipped, out loud, when
-  `goreleaser` is not installed.
 - `npm ci` runs only when `node_modules` is missing, so lockfile drift needs an
   explicit `npm ci` in the frontend you touched.
 - CI checks out clean and ends with `git diff --exit-code`. Locally that would

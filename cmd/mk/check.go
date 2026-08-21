@@ -135,10 +135,11 @@ const (
 	gitleaksPkg   = "github.com/zricethezav/gitleaks/v8@v8.30.1"
 	goLicensesPkg = "github.com/google/go-licenses@v1.6.0"
 
-	// GoReleaser arrives through goreleaser-action rather than `go run`, so this
-	// is the `version:` those steps pass. TestGoReleaserPinMatchesWorkflows keeps
-	// it in step with both workflows.
-	goreleaserVersion = "v2.17.1"
+	// GoReleaser reaches CI through goreleaser-action, so nothing here can read
+	// its version from a module path the way the pins above do.
+	// TestGoReleaserPinMatchesWorkflows compares this against the `version:`
+	// those steps pass.
+	goreleaserPkg = "github.com/goreleaser/goreleaser/v2@v2.17.1"
 )
 
 // checkCI runs what a pull request runs, for contributors who would rather
@@ -197,14 +198,15 @@ func checkGoLicenses() error {
 }
 
 // checkReleaseConfig mirrors the pull-request half of the release-snapshot job.
-// GoReleaser is not a Go module dependency here, so this uses the contributor's
-// installation and says when it proved nothing rather than passing silently.
+//
+// It runs the pinned version through `go run` like every other CI tool here.
+// That replaced a check that used whatever `goreleaser` the contributor had
+// installed and skipped itself entirely when they had none — so the one step
+// meant to catch a broken .goreleaser.yaml before it reached a release was the
+// step most likely never to run. The first build takes about half a minute;
+// after that it comes from the Go build cache.
 func checkReleaseConfig() error {
-	if !have("goreleaser") {
-		fmt.Println("goreleaser is not installed; skipping the release configuration check")
-		return nil
-	}
-	return runCmd("goreleaser", "check")
+	return runCmd("go", "run", goreleaserPkg, "check")
 }
 
 // checkWindowsCrossBuild is the closest local signal for the Windows job. It

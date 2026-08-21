@@ -126,7 +126,7 @@ func buildAndLoadKindImages(cluster string, includeSmoke bool) error {
 	}
 	fmt.Printf("Loading images into kind cluster %q...\n", cluster)
 	for _, image := range images {
-		if err := runCmd("kind", "load", "docker-image", image.tag, "--name", cluster); err != nil {
+		if err := runKind("load", "docker-image", image.tag, "--name", cluster); err != nil {
 			return fmt.Errorf("kind load of %s failed: %w", image.tag, err)
 		}
 	}

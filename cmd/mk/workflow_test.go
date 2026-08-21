@@ -179,9 +179,13 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 }
 
 // GoReleaser is pinned by the action's `version:` input rather than by a module
-// path, so it needs its own comparison. Every step must run what doctor tells
-// contributors to install.
+// path, so it needs its own comparison: `./make check ci` runs the module and CI
+// runs the action, and a broken .goreleaser.yaml must fail in both or neither.
 func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
+	_, goreleaserVersion, ok := strings.Cut(goreleaserPkg, "@")
+	if !ok {
+		t.Fatalf("goreleaserPkg = %q; want a module@version pin", goreleaserPkg)
+	}
 	// Lazy across lines because a step may carry `if:` between `uses:` and the
 	// version it pins.
 	step := regexp.MustCompile(`goreleaser/goreleaser-action@v\d+(?s:.*?)version:\s*(\S+)`)
@@ -198,6 +202,28 @@ func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
 		for _, match := range matches {
 			if match[1] != goreleaserVersion {
 				t.Errorf("%s pins GoReleaser %s; cmd/mk reports %s", path, match[1], goreleaserVersion)
+			}
+		}
+	}
+}
+
+// kind runs from cmd/mk's pin, so no workflow needs to install it. A step that
+// does is either redundant or, worse, a second version that creates the cluster
+// the pinned one then inspects — so any pin that reappears must match.
+func TestNoWorkflowInstallsADifferentKind(t *testing.T) {
+	_, want, _ := strings.Cut(kindPkg, "@")
+	paths, err := filepath.Glob("../../.github/workflows/*.yml")
+	if err != nil {
+		t.Fatalf("list workflows: %v", err)
+	}
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for _, match := range regexp.MustCompile(`sigs\.k8s\.io/kind@(\S+)`).FindAllStringSubmatch(string(body), -1) {
+			if match[1] != want {
+				t.Errorf("%s installs kind %s; cmd/mk pins %s", filepath.Base(path), match[1], want)
 			}
 		}
 	}

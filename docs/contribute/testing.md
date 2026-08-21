@@ -47,7 +47,7 @@ failure you already have.
 | `./make e2e compose` | a Compose stack already running | under 2 min | nothing — it is a guest |
 | `./make e2e kind` | a kind cluster already running | under 2 min | nothing — it is a guest |
 | `./make compose smoke` | Docker | under 5 min | a Compose stack it leaves running |
-| `./make kind up` | Docker, kind | under 20 min | a cluster it leaves running |
+| `./make kind up` | Docker, kubectl | under 20 min | a cluster it leaves running |
 
 No suite needs a provider API key. Every one of them answers the model from
 `internal/testsupport/mockllm`, which replays a committed scenario.

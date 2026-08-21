@@ -44,7 +44,10 @@ prerelease version.
    ```
 
 The snapshot requires GoReleaser `v2.17.1`, Syft `v1.51.0`, and
-`go-licenses v1.6.0`. CI installs those exact versions.
+`go-licenses v1.6.0`. CI installs those exact versions, and cutting a release
+needs GoReleaser on your PATH for the snapshot above. Contributors who only edit
+`.goreleaser.yaml` do not: `./make check ci` validates it with the same pinned
+version through `go run`.
 
 ## Signing And Provenance
 

@@ -9,10 +9,11 @@
 ## Requirements
 
 - Docker with at least 6 GB available
-- kind
 - kubectl
 
-The command does not install system packages or start background
+kind itself is not a prerequisite: `cmd/mk` pins it and runs it through
+`go run`, so every cluster is created, inspected, and deleted by the same
+version. The command does not install system packages or start background
 port-forwards. It always addresses the selected cluster through an explicit
 kubectl context.
 

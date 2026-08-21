@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -36,13 +35,11 @@ func cmdDoctor(args []string) error {
 	}
 	optionalVersion("Wails CLI", "wails", []string{"version"}, wailsWant, "optional; ./make build runs the pinned version through Go")
 	optionalPresence("Docker", "docker", "needed only for Compose/container work")
-	optionalPresence("kind", "kind", "needed only for local Kubernetes work")
 	optionalPresence("kubectl", "kubectl", "needed only for Kubernetes work")
 	// actionlint runs its shell script pass only when shellcheck is on PATH, and
 	// says nothing when it is not, so a `run:` block can pass ./make check ci and
 	// still fail on the runner. Reporting it here is the only warning available.
 	optionalPresence("shellcheck", "shellcheck", "actionlint's shell script pass in ./make check ci needs it")
-	optionalGoReleaser("optional; only ./make check ci and release work use it")
 
 	status, err := capture("git", "status", "--porcelain")
 	if err != nil {
@@ -120,42 +117,6 @@ func optionalVersion(label, command string, args []string, want, note string) {
 		return
 	}
 	fmt.Printf("[OK]   %s: %s\n", label, oneLine(version))
-}
-
-// optionalGoReleaser reports the version rather than only presence, because
-// GoReleaser is the one CI tool a contributor installs by hand: nothing in this
-// module pins it, so a local `goreleaser check` can validate the configuration
-// against a different schema than the workflow uses.
-func optionalGoReleaser(note string) {
-	if !have("goreleaser") {
-		fmt.Printf("[INFO] GoReleaser: not installed (%s)\n", note)
-		return
-	}
-	version, err := goreleaserInstalledVersion()
-	if err != nil {
-		fmt.Printf("[WARN] GoReleaser: %v (%s)\n", err, note)
-		return
-	}
-	if version != goreleaserVersion {
-		fmt.Printf("[WARN] GoReleaser: got %s; CI uses %s (%s)\n", oneLine(version), goreleaserVersion, note)
-		return
-	}
-	fmt.Printf("[OK]   GoReleaser: %s\n", version)
-}
-
-// goreleaserInstalledVersion picks the one useful line out of a banner, six
-// build fields, and a module checksum.
-func goreleaserInstalledVersion() (string, error) {
-	output, err := capture("goreleaser", "--version")
-	if err != nil {
-		return "", fmt.Errorf("goreleaser --version failed: %w", err)
-	}
-	for _, line := range strings.Split(output, "\n") {
-		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "GitVersion:"); ok {
-			return strings.TrimSpace(rest), nil
-		}
-	}
-	return "", errors.New("goreleaser --version printed no GitVersion line")
 }
 
 func optionalPresence(label, command, note string) {
