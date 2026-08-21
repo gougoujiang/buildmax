@@ -178,7 +178,7 @@ func allHelpSections() []helpSection {
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
 			{"kind <action>", "Manage local Kubernetes (up|images|smoke [managed]|status|logs|down)"},
-			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local (owns a stack), or cli"},
+			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local, cli, desktop, or all"},
 		}},
 		{"Release", []helpRow{
 			{"changelog", "Preview unreleased entries; 'release <version>' folds them in"},

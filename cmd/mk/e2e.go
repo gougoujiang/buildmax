@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -46,6 +45,10 @@ func cmdE2E(args []string) error {
 	switch suite {
 	case "cli":
 		return e2eCLI()
+	case "desktop":
+		return e2eDesktopBridge()
+	case "all":
+		return e2eFullMatrix()
 	case "local":
 		return e2eOwningCompose()
 	case "kind", "compose":
@@ -61,11 +64,13 @@ func cmdE2E(args []string) error {
 }
 
 func e2eUsage() error {
-	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli]\n"+
+	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli|desktop|all]\n"+
 		"  kind     Portal browser tests against a running kind deployment (the default)\n"+
 		"  compose  Portal browser tests against a running Compose stack\n"+
 		"  local    the same tests against a Compose stack this command starts and stops\n"+
-		"  cli      the CLI and TUI suite: the built binary, a temporary home, no deployment", mk())
+		"  cli      the CLI and TUI suite: the built binary, a temporary home, no deployment\n"+
+		"  desktop  the Desktop bridge suite: bound methods, events, and approvals, no window\n"+
+		"  all      every suite that needs no cluster: cli, desktop, then local", mk())
 }
 
 // e2eCLI runs the suite that needs no deployment at all. It is listed here so
@@ -76,6 +81,38 @@ func e2eCLI() error {
 	// -count=1 because a cached pass is not evidence that the binary built from
 	// the current tree still works.
 	return runCmd("go", "test", "-count=1", "./internal/e2e/cli/...")
+}
+
+// e2eDesktopBridge runs the Wails bridge suite. It stops at the bridge: the
+// window, the webview, and the React app need a display and a running
+// `wails dev`, which is the packaged-app smoke this design still defers.
+func e2eDesktopBridge() error {
+	fmt.Println("[e2e] Desktop bridge suite: bound methods, frontend events, and approvals — no window")
+	return runCmd("go", "test", "-count=1", "-run", "^TestBridge", "./internal/interface/desktop/")
+}
+
+// e2eFullMatrix runs every suite that this machine can run on its own, cheapest
+// first, and stops at the first failure.
+//
+// kind is not in it. That suite needs a cluster this command would have to
+// create, and a release check that quietly builds a Kubernetes cluster is a
+// surprise; run `./make e2e kind` against one deliberately.
+func e2eFullMatrix() error {
+	for _, suite := range []struct {
+		name string
+		run  func() error
+	}{
+		{"cli", e2eCLI},
+		{"desktop", e2eDesktopBridge},
+		{"local", e2eOwningCompose},
+	} {
+		fmt.Printf("[e2e] matrix: %s\n", suite.name)
+		if err := suite.run(); err != nil {
+			return fmt.Errorf("the %s suite failed, so the rest were not run: %w", suite.name, err)
+		}
+	}
+	fmt.Println("[e2e] matrix passed: cli, desktop, and local")
+	return nil
 }
 
 // e2eOwningCompose brings up a Compose stack, runs the browser tests, and takes
@@ -136,13 +173,19 @@ func e2ePortal(target smokeTarget, invocation string) error {
 	if output, err := target.admin("admin", "grant", smokeEmail); err != nil && !strings.Contains(output, "already holds") {
 		return fmt.Errorf("grant system_admin to the end-to-end account: %w", err)
 	}
-	codeOutput, err := target.admin("user", "login-code", smokeEmail)
+	code, err := issueLoginCode(target, smokeEmail)
 	if err != nil {
-		return fmt.Errorf("issue a login code: %w", err)
+		return err
 	}
-	code := loginCodePattern.FindString(codeOutput)
-	if code == "" {
-		return errors.New("the login-code command returned no bmxlogin_ code")
+	// A second account with no grant of any kind. A role-specific view can only
+	// be proved by someone who does not hold the role, and the account above
+	// holds every one of them.
+	if output, err := target.admin("user", "create", smokeOutsiderEmail); err != nil && !strings.Contains(output, "already has an account") {
+		return fmt.Errorf("create the ungranted end-to-end account: %w", err)
+	}
+	memberCode, err := issueLoginCode(target, smokeOutsiderEmail)
+	if err != nil {
+		return err
 	}
 
 	artifacts, runID, err := prepareArtifacts("portal", invocation, baseURL)
@@ -160,6 +203,8 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		"BUILDMAX_E2E_API_BASE=" + target.portalRuntimeAPIBase,
 		"BUILDMAX_E2E_EMAIL=" + smokeEmail,
 		"BUILDMAX_E2E_LOGIN_CODE=" + code,
+		"BUILDMAX_E2E_MEMBER_EMAIL=" + smokeOutsiderEmail,
+		"BUILDMAX_E2E_MEMBER_LOGIN_CODE=" + memberCode,
 		// Resources the specs create carry this, so a deployment several runs
 		// old can still say which run left what behind.
 		"BUILDMAX_E2E_RUN_ID=" + runID,
@@ -168,6 +213,20 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		// there.
 		"BUILDMAX_E2E_ARTIFACTS=" + filepath.Join(artifacts, "results"),
 	}, "npm", "run", "e2e")
+}
+
+// issueLoginCode mints a single-use code for one account. The browser cannot
+// fetch one, which is the point of an out-of-band credential.
+func issueLoginCode(target smokeTarget, email string) (string, error) {
+	output, err := target.admin("user", "login-code", email)
+	if err != nil {
+		return "", fmt.Errorf("issue a login code for %s: %w", email, err)
+	}
+	code := loginCodePattern.FindString(output)
+	if code == "" {
+		return "", fmt.Errorf("the login-code command for %s returned no bmxlogin_ code", email)
+	}
+	return code, nil
 }
 
 // e2ePreflight names what is missing before a browser starts. Playwright's own

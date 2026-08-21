@@ -23,7 +23,10 @@ const (
 	composeSmokeFile        = "deployment/compose/compose.smoke.yaml"
 	composeSmokeManagedFile = "deployment/compose/compose.smoke.managed.yaml"
 	smokeEmail              = "deployment-smoke@buildmax.local"
-	smokeReply              = "deployment smoke ok"
+	// smokeOutsiderEmail owns a team of its own and belongs to none of the
+	// smoke account's, which is what makes it able to prove a denial.
+	smokeOutsiderEmail = "deployment-smoke-outsider@buildmax.local"
+	smokeReply         = "deployment smoke ok"
 	// smokeManagedAlias is the team model alias the managed smoke stack grants,
 	// and what the call ledger must record for the run. Matching it proves the
 	// run reached a model the operator approved rather than one it picked.
@@ -286,30 +289,13 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return err
 	}
 
-	var completed struct {
-		Status       string  `json:"status"`
-		Output       *string `json:"output"`
-		ErrorMessage *string `json:"error_message"`
-	}
 	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
-	deadline := time.Now().Add(2 * time.Minute)
-	for {
-		if err := requestJSON(ctx, client, http.MethodGet, taskURL, login.Token, nil, &completed, http.StatusOK); err != nil {
-			return err
-		}
-		if completed.Status == "SUCCEEDED" {
-			break
-		}
-		if completed.Status == "FAILED" {
-			return fmt.Errorf("task run failed: %s", stringValue(completed.ErrorMessage))
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("task did not finish within two minutes (status %s)", completed.Status)
-		}
-		time.Sleep(time.Second)
+	output, err := waitForTaskSuccess(ctx, client, taskURL, login.Token)
+	if err != nil {
+		return err
 	}
-	if completed.Output == nil || strings.TrimSpace(*completed.Output) != smokeReply {
-		return fmt.Errorf("task output = %q, want %q", stringValue(completed.Output), smokeReply)
+	if strings.TrimSpace(output) != smokeReply {
+		return fmt.Errorf("task output = %q, want %q", output, smokeReply)
 	}
 
 	var artifacts []struct {
@@ -333,13 +319,167 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if err := assertManagedRun(ctx, client, target, teamID, artifacts[0].TaskRunID, login.Token); err != nil {
 		return err
 	}
+	if err := assertRetryRunsAgain(ctx, client, target, teamID, task.ID, artifacts[0].TaskRunID, login.Token); err != nil {
+		return err
+	}
+	if err := assertTeamBoundaryHolds(ctx, client, target, teamID); err != nil {
+		return err
+	}
 
-	covered := "portal, auth, team, storage, scheduler, worker, and artifact"
+	covered := "portal, auth, team boundary, storage, scheduler, worker, artifact, and retry"
 	if target.managedLLM {
 		covered += ", with the run reaching its model through the gateway rather than a provider key"
 	}
 	fmt.Printf("Deployment smoke passed: %s (%s)\n", covered, target.portalURL)
 	return nil
+}
+
+// waitForTaskSuccess polls a task until it succeeds, and returns its output. A
+// failure names the status it ended in, because "did not succeed" sends the
+// reader looking in the wrong place.
+func waitForTaskSuccess(ctx context.Context, client *http.Client, taskURL, token string) (string, error) {
+	var completed struct {
+		Status       string  `json:"status"`
+		Output       *string `json:"output"`
+		ErrorMessage *string `json:"error_message"`
+	}
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		if err := requestJSON(ctx, client, http.MethodGet, taskURL, token, nil, &completed, http.StatusOK); err != nil {
+			return "", err
+		}
+		switch {
+		case completed.Status == "SUCCEEDED":
+			return stringValue(completed.Output), nil
+		case completed.Status == "FAILED":
+			return "", fmt.Errorf("task run failed: %s", stringValue(completed.ErrorMessage))
+		case time.Now().After(deadline):
+			return "", fmt.Errorf("task did not finish within two minutes (status %s)", completed.Status)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// assertRetryRunsAgain proves a retry executes rather than records.
+//
+// The handler test already covers the rule that a finished run may be retried.
+// What no test below a deployment can show is that the retry reaches a worker:
+// a second run id is cheap to write down, and a second artifact is not — it
+// exists only because a process started, ran, and wrote one. See
+// docs/design/end-to-end-testing.md §6.1.
+func assertRetryRunsAgain(ctx context.Context, client *http.Client, target smokeTarget, teamID, taskID, firstRunID, token string) error {
+	var retried struct {
+		TaskRunID        string `json:"task_run_id"`
+		RetryOfTaskRunID string `json:"retry_of_task_run_id"`
+	}
+	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(taskID)
+	if err := requestJSON(ctx, client, http.MethodPost, taskURL+"/retry", token, nil, &retried, http.StatusCreated); err != nil {
+		return fmt.Errorf("retry the finished run: %w", err)
+	}
+	switch {
+	case retried.RetryOfTaskRunID != firstRunID:
+		return fmt.Errorf("retry says it retried %q, want the run that just finished, %q", retried.RetryOfTaskRunID, firstRunID)
+	case retried.TaskRunID == "" || retried.TaskRunID == firstRunID:
+		return fmt.Errorf("retry produced run id %q, want a new one", retried.TaskRunID)
+	}
+
+	if _, err := waitForTaskSuccess(ctx, client, taskURL, token); err != nil {
+		return fmt.Errorf("the retried run: %w", err)
+	}
+	// Polled, not read once: a task reports SUCCEEDED before its run output is
+	// queryable, so a single read here fails on a run that did everything right.
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var artifacts []struct {
+			TaskRunID string `json:"task_run_id"`
+		}
+		if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", token, nil, &artifacts, http.StatusOK); err != nil {
+			return err
+		}
+		for _, artifact := range artifacts {
+			if artifact.TaskRunID == retried.TaskRunID {
+				return nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the retried run %s produced no artifact within 30s of succeeding, so nothing executed it", retried.TaskRunID)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// assertTeamBoundaryHolds proves the team boundary is enforced at the
+// deployment edge.
+//
+// The authorization matrix is covered by handler tests against a real router,
+// but those call the handler. This calls the published API through whatever
+// sits in front of it — an ingress in kind, a published port in Compose — which
+// is the only way to catch a deployment that authenticates somewhere else, or
+// not at all.
+func assertTeamBoundaryHolds(ctx context.Context, client *http.Client, target smokeTarget, teamID string) error {
+	usageURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/usage"
+	if err := expectStatusWithToken(ctx, client, usageURL, "", http.StatusUnauthorized); err != nil {
+		return fmt.Errorf("an unauthenticated read of a team: %w", err)
+	}
+
+	outsider, outsiderTeamID, err := smokeOutsider(ctx, client, target)
+	if err != nil {
+		return err
+	}
+	if err := expectStatusWithToken(ctx, client, usageURL, outsider, http.StatusForbidden); err != nil {
+		return fmt.Errorf("a signed-in stranger reading another team: %w", err)
+	}
+	// The same token against its own team, so the refusal above is a boundary
+	// holding rather than a token that never worked.
+	ownURL := target.apiBase + "/api/teams/" + url.PathEscape(outsiderTeamID) + "/usage"
+	if err := expectStatusWithToken(ctx, client, ownURL, outsider, http.StatusOK); err != nil {
+		return fmt.Errorf("the stranger reading its own team: %w", err)
+	}
+	return nil
+}
+
+// smokeOutsider signs in an account that belongs to no team of the smoke
+// account's, returning its token and its own team id.
+func smokeOutsider(ctx context.Context, client *http.Client, target smokeTarget) (string, string, error) {
+	if output, err := target.admin("user", "create", smokeOutsiderEmail); err != nil && !strings.Contains(output, "already has an account") {
+		return "", "", fmt.Errorf("create the outsider account: %w", err)
+	}
+	codeOutput, err := target.admin("user", "login-code", smokeOutsiderEmail)
+	if err != nil {
+		return "", "", fmt.Errorf("issue the outsider login code: %w", err)
+	}
+	code := loginCodePattern.FindString(codeOutput)
+	if code == "" {
+		return "", "", errors.New("the outsider login-code command returned no bmxlogin_ code")
+	}
+	var login struct {
+		Token string `json:"token"`
+	}
+	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/login", "", map[string]string{
+		"email": smokeOutsiderEmail, "otp": code, "platform": "deployment-smoke",
+	}, &login, http.StatusOK); err != nil {
+		return "", "", fmt.Errorf("sign the outsider in: %w", err)
+	}
+	var teams []struct {
+		ID string `json:"id"`
+	}
+	if err := requestJSON(ctx, client, http.MethodGet, target.apiBase+"/api/teams", login.Token, nil, &teams, http.StatusOK); err != nil {
+		return "", "", err
+	}
+	if len(teams) == 0 || teams[0].ID == "" {
+		return "", "", errors.New("the outsider account has no personal team")
+	}
+	return login.Token, teams[0].ID, nil
+}
+
+// expectStatusWithToken reads endpoint as whoever token names — nobody, when it
+// is empty — and reports whether the status was the one required.
+func expectStatusWithToken(ctx context.Context, client *http.Client, endpoint, token string, want int) error {
+	body, err := request(ctx, client, http.MethodGet, endpoint, token, "", nil, want)
+	if err != nil {
+		return err
+	}
+	return body.Close()
 }
 
 // assertManagedRun proves the run reached its model through the gateway.

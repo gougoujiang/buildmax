@@ -17,7 +17,11 @@ log_level: info
 port: 5678
 cors_origin: http://localhost:8080
 workspaces_dir: /buildmax/workspaces
-default_quota_tier: free_trial
+# The smoke deployment runs many agent runs and is meant to be kept: free_trial
+# caps a team at ten runs in thirty days, which turns a long-lived local stack
+# into a broken one after a handful of smokes. Quota behaviour is not what these
+# suites verify.
+default_quota_tier: pro
 
 database:
   host: mysql.db.svc.cluster.local

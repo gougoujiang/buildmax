@@ -4,14 +4,17 @@
 
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `in progress` — §9 step 1 is done: the model harness of §4 is
-  `internal/testsupport/mockllm`, serving both the local suites and the
-  deployment smokes from one implementation. Step 2 is done: `internal/e2e/cli`
-  covers the print-mode paths and answers an approval prompt on a
-  pseudo-terminal. Step 3 has landed its CI half — the deployment workflow is
-  post-merge, scheduled, and dispatchable, and reports what verified a commit —
-  along with named suites, preflight, artifacts, and a lifecycle-owning local
-  mode. Open: the Portal golden paths of §9 step 4, and steps 5-6
+- status: `in progress` — §9 steps 1, 2, 3, and 6 are done: the model harness of
+  §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
+  CLI suite covers print mode and answers an approval on a pseudo-terminal; the
+  deployment workflow is post-merge, scheduled, and dispatchable and reports
+  what verified a commit; the suites have names, preflight, artifacts, and an
+  owning local mode; and the runbook is
+  [../contribute/testing.md](../contribute/testing.md). Step 4 landed files,
+  workflows, and the ungranted-account view in the browser, and retry and the
+  team boundary in the deployment smoke. Step 5 landed the Desktop bridge.
+  Open: workflow execution and space settings in the browser, the two
+  deployment paths §6.1 leaves for later, and the native packaged-app smoke
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -69,11 +72,12 @@ larger than it looks.
   smoke additionally proves that a worker reaches the model through the
   gateway.
 - `./make e2e [kind|compose|local|cli]` selects a suite. The Portal ones run
-  nine serial Chromium Playwright checks in `portal/e2e/`: login, session
-  restoration, the Portal shell, runtime API configuration, selected
-  audit/admin routes, and the run-trace view. `kind` and `compose` attach to a
-  deployment that is already running, `local` owns a Compose stack for one run,
-  and `cli` needs no deployment at all.
+  serial Chromium Playwright checks in `portal/e2e/`: login, session
+  restoration, the Portal shell, runtime API configuration, audit and admin
+  routes, the run-trace view, team files, workflows, and what an ungranted
+  account is shown. `kind` and `compose` attach to a deployment that is already
+  running, `local` owns a Compose stack for one run, and `cli` needs no
+  deployment at all.
 - `./make agent-smoke` is **not** deterministic verification. It builds the CLI
   and runs `buildmax -p "/smoke 0"`, which drives the `.buildmax/skills/smoke`
   skill: a real model executes the tool checks and reports its own PASS/FAIL
@@ -227,8 +231,8 @@ test.
 | Portal + kind | Prove the same published-bundle contract through ingress and the Kubernetes worker path. Run locally for deployment, ingress, storage, or worker changes. |
 | Server + worker | Preserve the existing direct and managed deployment smoke, then add the deployment-level half of cancellation, retry, authorization denial, and failure recovery — see §6.1. |
 | CLI + TUI | Start the built binary in an isolated workspace with the mock model; send a prompt; approve and deny a pinned tool call; verify an intended file change, session resume, trace, and a useful failure. Prove that a batched turn produces one canonical history and prompt order. |
-| Desktop bridge | Run the Wails development bridge with the mock runtime; create a project; stream a response; handle an approval; reopen a session; and surface a runtime error. |
-| Native Desktop smoke | On supported native runners, launch the packaged app and prove one critical interaction. This is lower frequency than the bridge suite because native WebViews differ by platform. |
+| Desktop bridge | Drive the bound methods with the scripted model: create a project; stream a response; handle an approval and a denial; reopen a session; and surface a provider failure. It asserts on the events the frontend would have received, because those are the whole of what the React app can know. |
+| Native Desktop smoke | On supported native runners, launch the packaged app and prove one critical interaction. This is lower frequency than the bridge suite because native WebViews differ by platform, and it is what covers the window, the webview, and the React app — none of which the bridge suite reaches. |
 
 Portal paths should prefer semantic accessible locators. Setup that is not the
 subject of a test may use a fixture API, but the asserted user outcome must go
@@ -249,6 +253,15 @@ A pseudo-terminal has no emulator behind it, so the harness plays that part and
 answers the capability queries the TUI writes on startup. Left unanswered they
 cost five seconds a test while the TUI waits out its own timeout, which reads
 as the agent being slow rather than as the terminal being absent.
+
+**The Desktop bridge needed a seam, and that is worth saying out loud.** Wails
+emits to the frontend through an interface that lives in one of its internal
+packages, so nothing outside that module can stand in for the frontend. The app
+now emits through a one-line indirection of its own, which production never
+reassigns and a test replaces with a recorder. Without it the Desktop surface
+would have had no deterministic coverage at all — the alternative being a
+running `wails dev` and a display, which is the packaged-app smoke, not a suite
+anyone runs while changing code.
 
 **Concurrency must be proved to change nothing.**
 [parallel-tool-execution.md](./parallel-tool-execution.md) promises identical
@@ -277,6 +290,20 @@ deployment-level fact no handler test can reach:
 - **Failure recovery** — a worker that dies mid-run leaves the run in a
   terminal, diagnosable state with its artifacts and logs retrievable.
 
+Retry and authorization denial are covered by the deployment smoke. The other
+two are not, and the reason belongs here rather than in a backlog: both need a
+run that is slow, or that fails on purpose, and the deployment's mock answers
+every call with the same scripted reply. Covering them means letting the
+deployment mock serve more than one scenario — selected by the model alias a
+run uses, never inferred from what a request says — and giving the smoke stack
+a second alias to point at. That is an enabling change, not a test someone
+forgot to write.
+
+Both assertions poll rather than read once. A task reports `SUCCEEDED` before
+its run output is queryable, so a single read fails on a run that did
+everything right; that ordering is a property of the deployment, and an
+assertion that ignores it measures the clock instead of the system.
+
 ## 7. AI Agent Workflow
 
 The harness is a first-class tool for code-changing agents, not merely a CI
@@ -295,10 +322,10 @@ before changing code, fixes the named boundary, and reruns the same suite. It
 does not replace an E2E failure with a hand-waved manual test or run the full
 matrix by default.
 
-The runbook itself is current behavior, not rationale, so it belongs in
-`docs/contribute/` — a testing document that does not exist yet — with
-`AGENTS.md` carrying only the suite-selection summary and a link. This design
-record keeps the trade-offs; it must not become the runbook.
+The runbook itself is current behavior, not rationale, so it lives in
+[`../contribute/testing.md`](../contribute/testing.md), with `AGENTS.md`
+carrying only the suite-selection summary and a link. This design record keeps
+the trade-offs; it must not become the runbook.
 
 ## 8. CI Policy
 
@@ -361,10 +388,15 @@ rather than discovered later.
    matrix. Keep the original API smoke focused on deployment behavior, and give
    the server and worker paths the deployment-level assertions in §6.1.
 5. **Add the Wails bridge suite**, then a small native packaged-app smoke on
-   supported platform runners.
+   supported platform runners. The bridge suite has landed as
+   `TestBridge*` in `internal/interface/desktop`, run by `./make e2e desktop`;
+   the packaged-app smoke is open, and it is what covers the window and the
+   React app.
 6. **Publish the contributor and agent runbook** in `docs/contribute/`,
    including suite selection, prerequisite checks, artifact locations, and a
-   release-time full-matrix command.
+   release-time full-matrix command. Landed as
+   [`../contribute/testing.md`](../contribute/testing.md), with `AGENTS.md`
+   carrying the summary and the link, and `./make e2e all` as the matrix.
 
 Renaming the model-driven `./make smoke` rode along with step 3. Giving `gui`
 tests is still open and belongs with step 4, which is when Portal paths start

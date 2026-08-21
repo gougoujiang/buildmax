@@ -62,10 +62,12 @@ They cover only what a browser can show: that the published bundle works
 against a real server. The API-level flow belongs to `./make kind smoke`, and
 repeating it here would be slower and no more informative.
 
-`./make e2e` issues the login code, because a code arrives out of band by
-design and the browser cannot fetch one. Playwright's global setup signs in
-once and saves the session, which is also why signing in is not a separate
-spec: a break in it fails the whole suite before the first test.
+`./make e2e` issues the login codes, because a code arrives out of band by
+design and the browser cannot fetch one. Playwright's global setup signs in and
+saves a session per role — the deployment administrator and an account holding
+no grant — which is also why signing in is not a separate spec: a break in it
+fails the whole suite before the first test. Two accounts exist because a
+role-specific view can only be proved by someone who does not have the role.
 
 `./make e2e` defaults to the kind deployment; `./make e2e compose` runs the same
 specs against the quickstart stack; `./make e2e local` starts a Compose stack,

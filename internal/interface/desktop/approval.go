@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 )
 
@@ -46,7 +44,7 @@ func (h *DesktopApprovalHandler) RequestApproval(ctx context.Context, name strin
 	h.pending = respCh
 	h.mu.Unlock()
 
-	runtime.EventsEmit(uiCtx, eventApprovalRequest, &ApprovalRequestPayload{
+	h.app.emit(uiCtx, eventApprovalRequest, &ApprovalRequestPayload{
 		ProjectID: h.projectID,
 		ToolName:  name,
 		Args:      args,
