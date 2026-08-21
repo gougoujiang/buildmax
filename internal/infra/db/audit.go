@@ -85,15 +85,7 @@ func truncateDetail(s string) string {
 
 // ListAuditEvents returns a team's events, newest first, with the total count.
 func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offset int) ([]model.AuditEvent, int, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset = clampPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&auditEventRow{}).Where("team_id = ?", teamID)
 
 	var total int64
@@ -119,15 +111,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offse
 // created_at, not a smaller retention — losing evidence to make a query fast is
 // the wrong trade.
 func (s *Store) SearchAuditEvents(ctx context.Context, filter model.AuditFilter, limit, offset int) ([]model.AuditEvent, int, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset = clampPage(limit, offset)
 	q := applyAuditFilter(s.db.WithContext(ctx).Model(&auditEventRow{}), filter)
 
 	var total int64

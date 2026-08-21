@@ -235,15 +235,7 @@ func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (strin
 
 // ListAllTeams implements model.TeamStore.
 func (s *Store) ListAllTeams(ctx context.Context, query string, limit, offset int) ([]model.Team, int, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset = clampPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&teamRow{})
 	if query != "" {
 		q = q.Where("name LIKE ?", "%"+query+"%")

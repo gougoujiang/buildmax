@@ -93,7 +93,7 @@ func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) 
 	if !h.requireStore(w, h.cfg.UserStore, "accounts not configured") {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 200)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", bulkPageDefault, bulkPageMax)
 	users, total, err := h.cfg.UserStore.ListUsers(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_users")

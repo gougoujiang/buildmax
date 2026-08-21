@@ -303,7 +303,7 @@ func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
 	list, total, err := h.workflowService().ListWorkflowRevisions(r.Context(), teamID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
@@ -362,7 +362,7 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
 	runs, total, err := h.workflowService().ListWorkflowRuns(r.Context(), teamID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {

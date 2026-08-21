@@ -75,7 +75,7 @@ func (h *Handler) listIssueCommentsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 200)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", bulkPageDefault, bulkPageMax)
 	list, total, err := h.issueService().ListComments(r.Context(), issueID, limit, offset)
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {

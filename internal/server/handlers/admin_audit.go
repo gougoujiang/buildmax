@@ -34,7 +34,7 @@ func (h *Handler) listAdminAuditEventsHandler(w http.ResponseWriter, r *http.Req
 	}
 	q := r.URL.Query()
 	filter := adminAuditFilter(q)
-	limit, offset := parseLimitOffset(q, "limit", "offset", 50, 200)
+	limit, offset := parseLimitOffset(q, "limit", "offset", bulkPageDefault, bulkPageMax)
 
 	events, total, err := h.cfg.AuditStore.SearchAuditEvents(r.Context(), filter, limit, offset)
 	if err != nil {

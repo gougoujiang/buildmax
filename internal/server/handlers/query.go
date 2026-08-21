@@ -8,6 +8,21 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
+// Page sizes. Three tiers rather than one number, because the routes differ in
+// what a screen of results is worth: a browse list is read top to bottom, an
+// operator's list is scanned and exported. Naming them makes a route's choice
+// visible; before, eleven call sites each passed a pair of literals and no two
+// readers could tell which differences were meant.
+const (
+	// browsePageDefault paginates lists a person reads a screen at a time --
+	// revisions, workflow runs, an issue's flow.
+	browsePageDefault, browsePageMax = 20, 100
+	// listPageDefault paginates a team's own working lists.
+	listPageDefault, listPageMax = 50, 100
+	// bulkPageDefault paginates lists an operator scans or exports.
+	bulkPageDefault, bulkPageMax = 50, 200
+)
+
 func parseLimitOffset(q url.Values, limitKey, offsetKey string, defaultLimit, maxLimit int) (limit, offset int) {
 	limit = defaultLimit
 	if l := q.Get(limitKey); l != "" {
