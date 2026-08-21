@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"bufio"
@@ -10,7 +10,7 @@ import (
 )
 
 func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -30,10 +30,10 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 
-	events, unsub := h.hub.Subscribe(taskID)
+	events, unsub := h.cfg.Hub.Subscribe(taskID)
 	defer unsub()
 
-	if buf := h.hub.Buffer(taskID); buf != "" {
+	if buf := h.cfg.Hub.Buffer(taskID); buf != "" {
 		writeSSE(w, buf)
 		if flusher != nil {
 			flusher.Flush()

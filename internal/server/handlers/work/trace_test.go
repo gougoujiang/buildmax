@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -48,18 +48,18 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 	)
 	token := testsupport.SignJWT(userID, secret)
 
-	h := NewHandler(Config{
+	h := New(Config{
 		JWTSecret:     secret,
 		WorkspacesDir: workspacesDir,
-		TeamStore: &mock.MockTeamStore{
+		Teams: &mock.MockTeamStore{
 			Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
 			Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}},
 		},
-		TaskRunStore: &mock.MockTaskRunStore{
+		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: 1}},
 			TaskList: []model.Task{{TaskID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 		},
-		ConversationStore: &mock.MockConversationStore{
+		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1}},
 		},
 		PersistStorage: persist,

@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -35,15 +35,15 @@ func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockT
 		CreatedBy:      cancelUser,
 	}
 	runs := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
-	h := NewHandler(Config{
+	h := New(Config{
 		JWTSecret: cancelSecret,
-		TeamStore: &mock.MockTeamStore{
+		Teams: &mock.MockTeamStore{
 			Teams:   []model.Team{{TeamID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
 			Members: []model.TeamMember{{TeamID: cancelTeam, UserID: cancelUser, Role: model.TeamRoleOwner}},
 		},
-		TaskStore:    &mock.MockTaskStore{List: []model.Task{task}},
-		TaskRunStore: runs,
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{
+		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
+		TaskRuns: runs,
+		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
 			{ConversationID: cancelConv, UserID: cancelUser, TeamID: cancelTeam, Channel: "portal", CreatedBy: cancelUser},
 		}},
 	})

@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -19,22 +19,22 @@ func ptr[T any](v T) *T { return &v }
 func llmCallsFixture(ledger *llmStubLedger) Config {
 	return Config{
 		JWTSecret: llmTestSecret,
-		TeamStore: llmTestTeamStore(),
-		TaskRunStore: &mock.MockTaskRunStore{
+		Teams:     llmTestTeamStore(),
+		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: string(model.RunStatusSucceeded), CreatedAt: 1}},
 			TaskList: []model.Task{{TaskID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: 1}},
 		},
-		ConversationStore: &mock.MockConversationStore{
+		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{{ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
 		},
-		LLMCallStore: ledger,
+		LLMCalls: ledger,
 	}
 }
 
 func getLLMCalls(t *testing.T, cfg Config, teamID, taskRunID string, auth bool) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
-	NewHandler(cfg).Register(mux)
+	New(cfg).Register(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/llm-calls", nil)
 	if auth {
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(llmTestUser, llmTestSecret))
@@ -129,7 +129,7 @@ func TestListTaskRunLLMCallsRefusals(t *testing.T) {
 
 	t.Run("no ledger configured", func(t *testing.T) {
 		cfg := llmCallsFixture(staged)
-		cfg.LLMCallStore = nil
+		cfg.LLMCalls = nil
 		if code := getLLMCalls(t, cfg, llmTestTeam, "r_1", true).Code; code != http.StatusServiceUnavailable {
 			t.Errorf("status = %d, want 503", code)
 		}

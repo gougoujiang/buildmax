@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -42,11 +42,11 @@ func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockI
 			{TeamID: commentOtherTeam, UserID: "u_stranger", Role: model.TeamRoleOwner},
 		},
 	}
-	h := NewHandler(Config{
-		JWTSecret:         commentTestSecret,
-		TeamStore:         teams,
-		IssueStore:        issues,
-		IssueCommentStore: comments,
+	h := New(Config{
+		JWTSecret:     commentTestSecret,
+		Teams:         teams,
+		Issues:        issues,
+		IssueComments: comments,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -222,10 +222,10 @@ func TestIssueComments_NotConfigured(t *testing.T) {
 		Teams:   []model.Team{{TeamID: commentTeam, Name: "Comments", CreatedBy: "u_owner"}},
 		Members: []model.TeamMember{{TeamID: commentTeam, UserID: "u_owner", Role: model.TeamRoleOwner}},
 	}
-	h := NewHandler(Config{
-		JWTSecret:  commentTestSecret,
-		TeamStore:  teams,
-		IssueStore: &mock.MockIssueStore{Issues: []model.Issue{{IssueID: "i_1", TeamID: commentTeam}}},
+	h := New(Config{
+		JWTSecret: commentTestSecret,
+		Teams:     teams,
+		Issues:    &mock.MockIssueStore{Issues: []model.Issue{{IssueID: "i_1", TeamID: commentTeam}}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

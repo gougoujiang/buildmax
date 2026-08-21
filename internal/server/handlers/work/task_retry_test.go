@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -43,21 +43,21 @@ func retryFixture(t *testing.T, run model.TaskRun, workflows *mock.MockWorkflowS
 	}
 	cfg := Config{
 		JWTSecret: retrySecret,
-		TeamStore: &mock.MockTeamStore{
+		Teams: &mock.MockTeamStore{
 			Teams:   []model.Team{{TeamID: retryTeam, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
 			Members: []model.TeamMember{{TeamID: retryTeam, UserID: retryUser, Role: model.TeamRoleOwner}},
 		},
-		TaskStore:    &mock.MockTaskStore{List: []model.Task{target}},
-		TaskRunStore: runs,
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{
+		Tasks:    &mock.MockTaskStore{List: []model.Task{target}},
+		TaskRuns: runs,
+		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
 			{ConversationID: retryConv, UserID: retryUser, TeamID: retryTeam, Channel: "portal", CreatedBy: retryUser},
 		}},
 	}
 	if workflows != nil {
-		cfg.WorkflowStore = workflows
+		cfg.Workflows = workflows
 	}
 	mux := http.NewServeMux()
-	NewHandler(cfg).Register(mux)
+	New(cfg).Register(mux)
 	return mux, runs
 }
 

@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"context"
@@ -59,17 +59,17 @@ func taskToResponse(task model.Task) TaskResponse {
 
 func (h *Handler) taskService() *task.Service {
 	var quotaChecker task.QuotaChecker
-	if h.cfg.QuotaService != nil {
-		quotaChecker = h.cfg.QuotaService
+	if h.cfg.Quota != nil {
+		quotaChecker = h.cfg.Quota
 	}
 	var workflowSteps task.WorkflowStepLookup
-	if h.cfg.WorkflowStore != nil {
-		workflowSteps = h.cfg.WorkflowStore
+	if h.cfg.Workflows != nil {
+		workflowSteps = h.cfg.Workflows
 	}
 	return &task.Service{
-		Agents:         h.cfg.AgentStore,
-		Tasks:          h.cfg.TaskStore,
-		TaskRuns:       h.cfg.TaskRunStore,
+		Agents:         h.cfg.Agents,
+		Tasks:          h.cfg.Tasks,
+		TaskRuns:       h.cfg.TaskRuns,
 		QuotaChecker:   quotaChecker,
 		TitleGenerator: h.cfg.TitleGenerator,
 		WorkflowSteps:  workflowSteps,
@@ -94,7 +94,7 @@ func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *model.Conversation, bool) {
-	task, err := h.cfg.TaskStore.GetTask(r.Context(), taskID)
+	task, err := h.cfg.Tasks.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_task", "task_id", taskID)
 		return nil, nil, false
@@ -120,7 +120,7 @@ type tasksListResponse struct {
 }
 
 func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -136,7 +136,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	if usePaginated {
 		limit, offset := httputil.LimitOffset(q, "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
 		executedOnly := q.Get("executed_only") == "true"
-		list, total, err := h.cfg.TaskStore.ListTasksByConversationPaginated(r.Context(), conversationID, executedOnly, limit, offset)
+		list, total, err := h.cfg.Tasks.ListTasksByConversationPaginated(r.Context(), conversationID, executedOnly, limit, offset)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "list_tasks", "conversation_id", conversationID)
 			return
@@ -152,7 +152,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	if order != "asc" && order != "desc" {
 		order = "desc"
 	}
-	list, err := h.cfg.TaskStore.ListTasksByConversation(r.Context(), conversationID, order)
+	list, err := h.cfg.Tasks.ListTasksByConversation(r.Context(), conversationID, order)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_tasks", "conversation_id", conversationID)
 		return
@@ -165,7 +165,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -200,7 +200,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -246,7 +246,7 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -285,7 +285,7 @@ type retryTaskResponse struct {
 // with what the run was asked to do, and making someone retype the instructions
 // to recover from it invites them to retype them differently.
 func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -343,7 +343,7 @@ type cancelTaskResponse struct {
 // loop, and pretending otherwise would leave the run's own record lying about
 // what it was doing. `StaleRunReaper` finishes the ones no worker answers for.
 func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -355,7 +355,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	run, err := h.cfg.TaskRunStore.GetActiveTaskRunByTask(r.Context(), target.TaskID)
+	run, err := h.cfg.TaskRuns.GetActiveTaskRunByTask(r.Context(), target.TaskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_id", taskID)
 		return
@@ -369,7 +369,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// backstop measures, and it stays true whichever of the two paths below the
 	// run turns out to be on.
 	now := time.Now().Unix()
-	requested, err := h.cfg.TaskRunStore.RequestTaskRunCancel(r.Context(), run.TaskRunID, userID, now)
+	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.TaskRunID, userID, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.TaskRunID)
 		return
@@ -385,7 +385,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Not PENDING any more: either a worker has it, or it finished while this
 	// request was in flight. Re-reading is what tells those apart.
-	current, err := h.cfg.TaskRunStore.GetTaskRun(r.Context(), run.TaskRunID)
+	current, err := h.cfg.TaskRuns.GetTaskRun(r.Context(), run.TaskRunID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.TaskRunID)
 		return
@@ -413,7 +413,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 // runs.
 func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt int64) bool {
 	message := "this run was canceled before it started"
-	claimed, err := h.cfg.TaskRunStore.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
+	claimed, err := h.cfg.TaskRuns.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
 		TaskRunID:      taskRunID,
 		ExpectedStatus: model.RunStatusPending,
 		NewStatus:      model.RunStatusCanceled,
@@ -427,7 +427,7 @@ func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, ended
 	if !claimed {
 		return false
 	}
-	if err := h.cfg.TaskRunStore.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
+	if err := h.cfg.TaskRuns.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
 		slog.Warn("could not sync a task from its canceled run", "task_run_id", taskRunID, "err", err)
 	}
 	h.runAnnouncer().Announce(r.Context(), taskRunID, string(model.RunStatusCanceled), nil, &message)
@@ -455,7 +455,7 @@ type ConversationResponse struct {
 }
 
 func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskStore, "tasks not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}

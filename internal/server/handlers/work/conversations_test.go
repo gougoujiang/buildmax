@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"context"
@@ -55,18 +55,18 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 			{ConversationMessageID: "cm_3", ConversationID: conversationID, Role: "assistant", Content: "final reply", CreatedAt: 3},
 		},
 	}
-	h := NewHandler(Config{
+	h := New(Config{
 		JWTSecret: secret,
-		TeamStore: &mock.MockTeamStore{
+		Teams: &mock.MockTeamStore{
 			Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
 			Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
 		},
-		ConversationStore: &mock.MockConversationStore{
+		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{
 				{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 			},
 		},
-		ConversationMessageStore: messageStore,
+		Messages: messageStore,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

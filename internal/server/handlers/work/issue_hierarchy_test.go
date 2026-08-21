@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"encoding/json"
@@ -34,13 +34,13 @@ func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 		Teams:   []model.Team{{TeamID: hierarchyTeam, Name: "Hierarchy", CreatedBy: "u_owner"}},
 		Members: []model.TeamMember{{TeamID: hierarchyTeam, UserID: "u_owner", Role: model.TeamRoleOwner}},
 	}
-	h := NewHandler(Config{
-		JWTSecret:         hierarchyTestSecret,
-		TeamStore:         teams,
-		IssueStore:        issues,
-		IssueCommentStore: &mock.MockIssueCommentStore{},
-		WorkflowStore:     &mock.MockWorkflowStore{},
-		TaskStore:         &mock.MockTaskStore{},
+	h := New(Config{
+		JWTSecret:     hierarchyTestSecret,
+		Teams:         teams,
+		Issues:        issues,
+		IssueComments: &mock.MockIssueCommentStore{},
+		Workflows:     &mock.MockWorkflowStore{},
+		Tasks:         &mock.MockTaskStore{},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

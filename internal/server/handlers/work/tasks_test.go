@@ -1,4 +1,4 @@
-package handlers
+package work
 
 import (
 	"bytes"
@@ -75,11 +75,11 @@ func TestListConversationTasksHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewHandler(Config{
-				JWTSecret:         secret,
-				TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
-				TaskStore:         tt.taskStore,
-				ConversationStore: mockConversations,
+			h := New(Config{
+				JWTSecret:     secret,
+				Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+				Tasks:         tt.taskStore,
+				Conversations: mockConversations,
 			})
 			mux := http.NewServeMux()
 			h.Register(mux)
@@ -217,16 +217,16 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				JWTSecret:         secret,
-				TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
-				TaskStore:         tt.taskStore,
-				AgentStore:        tt.agentStore,
-				ConversationStore: mockConversations,
+				JWTSecret:     secret,
+				Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+				Tasks:         tt.taskStore,
+				Agents:        tt.agentStore,
+				Conversations: mockConversations,
 			}
 			if tt.name == "quota exceeded returns 429" {
-				cfg.QuotaService = denyChecker
+				cfg.Quota = denyChecker
 			}
-			h := NewHandler(cfg)
+			h := New(cfg)
 			mux := http.NewServeMux()
 			h.Register(mux)
 			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body))
