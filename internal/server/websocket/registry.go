@@ -1,30 +1,29 @@
-package handlers
+package websocket
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-// connRegistry tracks active WebSocket connections per user.
-type connRegistry struct {
+// ConnRegistry tracks active WebSocket connections per user.
+type ConnRegistry struct {
 	mu    sync.RWMutex
-	conns map[string][]*wsConn
+	conns map[string][]*Conn
 }
 
-func newConnRegistry() *connRegistry {
-	return &connRegistry{conns: make(map[string][]*wsConn)}
+func NewConnRegistry() *ConnRegistry {
+	return &ConnRegistry{conns: make(map[string][]*Conn)}
 }
 
-func (r *connRegistry) Register(userID string, c *wsConn) {
+func (r *ConnRegistry) Register(userID string, c *Conn) {
 	r.mu.Lock()
 	r.conns[userID] = append(r.conns[userID], c)
 	r.mu.Unlock()
 }
 
-func (r *connRegistry) Unregister(userID string, c *wsConn) {
+func (r *ConnRegistry) Unregister(userID string, c *Conn) {
 	r.mu.Lock()
 	list := r.conns[userID]
 	for i, cc := range list {
@@ -39,10 +38,10 @@ func (r *connRegistry) Unregister(userID string, c *wsConn) {
 	r.mu.Unlock()
 }
 
-func (r *connRegistry) ForUser(userID string) []*wsConn {
+func (r *ConnRegistry) ForUser(userID string) []*Conn {
 	r.mu.RLock()
 	list := r.conns[userID]
-	out := make([]*wsConn, len(list))
+	out := make([]*Conn, len(list))
 	copy(out, list)
 	r.mu.RUnlock()
 	return out
@@ -52,15 +51,15 @@ const taskResultMaxOutputLen = 4000
 
 // OnTaskRunTerminal is called when a task run reaches terminal status. It finds the user's active
 // WebSocket connection and triggers a system Tier 1 conversation turn with the task result.
-func (r *connRegistry) OnTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) {
+func (r *ConnRegistry) OnTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) {
 	conns := r.ForUser(info.UserID)
 	if len(conns) == 0 {
-		runTerminalLog().Info("user not connected, skipping", "user_id", info.UserID, "task_id", info.TaskID)
+		componentLog().Info("user not connected, skipping", "user_id", info.UserID, "task_id", info.TaskID)
 		return
 	}
 	msg := formatTaskResultMessage(info)
 	wc := conns[0]
-	runTerminalLog().Info("triggering system turn", "user_id", info.UserID, "conversation_id", info.ConversationID, "task_id", info.TaskID, "status", info.Status)
+	componentLog().Info("triggering system turn", "user_id", info.UserID, "conversation_id", info.ConversationID, "task_id", info.TaskID, "status", info.Status)
 	wc.RunSystemConversationTurn(ctx, info.ConversationID, msg)
 }
 
@@ -90,6 +89,3 @@ func formatTaskResultMessage(info model.TaskRunTerminalInfo) string {
 	}
 	return "[Task Result] task_id: " + info.TaskID + " | status: failed\n\nError: " + errMsg
 }
-
-// Identity belongs in an attr, not in every message string.
-func runTerminalLog() *slog.Logger { return slog.With("component", "task_run_terminal") }

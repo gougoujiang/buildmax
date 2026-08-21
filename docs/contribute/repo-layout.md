@@ -170,7 +170,8 @@ internal/
 │   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers
 │   ├── scheduler/      Claims pending task runs and spawns workers
-│   ├── websocket/      Team websocket hub and stream fan-out
+│   ├── websocket/      The live connection, the stream hub, and the protocol
+│   ├── turnqueue/      Serializes a conversation's turns across both paths
 │   └── static/         Embedded OpenAPI and Swagger assets
 │
 ├── agenteval/          Evaluation harness: task catalog and runner

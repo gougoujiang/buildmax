@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
+	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 )
 
 func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if msg == streamhub.StreamEventDone {
+			if msg == wsconn.StreamEventDone {
 				writeSSE(w, "done")
 				if flusher != nil {
 					flusher.Flush()
