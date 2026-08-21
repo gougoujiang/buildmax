@@ -18,6 +18,7 @@ Durable product decisions that guide more than one roadmap phase.
 |---|---|
 | [Product vision](product-vision.md) | Long-range direction for the AI-native workspace |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
+| [Local end-to-end verification](end-to-end-testing.md) | Developer- and agent-run E2E strategy across every surface |
 
 ## Active Roadmap Plans
 
