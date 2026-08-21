@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -186,44 +185,7 @@ func (h *Handler) workflowService() *workflow.WorkflowService {
 }
 
 func (h *Handler) writeWorkflowSvcError(w http.ResponseWriter, err error) bool {
-	switch {
-	case errors.Is(err, workflow.ErrWorkflowsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "workflows not configured")
-	case errors.Is(err, workflow.ErrConversationsNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversations not configured")
-	case errors.Is(err, workflow.ErrIssuesNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "issues not configured")
-	case errors.Is(err, workflow.ErrTasksNotConfigured):
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "tasks not configured")
-	case errors.Is(err, workflow.ErrWorkflowNameRequired):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow name required")
-	case errors.Is(err, workflow.ErrWorkflowDefinitionRequired):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow definition required")
-	case errors.Is(err, workflow.ErrWorkflowNotFound):
-		httputil.WriteJSONError(w, http.StatusNotFound, "workflow not found")
-	case errors.Is(err, workflow.ErrWorkflowRunNotFound):
-		httputil.WriteJSONError(w, http.StatusNotFound, "workflow run not found")
-	case errors.Is(err, workflow.ErrWorkflowRevisionNotFound):
-		httputil.WriteJSONError(w, http.StatusNotFound, "workflow revision not found")
-	case errors.Is(err, workflow.ErrIssueNotFound):
-		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
-	case errors.Is(err, workflow.ErrIssueWorkflowMismatch):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to workflow")
-	case errors.Is(err, workflow.ErrInvalidDefinition),
-		errors.Is(err, workflow.ErrInvalidStepType),
-		errors.Is(err, workflow.ErrInvalidStepID),
-		errors.Is(err, workflow.ErrInvalidTargetAgent):
-		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, workflow.ErrInvalidWorkflowStatus):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid workflow status")
-	case errors.Is(err, workflow.ErrWorkflowNotPublished):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow not published")
-	case errors.Is(err, workflow.ErrWorkflowArchived):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "workflow archived")
-	default:
-		return false
-	}
-	return true
+	return httputil.WriteServiceError(w, err)
 }
 
 func (h *Handler) listWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +303,7 @@ func (h *Handler) listWorkflowRevisionsHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
 	list, total, err := h.workflowService().ListWorkflowRevisions(r.Context(), teamID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {
@@ -400,7 +362,7 @@ func (h *Handler) listWorkflowRunsHandler(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
 	runs, total, err := h.workflowService().ListWorkflowRuns(r.Context(), teamID, workflowID, limit, offset)
 	if err != nil {
 		if h.writeWorkflowSvcError(w, err) {

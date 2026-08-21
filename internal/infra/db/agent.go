@@ -253,35 +253,20 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name
 
 // ListAgentRevisions returns an agent's revisions, newest first.
 func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
-	var total int64
-	if err := s.db.WithContext(ctx).Model(&agentRevisionRow{}).Where("agent_id = ?", agentID).Count(&total).Error; err != nil {
+	rows, total, err := listRevisions[agentRevisionRow](ctx, s.db, "agent_id", agentID, limit, offset)
+	if err != nil {
 		return nil, 0, err
 	}
-	q := s.db.WithContext(ctx).Where("agent_id = ?", agentID).Order("revision DESC")
-	if limit > 0 {
-		q = q.Limit(limit)
-	}
-	if offset > 0 {
-		q = q.Offset(offset)
-	}
-	var list []agentRevisionRow
-	if err := q.Find(&list).Error; err != nil {
-		return nil, 0, err
-	}
-	return toAgentRevisions(list), int(total), nil
+	return toAgentRevisions(rows), total, nil
 }
 
 // GetAgentRevision returns one revision, or (nil, nil) when there is no such revision.
 func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision int) (*model.AgentRevision, error) {
-	var row agentRevisionRow
-	err := s.db.WithContext(ctx).Where("agent_id = ? AND revision = ?", agentID, revision).First(&row).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
+	row, err := getRevision[agentRevisionRow](ctx, s.db, "agent_id", agentID, revision)
+	if err != nil || row == nil {
 		return nil, err
 	}
-	return toAgentRevision(&row), nil
+	return toAgentRevision(row), nil
 }
 
 // DeleteAgent marks the agent deleted if it exists and belongs to the user.

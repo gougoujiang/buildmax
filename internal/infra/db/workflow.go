@@ -357,35 +357,20 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 
 // ListWorkflowRevisions returns a workflow's revisions, newest first.
 func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
-	var total int64
-	if err := s.db.WithContext(ctx).Model(&workflowRevisionRow{}).Where("workflow_id = ?", workflowID).Count(&total).Error; err != nil {
+	rows, total, err := listRevisions[workflowRevisionRow](ctx, s.db, "workflow_id", workflowID, limit, offset)
+	if err != nil {
 		return nil, 0, err
 	}
-	q := s.db.WithContext(ctx).Where("workflow_id = ?", workflowID).Order("revision DESC")
-	if limit > 0 {
-		q = q.Limit(limit)
-	}
-	if offset > 0 {
-		q = q.Offset(offset)
-	}
-	var list []workflowRevisionRow
-	if err := q.Find(&list).Error; err != nil {
-		return nil, 0, err
-	}
-	return toWorkflowRevisions(list), int(total), nil
+	return toWorkflowRevisions(rows), total, nil
 }
 
 // GetWorkflowRevision returns one revision, or (nil, nil) when there is no such revision.
 func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*model.WorkflowRevision, error) {
-	var row workflowRevisionRow
-	err := s.db.WithContext(ctx).Where("workflow_id = ? AND revision = ?", workflowID, revision).First(&row).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
+	row, err := getRevision[workflowRevisionRow](ctx, s.db, "workflow_id", workflowID, revision)
+	if err != nil || row == nil {
 		return nil, err
 	}
-	return toWorkflowRevision(&row), nil
+	return toWorkflowRevision(row), nil
 }
 
 func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {

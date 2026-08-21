@@ -83,12 +83,7 @@ func RunUserCommand(ctx context.Context, args []string, out io.Writer) error {
 }
 
 func runUserCreate(ctx context.Context, args []string, out io.Writer, store userAdminStore) error {
-	fs := flag.NewFlagSet("user create", flag.ContinueOnError)
-	fs.SetOutput(out)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	email, err := requireEmailArg(fs.Args())
+	email, err := emailArg("user create", args, out)
 	if err != nil {
 		return err
 	}
@@ -115,12 +110,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer, store user
 // From stdin rather than a flag: a password on the command line is recorded in
 // shell history and visible in the process list to everyone on the machine.
 func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io.Reader, store userAdminStore) error {
-	fs := flag.NewFlagSet("user set-password", flag.ContinueOnError)
-	fs.SetOutput(out)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	email, err := requireEmailArg(fs.Args())
+	email, err := emailArg("user set-password", args, out)
 	if err != nil {
 		return err
 	}
@@ -142,9 +132,9 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 		return err
 	}
 
-	user, err := store.UserByEmail(ctx, email)
+	user, err := lookupUser(ctx, store, email)
 	if err != nil {
-		return fmt.Errorf("look up user: %w", err)
+		return err
 	}
 	if user == nil {
 		return fmt.Errorf("no account for %s; create one with: buildmax-server user create %s", email, email)
@@ -172,9 +162,9 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer, store u
 	if *ttl <= 0 {
 		return errors.New("--ttl must be positive")
 	}
-	user, err := store.UserByEmail(ctx, email)
+	user, err := lookupUser(ctx, store, email)
 	if err != nil {
-		return fmt.Errorf("look up user: %w", err)
+		return err
 	}
 	if user == nil {
 		return fmt.Errorf("no account for %s; create one with: buildmax-server user create %s", email, email)

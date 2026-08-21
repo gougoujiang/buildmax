@@ -54,7 +54,7 @@ func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) 
 	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 200)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", bulkPageDefault, bulkPageMax)
 	teams, total, err := h.cfg.TeamStore.ListAllTeams(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_teams")

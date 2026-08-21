@@ -83,15 +83,8 @@ func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset
 		}
 		return all[i].UserID > all[j].UserID
 	})
-	total := len(all)
-	if offset > total {
-		offset = total
-	}
-	all = all[offset:]
-	if limit > 0 && limit < len(all) {
-		all = all[:limit]
-	}
-	return all, total, nil
+	page, total := paginate(all, limit, offset)
+	return page, total, nil
 }
 
 func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabledAt *int64) error {

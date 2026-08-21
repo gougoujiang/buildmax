@@ -3,8 +3,8 @@ package workflow
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"strings"
 	"time"
 
@@ -14,24 +14,24 @@ import (
 )
 
 var (
-	ErrWorkflowsNotConfigured     = errors.New("workflows not configured")
-	ErrConversationsNotConfigured = errors.New("conversations not configured")
-	ErrIssuesNotConfigured        = errors.New("issues not configured")
-	ErrTasksNotConfigured         = errors.New("tasks not configured")
-	ErrWorkflowNameRequired       = errors.New("workflow name required")
-	ErrWorkflowDefinitionRequired = errors.New("workflow definition required")
-	ErrWorkflowNotFound           = errors.New("workflow not found")
-	ErrWorkflowRunNotFound        = errors.New("workflow run not found")
-	ErrWorkflowRevisionNotFound   = errors.New("workflow revision not found")
-	ErrIssueNotFound              = errors.New("issue not found")
-	ErrIssueWorkflowMismatch      = errors.New("issue not assigned to workflow")
-	ErrInvalidDefinition          = errors.New("invalid workflow definition")
-	ErrInvalidStepType            = errors.New("invalid workflow step type")
-	ErrInvalidStepID              = errors.New("invalid workflow step_id")
-	ErrInvalidTargetAgent         = errors.New("invalid target agent")
-	ErrInvalidWorkflowStatus      = errors.New("invalid workflow status")
-	ErrWorkflowNotPublished       = errors.New("workflow not published")
-	ErrWorkflowArchived           = errors.New("workflow archived")
+	ErrWorkflowsNotConfigured     = apierr.New(apierr.KindNotConfigured, "workflows not configured")
+	ErrConversationsNotConfigured = apierr.New(apierr.KindNotConfigured, "conversations not configured")
+	ErrIssuesNotConfigured        = apierr.New(apierr.KindNotConfigured, "issues not configured")
+	ErrTasksNotConfigured         = apierr.New(apierr.KindNotConfigured, "tasks not configured")
+	ErrWorkflowNameRequired       = apierr.New(apierr.KindInvalid, "workflow name required")
+	ErrWorkflowDefinitionRequired = apierr.New(apierr.KindInvalid, "workflow definition required")
+	ErrWorkflowNotFound           = apierr.New(apierr.KindNotFound, "workflow not found")
+	ErrWorkflowRunNotFound        = apierr.New(apierr.KindNotFound, "workflow run not found")
+	ErrWorkflowRevisionNotFound   = apierr.New(apierr.KindNotFound, "workflow revision not found")
+	ErrIssueNotFound              = apierr.New(apierr.KindNotFound, "issue not found")
+	ErrIssueWorkflowMismatch      = apierr.New(apierr.KindInvalid, "issue not assigned to workflow")
+	ErrInvalidDefinition          = apierr.New(apierr.KindInvalid, "invalid workflow definition")
+	ErrInvalidStepType            = apierr.New(apierr.KindInvalid, "invalid workflow step type")
+	ErrInvalidStepID              = apierr.New(apierr.KindInvalid, "invalid workflow step_id")
+	ErrInvalidTargetAgent         = apierr.New(apierr.KindInvalid, "invalid target agent")
+	ErrInvalidWorkflowStatus      = apierr.New(apierr.KindInvalid, "invalid workflow status")
+	ErrWorkflowNotPublished       = apierr.New(apierr.KindInvalid, "workflow not published")
+	ErrWorkflowArchived           = apierr.New(apierr.KindInvalid, "workflow archived")
 )
 
 type WorkflowService struct {
@@ -574,7 +574,7 @@ func (s *WorkflowService) parseAndValidateDefinition(ctx context.Context, teamID
 func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 	var def model.WorkflowDefinition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidDefinition, err)
+		return nil, apierr.Detail(ErrInvalidDefinition, "%v", err)
 	}
 	if len(def.Steps) == 0 {
 		return nil, ErrInvalidDefinition

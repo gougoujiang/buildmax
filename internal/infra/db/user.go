@@ -76,15 +76,7 @@ func toUserRow(m *model.User) *userRow {
 // thousand accounts is not a hot path, and a prefix-only match would fail the
 // common case of searching by the part before the @.
 func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) ([]model.User, int, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset = clampPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&userRow{})
 	if query != "" {
 		q = q.Where("email LIKE ?", "%"+query+"%")

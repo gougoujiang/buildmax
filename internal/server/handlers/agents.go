@@ -199,7 +199,7 @@ func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Reque
 		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
 	list, total, err := h.cfg.AgentStore.ListAgentRevisions(r.Context(), agentID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_revisions", "agent_id", agentID)

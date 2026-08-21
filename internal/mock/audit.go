@@ -38,15 +38,8 @@ func (m *MockAuditStore) ListAuditEvents(_ context.Context, teamID string, limit
 			all = append(all, e)
 		}
 	}
-	total := len(all)
-	if offset > total {
-		offset = total
-	}
-	all = all[offset:]
-	if limit > 0 && limit < len(all) {
-		all = all[:limit]
-	}
-	return all, total, nil
+	page, total := paginate(all, limit, offset)
+	return page, total, nil
 }
 
 func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter model.AuditFilter, limit, offset int) ([]model.AuditEvent, int, error) {
@@ -56,15 +49,8 @@ func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter model.Audit
 			all = append(all, e)
 		}
 	}
-	total := len(all)
-	if offset > total {
-		offset = total
-	}
-	all = all[offset:]
-	if limit > 0 && limit < len(all) {
-		all = all[:limit]
-	}
-	return all, total, nil
+	page, total := paginate(all, limit, offset)
+	return page, total, nil
 }
 
 // ExportTeamAuditEvents walks a team's events newest-first from after.

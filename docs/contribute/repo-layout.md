@@ -105,6 +105,7 @@ internal/
 │
 ├── core/               Pure domain layer — no infra imports
 │   ├── model/          Domain entities and repository contracts
+│   ├── apierr/         Why a service refused: a Kind a transport maps to a status
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
@@ -194,6 +195,12 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
 
 These rules are enforced by tests in `internal/architecture`. If a change trips
 one, the import is the problem, not the test.
+
+Eleven list queries in `infra/db` still have no ceiling: a caller passing
+`limit <= 0` reads every matching row. `clampPage` is not applied to them
+because their callers use 0 to mean "all", so capping them would silently
+truncate a result someone asked for in full. Giving them a bound is a decision
+about those callers, not a refactor.
 
 One exception is recorded rather than enforced: `service/conversation/runtime`
 imports `agentapp` for `NewNonInteractivePolicy`. That one call is the whole

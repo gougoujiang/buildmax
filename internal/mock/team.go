@@ -114,15 +114,8 @@ func (m *MockTeamStore) ListAllTeams(_ context.Context, query string, limit, off
 			all = append(all, m.Teams[i])
 		}
 	}
-	total := len(all)
-	if offset > total {
-		offset = total
-	}
-	all = all[offset:]
-	if limit > 0 && limit < len(all) {
-		all = all[:limit]
-	}
-	return all, total, nil
+	page, total := paginate(all, limit, offset)
+	return page, total, nil
 }
 
 func (m *MockTeamStore) CountTeamMembers(_ context.Context, teamIDs []string) (map[string]int, error) {
