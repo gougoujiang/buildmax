@@ -25,6 +25,20 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 // follows it.
 const RUN_TIMEOUT_MS = 150_000
 
+/**
+ * Tag for everything this run creates.
+ *
+ * These specs attach to a deployment they do not own, and neither an issue nor
+ * an agent can be deleted through the API, so what they create stays. A fixed
+ * name would leave a deployment holding a dozen identical "Run trace probe"
+ * issues with no way to tell which run left which — and a later spec that
+ * looked one up by name would find whichever came first. The tag makes each
+ * one attributable, and `reportLeftovers` says exactly what to remove.
+ *
+ * `./make e2e` supplies the id. A bare `npx playwright test` gets "local".
+ */
+const RUN_ID = process.env.BUILDMAX_E2E_RUN_ID ?? "local"
+
 interface Session {
   token: string
   teamId: string
@@ -87,19 +101,32 @@ function statValue(page: Page, term: string): Locator {
   return rows.filter({ has: page.locator("dt", { hasText: new RegExp(`^${term}$`) }) }).locator("dd")
 }
 
+/**
+ * Name what this run created and could not remove.
+ *
+ * The harness contract is to clean up, or to report an exact safe cleanup
+ * target when the deployment has to keep the evidence. This deployment keeps
+ * it: there is no delete route for either resource. Printing the ids is what
+ * turns "the smoke account accumulates things" into a one-line cleanup.
+ */
+function reportLeftovers(teamId: string, resources: string[]): void {
+  console.log(`[e2e] run ${RUN_ID} left in team ${teamId}: ${resources.join(", ")}`)
+}
+
 /** Seed an issue whose agent has run to completion, and return its issue id. */
 async function seedCompletedAgentRun(page: Page, session: Session): Promise<string> {
   const team = `${session.apiBase}/api/teams/${encodeURIComponent(session.teamId)}`
 
   const agent = await postJSON<{ id: string }>(page, `${team}/agents`, session, {
-    name: "Run trace probe",
+    name: `Run trace probe ${RUN_ID}`,
     description: "Created by the Portal browser tests.",
     instructions: "Reply with exactly: deployment smoke ok",
   })
   const issue = await postJSON<{ id: string }>(page, `${team}/issues`, session, {
-    title: "Run trace probe",
+    title: `Run trace probe ${RUN_ID}`,
     description: "Created by the Portal browser tests to exercise the run trace view.",
   })
+  reportLeftovers(session.teamId, [`agent ${agent.id}`, `issue ${issue.id}`])
   // An agent run is refused unless the issue is assigned to an agent, so this
   // is a precondition of the next call rather than a separate assertion.
   await patchJSON(page, `${team}/issues/${encodeURIComponent(issue.id)}`, session, {

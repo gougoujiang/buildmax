@@ -1,31 +1,77 @@
+# End-to-end verification of a real deployment. It is deliberately not a
+# pull-request gate: pull requests keep the fast checks in ci.yml, and this
+# runs after merge, on a schedule, and on demand.
+#
+# Because it runs after merge, a failure needs an owner: it is triaged by the
+# author of the merge that broke it, and that merge is reverted if it is not
+# fixed within one working day. A test that fails intermittently is quarantined
+# the same day rather than retried — the browser suite sets retries: 0
+# deliberately. See docs/design/end-to-end-testing.md §8.
 name: Deployment smoke
 
 on:
   push:
     branches: [main]
-    paths: &deployment-paths
-      - '.github/workflows/deployment-smoke.yml'
-      # deployment/** covers the Dockerfiles in deployment/docker and the local
-      # kind manifests in deployment/dev-kind.
-      - 'deployment/**'
-      - 'cmd/**'
-      - 'internal/**'
-      - 'portal/**'
-      - 'gui/**'
-  pull_request:
-    paths: *deployment-paths
+  schedule:
+    # Daily, so a deployment regression that no merge touched — a base image, a
+    # published chart, an expired assumption — is found by a run rather than by
+    # a release.
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deployment-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  # Per commit, and never cancelling. Verification is evidence about one commit:
+  # on main the ref is constant, so cancel-in-progress would let a second merge
+  # discard the first one's evidence and leave that commit unproved.
+  group: deployment-smoke-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
+  decide:
+    name: Decide what to run
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+      reason: ${{ steps.paths.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The push's own diff needs the commit before it. On a merge to main
+          # HEAD^ is the previous main, which is exactly the range to inspect.
+          fetch-depth: 2
+      # The filter lives here rather than in `on:` so a skipped suite is still
+      # reported. A path filter up there produces no run at all, and "no run"
+      # is indistinguishable from "nothing to verify" when someone later asks
+      # what proved this commit.
+      - name: Decide from the changed paths
+        id: paths
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=${{ github.event_name }} always runs the full suite" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^ HEAD || echo "")
+          if [ -z "$changed" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=the changed paths could not be read, so the suite runs" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$changed" | grep -Eq '^(deployment|cmd|internal|portal|gui)/|^\.github/workflows/deployment-smoke\.yml$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=deployment-relevant paths changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no deployment-relevant path changed" >> "$GITHUB_OUTPUT"
+          fi
+
   compose:
     name: Docker Compose
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,7 +112,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces-compose
-          path: portal/test-results/
+          path: .artifacts/e2e/portal/
           if-no-files-found: ignore
       # Managed task-run inference is a separate stack because transport is
       # startup configuration, and it goes last because it replaces the running
@@ -83,6 +129,8 @@ jobs:
 
   kind:
     name: kind Kubernetes Job
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     env:
       BUILDMAX_KIND_CLUSTER: buildmax-ci
@@ -131,7 +179,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
-          path: portal/test-results/
+          path: .artifacts/e2e/portal/
           if-no-files-found: ignore
       - name: Collect logs
         if: failure()
@@ -139,3 +187,50 @@ jobs:
       - name: Tear down
         if: always()
         run: ./make kind down
+
+  summary:
+    name: Report what verified this commit
+    needs: [decide, compose, kind]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # A suite that did not run must say so in its own words. Reporting
+      # "skipped" without the reason is what turns a policy decision into
+      # apparent proof that the journey passed.
+      - name: Write the summary
+        env:
+          RUN: ${{ needs.decide.outputs.run }}
+          REASON: ${{ needs.decide.outputs.reason }}
+          COMPOSE: ${{ needs.compose.result }}
+          KIND: ${{ needs.kind.result }}
+        run: |
+          describe() {
+            case "$1" in
+              success) echo "ran and passed" ;;
+              failure) echo "ran and FAILED" ;;
+              cancelled) echo "cancelled before it finished — this commit is not verified" ;;
+              skipped) echo "skipped by policy: $REASON" ;;
+              *) echo "$1" ;;
+            esac
+          }
+          {
+            echo "## Deployment smoke"
+            echo
+            echo "Commit: \`${{ github.sha }}\`"
+            echo
+            echo "| Suite | Outcome |"
+            echo "|---|---|"
+            echo "| Docker Compose | $(describe "$COMPOSE") |"
+            echo "| kind Kubernetes Job | $(describe "$KIND") |"
+            echo
+            if [ "$RUN" != "true" ]; then
+              echo "No suite ran. This commit carries no deployment evidence."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      # The summary is a report, not a verdict: a failed suite still has to fail
+      # the run, and a cancelled one must not read as success.
+      - name: Fail when a suite did not pass
+        if: needs.decide.outputs.run == 'true' && (needs.compose.result != 'success' || needs.kind.result != 'success')
+        run: |
+          echo "compose=${{ needs.compose.result }} kind=${{ needs.kind.result }}"
+          exit 1

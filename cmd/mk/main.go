@@ -69,8 +69,8 @@ func dispatch(args []string) error {
 		return cmdDoctor(rest)
 	case "lint":
 		return cmdLint()
-	case "smoke":
-		return cmdSmoke()
+	case "agent-smoke":
+		return cmdAgentSmoke()
 	case "e2e":
 		return cmdE2E(rest)
 	case "eval":
@@ -172,13 +172,13 @@ func allHelpSections() []helpSection {
 		}},
 		{"Advanced", []helpRow{
 			{"lint", "Run pinned golangci-lint and govulncheck"},
-			{"smoke", "Run the local CLI tool smoke test"},
+			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"eval", "Run the agent benchmark (requires a model API key)"},
 		}},
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
 			{"kind <action>", "Manage local Kubernetes (up|images|smoke [managed]|status|logs|down)"},
-			{"e2e [target]", "Run Portal browser tests against a running kind or compose deployment"},
+			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local (owns a stack), or cli"},
 		}},
 		{"Release", []helpRow{
 			{"changelog", "Preview unreleased entries; 'release <version>' folds them in"},
