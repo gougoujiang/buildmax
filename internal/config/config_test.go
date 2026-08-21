@@ -28,19 +28,36 @@ const settingsEmptyModels = "models: []\n"
 const settingsInvalidYAML = "models: [\n  invalid: {\n"
 
 func TestDataDir_Default(t *testing.T) {
-	// Ensure BUILDMAX_HOME does not affect this test (unset or restore after).
-	t.Setenv(EnvKeyBuildmaxHome, "")
-	dir := DataDir()
+	// defaultDataDir rather than DataDir: with no override, DataDir refuses to
+	// answer under `go test` at all. What is pinned here is the path it would
+	// return in production.
+	dir := defaultDataDir()
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatalf("UserHomeDir: %v", err)
 	}
 	if !strings.Contains(dir, home) {
-		t.Errorf("DataDir() = %q, want path containing %q", dir, home)
+		t.Errorf("defaultDataDir() = %q, want path containing %q", dir, home)
 	}
 	if !strings.HasSuffix(filepath.Clean(dir), ".buildmax") {
-		t.Errorf("DataDir() = %q, want path ending with .buildmax", dir)
+		t.Errorf("defaultDataDir() = %q, want path ending with .buildmax", dir)
 	}
+}
+
+// A test that reads the contributor's own settings, sessions, and credentials
+// is neither hermetic nor safe, and until this guard existed nothing said so.
+func TestDataDir_RefusesTheRealHomeUnderTest(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxHome, "")
+	defer func() {
+		reason, ok := recover().(string)
+		if !ok {
+			t.Fatal("DataDir returned the real home instead of panicking with BUILDMAX_HOME unset")
+		}
+		if !strings.Contains(reason, EnvKeyBuildmaxHome) {
+			t.Errorf("panic reason %q does not name %s", reason, EnvKeyBuildmaxHome)
+		}
+	}()
+	_ = DataDir()
 }
 
 func TestDataDir_Override(t *testing.T) {
@@ -53,14 +70,6 @@ func TestDataDir_Override(t *testing.T) {
 	}
 }
 
-func TestSessionsDir_Default(t *testing.T) {
-	t.Setenv(EnvKeyBuildmaxHome, "")
-	dir := SessionsDir()
-	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "sessions")) {
-		t.Errorf("SessionsDir() = %q, want path ending with .buildmax/sessions", dir)
-	}
-}
-
 func TestSessionsDir_Override(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxHome, tmp)
@@ -68,14 +77,6 @@ func TestSessionsDir_Override(t *testing.T) {
 	want := filepath.Join(filepath.Clean(tmp), "sessions")
 	if dir != want {
 		t.Errorf("SessionsDir() = %q, want %q", dir, want)
-	}
-}
-
-func TestLogsDir_Default(t *testing.T) {
-	t.Setenv(EnvKeyBuildmaxHome, "")
-	dir := LogsDir()
-	if !strings.HasSuffix(filepath.Clean(dir), filepath.Join(".buildmax", "logs")) {
-		t.Errorf("LogsDir() = %q, want path ending with .buildmax/logs", dir)
 	}
 }
 
@@ -90,7 +91,7 @@ func TestLogsDir_Override(t *testing.T) {
 }
 
 func TestSkillSearchPaths_Order(t *testing.T) {
-	t.Setenv(EnvKeyBuildmaxHome, "")
+	t.Setenv(EnvKeyBuildmaxHome, t.TempDir())
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := SkillSearchPaths(workspace)
 
@@ -129,7 +130,7 @@ func TestSkillSearchPaths_HomeDirOverride(t *testing.T) {
 }
 
 func TestAgentDefsSearchPaths_Order(t *testing.T) {
-	t.Setenv(EnvKeyBuildmaxHome, "")
+	t.Setenv(EnvKeyBuildmaxHome, t.TempDir())
 	workspace := filepath.Join("C:", "projects", "myapp")
 	paths := AgentDefsSearchPaths(workspace)
 

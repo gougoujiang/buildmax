@@ -178,21 +178,60 @@ func cmdClean() error {
 	return nil
 }
 
+// cmdTest runs `go test` with the sandbox home set. It takes package patterns
+// and `go test` flags so the narrow inner loop the testing guide asks for —
+// one package, one test — stays inside the task runner. Reaching for a bare
+// `go test` to narrow it used to be the only option, and that is the path with
+// no BUILDMAX_HOME.
 func cmdTest(args []string) error {
-	if len(args) > 1 || (len(args) == 1 && args[0] != "race") {
-		return fmt.Errorf("usage: %s test [race]", mk())
+	race := len(args) > 0 && args[0] == "race"
+	if race {
+		args = args[1:]
+	}
+	packages, flags := splitTestTargets(args)
+	if len(flags) > 0 && !strings.HasPrefix(flags[0], "-") {
+		return fmt.Errorf("usage: %s test [race] [packages] [go test flags]\n  %q is neither a package pattern nor a flag", mk(), flags[0])
 	}
 	if _, err := useSandboxHome(); err != nil {
 		return err
 	}
-	runArgs := []string{"test", "./..."}
+	if len(packages) == 0 {
+		packages = []string{"./..."}
+	}
+
+	runArgs := []string{"test"}
 	label := "tests"
-	if len(args) > 0 {
-		runArgs = []string{"test", "-race", "./..."}
+	if race {
+		runArgs = append(runArgs, "-race")
 		label = "race tests"
 	}
-	fmt.Printf("Running %s (BUILDMAX_HOME=%s)...\n", label, sandboxDir)
+	runArgs = append(runArgs, packages...)
+	runArgs = append(runArgs, flags...)
+	fmt.Printf("Running %s in %s (BUILDMAX_HOME=%s)...\n", label, strings.Join(packages, " "), sandboxDir)
 	return runCmd("go", runArgs...)
+}
+
+// splitTestTargets takes the package patterns off the front and leaves the rest
+// for `go test` verbatim. Packages have to come first because a flag's value
+// cannot be told from a pattern otherwise: `-run Test/Sub` holds a slash, and
+// `-v ./pkg` holds a package after a flag that takes no value.
+func splitTestTargets(args []string) (packages, flags []string) {
+	for i, arg := range args {
+		if !looksLikePackage(arg) {
+			return args[:i], args[i:]
+		}
+	}
+	return args, nil
+}
+
+// looksLikePackage recognises what a Go package pattern can be. Every form is a
+// path or the reserved word `all`, so a bare word like a mistyped subcommand is
+// reported rather than handed to `go test`.
+func looksLikePackage(arg string) bool {
+	if strings.HasPrefix(arg, "-") {
+		return false
+	}
+	return arg == "all" || strings.HasPrefix(arg, ".") || strings.Contains(arg, "/")
 }
 
 // Pinned to the versions .github/workflows/ci.yml runs, so a local pass means

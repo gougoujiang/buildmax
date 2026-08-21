@@ -129,6 +129,7 @@ Use the cross-platform task runner from the repository root:
 ./make build cli       # fast CLI-only build
 ./make test            # Go tests with an isolated BUILDMAX_HOME
 ./make test race       # the same suite with the race detector
+./make test ./internal/tool -run TestX   # narrow it; packages first, then flags
 ./make lint            # pinned golangci-lint and govulncheck
 ./make check <scope>   # go, portal, desktop, docs, all, or ci
 ./make check ci        # everything a pull request runs, except the Windows job
@@ -155,6 +156,10 @@ script workflow.
 Go, Node, npm, and Wails versions are pinned by `go.mod`, `.node-version`, the
 frontend `packageManager` fields, and the Wails module dependency. Use `npm ci`
 for reproducible installs. Normal CLI development has no Node dependency.
+
+Narrow a test run with `./make test`, never a bare `go test`: only the task
+runner sets `BUILDMAX_HOME`, and `config.DataDir` panics rather than fall back
+to a contributor's real `~/.buildmax` under test.
 
 Run checks in proportion to the change, and prefer the narrow scope while
 iterating. Before handoff, run every relevant scope. A full check requires no

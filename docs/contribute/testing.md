@@ -11,6 +11,7 @@ loop rather than a pull-request gate — is in
 
 ```bash
 ./make test           # everything below the deployment: unit, integration, CLI, Desktop bridge
+./make test ./internal/tool -run TestX   # one package or one test, same isolated home
 ./make e2e cli        # just the CLI and TUI suite
 ./make e2e desktop    # just the Desktop bridge suite
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
@@ -20,6 +21,13 @@ loop rather than a pull-request gate — is in
 `./make test` is the loop. The CLI and Desktop suites live inside it because
 they run in seconds and need nothing but a temporary directory; a suite you
 have to remember to run is one that stops being run.
+
+Narrow it with `./make test`, not with a bare `go test`. Only the task runner
+sets `BUILDMAX_HOME`, and a test that reaches the real `~/.buildmax` reads the
+contributor's own sessions, settings, and credentials — so its result depends on
+whose machine it runs on. `config.DataDir` panics rather than fall back, and a
+package whose code reads those paths gives itself a `TestMain` calling
+`testsupport.RunWithIsolatedHome`.
 
 ## Which Suite For What You Changed
 

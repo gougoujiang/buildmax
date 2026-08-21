@@ -152,7 +152,7 @@ func commonHelpRows() []helpRow {
 	return []helpRow{
 		{"doctor [all]", "Check the contributor environment without changing it"},
 		{"build [cli]", "Build everything, or only the CLI"},
-		{"test [race]", "Run Go tests in the isolated testing sandbox"},
+		{"test [race] [pkg]", "Run Go tests in the isolated testing sandbox"},
 		{"check [scope]", "Run pre-PR checks (go|portal|desktop|docs|all|ci)"},
 		{"run <target>", "Run cli, server, desktop, or Portal locally"},
 		{"clean", "Remove build outputs and installed frontend dependencies"},
@@ -165,7 +165,7 @@ func allHelpSections() []helpSection {
 		{"Development", []helpRow{
 			{"doctor [all]", "Inspect core tools; 'all' requires pinned frontend tools"},
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
-			{"test [race]", "Run Go tests, optionally with the race detector"},
+			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
 			{"check [scope]", "Run checks for go, portal, desktop, docs, all, or ci"},
 			{"run <target>", "Run cli, server, desktop, or Portal locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},

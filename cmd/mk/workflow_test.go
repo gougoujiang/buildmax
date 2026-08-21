@@ -328,6 +328,40 @@ func TestGoVersionSatisfiesTreatsTheGoDirectiveAsAFloor(t *testing.T) {
 	}
 }
 
+// Packages come first so a flag's value is never read as one. The order is a
+// real constraint rather than a preference: reading `-run Test/Sub` as a
+// package would run the repository root, find nothing, and report ok — a false
+// pass, which is worse than the alternative mistake of running too much.
+func TestSplitTestTargetsKeepsFlagValuesOutOfPackages(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		packages string
+		flags    string
+	}{
+		{name: "nothing"},
+		{name: "one package", args: []string{"./internal/config"}, packages: "./internal/config"},
+		{name: "package without prefix", args: []string{"internal/config"}, packages: "internal/config"},
+		{name: "two packages", args: []string{"./internal/config", "./cmd/mk"}, packages: "./internal/config ./cmd/mk"},
+		{name: "package then flag", args: []string{"./cmd/mk", "-run", "TestFileValue"}, packages: "./cmd/mk", flags: "-run TestFileValue"},
+		{name: "subtest pattern is a flag value", args: []string{"-run", "Test/Sub"}, flags: "-run Test/Sub"},
+		{name: "flag only", args: []string{"-v"}, flags: "-v"},
+		{name: "the all pattern", args: []string{"all"}, packages: "all"},
+		{name: "a mistyped word is not a package", args: []string{"fast"}, flags: "fast"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			packages, flags := splitTestTargets(tt.args)
+			if got := strings.Join(packages, " "); got != tt.packages {
+				t.Errorf("packages = %q; want %q", got, tt.packages)
+			}
+			if got := strings.Join(flags, " "); got != tt.flags {
+				t.Errorf("flags = %q; want %q", got, tt.flags)
+			}
+		})
+	}
+}
+
 func TestExactVersionDoesNotAcceptPrefixMatch(t *testing.T) {
 	if got := requiredExactVersion("Go", "go", []string{"env", "GOOS"}, "dar"); got != 1 {
 		t.Fatalf("requiredExactVersion returned %d for a partial match; want 1", got)

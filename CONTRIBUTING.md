@@ -100,6 +100,7 @@ lists what is worth putting in it.
 ./make build cli      # CLI only
 ./make test           # go test ./... with BUILDMAX_HOME=./testing-sandbox
 ./make test race      # the same tests with the race detector
+./make test ./internal/tool -run TestX   # one package or one test
 ./make check docs     # scoped gate: go, portal, desktop, docs, all, or ci
 ./make run server     # run the already-built buildmax-server
 ./make run portal     # Portal dev server (builds gui if needed)
@@ -121,7 +122,11 @@ Wails, or copy failure fails the command instead of producing a partial success.
 
 `./make test` writes to `./testing-sandbox` instead of `~/.buildmax`, so tests
 never touch your real data directory. The sandbox is created on demand and is
-gitignored.
+gitignored. Narrow a run by passing packages and `go test` flags — packages
+first — rather than reaching for a bare `go test`, which sets no `BUILDMAX_HOME`
+at all. `config.DataDir` panics under test instead of falling back to your real
+home, so that mistake now says so instead of quietly reading your own sessions
+and credentials.
 
 Frontend packages also build from their own directories; see
 [README.md](README.md), [portal/README.md](portal/README.md), and

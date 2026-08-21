@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/spf13/viper"
 )
@@ -185,6 +186,22 @@ func DataDir() string {
 	if dir := os.Getenv(EnvKeyBuildmaxHome); dir != "" {
 		return filepath.Clean(dir)
 	}
+	// A test that reaches the real data directory reads and writes the
+	// contributor's own sessions, settings, and credentials — and its result
+	// depends on what happens to be in there. `./make test` sets BUILDMAX_HOME,
+	// so the invariant held there and nowhere else: a bare `go test ./internal/x`,
+	// the narrow inner loop the testing guide asks for, fell straight through.
+	if testing.Testing() {
+		panic("config.DataDir: BUILDMAX_HOME is unset under `go test`, which would use the real ~/.buildmax. " +
+			"Give the package a TestMain calling testsupport.RunWithIsolatedHome, or set it per test with " +
+			"t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir()).")
+	}
+	return defaultDataDir()
+}
+
+// defaultDataDir is where DataDir lands with no override. It is separate so the
+// test that pins the default path can assert it without tripping the guard.
+func defaultDataDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".buildmax")
 }
