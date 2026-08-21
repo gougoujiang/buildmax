@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -42,6 +43,17 @@ const (
 
 // renameCredentialsFile is a seam for testing transient replacement failures.
 var renameCredentialsFile = os.Rename
+
+// credentialsMu serializes this process's use of the credentials file.
+//
+// Replacing auth.json is a rename, which POSIX lets a concurrent reader survive
+// and Windows does not: while the replace is in flight, a reader's open fails
+// with a sharing violation. The retry above covers the writer's half of that
+// collision, and it is the only half it can cover — a reader in another process
+// still has to survive on its own. This lock settles the half that can be
+// settled outright: goroutines in one binary, which is what a run renewing its
+// token while another caller reads it actually is.
+var credentialsMu sync.RWMutex
 
 // IsValid returns true when the credentials contain a non-empty, unexpired
 // access token. It parses the exp claim from the token payload without
@@ -116,6 +128,8 @@ func extractJWTExp(tokenStr string) (int64, error) {
 // truncate-then-write would let one of them load a half-written file and
 // conclude it is not signed in.
 func Save(creds *Credentials, path string) error {
+	credentialsMu.Lock()
+	defer credentialsMu.Unlock()
 	if creds.SavedAt == 0 {
 		creds.SavedAt = time.Now().Unix()
 	}
@@ -160,7 +174,9 @@ func Save(creds *Credentials, path string) error {
 // Load reads credentials from path. If the file does not exist, it returns
 // (nil, nil) — not an error. Any other read or parse failure is an error.
 func Load(path string) (*Credentials, error) {
+	credentialsMu.RLock()
 	data, err := os.ReadFile(path)
+	credentialsMu.RUnlock()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -177,6 +193,8 @@ func Load(path string) (*Credentials, error) {
 // Clear removes the credentials file at path. It is not an error if the
 // file does not exist.
 func Clear(path string) error {
+	credentialsMu.Lock()
+	defer credentialsMu.Unlock()
 	err := os.Remove(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
