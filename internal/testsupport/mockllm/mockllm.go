@@ -56,6 +56,11 @@ type Step struct {
 type Scenario struct {
 	Name  string `json:"name,omitempty"`
 	Steps []Step `json:"steps"`
+	// Repeat replays the last step for every call past the end instead of
+	// failing. It exists for the deployment smoke, which asserts on outcomes
+	// rather than on how many turns reaching them took, and must stay opt-in:
+	// everywhere else, a call past the end of the script is the finding.
+	Repeat bool `json:"repeat,omitempty"`
 }
 
 // LoadScenario reads a committed scenario file.
@@ -94,12 +99,13 @@ type Request struct {
 type Handler struct {
 	mu       sync.Mutex
 	steps    []Step
+	repeat   bool
 	next     int
 	requests []Request
 }
 
-// NewHandler returns a handler that replays s once.
-func NewHandler(s Scenario) *Handler { return &Handler{steps: s.Steps} }
+// NewHandler returns a handler that replays s.
+func NewHandler(s Scenario) *Handler { return &Handler{steps: s.Steps, repeat: s.Repeat} }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -117,12 +123,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stream := requestsStream(body)
-	if stream && protocol != ProtocolOpenAIChat {
-		// Failing loudly beats answering a stream request with a blocking body
-		// and letting the client fail somewhere less informative.
-		http.Error(w, fmt.Sprintf("mockllm: %s streaming is not scripted yet; run this suite with --no-stream", protocol), http.StatusNotImplemented)
-		return
-	}
 	step, index, ok := h.take(Request{Protocol: protocol, Stream: stream, Body: body})
 	if !ok {
 		// Repeating the last step here would turn "the run called the model
@@ -147,9 +147,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case ProtocolOpenAIChat:
 		writeOpenAIChat(w, step, modelOf(body), stream)
 	case ProtocolOpenAIResponses:
-		writeOpenAIResponses(w, step, modelOf(body))
+		writeOpenAIResponses(w, step, modelOf(body), stream)
 	case ProtocolAnthropic:
-		writeAnthropic(w, step, modelOf(body))
+		writeAnthropic(w, step, modelOf(body), stream)
 	}
 }
 
@@ -159,7 +159,11 @@ func (h *Handler) take(req Request) (Step, int, bool) {
 	defer h.mu.Unlock()
 	h.requests = append(h.requests, req)
 	if h.next >= len(h.steps) {
-		return Step{}, 0, false
+		if !h.repeat || len(h.steps) == 0 {
+			return Step{}, 0, false
+		}
+		last := len(h.steps) - 1
+		return h.steps[last], last, true
 	}
 	step := h.steps[h.next]
 	index := h.next

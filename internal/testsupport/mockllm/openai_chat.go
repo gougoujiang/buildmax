@@ -2,7 +2,6 @@ package mockllm
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -57,19 +56,7 @@ func writeOpenAIChat(w http.ResponseWriter, step Step, model string, stream bool
 // chunks so a suite that asserts on streamed output sees more than one write,
 // which is where an accumulator bug shows up.
 func writeOpenAIChatStream(w http.ResponseWriter, step Step, model string) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	flusher, _ := w.(http.Flusher)
-	send := func(payload map[string]any) {
-		encoded, err := json.Marshal(payload)
-		if err != nil {
-			return
-		}
-		fmt.Fprintf(w, "data: %s\n\n", encoded)
-		if flusher != nil {
-			flusher.Flush()
-		}
-	}
+	stream := newSSE(w)
 	chunk := func(delta chatMessage, finish any) map[string]any {
 		choice := map[string]any{"index": 0, "delta": delta}
 		if finish != nil {
@@ -81,22 +68,19 @@ func writeOpenAIChatStream(w http.ResponseWriter, step Step, model string) {
 		}
 	}
 
-	send(chunk(chatMessage{Role: "assistant"}, nil))
+	stream.send("", chunk(chatMessage{Role: "assistant"}, nil))
 	for _, part := range splitInTwo(step.Text) {
-		send(chunk(chatMessage{Content: part}, nil))
+		stream.send("", chunk(chatMessage{Content: part}, nil))
 	}
 	for i, call := range chatCalls(step) {
 		index := i
 		call.Index = &index
-		send(chunk(chatMessage{ToolCalls: []chatToolCall{call}}, nil))
+		stream.send("", chunk(chatMessage{ToolCalls: []chatToolCall{call}}, nil))
 	}
 	final := chunk(chatMessage{}, chatFinishReason(step))
 	final["usage"] = chatUsageOf(step)
-	send(final)
-	fmt.Fprint(w, "data: [DONE]\n\n")
-	if flusher != nil {
-		flusher.Flush()
-	}
+	stream.send("", final)
+	stream.done()
 }
 
 func chatCalls(step Step) []chatToolCall {

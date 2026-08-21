@@ -157,54 +157,83 @@ func TestOneTurnCarriesEveryScriptedCall(t *testing.T) {
 	}
 }
 
-func TestStreamingDeliversDeltasAndUsage(t *testing.T) {
+func TestEveryProtocolStreamsTheSameReply(t *testing.T) {
 	scenario := mockllm.Scenario{Steps: []mockllm.Step{{
 		Text:      "streamed answer",
 		ToolCalls: []mockllm.ToolCall{{Name: "Read", Args: map[string]any{"file_path": "a.txt"}}},
 		Usage:     &mockllm.Usage{PromptTokens: 5, CompletionTokens: 9},
 	}}}
-	server := start(t, scenario)
-	var deltas []string
-	completion, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionStreaming(
-		context.Background(),
-		[]cllm.Message{{Role: "user", Content: "answer"}},
-		nil,
-		func(delta string) { deltas = append(deltas, delta) },
-	)
-	if err != nil {
-		t.Fatalf("streaming call: %v", err)
-	}
-	if len(deltas) < 2 {
-		t.Fatalf("deltas = %v, want the text split across chunks", deltas)
-	}
-	if strings.Join(deltas, "") != "streamed answer" || completion.Content != "streamed answer" {
-		t.Fatalf("streamed content = %q / %q, want %q", strings.Join(deltas, ""), completion.Content, "streamed answer")
-	}
-	if len(completion.ToolCalls) != 1 || completion.ToolCalls[0].Name != "Read" {
-		t.Fatalf("tool calls = %+v, want the scripted Read", completion.ToolCalls)
-	}
-	if completion.Usage.PromptTokens != 5 || completion.Usage.CompletionTokens != 9 {
-		t.Fatalf("usage = %+v, want the scripted counts", completion.Usage)
-	}
-	if !server.Requests()[0].Stream {
-		t.Fatal("the recorded call should be marked as streaming")
+	for _, protocol := range protocols {
+		t.Run(protocol, func(t *testing.T) {
+			server := start(t, scenario)
+			var deltas []string
+			completion, err := client(t, server, protocol).ChatCompletionStreaming(
+				context.Background(),
+				[]cllm.Message{{Role: "user", Content: "answer"}},
+				nil,
+				func(delta string) { deltas = append(deltas, delta) },
+			)
+			if err != nil {
+				t.Fatalf("streaming call: %v", err)
+			}
+			// More than one delta: a stream delivered in one piece would pass an
+			// assertion on the joined text while proving nothing about deltas.
+			if len(deltas) < 2 {
+				t.Fatalf("deltas = %v, want the text split across chunks", deltas)
+			}
+			if strings.Join(deltas, "") != "streamed answer" || completion.Content != "streamed answer" {
+				t.Fatalf("streamed content = %q / %q, want %q", strings.Join(deltas, ""), completion.Content, "streamed answer")
+			}
+			if len(completion.ToolCalls) != 1 || completion.ToolCalls[0].Name != "Read" {
+				t.Fatalf("tool calls = %+v, want the scripted Read", completion.ToolCalls)
+			}
+			if !strings.Contains(completion.ToolCalls[0].Arguments, "a.txt") {
+				t.Fatalf("arguments = %q, want the scripted path", completion.ToolCalls[0].Arguments)
+			}
+			if completion.Usage.PromptTokens != 5 || completion.Usage.CompletionTokens != 9 {
+				t.Fatalf("usage = %+v, want the scripted counts", completion.Usage)
+			}
+			if !server.Requests()[0].Stream {
+				t.Fatal("the recorded call should be marked as streaming")
+			}
+		})
 	}
 }
 
-func TestUnscriptedStreamingFailsLoudly(t *testing.T) {
-	// The other two protocols stream through their own event shapes, which this
-	// harness does not script yet. Answering them with a blocking body would
-	// fail somewhere far less informative.
-	for _, protocol := range []string{mockllm.ProtocolOpenAIResponses, mockllm.ProtocolAnthropic} {
+// A streamed turn and a blocking one describe the same reply, so a suite that
+// switches between them must not have to script it twice.
+func TestStreamingAndBlockingAgreeOnTheSameStep(t *testing.T) {
+	scenario := mockllm.Scenario{Steps: []mockllm.Step{{
+		Text:      "same either way",
+		ToolCalls: []mockllm.ToolCall{{Name: "Write", Args: map[string]any{"file_path": "a.txt", "content": "x"}}},
+		Usage:     &mockllm.Usage{PromptTokens: 3, CompletionTokens: 4},
+	}}}
+	for _, protocol := range protocols {
 		t.Run(protocol, func(t *testing.T) {
-			server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "unused"}}})
-			_, err := client(t, server, protocol).ChatCompletionStreaming(
-				context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil, nil)
-			if err == nil {
-				t.Fatal("streaming should fail while it is unscripted")
+			history := []cllm.Message{{Role: "user", Content: "go"}}
+			blocking, err := client(t, start(t, scenario), protocol).ChatCompletionBlocking(context.Background(), history, nil)
+			if err != nil {
+				t.Fatalf("blocking call: %v", err)
 			}
-			if server.Remaining() != 1 {
-				t.Fatalf("remaining steps = %d, want the step left unconsumed", server.Remaining())
+			streamed, err := client(t, start(t, scenario), protocol).ChatCompletionStreaming(context.Background(), history, nil, nil)
+			if err != nil {
+				t.Fatalf("streaming call: %v", err)
+			}
+			if blocking.Content != streamed.Content {
+				t.Fatalf("content: blocking %q, streaming %q", blocking.Content, streamed.Content)
+			}
+			if blocking.Usage != streamed.Usage {
+				t.Fatalf("usage: blocking %+v, streaming %+v", blocking.Usage, streamed.Usage)
+			}
+			if len(blocking.ToolCalls) != len(streamed.ToolCalls) {
+				t.Fatalf("tool calls: blocking %d, streaming %d", len(blocking.ToolCalls), len(streamed.ToolCalls))
+			}
+			for i := range blocking.ToolCalls {
+				if blocking.ToolCalls[i].Name != streamed.ToolCalls[i].Name ||
+					blocking.ToolCalls[i].ID != streamed.ToolCalls[i].ID ||
+					blocking.ToolCalls[i].Arguments != streamed.ToolCalls[i].Arguments {
+					t.Fatalf("tool call %d: blocking %+v, streaming %+v", i, blocking.ToolCalls[i], streamed.ToolCalls[i])
+				}
 			}
 		})
 	}
@@ -230,6 +259,31 @@ func TestUnconsumedStepsAreVisible(t *testing.T) {
 	}
 	if server.Remaining() != 1 {
 		t.Fatalf("remaining steps = %d, want 1", server.Remaining())
+	}
+}
+
+// Repeat is what lets the deployment smoke share this harness. It has to stay
+// opt-in, because everywhere else the call past the end of the script is the
+// finding rather than something to answer.
+func TestRepeatAnswersEveryCallPastTheEnd(t *testing.T) {
+	server := start(t, mockllm.Scenario{Repeat: true, Steps: []mockllm.Step{
+		{Text: "first"},
+		{Text: "always this"},
+	}})
+	c := client(t, server, mockllm.ProtocolOpenAIChat)
+	history := []cllm.Message{{Role: "user", Content: "hi"}}
+	want := []string{"first", "always this", "always this", "always this"}
+	for i, expected := range want {
+		completion, err := c.ChatCompletionBlocking(context.Background(), history, nil)
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+		if completion.Content != expected {
+			t.Fatalf("call %d content = %q, want %q", i, completion.Content, expected)
+		}
+	}
+	if server.Remaining() != 0 {
+		t.Fatalf("remaining steps = %d, want 0", server.Remaining())
 	}
 }
 
