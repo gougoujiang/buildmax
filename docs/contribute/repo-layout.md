@@ -13,7 +13,8 @@ buildmax/
 ├── cmd/                  Binary entry points (main.go only)
 ├── internal/             All Go implementation
 ├── portal/               Portal web app (React 19 + Vite + TypeScript)
-├── desktop/frontend/     Desktop frontend (React 19 + Vite)
+├── desktop/frontend/     Desktop frontend (React 19 + Vite); src/lib holds the
+│                      pure helpers, src/components the panels and modals
 ├── gui/                  Shared React package @buildmax/gui, used by both
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples

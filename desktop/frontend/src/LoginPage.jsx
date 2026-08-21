@@ -1,13 +1,7 @@
 import { useState } from 'react';
+import { getApp } from './lib/app';
 
 const DEFAULT_SERVER_URL = 'http://localhost:5678';
-
-function getApp() {
-  if (typeof window === 'undefined') return null;
-  const go = window.go;
-  if (!go) return null;
-  return go.desktop?.App ?? go.main?.App ?? go.App ?? null;
-}
 
 /**
  * Two ways in, for two different jobs.
