@@ -94,16 +94,18 @@ More: [docs/start/concepts.md](docs/start/concepts.md) ·
 
 ```bash
 ./make doctor     # check contributor tool versions without changing anything
-./make build      # strict CLI, server, worker, GUI, Portal, Desktop build
+./make build cli  # just the CLI — Go is the only tool this needs
 ./make test       # go test ./... against ./testing-sandbox
+./make build      # everything, including the three frontends: also needs Node
 ./make run server # run the already-built buildmax-server
 ./make run portal # Portal dev server
 ```
 
-On Windows use `make.bat` with the same commands — both forward to the Go task
-runner in `cmd/mk`. `./make help` shows the common contributor path;
-`./make help all` shows advanced, deployment, and release commands. None
-of build, test, or lint needs a model API key.
+Go and git are enough for the first four; the frontends and `./make run portal`
+also need the Node in `.node-version`. On Windows use `make.bat` with the same
+commands — both forward to the Go task runner in `cmd/mk`. `./make help` shows
+the common contributor path; `./make help all` shows advanced, deployment, and
+release commands. None of build, test, or lint needs a model API key.
 
 Two directories in the tree are fixtures rather than product code:
 [`sample-data/`](sample-data/README.md) holds the datasets above — upload them

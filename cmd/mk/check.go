@@ -198,6 +198,13 @@ func checkDocs() error {
 	if err := runCmd("go", "test", "./internal/architecture"); err != nil {
 		return err
 	}
+	// markdownlint has no Go equivalent worth swapping the rule set for, so the
+	// documentation gate is the one contributor path that needs Node — and a
+	// documentation fix is what first-pr.md recommends starting with. Saying so
+	// beats `exec: "npm": executable file not found in $PATH`.
+	if !have("npm") {
+		return fmt.Errorf("the Markdown lint needs Node and npm, which are not installed\n  Install the version in .node-version, or open the pull request and let CI run this check")
+	}
 	return runCmd("npm", "exec", "--yes", "--package=markdownlint-cli2@0.23.2", "--", "markdownlint-cli2")
 }
 

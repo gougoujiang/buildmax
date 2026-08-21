@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+// nodeNote names every path that needs Node, not only the obvious one. Calling
+// it a frontend tool sent documentation contributors — the group first-pr.md
+// recruits first — into `./make check docs` without it.
+const nodeNote = "needed for gui, Portal, Desktop, and the Markdown lint in ./make check docs"
+
 func cmdDoctor(args []string) error {
 	all := false
 	if len(args) > 1 || (len(args) == 1 && args[0] != "all") {
@@ -32,8 +37,8 @@ func cmdDoctor(args []string) error {
 		failures += requiredExactVersion("Node", "node", []string{"--version"}, nodeWant)
 		failures += requiredExactVersion("npm", "npm", []string{"--version"}, npmWant)
 	} else {
-		optionalExactVersion("Node", "node", []string{"--version"}, nodeWant, "needed for gui, Portal, and Desktop")
-		optionalExactVersion("npm", "npm", []string{"--version"}, npmWant, "needed for gui, Portal, and Desktop")
+		optionalExactVersion("Node", "node", []string{"--version"}, nodeWant, nodeNote)
+		optionalExactVersion("npm", "npm", []string{"--version"}, npmWant, nodeNote)
 	}
 	optionalVersion("Wails CLI", "wails", []string{"version"}, wailsWant, "optional; ./make build runs the pinned version through Go")
 	optionalPresence("Docker", "docker", "needed only for Compose/container work")
