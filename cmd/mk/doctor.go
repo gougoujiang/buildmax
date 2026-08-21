@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -41,6 +42,7 @@ func cmdDoctor(args []string) error {
 	// says nothing when it is not, so a `run:` block can pass ./make check ci and
 	// still fail on the runner. Reporting it here is the only warning available.
 	optionalPresence("shellcheck", "shellcheck", "actionlint's shell script pass in ./make check ci needs it")
+	optionalPortalBrowserTests()
 
 	status, err := capture("git", "status", "--porcelain")
 	if err != nil {
@@ -54,7 +56,10 @@ func cmdDoctor(args []string) error {
 
 	fmt.Println()
 	fmt.Println("Safe default commands: ./make build cli, ./make test, ./make lint, ./make check <scope>")
-	fmt.Println("External-effect commands: install, release, compose, kind, and publication workflows")
+	// `e2e local` owns a Compose stack: it starts one and takes it down again,
+	// and `e2e all` includes it. Leaving it off this line told a contributor the
+	// command was safe to try.
+	fmt.Println("External-effect commands: install, release, compose, kind, e2e local, and publication workflows")
 	if failures > 0 {
 		return fmt.Errorf("contributor doctor found %d required toolchain problem(s)", failures)
 	}
@@ -201,6 +206,26 @@ func optionalVersion(label, command string, args []string, want, note string) {
 		return
 	}
 	fmt.Printf("[OK]   %s: %s\n", label, oneLine(version))
+}
+
+// optionalPortalBrowserTests reports what `./make e2e local` needs beyond Node.
+// e2ePreflight checks both before a run, but doctor is the command that answers
+// "am I set up", and it did not know either of them existed.
+func optionalPortalBrowserTests() {
+	if exists(filepath.Join("portal", "node_modules", "@playwright", "test")) {
+		fmt.Println("[OK]   Portal test deps: installed (needed by ./make e2e)")
+	} else {
+		fmt.Println("[INFO] Portal test deps: not installed (run `npm --prefix portal ci` for ./make e2e)")
+	}
+	dir := playwrightBrowserDir()
+	switch {
+	case dir == "":
+		fmt.Println("[INFO] Playwright browsers: location unknown on this platform; ./make e2e skips the check too")
+	case exists(dir):
+		fmt.Printf("[OK]   Playwright browsers: %s\n", dir)
+	default:
+		fmt.Printf("[INFO] Playwright browsers: none in %s (run `npm --prefix portal exec -- playwright install chromium`)\n", dir)
+	}
 }
 
 func optionalPresence(label, command, note string) {
