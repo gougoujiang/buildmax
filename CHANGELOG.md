@@ -197,6 +197,19 @@ pre-releases and must be called out in release notes.
   follows the status, so filtering at Error selects server faults without
   sweeping up refused requests.
 
+- Log records name their subsystem in a `component` attribute instead of a
+  prefix on the message. Four background loops in the scheduler alone had spelled
+  it four different ways, one of them not at all, so no filter selected a
+  subsystem. Levels follow one rule now — Error means a unit of work failed or
+  was lost, Warn means degraded but finished — which makes a threshold select
+  something. A worker stamps its run id onto every record it writes, including
+  those from the agent loop and the tools.
+
+- A worker reports what the server actually said when a call to the worker API
+  fails, instead of only the HTTP status. A run that could not be claimed or
+  patched used to log "500 Internal Server Error" and discard the sentence
+  explaining why.
+
 ### Security
 
 - An account can be disabled, and disabling it stops access immediately rather
@@ -409,6 +422,10 @@ pre-releases and must be called out in release notes.
   catalog model. Left off, which is the default, the tool result says what came
   back (`(image: image/png, 43.2 KB)`) and the image is not sent, because a
   model without image support rejects such a request rather than ignoring it.
+
+- Adding a member to a team on a deployment with no user store answers 503
+  rather than 500. Every other "not configured" answer in the API is 503; this
+  one was the outlier.
 
 ## [0.1.0-alpha.1] - 2026-08-17
 
