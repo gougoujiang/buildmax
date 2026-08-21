@@ -61,18 +61,17 @@ func runCheck(name string, check func() error) error {
 }
 
 func checkGo() error {
-	files, err := capture("git", "ls-files", "*.go")
+	files, err := trackedGoFiles()
 	if err != nil {
-		return fmt.Errorf("list tracked Go files: %w", err)
+		return err
 	}
-	if files != "" {
-		args := append([]string{"-l"}, strings.Split(files, "\n")...)
-		unformatted, err := capture("gofmt", args...)
+	for _, batch := range batchArgs(files) {
+		unformatted, err := capture("gofmt", append([]string{"-l"}, batch...)...)
 		if err != nil {
 			return fmt.Errorf("gofmt: %w", err)
 		}
 		if unformatted != "" {
-			return fmt.Errorf("unformatted Go files:\n%s\nrun: git ls-files '*.go' | xargs gofmt -w", unformatted)
+			return fmt.Errorf("unformatted Go files:\n%s\nrun: %s fmt", unformatted, mk())
 		}
 	}
 	if err := runCmd("go", "mod", "tidy", "-diff"); err != nil {
@@ -88,6 +87,81 @@ func checkGo() error {
 		return err
 	}
 	return cmdLint()
+}
+
+// cmdFmt formats every tracked Go file.
+//
+// checkGo has always reported unformatted files, but the fix it handed back was
+// `git ls-files '*.go' | xargs gofmt -w` — a shell pipeline cmd.exe cannot run,
+// from the task runner that exists precisely so all three platforms run the
+// same code. The most frequent remedy in the repository was the one command
+// Windows contributors could not follow.
+func cmdFmt() error {
+	files, err := trackedGoFiles()
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		fmt.Println("No tracked Go files.")
+		return nil
+	}
+	// -l with -w so the report names what actually changed. Saying "formatted
+	// 634 files" after rewriting none is the kind of output that stops being read.
+	var rewritten []string
+	for _, batch := range batchArgs(files) {
+		changed, err := captureErr("gofmt", append([]string{"-l", "-w"}, batch...)...)
+		if err != nil {
+			return fmt.Errorf("gofmt -w: %w", err)
+		}
+		if changed != "" {
+			rewritten = append(rewritten, strings.Split(changed, "\n")...)
+		}
+	}
+	if len(rewritten) == 0 {
+		fmt.Printf("All %d tracked Go files were already formatted.\n", len(files))
+		return nil
+	}
+	for _, file := range rewritten {
+		fmt.Println(file)
+	}
+	fmt.Printf("Reformatted %d of %d tracked Go files.\n", len(rewritten), len(files))
+	return nil
+}
+
+// trackedGoFiles lists the Go files git knows about. gofmt runs over that list
+// rather than over `.` so ignored and generated trees stay untouched.
+func trackedGoFiles() ([]string, error) {
+	files, err := capture("git", "ls-files", "*.go")
+	if err != nil {
+		return nil, fmt.Errorf("list tracked Go files: %w", err)
+	}
+	if files == "" {
+		return nil, nil
+	}
+	return strings.Split(files, "\n"), nil
+}
+
+// batchArgs splits a file list into command lines cmd.exe can carry. Its limit
+// is about 32 KB and the tracked Go files already spend two thirds of that, so
+// the list would have outgrown a single invocation on Windows first — the
+// platform least likely to be the one that noticed.
+func batchArgs(files []string) [][]string {
+	const limit = 6000
+	var batches [][]string
+	var batch []string
+	size := 0
+	for _, file := range files {
+		if len(batch) > 0 && size+len(file)+1 > limit {
+			batches = append(batches, batch)
+			batch, size = nil, 0
+		}
+		batch = append(batch, file)
+		size += len(file) + 1
+	}
+	if len(batch) > 0 {
+		batches = append(batches, batch)
+	}
+	return batches
 }
 
 func checkPortal() error {

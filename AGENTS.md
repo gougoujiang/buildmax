@@ -130,6 +130,7 @@ Use the cross-platform task runner from the repository root:
 ./make test            # Go tests with an isolated BUILDMAX_HOME
 ./make test race       # the same suite with the race detector
 ./make test ./internal/tool -run TestX   # narrow it; packages first, then flags
+./make fmt             # gofmt every tracked Go file
 ./make lint            # pinned golangci-lint and govulncheck
 ./make check <scope>   # go, portal, desktop, docs, all, or ci
 ./make check ci        # everything a pull request runs, except the Windows job

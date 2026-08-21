@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -359,6 +360,36 @@ func TestSplitTestTargetsKeepsFlagValuesOutOfPackages(t *testing.T) {
 				t.Errorf("flags = %q; want %q", got, tt.flags)
 			}
 		})
+	}
+}
+
+// The tracked Go files already spend two thirds of cmd.exe's command-line
+// budget, so gofmt has to be handed them in pieces.
+func TestBatchArgsSplitsLongCommandLines(t *testing.T) {
+	var files []string
+	for i := range 500 {
+		files = append(files, fmt.Sprintf("internal/some/reasonably/long/path/file%03d.go", i))
+	}
+	batches := batchArgs(files)
+	if len(batches) < 2 {
+		t.Fatalf("batchArgs produced %d batch(es) for %d files; want it to split", len(batches), len(files))
+	}
+	seen := 0
+	for _, batch := range batches {
+		size := 0
+		for _, file := range batch {
+			size += len(file) + 1
+		}
+		if size > 6000 && len(batch) > 1 {
+			t.Errorf("batch of %d files is %d bytes; over the limit", len(batch), size)
+		}
+		seen += len(batch)
+	}
+	if seen != len(files) {
+		t.Errorf("batches hold %d files; want all %d", seen, len(files))
+	}
+	if len(batchArgs(nil)) != 0 {
+		t.Error("batchArgs(nil) produced a batch")
 	}
 }
 

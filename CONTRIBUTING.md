@@ -98,6 +98,7 @@ lists what is worth putting in it.
 ./make doctor         # read-only toolchain and workspace diagnosis
 ./make build          # strict build: CLI, server, worker, gui, Portal, desktop
 ./make build cli      # CLI only
+./make fmt            # gofmt every tracked Go file
 ./make test           # go test ./... with BUILDMAX_HOME=./testing-sandbox
 ./make test race      # the same tests with the race detector
 ./make test ./internal/tool -run TestX   # one package or one test
@@ -296,6 +297,7 @@ run the Compose and kind end-to-end smoke paths.
 Locally:
 
 ```bash
+./make fmt               # gofmt every tracked Go file, the fix `check go` asks for
 ./make test              # go test with BUILDMAX_HOME=./testing-sandbox
 ./make test race         # the CI race suite with the same isolated home
 ./make lint              # golangci-lint and govulncheck, CI's pinned versions

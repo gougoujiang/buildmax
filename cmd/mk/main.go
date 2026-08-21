@@ -67,6 +67,8 @@ func dispatch(args []string) error {
 		return cmdCheck(rest)
 	case "doctor":
 		return cmdDoctor(rest)
+	case "fmt":
+		return cmdFmt()
 	case "lint":
 		return cmdLint()
 	case "agent-smoke":
@@ -171,6 +173,7 @@ func allHelpSections() []helpSection {
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 		}},
 		{"Advanced", []helpRow{
+			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"eval", "Run the agent benchmark (requires a model API key)"},
