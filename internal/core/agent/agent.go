@@ -87,6 +87,11 @@ type RunLoopOpts struct {
 	// by the caller because a session outlives one RunLoop; nil grants nothing,
 	// which makes every Ask a fresh prompt.
 	Grants *SessionGrants
+	// MaxParallelTools bounds how many calls from one assistant message may be
+	// grouped to run together. Zero or one keeps every call in its own group,
+	// which is the sequential behaviour and the current default on every
+	// surface. See docs/design/parallel-tool-execution.md.
+	MaxParallelTools int
 	// Compactor summarizes old messages when the context window is filling up.
 	// Nil disables compaction; TrimHistory is used as a fallback.
 	Compactor ContextCompactor
@@ -351,55 +356,145 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	return opts.LLMClient.ChatCompletionBlocking(ctx, messages, defs)
 }
 
-// executeToolCalls runs each tool call, applying the policy and loop guard before execution.
+// pendingCall is one tool call moving through the four stages below. Workers
+// write only to their own element, so the stages need no lock between them.
+type pendingCall struct {
+	call   llm.ToolCall
+	args   map[string]any
+	tool   llm.Tool // nil when the registry has no such tool
+	result string
+	// decided is true once result is final without executing: bad arguments,
+	// an unknown tool, or the loop guard.
+	decided bool
+}
+
+// executeToolCalls runs the calls from one assistant message in four stages:
+// parse, gate, run, commit. Parse has no side effects, so it covers the whole
+// batch; the other three run per group.
+//
+// The shape exists for docs/design/parallel-tool-execution.md, where a group's
+// calls overlap. Today every group holds one call and the effect is the
+// sequential loop this replaced.
 func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (int, error) {
 	policy := opts.Policy
 	if policy == nil {
 		policy = AllowAllPolicy
 	}
+	pending := parseCalls(opts, toolCalls)
+
 	count := 0
-	for _, tc := range toolCalls {
-		var args map[string]any
+	for _, group := range groupCalls(pending, opts.MaxParallelTools) {
+		for i := range group {
+			gateCall(opts, guard, &group[i])
+		}
+		runGroup(ctx, opts, policy, group)
+		for i := range group {
+			c := &group[i]
+			logToolResult(c.call.Name, c.result)
+			if err := opts.History.Append(llm.Message{Role: "tool", Content: c.result, ToolCallID: c.call.ID}); err != nil {
+				return count, err
+			}
+			count++
+		}
+	}
+	return count, nil
+}
+
+// parseCalls unmarshals arguments and resolves tools. Both are side-effect
+// free, which is what lets them run ahead of any execution: grouping needs the
+// arguments to ask a tool what the call does.
+func parseCalls(opts RunLoopOpts, toolCalls []llm.ToolCall) []pendingCall {
+	out := make([]pendingCall, len(toolCalls))
+	for i, tc := range toolCalls {
+		c := pendingCall{call: tc}
 		if tc.Arguments != "" {
-			if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-				result := fmt.Sprintf("error: invalid arguments: %v", err)
-				if err := opts.History.Append(llm.Message{Role: "tool", Content: result, ToolCallID: tc.ID}); err != nil {
-					return count, err
-				}
-				count++
+			if err := json.Unmarshal([]byte(tc.Arguments), &c.args); err != nil {
+				// No EventToolStart for a call that never became one.
+				c.result = fmt.Sprintf("error: invalid arguments: %v", err)
+				c.decided = true
+				out[i] = c
 				continue
 			}
 		}
-		if args == nil {
-			args = make(map[string]any)
+		if c.args == nil {
+			c.args = make(map[string]any)
 		}
-
-		tool := opts.ToolRegistry.Lookup(tc.Name)
-		var result string
-		emit(opts.EventSink, Event{
-			Kind:       EventToolStart,
-			ToolName:   tc.Name,
-			ToolCallID: tc.ID,
-			ToolArgs:   tc.Arguments,
-		})
-		switch {
-		case tool == nil:
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: tc.Name, ToolCallID: tc.ID, DenyReason: DenyReasonUnknown})
-			result = fmt.Sprintf("error: unknown tool %q", tc.Name)
-		case guard.exceeded(tc.Name, args):
-			slog.Warn("loop guard triggered", "tool", tc.Name)
-			emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: tc.Name, ToolCallID: tc.ID, DenyReason: DenyReasonLoopGuard})
-			result = fmt.Sprintf(denyMsgLoopGuard, tc.Name)
-		default:
-			result = applyPolicyAndExecute(ctx, opts, policy, tool, tc.Name, tc.ID, args)
-		}
-		logToolResult(tc.Name, result)
-		if err := opts.History.Append(llm.Message{Role: "tool", Content: result, ToolCallID: tc.ID}); err != nil {
-			return count, err
-		}
-		count++
+		c.tool = opts.ToolRegistry.Lookup(tc.Name)
+		out[i] = c
 	}
-	return count, nil
+	return out
+}
+
+// groupCalls cuts the batch into units that execute together. Groups are
+// windows into calls, not copies, so the stages mutate the original elements.
+//
+// Calls are never reordered: only adjacent read-only calls merge, and every
+// other call is a barrier. Reordering would change what a batch means —
+// [Write a, Read a] is not [Read a, Write a].
+func groupCalls(calls []pendingCall, maxParallel int) [][]pendingCall {
+	if maxParallel <= 1 {
+		groups := make([][]pendingCall, 0, len(calls))
+		for i := range calls {
+			groups = append(groups, calls[i:i+1])
+		}
+		return groups
+	}
+	var groups [][]pendingCall
+	start := 0
+	for i := range calls {
+		if eligibleForGroup(&calls[i]) && i+1 < len(calls) && eligibleForGroup(&calls[i+1]) {
+			continue
+		}
+		groups = append(groups, calls[start:i+1])
+		start = i + 1
+	}
+	return groups
+}
+
+// eligibleForGroup reports whether a call may overlap its neighbours. A call
+// already decided keeps its own group so its ordering is unambiguous.
+func eligibleForGroup(c *pendingCall) bool {
+	if c.decided || c.tool == nil {
+		return false
+	}
+	return DeclaredAccess(c.tool, c.args) == llm.AccessReadOnly
+}
+
+// gateCall applies the checks that must happen in call order, on the loop
+// goroutine: the tool exists, and the loop guard has not fired.
+func gateCall(opts RunLoopOpts, guard *loopGuard, c *pendingCall) {
+	if c.decided {
+		return
+	}
+	emit(opts.EventSink, Event{
+		Kind:       EventToolStart,
+		ToolName:   c.call.Name,
+		ToolCallID: c.call.ID,
+		ToolArgs:   c.call.Arguments,
+	})
+	switch {
+	case c.tool == nil:
+		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: c.call.Name, ToolCallID: c.call.ID, DenyReason: DenyReasonUnknown})
+		c.result = fmt.Sprintf("error: unknown tool %q", c.call.Name)
+		c.decided = true
+	case guard.exceeded(c.call.Name, c.args):
+		slog.Warn("loop guard triggered", "tool", c.call.Name)
+		emit(opts.EventSink, Event{Kind: EventToolDenied, ToolName: c.call.Name, ToolCallID: c.call.ID, DenyReason: DenyReasonLoopGuard})
+		c.result = fmt.Sprintf(denyMsgLoopGuard, c.call.Name)
+		c.decided = true
+	}
+}
+
+// runGroup executes the calls the gate let through. Sequential for now; the
+// concurrency this shape exists for is a later phase.
+func runGroup(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, group []pendingCall) {
+	for i := range group {
+		c := &group[i]
+		if c.decided {
+			continue
+		}
+		c.result = applyPolicyAndExecute(ctx, opts, policy, c.tool, c.call.Name, c.call.ID, c.args)
+	}
 }
 
 // applyPolicyAndExecute resolves the policy for a tool call and executes it if allowed.

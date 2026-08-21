@@ -4,7 +4,7 @@
 
 - roadmap_priority: `unscheduled` — performance work, not yet placed in
   [../ROADMAP.md](../ROADMAP.md)
-- status: `phase 1 implemented; phases 2-4 open`
+- status: `phases 1-2 implemented; the concurrency itself (phases 3-4) open`
 - depends on: [tool-permissions.md](./tool-permissions.md), which defines the
   `Access` classification this design schedules on. That record ships first —
   see §11.
@@ -211,7 +211,7 @@ Groups are processed strictly in order. Within a group the gate runs in call
 order, execution overlaps, and the commit runs in call order. A singleton
 group is bit-for-bit today's code path — which is what makes D6 cheap.
 
-### 5.3 The rewritten loop
+### 5.3 The rewritten loop — shipped ✅
 
 ```go
 func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (int, error) {
@@ -469,13 +469,21 @@ any concurrency limit.
   Desktop `pending` slot is **not** keyed by call id — see §3.5 for why that
   was the wrong fix for the right bug.
 
-### Phase 2 — split the loop (no behaviour change)
+### Phase 2 — split the loop (no behaviour change) — shipped ✅
 
-- Refactor `executeToolCalls` into parse → group → gate → run → commit with
-  the concurrency limit pinned at 1.
-- Every existing test in `internal/core/agent` must pass unmodified. This is
-  the risk-reduction step: if the refactor is wrong, it is wrong here, with
+- `executeToolCalls` is parse → group → gate → run → commit. `runGroup` is
+  still sequential; the grouping is live but `MaxParallelTools` is 0 on every
+  surface, which keeps each call in its own group.
+- Every existing test in `internal/core/agent` passed unmodified. That was the
+  point of the phase: if the refactor were wrong, it would be wrong here, with
   no concurrency in the picture.
+- Groups are windows into the batch (`calls[start:end]`), not copies, so the
+  stages mutate the real elements and the commit stage sees what the run stage
+  wrote. A test pins that, because a `copy` slipped in later would break the
+  results silently rather than loudly.
+- `TestHistoryIsSchedulerIndependent` compares the full message list at limit 1
+  and limit 8. It passes today because grouping alone does not reorder; it is
+  written now so phase 3 cannot land without keeping it true.
 
 ### Phase 3 — the declaration and the workers
 

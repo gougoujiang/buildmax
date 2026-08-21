@@ -38,7 +38,7 @@ reference, then delete the plan.
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
-| [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Phase 1 (event and UI seams) implemented; the concurrency itself open |
+| [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Seams and loop structure implemented; the concurrency itself open |
 
 ## Subsystem Specifications
 
