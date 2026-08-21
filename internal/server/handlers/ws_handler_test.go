@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,11 +14,10 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
-	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 
-	"github.com/gorilla/websocket"
+	gws "github.com/gorilla/websocket"
 )
 
 const wsTestSecret = "ws-test-secret"
@@ -32,17 +32,17 @@ func setupWSHandler() *Handler {
 	})
 }
 
-func dialWS(t *testing.T, server *httptest.Server, token string) *websocket.Conn {
+func dialWS(t *testing.T, server *httptest.Server, token string) *gws.Conn {
 	t.Helper()
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws?token=" + token
-	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, resp, err := gws.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial: %v (resp=%v)", err, resp)
 	}
 	return conn
 }
 
-func readEnvelope(t *testing.T, conn *websocket.Conn) wsconn.Envelope {
+func readEnvelope(t *testing.T, conn *gws.Conn) wsconn.Envelope {
 	t.Helper()
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	_, data, err := conn.ReadMessage()
@@ -56,13 +56,13 @@ func readEnvelope(t *testing.T, conn *websocket.Conn) wsconn.Envelope {
 	return env
 }
 
-func sendEnvelope(t *testing.T, conn *websocket.Conn, typ string, payload any) {
+func sendEnvelope(t *testing.T, conn *gws.Conn, typ string, payload any) {
 	t.Helper()
 	data, err := wsconn.Encode(typ, payload)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+	if err := conn.WriteMessage(gws.TextMessage, data); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 }
@@ -75,7 +75,7 @@ func TestWSUpgradeRequiresToken(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws"
-	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	_, resp, err := gws.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error for missing token")
 	}
@@ -92,7 +92,7 @@ func TestWSUpgradeInvalidToken(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws?token=bad"
-	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	_, resp, err := gws.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid token")
 	}

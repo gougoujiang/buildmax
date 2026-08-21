@@ -1,4 +1,4 @@
-package handlers
+package turnqueue
 
 import (
 	"context"
@@ -10,15 +10,15 @@ import (
 
 // blockedJob returns a job that parks until release is closed, plus a channel that
 // is closed once the job has actually started running.
-func blockedJob(started chan<- struct{}, release <-chan struct{}) *turnJob {
-	return newTurnJob(func() {
+func blockedJob(started chan<- struct{}, release <-chan struct{}) *Job {
+	return NewJob(func() {
 		close(started)
 		<-release
 	})
 }
 
 func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
-	r := newTurnRegistry()
+	r := NewRegistry()
 	started := make(chan struct{})
 	release := make(chan struct{})
 
@@ -29,8 +29,8 @@ func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
 
 	var ran []string
 	var mu sync.Mutex
-	record := func(name string) *turnJob {
-		return newTurnJob(func() {
+	record := func(name string) *Job {
+		return NewJob(func() {
 			mu.Lock()
 			ran = append(ran, name)
 			mu.Unlock()
@@ -51,7 +51,7 @@ func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
 	}
 
 	close(release)
-	<-third.done
+	<-third.Done
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -62,7 +62,7 @@ func TestTurnRegistrySecondTurnQueuesBehindTheFirst(t *testing.T) {
 
 // A turn in another conversation is not held up by a busy one.
 func TestTurnRegistryConversationsAreIndependent(t *testing.T) {
-	r := newTurnRegistry()
+	r := NewRegistry()
 	started := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
@@ -71,39 +71,39 @@ func TestTurnRegistryConversationsAreIndependent(t *testing.T) {
 	}
 	<-started
 
-	other := newTurnJob(func() {})
+	other := NewJob(func() {})
 	if pos, err := r.Submit("v_other", other); err != nil || pos != 0 {
 		t.Fatalf("Submit other = %d, %v; want 0, nil", pos, err)
 	}
 	select {
-	case <-other.done:
+	case <-other.Done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("a turn in another conversation was blocked by a busy one")
 	}
 }
 
 func TestTurnRegistryOnDequeueFiresOnlyForWaitingTurns(t *testing.T) {
-	r := newTurnRegistry()
+	r := NewRegistry()
 	started := make(chan struct{})
 	release := make(chan struct{})
 
 	first := blockedJob(started, release)
 	firstDequeued := false
-	first.onDequeue = func() { firstDequeued = true }
+	first.OnDequeue = func() { firstDequeued = true }
 	if _, err := r.Submit("v_1", first); err != nil {
 		t.Fatalf("Submit first: %v", err)
 	}
 	<-started
 
-	second := newTurnJob(func() {})
+	second := NewJob(func() {})
 	dequeued := make(chan struct{})
-	second.onDequeue = func() { close(dequeued) }
+	second.OnDequeue = func() { close(dequeued) }
 	if _, err := r.Submit("v_1", second); err != nil {
 		t.Fatalf("Submit second: %v", err)
 	}
 
 	close(release)
-	<-second.done
+	<-second.Done
 	select {
 	case <-dequeued:
 	default:
@@ -115,7 +115,7 @@ func TestTurnRegistryOnDequeueFiresOnlyForWaitingTurns(t *testing.T) {
 }
 
 func TestTurnRegistryRejectsPastTheCap(t *testing.T) {
-	r := newTurnRegistry()
+	r := NewRegistry()
 	started := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
@@ -124,21 +124,21 @@ func TestTurnRegistryRejectsPastTheCap(t *testing.T) {
 	}
 	<-started
 
-	for i := 0; i < maxQueuedTurns; i++ {
-		if _, err := r.Submit("v_1", newTurnJob(func() {})); err != nil {
+	for i := 0; i < MaxQueued; i++ {
+		if _, err := r.Submit("v_1", NewJob(func() {})); err != nil {
 			t.Fatalf("Submit #%d: %v", i, err)
 		}
 	}
-	if _, err := r.Submit("v_1", newTurnJob(func() {})); !errors.Is(err, errTurnQueueFull) {
-		t.Fatalf("Submit past the cap = %v, want errTurnQueueFull", err)
+	if _, err := r.Submit("v_1", NewJob(func() {})); !errors.Is(err, ErrQueueFull) {
+		t.Fatalf("Submit past the cap = %v, want ErrQueueFull", err)
 	}
-	if got := r.Waiting("v_1"); got != maxQueuedTurns {
-		t.Errorf("Waiting = %d, want %d", got, maxQueuedTurns)
+	if got := r.Waiting("v_1"); got != MaxQueued {
+		t.Errorf("Waiting = %d, want %d", got, MaxQueued)
 	}
 }
 
 func TestTurnRegistryRunSyncWaitsForItsTurn(t *testing.T) {
-	r := newTurnRegistry()
+	r := NewRegistry()
 	started := make(chan struct{})
 	release := make(chan struct{})
 	if _, err := r.Submit("v_1", blockedJob(started, release)); err != nil {
@@ -172,7 +172,7 @@ func TestTurnRegistryRunSyncWaitsForItsTurn(t *testing.T) {
 // A caller that goes away before its turn starts must not have its turn run: the
 // stream it would be written to is gone.
 func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
-	r := newTurnRegistry()
+	r := NewRegistry()
 	started := make(chan struct{})
 	release := make(chan struct{})
 	if _, err := r.Submit("v_1", blockedJob(started, release)); err != nil {
@@ -199,12 +199,12 @@ func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
 	}
 
 	// Let the queue drain past the dropped job.
-	tail := newTurnJob(func() {})
+	tail := NewJob(func() {})
 	if _, err := r.Submit("v_1", tail); err != nil {
 		t.Fatalf("Submit tail: %v", err)
 	}
 	close(release)
-	<-tail.done
+	<-tail.Done
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -214,12 +214,12 @@ func TestTurnRegistryRunSyncDropsOnCallerCancel(t *testing.T) {
 }
 
 func TestTurnRegistryForgetsIdleConversations(t *testing.T) {
-	r := newTurnRegistry()
-	job := newTurnJob(func() {})
+	r := NewRegistry()
+	job := NewJob(func() {})
 	if _, err := r.Submit("v_1", job); err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
-	<-job.done
+	<-job.Done
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {

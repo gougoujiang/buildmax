@@ -3,13 +3,14 @@ package handlers
 import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
-	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
+	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -121,7 +122,7 @@ type Config struct {
 	WebhookMessagePath string
 
 	// Hub is optional; if nil NewHandler creates one. Injectable for testing.
-	Hub streamhub.StreamHub
+	Hub wsconn.StreamHub
 
 	// OnTaskRunTerminal is an optional external callback fired when a worker run reaches
 	// terminal status (after the internal hub/registry callbacks run).
@@ -131,23 +132,23 @@ type Config struct {
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.
 type Handler struct {
 	cfg          Config
-	hub          streamhub.StreamHub
-	connRegistry *connRegistry
+	hub          wsconn.StreamHub
+	connRegistry *wsconn.ConnRegistry
 	// turns serializes the turns of one conversation and queues the rest. It is
-	// server-scoped, not connection-scoped — see turnRegistry.
-	turns *turnRegistry
+	// server-scoped, not connection-scoped — see turnqueue.Registry.
+	turns *turnqueue.Registry
 }
 
 // NewHandler returns a configured Handler. If cfg.Hub is nil a new StreamHub is created internally.
 func NewHandler(cfg Config) *Handler {
 	hub := cfg.Hub
 	if hub == nil {
-		hub = streamhub.NewStreamHub()
+		hub = wsconn.NewStreamHub()
 	}
 	return &Handler{
 		cfg:          cfg,
 		hub:          hub,
-		connRegistry: newConnRegistry(),
-		turns:        newTurnRegistry(),
+		connRegistry: wsconn.NewConnRegistry(),
+		turns:        turnqueue.NewRegistry(),
 	}
 }

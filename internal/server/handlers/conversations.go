@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -97,9 +98,9 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 	if h.writeTaskServiceError(w, r, err, agentID) {
 		return true
 	}
-	// errTurnQueueFull is this package's own, and its text names the queue depth,
+	// turnqueue.ErrQueueFull is this package's own, and its text names the queue depth,
 	// so it is answered here rather than given a Kind.
-	if errors.Is(err, errTurnQueueFull) {
+	if errors.Is(err, turnqueue.ErrQueueFull) {
 		httputil.WriteJSONError(w, http.StatusTooManyRequests, err.Error())
 		return true
 	}
