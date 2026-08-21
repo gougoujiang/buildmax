@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { patchJSON, postJSON, reportLeftovers, session, tagged, type Session } from "./fixtures"
+
 /**
  * A run has to explain itself, and it has to be honest about what confined it.
  *
@@ -12,12 +14,6 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
  *
  * So this spec creates the issue the smoke does not, and then reads the answer
  * the way an operator would.
- *
- * Seeding goes through the API rather than through four forms. What is under
- * test is whether Portal reports a run truthfully — not whether the issue form
- * submits — and driving the setup through the UI would spend the run's budget
- * on the parts already covered elsewhere, then fail for reasons that have
- * nothing to do with the boundary.
  */
 
 // The worker has to start, run, and write its trace to storage. The API smoke
@@ -25,105 +21,23 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 // follows it.
 const RUN_TIMEOUT_MS = 150_000
 
-/**
- * Tag for everything this run creates.
- *
- * These specs attach to a deployment they do not own, and neither an issue nor
- * an agent can be deleted through the API, so what they create stays. A fixed
- * name would leave a deployment holding a dozen identical "Run trace probe"
- * issues with no way to tell which run left which — and a later spec that
- * looked one up by name would find whichever came first. The tag makes each
- * one attributable, and `reportLeftovers` says exactly what to remove.
- *
- * `./make e2e` supplies the id. A bare `npx playwright test` gets "local".
- */
-const RUN_ID = process.env.BUILDMAX_E2E_RUN_ID ?? "local"
-
-interface Session {
-  token: string
-  teamId: string
-  /** Origin the API answers on, which is not always the one serving the Portal. */
-  apiBase: string
-}
-
-/**
- * The credentials and API origin the running app is actually using.
- *
- * Two things have to be discovered rather than assumed.
- *
- * `page.request` does not inherit the session: the Portal authenticates with a
- * bearer token in localStorage, not a cookie, so the saved storage state that
- * signs the browser in leaves the request context anonymous.
- *
- * And the API base is a property of the deployment, not of the Portal. Behind
- * one ingress it is same-origin; the Compose quickstart publishes the server on
- * its own port. Taking it from the app's own first call keeps this spec correct
- * on both without restating the precedence in `lib/api/client.ts`.
- */
-async function session(page: Page): Promise<Session> {
-  const teamsRequest = page.waitForRequest((req) => /\/api\/teams(\?|$)/.test(req.url()))
-  await page.goto("/")
-  const url = (await teamsRequest).url()
-  const apiBase = url.slice(0, url.indexOf("/api/teams"))
-
-  // The team is stored only after `GET /api/teams` answers, so this waits for
-  // the app to settle rather than reading straight after navigation.
-  const handle = await page.waitForFunction(() => {
-    const token = localStorage.getItem("buildmax_token")
-    const teamId = localStorage.getItem("buildmax_current_team")
-    return token && teamId ? { token, teamId } : null
-  })
-  const stored = (await handle.jsonValue()) as { token: string; teamId: string }
-  return { ...stored, apiBase }
-}
-
-async function postJSON<T>(page: Page, path: string, session: Session, body: unknown): Promise<T> {
-  const res = await page.request.post(path, {
-    headers: { Authorization: `Bearer ${session.token}` },
-    data: body,
-  })
-  expect(res.ok(), `POST ${path} → ${res.status()} ${await res.text()}`).toBeTruthy()
-  return res.json() as Promise<T>
-}
-
-async function patchJSON<T>(page: Page, path: string, session: Session, body: unknown): Promise<T> {
-  const res = await page.request.patch(path, {
-    headers: { Authorization: `Bearer ${session.token}` },
-    data: body,
-  })
-  expect(res.ok(), `PATCH ${path} → ${res.status()} ${await res.text()}`).toBeTruthy()
-  return res.json() as Promise<T>
-}
-
 /** The value cell of one run-trace statistic, addressed by its exact term. */
 function statValue(page: Page, term: string): Locator {
   const rows = page.locator(".run-trace__stats > div")
   return rows.filter({ has: page.locator("dt", { hasText: new RegExp(`^${term}$`) }) }).locator("dd")
 }
 
-/**
- * Name what this run created and could not remove.
- *
- * The harness contract is to clean up, or to report an exact safe cleanup
- * target when the deployment has to keep the evidence. This deployment keeps
- * it: there is no delete route for either resource. Printing the ids is what
- * turns "the smoke account accumulates things" into a one-line cleanup.
- */
-function reportLeftovers(teamId: string, resources: string[]): void {
-  console.log(`[e2e] run ${RUN_ID} left in team ${teamId}: ${resources.join(", ")}`)
-}
-
 /** Seed an issue whose agent has run to completion, and return its issue id. */
 async function seedCompletedAgentRun(page: Page, session: Session): Promise<string> {
-  const team = `${session.apiBase}/api/teams/${encodeURIComponent(session.teamId)}`
+  const team = session.team
 
   const agent = await postJSON<{ id: string }>(page, `${team}/agents`, session, {
-    name: `Run trace probe ${RUN_ID}`,
+    name: tagged("Run trace probe"),
     description: "Created by the Portal browser tests.",
     instructions: "Reply with exactly: deployment smoke ok",
   })
   const issue = await postJSON<{ id: string }>(page, `${team}/issues`, session, {
-    title: `Run trace probe ${RUN_ID}`,
+    title: tagged("Run trace probe"),
     description: "Created by the Portal browser tests to exercise the run trace view.",
   })
   reportLeftovers(session.teamId, [`agent ${agent.id}`, `issue ${issue.id}`])

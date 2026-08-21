@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -136,13 +135,19 @@ func e2ePortal(target smokeTarget, invocation string) error {
 	if output, err := target.admin("admin", "grant", smokeEmail); err != nil && !strings.Contains(output, "already holds") {
 		return fmt.Errorf("grant system_admin to the end-to-end account: %w", err)
 	}
-	codeOutput, err := target.admin("user", "login-code", smokeEmail)
+	code, err := issueLoginCode(target, smokeEmail)
 	if err != nil {
-		return fmt.Errorf("issue a login code: %w", err)
+		return err
 	}
-	code := loginCodePattern.FindString(codeOutput)
-	if code == "" {
-		return errors.New("the login-code command returned no bmxlogin_ code")
+	// A second account with no grant of any kind. A role-specific view can only
+	// be proved by someone who does not hold the role, and the account above
+	// holds every one of them.
+	if output, err := target.admin("user", "create", smokeOutsiderEmail); err != nil && !strings.Contains(output, "already has an account") {
+		return fmt.Errorf("create the ungranted end-to-end account: %w", err)
+	}
+	memberCode, err := issueLoginCode(target, smokeOutsiderEmail)
+	if err != nil {
+		return err
 	}
 
 	artifacts, runID, err := prepareArtifacts("portal", invocation, baseURL)
@@ -160,6 +165,8 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		"BUILDMAX_E2E_API_BASE=" + target.portalRuntimeAPIBase,
 		"BUILDMAX_E2E_EMAIL=" + smokeEmail,
 		"BUILDMAX_E2E_LOGIN_CODE=" + code,
+		"BUILDMAX_E2E_MEMBER_EMAIL=" + smokeOutsiderEmail,
+		"BUILDMAX_E2E_MEMBER_LOGIN_CODE=" + memberCode,
 		// Resources the specs create carry this, so a deployment several runs
 		// old can still say which run left what behind.
 		"BUILDMAX_E2E_RUN_ID=" + runID,
@@ -168,6 +175,20 @@ func e2ePortal(target smokeTarget, invocation string) error {
 		// there.
 		"BUILDMAX_E2E_ARTIFACTS=" + filepath.Join(artifacts, "results"),
 	}, "npm", "run", "e2e")
+}
+
+// issueLoginCode mints a single-use code for one account. The browser cannot
+// fetch one, which is the point of an out-of-band credential.
+func issueLoginCode(target smokeTarget, email string) (string, error) {
+	output, err := target.admin("user", "login-code", email)
+	if err != nil {
+		return "", fmt.Errorf("issue a login code for %s: %w", email, err)
+	}
+	code := loginCodePattern.FindString(output)
+	if code == "" {
+		return "", fmt.Errorf("the login-code command for %s returned no bmxlogin_ code", email)
+	}
+	return code, nil
 }
 
 // e2ePreflight names what is missing before a browser starts. Playwright's own

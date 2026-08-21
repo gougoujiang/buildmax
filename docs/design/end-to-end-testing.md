@@ -8,10 +8,13 @@
   `internal/testsupport/mockllm`, serving both the local suites and the
   deployment smokes from one implementation. Step 2 is done: `internal/e2e/cli`
   covers the print-mode paths and answers an approval prompt on a
-  pseudo-terminal. Step 3 has landed its CI half — the deployment workflow is
-  post-merge, scheduled, and dispatchable, and reports what verified a commit —
-  along with named suites, preflight, artifacts, and a lifecycle-owning local
-  mode. Open: the Portal golden paths of §9 step 4, and steps 5-6
+  pseudo-terminal. Step 3 is done: the deployment workflow is post-merge,
+  scheduled, and dispatchable and reports what verified a commit, and the suites
+  have names, preflight, artifacts, and a lifecycle-owning local mode. Step 4
+  has landed files, workflows, and the ungranted-account view in the browser,
+  and retry and the team boundary in the deployment smoke. Open: workflow
+  execution and space settings in the browser, the two deployment paths §6.1
+  leaves for later, and steps 5-6
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -69,11 +72,12 @@ larger than it looks.
   smoke additionally proves that a worker reaches the model through the
   gateway.
 - `./make e2e [kind|compose|local|cli]` selects a suite. The Portal ones run
-  nine serial Chromium Playwright checks in `portal/e2e/`: login, session
-  restoration, the Portal shell, runtime API configuration, selected
-  audit/admin routes, and the run-trace view. `kind` and `compose` attach to a
-  deployment that is already running, `local` owns a Compose stack for one run,
-  and `cli` needs no deployment at all.
+  serial Chromium Playwright checks in `portal/e2e/`: login, session
+  restoration, the Portal shell, runtime API configuration, audit and admin
+  routes, the run-trace view, team files, workflows, and what an ungranted
+  account is shown. `kind` and `compose` attach to a deployment that is already
+  running, `local` owns a Compose stack for one run, and `cli` needs no
+  deployment at all.
 - `./make agent-smoke` is **not** deterministic verification. It builds the CLI
   and runs `buildmax -p "/smoke 0"`, which drives the `.buildmax/skills/smoke`
   skill: a real model executes the tool checks and reports its own PASS/FAIL
