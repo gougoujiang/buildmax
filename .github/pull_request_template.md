@@ -34,8 +34,8 @@ behavior change a user would notice. Delete this section if there is nothing.
       boundary changes, `docs/contribute/repo-layout.md` if a package moved,
       `docs/design/` for direction changes, `docs/guide/` + `docs/reference/` +
       `config-examples/` for user-facing configuration
-- [ ] `CHANGELOG.md` entry appended to the end of its `## [Unreleased]` section
-      if a user or operator would notice this change
+- [ ] Changelog entry added as a new file under `docs/changelog/` if a user or
+      operator would notice this change
 - [ ] Dependency and license changes are explained above
 - [ ] No credentials, customer data, or private deployment details in the diff
 - [ ] Breaking changes to existing public behavior are called out above

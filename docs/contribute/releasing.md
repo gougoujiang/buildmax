@@ -19,8 +19,15 @@ prerelease version.
 ## Prepare
 
 1. Confirm `main` is up to date and all required CI checks pass.
-2. Move relevant entries from `Unreleased` in [CHANGELOG.md](../../CHANGELOG.md)
-   into a dated version section and restore an empty `Unreleased` section.
+2. Fold the unreleased entries into [CHANGELOG.md](../../CHANGELOG.md):
+
+   ```bash
+   ./make changelog                 # preview the section
+   ./make changelog release 0.1.0   # write it and clear docs/changelog/
+   ```
+
+   Read the result before committing; the fold is mechanical and orders entries
+   by filename, not by what matters most to a reader.
 3. Review [SECURITY.md](../../SECURITY.md), installation instructions, known
    limitations, and configuration examples for release-specific changes.
 4. Run the local verification commands:

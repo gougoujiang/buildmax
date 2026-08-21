@@ -82,8 +82,9 @@ git push -u origin short-topic-name
 ```
 
 A commit subject is a single imperative line. No tooling trailers, no
-"Generated with …" footer. Add a `CHANGELOG.md` entry under `## [Unreleased]`
-if a user or operator would notice the change.
+"Generated with …" footer. Add a changelog entry — a new file under
+[`docs/changelog/`](../changelog/README.md) — if a user or operator would notice
+the change.
 
 Open the pull request against `main` and fill in the template: the problem, the
 approach, how you verified it, and anything still missing. Small and verifiable

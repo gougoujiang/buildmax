@@ -116,16 +116,15 @@ attribution is noise in a history that anyone can read.
   pull request description.
 - Follow [`.github/pull_request_template.md`](../../.github/pull_request_template.md)
   for the shape of a pull request description.
-- Add a `CHANGELOG.md` entry under `## [Unreleased]` for anything a user or
-  operator would notice: new or changed behavior, new configuration, removals,
-  and fixes to released behavior. Internal refactors, test-only changes, and
-  documentation edits do not need one.
-- **Append the entry to the end of its section**, not the top. Two branches that
-  both insert at the top of `### Added` conflict every time, because git cannot
-  order two additions to the same line — and the conflict is guaranteed rather
-  than likely, since every pull request that needs an entry touches that line.
-  Appending puts each branch on a different line and the merge resolves itself.
-  Release preparation is where entries get ordered for readers.
+- Add a changelog entry for anything a user or operator would notice: new or
+  changed behavior, new configuration, removals, and fixes to released behavior.
+  Internal refactors, test-only changes, and documentation edits do not need one.
+- **An entry is a new file**, `docs/changelog/<category>/<slug>.md`, holding the
+  one Markdown list item it will become. Branches that each add a file never
+  conflict; branches that each added a line to `## [Unreleased]` in
+  `CHANGELOG.md` conflicted every time. `./make changelog` previews the section
+  they will fold into; the full rules are in
+  [`docs/changelog/README.md`](../changelog/README.md).
 
 ## Related
 
