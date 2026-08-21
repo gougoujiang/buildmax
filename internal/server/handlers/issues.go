@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -140,11 +141,11 @@ func (h *Handler) writeIssueServiceError(w http.ResponseWriter, err error) bool 
 }
 
 func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", listPageDefault, listPageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.ListPageDefault, httputil.ListPageMax)
 	// No parent_id lists every issue in the team, sub-issues included. That is
 	// what callers predating the hierarchy expect, so the board opts into the
 	// filtered view rather than the endpoint changing under anyone.
@@ -173,12 +174,12 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
 	var req createIssueRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	createdIssue, err := h.issueService().CreateIssue(r.Context(), issue.CreateIssueCmd{
@@ -199,11 +200,11 @@ func (h *Handler) createIssueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getIssueHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
-	issueID, ok := pathValueRequired(w, r, "issue_id")
+	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
 	}
@@ -254,14 +255,14 @@ func (h *Handler) issueRelatives(ctx context.Context, issue model.Issue, teamID 
 }
 
 func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.WorkflowStore, "workflows not configured") {
+	if !httputil.RequireStore(w, h.cfg.WorkflowStore, "workflows not configured") {
 		return
 	}
-	issueID, ok := pathValueRequired(w, r, "issue_id")
+	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
 	}
@@ -286,7 +287,7 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 			workflowOut = &out
 		}
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
 	runs, total, err := h.cfg.WorkflowStore.ListWorkflowRunsByIssue(r.Context(), issueID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_runs", "issue_id", issueID)
@@ -344,26 +345,26 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.AgentStore, "agents not configured") {
+	if !httputil.RequireStore(w, h.cfg.AgentStore, "agents not configured") {
 		return
 	}
-	if !h.requireStore(w, h.cfg.TaskStore, "tasks not configured") {
+	if !httputil.RequireStore(w, h.cfg.TaskStore, "tasks not configured") {
 		return
 	}
-	if !h.requireStore(w, h.cfg.ConversationStore, "conversations not configured") {
+	if !httputil.RequireStore(w, h.cfg.ConversationStore, "conversations not configured") {
 		return
 	}
-	issueID, ok := pathValueRequired(w, r, "issue_id")
+	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
 	}
 	var req createIssueAgentRunRequest
 	if r.ContentLength != 0 {
-		if !decodeJSONBody(w, r, &req) {
+		if !httputil.DecodeJSONBody(w, r, &req) {
 			return
 		}
 	}
@@ -419,20 +420,20 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.IssueStore, "issues not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.IssueStore, "issues not configured")
 	if !ok {
 		return
 	}
-	issueID, ok := pathValueRequired(w, r, "issue_id")
+	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
 	}
 	var req patchIssueRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	if req.AssigneeKind != nil && *req.AssigneeKind == model.IssueAssigneeWorkflow {
-		if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionAssignIssueWorkflow); !ok {
+		if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionAssignIssueWorkflow); !ok {
 			return
 		}
 	}

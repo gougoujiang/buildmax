@@ -33,7 +33,7 @@ type AdminGrantRequest struct {
 
 // listAdminGrantsHandler serves GET /api/admin/grants.
 func (h *Handler) listAdminGrantsHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
 	includeRevoked := r.URL.Query().Get("include_revoked") == "true"
@@ -59,11 +59,11 @@ func (h *Handler) listAdminGrantsHandler(w http.ResponseWriter, r *http.Request)
 
 // createAdminGrantHandler serves POST /api/admin/grants.
 func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request) {
-	actorID, ok := h.requireSystemAdmin(w, r)
+	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.UserStore, "accounts not configured") {
+	if !httputil.RequireStore(w, h.cfg.UserStore, "accounts not configured") {
 		return
 	}
 	var req AdminGrantRequest
@@ -122,11 +122,11 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 // database credentials — see docs/design/system-administration.md section 6.
 // Nobody should be able to leave a deployment unadministerable by clicking.
 func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request) {
-	actorID, ok := h.requireSystemAdmin(w, r)
+	actorID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
-	userID, ok := pathValueRequired(w, r, "user_id")
+	userID, ok := httputil.PathValue(w, r, "user_id")
 	if !ok {
 		return
 	}

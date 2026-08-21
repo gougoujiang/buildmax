@@ -159,6 +159,7 @@ internal/
 │
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
+│   ├── access/         Who is calling, which team, and whether they may
 │   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers
 │   ├── scheduler/      Claims pending task runs and spawns workers

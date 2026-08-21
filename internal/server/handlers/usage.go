@@ -17,7 +17,7 @@ type usageResponse struct {
 
 // usageHandler keeps the legacy /api/usage route as a personal-team alias.
 func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
@@ -38,15 +38,15 @@ func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) teamUsageHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	if _, resolvedTeamID, ok := h.withExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
+	if _, resolvedTeamID, ok := h.guard().ExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
 		return
 	}
 	h.writeUsageForTeam(w, r, teamID)

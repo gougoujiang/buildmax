@@ -21,7 +21,7 @@ type fileNode struct {
 }
 
 func (h *Handler) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
@@ -96,7 +96,7 @@ func sortFileNodes(n *fileNode) {
 }
 
 func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
@@ -132,7 +132,7 @@ type uploadResponse struct {
 }
 
 func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
 )
@@ -86,7 +87,7 @@ func (h *Handler) writeAgentServiceError(w http.ResponseWriter, err error) bool 
 }
 
 func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
@@ -106,15 +107,15 @@ func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
 		return
 	}
 	var req createAgentRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	created, err := h.agentService().CreateAgent(r.Context(), agent.CreateCmd{
@@ -135,11 +136,11 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	agentID, ok := pathValueRequired(w, r, "agent_id")
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
 	if !ok {
 		return
 	}
@@ -155,19 +156,19 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
 		return
 	}
-	agentID, ok := pathValueRequired(w, r, "agent_id")
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
 	if !ok {
 		return
 	}
 	var req patchAgentRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	updated, err := h.agentService().UpdateAgent(r.Context(), agent.UpdateCmd{
@@ -192,15 +193,15 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 // first. Reading history needs no more than team membership: it is the same
 // content the agent itself exposes, at earlier points in time.
 func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	agentID, ok := pathValueRequired(w, r, "agent_id")
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BrowsePageDefault, httputil.BrowsePageMax)
 	list, total, err := h.agentService().ListRevisions(r.Context(), teamID, agentID, limit, offset)
 	if err != nil {
 		if h.writeAgentServiceError(w, err) {
@@ -217,18 +218,18 @@ func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
 		return
 	}
-	agentID, ok := pathValueRequired(w, r, "agent_id")
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
 	if !ok {
 		return
 	}
-	revision, ok := pathValueInt(w, r, "revision")
+	revision, ok := httputil.PathValueInt(w, r, "revision")
 	if !ok {
 		return
 	}
@@ -249,14 +250,14 @@ func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	if _, ok := h.authorizeTeamAction(w, r, userID, teamID, actionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
 		return
 	}
-	agentID, ok := pathValueRequired(w, r, "agent_id")
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
 	if !ok {
 		return
 	}

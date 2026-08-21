@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/gougoujiang/buildmax/internal/server/access"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -170,9 +171,9 @@ func TestRefreshedAccessTokenAuthenticates(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("refresh status = %d", rec.Code)
 	}
-	access, _ := decodeJSON(t, rec)["access_token"].(string)
+	token, _ := decodeJSON(t, rec)["access_token"].(string)
 
-	claims, ok := parseAccessToken(access, refreshTestSecret)
+	claims, ok := access.Verify(token, refreshTestSecret)
 	if !ok {
 		t.Fatal("the refreshed access token does not verify")
 	}
@@ -182,8 +183,8 @@ func TestRefreshedAccessTokenAuthenticates(t *testing.T) {
 	if claims.Sid == "" {
 		t.Error("the refreshed token carries no session id")
 	}
-	if claims.Typ != tokenTypeAccess {
-		t.Errorf("typ = %q, want %q", claims.Typ, tokenTypeAccess)
+	if claims.Typ != access.TypeAccess {
+		t.Errorf("typ = %q, want %q", claims.Typ, access.TypeAccess)
 	}
 }
 
@@ -192,7 +193,7 @@ func TestRefreshedAccessTokenAuthenticates(t *testing.T) {
 func TestRefreshKeepsTheSession(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{})
 	firstAccess, refreshToken := login(t, mux)
-	firstClaims, ok := parseAccessToken(firstAccess, refreshTestSecret)
+	firstClaims, ok := access.Verify(firstAccess, refreshTestSecret)
 	if !ok {
 		t.Fatal("login token does not verify")
 	}
@@ -201,8 +202,8 @@ func TestRefreshKeepsTheSession(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("refresh status = %d", rec.Code)
 	}
-	access, _ := decodeJSON(t, rec)["access_token"].(string)
-	claims, ok := parseAccessToken(access, refreshTestSecret)
+	token, _ := decodeJSON(t, rec)["access_token"].(string)
+	claims, ok := access.Verify(token, refreshTestSecret)
 	if !ok {
 		t.Fatal("refreshed token does not verify")
 	}
@@ -228,8 +229,8 @@ func TestEachLoginOpensItsOwnSession(t *testing.T) {
 	}
 	secondAccess, _ := decodeJSON(t, rec)["access_token"].(string)
 
-	first, _ := parseAccessToken(firstAccess, refreshTestSecret)
-	second, _ := parseAccessToken(secondAccess, refreshTestSecret)
+	first, _ := access.Verify(firstAccess, refreshTestSecret)
+	second, _ := access.Verify(secondAccess, refreshTestSecret)
 	if first.Sid == second.Sid {
 		t.Fatal("two logins share one session; revoking either would sign out both")
 	}

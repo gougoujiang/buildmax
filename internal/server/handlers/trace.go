@@ -29,14 +29,14 @@ type TraceResponse struct {
 // getTaskRunTraceHandler serves GET
 // /api/teams/{team_id}/task-runs/{task_run_id}/trace.
 func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.TaskRunStore, "task runs not configured")
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRunStore, "task runs not configured")
 	if !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.PersistStorage, "run storage not configured") {
+	if !httputil.RequireStore(w, h.cfg.PersistStorage, "run storage not configured") {
 		return
 	}
-	taskRunID, ok := pathValueRequired(w, r, "task_run_id")
+	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
 	if !ok {
 		return
 	}

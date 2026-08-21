@@ -48,13 +48,13 @@ type AdminTeamMember struct {
 
 // listAdminTeamsHandler serves GET /api/admin/teams.
 func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
+	if !httputil.RequireStore(w, h.cfg.TeamStore, "teams not configured") {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", bulkPageDefault, bulkPageMax)
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
 	teams, total, err := h.cfg.TeamStore.ListAllTeams(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_teams")
@@ -87,13 +87,13 @@ func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) 
 
 // getAdminTeamHandler serves GET /api/admin/teams/{team_id}.
 func (h *Handler) getAdminTeamHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.TeamStore, "teams not configured") {
+	if !httputil.RequireStore(w, h.cfg.TeamStore, "teams not configured") {
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}

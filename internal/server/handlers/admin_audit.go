@@ -26,15 +26,15 @@ type AdminAuditEventsResponse struct {
 // no prompt, no request body, and no resolution of target ids into content:
 // searching the trail must not become a way to read across teams.
 func (h *Handler) listAdminAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireSystemAdmin(w, r); !ok {
+	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !h.requireStore(w, h.cfg.AuditStore, "audit trail not configured") {
+	if !httputil.RequireStore(w, h.cfg.AuditStore, "audit trail not configured") {
 		return
 	}
 	q := r.URL.Query()
 	filter := adminAuditFilter(q)
-	limit, offset := parseLimitOffset(q, "limit", "offset", bulkPageDefault, bulkPageMax)
+	limit, offset := httputil.LimitOffset(q, "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
 
 	events, total, err := h.cfg.AuditStore.SearchAuditEvents(r.Context(), filter, limit, offset)
 	if err != nil {

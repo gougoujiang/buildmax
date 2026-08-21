@@ -66,7 +66,7 @@ func teamMemberToResponse(member model.TeamMember, user *model.User) teamMemberR
 }
 
 func (h *Handler) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
@@ -83,12 +83,12 @@ func (h *Handler) listTeamsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createTeamHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
 	var req createTeamRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	name := strings.TrimSpace(req.Name)
@@ -109,15 +109,15 @@ func (h *Handler) teamService() *team.Service {
 }
 
 func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	if _, resolvedTeamID, ok := h.withExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
+	if _, resolvedTeamID, ok := h.guard().ExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
 		return
 	}
 	members, err := h.teamService().ListMembers(r.Context(), teamID)
@@ -136,19 +136,19 @@ func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	if _, resolvedTeamID, ok := h.withExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
+	if _, resolvedTeamID, ok := h.guard().ExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
 		return
 	}
 	var req addTeamMemberRequest
-	if !decodeJSONBody(w, r, &req) {
+	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
 	member, user, err := h.teamService().AddMember(r.Context(), team.AddMemberCmd{
@@ -169,19 +169,19 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.withUserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().UserAndStore(w, r, h.cfg.TeamStore, "teams not configured")
 	if !ok {
 		return
 	}
-	teamID, ok := pathValueRequired(w, r, "team_id")
+	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	targetUserID, ok := pathValueRequired(w, r, "user_id")
+	targetUserID, ok := httputil.PathValue(w, r, "user_id")
 	if !ok {
 		return
 	}
-	if _, resolvedTeamID, ok := h.withExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
+	if _, resolvedTeamID, ok := h.guard().ExplicitTeam(w, r, userID, teamID); !ok || resolvedTeamID == "" {
 		return
 	}
 	err := h.teamService().RemoveMember(r.Context(), team.RemoveMemberCmd{

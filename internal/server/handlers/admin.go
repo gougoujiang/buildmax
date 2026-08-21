@@ -24,7 +24,7 @@ type AdminMeResponse struct {
 
 // adminMeHandler serves GET /api/admin/me.
 func (h *Handler) adminMeHandler(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.requireSystemAdmin(w, r)
+	userID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {
 		return
 	}
