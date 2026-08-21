@@ -155,6 +155,26 @@ pre-releases and must be called out in release notes.
   tipped the total over. Portal states the same thing in space settings, and a
   space with no limits reports nothing rather than reporting comfort.
 
+- A message typed while the agent is working is now queued instead of refused,
+  on the CLI/TUI, Desktop, and Portal alike. Up to ten can wait per
+  conversation; past that the message is refused rather than the oldest being
+  dropped, so nothing the user believes is scheduled disappears. In the TUI the
+  input stays visible and editable during a run, `Enter` queues, and `Esc` takes
+  the last queued message back; Portal and Desktop show what is waiting at the
+  end of the thread. Stopping a run discards everything queued behind it — those
+  messages were written for work that has just been called off. A run that
+  *fails* keeps the queue, and each message still gets its turn.
+
+- On the CLI/TUI and Desktop a queued message no longer waits for the whole run.
+  The agent picks it up at its next step — as soon as the tool batch it is
+  running finishes — so a correction reaches the model while the work it
+  corrects is still in progress, instead of after it. Such a message passes the
+  same `UserPromptSubmit` hook as any other prompt, and appears in the run trace
+  as `user_input`: a message that entered a run after it started is part of what
+  that run was told to do. Portal keeps delivering a queued message as its own
+  turn — its foreground turns are short, and its queue is shared by every client
+  watching the conversation.
+
 - Read-only tool calls from the same model message now run at the same time.
   When the model asks for several files or searches at once, they no longer
   queue behind each other -- three 100ms reads take about 100ms rather than
@@ -374,6 +394,54 @@ pre-releases and must be called out in release notes.
 - A run trace now records which system-prompt layers the run loaded and how
   large each was, so a finished run can say what it was told before the
   conversation started.
+
+- `--workspace` now applies to the TUI. The flag reached the `--agent`
+  definition lookup but never the agent itself, so file tools, `AGENTS.md`, and
+  the footer's git branch all ran against the current directory while `--agent`
+  resolved somewhere else — one run with two ideas of where it was. Print mode
+  was never affected.
+
+- A model entry can now name the wire protocol its endpoint speaks, so BuildMax
+  reaches a provider's own API instead of only OpenAI-compatible gateways. Set
+  `provider` on a `settings.yaml` model — `openai_compatible` (OpenAI Chat
+  Completions, the default), `openai` (OpenAI's Responses API), or `anthropic`
+  (the Anthropic Messages API) — and optionally `max_tokens` to cap one
+  response. The value names a protocol, not a vendor: Claude through OpenRouter
+  is `openai_compatible`, and Claude from `api.anthropic.com` is `anthropic`. An
+  operator can serve the same three from the managed gateway with
+  `buildmax-server model add --provider --max-tokens`, and `model list` now
+  shows each row's provider. Existing configuration is unchanged: an entry that
+  names no provider keeps calling what it always called.
+
+- A model can now reason before it answers, and keep that reasoning across tool
+  calls. Set `reasoning: low`, `medium`, or `high` on a `settings.yaml` model,
+  or pass `--reasoning` to `buildmax-server model add`, and an `anthropic` model
+  uses extended thinking at that effort while an `openai` model keeps its
+  reasoning between turns. `openai_compatible` has no such state and ignores the
+  setting. It is off by default, because it changes what a call costs and older
+  models reject it. The reasoning itself never appears in the transcript:
+  BuildMax stores it beside the assistant message and sends it back unread, and
+  a session continued against a different provider drops what that provider
+  cannot use rather than failing. CLI sessions, Portal conversations, and
+  managed gateway calls all carry it, so a run keeps its continuity across a
+  restart.
+
+- Prompt caching is now available with `prompt_cache: true` on a model, or
+  `--prompt-cache` on a catalog model. For `anthropic` it places cache
+  breakpoints around the tool definitions and system prompt, which do not change
+  between calls in a run; the OpenAI protocols already cache on their own. It is
+  off by default because a cache write costs more than not caching and only pays
+  back over several calls. Every provider now reports `cache_read_tokens` and
+  `cache_write_tokens`, and a managed deployment records both on the call
+  ledger. They break the prompt count down rather than adding to it, so a spend
+  report must not sum them alongside it.
+
+- An MCP server that returns an image — a screenshot, a rendered chart — now
+  sends the model the image instead of a base64 blob pasted into the tool
+  result. Set `vision: true` on a model that can read images, or `--vision` on a
+  catalog model. Left off, which is the default, the tool result says what came
+  back (`(image: image/png, 43.2 KB)`) and the image is not sent, because a
+  model without image support rejects such a request rather than ignoring it.
 
 - Cancelling a Desktop run while a tool approval prompt was showing left the
   project stuck. The run goroutine waited forever for an answer nobody would

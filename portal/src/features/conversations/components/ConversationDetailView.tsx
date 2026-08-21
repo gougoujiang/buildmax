@@ -16,6 +16,8 @@ interface ConversationDetailViewProps {
   streamingContent: string | null
   /** Shown after “new chat” navigation until the first user message appears from the server. */
   optimisticUserMessage: string | null
+  /** Messages accepted while a turn is running, waiting for their own turn. */
+  queuedMessages: string[]
   user: LoginUser | null
   onSend: () => void
 }
@@ -31,6 +33,7 @@ export function ConversationDetailView({
   sendError,
   streamingContent,
   optimisticUserMessage,
+  queuedMessages,
   user,
   onSend,
 }: ConversationDetailViewProps) {
@@ -70,6 +73,22 @@ export function ConversationDetailView({
     })
   }
 
+  // Queued messages sit at the end of the thread, dimmed: accepted, but not sent to
+  // the model yet.
+  queuedMessages.forEach((content, i) => {
+    items.push({
+      id: `queued-${i}`,
+      role: "user",
+      label: "You (queued)",
+      avatar: user ? <UserAvatar user={user} size="sm" /> : undefined,
+      body: (
+        <div className="page-chat__msg-content page-chat__markdown page-chat__msg-content--queued">
+          <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+        </div>
+      ),
+    })
+  })
+
   if (streamingContent !== null) {
     items.push({
       id: "streaming-assistant",
@@ -107,6 +126,8 @@ export function ConversationDetailView({
           loading={sending}
           error={sendError}
           placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+          queueWhileLoading
+          queuePlaceholder="Type a message… (Enter to queue it for the next turn)"
           ariaLabel="Message"
         />
       </section>

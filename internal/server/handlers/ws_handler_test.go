@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
@@ -154,5 +157,133 @@ func TestWSUnknownEventType(t *testing.T) {
 	env := readEnvelope(t, conn)
 	if env.Type != wsconn.TypeSystemError {
 		t.Errorf("type = %q, want %q", env.Type, wsconn.TypeSystemError)
+	}
+}
+
+// gatedLLMClient blocks its first completion until release is closed, so a test can
+// hold a conversation turn open and submit a second message while it runs.
+type gatedLLMClient struct {
+	once    sync.Once
+	started chan struct{}
+	release chan struct{}
+}
+
+func newGatedLLMClient() *gatedLLMClient {
+	return &gatedLLMClient{started: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (c *gatedLLMClient) gate() {
+	first := false
+	c.once.Do(func() { first = true })
+	if !first {
+		return
+	}
+	close(c.started)
+	<-c.release
+}
+
+func (c *gatedLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+	c.gate()
+	return llm.Completion{Content: "ok"}, nil
+}
+
+func (c *gatedLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+	c.gate()
+	onDelta("ok")
+	return llm.Completion{Content: "ok"}, nil
+}
+
+func (c *gatedLLMClient) ContextWindow() int { return 0 }
+
+// A message sent while a turn is running is queued and then runs as its own turn.
+// It used to come back as conversation.error and be dropped.
+func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
+	teamID := "tm_personal_u1"
+	client := newGatedLLMClient()
+	h := NewHandler(Config{
+		JWTSecret:                wsTestSecret,
+		CORSOrigin:               "*",
+		TeamStore:                &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+		ConversationStore:        &mock.MockConversationStore{},
+		ConversationMessageStore: &mockConversationMessageStore{},
+		ConversationLLMClient:    client,
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conn := dialWS(t, server, util.SignJWT("u1", wsTestSecret))
+	defer conn.Close()
+
+	sendEnvelope(t, conn, wsconn.TypeConversationCreate, wsconn.ConversationCreate{Message: "first"})
+	env := readEnvelope(t, conn)
+	if env.Type != wsconn.TypeConversationCreated {
+		t.Fatalf("first event = %q, want %q", env.Type, wsconn.TypeConversationCreated)
+	}
+	var created wsconn.ConversationCreated
+	if err := json.Unmarshal(env.Payload, &created); err != nil {
+		t.Fatal(err)
+	}
+
+	// The first turn is now parked inside the LLM call.
+	<-client.started
+
+	sendEnvelope(t, conn, wsconn.TypeConversationMessage, wsconn.ConversationMessage{
+		ConversationID: created.ConversationID,
+		Content:        "second",
+	})
+
+	var queued wsconn.MessageQueued
+	for {
+		env = readEnvelope(t, conn)
+		if env.Type == wsconn.TypeConversationError {
+			t.Fatalf("a message sent during a turn was rejected: %s", env.Payload)
+		}
+		if env.Type == wsconn.TypeMessageQueued {
+			if err := json.Unmarshal(env.Payload, &queued); err != nil {
+				t.Fatal(err)
+			}
+			break
+		}
+	}
+	if queued.Position != 1 {
+		t.Errorf("queued position = %d, want 1", queued.Position)
+	}
+	if queued.Content != "second" {
+		t.Errorf("queued content = %q, want %q", queued.Content, "second")
+	}
+
+	close(client.release)
+
+	// The first turn completes reporting one message still waiting, that message is
+	// announced as starting, and its own turn completes with nothing left.
+	var sawCompletedWithRemaining, sawDequeued, sawFinalCompleted bool
+	for i := 0; i < 12 && !sawFinalCompleted; i++ {
+		env = readEnvelope(t, conn)
+		switch env.Type {
+		case wsconn.TypeMessageDequeued:
+			sawDequeued = true
+		case wsconn.TypeMessageCompleted:
+			var done wsconn.MessageCompleted
+			if err := json.Unmarshal(env.Payload, &done); err != nil {
+				t.Fatal(err)
+			}
+			if done.QueuedRemaining == 1 {
+				sawCompletedWithRemaining = true
+			}
+			if sawDequeued && done.QueuedRemaining == 0 {
+				sawFinalCompleted = true
+			}
+		}
+	}
+	if !sawCompletedWithRemaining {
+		t.Error("the finished turn should report how many messages are still queued")
+	}
+	if !sawDequeued {
+		t.Error("a queued message starting its turn should be announced")
+	}
+	if !sawFinalCompleted {
+		t.Error("the queued message's own turn did not complete")
 	}
 }

@@ -74,6 +74,8 @@ type UnsubscribeTask struct {
 const (
 	TypeConversationCreated = "conversation.created"
 	TypeMessageDelta        = "conversation.message.delta"
+	TypeMessageQueued       = "conversation.message.queued"
+	TypeMessageDequeued     = "conversation.message.dequeued"
 	TypeMessageCompleted    = "conversation.message.completed"
 	TypeConversationError   = "conversation.error"
 	TypeTaskStatusChanged   = "task.status.changed"
@@ -93,15 +95,43 @@ type MessageDelta struct {
 	Delta          string `json:"delta"`
 }
 
+// MessageQueued is the payload for TypeMessageQueued: the message arrived while a
+// turn was running and will run as its own turn once that one finishes.
+type MessageQueued struct {
+	ConversationID string `json:"conversation_id"`
+	Content        string `json:"content"`
+	// Position is 1-based: 1 is the next turn to run after the current one.
+	Position int `json:"position"`
+}
+
+// MessageDequeued is the payload for TypeMessageDequeued: a queued message is
+// starting its own turn now.
+type MessageDequeued struct {
+	ConversationID string `json:"conversation_id"`
+	Content        string `json:"content"`
+}
+
 // MessageCompleted is the payload for TypeMessageCompleted.
 type MessageCompleted struct {
 	ConversationID string `json:"conversation_id"`
+	// QueuedRemaining is how many messages are still waiting for their turn. A
+	// client uses it to decide whether the conversation is idle or merely between
+	// turns.
+	QueuedRemaining int `json:"queued_remaining,omitempty"`
 }
+
+// ErrorCodeQueueFull marks a conversation error that refused a new message
+// because the conversation's queue is full. It is not a failure of the turn in
+// progress, which is still running — a client must not read it as "the
+// conversation went idle".
+const ErrorCodeQueueFull = "queue_full"
 
 // ConversationError is the payload for TypeConversationError.
 type ConversationError struct {
 	ConversationID string `json:"conversation_id,omitempty"`
 	Error          string `json:"error"`
+	// Code is an optional machine-readable reason. Empty means the turn itself failed.
+	Code string `json:"code,omitempty"`
 }
 
 // TaskStatusChanged is the payload for TypeTaskStatusChanged.

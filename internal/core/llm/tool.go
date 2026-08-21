@@ -13,6 +13,26 @@ type Tool interface {
 	Execute(ctx context.Context, args map[string]any) (result string, err error)
 }
 
+// ToolResult is what a tool produces when text alone cannot say it.
+//
+// Text is always set and is what hooks, traces, the terminal, and token
+// estimation read; Parts carries whatever the text could only describe.
+type ToolResult struct {
+	Text  string
+	Parts []ContentPart
+}
+
+// MultimodalTool is a Tool whose result can carry non-text content.
+//
+// It is an optional upgrade rather than a change to Execute because exactly one
+// tool needs it — the MCP gateway, which forwards whatever a server returns —
+// and widening the contract would make sixteen text-only tools carry a field
+// they never set. The agent loop asks for it and falls back to Execute.
+type MultimodalTool interface {
+	Tool
+	ExecuteMultimodal(ctx context.Context, args map[string]any) (ToolResult, error)
+}
+
 // ToolRegistry keeps the tools available to an agent run.
 type ToolRegistry struct {
 	tools []Tool

@@ -144,21 +144,31 @@ func (t *callMCPToolTool) Description() string { return callMCPToolDesc }
 func (t *callMCPToolTool) Parameters() any { return callMCPToolParams }
 
 func (t *callMCPToolTool) Execute(ctx context.Context, args map[string]any) (string, error) {
+	out, err := t.ExecuteMultimodal(ctx, args)
+	return out.Text, err
+}
+
+// ExecuteMultimodal keeps content an MCP server returned that text cannot hold.
+// This is the one tool that forwards results it did not produce, so it is the
+// one that needs the wider contract.
+func (t *callMCPToolTool) ExecuteMultimodal(ctx context.Context, args map[string]any) (llm.ToolResult, error) {
 	srv, err := parseRequiredString(args, "server")
 	if err != nil {
-		return "", err
+		return llm.ToolResult{}, err
 	}
 	toolName, err := parseRequiredString(args, "tool_name")
 	if err != nil {
-		return "", err
+		return llm.ToolResult{}, err
 	}
 	var toolArgs map[string]any
 	if v, ok := args["arguments"]; ok && v != nil {
 		m, ok := v.(map[string]any)
 		if !ok {
-			return "", fmt.Errorf("arguments must be a JSON object")
+			return llm.ToolResult{}, fmt.Errorf("arguments must be a JSON object")
 		}
 		toolArgs = m
 	}
-	return t.reg.CallMcp(ctx, srv, toolName, toolArgs)
+	return t.reg.CallMcpMultimodal(ctx, srv, toolName, toolArgs)
 }
+
+var _ llm.MultimodalTool = (*callMCPToolTool)(nil)

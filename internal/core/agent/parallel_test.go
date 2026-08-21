@@ -401,3 +401,66 @@ func (t *ctxTool) Execute(ctx context.Context, _ map[string]any) (string, error)
 	<-ctx.Done()
 	return "", ctx.Err()
 }
+
+// perCallMultimodalTool returns a part identifying the call that produced it.
+type perCallMultimodalTool struct{ name string }
+
+func (t *perCallMultimodalTool) Name() string                       { return t.name }
+func (t *perCallMultimodalTool) Description() string                { return "multimodal" }
+func (t *perCallMultimodalTool) Parameters() any                    { return map[string]any{} }
+func (t *perCallMultimodalTool) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
+func (t *perCallMultimodalTool) Execute(_ context.Context, _ map[string]any) (string, error) {
+	return "text only", nil
+}
+
+func (t *perCallMultimodalTool) ExecuteMultimodal(_ context.Context, args map[string]any) (llm.ToolResult, error) {
+	id, _ := args["id"].(string)
+	time.Sleep(10 * time.Millisecond) // long enough for the group to overlap
+	return llm.ToolResult{
+		Text:  "text-" + id,
+		Parts: []llm.ContentPart{{Type: llm.ContentPartText, Text: "part-" + id}},
+	}, nil
+}
+
+// TestParallel_MultimodalPartsStayWithTheirCall covers the interaction the two
+// designs created when they met: tool results grew non-text parts at the same
+// time as calls started overlapping. Each worker writes only its own element,
+// but a shared buffer or a misplaced index would land one call's image on
+// another's result and nothing downstream would notice.
+func TestParallel_MultimodalPartsStayWithTheirCall(t *testing.T) {
+	registry := llm.NewToolRegistry()
+	registry.AppendTools(&perCallMultimodalTool{name: "shot"})
+	sess := newTestBuffer()
+	mock := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: callsFor("shot", "a", "b", "c")},
+		{content: "done"},
+	}}
+	_, _, err := runLoopWithUserMsg(context.Background(), mock, registry, sess, "go", func(o *RunLoopOpts) {
+		o.MaxParallelTools = 8
+	})
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+
+	seen := 0
+	for _, m := range sess.messages {
+		if m.Role != "tool" {
+			continue
+		}
+		seen++
+		if len(m.Parts) != 1 {
+			t.Errorf("call %s carried %d parts, want 1", m.ToolCallID, len(m.Parts))
+			continue
+		}
+		if want := "part-" + m.ToolCallID; m.Parts[0].Text != want {
+			t.Errorf("call %s carried %q, want %q", m.ToolCallID, m.Parts[0].Text, want)
+		}
+		if want := "text-" + m.ToolCallID; m.Content != want {
+			t.Errorf("call %s text = %q, want %q", m.ToolCallID, m.Content, want)
+		}
+	}
+	if seen != 3 {
+		t.Errorf("saw %d tool messages, want 3", seen)
+	}
+}

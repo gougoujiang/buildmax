@@ -357,10 +357,10 @@ type smallWindowLLMClient struct {
 	contextWindow int
 }
 
-func (c *smallWindowLLMClient) ChatCompletionBlocking(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *smallWindowLLMClient) ChatCompletionBlocking(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	return c.inner.ChatCompletionBlocking(ctx, msgs, tools)
 }
-func (c *smallWindowLLMClient) ChatCompletionStreaming(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *smallWindowLLMClient) ChatCompletionStreaming(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return c.inner.ChatCompletionStreaming(ctx, msgs, tools, onDelta)
 }
 func (c *smallWindowLLMClient) ContextWindow() int { return c.contextWindow }
@@ -380,15 +380,15 @@ type cancellingClient struct {
 	calls     int
 }
 
-func (c *cancellingClient) ChatCompletionBlocking(ctx context.Context, _ []llm.Message, _ []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *cancellingClient) ChatCompletionBlocking(ctx context.Context, _ []llm.Message, _ []llm.ToolDef) (llm.Completion, error) {
 	c.calls++
 	if c.calls == 1 {
-		return c.first.content, c.first.toolCalls, c.first.usage, nil
+		return llm.Completion{Content: c.first.content, ToolCalls: c.first.toolCalls, Usage: c.first.usage}, nil
 	}
 	c.cancelCtx() // cancel before returning so ctx.Err() is set
-	return "", nil, llm.Usage{}, context.Canceled
+	return llm.Completion{}, context.Canceled
 }
-func (c *cancellingClient) ChatCompletionStreaming(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef, _ func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *cancellingClient) ChatCompletionStreaming(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef, _ func(string)) (llm.Completion, error) {
 	return c.ChatCompletionBlocking(ctx, msgs, tools)
 }
 func (c *cancellingClient) ContextWindow() int { return 0 }

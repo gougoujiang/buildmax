@@ -99,6 +99,8 @@ var recordTypes = map[agent.EventKind]string{
 	agent.EventToolDenied:       "tool_denied",
 	agent.EventContextCompacted: "context_compacted",
 	agent.EventRunEnd:           "run_end",
+	agent.EventUserInput:        "user_input",
+	agent.EventUserInputBlocked: "user_input_blocked",
 }
 
 // recordFromEvent maps a runtime event to a trace Record, applying bounding and
@@ -142,6 +144,15 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 	case agent.EventContextCompacted:
 		r.Summarized = e.Summarized
 		r.Kept = e.Kept
+	case agent.EventUserInput:
+		// A message that entered the run after it started is part of what the run
+		// was told to do, so a trace that omitted it would misreport its instructions.
+		r.Iter = e.Iter
+		r.Content = bound(Redact(e.Content), maxField)
+	case agent.EventUserInputBlocked:
+		r.Iter = e.Iter
+		r.Content = bound(Redact(e.Content), maxField)
+		r.DenyReason = e.DenyReason
 	case agent.EventRunEnd:
 		r.ToolCalls = e.Stats.ToolCalls
 		r.PromptTokens = e.Stats.PromptTokens

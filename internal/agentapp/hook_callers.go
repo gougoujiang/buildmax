@@ -51,9 +51,9 @@ func (c *llmCaller) CompleteHookPrompt(ctx context.Context, model, prompt string
 		return "", fmt.Errorf("resolve hook model %q: %w", name, err)
 	}
 	msgs := []cllm.Message{{Role: "user", Content: prompt}}
-	content, _, _, err := client.ChatCompletionBlocking(ctx, msgs, nil)
+	completion, err := client.ChatCompletionBlocking(ctx, msgs, nil)
 	if err != nil {
 		return "", err
 	}
-	return content, nil
+	return completion.Content, nil
 }

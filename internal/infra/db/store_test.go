@@ -529,7 +529,9 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 
 	ch := "portal"
-	m1, err := s.AppendMessage(ctx, conv.ConversationID, "user", "hello", &ch, nil, nil)
+	m1, err := s.AppendMessage(ctx, model.AppendMessageInput{
+		ConversationID: conv.ConversationID, Role: "user", Content: "hello", Channel: &ch,
+	})
 	if err != nil {
 		t.Fatalf("AppendMessage user: %v", err)
 	}
@@ -537,7 +539,9 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		t.Errorf("AppendMessage user: got %+v", m1)
 	}
 
-	m2, err := s.AppendMessage(ctx, conv.ConversationID, "assistant", "hi there", nil, nil, nil)
+	m2, err := s.AppendMessage(ctx, model.AppendMessageInput{
+		ConversationID: conv.ConversationID, Role: "assistant", Content: "hi there",
+	})
 	if err != nil {
 		t.Fatalf("AppendMessage assistant: %v", err)
 	}
@@ -546,7 +550,9 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 
 	tcID := "call_1"
-	m3, err := s.AppendMessage(ctx, conv.ConversationID, "tool", "2025-03-01", nil, &tcID, nil)
+	m3, err := s.AppendMessage(ctx, model.AppendMessageInput{
+		ConversationID: conv.ConversationID, Role: "tool", Content: "2025-03-01", ToolCallID: &tcID,
+	})
 	if err != nil {
 		t.Fatalf("AppendMessage tool: %v", err)
 	}
@@ -555,7 +561,9 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 
 	sysCh := "system"
-	m4, err := s.AppendMessage(ctx, conv.ConversationID, "system", "[Task Result] internal", &sysCh, nil, nil)
+	m4, err := s.AppendMessage(ctx, model.AppendMessageInput{
+		ConversationID: conv.ConversationID, Role: "system", Content: "[Task Result] internal", Channel: &sysCh,
+	})
 	if err != nil {
 		t.Fatalf("AppendMessage system: %v", err)
 	}

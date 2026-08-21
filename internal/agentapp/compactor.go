@@ -53,6 +53,6 @@ func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string,
 		}
 	}
 	messages = append(messages, msgs...)
-	summary, _, _, err := c.client.ChatCompletionBlocking(ctx, messages, nil)
-	return summary, err
+	completion, err := c.client.ChatCompletionBlocking(ctx, messages, nil)
+	return completion.Content, err
 }

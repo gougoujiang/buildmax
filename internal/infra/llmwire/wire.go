@@ -38,6 +38,40 @@ type Message struct {
 	Content    string     `json:"content,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	// ProviderState is opaque reasoning state, present only for role
+	// "assistant" and only when the upstream protocol produced some.
+	ProviderState *ProviderState `json:"provider_state,omitempty"`
+	// Parts is non-text content this message carries. Content stays the text
+	// describing it, so a deployment whose target cannot take images still
+	// serves the call.
+	Parts []ContentPart `json:"parts,omitempty"`
+}
+
+// ContentPart is one piece of a message's content: text, or an image as base64
+// with its media type.
+type ContentPart struct {
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	MediaType string `json:"media_type,omitempty"`
+	Data      string `json:"data,omitempty"`
+}
+
+// ProviderState is reasoning state the upstream protocol requires unchanged on
+// later turns: Anthropic thinking blocks, OpenAI Responses reasoning items.
+//
+// It is the one field here that is upstream-shaped, and it is carried without
+// being read. That is a deliberate narrowing of the rule that this protocol
+// says nothing about where a call goes: without it, a deployment that enables
+// reasoning would break every managed tool-calling run, because the protocols
+// that produce this state reject a turn that drops it. Protocol names the
+// producer so a run continued against a differently-configured target discards
+// what it cannot use rather than sending it on.
+//
+// The field is additive. A client or server that predates it omits it and is
+// understood by one that does not, so Version does not move.
+type ProviderState struct {
+	Protocol string          `json:"protocol"`
+	Data     json.RawMessage `json:"data"`
 }
 
 // ToolCall is a tool invocation.
@@ -74,10 +108,15 @@ type CompletionRequest struct {
 }
 
 // Usage is the token usage for one call.
+//
+// The cache counts break the prompt down rather than adding to it, so a caller
+// that sums all four is double-counting.
 type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
 // CompletionResponse is a finished managed call.
@@ -86,6 +125,9 @@ type CompletionResponse struct {
 	Model     string     `json:"model"`
 	Content   string     `json:"content"`
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	// ProviderState is the reasoning state this turn produced, to be sent back
+	// on the next request. Absent when the upstream protocol produced none.
+	ProviderState *ProviderState `json:"provider_state,omitempty"`
 	// Usage is absent when the provider reported none. An absent usage is not
 	// the same fact as zero tokens.
 	Usage *Usage `json:"usage,omitempty"`

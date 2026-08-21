@@ -56,6 +56,12 @@ conversation:
     api_key: your-openrouter-api-key
     context_window: 128000
     call_timeout: 300            # per-call timeout in seconds (0 = default 300)
+    # provider: openai_compatible  # wire protocol: openai_compatible (default),
+                                   # openai (Responses API), or anthropic
+    # max_tokens: 0                # cap on one response; 0 = the adapter default
+    # reasoning: off               # off (default), low, medium, or high
+    # prompt_cache: false          # cache the stable prefix of a request
+    # vision: false                # this model accepts image input
 
   # Use a catalog model for Tier 1 instead of the model above. This is an
   # llm_model ID, not a team alias: the server picks its own model rather than

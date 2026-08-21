@@ -103,7 +103,37 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 		}
 		toolCallsJSON = js
 	}
-	_, err := b.msgStore.AppendMessage(b.ctx, b.conversationID, m.Role, m.Content, nil, toolCallID, toolCallsJSON)
+	// Reasoning state is persisted so a turn that resumes from the stored
+	// conversation carries what the upstream protocol needs back. A failure to
+	// encode it drops it rather than failing the turn: the run continues
+	// without reasoning continuity, which is what a protocol without it does
+	// anyway.
+	var providerStateJSON *string
+	if m.Role == "assistant" && m.ProviderState != nil {
+		if encoded, err := json.Marshal(m.ProviderState); err == nil {
+			js := string(encoded)
+			providerStateJSON = &js
+		}
+	}
+	// Non-text content is stored the same way and for the same reason: a Tier 1
+	// turn replays from these rows, so an image a tool returned has to survive
+	// or the next turn discusses something it can no longer see.
+	var partsJSON *string
+	if len(m.Parts) > 0 {
+		if encoded, err := json.Marshal(m.Parts); err == nil {
+			js := string(encoded)
+			partsJSON = &js
+		}
+	}
+	_, err := b.msgStore.AppendMessage(b.ctx, model.AppendMessageInput{
+		ConversationID:    b.conversationID,
+		Role:              m.Role,
+		Content:           m.Content,
+		ToolCallID:        toolCallID,
+		ToolCallsJSON:     toolCallsJSON,
+		ProviderStateJSON: providerStateJSON,
+		PartsJSON:         partsJSON,
+	})
 	return err
 }
 
@@ -124,6 +154,18 @@ func replayMessageFromStore(m model.ConversationMessage) llm.Message {
 			msg.ToolCalls = toolCalls
 		}
 	}
+	if m.ProviderStateJSON != nil && *m.ProviderStateJSON != "" {
+		var state llm.ProviderState
+		if err := json.Unmarshal([]byte(*m.ProviderStateJSON), &state); err == nil {
+			msg.ProviderState = &state
+		}
+	}
+	if m.PartsJSON != nil && *m.PartsJSON != "" {
+		var parts []llm.ContentPart
+		if err := json.Unmarshal([]byte(*m.PartsJSON), &parts); err == nil {
+			msg.Parts = parts
+		}
+	}
 	return msg
 }
 
@@ -140,7 +182,12 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 	}
 	firstRound := len(msgs) == 0
 	channelPtr := &in.Channel
-	if _, err := msgStore.AppendMessage(ctx, in.ConversationID, "user", in.Message, channelPtr, nil, nil); err != nil {
+	if _, err := msgStore.AppendMessage(ctx, model.AppendMessageInput{
+		ConversationID: in.ConversationID,
+		Role:           "user",
+		Content:        in.Message,
+		Channel:        channelPtr,
+	}); err != nil {
 		return nil, fmt.Errorf("append incoming message: %w", err)
 	}
 	llmMsgs := make([]llm.Message, 0, len(msgs)+2)

@@ -18,7 +18,7 @@ func TestWorkerModeCallsTheRunRoute(t *testing.T) {
 	gateway.body = `{"llm_call_id":"lc_1","model":"default","content":"hi"}`
 
 	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1", Alias: "default"})
-	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	if _, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestWorkerModeStreams(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_2"})
 	var deltas []string
-	content, _, _, err := client.ChatCompletionStreaming(context.Background(),
+	completion, err := client.ChatCompletionStreaming(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
 		func(d string) { deltas = append(deltas, d) })
 	if err != nil {
@@ -52,8 +52,8 @@ func TestWorkerModeStreams(t *testing.T) {
 	if gateway.gotPath != "/api/worker/task-runs/r_2/llm/completions" {
 		t.Errorf("path = %q, want the worker route", gateway.gotPath)
 	}
-	if content != "partial" || len(deltas) != 1 {
-		t.Errorf("content = %q, deltas = %v", content, deltas)
+	if completion.Content != "partial" || len(deltas) != 1 {
+		t.Errorf("content = %q, deltas = %v", completion.Content, deltas)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestTeamAndTaskRunAreMutuallyExclusive(t *testing.T) {
 	gateway := newFakeGateway(t)
 
 	client := gateway.client(llmremote.Config{Token: "tok", TeamID: "tm_one", TaskRunID: "r_1"})
-	_, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	_, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil)
 	if err == nil {
 		t.Fatal("a client holding both a team and a task run made a call")
@@ -82,7 +82,7 @@ func TestClientWithNoIdentityMakesNoCall(t *testing.T) {
 	gateway := newFakeGateway(t)
 
 	client := llmremote.NewClient(llmremote.Config{ServerURL: gateway.server.URL, Token: "tok"})
-	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	if _, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil); err == nil {
 		t.Fatal("a client with neither a team nor a task run made a call")
 	}

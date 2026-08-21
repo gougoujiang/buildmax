@@ -70,6 +70,10 @@ func targetFromModel(m model.LLMModel) (Target, error) {
 		UpstreamModel: m.Model,
 		ContextWindow: m.ContextWindow,
 		CallTimeout:   time.Duration(m.CallTimeout) * time.Second,
+		MaxTokens:     m.MaxTokens,
+		Reasoning:     m.Reasoning,
+		PromptCache:   m.PromptCache,
+		Vision:        m.Vision,
 		Capabilities:  NewCapabilitySet(capabilities...),
 		Enabled:       m.Enabled,
 	}

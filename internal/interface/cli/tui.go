@@ -21,14 +21,26 @@ func detectGlamourStyle() string {
 	return "light"
 }
 
-func runTUI(resumeID, modelName, additionalSystemPrompt string) error {
-	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
+// tuiAppConfig is the runtime assembly for an interactive session. It is separate
+// from runTUI so the wiring can be asserted without starting Bubble Tea — the
+// workspace reaching it is exactly what was missing before.
+func tuiAppConfig(workspace, additionalSystemPrompt string) agentapp.AppConfig {
+	return agentapp.AppConfig{
+		WorkspaceDir:           workspace,
 		EnableMCP:              true,
 		Policy:                 agentapp.NewInteractivePolicy(),
 		ManagedToken:           auth.TokenForServer,
 		Surface:                model.LLMCallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
-	})
+	}
+}
+
+// runTUIFunc is the seam the root command calls through, so a test can assert what
+// the flags resolved to without launching an interactive program.
+var runTUIFunc = runTUI
+
+func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error {
+	app, err := agentapp.NewAgentApp(tuiAppConfig(workspace, additionalSystemPrompt))
 	if err != nil {
 		return err
 	}

@@ -22,11 +22,18 @@ interface MessageDeltaPayload {
 
 interface MessageCompletedPayload {
   conversation_id: string
+  queued_remaining?: number
+}
+
+interface MessageDequeuedPayload {
+  conversation_id: string
+  content: string
 }
 
 interface ConversationErrorPayload {
   conversation_id?: string
   error: string
+  code?: string
 }
 
 export function useConversationDetail({
@@ -38,7 +45,7 @@ export function useConversationDetail({
 }: UseConversationDetailOptions) {
   const historyRef = useRef<HTMLElement | null>(null)
   const ws = useWebSocket()
-  const { busy: sending, markBusy } = useConversationBusy(conversationId)
+  const { busy: sending, markBusy, queued: queuedMessages } = useConversationBusy(conversationId)
   const { currentTeamId } = useTeam()
   const {
     data: messagesData,
@@ -83,26 +90,38 @@ export function useConversationDetail({
 
     const handleCompleted = (payload: MessageCompletedPayload) => {
       if (payload.conversation_id !== conversationId) return
-      setInput("")
       setStreamingContent(null)
       refetchMessagesRef.current()
       onMessageSentRef.current?.()
     }
 
+    // A queued message starting its own turn: it becomes the message being answered.
+    const handleDequeued = (payload: MessageDequeuedPayload) => {
+      if (payload.conversation_id !== conversationId) return
+      setSendError(null)
+      setOptimisticUserMessage(payload.content)
+      setStreamingContent("")
+    }
+
     const handleError = (payload: ConversationErrorPayload) => {
       if (payload.conversation_id && payload.conversation_id !== conversationId) return
       setSendError(payload.error)
+      // A refused message leaves the running turn alone; only a failed turn clears
+      // the streaming reply and the message it was answering.
+      if (payload.code === "queue_full") return
       setStreamingContent(null)
       setOptimisticUserMessage(null)
     }
 
     ws.on("conversation.message.delta", handleDelta)
     ws.on("conversation.message.completed", handleCompleted)
+    ws.on("conversation.message.dequeued", handleDequeued)
     ws.on("conversation.error", handleError)
 
     return () => {
       ws.off("conversation.message.delta", handleDelta)
       ws.off("conversation.message.completed", handleCompleted)
+      ws.off("conversation.message.dequeued", handleDequeued)
       ws.off("conversation.error", handleError)
     }
   }, [ws, conversationId])
@@ -110,16 +129,21 @@ export function useConversationDetail({
   const sendMessage = useCallback(
     (content: string) => {
       if (!token) return
-      markBusy()
       setSendError(null)
-      setStreamingContent("")
-      setOptimisticUserMessage(content)
+      // While a turn is running the server queues this message and echoes it back
+      // as conversation.message.queued, which is what puts it on screen. Claiming
+      // it as the message being answered here would show the wrong one.
+      if (!sending) {
+        setStreamingContent("")
+        setOptimisticUserMessage(content)
+      }
+      markBusy()
       ws.send("conversation.message", {
         conversation_id: conversationId,
         content,
       })
     },
-    [ws, conversationId, token, markBusy]
+    [ws, conversationId, token, markBusy, sending]
   )
 
   // Send the initial message exactly once per conversation. Guarding by conversationId
@@ -145,11 +169,13 @@ export function useConversationDetail({
     const el = historyRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [messagesData?.messages, streamingContent, optimisticUserMessage])
+  }, [messagesData?.messages, streamingContent, optimisticUserMessage, queuedMessages])
 
-  async function handleSend() {
+  function handleSend() {
     const content = input.trim()
-    if (!content || !token || sending) return
+    if (!content || !token) return
+    // No busy guard: a message sent during a turn is queued, not refused.
+    setInput("")
     sendMessage(content)
   }
 
@@ -164,6 +190,7 @@ export function useConversationDetail({
     sendError,
     streamingContent,
     optimisticUserMessage,
+    queuedMessages,
     handleSend,
   }
 }

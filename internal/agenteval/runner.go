@@ -99,7 +99,7 @@ func (r *Runner) runAgent(ctx context.Context, task Task, workspaceDir string) (
 	}
 
 	slog.Info("eval: running agent", "task", task.ID, "workspace", workspaceDir)
-	res, err := app.RunPrompt(ctx, sess, task.Prompt, nil, nil, nil)
+	res, err := app.RunPrompt(ctx, sess, task.Prompt, agentapp.RunPromptOpts{})
 	if err != nil {
 		return agentRunResult{}, fmt.Errorf("agent run: %w", err)
 	}

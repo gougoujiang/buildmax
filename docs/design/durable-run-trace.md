@@ -102,6 +102,14 @@ omitted.
 // context_compacted (EventContextCompacted)
 {"ts":"…","type":"context_compacted","summarized":3,"kept":5}
 
+// user_input  (EventUserInput) — a message queued mid-run, joining at an
+// iteration boundary; bounded + redacted, because it is part of what the run
+// was told to do and a trace that omitted it would misreport its instructions.
+{"ts":"…","type":"user_input","iter":3,"content":"also check the tests"}
+
+// user_input_blocked (EventUserInputBlocked) — a UserPromptSubmit hook refused it
+{"ts":"…","type":"user_input_blocked","iter":3,"content":"…","deny_reason":"no secrets"}
+
 // run_end     (EventRunEnd)
 {"ts":"…","type":"run_end","tool_calls":2,"prompt_tokens":1200,
  "completion_tokens":80,"error":""}

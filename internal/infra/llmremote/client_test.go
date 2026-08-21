@@ -75,7 +75,7 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
 
 	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast", Surface: "cli"})
-	_, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	_, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hello"}},
 		[]cllm.ToolDef{{Name: "read_file", Description: "reads", Parameters: map[string]any{"type": "object"}}},
 	)
@@ -116,7 +116,7 @@ func TestRequestCarriesNoRoutingDetail(t *testing.T) {
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
 
 	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast"})
-	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	if _, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -139,19 +139,19 @@ func TestBlockingCallDecodesTheResponse(t *testing.T) {
 	}`
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	content, toolCalls, usage, err := client.ChatCompletionBlocking(context.Background(),
+	completion, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
-	if content != "hi there" {
-		t.Errorf("content = %q", content)
+	if completion.Content != "hi there" {
+		t.Errorf("content = %q", completion.Content)
 	}
-	if len(toolCalls) != 1 || toolCalls[0].ID != "call_1" || toolCalls[0].Name != "read_file" {
-		t.Errorf("tool calls = %+v", toolCalls)
+	if len(completion.ToolCalls) != 1 || completion.ToolCalls[0].ID != "call_1" || completion.ToolCalls[0].Name != "read_file" {
+		t.Errorf("tool calls = %+v", completion.ToolCalls)
 	}
-	if usage.TotalTokens != 14 || usage.PromptTokens != 10 {
-		t.Errorf("usage = %+v", usage)
+	if completion.Usage.TotalTokens != 14 || completion.Usage.PromptTokens != 10 {
+		t.Errorf("usage = %+v", completion.Usage)
 	}
 }
 
@@ -162,13 +162,13 @@ func TestAbsentUsageIsZero(t *testing.T) {
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	_, _, usage, err := client.ChatCompletionBlocking(context.Background(),
+	completion, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil)
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
-	if usage != (cllm.Usage{}) {
-		t.Errorf("usage = %+v, want the zero value", usage)
+	if completion.Usage != (cllm.Usage{}) {
+		t.Errorf("usage = %+v, want the zero value", completion.Usage)
 	}
 }
 
@@ -220,7 +220,7 @@ func TestGatewayErrorsAreClassified(t *testing.T) {
 			gateway.body = tc.body
 
 			client := gateway.client(llmremote.Config{Token: "tok"})
-			_, _, _, err := client.ChatCompletionBlocking(context.Background(),
+			_, err := client.ChatCompletionBlocking(context.Background(),
 				[]cllm.Message{{Role: "user"}}, nil)
 			if err == nil {
 				t.Fatal("a failure status returned no error")
@@ -267,7 +267,7 @@ func TestStreamingDeliversDeltasThenTheResult(t *testing.T) {
 
 	var deltas []string
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	content, toolCalls, usage, err := client.ChatCompletionStreaming(context.Background(),
+	completion, err := client.ChatCompletionStreaming(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
 		func(d string) { deltas = append(deltas, d) })
 	if err != nil {
@@ -277,14 +277,14 @@ func TestStreamingDeliversDeltasThenTheResult(t *testing.T) {
 	if strings.Join(deltas, "") != "Hello" {
 		t.Errorf("deltas = %v", deltas)
 	}
-	if content != "Hello" {
-		t.Errorf("content = %q", content)
+	if completion.Content != "Hello" {
+		t.Errorf("content = %q", completion.Content)
 	}
-	if len(toolCalls) != 1 || toolCalls[0].ID != "c1" {
-		t.Errorf("tool calls = %+v", toolCalls)
+	if len(completion.ToolCalls) != 1 || completion.ToolCalls[0].ID != "c1" {
+		t.Errorf("tool calls = %+v", completion.ToolCalls)
 	}
-	if usage.TotalTokens != 5 {
-		t.Errorf("usage = %+v", usage)
+	if completion.Usage.TotalTokens != 5 {
+		t.Errorf("usage = %+v", completion.Usage)
 	}
 	if !gateway.gotBody.Stream {
 		t.Error("the request did not ask for streaming")
@@ -303,7 +303,7 @@ func TestStreamingSurfacesAMidStreamError(t *testing.T) {
 
 	var deltas []string
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	_, _, _, err := client.ChatCompletionStreaming(context.Background(),
+	_, err := client.ChatCompletionStreaming(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil, func(d string) { deltas = append(deltas, d) })
 	if err == nil {
 		t.Fatal("a mid-stream error event returned no error")
@@ -329,7 +329,7 @@ func TestStreamingRejectsATruncatedStream(t *testing.T) {
 	gateway.body = sse([2]string{"delta", `{"content":"half an ans"}`})
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	_, _, _, err := client.ChatCompletionStreaming(context.Background(),
+	_, err := client.ChatCompletionStreaming(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil, nil)
 	if err == nil {
 		t.Fatal("a stream with no result returned success")
@@ -348,13 +348,13 @@ func TestStreamingIgnoresUnknownEvents(t *testing.T) {
 	)
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	content, _, _, err := client.ChatCompletionStreaming(context.Background(),
+	completion, err := client.ChatCompletionStreaming(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil, nil)
 	if err != nil {
 		t.Fatalf("an unknown event broke the stream: %v", err)
 	}
-	if content != "ok" {
-		t.Errorf("content = %q", content)
+	if completion.Content != "ok" {
+		t.Errorf("content = %q", completion.Content)
 	}
 }
 
@@ -364,7 +364,7 @@ func TestStreamingRefusalBeforeAnyOutputIsAPlainError(t *testing.T) {
 	gateway.body = `{"error":"quota exceeded: token limit","code":"quota_exceeded"}`
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
-	_, _, _, err := client.ChatCompletionStreaming(context.Background(),
+	_, err := client.ChatCompletionStreaming(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil, nil)
 
 	var gwErr *llmremote.GatewayError
@@ -378,13 +378,13 @@ func TestStreamingRefusalBeforeAnyOutputIsAPlainError(t *testing.T) {
 
 func TestClientRequiresServerAndTeam(t *testing.T) {
 	client := llmremote.NewClient(llmremote.Config{Token: "tok"})
-	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	if _, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil); err == nil {
 		t.Error("a client with no server URL made a call")
 	}
 
 	var nilClient *llmremote.Client
-	if _, _, _, err := nilClient.ChatCompletionBlocking(context.Background(), nil, nil); err == nil {
+	if _, err := nilClient.ChatCompletionBlocking(context.Background(), nil, nil); err == nil {
 		t.Error("a nil client made a call")
 	}
 	if nilClient.ContextWindow() != 0 {
@@ -425,7 +425,7 @@ func TestServerURLTrailingSlashIsTolerated(t *testing.T) {
 		TeamID:    "tm_one",
 		Token:     "tok",
 	})
-	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	if _, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user"}}, nil); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -453,7 +453,7 @@ func TestTokenFuncIsReadOnEveryRequest(t *testing.T) {
 	})
 
 	for _, want := range tokens {
-		if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+		if _, err := client.ChatCompletionBlocking(context.Background(),
 			[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
 			t.Fatalf("ChatCompletionBlocking: %v", err)
 		}
@@ -473,7 +473,7 @@ func TestTokenFuncFailureStopsTheCall(t *testing.T) {
 		},
 	})
 
-	_, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	_, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
 	if err == nil {
 		t.Fatal("a call with no usable credential was sent anyway")
@@ -496,11 +496,43 @@ func TestTokenFuncTakesPrecedenceOverToken(t *testing.T) {
 		Token:     "static",
 		TokenFunc: func() (string, error) { return "dynamic", nil },
 	})
-	if _, _, _, err := client.ChatCompletionBlocking(context.Background(),
+	if _, err := client.ChatCompletionBlocking(context.Background(),
 		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if gateway.gotAuth != "Bearer dynamic" {
 		t.Errorf("Authorization = %q, want the value from TokenFunc", gateway.gotAuth)
+	}
+}
+
+// TestManagedCallCarriesReasoningState covers the reason llmwire gained a field
+// that is upstream-shaped: without it, a deployment that enables reasoning
+// breaks every managed tool-calling run, because the protocols that produce
+// this state reject a turn that drops it.
+func TestManagedCallCarriesReasoningState(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"ok",` +
+		`"provider_state":{"protocol":"anthropic","data":[{"type":"thinking","signature":"sig-1"}]}}`
+
+	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast"})
+	completion, err := client.ChatCompletionBlocking(context.Background(),
+		[]cllm.Message{{Role: "user", Content: "hi"}}, nil)
+	if err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	if !completion.ProviderState.Belongs("anthropic") {
+		t.Fatalf("provider state = %+v, want the gateway's state", completion.ProviderState)
+	}
+
+	// And it goes back up on the next request.
+	if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+		{Role: "user", Content: "hi"},
+		completion.AssistantMessage(),
+		{Role: "user", Content: "again"},
+	}, nil); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	if !strings.Contains(string(gateway.gotRaw), "sig-1") {
+		t.Errorf("request %s did not carry the reasoning state back", gateway.gotRaw)
 	}
 }

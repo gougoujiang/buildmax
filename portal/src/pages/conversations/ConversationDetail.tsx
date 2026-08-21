@@ -35,6 +35,7 @@ export function ConversationDetail({
       sendError={conversationDetail.sendError}
       streamingContent={conversationDetail.streamingContent}
       optimisticUserMessage={conversationDetail.optimisticUserMessage}
+      queuedMessages={conversationDetail.queuedMessages}
       user={user}
       onSend={conversationDetail.handleSend}
     />

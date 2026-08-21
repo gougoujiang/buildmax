@@ -344,7 +344,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		if err != nil {
 			return err
 		}
-		out, err = app.RunPrompt(ctx, sess, run.Input, sink, nil, nil)
+		out, err = app.RunPrompt(ctx, sess, run.Input, agentapp.RunPromptOpts{Stream: sink})
 		return err
 	})
 	if streamSender != nil {

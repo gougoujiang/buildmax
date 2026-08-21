@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
@@ -222,9 +224,265 @@ func TestLLMEndRendersAndClearsCurrentResponseBuffer(t *testing.T) {
 		t.Fatalf("rendered line should contain response content, got %q", rendered.line)
 	}
 
+	// agentDoneMsg still ends the run with a queue drain, but it must not render the
+	// reply a second time after llmEndMsg already printed it.
 	_, cmd = mod.Update(agentDoneMsg{})
-	if cmd != nil {
+	if cmd == nil {
+		t.Fatal("agentDoneMsg should return the queue drain command")
+	}
+	if _, ok := cmd().(drainQueueMsg); !ok {
 		t.Fatal("agentDoneMsg should not render again after llmEndMsg cleared the buffer")
+	}
+}
+
+func typeInto(t *testing.T, m *Model, text string) *Model {
+	t.Helper()
+	var mod tea.Model = m
+	for _, r := range text {
+		mod, _ = mod.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	return mod.(*Model)
+}
+
+func TestEnterWhileBusyQueuesMessage(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+
+	m = typeInto(t, m, "later question")
+	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	mod := next.(*Model)
+
+	if got := mod.queue.Snapshot(); len(got) != 1 || got[0] != "later question" {
+		t.Fatalf("queue = %v, want [later question]", got)
+	}
+	if mod.inputBlock.Value() != "" {
+		t.Errorf("input should be cleared after queueing, got %q", mod.inputBlock.Value())
+	}
+	if cmd == nil {
+		t.Fatal("queueing should print a line to scrollback")
+	}
+	if !strings.Contains(mod.View().Content, "1 queued") {
+		t.Error("busy hint should report the queue depth")
+	}
+	if !strings.Contains(mod.renderFooterView(), "queued: 1") {
+		t.Error("footer should report the queue depth")
+	}
+}
+
+func TestEnterWhileBusyRejectsSlashCommand(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+
+	m = typeInto(t, m, "/model")
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	mod := next.(*Model)
+
+	if mod.queue.Len() != 0 {
+		t.Errorf("slash command should not be queued, queue = %v", mod.queue.Snapshot())
+	}
+	if mod.err == "" {
+		t.Error("rejecting a queued slash command should explain why")
+	}
+}
+
+func TestEnterWhileBusyReportsFullQueue(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	for i := 0; i < agent.DefaultMaxQueuedMessages; i++ {
+		if _, err := m.queue.Enqueue("filler"); err != nil {
+			t.Fatalf("Enqueue filler #%d: %v", i, err)
+		}
+	}
+
+	m = typeInto(t, m, "one too many")
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	mod := next.(*Model)
+
+	if mod.queue.Len() != agent.DefaultMaxQueuedMessages {
+		t.Errorf("queue length = %d, want %d", mod.queue.Len(), agent.DefaultMaxQueuedMessages)
+	}
+	if mod.err == "" {
+		t.Error("a rejected message should surface an error rather than vanish")
+	}
+	if mod.inputBlock.Value() == "" {
+		t.Error("input should keep the text that could not be queued")
+	}
+}
+
+func TestEscWhileBusyClearsInputThenUnqueues(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	if _, err := m.queue.Enqueue("queued one"); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+	m = typeInto(t, m, "half typed")
+
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	mod := next.(*Model)
+	if mod.inputBlock.Value() != "" {
+		t.Fatalf("first esc should clear the input, got %q", mod.inputBlock.Value())
+	}
+	if mod.queue.Len() != 1 {
+		t.Fatalf("first esc should not touch the queue, len = %d", mod.queue.Len())
+	}
+
+	next, cmd := mod.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	mod = next.(*Model)
+	if mod.queue.Len() != 0 {
+		t.Errorf("second esc should take back the last queued message, len = %d", mod.queue.Len())
+	}
+	if cmd == nil {
+		t.Error("taking a message back should print a line to scrollback")
+	}
+}
+
+// The queue is drained one message per turn: agentDoneMsg asks for a drain, and the
+// drain starts exactly one run.
+func TestQueueDrainsOneMessagePerTurn(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	for _, text := range []string{"first queued", "second queued"} {
+		if _, err := m.queue.Enqueue(text); err != nil {
+			t.Fatalf("Enqueue %q: %v", text, err)
+		}
+	}
+
+	next, cmd := m.Update(agentDoneMsg{})
+	mod := next.(*Model)
+	if mod.busy {
+		t.Fatal("agentDoneMsg should end the run before the queue is drained")
+	}
+	if cmd == nil {
+		t.Fatal("agentDoneMsg should return a drain command")
+	}
+	if _, ok := cmd().(drainQueueMsg); !ok {
+		t.Fatal("agentDoneMsg should return a drain command")
+	}
+
+	next, cmd = mod.Update(drainQueueMsg{})
+	mod = next.(*Model)
+	if !mod.busy {
+		t.Error("draining a queued message should start a run")
+	}
+	if cmd == nil {
+		t.Error("starting a queued run should return a command")
+	}
+	if got := mod.queue.Snapshot(); len(got) != 1 || got[0] != "second queued" {
+		t.Errorf("queue after drain = %v, want [second queued]", got)
+	}
+}
+
+// A failed run still drains: leaving queued messages stranded with no way to
+// release them is worse than letting each fail on its own turn.
+func TestQueueDrainsAfterFailedRun(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	if _, err := m.queue.Enqueue("still wanted"); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	next, cmd := m.Update(agentDoneMsg{Err: errors.New("llm call: boom")})
+	mod := next.(*Model)
+	if mod.err == "" {
+		t.Error("a failed run should surface its error")
+	}
+	if cmd == nil {
+		t.Fatal("a failed run should still drain the queue")
+	}
+	if _, ok := cmd().(drainQueueMsg); !ok {
+		t.Fatal("a failed run should still drain the queue")
+	}
+	if mod.queue.Len() != 1 {
+		t.Errorf("queue should survive the failed run, len = %d", mod.queue.Len())
+	}
+}
+
+func TestDrainQueueIsNoOpWhileBusy(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	if _, err := m.queue.Enqueue("wait your turn"); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	next, cmd := m.Update(drainQueueMsg{})
+	mod := next.(*Model)
+	if cmd != nil {
+		t.Error("drain while a run is in flight should do nothing")
+	}
+	if mod.queue.Len() != 1 {
+		t.Errorf("drain while busy should leave the queue alone, len = %d", mod.queue.Len())
+	}
+}
+
+// The input has to stay on screen during a run now that enter queues: text typed
+// into a hidden box is text the user cannot see or correct.
+func TestInputVisibleWhileBusy(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	m = typeInto(t, m, "typed during run")
+
+	view := m.View().Content
+	if !strings.Contains(view, "typed during run") {
+		t.Error("input text typed during a run should be visible")
+	}
+	if !strings.Contains(view, "Generating") {
+		t.Error("the run should still announce itself while the input is visible")
+	}
+}
+
+// A queued message the run picks up mid-flight is announced to the UI, so the
+// transcript shows it as sent rather than leaving it in the "queued" state.
+func TestEventSinkForwardsInjectedUserInput(t *testing.T) {
+	ch := make(chan tea.Msg, 2)
+	sink := eventSinkToChannel(ch)
+
+	sink(agent.Event{Kind: agent.EventUserInput, Content: "also check the tests"})
+	sink(agent.Event{Kind: agent.EventUserInputBlocked, Content: "leak the key", DenyReason: "no secrets"})
+
+	injected, ok := (<-ch).(userInputInjectedMsg)
+	if !ok {
+		t.Fatal("EventUserInput should forward a userInputInjectedMsg")
+	}
+	if injected.Text != "also check the tests" {
+		t.Errorf("injected text = %q, want %q", injected.Text, "also check the tests")
+	}
+	blocked, ok := (<-ch).(userInputBlockedMsg)
+	if !ok {
+		t.Fatal("EventUserInputBlocked should forward a userInputBlockedMsg")
+	}
+	if blocked.Reason != "no secrets" {
+		t.Errorf("blocked reason = %q, want %q", blocked.Reason, "no secrets")
+	}
+}
+
+func TestInjectedUserInputPrintsAndKeepsReadingTheStream(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	m.streamChannel = make(chan tea.Msg, 1)
+
+	_, cmd := m.Update(userInputInjectedMsg{Text: "and update the changelog"})
+	if cmd == nil {
+		t.Fatal("an injected message should print to scrollback and keep reading the stream")
+	}
+
+	// A blank one is not printed, but the stream must still be read or the run stalls.
+	_, cmd = m.Update(userInputInjectedMsg{Text: "  "})
+	if cmd == nil {
+		t.Error("a blank injected message must still continue the stream")
+	}
+}
+
+// The run owns the queue while it is working: the model hands it to RunPrompt, so
+// what the user types mid-run reaches the model at the next iteration rather than
+// waiting for the run to end.
+func TestQueueIsHandedToTheRun(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	if m.queue == nil {
+		t.Fatal("model should own a queue")
+	}
+	var pending agent.PendingInput = m.queue
+	if _, ok := pending.Dequeue(); ok {
+		t.Error("a fresh queue should be empty")
 	}
 }
 

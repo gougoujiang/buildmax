@@ -18,6 +18,7 @@ Durable product decisions that guide more than one roadmap phase.
 |---|---|
 | [Product vision](product-vision.md) | Long-range direction for the AI-native workspace |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
+| [Local end-to-end verification](end-to-end-testing.md) | Developer- and agent-run E2E strategy across every surface |
 
 ## Active Roadmap Plans
 
@@ -33,6 +34,7 @@ reference, then delete the plan.
 | [Issue model](issue-model.md) | P2 follow-on | Sub-issues and comments implemented; mentions and realtime push open |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
+| [LLM provider adapters](llm-provider-adapters.md) | P3 follow-on | Complete: three wire protocols, reasoning, prompt caching, and image input |
 | [Worker run token](worker-run-token.md) | P3 | Shipped on every worker route; the shared worker token is a deprecated fallback awaiting removal |
 | [Team governance](team-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
@@ -50,6 +52,7 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 | [Hook system](hook-system.md) | 13 events and 4 transports implemented | [guide/hooks.md](../guide/hooks.md) |
 | [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; worker hardening open | [guide/sandbox.md](../guide/sandbox.md) |
 | [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
+| [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection open | [reference/cli.md](../reference/cli.md) |
 
 ## Where The Designs Land
 

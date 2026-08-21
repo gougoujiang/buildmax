@@ -87,6 +87,14 @@ func TestNewStaticCatalogRejectsInvalidTargets(t *testing.T) {
 			}()},
 		},
 		{
+			name: "negative max tokens",
+			targets: []llmgateway.Target{func() llmgateway.Target {
+				target := validTarget()
+				target.MaxTokens = -1
+				return target
+			}()},
+		},
+		{
 			name:    "duplicate id",
 			targets: []llmgateway.Target{validTarget(), validTarget()},
 		},

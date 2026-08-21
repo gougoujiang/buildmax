@@ -72,23 +72,23 @@ type mockResponse struct {
 	usage     llm.Usage
 }
 
-func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.responses) {
-		return "", nil, llm.Usage{}, nil
+		return llm.Completion{}, nil
 	}
 	r := m.responses[m.calls]
 	m.calls++
-	return r.content, r.toolCalls, r.usage, nil
+	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
 }
 
-func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
-	content, toolCalls, usage, err = m.ChatCompletionBlocking(ctx, messages, tools)
-	if err == nil && onDelta != nil && content != "" {
-		onDelta(content)
+func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+	completion, err := m.ChatCompletionBlocking(ctx, messages, tools)
+	if err == nil && onDelta != nil && completion.Content != "" {
+		onDelta(completion.Content)
 	}
-	return content, toolCalls, usage, err
+	return completion, err
 }
 
 func (m *mockLLMClient) ContextWindow() int { return 0 }
@@ -258,7 +258,7 @@ type recordingLLMClient struct {
 	once     sync.Once
 }
 
-func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	r.once.Do(func() {
 		r.firstMsg = make([]llm.Message, len(messages))
 		copy(r.firstMsg, messages)
@@ -266,7 +266,7 @@ func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, message
 	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
 }
 
-func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
 }
 
@@ -279,7 +279,7 @@ type lastCallLLMClient struct {
 	lastMu  sync.Mutex
 }
 
-func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	r.lastMu.Lock()
 	r.lastMsg = make([]llm.Message, len(messages))
 	copy(r.lastMsg, messages)
@@ -287,7 +287,7 @@ func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages
 	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
 }
 
-func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (content string, toolCalls []llm.ToolCall, usage llm.Usage, err error) {
+func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
 }
 
@@ -540,19 +540,19 @@ type cancelOnSecondCallClient struct {
 	mu       sync.Mutex
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
 	c.mu.Lock()
 	n := c.calls
 	c.calls++
 	c.mu.Unlock()
 	if n == 0 {
-		return c.first.content, c.first.toolCalls, c.first.usage, nil
+		return llm.Completion{Content: c.first.content, ToolCalls: c.first.toolCalls, Usage: c.first.usage}, nil
 	}
 	c.cancelFn()
-	return "", nil, llm.Usage{}, context.Canceled
+	return llm.Completion{}, context.Canceled
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (string, []llm.ToolCall, llm.Usage, error) {
+func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
 	return c.ChatCompletionBlocking(ctx, messages, tools)
 }
 
@@ -583,5 +583,69 @@ func TestSystemPromptOption(t *testing.T) {
 	}
 	if rec.firstMsg[0].Content != customPrompt {
 		t.Errorf("messages[0].Content = %q, want custom prompt", rec.firstMsg[0].Content)
+	}
+}
+
+// multimodalTool returns content text cannot hold, the way the MCP gateway does.
+type multimodalTool struct{ mockTool }
+
+func (m *multimodalTool) ExecuteMultimodal(_ context.Context, _ map[string]any) (llm.ToolResult, error) {
+	return llm.ToolResult{
+		Text:  "(image: image/png, 3 B)",
+		Parts: []llm.ContentPart{{Type: llm.ContentPartImage, MediaType: "image/png", Data: "aGk="}},
+	}, nil
+}
+
+// A tool that has more than text to say puts it on the history message, while
+// everything that reads the result text keeps reading text.
+func TestMultimodalToolResultReachesTheHistory(t *testing.T) {
+	tool := &multimodalTool{mockTool{name: "screenshot", result: "unused"}}
+	client := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: []llm.ToolCall{{ID: "call_1", Name: "screenshot", Arguments: "{}"}}},
+		{content: "done"},
+	}}
+	history := newTestBuffer()
+	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+		LLMClient: client, ToolRegistry: newTestToolRegistry(tool), History: history, MaxIter: 3,
+	}); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+
+	messages := history.HistoryMessages()
+	var toolMsg *llm.Message
+	for i := range messages {
+		if messages[i].Role == "tool" {
+			toolMsg = &messages[i]
+		}
+	}
+	if toolMsg == nil {
+		t.Fatal("no tool message was appended")
+	}
+	if len(toolMsg.Images()) != 1 {
+		t.Fatalf("tool message parts = %+v, want one image", toolMsg.Parts)
+	}
+	if toolMsg.Content != "(image: image/png, 3 B)" {
+		t.Errorf("tool message content = %q, want the text describing the image", toolMsg.Content)
+	}
+}
+
+// A tool that only returns text is unaffected: the optional upgrade exists so
+// sixteen text-only tools do not have to carry a field they never set.
+func TestTextOnlyToolResultCarriesNoParts(t *testing.T) {
+	client := &mockLLMClient{responses: []mockResponse{
+		{toolCalls: []llm.ToolCall{{ID: "call_1", Name: "echo", Arguments: "{}"}}},
+		{content: "done"},
+	}}
+	history := newTestBuffer()
+	if _, _, err := RunLoop(context.Background(), RunLoopOpts{
+		LLMClient: client, ToolRegistry: newTestToolRegistry(&mockTool{name: "echo", result: "plain"}),
+		History: history, MaxIter: 3,
+	}); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	for _, msg := range history.HistoryMessages() {
+		if msg.Role == "tool" && len(msg.Parts) != 0 {
+			t.Errorf("tool message = %+v, want no parts", msg)
+		}
 	}
 }

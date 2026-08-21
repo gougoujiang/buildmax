@@ -9,8 +9,10 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-func apiErr(status int) *openai.APIError {
-	return &openai.APIError{HTTPStatusCode: status}
+// apiErr builds the error an adapter would report for an HTTP status, taking
+// the same conversion path a real call takes.
+func apiErr(status int) error {
+	return openAIAPIError(&openai.APIError{HTTPStatusCode: status})
 }
 
 func TestIsRetryableError_NilIsNotRetryable(t *testing.T) {

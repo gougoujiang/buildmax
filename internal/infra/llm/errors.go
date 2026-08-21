@@ -4,9 +4,47 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	openai "github.com/sashabaranov/go-openai"
 )
+
+// apiError is a provider failure reduced to what every caller of this package
+// reacts to. Each adapter converts its own library's error into one, so retry
+// policy and human-readable classification are written once and cannot mean
+// different things for different protocols.
+//
+// The original error is kept and unwrapped, so a caller that does know a
+// specific library's error type can still reach it.
+type apiError struct {
+	// status is the HTTP status the provider returned, or 0 when the failure
+	// happened below HTTP (DNS, connection reset, TLS).
+	status int
+	// message is the provider's own description, when it gave a safe one.
+	message string
+	err     error
+}
+
+func (e *apiError) Error() string {
+	switch {
+	case e.message != "" && e.status != 0:
+		return fmt.Sprintf("provider error (HTTP %d): %s", e.status, e.message)
+	case e.status != 0:
+		return fmt.Sprintf("provider error (HTTP %d)", e.status)
+	case e.err != nil:
+		return e.err.Error()
+	default:
+		return "provider error"
+	}
+}
+
+func (e *apiError) Unwrap() error { return e.err }
+
+// requestError is a failure to build a request from the history the caller
+// supplied. It never reached a provider, so it is deterministic: retrying it
+// would repeat the same failure three times and report it three attempts late.
+type requestError struct{ err error }
+
+func (e *requestError) Error() string { return e.err.Error() }
+
+func (e *requestError) Unwrap() error { return e.err }
 
 // classifyLLMError returns a concise, human-readable description of an LLM call error.
 // It is used to wrap raw provider errors before they propagate to callers.
@@ -20,11 +58,11 @@ func classifyLLMError(err error) string {
 	if errors.Is(err, context.Canceled) {
 		return "LLM call cancelled"
 	}
-	var apiErr *openai.APIError
+	var apiErr *apiError
 	if errors.As(err, &apiErr) {
-		switch apiErr.HTTPStatusCode {
+		switch apiErr.status {
 		case 401, 403:
-			return fmt.Sprintf("authentication failed (HTTP %d): check api_key in settings.yaml", apiErr.HTTPStatusCode)
+			return fmt.Sprintf("authentication failed (HTTP %d): check api_key in settings.yaml", apiErr.status)
 		case 429:
 			return "rate limited by provider: too many requests"
 		case 500:
@@ -35,11 +73,11 @@ func classifyLLMError(err error) string {
 			return "provider service unavailable (HTTP 503)"
 		case 504:
 			return "provider gateway timeout (HTTP 504)"
+		case 0:
+			// Below HTTP: report what actually failed rather than a status.
+			return apiErr.Error()
 		default:
-			if apiErr.Message != "" {
-				return fmt.Sprintf("provider error (HTTP %d): %s", apiErr.HTTPStatusCode, apiErr.Message)
-			}
-			return fmt.Sprintf("provider error (HTTP %d)", apiErr.HTTPStatusCode)
+			return apiErr.Error()
 		}
 	}
 	return err.Error()

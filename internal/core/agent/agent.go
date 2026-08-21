@@ -36,6 +36,19 @@ type MessageHistory interface {
 	Append(m llm.Message) error
 }
 
+// PendingInput supplies messages the user submitted while a run was already
+// working. RunLoop drains it at the top of every iteration, where the previous
+// iteration's tool results are complete and a user message can be appended
+// without breaking the assistant(tool_calls) to tool pairing.
+//
+// *MessageQueue implements it. A surface that would rather hand queued messages
+// to a fresh run leaves RunLoopOpts.PendingInput nil and drains its queue itself.
+type PendingInput interface {
+	// Dequeue removes and returns the oldest waiting message. The bool is false
+	// when nothing is waiting; RunLoop calls it until it reports false.
+	Dequeue() (string, bool)
+}
+
 // CompactionHistory is an optional extension of MessageHistory implemented by persistent histories
 // that can record a compaction boundary across turns. When RunLoop compacts the context, it calls
 // AddCompaction so the next turn starts from the compacted view without re-summarizing.
@@ -84,6 +97,11 @@ type RunLoopOpts struct {
 	// Approval is invoked when Policy returns ToolActionAsk.
 	// Nil approval with ToolActionAsk falls through to Allow for backward compatibility.
 	Approval ApprovalHandler
+	// PendingInput carries messages the user submitted after this run started.
+	// They are appended to the history at the next iteration boundary, so they
+	// reach the model after the current batch of tool calls rather than after the
+	// whole run. Nil disables mid-run injection entirely.
+	PendingInput PendingInput
 	// Grants holds approvals the user chose to keep for the session. It is owned
 	// by the caller because a session outlives one RunLoop; nil grants nothing,
 	// which makes every Ask a fresh prompt.
@@ -152,6 +170,13 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
 		emit(opts.EventSink, Event{Kind: EventIterStart, Iter: i + 1})
 
+		// Before the history is read, so a message that arrived mid-run is part of
+		// what this iteration reasons about — and before compaction, so it counts
+		// toward the context pressure that decides whether to compact.
+		if err := injectPendingInput(ctx, opts, i+1); err != nil {
+			return "", s, err
+		}
+
 		history := opts.History.HistoryMessages()
 
 		// Context compaction: summarize old messages before the context window fills up.
@@ -205,7 +230,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		// SystemPrompt must not already carry the block — RunLoop is its only renderer.
 		effectiveSysPrompt := opts.SystemPrompt + RenderCompactionBlock(compactionSummary)
 
-		content, toolCalls, usage, err := callLLM(ctx, opts, history, effectiveSysPrompt, i+1, s)
+		completion, err := callLLM(ctx, opts, history, effectiveSysPrompt, i+1, s)
+		content, toolCalls := completion.Content, completion.ToolCalls
 		if err != nil {
 			if ctx.Err() != nil {
 				slog.Warn("agent run interrupted by context cancellation", "iter", i+1, "last_content_len", len(lastContent))
@@ -219,8 +245,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			fireRunEndHook(ctx, opts, s, runErr)
 			return "", s, runErr
 		}
-		s.PromptTokens += usage.PromptTokens
-		s.CompletionTokens += usage.CompletionTokens
+		s.PromptTokens += completion.Usage.PromptTokens
+		s.CompletionTokens += completion.Usage.CompletionTokens
 
 		if content != "" {
 			lastContent = content
@@ -237,7 +263,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 
 		if len(toolCalls) == 0 {
 			slog.Debug("agent reply", "content", content)
-			if err := opts.History.Append(llm.Message{Role: "assistant", Content: content}); err != nil {
+			if err := opts.History.Append(completion.AssistantMessage()); err != nil {
 				return "", s, err
 			}
 			emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
@@ -246,7 +272,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		}
 
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
-		if err := opts.History.Append(llm.Message{Role: "assistant", Content: content, ToolCalls: toolCalls}); err != nil {
+		if err := opts.History.Append(completion.AssistantMessage()); err != nil {
 			return "", s, err
 		}
 
@@ -262,6 +288,50 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: maxErr})
 	fireRunEndHook(ctx, opts, s, maxErr)
 	return "", s, maxErr
+}
+
+// injectPendingInput appends every message waiting in opts.PendingInput to the
+// history as a user message.
+//
+// Each one goes through the UserPromptSubmit hook first. A prompt that arrives
+// mid-run is still a prompt: a hook that inspects what the user sends must not be
+// bypassed by the path that happens to arrive late. A blocked message is dropped
+// with an event rather than appended, which leaves the run working on what it
+// already had.
+func injectPendingInput(ctx context.Context, opts RunLoopOpts, iter int) error {
+	if opts.PendingInput == nil {
+		return nil
+	}
+	for {
+		text, ok := opts.PendingInput.Dequeue()
+		if !ok {
+			return nil
+		}
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		in := baseHookInput(opts, HookUserPromptSubmit)
+		in.Prompt = text
+		if out := runHook(ctx, opts.Hooks, in); out.Blocked() {
+			reason := out.Reason
+			if reason == "" {
+				reason = "prompt blocked by hook"
+			}
+			slog.Info("queued message blocked by hook", "iter", iter, "reason", reason)
+			emit(opts.EventSink, Event{
+				Kind:       EventUserInputBlocked,
+				Iter:       iter,
+				Content:    text,
+				DenyReason: reason,
+			})
+			continue
+		}
+		if err := opts.History.Append(llm.Message{Role: "user", Content: text}); err != nil {
+			return fmt.Errorf("append queued message: %w", err)
+		}
+		slog.Info("queued message injected", "iter", iter)
+		emit(opts.EventSink, Event{Kind: EventUserInput, Iter: iter, Content: text})
+	}
 }
 
 // checkpointAndCompact gives the checkpointer one turn to move anything still needed out of the
@@ -312,7 +382,7 @@ func fireRunEndHook(ctx context.Context, opts RunLoopOpts, stats RunStats, err e
 // callLLM dispatches to streaming or blocking LLM call based on whether a StreamSink is set.
 // When EventSink is also set, content deltas are forwarded to it as EventLLMDelta events.
 // history and systemPrompt are passed explicitly so the caller can inject a compacted view.
-func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, systemPrompt string, iter int, stats RunStats) (string, []llm.ToolCall, llm.Usage, error) {
+func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, systemPrompt string, iter int, stats RunStats) (llm.Completion, error) {
 	// Durable session state is rendered fresh on every call and placed after the messages, so
 	// it is never subject to trimming and never accumulates in the history. An empty block
 	// renders nothing, which is what a run that keeps no state should cost.
@@ -367,6 +437,9 @@ type pendingCall struct {
 	// decided is true once result is final without executing: bad arguments,
 	// an unknown tool, the loop guard, or a permission denial.
 	decided bool
+	// parts is non-text content the tool returned, carried to the history
+	// message. Only the MCP gateway sets it today.
+	parts []llm.ContentPart
 	// executed and failed record what the run stage did, so the commit stage
 	// can fire the right post hook without re-deriving it from the result.
 	executed bool
@@ -397,7 +470,12 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 			c := &group[i]
 			firePostHook(ctx, opts, c)
 			logToolResult(c.call.Name, c.result)
-			if err := opts.History.Append(llm.Message{Role: "tool", Content: c.result, ToolCallID: c.call.ID}); err != nil {
+			if err := opts.History.Append(llm.Message{
+				Role:       "tool",
+				Content:    c.result,
+				ToolCallID: c.call.ID,
+				Parts:      c.parts,
+			}); err != nil {
 				return count, err
 			}
 			count++
@@ -464,6 +542,20 @@ func eligibleForGroup(c *pendingCall) bool {
 		return false
 	}
 	return DeclaredAccess(c.tool, c.args) == llm.AccessReadOnly
+}
+
+// executeTool runs a tool, taking its multimodal result when it has one.
+//
+// A tool that returns non-text content still returns text describing it, so the
+// caller does not branch: everything downstream reads the text, and only the
+// history message carries the parts.
+func executeTool(ctx context.Context, tool llm.Tool, args map[string]any) (string, []llm.ContentPart, error) {
+	if multimodal, ok := tool.(llm.MultimodalTool); ok {
+		out, err := multimodal.ExecuteMultimodal(ctx, args)
+		return out.Text, out.Parts, err
+	}
+	result, err := tool.Execute(ctx, args)
+	return result, nil, err
 }
 
 // gateCall makes every decision that must happen in call order, on the loop
@@ -600,14 +692,14 @@ func executeCall(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
 		return
 	}
 	start := time.Now()
-	result, err := c.tool.Execute(ctx, c.args)
+	result, parts, err := executeTool(ctx, c.tool, c.args)
 	dur := time.Since(start)
 	c.executed = true
 	if err != nil {
 		c.failed = true
 		c.result = fmt.Sprintf("error: %v", err)
 	} else {
-		c.result = result
+		c.result, c.parts = result, parts
 	}
 	emit(opts.EventSink, Event{
 		Kind:         EventToolEnd,
