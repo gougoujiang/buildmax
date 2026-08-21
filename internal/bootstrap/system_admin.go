@@ -103,18 +103,13 @@ func RunAdminCommand(ctx context.Context, args []string, out io.Writer) error {
 // deployment authority are two decisions, and keeping them apart is the same
 // reason `user create` does not also issue a login code.
 func runAdminGrant(ctx context.Context, args []string, out io.Writer, store adminStore) error {
-	fs := flag.NewFlagSet("admin grant", flag.ContinueOnError)
-	fs.SetOutput(out)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	email, err := requireEmailArg(fs.Args())
+	email, err := emailArg("admin grant", args, out)
 	if err != nil {
 		return err
 	}
-	user, err := store.UserByEmail(ctx, email)
+	user, err := lookupUser(ctx, store, email)
 	if err != nil {
-		return fmt.Errorf("look up user: %w", err)
+		return err
 	}
 	if user == nil {
 		return fmt.Errorf("no account for %s; create one first with: buildmax-server user create %s", email, email)
@@ -139,18 +134,13 @@ func runAdminGrant(ctx context.Context, args []string, out io.Writer, store admi
 }
 
 func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adminStore) error {
-	fs := flag.NewFlagSet("admin revoke", flag.ContinueOnError)
-	fs.SetOutput(out)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	email, err := requireEmailArg(fs.Args())
+	email, err := emailArg("admin revoke", args, out)
 	if err != nil {
 		return err
 	}
-	user, err := store.UserByEmail(ctx, email)
+	user, err := lookupUser(ctx, store, email)
 	if err != nil {
-		return fmt.Errorf("look up user: %w", err)
+		return err
 	}
 	if user == nil {
 		return fmt.Errorf("no account for %s", email)
