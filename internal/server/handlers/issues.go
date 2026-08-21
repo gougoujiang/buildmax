@@ -160,7 +160,7 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", listPageDefault, listPageMax)
 	// No parent_id lists every issue in the team, sub-issues included. That is
 	// what callers predating the hierarchy expect, so the board opts into the
 	// filtered view rather than the endpoint changing under anyone.
@@ -300,7 +300,7 @@ func (h *Handler) getIssueFlowHandler(w http.ResponseWriter, r *http.Request) {
 			workflowOut = &out
 		}
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 20, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
 	runs, total, err := h.cfg.WorkflowStore.ListWorkflowRunsByIssue(r.Context(), issueID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_flow_runs", "issue_id", issueID)

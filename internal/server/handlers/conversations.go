@@ -172,7 +172,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", 50, 100)
+	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", listPageDefault, listPageMax)
 	list, total, err := h.cfg.ConversationStore.ListConversationsByTeam(r.Context(), teamID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_conversations", "user_id", userID, "team_id", teamID)

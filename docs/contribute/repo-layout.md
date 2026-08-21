@@ -196,6 +196,12 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
 These rules are enforced by tests in `internal/architecture`. If a change trips
 one, the import is the problem, not the test.
 
+Eleven list queries in `infra/db` still have no ceiling: a caller passing
+`limit <= 0` reads every matching row. `clampPage` is not applied to them
+because their callers use 0 to mean "all", so capping them would silently
+truncate a result someone asked for in full. Giving them a bound is a decision
+about those callers, not a refactor.
+
 One exception is recorded rather than enforced: `service/conversation/runtime`
 imports `agentapp` for `NewNonInteractivePolicy`. That one call is the whole
 dependency and the policy it returns needs only `core`, so the import is

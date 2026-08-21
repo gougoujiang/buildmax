@@ -134,7 +134,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	q := r.URL.Query()
 	usePaginated := q.Has("limit") || q.Has("offset") || q.Get("executed_only") == "true"
 	if usePaginated {
-		limit, offset := parseLimitOffset(q, "limit", "offset", 50, 200)
+		limit, offset := parseLimitOffset(q, "limit", "offset", bulkPageDefault, bulkPageMax)
 		executedOnly := q.Get("executed_only") == "true"
 		list, total, err := h.cfg.TaskStore.ListTasksByConversationPaginated(r.Context(), conversationID, executedOnly, limit, offset)
 		if err != nil {
