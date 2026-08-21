@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/service/agent"
 )
 
 type AgentResponse struct {
@@ -61,16 +60,6 @@ func agentToResponse(a model.Agent) AgentResponse {
 	}
 }
 
-// workflowNameList renders the workflows blocking a delete as "name (id)",
-// because a name alone is ambiguous and an ID alone means nothing to a reader.
-func workflowNameList(workflows []model.Workflow) string {
-	parts := make([]string, len(workflows))
-	for i := range workflows {
-		parts[i] = workflows[i].Name + " (" + workflows[i].WorkflowID + ")"
-	}
-	return strings.Join(parts, ", ")
-}
-
 func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
 	return agentRevisionResponse{
 		ID:           rev.AgentRevisionID,
@@ -84,13 +73,28 @@ func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
 	}
 }
 
+func (h *Handler) agentService() *agent.Service {
+	svc := &agent.Service{Agents: h.cfg.AgentStore}
+	if h.cfg.WorkflowStore != nil {
+		svc.Workflows = h.workflowService()
+	}
+	return svc
+}
+
+func (h *Handler) writeAgentServiceError(w http.ResponseWriter, err error) bool {
+	return httputil.WriteServiceError(w, err)
+}
+
 func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
 		return
 	}
-	list, err := h.cfg.AgentStore.ListAgentsByTeam(r.Context(), teamID)
+	list, err := h.agentService().ListAgents(r.Context(), teamID)
 	if err != nil {
+		if h.writeAgentServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agents", "user_id", userID, "team_id", teamID)
 		return
 	}
@@ -113,16 +117,21 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	if req.Name == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
-		return
-	}
-	agent, err := h.cfg.AgentStore.CreateAgentInTeam(r.Context(), teamID, userID, req.Name, req.Description, req.Instructions)
+	created, err := h.agentService().CreateAgent(r.Context(), agent.CreateCmd{
+		TeamID:       teamID,
+		UserID:       userID,
+		Name:         req.Name,
+		Description:  req.Description,
+		Instructions: req.Instructions,
+	})
 	if err != nil {
+		if h.writeAgentServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_agent", "user_id", userID, "team_id", teamID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, agentToResponse(*agent))
+	httputil.WriteJSON(w, http.StatusCreated, agentToResponse(*created))
 }
 
 func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -134,16 +143,15 @@ func (h *Handler) getAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), agentID)
+	found, err := h.agentService().GetAgent(r.Context(), teamID, agentID)
 	if err != nil {
+		if h.writeAgentServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent", "agent_id", agentID)
 		return
 	}
-	if agent == nil || agent.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
-		return
-	}
-	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*agent))
+	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*found))
 }
 
 func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -162,20 +170,22 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-	if req.Name == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "name required")
-		return
-	}
-	agent, err := h.cfg.AgentStore.UpdateAgentInTeam(r.Context(), agentID, teamID, userID, req.Name, req.Description, req.Instructions)
+	updated, err := h.agentService().UpdateAgent(r.Context(), agent.UpdateCmd{
+		TeamID:       teamID,
+		UserID:       userID,
+		AgentID:      agentID,
+		Name:         req.Name,
+		Description:  req.Description,
+		Instructions: req.Instructions,
+	})
 	if err != nil {
+		if h.writeAgentServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "patch_agent", "agent_id", agentID)
 		return
 	}
-	if agent == nil {
-		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
-		return
-	}
-	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*agent))
+	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*updated))
 }
 
 // listAgentRevisionsHandler returns an agent's recorded definitions, newest
@@ -190,18 +200,12 @@ func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), agentID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_revisions", "agent_id", agentID)
-		return
-	}
-	if agent == nil || agent.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
-		return
-	}
 	limit, offset := parseLimitOffset(r.URL.Query(), "limit", "offset", browsePageDefault, browsePageMax)
-	list, total, err := h.cfg.AgentStore.ListAgentRevisions(r.Context(), agentID, limit, offset)
+	list, total, err := h.agentService().ListRevisions(r.Context(), teamID, agentID, limit, offset)
 	if err != nil {
+		if h.writeAgentServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_revisions", "agent_id", agentID)
 		return
 	}
@@ -212,9 +216,6 @@ func (h *Handler) listAgentRevisionsHandler(w http.ResponseWriter, r *http.Reque
 	httputil.WriteJSON(w, http.StatusOK, agentRevisionListResponse{Revisions: out, Total: total})
 }
 
-// restoreAgentRevisionHandler writes an earlier revision's content back to the
-// agent. That is an ordinary edit — it appends a new revision rather than
-// rewinding to the old one — so it needs the permission an edit needs.
 func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Request) {
 	userID, teamID, ok := h.withUserPathTeamAndStore(w, r, h.cfg.AgentStore, "agents not configured")
 	if !ok {
@@ -231,31 +232,17 @@ func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	agent, err := h.cfg.AgentStore.GetAgent(r.Context(), agentID)
+	updated, err := h.agentService().RestoreRevision(r.Context(), agent.RestoreRevisionCmd{
+		TeamID:   teamID,
+		UserID:   userID,
+		AgentID:  agentID,
+		Revision: revision,
+	})
 	if err != nil {
+		if h.writeAgentServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_agent_revision", "agent_id", agentID)
-		return
-	}
-	if agent == nil || agent.TeamID != teamID {
-		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
-		return
-	}
-	rev, err := h.cfg.AgentStore.GetAgentRevision(r.Context(), agentID, revision)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_agent_revision", "agent_id", agentID)
-		return
-	}
-	if rev == nil {
-		httputil.WriteJSONError(w, http.StatusNotFound, "agent revision not found")
-		return
-	}
-	updated, err := h.cfg.AgentStore.UpdateAgentInTeam(r.Context(), agentID, teamID, userID, rev.Name, rev.Description, rev.Instructions)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "restore_agent_revision", "agent_id", agentID)
-		return
-	}
-	if updated == nil {
-		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, agentToResponse(*updated))
@@ -273,25 +260,8 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Deleting an agent a published workflow still names would leave that
-	// workflow unable to run, and the operator would only find out at the next
-	// run. Name the workflows instead and let them be fixed or archived first.
-	if h.cfg.WorkflowStore != nil {
-		using, err := h.workflowService().PublishedWorkflowsUsingAgent(r.Context(), teamID, agentID)
-		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "delete_agent", "agent_id", agentID)
-			return
-		}
-		if len(using) > 0 {
-			httputil.WriteJSONError(w, http.StatusConflict,
-				"agent is used by published workflows: "+workflowNameList(using))
-			return
-		}
-	}
-	err := h.cfg.AgentStore.DeleteAgentInTeam(r.Context(), agentID, teamID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
+	if err := h.agentService().DeleteAgent(r.Context(), teamID, agentID); err != nil {
+		if h.writeAgentServiceError(w, err) {
 			return
 		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "delete_agent", "agent_id", agentID)
