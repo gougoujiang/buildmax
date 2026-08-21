@@ -127,6 +127,13 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 	if !strings.Contains(after.Body.String(), "account_disabled") {
 		t.Errorf("the refusal should say why, got %s", after.Body.String())
 	}
+	work := f.do(t, "GET", "/api/teams/"+boundaryTeam+"/issues", f.target.UserID, "")
+	if work.Code != http.StatusForbidden {
+		t.Errorf("a disabled account reached the work surface with %d, want 403: %s", work.Code, work.Body.String())
+	}
+	if !strings.Contains(work.Body.String(), "account_disabled") {
+		t.Errorf("the work refusal should say why, got %s", work.Body.String())
+	}
 
 	// And enabling brings it back. Nothing else is restored — that is what
 	// section 8 means by "enabling reverses the state and nothing else".

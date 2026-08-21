@@ -34,6 +34,9 @@ type RunOutputLister interface {
 type Config struct {
 	JWTSecret string
 
+	// Users is part of authentication, not work ownership: every user-facing
+	// route must reject a disabled account before it reads the team's work.
+	Users         model.UserStore
 	Issues        model.IssueStore
 	IssueComments model.IssueCommentStore
 	Workflows     model.WorkflowStore
@@ -87,7 +90,7 @@ func New(cfg Config) *Handler {
 func (h *Handler) guard() *access.Guard {
 	return &access.Guard{
 		JWTSecret: h.cfg.JWTSecret,
-		Users:     nil,
+		Users:     h.cfg.Users,
 		Teams:     h.cfg.Teams,
 		Audit:     h.cfg.Audit,
 	}
