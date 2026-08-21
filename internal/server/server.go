@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"log/slog"
 	"net/http"
 	"os"
@@ -117,7 +118,7 @@ type Config struct {
 	// Audit records sensitive actions. Nil discards them.
 	Audit *audit.Recorder
 	// Deployment describes this deployment for the admin system status.
-	Deployment handlers.DeploymentInfo
+	Deployment admin.DeploymentInfo
 	// RedactedConfig is the operator-facing view of server.yaml. Nil means the
 	// admin configuration route answers 503.
 	RedactedConfig any
@@ -337,10 +338,10 @@ func swaggerUIHandler(w http.ResponseWriter, _ *http.Request) {
 // dependencyProbes converts readiness checks into the shape the admin API
 // reports. Both are a name and a probe; the conversion exists so that the
 // handler package does not import this one, which imports it.
-func dependencyProbes(checks []ReadinessCheck) []handlers.DependencyProbe {
-	out := make([]handlers.DependencyProbe, 0, len(checks))
+func dependencyProbes(checks []ReadinessCheck) []admin.DependencyProbe {
+	out := make([]admin.DependencyProbe, 0, len(checks))
 	for _, check := range checks {
-		out = append(out, handlers.DependencyProbe{Name: check.Name, Probe: check.Probe})
+		out = append(out, admin.DependencyProbe{Name: check.Name, Probe: check.Probe})
 	}
 	return out
 }

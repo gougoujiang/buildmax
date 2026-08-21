@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"encoding/json"
@@ -36,19 +36,18 @@ func adminModelsMux(t *testing.T) (*http.ServeMux, *mock.MockLLMModelStore, *moc
 	}
 
 	audits := &mock.MockAuditStore{}
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		UserStore:        users,
-		TeamStore:        &mock.MockTeamStore{},
-		LLMModelStore:    models,
-		AuditStore:       audits,
-		Audit:            audit.NewRecorder(audits),
+	h := New(Config{
+		JWTSecret: testSecret,
+		Grants:    grants,
+		Users:     users,
+		Teams:     &mock.MockTeamStore{},
+		Models:    models,
+		Audits:    audits,
+		Audit:     audit.NewRecorder(audits),
 		Deployment: DeploymentInfo{
 			ModelAliases:      map[string]string{"default": fast.LLMModelID, "fast": fast.LLMModelID},
 			DefaultModelAlias: "default",
 		},
-		WorkspacesDir: t.TempDir(),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -152,14 +151,13 @@ func TestAdminModelsWithoutACatalogIs503(t *testing.T) {
 	grants := &mock.MockSystemGrantStore{}
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 	audits := &mock.MockAuditStore{}
-	h := NewHandler(Config{
-		JWTSecret:        matrixSecret,
-		SystemGrantStore: grants,
-		UserStore:        users,
-		TeamStore:        &mock.MockTeamStore{},
-		AuditStore:       audits,
-		Audit:            audit.NewRecorder(audits),
-		WorkspacesDir:    t.TempDir(),
+	h := New(Config{
+		JWTSecret: testSecret,
+		Grants:    grants,
+		Users:     users,
+		Teams:     &mock.MockTeamStore{},
+		Audits:    audits,
+		Audit:     audit.NewRecorder(audits),
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

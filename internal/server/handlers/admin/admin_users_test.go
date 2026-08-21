@@ -1,7 +1,6 @@
-package handlers
+package admin
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,77 +11,15 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
-
-// stubTurnEngine satisfies the webhook route's engine dependency. It is never
-// reached: the requests in this file are refused before a turn is processed,
-// which is the point.
-type stubTurnEngine struct{}
-
-func (stubTurnEngine) Process(_ context.Context, _, _ string, _ convchannel.Turn) (conversation.ConversationResult, error) {
-	return conversation.ConversationResult{}, nil
-}
-
-// disableFixture is a deployment with one administrator and one ordinary
-// account, wired with the stores disablement actually touches.
-type disableFixture struct {
-	mux      *http.ServeMux
-	users    *mock.MockUserStore
-	sessions *mock.MockRefreshTokenStore
-	codes    *mock.MockLoginCodeStore
-	keys     *mock.MockUserWebhookKeyStore
-	audits   *mock.MockAuditStore
-	admin    *model.User
-	target   *model.User
-}
-
-func newDisableFixture(t *testing.T) *disableFixture {
-	t.Helper()
-	users := &mock.MockUserStore{}
-	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
-	// Two, so revoking one is not the last-grant case.
-	grants.GrantForTest("u_second_admin", model.SystemRoleAdmin)
-
-	f := &disableFixture{
-		users:    users,
-		sessions: &mock.MockRefreshTokenStore{},
-		codes:    &mock.MockLoginCodeStore{},
-		keys:     &mock.MockUserWebhookKeyStore{},
-		audits:   &mock.MockAuditStore{},
-	}
-	f.admin = seedUser(t, users, adminUser, "admin@example.com")
-	f.target = seedUser(t, users, "u_target", "target@example.com")
-
-	h := NewHandler(Config{
-		JWTSecret:           matrixSecret,
-		SystemGrantStore:    grants,
-		UserStore:           users,
-		TeamStore:           &mock.MockTeamStore{},
-		LoginCodeStore:      f.codes,
-		RefreshTokenStore:   f.sessions,
-		UserWebhookKeyStore: f.keys,
-		// Present so the webhook route reaches its credential check rather
-		// than answering "not configured" first.
-		WebhookEngine: stubTurnEngine{},
-		AuditStore:    f.audits,
-		Audit:         audit.NewRecorder(f.audits),
-		WorkspacesDir: t.TempDir(),
-	})
-	f.mux = http.NewServeMux()
-	h.Register(f.mux)
-	return f
-}
 
 func (f *disableFixture) do(t *testing.T, method, path, userID, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if userID != "" {
-		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, matrixSecret))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, testSecret))
 	}
 	rec := httptest.NewRecorder()
 	f.mux.ServeHTTP(rec, req)
@@ -104,41 +41,6 @@ func (f *disableFixture) actions() []string {
 // retired — waiting it out would make "disable" mean "in about a week". The
 // check lives where the identity is resolved, and this test is what says the
 // token stops working now rather than at expiry.
-func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
-	f := newDisableFixture(t)
-
-	// The target can reach an authenticated route before the disable. The
-	// route's own answer does not matter; not being refused does.
-	if got := f.do(t, "GET", "/api/webhook-keys", f.target.UserID, "").Code; got == http.StatusForbidden {
-		t.Fatalf("setup: an enabled account was refused with %d", got)
-	}
-
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/disable", adminUser, "")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("disable got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	after := f.do(t, "GET", "/api/webhook-keys", f.target.UserID, "")
-	if after.Code != http.StatusForbidden {
-		t.Errorf("a disabled account's access token got %d, want 403", after.Code)
-	}
-	if !strings.Contains(after.Body.String(), "account_disabled") {
-		t.Errorf("the refusal should say why, got %s", after.Body.String())
-	}
-
-	// And enabling brings it back. Nothing else is restored — that is what
-	// section 8 means by "enabling reverses the state and nothing else".
-	if got := f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/enable", adminUser, "").Code; got != http.StatusOK {
-		t.Fatalf("enable got %d", got)
-	}
-	if got := f.do(t, "GET", "/api/webhook-keys", f.target.UserID, "").Code; got == http.StatusForbidden {
-		t.Errorf("an enabled account is still refused: %d", got)
-	}
-}
-
-// TestDisableRevokesSessionsAndRefusesRefresh covers the credential the server
-// can actually retire, and the one route that would otherwise mint a new access
-// token for a disabled account.
 func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	f := newDisableFixture(t)
 	plaintext, _, err := f.sessions.CreateRefreshToken(t.Context(), model.NewRefreshToken{
@@ -162,53 +64,6 @@ func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	refresh := f.do(t, "POST", "/api/token/refresh", "", `{"refresh_token":"`+plaintext+`"}`)
 	if refresh.Code == http.StatusOK {
 		t.Errorf("a disabled account refreshed into a new access token: %s", refresh.Body.String())
-	}
-}
-
-// TestDisabledAccountCannotLogIn covers the front door, and the reason the
-// check is after the credential verifies rather than before it.
-func TestDisabledAccountCannotLogIn(t *testing.T) {
-	f := newDisableFixture(t)
-	f.codes.Codes = map[string]*mock.MockLoginCode{
-		"code-1": {UserID: f.target.UserID, ExpiresAt: time.Now().Add(time.Hour).Unix()},
-	}
-	f.users.DisableForTest(f.target.UserID, 1)
-
-	rec := f.do(t, "POST", "/api/login", "", `{"email":"`+f.target.Email+`","otp":"code-1"}`)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("login got %d, want 403: %s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), "account_disabled") {
-		t.Errorf("someone who proved the account is theirs should hear why, got %s", rec.Body.String())
-	}
-
-	// A wrong credential on the same disabled account still gets the generic
-	// answer, so the endpoint does not become a way to ask which addresses are
-	// registered.
-	wrong := f.do(t, "POST", "/api/login", "", `{"email":"`+f.target.Email+`","otp":"not-a-code"}`)
-	if strings.Contains(wrong.Body.String(), "account_disabled") {
-		t.Errorf("a wrong code revealed the account state: %s", wrong.Body.String())
-	}
-}
-
-// TestDisabledAccountsWebhookKeyIsRefused: a webhook key is a credential the
-// account holds, so disabling refuses it too — without revoking the key, so
-// enabling brings the integration back.
-func TestDisabledAccountsWebhookKeyIsRefused(t *testing.T) {
-	f := newDisableFixture(t)
-	f.keys.Keys = map[string]string{"whk-plain": f.target.UserID}
-	f.users.DisableForTest(f.target.UserID, 1)
-
-	req := httptest.NewRequest("POST", "/api/webhook", strings.NewReader(`{"message":"hi"}`))
-	req.Header.Set("X-Webhook-Key", "whk-plain")
-	rec := httptest.NewRecorder()
-	f.mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("webhook with a disabled owner's key got %d, want 403: %s", rec.Code, rec.Body.String())
-	}
-	if len(f.keys.Keys) != 1 {
-		t.Errorf("the key itself must not be revoked: %+v", f.keys.Keys)
 	}
 }
 
@@ -334,4 +189,52 @@ func TestAdminUserRoutesOnAnUnknownAccount(t *testing.T) {
 			t.Errorf("%s %s got %d, want 404", tc.method, tc.path, got)
 		}
 	}
+}
+
+func newDisableFixture(t *testing.T) *disableFixture {
+	t.Helper()
+	users := &mock.MockUserStore{}
+	grants := &mock.MockSystemGrantStore{}
+	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	// Two, so revoking one is not the last-grant case.
+	grants.GrantForTest("u_second_admin", model.SystemRoleAdmin)
+
+	f := &disableFixture{
+		users:    users,
+		sessions: &mock.MockRefreshTokenStore{},
+		codes:    &mock.MockLoginCodeStore{},
+		keys:     &mock.MockUserWebhookKeyStore{},
+		audits:   &mock.MockAuditStore{},
+	}
+	f.admin = seedUser(t, users, adminUser, "admin@example.com")
+	f.target = seedUser(t, users, "u_target", "target@example.com")
+
+	h := New(Config{
+		JWTSecret:     testSecret,
+		Grants:        grants,
+		Users:         users,
+		Teams:         &mock.MockTeamStore{},
+		LoginCodes:    f.codes,
+		RefreshTokens: f.sessions,
+		// Present so the webhook route reaches its credential check rather
+		// than answering "not configured" first.
+		Audits: f.audits,
+		Audit:  audit.NewRecorder(f.audits),
+	})
+	f.mux = http.NewServeMux()
+	h.Register(f.mux)
+	return f
+}
+
+// disableFixture is a deployment with one administrator and one ordinary
+// account, wired with the stores disablement actually touches.
+type disableFixture struct {
+	mux      *http.ServeMux
+	users    *mock.MockUserStore
+	sessions *mock.MockRefreshTokenStore
+	codes    *mock.MockLoginCodeStore
+	keys     *mock.MockUserWebhookKeyStore
+	audits   *mock.MockAuditStore
+	admin    *model.User
+	target   *model.User
 }

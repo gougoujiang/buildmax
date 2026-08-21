@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"context"
@@ -118,20 +118,20 @@ func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
 	// Each remaining read is best-effort. A status page that returns 500
 	// because one of its five questions could not be answered tells an operator
 	// nothing during exactly the outage they opened it for.
-	if h.cfg.SchemaStore != nil {
-		if migrations, err := h.cfg.SchemaStore.AppliedMigrations(ctx); err == nil {
+	if h.cfg.Schema != nil {
+		if migrations, err := h.cfg.Schema.AppliedMigrations(ctx); err == nil {
 			for _, m := range migrations {
 				out.SchemaMigrations = append(out.SchemaMigrations, adminSchemaMigration{ID: m.ID, AppliedAt: m.AppliedAt})
 			}
 		}
 	}
-	if h.cfg.TaskRunStore != nil {
-		if counts, err := h.cfg.TaskRunStore.CountTaskRunsByStatus(ctx); err == nil {
+	if h.cfg.TaskRuns != nil {
+		if counts, err := h.cfg.TaskRuns.CountTaskRunsByStatus(ctx); err == nil {
 			out.TaskRuns = counts
 		}
 	}
-	if h.cfg.SystemGrantStore != nil {
-		if n, err := h.cfg.SystemGrantStore.CountActiveSystemGrants(ctx, systemRoleAdmin()); err == nil {
+	if h.cfg.Grants != nil {
+		if n, err := h.cfg.Grants.CountActiveSystemGrants(ctx, systemRoleAdmin()); err == nil {
 			out.SystemAdmins = n
 		}
 	}

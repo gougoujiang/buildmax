@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"net/http"
@@ -34,10 +34,10 @@ func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request)
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.LLMModelStore, "the model catalog is not configured") {
+	if !httputil.RequireStore(w, h.cfg.Models, "the model catalog is not configured") {
 		return
 	}
-	models, err := h.cfg.LLMModelStore.ListLLMModels(r.Context())
+	models, err := h.cfg.Models.ListLLMModels(r.Context())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_models")
 		return
@@ -72,14 +72,14 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if !httputil.RequireStore(w, h.cfg.LLMModelStore, "the model catalog is not configured") {
+		if !httputil.RequireStore(w, h.cfg.Models, "the model catalog is not configured") {
 			return
 		}
 		modelID, ok := httputil.PathValue(w, r, "model_id")
 		if !ok {
 			return
 		}
-		existing, err := h.cfg.LLMModelStore.GetLLMModel(r.Context(), modelID)
+		existing, err := h.cfg.Models.GetLLMModel(r.Context(), modelID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "model_id", modelID)
 			return
@@ -88,7 +88,7 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 			httputil.WriteJSONError(w, http.StatusNotFound, "model not found")
 			return
 		}
-		if err := h.cfg.LLMModelStore.SetLLMModelEnabled(r.Context(), modelID, enabled); err != nil {
+		if err := h.cfg.Models.SetLLMModelEnabled(r.Context(), modelID, enabled); err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "model_id", modelID)
 			return
 		}
@@ -109,7 +109,7 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 			Detail:     existing.Name,
 		})
 
-		updated, err := h.cfg.LLMModelStore.GetLLMModel(r.Context(), modelID)
+		updated, err := h.cfg.Models.GetLLMModel(r.Context(), modelID)
 		if err != nil || updated == nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "reload")
 			return

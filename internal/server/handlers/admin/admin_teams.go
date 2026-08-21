@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"net/http"
@@ -36,7 +36,7 @@ type AdminTeamDetail struct {
 	Members []AdminTeamMember `json:"members"`
 	// Usage is nil when the deployment reports no quota, so a reader can tell
 	// "no limits configured" from "using nothing".
-	Usage *usageResponse `json:"usage,omitempty"`
+	Usage *teamUsage `json:"usage,omitempty"`
 }
 
 // AdminTeamMember names one member and their role.
@@ -47,15 +47,27 @@ type AdminTeamMember struct {
 }
 
 // listAdminTeamsHandler serves GET /api/admin/teams.
+// teamUsage is this surface's view of a team's consumption. The team's own
+// /api/teams/{id}/usage answers a different question to a different caller, so
+// each endpoint owns its shape rather than sharing one that must serve both.
+type teamUsage struct {
+	RunCount           int    `json:"run_count"`
+	TotalTokens        int    `json:"total_tokens"`
+	TierName           string `json:"tier"`
+	PeriodDays         int    `json:"period_days"`
+	MaxRunsPerPeriod   *int   `json:"max_runs_per_period,omitempty"`
+	MaxTokensPerPeriod *int   `json:"max_tokens_per_period,omitempty"`
+}
+
 func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.TeamStore, "teams not configured") {
+	if !httputil.RequireStore(w, h.cfg.Teams, "teams not configured") {
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
-	teams, total, err := h.cfg.TeamStore.ListAllTeams(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
+	teams, total, err := h.cfg.Teams.ListAllTeams(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_teams")
 		return
@@ -64,7 +76,7 @@ func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) 
 	for _, team := range teams {
 		ids = append(ids, team.TeamID)
 	}
-	counts, err := h.cfg.TeamStore.CountTeamMembers(r.Context(), ids)
+	counts, err := h.cfg.Teams.CountTeamMembers(r.Context(), ids)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_teams", "counts")
 		return
@@ -90,14 +102,14 @@ func (h *Handler) getAdminTeamHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.TeamStore, "teams not configured") {
+	if !httputil.RequireStore(w, h.cfg.Teams, "teams not configured") {
 		return
 	}
 	teamID, ok := httputil.PathValue(w, r, "team_id")
 	if !ok {
 		return
 	}
-	team, err := h.cfg.TeamStore.GetTeam(r.Context(), teamID)
+	team, err := h.cfg.Teams.GetTeam(r.Context(), teamID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_team", "team_id", teamID)
 		return
@@ -106,7 +118,7 @@ func (h *Handler) getAdminTeamHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusNotFound, "team not found")
 		return
 	}
-	members, err := h.cfg.TeamStore.ListTeamMembers(r.Context(), teamID)
+	members, err := h.cfg.Teams.ListTeamMembers(r.Context(), teamID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_team", "members")
 		return
@@ -126,10 +138,10 @@ func (h *Handler) getAdminTeamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, member := range members {
 		row := AdminTeamMember{UserID: member.UserID, Role: member.Role}
-		if h.cfg.UserStore != nil {
+		if h.cfg.Users != nil {
 			// A membership naming an account that is gone is not expected.
 			// Showing the user id beats refusing to describe the team.
-			if user, err := h.cfg.UserStore.GetUser(r.Context(), member.UserID); err == nil && user != nil {
+			if user, err := h.cfg.Users.GetUser(r.Context(), member.UserID); err == nil && user != nil {
 				row.Email = user.Email
 			}
 		}
@@ -139,9 +151,9 @@ func (h *Handler) getAdminTeamHandler(w http.ResponseWriter, r *http.Request) {
 	// Usage is what makes this page answer an operator's question rather than
 	// just listing rows. It is a count of runs and tokens — capacity, not
 	// content.
-	if h.cfg.QuotaService != nil {
-		if info, err := h.cfg.QuotaService.GetUsage(r.Context(), teamID); err == nil {
-			detail.Usage = &usageResponse{
+	if h.cfg.Quota != nil {
+		if info, err := h.cfg.Quota.GetUsage(r.Context(), teamID); err == nil {
+			detail.Usage = &teamUsage{
 				RunCount:           info.RunCount,
 				TotalTokens:        info.TotalTokens,
 				TierName:           info.TierName,

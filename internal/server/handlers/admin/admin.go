@@ -1,4 +1,4 @@
-package handlers
+package admin
 
 import (
 	"net/http"
@@ -28,7 +28,7 @@ func (h *Handler) adminMeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	roles, err := h.cfg.SystemGrantStore.ActiveSystemRoles(r.Context(), userID)
+	roles, err := h.cfg.Grants.ActiveSystemRoles(r.Context(), userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_me", "user_id", userID)
 		return
@@ -37,7 +37,7 @@ func (h *Handler) adminMeHandler(w http.ResponseWriter, r *http.Request) {
 	// stay fine: the set of people who can operate a deployment is small by
 	// construction, and a per-user query would be a store method with one
 	// caller.
-	all, err := h.cfg.SystemGrantStore.ListSystemGrants(r.Context(), false)
+	all, err := h.cfg.Grants.ListSystemGrants(r.Context(), false)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_me", "user_id", userID)
 		return
