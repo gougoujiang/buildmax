@@ -1,6 +1,7 @@
 <!--
-This PR will be squash-merged, so the TITLE above becomes the commit subject on
-main: one imperative line that reads on its own in `git log --oneline`.
+This PR is merged with a merge commit: the TITLE above becomes the merge commit
+subject, and every commit on the branch lands on main too. One imperative line
+each, reading on its own in `git log --oneline`.
 
 CONTRIBUTING.md has the full guidance. The short version: one concern per PR,
 tests for behavioral changes, and documentation updated alongside the code.
@@ -33,8 +34,8 @@ behavior change a user would notice. Delete this section if there is nothing.
       boundary changes, `docs/contribute/repo-layout.md` if a package moved,
       `docs/design/` for direction changes, `docs/guide/` + `docs/reference/` +
       `config-examples/` for user-facing configuration
-- [ ] `CHANGELOG.md` entry appended to the end of its `## [Unreleased]` section
-      if a user or operator would notice this change
+- [ ] Changelog entry added as a new file under `docs/changelog/` if a user or
+      operator would notice this change
 - [ ] Dependency and license changes are explained above
 - [ ] No credentials, customer data, or private deployment details in the diff
 - [ ] Breaking changes to existing public behavior are called out above

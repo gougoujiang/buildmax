@@ -77,6 +77,8 @@ func dispatch(args []string) error {
 		return cmdEval(rest)
 	case "run":
 		return cmdRun(rest)
+	case "changelog":
+		return cmdChangelog(rest)
 	case "release":
 		return cmdRelease(rest)
 	case "install":
@@ -179,6 +181,7 @@ func allHelpSections() []helpSection {
 			{"e2e [target]", "Run Portal browser tests against a running kind or compose deployment"},
 		}},
 		{"Release", []helpRow{
+			{"changelog", "Preview unreleased entries; 'release <version>' folds them in"},
 			{"release <action>", "Run bump, verify, notices, or licenses"},
 			{"install", "Install binaries to ~/.local/bin"},
 		}},
