@@ -5,11 +5,11 @@
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
 - status: `in progress` — the deployment smoke and the Portal browser suite
-  exist; the model harness of §4 landed as `internal/testsupport/mockllm` and
-  the first CLI golden path as `internal/e2e/cli` (§9 steps 1-2, partly). Open:
-  Anthropic and Responses streaming in the harness, folding
-  `deployment/smoke/mock-llm` onto it, the pseudo-terminal approval path, and
-  §9 steps 3-6
+  exist; the model harness of §4 landed complete as
+  `internal/testsupport/mockllm` and the first CLI golden paths as
+  `internal/e2e/cli` (§9 step 1 done, step 2 partly). Open: folding
+  `deployment/smoke/mock-llm` onto the harness, the pseudo-terminal approval
+  path, and §9 steps 3-6
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -149,16 +149,14 @@ This is deliberate rather than an oversight, and a change that moves either
 half should say so.
 
 The harness landed as `internal/testsupport/mockllm`. It serves all three
-protocols for a blocking call and OpenAI Chat Completions for a streaming one;
-a streaming request on either other protocol is refused with a message naming
-what is missing, rather than answered with a blocking body that would fail
-somewhere less informative. Two contract items are still open: those two
-streaming shapes, and folding `deployment/smoke/mock-llm` onto the same
-implementation so the Compose and kind smokes replay scenarios too.
+protocols both blocking and streaming, and a step describes one reply whichever
+way it is fetched — a suite that switches between them does not script it
+twice. Its tests drive the real adapters in `internal/infra/llm`, because a
+mock checked against a hand-written parser only proves it agrees with itself.
 
-Until the streaming shapes exist, a suite on those protocols runs blocking
-calls, and the Desktop paths that stream are limited to what a blocking call
-can prove.
+One contract item is still open: `deployment/smoke/mock-llm` remains a separate
+one-sentence server, so the Compose and kind smokes cannot yet replay a
+scenario.
 
 ## 5. Local Harness Contract
 

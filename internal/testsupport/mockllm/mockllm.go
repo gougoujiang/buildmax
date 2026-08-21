@@ -117,12 +117,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stream := requestsStream(body)
-	if stream && protocol != ProtocolOpenAIChat {
-		// Failing loudly beats answering a stream request with a blocking body
-		// and letting the client fail somewhere less informative.
-		http.Error(w, fmt.Sprintf("mockllm: %s streaming is not scripted yet; run this suite with --no-stream", protocol), http.StatusNotImplemented)
-		return
-	}
 	step, index, ok := h.take(Request{Protocol: protocol, Stream: stream, Body: body})
 	if !ok {
 		// Repeating the last step here would turn "the run called the model
@@ -147,9 +141,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case ProtocolOpenAIChat:
 		writeOpenAIChat(w, step, modelOf(body), stream)
 	case ProtocolOpenAIResponses:
-		writeOpenAIResponses(w, step, modelOf(body))
+		writeOpenAIResponses(w, step, modelOf(body), stream)
 	case ProtocolAnthropic:
-		writeAnthropic(w, step, modelOf(body))
+		writeAnthropic(w, step, modelOf(body), stream)
 	}
 }
 

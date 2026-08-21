@@ -108,6 +108,37 @@ func TestAPinnedWriteRunsAndReportsBack(t *testing.T) {
 	}
 }
 
+// TestTheReplyStreamsToStdout covers the path the CLI takes by default. Text
+// output with streaming on is a different call into the model than the jsonl
+// runs above make, and it is the one a person actually sees.
+func TestTheReplyStreamsToStdout(t *testing.T) {
+	server := startModel(t, "write-a-file.json")
+	workspace := t.TempDir()
+	home := writeHome(t, server, map[string]string{"Write": "allow"})
+
+	result := run(t, home, workspace, "-p", "write notes.txt")
+
+	if result.exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0\nstdout:\n%s\nstderr:\n%s", result.exitCode, result.stdout, result.stderr)
+	}
+	if !strings.Contains(result.stdout, "wrote notes.txt") {
+		t.Fatalf("stdout does not carry the streamed reply:\n%s", result.stdout)
+	}
+	if !strings.Contains(result.stdout, "Tool calls: 1") {
+		t.Fatalf("stdout does not report the tool call:\n%s", result.stdout)
+	}
+	// Without this the test would pass on a blocking call that printed the same
+	// text, which is the thing it exists to tell apart.
+	for i, call := range server.Requests() {
+		if !call.Stream {
+			t.Fatalf("model call %d was blocking, want streaming", i)
+		}
+	}
+	if remaining := server.Remaining(); remaining != 0 {
+		t.Fatalf("unconsumed scenario steps = %d, want 0", remaining)
+	}
+}
+
 // TestAPinnedAskIsRefusedWithoutAHuman covers the other half of the gate: print
 // mode has no approval handler, so a configured Ask is a refusal rather than a
 // prompt nobody can answer. The run still finishes, and the file stays absent.
