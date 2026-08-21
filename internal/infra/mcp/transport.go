@@ -40,19 +40,32 @@ func mergedEnv(overrides map[string]string) []string {
 	if len(overrides) == 0 {
 		return nil
 	}
+	return mergeEnv(os.Environ(), overrides)
+}
+
+// mergeEnv is the half that does not read the process environment, so the
+// entries a platform produces can be given to it directly.
+func mergeEnv(base []string, overrides map[string]string) []string {
 	omit := make(map[string]struct{}, len(overrides))
 	for k := range overrides {
 		omit[k] = struct{}{}
 	}
-	base := os.Environ()
 	out := make([]string, 0, len(base)+len(overrides))
 	for _, e := range base {
 		i := strings.IndexByte(e, '=')
-		if i <= 0 {
+		switch {
+		case i < 0:
+			// Not an environment entry at all; a child process would ignore it.
+			continue
+		case i == 0:
+			// Windows records each drive's working directory as "=C:=C:\dir",
+			// and cmd.exe adds "=ExitCode=". The name is empty, so neither can
+			// match an override, and dropping them changes where a relative path
+			// resolves for the MCP server this environment is built for.
+			out = append(out, e)
 			continue
 		}
-		name := e[:i]
-		if _, skip := omit[name]; skip {
+		if _, skip := omit[e[:i]]; skip {
 			continue
 		}
 		out = append(out, e)
