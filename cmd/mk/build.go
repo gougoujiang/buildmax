@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.14.0"
@@ -218,8 +219,15 @@ func cmdLint() error {
 	return runCmd("go", "run", govulncheckPkg, "./...")
 }
 
-func cmdSmoke() error {
-	if _, err := useSandboxHome(); err != nil {
+func cmdAgentSmoke() error {
+	home, err := useSandboxHome()
+	if err != nil {
+		return err
+	}
+	// Preflight, because this is the one command here that calls a paid model.
+	// Discovering that from a provider's 401, halfway through a run, is a worse
+	// way to learn it than being told before anything starts.
+	if err := requireModelKey(home); err != nil {
 		return err
 	}
 	if err := buildGo("cli", cliBinary, "./cmd/buildmax"); err != nil {
@@ -227,8 +235,24 @@ func cmdSmoke() error {
 	}
 	// Log level comes from log_level in settings.yaml; there is no environment
 	// override, so the smoke run uses whatever the sandbox home is configured for.
-	fmt.Println("Running smoke test...")
+	fmt.Println("Running the agent tool smoke. A real model executes the checks and reports its own")
+	fmt.Println("PASS/FAIL table, so read the output: the exit code only says the process finished.")
 	return runCmd(filepath.Join(binDir, exe(cliBinary)), "-p", "/smoke 0")
+}
+
+// requireModelKey reports whether the sandbox home has a model that could
+// answer. It names the file rather than the missing concept: the fix is an
+// edit, and the reader should not have to find the file first.
+func requireModelKey(home string) error {
+	settings := filepath.Join(home, "settings.yaml")
+	body, err := os.ReadFile(settings)
+	if err != nil {
+		return fmt.Errorf("%s drives a real model and needs one configured: %s is missing.\nCreate it with `%s run cli -- init`, then put a real api_key in it", mk()+" agent-smoke", settings, mk())
+	}
+	if !strings.Contains(string(body), "api_key:") || strings.Contains(string(body), "YOUR_API_KEY") {
+		return fmt.Errorf("%s calls a real model, and %s has no usable api_key.\nEdit the api_key line before running it", mk()+" agent-smoke", settings)
+	}
+	return nil
 }
 
 func cmdEval(args []string) error {

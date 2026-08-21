@@ -120,8 +120,11 @@ Frontend packages also build from their own directories; see
 [README.md](README.md), [portal/README.md](portal/README.md), and
 [gui/README.md](gui/README.md).
 
-`./make smoke` and `./make run server` are for manual local checks. Do not use
-them in automated CI.
+`./make agent-smoke` and `./make run server` are for manual local checks. Do
+not use them in automated CI. `agent-smoke` drives the agent's tools with a
+real model and needs an API key: a model executes the checks and reports its
+own PASS/FAIL table, so its exit code says only that the process finished. The
+deterministic suites are `./make test` and `./make e2e <suite>`.
 
 ### The `desktop` Build Tag
 
