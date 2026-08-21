@@ -289,6 +289,45 @@ func TestFileValue(t *testing.T) {
 	}
 }
 
+// The go directive is a lower bound, so doctor must accept anything above it.
+// It used to compare by substring, which failed a contributor whose Go was
+// newer than go.mod's — the one direction that is always safe.
+func TestGoVersionSatisfiesTreatsTheGoDirectiveAsAFloor(t *testing.T) {
+	const want = "1.26.6"
+	tests := []struct {
+		output string
+		ok     bool
+		known  bool
+	}{
+		{output: "go version go1.26.6 darwin/arm64", ok: true, known: true},
+		{output: "go version go1.26.7 linux/amd64", ok: true, known: true},
+		{output: "go version go1.27.0 linux/amd64", ok: true, known: true},
+		// Go names the first release of a minor without a patch component.
+		{output: "go version go1.27 linux/amd64", ok: true, known: true},
+		// A prerelease of a later minor clears an earlier floor.
+		{output: "go version go1.27rc1 linux/amd64", ok: true, known: true},
+		{output: "go version devel go1.28-abc123 linux/amd64", ok: true, known: true},
+		{output: "go version go1.26.5 windows/amd64", ok: false, known: true},
+		{output: "go version go1.25.9 darwin/arm64", ok: false, known: true},
+		{output: "go version go1.9.1 linux/amd64", ok: false, known: true},
+		{output: "some vendored wrapper", known: false},
+	}
+	for _, tt := range tests {
+		ok, known := goVersionSatisfies(tt.output, want)
+		if known != tt.known {
+			t.Errorf("goVersionSatisfies(%q).known = %v; want %v", tt.output, known, tt.known)
+		}
+		if known && ok != tt.ok {
+			t.Errorf("goVersionSatisfies(%q, %q) = %v; want %v", tt.output, want, ok, tt.ok)
+		}
+	}
+	// An unreadable floor must not silently pass either; go.mod's directive is
+	// read with fileValue, which yields "unknown" when the line is missing.
+	if _, known := goVersionSatisfies("go version go1.26.6 darwin/arm64", "unknown"); known {
+		t.Error("an unparseable go.mod floor was treated as a usable comparison")
+	}
+}
+
 func TestExactVersionDoesNotAcceptPrefixMatch(t *testing.T) {
 	if got := requiredExactVersion("Go", "go", []string{"env", "GOOS"}, "dar"); got != 1 {
 		t.Fatalf("requiredExactVersion returned %d for a partial match; want 1", got)

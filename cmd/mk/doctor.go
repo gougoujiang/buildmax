@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -18,14 +19,14 @@ func cmdDoctor(args []string) error {
 	fmt.Println("BuildMax contributor doctor")
 	fmt.Println("===========================")
 
-	goWant := "go" + fileValue("go.mod", "go ")
+	goWant := fileValue("go.mod", "go ")
 	nodeWant := "v" + strings.TrimSpace(readText(".node-version"))
 	npmWant := strings.TrimPrefix(fileValue("portal/package.json", `"packageManager": "npm@`), "")
 	npmWant = strings.TrimSuffix(npmWant, `",`)
 	wailsWant := "v" + fileValue("go.mod", "github.com/wailsapp/wails/v2 v")
 
-	failures += requiredVersion("Go", "go", []string{"version"}, goWant)
-	failures += requiredVersion("git", "git", []string{"--version"}, "git version")
+	failures += requiredGoVersion(goWant)
+	failures += requiredPresence("git", "git", []string{"--version"})
 	if all {
 		failures += requiredExactVersion("Node", "node", []string{"--version"}, nodeWant)
 		failures += requiredExactVersion("npm", "npm", []string{"--version"}, npmWant)
@@ -92,18 +93,101 @@ func requiredExactVersion(label, command string, args []string, want string) int
 	return 0
 }
 
-func requiredVersion(label, command string, args []string, want string) int {
+// requiredPresence reports a tool that has to exist but has no version floor
+// worth enforcing. git is the only one: every version in circulation can run
+// what this repository asks of it.
+func requiredPresence(label, command string, args []string) int {
 	version, err := capture(command, args...)
 	if err != nil {
 		fmt.Printf("[FAIL] %s: %s not found\n", label, command)
 		return 1
 	}
-	if !strings.Contains(version, want) {
-		fmt.Printf("[FAIL] %s: got %s; want %s\n", label, oneLine(version), want)
-		return 1
-	}
 	fmt.Printf("[OK]   %s: %s\n", label, oneLine(version))
 	return 0
+}
+
+// requiredGoVersion compares the installed Go against the go directive, which
+// is a lower bound rather than a pin. A substring match read it as an exact
+// version, so upgrading to the next patch release turned doctor red while
+// breaking nothing — `go build` is perfectly happy above the floor.
+func requiredGoVersion(want string) int {
+	output, err := capture("go", "version")
+	if err != nil {
+		fmt.Println("[FAIL] Go: go not found")
+		return 1
+	}
+	ok, known := goVersionSatisfies(output, want)
+	switch {
+	case !known:
+		// An unreadable version string is not a reason to block: the toolchain is
+		// present, and the build is the real gate.
+		fmt.Printf("[WARN] Go: cannot compare %s against go.mod's %s\n", oneLine(output), want)
+		return 0
+	case !ok:
+		fmt.Printf("[FAIL] Go: got %s; go.mod needs %s or newer\n", oneLine(output), want)
+		return 1
+	}
+	fmt.Printf("[OK]   Go: %s\n", oneLine(output))
+	return 0
+}
+
+// goVersionSatisfies reports whether `go version` output clears the go.mod
+// floor, and whether the comparison could be made at all.
+func goVersionSatisfies(output, want string) (ok, known bool) {
+	floor, parsed := versionParts(want)
+	if !parsed {
+		return false, false
+	}
+	got, parsed := versionParts(goVersionToken(output))
+	if !parsed {
+		return false, false
+	}
+	for i := range got {
+		if got[i] != floor[i] {
+			return got[i] > floor[i], true
+		}
+	}
+	return true, true
+}
+
+// goVersionToken picks the toolchain out of `go version` output:
+// "go version go1.26.6 darwin/arm64" gives "go1.26.6". Development builds print
+// "devel go1.28-<hash>" in that slot, so the token is found by shape rather
+// than by position.
+func goVersionToken(output string) string {
+	for _, field := range strings.Fields(output) {
+		if rest, found := strings.CutPrefix(field, "go"); found && rest != "" && rest[0] >= '0' && rest[0] <= '9' {
+			return rest
+		}
+	}
+	return ""
+}
+
+// versionParts reads the leading major.minor.patch of a Go version, padding a
+// missing patch with zero: the first release of a minor is "go1.26", not
+// "go1.26.0". A prerelease suffix is dropped rather than ordered — an rc of a
+// later minor already clears an earlier floor, which is all this has to decide.
+func versionParts(value string) ([3]int, bool) {
+	var parts [3]int
+	value = strings.TrimPrefix(strings.TrimSpace(value), "go")
+	if value == "" {
+		return parts, false
+	}
+	for i, field := range strings.SplitN(value, ".", 3) {
+		digits := 0
+		for digits < len(field) && field[digits] >= '0' && field[digits] <= '9' {
+			digits++
+		}
+		if digits == 0 {
+			return parts, false
+		}
+		number, err := strconv.Atoi(field[:digits])
+		if err != nil {
+			return parts, false
+		}
+		parts[i] = number
+	}
+	return parts, true
 }
 
 func optionalVersion(label, command string, args []string, want, note string) {
