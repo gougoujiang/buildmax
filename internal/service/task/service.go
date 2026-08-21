@@ -51,8 +51,8 @@ func (e *QuotaExceededError) Error() string {
 	return "quota exceeded: " + e.Reason
 }
 
-// TaskService owns task-related application workflows.
-type TaskService struct {
+// Service owns task-related application workflows.
+type Service struct {
 	Agents         model.AgentStore
 	Tasks          model.TaskStore
 	TaskRuns       model.TaskRunStore
@@ -105,7 +105,7 @@ type StartBackgroundTaskResult struct {
 }
 
 // CreateTask resolves input, applies title/quota rules, and persists a new task.
-func (s *TaskService) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model.Task, error) {
+func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model.Task, error) {
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
@@ -135,7 +135,7 @@ func (s *TaskService) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model
 }
 
 // CreateRun enforces basic run creation rules and delegates to TaskRunStore.
-func (s *TaskService) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.TaskRun, error) {
+func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.TaskRun, error) {
 	if s.TaskRuns == nil {
 		return nil, ErrTaskRunsNotConfigured
 	}
@@ -172,7 +172,7 @@ func (s *TaskService) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.T
 //
 // A run still in flight is not retried: one task holds at most one active run,
 // and the answer to "it is taking too long" is to stop it first.
-func (s *TaskService) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, error) {
+func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, error) {
 	if s.TaskRuns == nil {
 		return nil, ErrTaskRunsNotConfigured
 	}
@@ -224,7 +224,7 @@ func (s *TaskService) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResu
 	return &RetryResult{Run: run, RetriedRun: *previous}, nil
 }
 
-func (s *TaskService) refuseWorkflowStepRetry(ctx context.Context, taskID string) error {
+func (s *Service) refuseWorkflowStepRetry(ctx context.Context, taskID string) error {
 	if s.WorkflowSteps == nil {
 		return nil
 	}
@@ -239,7 +239,7 @@ func (s *TaskService) refuseWorkflowStepRetry(ctx context.Context, taskID string
 }
 
 // StartBackgroundTask creates a task and returns its task/run ids.
-func (s *TaskService) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*StartBackgroundTaskResult, error) {
+func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*StartBackgroundTaskResult, error) {
 	task, err := s.CreateTask(ctx, cmd)
 	if err != nil {
 		return nil, err
@@ -254,7 +254,7 @@ func (s *TaskService) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd
 	}, nil
 }
 
-func (s *TaskService) resolveInput(ctx context.Context, teamID, userID, input string, agentID *string) (string, *string, error) {
+func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string, agentID *string) (string, *string, error) {
 	if agentID == nil || *agentID == "" {
 		if input == "" {
 			return "", nil, ErrInputRequired
@@ -287,7 +287,7 @@ func (s *TaskService) resolveInput(ctx context.Context, teamID, userID, input st
 	return buildTaskInputFromAgent(agent, ""), agentID, nil
 }
 
-func (s *TaskService) resolveTitle(ctx context.Context, input string) (string, int, int) {
+func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, int) {
 	title := truncateTaskTitle(input, defaultTitleRunes)
 	if s.TitleGenerator == nil {
 		return title, 0, 0
@@ -299,7 +299,7 @@ func (s *TaskService) resolveTitle(ctx context.Context, input string) (string, i
 	return genTitle, promptTokens, completionTokens
 }
 
-func (s *TaskService) checkQuota(ctx context.Context, teamID string, tokens int) error {
+func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) error {
 	if s.QuotaChecker == nil {
 		return nil
 	}

@@ -41,7 +41,7 @@ const (
 // The cost is a read and a write on an admission that is already at the
 // threshold, and neither is allowed to change the admission decision — a
 // deployment whose audit table is unreachable must still run work.
-func (c *QuotaService) noteUsage(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart int64, denied bool) {
+func (c *Service) noteUsage(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart int64, denied bool) {
 	if c.Audit == nil || max <= 0 {
 		return
 	}
@@ -79,7 +79,7 @@ func (c *QuotaService) noteUsage(ctx context.Context, teamID string, limit quota
 // crossing would produce different ones. Failing to read is treated as "already
 // noted": a duplicate warning is noise, and noise in an evidence table is worse
 // than a warning that was skipped once because the database was busy.
-func (c *QuotaService) alreadyNoted(ctx context.Context, teamID, action, limit string, windowStart int64) bool {
+func (c *Service) alreadyNoted(ctx context.Context, teamID, action, limit string, windowStart int64) bool {
 	events, _, err := c.Audit.SearchAuditEvents(ctx, model.AuditFilter{
 		TeamID: teamID,
 		Action: action,

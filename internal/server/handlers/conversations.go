@@ -82,8 +82,8 @@ type runConversationTurnInput struct {
 	streamInitialPayload string
 }
 
-func (h *Handler) conversationService() *conversation.ConversationService {
-	return &conversation.ConversationService{
+func (h *Handler) conversationService() *conversation.Service {
+	return &conversation.Service{
 		TaskService:       h.taskService(),
 		ConversationStore: h.cfg.ConversationStore,
 		MessageStore:      h.cfg.ConversationMessageStore,

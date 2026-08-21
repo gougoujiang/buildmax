@@ -57,7 +57,7 @@ func taskToResponse(task model.Task) TaskResponse {
 	}
 }
 
-func (h *Handler) taskService() *task.TaskService {
+func (h *Handler) taskService() *task.Service {
 	var quotaChecker task.QuotaChecker
 	if h.cfg.QuotaService != nil {
 		quotaChecker = h.cfg.QuotaService
@@ -66,7 +66,7 @@ func (h *Handler) taskService() *task.TaskService {
 	if h.cfg.WorkflowStore != nil {
 		workflowSteps = h.cfg.WorkflowStore
 	}
-	return &task.TaskService{
+	return &task.Service{
 		Agents:         h.cfg.AgentStore,
 		Tasks:          h.cfg.TaskStore,
 		TaskRuns:       h.cfg.TaskRunStore,

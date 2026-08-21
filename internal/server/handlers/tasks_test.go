@@ -188,7 +188,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			checkCreated: true,
 		},
 	}
-	denyChecker := &quota.QuotaService{
+	denyChecker := &quota.Service{
 		TeamStore:   &mock.DenyQuotaTeamStore{Team: &model.Team{TeamID: teamID, QuotaTier: "free_trial"}},
 		UsageReader: &mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
 		TierStore:   &mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},

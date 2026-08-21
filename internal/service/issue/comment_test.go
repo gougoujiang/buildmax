@@ -10,9 +10,9 @@ import (
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
-func commentService(comments ...model.IssueComment) (*IssueService, *mock.MockIssueCommentStore) {
+func commentService(comments ...model.IssueComment) (*Service, *mock.MockIssueCommentStore) {
 	store := &mock.MockIssueCommentStore{Comments: comments}
-	return &IssueService{Issues: &mock.MockIssueStore{}, Comments: store}, store
+	return &Service{Issues: &mock.MockIssueStore{}, Comments: store}, store
 }
 
 func TestCreateComment(t *testing.T) {
@@ -58,7 +58,7 @@ func TestCreateComment_TooLong(t *testing.T) {
 }
 
 func TestCreateComment_NotConfigured(t *testing.T) {
-	svc := &IssueService{Issues: &mock.MockIssueStore{}}
+	svc := &Service{Issues: &mock.MockIssueStore{}}
 	_, err := svc.CreateComment(context.Background(), CreateCommentCmd{IssueID: "i_1", AuthorID: "u1", Body: "hi"})
 	if !errors.Is(err, ErrCommentsNotConfigured) {
 		t.Fatalf("err = %v, want %v", err, ErrCommentsNotConfigured)

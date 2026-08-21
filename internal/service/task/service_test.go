@@ -17,7 +17,7 @@ func TestCreateRun_PersistsProvenance(t *testing.T) {
 		}},
 	}
 	runStore := &mock.MockTaskRunStore{}
-	svc := &TaskService{
+	svc := &Service{
 		Tasks:    taskStore,
 		TaskRuns: runStore,
 	}

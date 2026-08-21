@@ -174,8 +174,8 @@ func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunRespon
 	}
 }
 
-func (h *Handler) workflowService() *workflow.WorkflowService {
-	return &workflow.WorkflowService{
+func (h *Handler) workflowService() *workflow.Service {
+	return &workflow.Service{
 		Workflows:     h.cfg.WorkflowStore,
 		Agents:        h.cfg.AgentStore,
 		Issues:        h.cfg.IssueStore,

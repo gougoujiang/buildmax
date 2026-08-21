@@ -40,11 +40,11 @@ type RunOutputLister interface {
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
-	JWTSecret        string              // Required for login when UserStore is set
-	AllowSignup      bool                // Open POST /api/otp/request to self-registration; closed by default
-	CORSOrigin       string              // If set, enable CORS with this origin (e.g. "http://localhost:5173")
-	QuotaService     *quota.QuotaService // Optional; when set, create chat/run enforce quota and return 429 when exceeded
-	DefaultQuotaTier string              // Default quota tier for new users (e.g. signup); used when calling CreateUser
+	JWTSecret        string         // Required for login when UserStore is set
+	AllowSignup      bool           // Open POST /api/otp/request to self-registration; closed by default
+	CORSOrigin       string         // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	QuotaService     *quota.Service // Optional; when set, create chat/run enforce quota and return 429 when exceeded
+	DefaultQuotaTier string         // Default quota tier for new users (e.g. signup); used when calling CreateUser
 	// Token lifetimes; zero means the default in internal/core/model.
 	AccessTokenTTL       time.Duration
 	RefreshTokenTTL      time.Duration
@@ -171,7 +171,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 	var webhookAdapter convchannel.Adapter
 	var webhookEngine conversation.TurnEngine
 	if cfg.Stores.UserWebhookKeyStore != nil {
-		taskSvc := &task.TaskService{
+		taskSvc := &task.Service{
 			Agents:         cfg.Stores.AgentStore,
 			Tasks:          cfg.Stores.TaskStore,
 			TaskRuns:       cfg.Stores.TaskRunStore,
@@ -237,16 +237,16 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 // propagated. A deployment without workflows still reports runs on issues, and
 // a comment store that is down does not stop a workflow from advancing.
 func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info handlers.TaskRunTerminalInfo) {
-	var workflowSvc *workflow.WorkflowService
+	var workflowSvc *workflow.Service
 	if cfg.Stores.WorkflowStore != nil {
-		taskSvc := &task.TaskService{
+		taskSvc := &task.Service{
 			Agents:         cfg.Stores.AgentStore,
 			Tasks:          cfg.Stores.TaskStore,
 			TaskRuns:       cfg.Stores.TaskRunStore,
 			QuotaChecker:   cfg.Auth.QuotaService,
 			TitleGenerator: nil,
 		}
-		workflowSvc = &workflow.WorkflowService{
+		workflowSvc = &workflow.Service{
 			Workflows:     cfg.Stores.WorkflowStore,
 			Agents:        cfg.Stores.AgentStore,
 			Issues:        cfg.Stores.IssueStore,
