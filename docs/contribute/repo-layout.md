@@ -120,6 +120,7 @@ internal/
 │   │   ├── channel/    Normalized turn types and channel adapters (webhook)
 │   │   ├── runtime/    Turn-loop mechanics: replay, tool assembly, streaming
 │   │   └── tool/       Tier 1 tools and the task-runner bridge
+│   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
