@@ -47,6 +47,7 @@ single-use code for `deployment-smoke@buildmax.local` after verification.
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind images  # rebuild and load local images without applying manifests
+./make kind db      # forward the in-cluster MySQL to 127.0.0.1:3306
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind down    # delete the selected cluster
@@ -76,6 +77,31 @@ BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind down
 The cluster uses host ports `8080` and `8443`. Stop another local service on
 `8080`, or use Compose at a different `BUILDMAX_PORTAL_PORT`, before creating
 the cluster.
+
+## Read The Data A Run Wrote
+
+MySQL and MinIO have ClusterIP Services and the cluster publishes only the
+ingress ports, so neither is reachable from this machine on its own.
+
+```bash
+./make kind db          # forwards mysql to 127.0.0.1:3306 until you stop it
+./make kind db 13306    # another port, when 3306 is taken locally
+```
+
+While it runs, connect with any client — `mysql -h 127.0.0.1 -P 3306 -ubuildmax
+-pbuildmax buildmax`, or the DSN
+`buildmax:buildmax@tcp(127.0.0.1:3306)/buildmax`. Those are the development
+credentials in `deployment/dev-kind/mysql.yaml`; the database is `emptyDir` and
+goes away with the cluster. The same DSN in `BUILDMAX_TEST_DSN` is what runs the
+store integration tests under `internal/infra/db` against a real MySQL.
+
+For a single query, or for MinIO, use kubectl directly:
+
+```bash
+kubectl --context kind-buildmaxdev -n db exec deployment/mysql -- \
+  mysql -ubuildmax -pbuildmax buildmax -e "select * from task_run\G"
+kubectl --context kind-buildmaxdev -n storage port-forward svc/minio 9001:9001
+```
 
 ## Smoke Versus Real Providers
 

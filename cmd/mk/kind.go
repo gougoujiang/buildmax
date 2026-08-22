@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -45,6 +46,8 @@ func cmdKind(args []string) error {
 		return kindUp()
 	case "images":
 		return cmdPubImages()
+	case "db":
+		return kindDB(args[1:])
 	case "smoke":
 		managed, err := composeSmokeMode(args[1:])
 		if err != nil {
@@ -207,6 +210,50 @@ func kindSmokeTarget() smokeTarget {
 			return captureCombined("kubectl", cmdArgs...)
 		},
 	}
+}
+
+// kindDB forwards the in-cluster MySQL to the host so a client on this machine
+// can read what a run actually wrote.
+//
+// The dependency manifests give MySQL a ClusterIP and the cluster publishes
+// only the ingress ports, so there is no way in from the host without this. It
+// runs in the foreground and stops with the command: a forward left running in
+// the background is a socket into a database that outlives the terminal that
+// remembers it exists.
+//
+// The credentials are the development ones in deployment/dev-kind/mysql.yaml.
+// They are not a secret and not a deployment: that manifest exists to be thrown
+// away with the cluster.
+func kindDB(args []string) error {
+	port := "3306"
+	if len(args) == 1 && args[0] != "" {
+		port = args[0]
+	}
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return usageErrorf("kind", "%q is not a port number", port)
+	}
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	cluster := kindClusterName()
+	exists, err := kindClusterExists(cluster)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
+	}
+	// Same probe as the cluster preflight, for the same reason: kubectl's own
+	// failure names the port but not what is holding it.
+	if conn, dialErr := net.DialTimeout("tcp", "127.0.0.1:"+port, 300*time.Millisecond); dialErr == nil {
+		_ = conn.Close()
+		return fmt.Errorf("host port %s is already in use\n  Stop what is listening, or forward to another port: %s kind db 13306", port, mk())
+	}
+	fmt.Printf("Forwarding mysql.db.svc.cluster.local:3306 from cluster %s to 127.0.0.1:%s\n", cluster, port)
+	fmt.Printf("  mysql -h 127.0.0.1 -P %s -ubuildmax -pbuildmax buildmax\n", port)
+	fmt.Printf("  DSN: buildmax:buildmax@tcp(127.0.0.1:%s)/buildmax\n", port)
+	fmt.Println("Leave this running; Ctrl+C stops the forward.")
+	return kindKubectl("port-forward", "-n", "db", "svc/mysql", port+":3306")
 }
 
 // kindStatus reports what the selected cluster is running without changing it,

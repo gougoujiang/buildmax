@@ -67,7 +67,7 @@ func allHelpSections() []helpSection {
 		}},
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
-			{"kind <action>", "Manage local Kubernetes (up|images|smoke [managed]|status|logs|down)"},
+			{"kind <action>", "Manage local Kubernetes (up|images|smoke|db|status|logs|down)"},
 			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local, cli, desktop, or all"},
 		}},
 		{"Release", []helpRow{
@@ -261,7 +261,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|images|smoke [managed]|status|logs|down>",
+			usage:   "kind <up|images|smoke [managed]|db [port]|status|logs|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -270,16 +270,19 @@ func helpTopics() []helpTopic {
 				"The kind reference serves Portal and the server from one ingress, which is the\n" +
 					"difference the browser tests can see: here the bundle's API base is\n" +
 					"same-origin, under Compose it is absolute.",
+				"MySQL and MinIO are reachable only inside the cluster. `db` forwards MySQL to\n" +
+					"this machine for as long as it runs, which is how you read what a run wrote.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
 				{"images", "Build the images and load them into the cluster"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
+				{"db [port]", "Forward the in-cluster MySQL to 127.0.0.1 (default 3306)"},
 				{"status", "Report pod, service, and ingress state"},
 				{"logs", "Tail the deployment's logs"},
 				{"down", "Delete the cluster"},
 			},
-			examples: []string{"kind up", "kind images", "kind smoke"},
+			examples: []string{"kind up", "kind images", "kind smoke", "kind db"},
 			see:      "docs/deploy/local-kind.md",
 		},
 		{
