@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
 
@@ -31,10 +30,10 @@ func validPackage(t *testing.T, manifest string, extra fstest.MapFS) []byte {
 	return buf.Bytes()
 }
 
-func newService(t *testing.T) (*Service, *fakeCatalog, *fakePackages, *fakeAudit) {
+func newService(t *testing.T) (*Service, *mock.MockPluginStore, *mock.MockPluginPackageStorage, *fakeAudit) {
 	t.Helper()
-	catalog := newFakeCatalog()
-	packages := &fakePackages{objects: map[string][]byte{}}
+	catalog := mock.NewMockPluginStore()
+	packages := mock.NewMockPluginPackageStorage()
 	events := &fakeAudit{}
 	return &Service{
 		Catalog:   catalog,
@@ -82,7 +81,7 @@ func TestPublishStoresBytesAndRelease(t *testing.T) {
 		t.Errorf("source claim not recorded: %+v", release.Source)
 	}
 
-	stored, ok := packages.objects[release.ObjectKey]
+	stored, ok := packages.Objects[release.ObjectKey]
 	if !ok {
 		t.Fatalf("no bytes at %q", release.ObjectKey)
 	}
@@ -165,8 +164,8 @@ func TestPublishRefusals(t *testing.T) {
 				t.Errorf("err = %v, want %v", err, tc.want)
 			}
 			// A refused publish stores nothing.
-			if len(packages.objects) != 0 {
-				t.Errorf("refused publish stored %d objects", len(packages.objects))
+			if len(packages.Objects) != 0 {
+				t.Errorf("refused publish stored %d objects", len(packages.Objects))
 			}
 		})
 	}
@@ -196,7 +195,7 @@ func TestPublishStopsAnOversizedUpload(t *testing.T) {
 	if !errors.Is(err, ErrInvalidPackage) {
 		t.Fatalf("err = %v, want ErrInvalidPackage", err)
 	}
-	if len(packages.objects) != 0 {
+	if len(packages.Objects) != 0 {
 		t.Error("an oversized upload reached storage")
 	}
 }
@@ -269,153 +268,6 @@ func TestYank(t *testing.T) {
 }
 
 // --- fakes -----------------------------------------------------------------
-
-type fakeCatalog struct {
-	plugins  map[string]*model.Plugin
-	releases map[string][]*model.PluginRelease
-	nextID   int
-}
-
-func newFakeCatalog() *fakeCatalog {
-	return &fakeCatalog{plugins: map[string]*model.Plugin{}, releases: map[string][]*model.PluginRelease{}}
-}
-
-func (f *fakeCatalog) id(prefix string) string {
-	f.nextID++
-	return prefix + string(rune('a'+f.nextID%26))
-}
-
-func (f *fakeCatalog) CreatePlugin(_ context.Context, in model.CreatePluginInput) (*model.Plugin, error) {
-	if _, taken := f.plugins[in.Name]; taken {
-		return nil, model.ErrPluginNameTaken
-	}
-	p := &model.Plugin{
-		PluginID: f.id("pl_"), Name: in.Name, DisplayName: in.DisplayName,
-		Description: in.Description, CreatedBy: in.CreatedBy,
-	}
-	f.plugins[in.Name] = p
-	return p, nil
-}
-
-func (f *fakeCatalog) GetPlugin(_ context.Context, name string) (*model.Plugin, error) {
-	p, ok := f.plugins[name]
-	if !ok {
-		return nil, nil
-	}
-	copied := *p
-	return &copied, nil
-}
-
-func (f *fakeCatalog) ListPlugins(_ context.Context, includeArchived bool) ([]model.Plugin, error) {
-	var out []model.Plugin
-	for _, p := range f.plugins {
-		if !includeArchived && p.Archived() {
-			continue
-		}
-		out = append(out, *p)
-	}
-	return out, nil
-}
-
-func (f *fakeCatalog) UpdatePlugin(_ context.Context, name string, in model.UpdatePluginInput) (*model.Plugin, error) {
-	p, ok := f.plugins[name]
-	if !ok {
-		return nil, model.ErrNotFound
-	}
-	p.DisplayName, p.Description = in.DisplayName, in.Description
-	copied := *p
-	return &copied, nil
-}
-
-func (f *fakeCatalog) SetPluginArchived(_ context.Context, name string, archived bool) error {
-	p, ok := f.plugins[name]
-	if !ok {
-		return model.ErrNotFound
-	}
-	if archived {
-		p.ArchivedAt = 1
-	} else {
-		p.ArchivedAt = 0
-	}
-	return nil
-}
-
-func (f *fakeCatalog) CreatePluginRelease(_ context.Context, in model.CreatePluginReleaseInput) (*model.PluginRelease, error) {
-	entry, ok := f.plugins[in.PluginName]
-	if !ok {
-		return nil, model.ErrNotFound
-	}
-	if entry.Archived() {
-		return nil, model.ErrPluginArchived
-	}
-	for _, r := range f.releases[in.PluginName] {
-		if r.Version == in.Version {
-			return nil, model.ErrPluginVersionExists
-		}
-	}
-	r := &model.PluginRelease{
-		PluginReleaseID: f.id("plr_"), PluginID: entry.PluginID, PluginName: in.PluginName,
-		Version: in.Version, MinBuildmaxVersion: in.MinBuildmaxVersion, Digest: in.Digest,
-		ObjectKey: in.ObjectKey, SizeBytes: in.SizeBytes, Inspection: in.Inspection,
-		Source: in.Source, PublishedBy: in.PublishedBy,
-	}
-	f.releases[in.PluginName] = append(f.releases[in.PluginName], r)
-	return r, nil
-}
-
-func (f *fakeCatalog) GetPluginRelease(_ context.Context, name, version string) (*model.PluginRelease, error) {
-	for _, r := range f.releases[name] {
-		if r.Version == version {
-			copied := *r
-			return &copied, nil
-		}
-	}
-	return nil, nil
-}
-
-func (f *fakeCatalog) ListPluginReleases(_ context.Context, name string) ([]model.PluginRelease, error) {
-	var out []model.PluginRelease
-	for _, r := range f.releases[name] {
-		out = append(out, *r)
-	}
-	return out, nil
-}
-
-func (f *fakeCatalog) YankPluginRelease(_ context.Context, name, version, actor, reason string) error {
-	for _, r := range f.releases[name] {
-		if r.Version == version {
-			if r.YankedAt == 0 {
-				r.YankedAt, r.YankedBy, r.YankedReason = 1, actor, reason
-			}
-			return nil
-		}
-	}
-	return model.ErrNotFound
-}
-
-type fakePackages struct{ objects map[string][]byte }
-
-func (f *fakePackages) Put(_ context.Context, key string, r io.Reader) error {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	f.objects[key] = data
-	return nil
-}
-
-func (f *fakePackages) Open(_ context.Context, key string) (io.ReadCloser, int64, error) {
-	data, ok := f.objects[key]
-	if !ok {
-		return nil, 0, objectstore.ErrNotFound
-	}
-	return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
-}
-
-func (f *fakePackages) Exists(_ context.Context, key string) (bool, error) {
-	_, ok := f.objects[key]
-	return ok, nil
-}
 
 type fakeAudit struct{ events []model.AuditEvent }
 

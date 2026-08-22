@@ -674,19 +674,36 @@ design.
 The intended surface is small:
 
 ```text
-GET  /api/plugins
-GET  /api/plugins/{plugin_name}
-GET  /api/plugins/{plugin_name}/releases/{version}/download
+GET  /api/plugins                                            planned
+GET  /api/plugins/{plugin_name}                              planned
+GET  /api/plugins/{plugin_name}/releases/{version}/download  planned
 
-POST /api/admin/plugins
-POST /api/admin/plugins/{plugin_name}/releases
-POST /api/admin/plugins/{plugin_name}/releases/{version}/yank
-POST /api/admin/plugins/{plugin_name}/archive
+GET  /api/admin/plugins                                      shipped
+POST /api/admin/plugins                                      shipped
+GET  /api/admin/plugins/{plugin_name}/releases               shipped
+POST /api/admin/plugins/{plugin_name}/releases               shipped
+POST /api/admin/plugins/{plugin_name}/releases/{version}/yank shipped
+POST /api/admin/plugins/{plugin_name}/archive                shipped
+POST /api/admin/plugins/{plugin_name}/unarchive              shipped
 ```
 
-Routes are provisional until implemented; `internal/server/handlers/routes.go`
-becomes the source of truth when they ship. Upload and download stream bytes and
-never buffer a whole package in memory.
+The administration half is registered in
+`internal/server/handlers/admin`, which is the source of truth for it now that
+it ships; the browse and download half is not written yet. Two routes were added
+while implementing: an administrator listing, because hiding a retired entry
+from the person who retired it leaves no way to restore it, and an unarchive to
+match, following the enable/disable pairs the model routes already use.
+
+Publishing sends the archive as the request body rather than as a field inside
+a document, so the bytes stream from the connection to disk with no decoder
+holding them. The publisher's claim about the checkout travels as
+`source_remote`, `source_commit`, `source_branch`, and `source_dirty` query
+parameters, which keeps the body one thing. Download will stream the same way.
+
+Refusals distinguish the request from its timing: a package this deployment
+could not load is `400`, an upload past the size bound is `413`, and a version
+that is already published or an entry that is retired is `409` — the same
+request would have succeeded a moment earlier, so nothing about it is malformed.
 
 The audit trail records catalog creation, metadata change, release publication,
 yank, and archive. It records actor, target, version, and digest prefix, never

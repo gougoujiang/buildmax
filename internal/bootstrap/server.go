@@ -22,6 +22,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
 
@@ -106,12 +107,12 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
-	persistStorage, artifactStorage, err := buildBlobStorage(ctx, sc.Storage, workspacesDir)
+	storage, err := buildBlobStorage(ctx, sc.Storage, workspacesDir)
 	if err != nil {
 		return err
 	}
 
-	serverConfig, err := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, persistStorage, artifactStorage)
+	serverConfig, err := buildHTTPServerConfig(port, jwtSecret, sc, workspacesDir, store, storage)
 	if err != nil {
 		return err
 	}
@@ -174,27 +175,42 @@ func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error
 	return st, nil
 }
 
-func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, workspacesDir string) (blob.PersistStorage, blob.ArtifactStorage, error) {
+// blobStorage is what one deployment stores and where.
+type blobStorage struct {
+	persist  blob.PersistStorage
+	artifact blob.ArtifactStorage
+	packages blob.PluginPackageStorage
+	// packageKeyPrefix scopes package keys inside whichever backend holds them.
+	packageKeyPrefix string
+}
+
+func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, workspacesDir string) (blobStorage, error) {
 	wsCfg := toWorkspaceStorageConfig(sc)
 	s3Client, err := buildOptionalS3Client(ctx, wsCfg)
 	if err != nil {
-		return nil, nil, err
+		return blobStorage{}, err
 	}
 	persistRoot := func(teamID string) string {
 		return config.PersistentWorkspaceDir(workspacesDir, teamID)
 	}
 	persistStorage, err := BuildPersistStorage(wsCfg, persistRoot, s3Client)
 	if err != nil {
-		return nil, nil, fmt.Errorf("persist storage: %w", err)
+		return blobStorage{}, fmt.Errorf("persist storage: %w", err)
 	}
 	artifactRoot := func(userID, conversationID, taskID, taskRunID string) string {
 		return filepath.Join(workspacesDir, userID, "artifacts", conversationID, taskID, taskRunID)
 	}
 	artifactStorage, err := BuildArtifactStorage(wsCfg, artifactRoot, s3Client)
 	if err != nil {
-		return nil, nil, fmt.Errorf("artifact storage: %w", err)
+		return blobStorage{}, fmt.Errorf("artifact storage: %w", err)
 	}
-	return persistStorage, artifactStorage, nil
+	packages, packagePrefix := BuildPluginPackageStorage(wsCfg, workspacesDir, s3Client)
+	return blobStorage{
+		persist:          persistStorage,
+		artifact:         artifactStorage,
+		packages:         packages,
+		packageKeyPrefix: packagePrefix,
+	}, nil
 }
 
 func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageConfig) (blob.S3Client, error) {
@@ -208,7 +224,13 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 	return s3Client, nil
 }
 
-func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, persistStorage blob.PersistStorage, artifactStorage blob.ArtifactStorage) (httpserver.Config, error) {
+func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, storage blobStorage) (httpserver.Config, error) {
+	pluginService := &pluginsvc.Service{
+		Catalog:   st,
+		Packages:  storage.packages,
+		KeyPrefix: storage.packageKeyPrefix,
+		Audit:     audit.NewRecorder(st),
+	}
 	quotaService := &quota.Service{
 		TeamStore:   st,
 		UsageReader: st,
@@ -250,9 +272,10 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			SchemaStore:         st,
 			LLMModelStore:       st,
 		},
+		Services: httpserver.ServicesConfig{Plugin: pluginService},
 		Storage: httpserver.StorageConfig{
-			PersistStorage:  persistStorage,
-			ArtifactStorage: artifactStorage,
+			PersistStorage:  storage.persist,
+			ArtifactStorage: storage.artifact,
 			WorkspacesDir:   workspacesDir,
 		},
 		Worker: httpserver.WorkerConfig{
@@ -268,7 +291,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			UserID:      sc.Webhook.UserID,
 		},
 		Audit:     audit.NewRecorder(st),
-		Readiness: readinessChecks(st, persistStorage),
+		Readiness: readinessChecks(st, storage.persist),
 		// What the admin system status reports about this deployment, and the
 		// operator-facing view of server.yaml. The redaction whitelist lives in
 		// internal/config, next to the struct it describes.

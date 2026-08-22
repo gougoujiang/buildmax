@@ -110,6 +110,32 @@ func (s *Service) SetArchived(ctx context.Context, name string, archived bool, a
 	return nil
 }
 
+// ListEntries returns the catalog. Archived entries are included only when
+// asked for: hiding a retired entry from the person who retired it would leave
+// no way to restore it.
+func (s *Service) ListEntries(ctx context.Context, includeArchived bool) ([]model.Plugin, error) {
+	return s.Catalog.ListPlugins(ctx, includeArchived)
+}
+
+// GetEntry returns one catalog entry, or (nil, nil) when there is none.
+func (s *Service) GetEntry(ctx context.Context, name string) (*model.Plugin, error) {
+	return s.Catalog.GetPlugin(ctx, name)
+}
+
+// ListReleases returns every release of one plugin, yanked ones included:
+// which to install needs the version arithmetic, and an exact version can still
+// be recovered by someone who acknowledges the state.
+func (s *Service) ListReleases(ctx context.Context, name string) ([]model.PluginRelease, error) {
+	entry, err := s.Catalog.GetPlugin(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		return nil, model.ErrNotFound
+	}
+	return s.Catalog.ListPluginReleases(ctx, name)
+}
+
 // Yank withdraws a release from default selection.
 func (s *Service) Yank(ctx context.Context, name, version, actorID, reason string) error {
 	release, err := s.Catalog.GetPluginRelease(ctx, name, version)
