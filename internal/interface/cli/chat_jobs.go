@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/infra/proc"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -32,16 +37,142 @@ func listenJobsCmd(events <-chan job.Event) tea.Cmd {
 	}
 }
 
-// handleJobEvent prints terminal transitions to the scrollback and re-arms the
-// listener. Job starts are already visible as the Bash tool's result, so only
-// the ending is news.
+// handleJobEvent prints terminal transitions to the scrollback, queues
+// requested deliveries, and re-arms the listener. Job starts are already
+// visible as the launching tool's result, so only the ending — and a react
+// monitor's lines — is news.
+//
+// A delivery wakes only the session that owns the job and only while it is
+// the one on screen; another session's job degrades to the notice line, and
+// its result stays queryable. Reactions parked for an unattached session are
+// a later refinement, not silently promised here.
 func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
-	listen := listenJobsCmd(m.jobEvents)
-	if msg.Event.Job.Running() {
-		return m, listen
+	var cmds []tea.Cmd
+	if listen := listenJobsCmd(m.jobEvents); listen != nil {
+		cmds = append(cmds, listen)
 	}
-	line := formatJobEventForScrollback(msg.Event.Job)
-	return m, tea.Batch(tea.Println(line+"\n"), listen)
+	ev := msg.Event
+
+	if ev.Type == job.EventMonitorLine {
+		// Notify-only monitor lines never reach the transcript or the model;
+		// /tasks and JobOutput are their surface. React lines wake the owner.
+		if ev.Job.Deliver && m.ownsJob(ev.Job) {
+			m.pendingJobEvents = append(m.pendingJobEvents, monitorLineEvent(ev))
+			if !m.busy {
+				cmds = append(cmds, drainQueueCmd())
+			}
+		}
+		return m, tea.Batch(cmds...)
+	}
+
+	if ev.Job.Running() {
+		return m, tea.Batch(cmds...)
+	}
+	cmds = append(cmds, tea.Println(formatJobEventForScrollback(ev.Job)+"\n"))
+	if ev.Job.Deliver && m.ownsJob(ev.Job) {
+		m.pendingJobEvents = append(m.pendingJobEvents, completionEvent(m, ev.Job))
+		if !m.busy {
+			cmds = append(cmds, drainQueueCmd())
+		}
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// ownsJob reports whether the job belongs to the session currently on screen.
+func (m *Model) ownsJob(j job.Job) bool {
+	return m.opts.Session != nil && j.Provenance.SessionID == m.opts.Session.ID
+}
+
+// monitorLineEvent shapes one react-monitor line for delivery.
+func monitorLineEvent(ev job.Event) agentapp.BackgroundEvent {
+	payload := ev.Line
+	if ev.DroppedLines > 0 {
+		payload += fmt.Sprintf("\n(%d earlier lines were dropped by rate limiting)", ev.DroppedLines)
+	}
+	return agentapp.BackgroundEvent{
+		Source:  llm.MessageSourceMonitorEvent,
+		JobID:   ev.Job.ID,
+		Title:   ev.Job.Command,
+		Payload: payload,
+	}
+}
+
+// completionEventTailBytes bounds how much recent output a command's
+// completion carries into the conversation; the full stream stays behind
+// JobOutput.
+const completionEventTailBytes = 4096
+
+// completionEvent shapes a finished job's requested delivery.
+func completionEvent(m *Model, j job.Job) agentapp.BackgroundEvent {
+	source := llm.MessageSourceCommandResult
+	if j.Kind == job.KindSubagent {
+		source = llm.MessageSourceSubagentResult
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "state: %s", j.State)
+	switch {
+	case j.State == job.StateCanceled && j.StopReason != "":
+		fmt.Fprintf(&b, " (%s)", j.StopReason)
+	case j.State == job.StateFailed && j.Err != "":
+		fmt.Fprintf(&b, " (%s)", j.Err)
+	}
+	b.WriteString("\n")
+	if m.opts.App != nil && m.opts.App.Jobs() != nil {
+		if chunk, err := m.opts.App.Jobs().Output(j.ID, proc.Stdout, 0, 0); err == nil && len(chunk.Data) > 0 {
+			data := chunk.Data
+			if j.Kind == job.KindCommand && len(data) > completionEventTailBytes {
+				data = data[len(data)-completionEventTailBytes:]
+				b.WriteString("(recent output tail; read the rest with JobOutput)\n")
+			}
+			b.Write(data)
+		}
+	}
+	return agentapp.BackgroundEvent{
+		Source:  source,
+		JobID:   j.ID,
+		Title:   j.Command,
+		Payload: b.String(),
+	}
+}
+
+// startBackgroundEventRun mirrors startRun for a background-event turn: same
+// busy state, stream channel, and queue handoff, with a dim header saying why
+// the agent is speaking unprompted.
+func startBackgroundEventRun(m *Model, ev agentapp.BackgroundEvent) tea.Cmd {
+	m.busy = true
+	m.err = ""
+	m.carouselDots = 0
+	m.streamingBuffer = ""
+	m.runStatus.PromptTokens = 0
+	m.runStatus.CompletionTokens = 0
+	channel := make(chan tea.Msg)
+	m.streamChannel = channel
+	header := queuedMessageStyle.Render("⟳ " + ev.Source + " from " + ev.JobID + " — " + jobCommandSummary(ev.Title, 60))
+	return tea.Sequence(
+		tea.Println(header+"\n"),
+		tea.Batch(
+			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(time.Time) tea.Msg { return carouselTickMsg{} }),
+			runBackgroundEventWithStream(m.opts, ev, channel, m.queue),
+		),
+	)
+}
+
+// runBackgroundEventWithStream is runAgentWithStream's sibling for a
+// background event turn.
+func runBackgroundEventWithStream(opts TUIOpts, ev agentapp.BackgroundEvent, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
+	sink := &streamSinkToChannel{channel: channel}
+	evSink := eventSinkToChannel(channel)
+	go func() {
+		result, err := opts.App.RunBackgroundEvent(context.Background(), opts.Session, ev, agentapp.RunPromptOpts{
+			Stream:    sink,
+			Approval:  opts.Approval,
+			EventSink: evSink,
+			Pending:   queue,
+		})
+		channel <- agentDoneMsg{Result: result, Err: err}
+		close(channel)
+	}()
+	return func() tea.Msg { return <-channel }
 }
 
 // formatJobEventForScrollback renders one finished job as a dim notice line:

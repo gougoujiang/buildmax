@@ -30,7 +30,7 @@ reference, then delete the plan.
 |---|---|---|
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
 | [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt |
-| [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–2 shipped: background `Bash` and `Task` jobs, `Job` tools, trace linkage, TUI `/tasks`, Desktop drawer. Monitors and durability open |
+| [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed event delivery with TUI wake-up. Desktop wake-up and stage 4 durability open |
 | [Issue model](issue-model.md) | P2 follow-on | Sub-issues and comments implemented; mentions and realtime push open |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |

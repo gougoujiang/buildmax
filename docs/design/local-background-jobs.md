@@ -1,10 +1,11 @@
 # Local Background Jobs
 
-> **Audience:** contributors · **Status:** stages 1–2 implemented — background
-> `Bash` and `Task` jobs with the shared manager, `Job` tools, trace linkage
-> to the launching tool call, TUI `/tasks`, and the Desktop jobs drawer. A
-> background subagent's reply is queryable; its push delivery rides the stage
-> 3 inbox. Stages 3–4 (monitors, durability) open
+> **Audience:** contributors · **Status:** stages 1–3 implemented — background
+> `Bash` and `Task` jobs, the `Monitor` tool with line events and
+> backpressure, typed non-user provenance on delivered events, and serialized
+> wake-up (`deliver_result`, per-monitor `react`) on the TUI. Desktop is
+> notify-only so far: its drawer shows jobs and lines, but wake-up turns are
+> not wired. Stage 4 (durability, spool, supervisor) open
 
 Related: [durable run trace](durable-run-trace.md); [queued
 messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
@@ -372,8 +373,10 @@ Independently reviewable work that stages above depend on:
   internal UUID like sessions while they remain transient.
 - Memory-only output ring versus a `BUILDMAX_HOME` spool in the first version.
 - Safe default concurrency and event-rate limits on a laptop.
-- Whether switching away from the owning session pauses `react` monitors
-  (leaning yes — the producer keeps running, reactions wait for the owner).
+- Whether switching away from the owning session parks `react` deliveries
+  until the owner returns. Today the producer keeps running and a delivery
+  for a session not on screen degrades to a notification with the result
+  still queryable; parking and replaying reactions is the refinement.
 - Which hooks observe job lifecycle beyond the launch gate.
 - Plugin-declared monitors, and their trust level, after the interactive tool
   exists.

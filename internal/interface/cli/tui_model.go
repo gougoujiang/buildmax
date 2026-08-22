@@ -154,6 +154,11 @@ type Model struct {
 	// has no job manager. jobEventsCancel releases the subscription on quit.
 	jobEvents       <-chan job.Event
 	jobEventsCancel func()
+	// pendingJobEvents are background events waiting to wake the session:
+	// requested deliveries and react-monitor lines. Drained one per turn,
+	// after the user's own queued messages — the user's words outrank a
+	// job's news.
+	pendingJobEvents []agentapp.BackgroundEvent
 }
 
 // drainQueueMsg asks the model to start the next queued message, if any. It is a
@@ -487,10 +492,15 @@ func handleDrainQueue(m *Model, _ drainQueueMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	text, ok := m.queue.Dequeue()
-	if !ok {
-		return m, nil
+	if ok {
+		return m, startRun(m, text)
 	}
-	return m, startRun(m, text)
+	if len(m.pendingJobEvents) > 0 {
+		ev := m.pendingJobEvents[0]
+		m.pendingJobEvents = m.pendingJobEvents[1:]
+		return m, startBackgroundEventRun(m, ev)
+	}
+	return m, nil
 }
 
 func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
