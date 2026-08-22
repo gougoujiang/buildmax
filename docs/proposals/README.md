@@ -30,6 +30,7 @@ their context.
 
 | Proposal | Question |
 |---|---|
+| [Portal interaction and execution model](portal-interaction-execution-model.md) | How should a full foreground Tier 1 Agent coordinate a potentially specialized Tier 2 execution Agent plane without owning durable state and delivery? |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Agent execution policy](agent-execution-policy.md) | Who chooses a worker's execution boundary, and what happens when the chosen one cannot be applied? |
 | [Trusted private execution loop](trusted-private-execution-loop.md) | Should the next cross-cutting milestone prove one constrained, managed, auditable private team task before broader product expansion? |
