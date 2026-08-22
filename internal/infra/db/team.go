@@ -11,44 +11,89 @@ import (
 )
 
 type teamRow struct {
-	ID                uint    `gorm:"primaryKey;autoIncrement"`
-	TeamID            string  `gorm:"column:team_id;type:varchar(64);uniqueIndex;not null"`
+	ID                uint64  `gorm:"primaryKey;autoIncrement"`
+	PublicID          []byte  `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_team_public_id;not null"`
 	Name              string  `gorm:"type:varchar(255);not null"`
-	PersonalForUserID *string `gorm:"column:personal_for_user_id;type:varchar(64);uniqueIndex"`
+	PersonalForUserID *uint64 `gorm:"column:personal_for_user_id;uniqueIndex"`
 	QuotaTier         string  `gorm:"column:quota_tier;type:varchar(64)"`
-	CreatedBy         string  `gorm:"type:varchar(64);not null"`
+	CreatedBy         uint64  `gorm:"column:created_by;not null"`
 	CreatedAt         int64   `gorm:"autoCreateTime"`
 	UpdatedAt         int64   `gorm:"autoUpdateTime"`
 }
 
 func (teamRow) TableName() string { return "team" }
 
+// teamReadRow is teamRow plus the handles its user references resolve to.
+//
+// Every read that returns a team joins for them, so a caller never sees a row
+// key and no listing turns into one query per row. teamSelect is the one place
+// the join set is written down.
+//
+// The row is a named field, not an anonymous one. GORM reads an anonymous
+// embedded struct that has its own TableName as an association and scans none
+// of its columns, which produces a zero-valued row rather than an error. Every
+// read struct in this package follows this shape for that reason.
+type teamReadRow struct {
+	Row                     teamRow `gorm:"embedded"`
+	PersonalForUserPublicID []byte  `gorm:"column:personal_for_user_public_id"`
+	CreatedByPublicID       []byte  `gorm:"column:created_by_public_id"`
+}
+
 type teamMemberRow struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement"`
-	TeamID    string `gorm:"column:team_id;type:varchar(64);not null;uniqueIndex:uq_team_member_team_user"`
-	UserID    string `gorm:"column:user_id;type:varchar(64);not null;uniqueIndex:uq_team_member_team_user"`
+	ID        uint64 `gorm:"primaryKey;autoIncrement"`
+	TeamID    uint64 `gorm:"column:team_id;not null;uniqueIndex:uq_team_member_team_user"`
+	UserID    uint64 `gorm:"column:user_id;not null;uniqueIndex:uq_team_member_team_user"`
 	Role      string `gorm:"type:varchar(32);not null"`
 	CreatedAt int64  `gorm:"autoCreateTime"`
 }
 
 func (teamMemberRow) TableName() string { return "team_member" }
 
-func toTeam(row *teamRow) *model.Team {
+// teamMemberReadRow is teamMemberRow plus the handles its two references
+// resolve to. A membership has no handle of its own.
+type teamMemberReadRow struct {
+	Row          teamMemberRow `gorm:"embedded"`
+	TeamPublicID []byte        `gorm:"column:team_public_id"`
+	UserPublicID []byte        `gorm:"column:user_public_id"`
+}
+
+// teamSelect is the read shape for a team: the row plus the public handles of
+// the users it names.
+func (s *Store) teamSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&teamRow{}).
+		Select("team.*, pu.public_id AS personal_for_user_public_id, cb.public_id AS created_by_public_id").
+		Joins("LEFT JOIN `user` pu ON pu.id = team.personal_for_user_id").
+		Joins("LEFT JOIN `user` cb ON cb.id = team.created_by")
+}
+
+// teamMemberSelect is the read shape for a membership.
+func (s *Store) teamMemberSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&teamMemberRow{}).
+		Select("team_member.*, t.public_id AS team_public_id, u.public_id AS user_public_id").
+		Joins("INNER JOIN team t ON t.id = team_member.team_id").
+		Joins("INNER JOIN `user` u ON u.id = team_member.user_id")
+}
+
+func toTeam(row *teamReadRow) *model.Team {
 	if row == nil {
 		return nil
 	}
-	return &model.Team{
-		ID:                row.TeamID,
-		Name:              row.Name,
-		PersonalForUserID: row.PersonalForUserID,
-		QuotaTier:         row.QuotaTier,
-		CreatedBy:         row.CreatedBy,
-		CreatedAt:         row.CreatedAt,
-		UpdatedAt:         row.UpdatedAt,
+	out := &model.Team{
+		ID:        util.FormatPublicID(row.Row.PublicID),
+		Name:      row.Row.Name,
+		QuotaTier: row.Row.QuotaTier,
+		CreatedBy: util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt: row.Row.CreatedAt,
+		UpdatedAt: row.Row.UpdatedAt,
 	}
+	if row.Row.PersonalForUserID != nil {
+		personal := util.FormatPublicID(row.PersonalForUserPublicID)
+		out.PersonalForUserID = &personal
+	}
+	return out
 }
 
-func toTeams(rows []teamRow) []model.Team {
+func toTeams(rows []teamReadRow) []model.Team {
 	out := make([]model.Team, len(rows))
 	for i := range rows {
 		out[i] = *toTeam(&rows[i])
@@ -56,34 +101,19 @@ func toTeams(rows []teamRow) []model.Team {
 	return out
 }
 
-func toTeamRow(m *model.Team) *teamRow {
-	if m == nil {
-		return nil
-	}
-	return &teamRow{
-		TeamID:            m.ID,
-		Name:              m.Name,
-		PersonalForUserID: m.PersonalForUserID,
-		QuotaTier:         m.QuotaTier,
-		CreatedBy:         m.CreatedBy,
-		CreatedAt:         m.CreatedAt,
-		UpdatedAt:         m.UpdatedAt,
-	}
-}
-
-func toTeamMember(row *teamMemberRow) *model.TeamMember {
+func toTeamMember(row *teamMemberReadRow) *model.TeamMember {
 	if row == nil {
 		return nil
 	}
 	return &model.TeamMember{
-		TeamID:    row.TeamID,
-		UserID:    row.UserID,
-		Role:      row.Role,
-		CreatedAt: row.CreatedAt,
+		TeamID:    util.FormatPublicID(row.TeamPublicID),
+		UserID:    util.FormatPublicID(row.UserPublicID),
+		Role:      row.Row.Role,
+		CreatedAt: row.Row.CreatedAt,
 	}
 }
 
-func toTeamMembers(rows []teamMemberRow) []model.TeamMember {
+func toTeamMembers(rows []teamMemberReadRow) []model.TeamMember {
 	out := make([]model.TeamMember, len(rows))
 	for i := range rows {
 		out[i] = *toTeamMember(&rows[i])
@@ -91,22 +121,14 @@ func toTeamMembers(rows []teamMemberRow) []model.TeamMember {
 	return out
 }
 
-func toTeamMemberRow(m *model.TeamMember) *teamMemberRow {
-	if m == nil {
-		return nil
-	}
-	return &teamMemberRow{
-		TeamID:    m.TeamID,
-		UserID:    m.UserID,
-		Role:      m.Role,
-		CreatedAt: m.CreatedAt,
-	}
-}
-
 // GetTeam returns the team by team_id, or (nil, nil) when not found.
 func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error) {
-	var team teamRow
-	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).First(&team).Error
+	raw, ok := util.ParsePublicID(teamID)
+	if !ok {
+		return nil, nil
+	}
+	var team teamReadRow
+	err := s.teamSelect(ctx).Where("team.public_id = ?", raw).Take(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -118,8 +140,12 @@ func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error)
 
 // GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
 func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*model.Team, error) {
-	var team teamRow
-	err := s.db.WithContext(ctx).Where("personal_for_user_id = ?", userID).First(&team).Error
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return nil, nil
+	}
+	var team teamReadRow
+	err := s.teamSelect(ctx).Where("pu.public_id = ?", raw).Take(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -131,12 +157,15 @@ func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*mode
 
 // ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
 func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Team, error) {
-	var list []teamRow
-	err := s.db.WithContext(ctx).
-		Table("team").
-		Select("team.*").
-		Joins("INNER JOIN team_member ON team_member.team_id = team.team_id").
-		Where("team_member.user_id = ?", userID).
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return nil, nil
+	}
+	var list []teamReadRow
+	err := s.teamSelect(ctx).
+		Joins("INNER JOIN team_member ON team_member.team_id = team.id").
+		Joins("INNER JOIN `user` mu ON mu.id = team_member.user_id").
+		Where("mu.public_id = ?", raw).
 		Order("team.created_at ASC").
 		Find(&list).Error
 	return toTeams(list), err
@@ -145,36 +174,35 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 // CreateTeam creates a new team and owner membership.
 func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
 	now := time.Now().Unix()
-	publicID, err := util.NewPublicID()
+	teamDB := &teamRow{Name: name, QuotaTier: quotaTier, CreatedAt: now, UpdatedAt: now}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		creator, err := lookupKey(ctx, tx, "user", createdBy)
+		if err != nil {
+			return err
+		}
+		teamDB.CreatedBy = creator
+		if err := createWithPublicID(ctx, tx, "uq_team_public_id",
+			func(b []byte) { teamDB.PublicID = b }, teamDB); err != nil {
+			return err
+		}
+		return tx.Create(&teamMemberRow{
+			TeamID:    teamDB.ID,
+			UserID:    creator,
+			Role:      model.TeamRoleOwner,
+			CreatedAt: now,
+		}).Error
+	})
 	if err != nil {
 		return nil, err
 	}
-	team := &model.Team{
-		ID:        publicID,
+	return &model.Team{
+		ID:        util.FormatPublicID(teamDB.PublicID),
 		Name:      name,
 		QuotaTier: quotaTier,
 		CreatedBy: createdBy,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}
-	member := &model.TeamMember{
-		TeamID:    team.ID,
-		UserID:    createdBy,
-		Role:      model.TeamRoleOwner,
-		CreatedAt: now,
-	}
-	teamDB := toTeamRow(team)
-	memberDB := toTeamMemberRow(member)
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(teamDB).Error; err != nil {
-			return err
-		}
-		return tx.Create(memberDB).Error
-	})
-	if err != nil {
-		return nil, err
-	}
-	return team, nil
+	}, nil
 }
 
 // AddTeamMember adds or updates a team membership.
@@ -186,16 +214,29 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 		CreatedAt: time.Now().Unix(),
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		teamKey, err := lookupKey(ctx, tx, "team", teamID)
+		if err != nil {
+			return err
+		}
+		userKey, err := lookupKey(ctx, tx, "user", userID)
+		if err != nil {
+			return err
+		}
 		var existing teamMemberRow
-		findErr := tx.Where("team_id = ? AND user_id = ?", teamID, userID).First(&existing).Error
+		findErr := tx.Where("team_id = ? AND user_id = ?", teamKey, userKey).First(&existing).Error
 		switch {
 		case errors.Is(findErr, gorm.ErrRecordNotFound):
-			return tx.Create(toTeamMemberRow(member)).Error
+			return tx.Create(&teamMemberRow{
+				TeamID:    teamKey,
+				UserID:    userKey,
+				Role:      role,
+				CreatedAt: member.CreatedAt,
+			}).Error
 		case findErr != nil:
 			return findErr
 		default:
 			existing.Role = role
-			member = toTeamMember(&existing)
+			member.CreatedAt = existing.CreatedAt
 			return tx.Save(&existing).Error
 		}
 	})
@@ -207,17 +248,35 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 
 // RemoveTeamMember removes a team membership when present.
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID string) error {
+	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
 	return s.db.WithContext(ctx).
-		Where("team_id = ? AND user_id = ?", teamID, userID).
+		Where("team_id = ? AND user_id = ?", teamKey, userKey).
 		Delete(&teamMemberRow{}).Error
 }
 
 // ListTeamMembers returns members of the team ordered by created_at ASC.
 func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]model.TeamMember, error) {
-	var list []teamMemberRow
-	err := s.db.WithContext(ctx).
-		Where("team_id = ?", teamID).
-		Order("created_at ASC").
+	raw, ok := util.ParsePublicID(teamID)
+	if !ok {
+		return nil, nil
+	}
+	var list []teamMemberReadRow
+	err := s.teamMemberSelect(ctx).
+		Where("t.public_id = ?", raw).
+		Order("team_member.created_at ASC").
 		Find(&list).Error
 	return toTeamMembers(list), err
 }
@@ -236,16 +295,20 @@ func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (strin
 // ListAllTeams implements model.TeamStore.
 func (s *Store) ListAllTeams(ctx context.Context, query string, limit, offset int) ([]model.Team, int, error) {
 	limit, offset = clampPage(limit, offset)
-	q := s.db.WithContext(ctx).Model(&teamRow{})
-	if query != "" {
-		q = q.Where("name LIKE ?", "%"+query+"%")
-	}
 	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	countQ := s.db.WithContext(ctx).Model(&teamRow{})
+	if query != "" {
+		countQ = countQ.Where("name LIKE ?", "%"+query+"%")
+	}
+	if err := countQ.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var rows []teamRow
-	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+	q := s.teamSelect(ctx)
+	if query != "" {
+		q = q.Where("team.name LIKE ?", "%"+query+"%")
+	}
+	var rows []teamReadRow
+	if err := q.Order("team.created_at DESC, team.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]model.Team, 0, len(rows))
@@ -261,20 +324,32 @@ func (s *Store) CountTeamMembers(ctx context.Context, teamIDs []string) (map[str
 	if len(teamIDs) == 0 {
 		return out, nil
 	}
+	// Counting groups by the row key, so the handles the caller asked about are
+	// carried through the join rather than resolved one at a time.
+	raws := make([][]byte, 0, len(teamIDs))
+	for _, id := range teamIDs {
+		if raw, ok := util.ParsePublicID(id); ok {
+			raws = append(raws, raw)
+		}
+	}
+	if len(raws) == 0 {
+		return out, nil
+	}
 	var rows []struct {
-		TeamID string
-		N      int
+		PublicID []byte
+		N        int
 	}
 	if err := s.db.WithContext(ctx).
 		Model(&teamMemberRow{}).
-		Select("team_id, count(*) as n").
-		Where("team_id IN ?", teamIDs).
-		Group("team_id").
+		Select("t.public_id AS public_id, count(*) AS n").
+		Joins("INNER JOIN team t ON t.id = team_member.team_id").
+		Where("t.public_id IN ?", raws).
+		Group("t.public_id").
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		out[row.TeamID] = row.N
+		out[util.FormatPublicID(row.PublicID)] = row.N
 	}
 	return out, nil
 }

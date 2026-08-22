@@ -238,8 +238,20 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name
 	updated.Instructions = instructions
 	updated.Revision = nextRevision(a.Revision)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(toAgentRow(&updated)).Error; err != nil {
-			return err
+		// Addressed by its handle rather than by saving a row built from the
+		// model: the model carries no row key, so Save would see a zero primary
+		// key and insert a second agent instead of updating this one.
+		res := tx.Model(&agentRow{}).Where("agent_id = ?", updated.ID).Updates(map[string]any{
+			"name":         updated.Name,
+			"description":  updated.Description,
+			"instructions": updated.Instructions,
+			"revision":     updated.Revision,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return model.ErrNotFound
 		}
 		return appendAgentRevision(tx, &updated, updatedBy)
 	})

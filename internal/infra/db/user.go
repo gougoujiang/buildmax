@@ -11,10 +11,10 @@ import (
 )
 
 type userRow struct {
-	ID     uint   `gorm:"primaryKey;autoIncrement"`
-	UserID string `gorm:"type:varchar(64);uniqueIndex;not null"`
-	Email  string `gorm:"type:varchar(255);uniqueIndex;not null"`
-	Name   string `gorm:"type:varchar(255)"`
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_user_public_id;not null"`
+	Email    string `gorm:"type:varchar(255);uniqueIndex;not null"`
+	Name     string `gorm:"type:varchar(255)"`
 	// PasswordHash is NULL for an account that has never set one: created by an
 	// operator and not yet claimed, or signing in with login codes only. It
 	// stays nullable so that an account authenticated somewhere else — an
@@ -38,7 +38,7 @@ func toUser(row *userRow) *model.User {
 		return nil
 	}
 	return &model.User{
-		ID:                row.UserID,
+		ID:                util.FormatPublicID(row.PublicID),
 		Email:             row.Email,
 		Name:              row.Name,
 		QuotaTier:         row.QuotaTier,
@@ -56,7 +56,6 @@ func toUserRow(m *model.User) *userRow {
 		return nil
 	}
 	return &userRow{
-		UserID:            m.ID,
 		Email:             m.Email,
 		Name:              m.Name,
 		QuotaTier:         m.QuotaTier,
@@ -99,9 +98,13 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) 
 // Enabling reverses the state and nothing else: sessions revoked by the disable
 // stay revoked, and runs it stopped stay stopped. Undo is not a goal.
 func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *int64) error {
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return model.ErrUserNotFound
+	}
 	res := s.db.WithContext(ctx).
 		Model(&userRow{}).
-		Where("user_id = ?", userID).
+		Where("public_id = ?", raw).
 		Update("disabled_at", disabledAt)
 	if res.Error != nil {
 		return res.Error
@@ -136,8 +139,12 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, err
 
 // GetUser returns the user by user_id, or (nil, nil) when not found.
 func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error) {
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return nil, nil
+	}
 	var u userRow
-	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&u).Error
+	err := s.db.WithContext(ctx).Where("public_id = ?", raw).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -149,9 +156,13 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error)
 
 // UpdateLoginMeta records the last login timestamp and platform for the user.
 func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error {
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return model.ErrUserNotFound
+	}
 	return s.db.WithContext(ctx).
 		Model(&userRow{}).
-		Where("user_id = ?", userID).
+		Where("public_id = ?", raw).
 		Updates(map[string]interface{}{
 			"last_login_at":       loginAt,
 			"last_login_platform": platform,
@@ -169,16 +180,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	if existing != nil {
 		return nil, model.ErrEmailExists
 	}
-	userID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
-	personalTeamID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
 	u := model.User{
-		ID:        userID,
 		Email:     email,
 		Name:      "",
 		CreatedAt: time.Now().Unix(),
@@ -186,35 +188,38 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	if defaultQuotaTier != "" {
 		u.QuotaTier = defaultQuotaTier
 	}
-	personalTeam := model.Team{
-		ID:                personalTeamID,
-		Name:              model.DefaultPersonalTeamName,
-		PersonalForUserID: &u.ID,
-		QuotaTier:         defaultQuotaTier,
-		CreatedBy:         u.ID,
-		CreatedAt:         u.CreatedAt,
-		UpdatedAt:         u.CreatedAt,
-	}
-	personalMember := model.TeamMember{
-		TeamID:    personalTeamID,
-		UserID:    u.ID,
-		Role:      model.TeamRoleOwner,
-		CreatedAt: u.CreatedAt,
-	}
 	userDB := toUserRow(&u)
-	personalTeamDB := toTeamRow(&personalTeam)
-	personalMemberDB := toTeamMemberRow(&personalMember)
+	personalTeamDB := &teamRow{
+		Name:      model.DefaultPersonalTeamName,
+		QuotaTier: defaultQuotaTier,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.CreatedAt,
+	}
+	// The personal team and its membership are written inside the same
+	// transaction because they reference the user by the key the insert
+	// assigns: an account with no space of its own is not a state any caller
+	// can be handed.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(userDB).Error; err != nil {
+		if err := createWithPublicID(ctx, tx, "uq_user_public_id",
+			func(b []byte) { userDB.PublicID = b }, userDB); err != nil {
 			return err
 		}
-		if err := tx.Create(personalTeamDB).Error; err != nil {
+		personalTeamDB.PersonalForUserID = &userDB.ID
+		personalTeamDB.CreatedBy = userDB.ID
+		if err := createWithPublicID(ctx, tx, "uq_team_public_id",
+			func(b []byte) { personalTeamDB.PublicID = b }, personalTeamDB); err != nil {
 			return err
 		}
-		return tx.Create(personalMemberDB).Error
+		return tx.Create(&teamMemberRow{
+			TeamID:    personalTeamDB.ID,
+			UserID:    userDB.ID,
+			Role:      model.TeamRoleOwner,
+			CreatedAt: u.CreatedAt,
+		}).Error
 	}); err != nil {
 		return nil, err
 	}
+	u.ID = util.FormatPublicID(userDB.PublicID)
 	return &u, nil
 }
 
@@ -228,8 +233,12 @@ func (s *Store) PasswordHash(ctx context.Context, userID string) (string, error)
 	if userID == "" {
 		return "", nil
 	}
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return "", nil
+	}
 	var row userRow
-	err := s.db.WithContext(ctx).Select("password_hash").Where("user_id = ?", userID).First(&row).Error
+	err := s.db.WithContext(ctx).Select("password_hash").Where("public_id = ?", raw).First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil
@@ -250,8 +259,12 @@ func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, set
 	if encodedHash == "" {
 		return errors.New("set password: hash required")
 	}
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return model.ErrUserNotFound
+	}
 	res := s.db.WithContext(ctx).Model(&userRow{}).
-		Where("user_id = ?", userID).
+		Where("public_id = ?", raw).
 		Updates(map[string]any{"password_hash": encodedHash, "password_set_at": setAt})
 	if res.Error != nil {
 		return res.Error

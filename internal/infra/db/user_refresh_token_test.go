@@ -53,14 +53,6 @@ func TestNewRefreshTokenPlaintextIsPrefixedAndUnique(t *testing.T) {
 func newRefreshTokenSession(t *testing.T, s *Store, userID, sessionID string, ttl time.Duration) string {
 	t.Helper()
 	ctx := context.Background()
-	// Not t.Context(): that one is cancelled before cleanups run, so the
-	// delete would fail silently and leave rows for the next test to trip on.
-	t.Cleanup(func() {
-		if err := s.db.WithContext(context.Background()).
-			Delete(&userRefreshTokenRow{}, "user_id = ?", userID).Error; err != nil {
-			t.Errorf("cleanup: delete rows for %s: %v", userID, err)
-		}
-	})
 	plaintext, expiresAt, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{
 		UserID:    userID,
 		SessionID: sessionID,
@@ -78,12 +70,17 @@ func newRefreshTokenSession(t *testing.T, s *Store, userID, sessionID string, tt
 
 func TestRefreshTokenRotates(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID, sessionID = "u_refreshrotate", "as_refreshrotate"
+	userID := newTestUser(t, s, "refreshrotate")
+	const sessionID = "as_refreshrotate"
 	plaintext := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
 
 	// The plaintext must not be recoverable from the row.
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if err != nil {
+		t.Fatalf("resolve user: %v", err)
+	}
 	var row userRefreshTokenRow
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&row).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userKey).First(&row).Error; err != nil {
 		t.Fatalf("read row: %v", err)
 	}
 	if row.TokenHash == plaintext {
@@ -117,7 +114,8 @@ func TestRefreshTokenRotates(t *testing.T) {
 // was spent means two holders, and neither keeps the session.
 func TestRefreshTokenReuseRevokesTheSession(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID, sessionID = "u_refreshreuse", "as_refreshreuse"
+	userID := newTestUser(t, s, "refreshreuse")
+	const sessionID = "as_refreshreuse"
 	stolen := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
 
 	now := time.Now().Unix()
@@ -164,7 +162,8 @@ func TestRefreshTokenReuseRevokesTheSession(t *testing.T) {
 // would sign a user out for running two commands at once.
 func TestRefreshTokenConcurrentRotationsAllSucceed(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID, sessionID = "u_refreshrace", "as_refreshrace"
+	userID := newTestUser(t, s, "refreshrace")
+	const sessionID = "as_refreshrace"
 	plaintext := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
 
 	const attempts = 8
@@ -205,11 +204,10 @@ func TestRefreshTokenConcurrentRotationsAllSucceed(t *testing.T) {
 
 func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID = "u_refreshreject"
 	now := time.Now().Unix()
 
 	t.Run("expired", func(t *testing.T) {
-		plaintext := newRefreshTokenSession(t, s, userID+"_exp", "as_refreshexp", time.Second)
+		plaintext := newRefreshTokenSession(t, s, newTestUser(t, s, "refreshexp"), "as_refreshexp", time.Second)
 		// Rotate as if the clock had passed the expiry, rather than sleeping.
 		_, err := s.RotateRefreshToken(ctx, plaintext, now+3600, time.Hour, 30*time.Second)
 		if !errors.Is(err, model.ErrRefreshTokenInvalid) {
@@ -219,7 +217,7 @@ func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 
 	t.Run("revoked", func(t *testing.T) {
 		const sessionID = "as_refreshrevoked"
-		plaintext := newRefreshTokenSession(t, s, userID+"_rev", sessionID, time.Hour)
+		plaintext := newRefreshTokenSession(t, s, newTestUser(t, s, "refreshrev"), sessionID, time.Hour)
 		n, err := s.RevokeSession(ctx, sessionID, now)
 		if err != nil {
 			t.Fatalf("RevokeSession: %v", err)
@@ -247,7 +245,8 @@ func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 
 func TestRevokeRefreshTokenSession(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID, sessionID = "u_refreshlogout", "as_refreshlogout"
+	userID := newTestUser(t, s, "refreshlogout")
+	const sessionID = "as_refreshlogout"
 	plaintext := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
 	now := time.Now().Unix()
 
@@ -278,7 +277,7 @@ func TestRevokeRefreshTokenSession(t *testing.T) {
 
 func TestDeleteExpiredRefreshTokens(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID = "u_refreshsweep"
+	userID := newTestUser(t, s, "refreshsweep")
 	plaintext := newRefreshTokenSession(t, s, userID, "as_refreshsweep", time.Hour)
 
 	// A sweep at the current time leaves a live token alone. The counts this

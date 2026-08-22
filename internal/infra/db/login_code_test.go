@@ -48,10 +48,7 @@ func newTestStore(t *testing.T) (*Store, context.Context) {
 
 func TestLoginCodeLifecycle(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID = "u_logincodetest"
-	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&loginCodeRow{}, "user_id = ?", userID)
-	})
+	userID := newTestUser(t, s, "logincode")
 
 	code, expiresAt, err := s.CreateLoginCode(ctx, userID, time.Hour)
 	if err != nil {
@@ -65,8 +62,12 @@ func TestLoginCodeLifecycle(t *testing.T) {
 	}
 
 	// The plaintext must not be recoverable from the row.
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if err != nil {
+		t.Fatalf("resolve user: %v", err)
+	}
 	var row loginCodeRow
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&row).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userKey).First(&row).Error; err != nil {
 		t.Fatalf("read row: %v", err)
 	}
 	if row.CodeHash == code {
@@ -74,7 +75,7 @@ func TestLoginCodeLifecycle(t *testing.T) {
 	}
 
 	// Somebody else's address does not redeem it, and does not spend it either.
-	redeemed, err := s.ConsumeLoginCode(ctx, code, "u_someoneelse", time.Now().Unix())
+	redeemed, err := s.ConsumeLoginCode(ctx, code, newTestUser(t, s, "logincode"), time.Now().Unix())
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode for another user: %v", err)
 	}
@@ -102,10 +103,7 @@ func TestLoginCodeLifecycle(t *testing.T) {
 
 func TestLoginCodeRejectsExpiredAndUnknown(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID = "u_logincodeexpired"
-	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&loginCodeRow{}, "user_id = ?", userID)
-	})
+	userID := newTestUser(t, s, "logincode")
 
 	code, expiresAt, err := s.CreateLoginCode(ctx, userID, time.Second)
 	if err != nil {
@@ -134,10 +132,7 @@ func TestLoginCodeRejectsExpiredAndUnknown(t *testing.T) {
 // read followed by a write.
 func TestLoginCodeConcurrentRedemptionHasOneWinner(t *testing.T) {
 	s, ctx := newTestStore(t)
-	const userID = "u_logincoderace"
-	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&loginCodeRow{}, "user_id = ?", userID)
-	})
+	userID := newTestUser(t, s, "logincode")
 
 	code, _, err := s.CreateLoginCode(ctx, userID, time.Hour)
 	if err != nil {

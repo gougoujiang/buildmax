@@ -9,15 +9,20 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type userRefreshTokenRow struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	ID        uint64 `gorm:"primaryKey;autoIncrement"`
 	TokenHash string `gorm:"type:varchar(128);uniqueIndex;not null"`
-	UserID    string `gorm:"type:varchar(64);not null;index"`
+	UserID    uint64 `gorm:"column:user_id;not null;index"`
+	// SessionID is the login chain this token belongs to. It keeps its own
+	// format -- an "as_" prefixed ID minted with the token, not a row handle --
+	// because it names a chain, not a row, and it is a claim in every access
+	// token already issued under it.
 	SessionID string `gorm:"type:varchar(64);not null;index"`
 	Platform  string `gorm:"type:varchar(32)"`
 	ExpiresAt int64  `gorm:"not null;index"`
@@ -32,6 +37,19 @@ type userRefreshTokenRow struct {
 }
 
 func (userRefreshTokenRow) TableName() string { return "user_refresh_token" }
+
+// refreshTokenReadRow is the row plus the handle its owner resolves to. The
+// rotation result names a user to the caller, and the row holds a key.
+type refreshTokenReadRow struct {
+	Row          userRefreshTokenRow `gorm:"embedded"`
+	UserPublicID []byte              `gorm:"column:user_public_id"`
+}
+
+func refreshTokenSelect(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&userRefreshTokenRow{}).
+		Select("user_refresh_token.*, u.public_id AS user_public_id").
+		Joins("INNER JOIN `user` u ON u.id = user_refresh_token.user_id")
+}
 
 const (
 	// Same reasoning as loginCodePrefix: a leaked credential should be
@@ -70,10 +88,14 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken
 	if err != nil {
 		return "", 0, err
 	}
+	userKey, err := lookupKey(ctx, s.db, "user", in.UserID)
+	if err != nil {
+		return "", 0, err
+	}
 	expiresAt := time.Now().Add(ttl).Unix()
 	row := userRefreshTokenRow{
 		TokenHash: hashRefreshToken(plaintext),
-		UserID:    in.UserID,
+		UserID:    userKey,
 		SessionID: in.SessionID,
 		Platform:  in.Platform,
 		ExpiresAt: expiresAt,
@@ -122,12 +144,21 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 		// which this function reads as "impossible" and refuses. Reading the
 		// current row instead is what lets the grace window below recognize a
 		// racing sibling for what it is.
+		// The lock is taken on this row alone. Joining the account into the
+		// locking read would lock the user row for the length of the
+		// transaction, so two sessions of one account would serialize on each
+		// other and, under load, wait past the lock timeout. The owner's handle
+		// is read separately below.
 		var row userRefreshTokenRow
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("token_hash = ?", hash).First(&row).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return model.ErrRefreshTokenInvalid
 			}
+			return err
+		}
+		ownerPublicID, err := publicIDForKey(ctx, tx, "user", row.UserID)
+		if err != nil {
 			return err
 		}
 
@@ -152,7 +183,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 				// No new token, but the caller still needs to know whose
 				// session was just revoked in order to record it. Commit, and
 				// let the wrapper turn this into ErrRefreshTokenReused.
-				out = model.RotatedRefreshToken{UserID: row.UserID, SessionID: row.SessionID}
+				out = model.RotatedRefreshToken{UserID: ownerPublicID, SessionID: row.SessionID}
 				reused = true
 				return nil
 			}
@@ -182,7 +213,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 			return err
 		}
 		out = model.RotatedRefreshToken{
-			UserID:    row.UserID,
+			UserID:    ownerPublicID,
 			SessionID: row.SessionID,
 			Plaintext: next,
 			ExpiresAt: nextRow.ExpiresAt,
@@ -204,18 +235,18 @@ func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string,
 		return "", "", nil
 	}
 	hash := hashRefreshToken(plaintext)
-	var row userRefreshTokenRow
-	err := s.db.WithContext(ctx).Where("token_hash = ?", hash).First(&row).Error
+	var row refreshTokenReadRow
+	err := refreshTokenSelect(s.db.WithContext(ctx)).Where("token_hash = ?", hash).Take(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", "", nil
 		}
 		return "", "", err
 	}
-	if err := revokeSessionTx(s.db.WithContext(ctx), row.SessionID, now); err != nil {
+	if err := revokeSessionTx(s.db.WithContext(ctx), row.Row.SessionID, now); err != nil {
 		return "", "", err
 	}
-	return row.UserID, row.SessionID, nil
+	return util.FormatPublicID(row.UserPublicID), row.Row.SessionID, nil
 }
 
 // RevokeSession implements model.RefreshTokenStore.
@@ -234,8 +265,15 @@ func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now int64
 	if userID == "" {
 		return 0, nil
 	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, model.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
 	res := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
-		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Where("user_id = ? AND revoked_at IS NULL", userKey).
 		Update("revoked_at", now)
 	return res.RowsAffected, res.Error
 }
@@ -250,9 +288,16 @@ func (s *Store) CountUserSessions(ctx context.Context, userID string, now int64)
 	if userID == "" {
 		return 0, nil
 	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, model.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
 	var n int64
 	if err := s.db.WithContext(ctx).Model(&userRefreshTokenRow{}).
-		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userID, now).
+		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userKey, now).
 		Distinct("session_id").
 		Count(&n).Error; err != nil {
 		return 0, err

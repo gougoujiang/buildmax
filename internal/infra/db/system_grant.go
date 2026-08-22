@@ -14,35 +14,50 @@ import (
 // Revocation sets revoked_at; nothing here deletes. The table answers "who
 // could operate this deployment, and when", and a deleted row cannot answer it.
 type systemGrantRow struct {
-	ID            uint   `gorm:"primaryKey;autoIncrement"`
-	SystemGrantID string `gorm:"column:system_grant_id;type:varchar(64);uniqueIndex;not null"`
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_system_grant_public_id;not null"`
 
 	// The composite unique index is what keeps one user from holding two
 	// active grants for the same role. RevokedAt participates in it so that
 	// revoked rows do not collide with each other or with a later re-grant:
 	// MySQL treats NULLs as distinct in a unique index, which here means at
 	// most one live row per (user, role) and any number of retired ones.
-	UserID    string `gorm:"type:varchar(64);not null;uniqueIndex:idx_system_grant_live,priority:1;index:idx_system_grant_user"`
+	UserID    uint64 `gorm:"column:user_id;not null;uniqueIndex:idx_system_grant_live,priority:1;index:idx_system_grant_user"`
 	Role      string `gorm:"type:varchar(32);not null;uniqueIndex:idx_system_grant_live,priority:2"`
 	RevokedAt *int64 `gorm:"uniqueIndex:idx_system_grant_live,priority:3"`
 
+	// GrantedBy stays an opaque handle. The operator who bootstraps the first
+	// grant is a command line, not a user row, so this column cannot be a
+	// reference to one.
 	GrantedBy string `gorm:"type:varchar(64);not null"`
 	GrantedAt int64  `gorm:"not null;index"`
 }
 
 func (systemGrantRow) TableName() string { return "system_grant" }
 
-func toSystemGrant(row *systemGrantRow) *model.SystemGrant {
+// systemGrantReadRow is the row plus the handle its holder resolves to.
+type systemGrantReadRow struct {
+	Row          systemGrantRow `gorm:"embedded"`
+	UserPublicID []byte         `gorm:"column:user_public_id"`
+}
+
+func (s *Store) systemGrantSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&systemGrantRow{}).
+		Select("system_grant.*, u.public_id AS user_public_id").
+		Joins("INNER JOIN `user` u ON u.id = system_grant.user_id")
+}
+
+func toSystemGrant(row *systemGrantReadRow) *model.SystemGrant {
 	if row == nil {
 		return nil
 	}
 	return &model.SystemGrant{
-		ID:        row.SystemGrantID,
-		UserID:    row.UserID,
-		Role:      row.Role,
-		GrantedBy: row.GrantedBy,
-		GrantedAt: row.GrantedAt,
-		RevokedAt: row.RevokedAt,
+		ID:        util.FormatPublicID(row.Row.PublicID),
+		UserID:    util.FormatPublicID(row.UserPublicID),
+		Role:      row.Row.Role,
+		GrantedBy: row.Row.GrantedBy,
+		GrantedAt: row.Row.GrantedAt,
+		RevokedAt: row.Row.RevokedAt,
 	}
 }
 
@@ -54,10 +69,18 @@ func (s *Store) ActiveSystemRoles(ctx context.Context, userID string) ([]string,
 	if userID == "" {
 		return nil, nil
 	}
+	// One join rather than a resolve-then-query: this runs on every admin
+	// request, and the extra round trip would be the cost of the boundary
+	// rather than of the question.
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return nil, nil
+	}
 	var roles []string
 	if err := s.db.WithContext(ctx).
 		Model(&systemGrantRow{}).
-		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Joins("INNER JOIN `user` u ON u.id = system_grant.user_id").
+		Where("u.public_id = ? AND system_grant.revoked_at IS NULL", raw).
 		Pluck("role", &roles).Error; err != nil {
 		return nil, err
 	}
@@ -66,12 +89,12 @@ func (s *Store) ActiveSystemRoles(ctx context.Context, userID string) ([]string,
 
 // ListSystemGrants returns grants newest first.
 func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]model.SystemGrant, error) {
-	q := s.db.WithContext(ctx).Model(&systemGrantRow{})
+	q := s.systemGrantSelect(ctx)
 	if !includeRevoked {
-		q = q.Where("revoked_at IS NULL")
+		q = q.Where("system_grant.revoked_at IS NULL")
 	}
-	var rows []systemGrantRow
-	if err := q.Order("granted_at DESC, id DESC").Find(&rows).Error; err != nil {
+	var rows []systemGrantReadRow
+	if err := q.Order("system_grant.granted_at DESC, system_grant.id DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]model.SystemGrant, 0, len(rows))
@@ -92,9 +115,13 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 	if !model.ValidSystemRole(role) {
 		return nil, model.ErrSystemRoleUnknown
 	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if err != nil {
+		return nil, err
+	}
 	var existing systemGrantRow
-	err := s.db.WithContext(ctx).
-		Where("user_id = ? AND role = ? AND revoked_at IS NULL", userID, role).
+	err = s.db.WithContext(ctx).
+		Where("user_id = ? AND role = ? AND revoked_at IS NULL", userKey, role).
 		First(&existing).Error
 	if err == nil {
 		return nil, model.ErrSystemGrantExists
@@ -103,28 +130,31 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 		return nil, err
 	}
 
-	publicID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
 	row := systemGrantRow{
-		SystemGrantID: publicID,
-		UserID:        userID,
-		Role:          role,
-		GrantedBy:     grantedBy,
-		GrantedAt:     now,
+		UserID:    userKey,
+		Role:      role,
+		GrantedBy: grantedBy,
+		GrantedAt: now,
 	}
-	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+	if err := createWithPublicID(ctx, s.db, "uq_system_grant_public_id",
+		func(b []byte) { row.PublicID = b }, &row); err != nil {
 		return nil, err
 	}
-	return toSystemGrant(&row), nil
+	return toSystemGrant(&systemGrantReadRow{Row: row, UserPublicID: mustParsePublicID(userID)}), nil
 }
 
 // RevokeSystemRole revokes the active grant, reporting whether one was found.
 func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now int64) (bool, error) {
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, model.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
 	res := s.db.WithContext(ctx).
 		Model(&systemGrantRow{}).
-		Where("user_id = ? AND role = ? AND revoked_at IS NULL", userID, role).
+		Where("user_id = ? AND role = ? AND revoked_at IS NULL", userKey, role).
 		Update("revoked_at", now)
 	if res.Error != nil {
 		return false, res.Error

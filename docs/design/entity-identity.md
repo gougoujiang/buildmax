@@ -399,15 +399,28 @@ LEFT JOIN   task_run     lr ON lr.id = t.last_run_id
 WHERE   tm.public_id = ? AND t.public_id = ?;
 ```
 
-In Go this is a read struct embedding the row struct plus the joined handles,
-and one `taskSelect()` builder shared by the detail read, the list read, and
-the run-output read, so the join set cannot drift between them. The list form
+In Go this is a read struct holding the row struct plus the joined handles, and
+one `taskSelect()` builder shared by the detail read, the list read, and the
+run-output read, so the join set cannot drift between them.
+
+The row must be a **named** field tagged `gorm:"embedded"`, never an anonymous
+one. GORM reads an anonymous embedded struct that carries its own `TableName`
+as an association and scans none of its columns — the joined handles arrive and
+the row's own fields stay at their zero values, with no error anywhere. A team
+read returns a nameless team rather than failing, so nothing catches it until a
+test asserts on a field. The list form
 is the same statement with `WHERE tm.public_id = ? ORDER BY t.created_at DESC,
 t.id DESC LIMIT ?`, which is why `idx_task_team_created` exists.
 
 Writes go the other way: resolve the root once, then take every other key from
 the row already read. Creating a task resolves the conversation and reads its
 `team_id` from that same row rather than resolving the team a second time.
+
+A locking read never joins. `SELECT ... FOR UPDATE` over a join locks the
+joined rows too, so resolving a refresh token's owner inside its locking read
+would hold a lock on the account for the length of the rotation and serialize
+every session that account has open. Where a locked row must report a handle,
+the handle is read separately by key.
 
 ### 9.3 Keyset Cursors
 

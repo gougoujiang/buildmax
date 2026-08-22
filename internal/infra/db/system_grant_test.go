@@ -35,8 +35,7 @@ func openGrantStore(t *testing.T) (*Store, context.Context) {
 // that guards the last grant tracks it throughout.
 func TestSystemGrantLifecycle(t *testing.T) {
 	s, ctx := openGrantStore(t)
-	userID := testPublicID(t)
-	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&systemGrantRow{}, "user_id = ?", userID).Error })
+	userID := newTestUser(t, s, "grant")
 
 	before, err := s.CountActiveSystemGrants(ctx, model.SystemRoleAdmin)
 	if err != nil {
@@ -131,8 +130,7 @@ func TestSystemGrantLifecycle(t *testing.T) {
 // store that took any string would make the column a way to invent authority.
 func TestGrantSystemRoleRejectsUnknownRole(t *testing.T) {
 	s, ctx := openGrantStore(t)
-	userID := testPublicID(t)
-	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&systemGrantRow{}, "user_id = ?", userID).Error })
+	userID := newTestUser(t, s, "grant")
 
 	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", model.AuditActorOperator, 100); !errors.Is(err, model.ErrSystemRoleUnknown) {
 		t.Fatalf("GrantSystemRole(system_observer) err = %v, want ErrSystemRoleUnknown", err)

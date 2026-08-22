@@ -88,8 +88,8 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
 	}()
 
-	if !strings.HasPrefix(created.ID, "lm_") {
-		t.Errorf("LLMModelID = %q, want an lm_ prefix", created.ID)
+	if _, ok := util.ParsePublicID(created.ID); !ok {
+		t.Errorf("LLMModelID = %q, want a canonical public ID", created.ID)
 	}
 	if !created.Enabled {
 		t.Error("a new model is not enabled")
