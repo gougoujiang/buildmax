@@ -40,7 +40,7 @@ reference, then delete the plan.
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Team and worker distribution deferred |
 | [Team and worker plugin distribution](plugin-team-distribution.md) | post-Beta, after the Marketplace | Design ready for review; implementation not started. The executable half waits on the worker sandbox being wired |
 | [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
-| [Entity identity and relational keys](entity-identity.md) | Beta gate | Design ready for review; implementation not started. Supersedes the retired proposal |
+| [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. Database foreign keys remain a separate decision |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
 | [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths and the packaged-app smoke open |

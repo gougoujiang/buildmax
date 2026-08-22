@@ -181,18 +181,21 @@ user chose.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| `id` | `bigint unsigned` | no | Internal primary key |
-| `issue_comment_id` | `varchar(64)` | no | Public ID, `ic_` prefix, unique |
-| `issue_id` | `varchar(64)` | no | `issue.issue_id`; indexed |
+| `id` | `bigint unsigned` | no | Row key |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `issue_id` | `bigint unsigned` | no | `issue.id`; indexed |
 | `author_kind` | `varchar(16)` | no | `user`, `agent`, or `system` |
-| `author_id` | `varchar(64)` | no | `user_id` or `agent_id`; empty for `system` |
+| `author_id` | `varchar(64)` | no | A user's or an agent's handle; empty for `system`. Opaque, because the kind decides which |
 | `body` | `text` | no | Markdown source, stored raw |
-| `source_task_id` | `varchar(64)` | yes | Set on an agent comment |
-| `source_task_run_id` | `varchar(64)` | yes | Set on an agent comment |
+| `source_task_id` | `bigint unsigned` | yes | Set on an agent comment |
+| `source_task_run_id` | `bigint unsigned` | yes | Set on an agent comment |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `edited_at` | `bigint` | yes | `NULL` until the body is changed |
 
-Indexes: PK `id`; unique `issue_comment_id`; index `issue_id`.
+Indexes: PK `id`; unique `public_id`; composite (`issue_id`, `created_at`).
+The identifier shapes are the ones
+[entity-identity.md](entity-identity.md) settled; the live schema is in
+[../contribute/architecture/data-model.md](../contribute/architecture/data-model.md).
 
 Add `PrefixIssueComment = "ic"` to `internal/util/id.go` and to the prefix list
 in `docs/contribute/architecture/data-model.md`.

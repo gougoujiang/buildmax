@@ -193,7 +193,7 @@ Five gates, each with the surface that proves it:
 | Gate | Proven by |
 |---|---|
 | Worker execution boundary is real, visible, and operator-controlled | A task run holds only the credentials that run needs, executes in a hardened pod, and records which boundary was actually in effect — including when it was not sandboxed. Bounded egress is **not** part of this gate: see below |
-| The recommended private deployment is operable | Kubernetes reference with external MySQL, S3, TLS, secrets, resource limits, and a versioned schema migration with a rollback path |
+| The recommended private deployment is operable | Kubernetes reference with external MySQL, S3, TLS, secrets, resource limits, and a versioned schema migration with a rollback path. The schema that migration starts from is the one the [entity identity](design/entity-identity.md) change left: numeric relational keys, opaque public handles, and a migration list that restarts at that cutover |
 | A run explains itself | Portal answers model, tools, files, duration, tokens, and failure cause for any task run, with stable cancel/retry/timeout semantics |
 | The minimum governance loop closes | Role and team authorization covered end to end by tests; audit events for sign-in, configuration, model use, and credential change; a task run's own record reachable from Portal, joined to the models it called |
 | Beta claims are continuously verified | CI, Compose, and kind checks running again; Portal browser E2E; a published support and compatibility matrix (see [start/support.md](start/support.md)) |

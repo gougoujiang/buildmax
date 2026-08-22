@@ -1,7 +1,6 @@
 # Entity Identity And Relational Keys
 
-> **Audience:** contributors and database reviewers · **Status:** design ready
-> for review; implementation not started
+> **Audience:** contributors and database reviewers · **Status:** implemented
 
 How a BuildMax server entity is named. Two identifiers, one role each: a
 `bigint unsigned` primary key that is the relational key inside MySQL, and a
@@ -557,9 +556,8 @@ that cannot run against any database this binary can create.
 
 ## 13. Execution Plan
 
-Six stacked pull requests. Each compiles, passes `./make test`, and is
-reviewable on its own. Only PR 3 onwards requires a database reset, and every
-PR from 3 on carries that note in its description.
+Six stacked changes, all landed. Each compiles, passes `./make test`, and is
+reviewable on its own. Only PR 3 onwards required a database reset.
 
 ### PR 1 — The codec
 

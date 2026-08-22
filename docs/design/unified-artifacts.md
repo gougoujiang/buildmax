@@ -74,10 +74,10 @@ BuildMax already has most storage primitives, but not the product object:
 | Team files | Portal accepts uploads into a mutable team file tree. | A file has no durable identity, provenance, immutable version, or share model. |
 | Task-run artifacts | A worker archives `artifacts/` and records `task_run_artifact` paths. | A file is addressed through its task run and relative path; it cannot be independently referenced. |
 | Artifact viewing | Team members can retrieve run output through team-authenticated task-run routes. | It is text/Markdown-oriented and not a general file-preview or download contract. |
-| IDs | `ar_` and `f_` prefixes are reserved in `internal/util/id.go`. | They named a resource that was removed; see below. |
+| IDs | `ar_` and `f_` prefixes were reserved in `internal/util/id.go`. | They named a resource that was removed; see below. Type prefixes are gone entirely now — see [entity-identity.md](entity-identity.md). |
 
 `task_run_artifact` is intentionally a set of paths, not a durable resource:
-it has no public prefixed ID or timestamps. The new model must not reinterpret
+it has no public handle or timestamps. The new model must not reinterpret
 that table as if it already provided the required contract.
 
 An `artifact`/`artifact_item` table pair existed before the first public
@@ -226,9 +226,9 @@ have one.
 
 ### 6.1 Identity And Routes
 
-The canonical reference is the `ar_...` ID. It is globally unique on its own:
-`util.NewPrefixedID` derives 20 base36 characters from 128 bits of entropy, so
-locating an artifact needs nothing else. Team is an authorization fact the
+The canonical reference is the artifact's public handle. It is unique on its
+own — 96 bits of crypto-random data — so locating an artifact needs nothing
+else. Team is an authorization fact the
 record carries, not part of the address.
 
 Two route shapes follow from that split:
@@ -428,8 +428,8 @@ storage-provider URL behavior, defines the product contract.
 - Add core Artifact model, store, object-storage contract, and stable remote
   Team-scoped read/download APIs; expose a personal Team as a personal
   workspace in product UI.
-- Add migrations, prefixed ID use, authorization tests, quota checks, and
-  redacted audit events.
+- Add migrations, identifier generation, authorization tests, quota checks,
+  and redacted audit events.
 - Provide Portal listing/detail with download and narrow safe previews.
 - Keep public sharing disabled.
 

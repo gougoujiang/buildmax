@@ -27,7 +27,9 @@ relationship, and for the rules on changing them, see
 There is no usage table. `TeamUsageInWindow` aggregates on read: it counts
 `task_run` rows joined to `task` by team and sums their prompt and completion
 tokens, plus the title-generation tokens recorded on tasks created in the same
-window. Metering therefore has no separate write path to keep in sync.
+window. Metering therefore has no separate write path to keep in sync. It
+resolves the team's handle once and is numeric after that, which is why both
+halves are answered from indexes without reading a row.
 
 ## Key Boundaries
 
@@ -37,15 +39,38 @@ window. Metering therefore has no separate write path to keep in sync.
 | GORM implementation | `internal/infra/db` | MySQL-backed store implementing those interfaces |
 | Object storage | `internal/infra/objectstore` | Team home files, run output, and artifact content; local FS or S3/MinIO |
 
+## The Translation Boundary
+
+This package is where a caller's handle becomes a row key, and the only place
+either representation meets the other.
+
+A repository interface speaks public IDs, because `internal/core/model` holds
+nothing else. Inside, `lookupKey` resolves one to the `bigint` the schema joins
+on, `publicIDForKey` goes back the other way, and `createWithPublicID`
+generates a handle and retries when the unique index rejects that particular
+value — telling a generated collision from a duplicate email by the index the
+error names.
+
+A read that returns handles joins for them rather than resolving them one row
+at a time. Each entity has one `xxxSelect` builder holding its join set, shared
+by every read of that entity so the detail read and the listings cannot drift
+apart, and each join is a primary-key lookup. The read struct holds its row as
+a **named** field tagged `gorm:"embedded"`: GORM reads an anonymous embedded
+struct that carries its own `TableName` as an association and scans none of its
+columns, which produces a zero-valued row and no error.
+
+A locking read never joins. `SELECT ... FOR UPDATE` over a join locks the
+joined rows too, so a token rotation that resolved its owner inside the locking
+read would hold the account for the length of the transaction.
+
+Rationale and the table-by-table decisions:
+[../../design/entity-identity.md](../../design/entity-identity.md).
+
 ## Notes
 
-- Public entity IDs use prefixed IDs — `u_` user, `tm_` team, `i_` issue, `a_` agent,
-  `arv_` agent revision, `w_`/`wrv_`/`wr_`/`wsr_` workflow, workflow revision,
-  workflow run, workflow step run, `c_` conversation,
-  `cm_` conversation message, `t_` task, `r_` task run, `ar_` artifact,
-  `f_` artifact item (reserved, unused), `whk_` webhook key. Constants live in
-  `internal/util/id.go`.
+- A public handle is 96 bits of crypto-random data in `binary(12)`, written as
+  20 lowercase base32 characters. `internal/util/id.go` is the codec.
 - Session IDs are the exception: they are internal and use UUIDs.
-- JSON/API fields use `snake_case`.
+- JSON/API fields use `snake_case`, and a resource names its own handle `id`.
 - `internal/bootstrap/server.go` opens the DB and injects the store into handlers and services.
 - See also: [Server](server.md), [Configuration](config.md).
