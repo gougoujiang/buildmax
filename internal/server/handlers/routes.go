@@ -20,6 +20,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// entities are one story, not four that happen to sit together.
 	h.workHandler().Register(mux)
 
+	// Artifacts are their own object with their own authorization shape: a
+	// route addressed by ar_ ID takes the team from the record, not the path.
+	// See docs/design/unified-artifacts.md.
+	h.artifactHandler().Register(mux)
+
 	// The plugin catalog is deployment-scoped and readable by any active
 	// account: browsing changes nothing, and a release only takes effect when
 	// somebody installs it deliberately. Publishing is the administrator's

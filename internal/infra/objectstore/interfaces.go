@@ -51,13 +51,13 @@ type PersistStorage interface {
 	RunStorage
 }
 
-// ArtifactStorage reads/writes run output files. Path: artifacts/<conversationID>/<taskID>/<taskRunID>/<relPath>. One namespace per task run.
-// PutResult/GetResult are for result.md. PutArtifactFile/GetArtifactFile support multiple files per run.
-type ArtifactStorage interface {
+// RunOutputStorage reads/writes run output files. Path: artifacts/<conversationID>/<taskID>/<taskRunID>/<relPath>. One namespace per task run.
+// PutResult/GetResult are for result.md. PutRunOutputFile/GetRunOutputFile support multiple files per run.
+type RunOutputStorage interface {
 	PutResult(ctx context.Context, ref RunRef, data []byte) error
 	GetResult(ctx context.Context, ref RunRef) ([]byte, error)
-	PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error
-	GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error)
+	PutRunOutputFile(ctx context.Context, ref RunObjectRef, r io.Reader) error
+	GetRunOutputFile(ctx context.Context, ref RunObjectRef) ([]byte, error)
 }
 
 // PluginPackageStorage stores the immutable bytes of a published plugin release.

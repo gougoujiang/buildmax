@@ -15,4 +15,7 @@ const (
 	ToolNameNoteWrite = "NoteWrite"
 	ToolNameSkill     = "Skill"
 	ToolNameTask      = "Task"
+	// ToolNameUploadArtifact is registered only where the surface has an
+	// artifact service; a session with none does not offer it at all.
+	ToolNameUploadArtifact = "UploadArtifact"
 )

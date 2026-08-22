@@ -13,15 +13,15 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 )
 
-// fakeArtifactStorage records what a run left behind, and refuses work on a
+// fakeRunOutputStorage records what a run left behind, and refuses work on a
 // dead context the way a real backend's HTTP client would.
-type fakeArtifactStorage struct {
+type fakeRunOutputStorage struct {
 	result []byte
 	files  []string
 	err    error
 }
 
-func (f *fakeArtifactStorage) PutResult(ctx context.Context, _ blob.RunRef, data []byte) error {
+func (f *fakeRunOutputStorage) PutResult(ctx context.Context, _ blob.RunRef, data []byte) error {
 	if err := ctx.Err(); err != nil {
 		f.err = err
 		return err
@@ -30,11 +30,11 @@ func (f *fakeArtifactStorage) PutResult(ctx context.Context, _ blob.RunRef, data
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetResult(context.Context, blob.RunRef) ([]byte, error) {
+func (f *fakeRunOutputStorage) GetResult(context.Context, blob.RunRef) ([]byte, error) {
 	return f.result, nil
 }
 
-func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunObjectRef, _ io.Reader) error {
+func (f *fakeRunOutputStorage) PutRunOutputFile(ctx context.Context, ref blob.RunObjectRef, _ io.Reader) error {
 	if err := ctx.Err(); err != nil {
 		f.err = err
 		return err
@@ -43,7 +43,7 @@ func (f *fakeArtifactStorage) PutArtifactFile(ctx context.Context, ref blob.RunO
 	return nil
 }
 
-func (f *fakeArtifactStorage) GetArtifactFile(context.Context, blob.RunObjectRef) ([]byte, error) {
+func (f *fakeRunOutputStorage) GetRunOutputFile(context.Context, blob.RunObjectRef) ([]byte, error) {
 	return nil, nil
 }
 
@@ -91,7 +91,7 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(artifactsDir, "notes.md"), []byte("half done"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	storage := &fakeArtifactStorage{}
+	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
 	scope := RunScope{CreatedBy: "u1", ConversationID: "c1", TaskID: "t1", TaskRunID: "r1"}
 	result := RunResult{
@@ -104,9 +104,9 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(model.ErrRunCanceled)
 	err := reportCanceledRun(ctx, scope, result, runDirs{runGlobal: t.TempDir(), runArtifacts: artifactsDir}, RunTaskInput{
-		Persist:         newFakePersistStorage(),
-		ArtifactStorage: storage,
-		Updater:         updater,
+		Persist:          newFakePersistStorage(),
+		RunOutputStorage: storage,
+		Updater:          updater,
 	})
 
 	if !errors.Is(err, model.ErrRunCanceled) {

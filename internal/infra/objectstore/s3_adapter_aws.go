@@ -16,13 +16,17 @@ import (
 type S3Client interface {
 	PutObject(ctx context.Context, bucket, key string, body io.Reader) error
 	GetObject(ctx context.Context, bucket, key string) ([]byte, error)
+	// GetObjectStream opens an object without reading it into memory, and
+	// reports its size. It exists for objects too large to hold: a plugin
+	// package is bounded, but bounded at tens of megabytes per request, and
+	// artifact content is whatever a deployment's limit allows.
+	GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error)
+	// DeleteObject removes one object. A key that is not there is not an error:
+	// the caller is a delete path that has to be safe to retry.
+	DeleteObject(ctx context.Context, bucket, key string) error
 	// ListObjectKeys returns object keys under the given prefix (keys include the prefix).
 	// Prefix should end with "/" for directory-style listing.
 	ListObjectKeys(ctx context.Context, bucket, prefix string) ([]string, error)
-	// GetObjectStream opens an object without reading it into memory, and
-	// reports its size. It exists for objects too large to hold: a plugin
-	// package is bounded, but bounded at tens of megabytes per request.
-	GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error)
 	// ObjectExists reports whether an object is present.
 	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
 }
@@ -95,6 +99,23 @@ func (a *s3ClientAdapter) ObjectExists(ctx context.Context, bucket, key string) 
 		return false, nil
 	}
 	return false, err
+}
+
+// DeleteObject reports success for a key that is not there. S3 already behaves
+// this way, and the caller is a delete path that must be safe to retry.
+func (a *s3ClientAdapter) DeleteObject(ctx context.Context, bucket, key string) error {
+	_, err := a.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var nsk *types.NoSuchKey
+		if errors.As(err, &nsk) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (a *s3ClientAdapter) ListObjectKeys(ctx context.Context, bucket, prefix string) ([]string, error) {

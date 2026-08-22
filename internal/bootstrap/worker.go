@@ -196,7 +196,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	artifactRoot := func(userID, conversationID, taskID, taskRunID string) string {
 		return filepath.Join(workspacesDir, userID, "artifacts", conversationID, taskID, taskRunID)
 	}
-	artifactStorage, err := BuildArtifactStorage(wsCfg, artifactRoot, s3Client)
+	runOutputStorage, err := BuildRunOutputStorage(wsCfg, artifactRoot, s3Client)
 	if err != nil {
 		slog.Error("failed to build artifact storage", "err", err)
 		return fmt.Errorf("artifact storage: %w", err)
@@ -220,11 +220,12 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		SessionID:              sessionID,
 		Paths:                  paths,
 		Persist:                persistStorage,
-		ArtifactStorage:        artifactStorage,
+		RunOutputStorage:       runOutputStorage,
 		Updater:                updater,
 		StreamSender:           streamSender,
 		Model:                  runtimeModel,
 		Managed:                managed,
+		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
 	})
 	if errors.Is(err, model.ErrRunCanceled) {

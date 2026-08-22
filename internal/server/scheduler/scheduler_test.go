@@ -59,6 +59,10 @@ func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _ model.CreateTaskRun
 	return nil, nil
 }
 
+func (s *spyTaskRunStore) ListTaskRunIDsByTasks(_ context.Context, _ []string) (map[string][]string, error) {
+	return map[string][]string{}, nil
+}
+
 func (s *spyTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]int, error) {
 	return nil, nil
 }

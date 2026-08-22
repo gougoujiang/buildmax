@@ -16,6 +16,7 @@ The active persistence model is team-scoped for shared work:
 - agent / agent_revision
 - workflow / workflow_revision / workflow_run / workflow_step_run
 - task / task_run / task_run_artifact
+- artifact (durable team files; see data-model.md)
 - quota_tier
 - llm_model / llm_call
 
@@ -34,7 +35,7 @@ window. Metering therefore has no separate write path to keep in sync.
 |-------|---------|------|
 | Contracts/entities | `internal/core/model` | Shared structs and repository interfaces |
 | GORM implementation | `internal/infra/db` | MySQL-backed store implementing those interfaces |
-| Object storage | `internal/infra/objectstore` | Team files and run artifacts, local FS or S3/MinIO |
+| Object storage | `internal/infra/objectstore` | Team home files, run output, and artifact content; local FS or S3/MinIO |
 
 ## Notes
 
@@ -42,7 +43,8 @@ window. Metering therefore has no separate write path to keep in sync.
   `arv_` agent revision, `w_`/`wrv_`/`wr_`/`wsr_` workflow, workflow revision,
   workflow run, workflow step run, `c_` conversation,
   `cm_` conversation message, `t_` task, `r_` task run, `ar_` artifact,
-  `f_` artifact item, `whk_` webhook key. Constants live in `internal/util/id.go`.
+  `f_` artifact item (reserved, unused), `whk_` webhook key. Constants live in
+  `internal/util/id.go`.
 - Session IDs are the exception: they are internal and use UUIDs.
 - JSON/API fields use `snake_case`.
 - `internal/bootstrap/server.go` opens the DB and injects the store into handlers and services.

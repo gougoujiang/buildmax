@@ -79,6 +79,20 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	}
 	return run, task, nil
 }
+func (m *MockTaskRunStore) ListTaskRunIDsByTasks(_ context.Context, taskIDs []string) (map[string][]string, error) {
+	want := make(map[string]bool, len(taskIDs))
+	for _, id := range taskIDs {
+		want[id] = true
+	}
+	out := make(map[string][]string)
+	for i := len(m.Runs) - 1; i >= 0; i-- {
+		if want[m.Runs[i].TaskID] {
+			out[m.Runs[i].TaskID] = append(out[m.Runs[i].TaskID], m.Runs[i].TaskRunID)
+		}
+	}
+	return out, nil
+}
+
 func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID string) (*model.TaskRun, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskID != taskID {

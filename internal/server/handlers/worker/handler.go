@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
@@ -33,6 +34,10 @@ type Config struct {
 	Agents   model.AgentStore
 	Gateway  *llmgateway.Service
 	Hub      websocket.StreamHub
+	// Artifacts lets a run's agent keep a file for the team. Nil means this
+	// deployment has no artifact store, and the route answers 503 — which is
+	// also what makes the worker leave the tool unregistered.
+	Artifacts *artifactsvc.Service
 
 	// OnTerminal is fired once a run reaches a terminal status, after the hub
 	// has been told. The server supplies it; this package does not know who is
@@ -60,6 +65,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRun)))
 	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/artifacts", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postArtifact)))
 	// Managed inference takes the run token only. It never accepted the shared
 	// worker token, so it has no upgrade window to keep open and no reason to
 	// grow a fallback the other three are already shedding.

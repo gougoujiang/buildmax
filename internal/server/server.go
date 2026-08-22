@@ -73,6 +73,9 @@ type StoresConfig struct {
 	SystemGrantStore    model.SystemGrantStore
 	SchemaStore         model.SchemaStore
 	LLMModelStore       model.LLMModelStore
+	// ArtifactStore records durable files. Nil leaves the artifact routes
+	// answering 503, which is what a deployment with no database has.
+	ArtifactStore model.ArtifactStore
 }
 
 // ServicesConfig holds application services the handlers reach through rather
@@ -86,9 +89,15 @@ type ServicesConfig struct {
 
 // StorageConfig holds blob storage and workspace paths.
 type StorageConfig struct {
-	PersistStorage  blob.PersistStorage
+	PersistStorage   blob.PersistStorage
+	RunOutputStorage blob.RunOutputStorage
+	// ArtifactStorage holds artifact content. It is separate from
+	// RunOutputStorage because they are different key spaces with different
+	// lifetimes, not two names for one bucket.
 	ArtifactStorage blob.ArtifactStorage
-	WorkspacesDir   string // Overrides config.WorkspacesDir() for workspace file operations
+	// MaxArtifactBytes caps one artifact. Zero uses the service default.
+	MaxArtifactBytes int64
+	WorkspacesDir    string // Overrides config.WorkspacesDir() for workspace file operations
 }
 
 // WorkerConfig holds worker-to-server auth and what a worker is told about
@@ -207,6 +216,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		SystemGrantStore:         cfg.Stores.SystemGrantStore,
 		SchemaStore:              cfg.Stores.SchemaStore,
 		LLMModelStore:            cfg.Stores.LLMModelStore,
+		ArtifactStore:            cfg.Stores.ArtifactStore,
 		PluginService:            cfg.Services.Plugin,
 		Deployment:               cfg.Deployment,
 		DependencyProbes:         dependencyProbes(cfg.Readiness),
@@ -228,7 +238,9 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		ConversationStore:        cfg.Conv.ConversationStore,
 		ConversationMessageStore: cfg.Conv.ConversationMessageStore,
 		PersistStorage:           cfg.Storage.PersistStorage,
+		RunOutputStorage:         cfg.Storage.RunOutputStorage,
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
+		MaxArtifactBytes:         cfg.Storage.MaxArtifactBytes,
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
 		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
 		QuotaService:             cfg.Auth.QuotaService,

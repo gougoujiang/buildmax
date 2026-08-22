@@ -133,6 +133,83 @@ func (g *Guard) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, ex
 	return "", false
 }
 
+// UserAndDefaultTeam authorizes a route that does not name a team in its path.
+//
+// It exists for clients that have a server but have not chosen a team: a CLI or
+// Desktop session knows its login and nothing else. An explicit team_id is
+// honoured and still checked for membership; an empty one resolves to the
+// caller's personal team, which is the private single-user case the product
+// already represents that way.
+func (g *Guard) UserAndDefaultTeam(w http.ResponseWriter, r *http.Request, explicitTeamID string) (userID, teamID string, ok bool) {
+	userID, ok = g.ActiveUser(w, r)
+	if !ok {
+		return "", "", false
+	}
+	_, resolved, ok := g.ExplicitTeam(w, r, userID, explicitTeamID)
+	if !ok {
+		return "", "", false
+	}
+	return userID, resolved, true
+}
+
+// MemberOfResourceTeam authorizes a route addressed by a resource ID rather
+// than by a team, where the team comes from the record the ID names.
+//
+// It cannot reuse UserAndPathTeam, which takes the team from the request path;
+// here the caller has not said which team it is acting in, and must not be
+// allowed to. The refusal is deliberately the same 404 a missing record gets:
+// an opaque ID is an identifier and not a credential, and answering 403 would
+// make every such route an oracle for whether an ID exists. See
+// docs/design/unified-artifacts.md section 6.1.
+func (g *Guard) MemberOfResourceTeam(w http.ResponseWriter, r *http.Request, userID, teamID, notFound string) bool {
+	if !httputil.RequireStore(w, g.Teams, "teams not configured") {
+		return false
+	}
+	role, ok := g.teamRole(w, r, userID, teamID)
+	if !ok {
+		return false
+	}
+	if role != "" {
+		return true
+	}
+	g.denied(r, userID, teamID, DeniedRouteName(r))
+	httputil.WriteJSONError(w, http.StatusNotFound, notFound)
+	return false
+}
+
+// TeamRole reports the caller's role in the team, or "" when they are not a
+// member. It is for a route that has already established membership and needs
+// to know how much the member may do.
+func (g *Guard) TeamRole(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, bool) {
+	return g.teamRole(w, r, userID, teamID)
+}
+
+// teamRole reads membership from the team's side rather than the caller's.
+// ListTeamsByUser would answer membership but not role, and the role is what
+// decides whether a member may delete someone else's work.
+func (g *Guard) teamRole(w http.ResponseWriter, r *http.Request, userID, teamID string) (string, bool) {
+	members, err := g.Teams.ListTeamMembers(r.Context(), teamID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "resolve_resource_team", "user_id", userID)
+		return "", false
+	}
+	for _, member := range members {
+		if member.UserID == userID {
+			return teamRoleOrMember(member.Role), true
+		}
+	}
+	return "", true
+}
+
+// teamRoleOrMember treats an unset role as plain membership, so a route that
+// gates on admin cannot be passed by a row that never got one.
+func teamRoleOrMember(role string) string {
+	if role == "" {
+		return model.TeamRoleMember
+	}
+	return role
+}
+
 // SystemAdmin authorizes a deployment-scoped route.
 //
 // Deliberately a sibling of TeamAction rather than a branch inside it. A system

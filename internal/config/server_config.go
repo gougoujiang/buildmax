@@ -306,6 +306,13 @@ type ServerStorageConfig struct {
 	PersistBackend  string            `mapstructure:"persist_backend"`
 	ArtifactBackend string            `mapstructure:"artifact_backend"`
 	MinIO           ServerMinIOConfig `mapstructure:"minio"`
+	// MaxArtifactMB caps one artifact upload. Zero uses the built-in default.
+	//
+	// It is a per-file limit and deliberately not a team storage allowance: a
+	// stock of bytes held is a different measurement from the rates the quota
+	// model records, and it waits for its own decision. What this already
+	// settles is that one request cannot cost the deployment unbounded disk.
+	MaxArtifactMB int `mapstructure:"max_artifact_mb"`
 }
 
 // ServerMinIOConfig holds MinIO/S3 connection settings.

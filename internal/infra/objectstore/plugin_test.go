@@ -264,3 +264,8 @@ func (f *fakeS3) ObjectExists(_ context.Context, _, key string) (bool, error) {
 	_, ok := f.objects[key]
 	return ok, nil
 }
+
+func (f *fakeS3) DeleteObject(_ context.Context, _, key string) error {
+	delete(f.objects, key)
+	return nil
+}

@@ -411,6 +411,30 @@ func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerTy
 	return s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_run_id = ?", taskRunID).Updates(updates).Error
 }
 
+// ListTaskRunIDsByTasks groups run IDs by their task, newest first.
+func (s *Store) ListTaskRunIDsByTasks(ctx context.Context, taskIDs []string) (map[string][]string, error) {
+	if len(taskIDs) == 0 {
+		return map[string][]string{}, nil
+	}
+	var rows []struct {
+		TaskID    string
+		TaskRunID string
+	}
+	err := s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Select("task_id", "task_run_id").
+		Where("task_id IN ?", taskIDs).
+		Order("created_at DESC, id DESC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]string, len(taskIDs))
+	for _, row := range rows {
+		out[row.TaskID] = append(out[row.TaskID], row.TaskRunID)
+	}
+	return out, nil
+}
+
 // OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields.
 func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error {
 	if len(relativePaths) == 0 {

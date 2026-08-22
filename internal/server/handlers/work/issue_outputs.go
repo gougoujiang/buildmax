@@ -29,10 +29,17 @@ type outputSourceResponse struct {
 }
 
 type issueOutputResponse struct {
-	ID               string               `json:"id"`
-	Title            string               `json:"title"`
-	Kind             string               `json:"kind"`
-	RelativePath     string               `json:"relative_path,omitempty"`
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Kind         string `json:"kind"`
+	RelativePath string `json:"relative_path,omitempty"`
+	// ArtifactID is set on an output that is a durable artifact. It is the
+	// whole address: a client opens it at /api/artifacts/{id} without needing
+	// the run that produced it.
+	ArtifactID       string               `json:"artifact_id,omitempty"`
+	Filename         string               `json:"filename,omitempty"`
+	MediaType        string               `json:"media_type,omitempty"`
+	SizeBytes        int64                `json:"size_bytes,omitempty"`
 	Preview          string               `json:"preview,omitempty"`
 	PreviewTruncated bool                 `json:"preview_truncated"`
 	Source           outputSourceResponse `json:"source"`
@@ -72,6 +79,7 @@ func (h *Handler) aggregateIssueOutputs(
 		return []issueOutputResponse{}, nil
 	}
 	outputs := make([]issueOutputResponse, 0)
+	outputs = append(outputs, h.artifactOutputs(ctx, agentTasks, stepsByTaskID)...)
 	for _, t := range agentTasks {
 		if t.LastRunID == nil || *t.LastRunID == "" {
 			continue
@@ -135,6 +143,95 @@ func (h *Handler) aggregateIssueOutputs(
 	return outputs, latest
 }
 
+// artifactOutputs lists what the issue's runs published as artifacts.
+//
+// They are looked up by the run that produced them, not owned by it: an
+// artifact outlives the run and keeps its own address, and this is only the
+// issue asking what its work produced. A deployment with no artifact store
+// returns none, which is the same shape as runs that published nothing.
+func (h *Handler) artifactOutputs(
+	ctx context.Context,
+	agentTasks []model.Task,
+	stepsByTaskID map[string]model.WorkflowStepRun,
+) []issueOutputResponse {
+	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() {
+		return nil
+	}
+	// Every run of every task, not each task's last one. A retried task has
+	// earlier runs, and an artifact one of them published is still a thing the
+	// team keeps — it does not stop being this issue's output because the task
+	// was run again.
+	taskIDs := make([]string, 0, len(agentTasks))
+	tasksByID := make(map[string]model.Task, len(agentTasks))
+	for _, t := range agentTasks {
+		taskIDs = append(taskIDs, t.TaskID)
+		tasksByID[t.TaskID] = t
+	}
+	runsByTask, err := h.runIDsByTask(ctx, taskIDs)
+	if err != nil {
+		return nil
+	}
+	runIDs := make([]string, 0, len(taskIDs))
+	runToTask := make(map[string]model.Task, len(taskIDs))
+	for taskID, runs := range runsByTask {
+		for _, runID := range runs {
+			runIDs = append(runIDs, runID)
+			runToTask[runID] = tasksByID[taskID]
+		}
+	}
+	bySource, err := h.cfg.Artifacts.ListBySource(ctx, runIDs)
+	if err != nil {
+		// Tolerated for the same reason a missing run output is: an issue's
+		// flow response must not fail because one part of it could not be read.
+		return nil
+	}
+	var out []issueOutputResponse
+	for runID, artifacts := range bySource {
+		t := runToTask[runID]
+		source := outputSourceResponse{
+			SourceType:     "task_run",
+			TaskID:         t.TaskID,
+			TaskRunID:      runID,
+			ConversationID: t.ConversationID,
+		}
+		if step, ok := stepsByTaskID[t.TaskID]; ok {
+			source.WorkflowRunID = util.Ptr(step.WorkflowRunID)
+			source.WorkflowStepRunID = util.Ptr(step.StepRunID)
+			source.WorkflowStepID = util.Ptr(step.StepID)
+		}
+		for i := range artifacts {
+			a := artifacts[i]
+			title := a.Title
+			if title == "" {
+				title = a.Filename
+			}
+			out = append(out, issueOutputResponse{
+				ID:         a.ArtifactID,
+				Title:      title,
+				Kind:       "artifact",
+				ArtifactID: a.ArtifactID,
+				Filename:   a.Filename,
+				MediaType:  a.MediaType,
+				SizeBytes:  a.SizeBytes,
+				Source:     source,
+				CreatedAt:  a.CreatedAt,
+			})
+		}
+	}
+	return out
+}
+
+// runIDsByTask lists every run of the given tasks, falling back to each task's
+// last run when the store cannot answer. The fallback is not equivalent — it
+// loses a retried task's earlier runs — but a degraded output list beats an
+// issue page that will not load.
+func (h *Handler) runIDsByTask(ctx context.Context, taskIDs []string) (map[string][]string, error) {
+	if h.cfg.TaskRuns != nil {
+		return h.cfg.TaskRuns.ListTaskRunIDsByTasks(ctx, taskIDs)
+	}
+	return map[string][]string{}, nil
+}
+
 func findResultItem(items []model.TaskRunArtifact) *model.TaskRunArtifact {
 	for i := range items {
 		if items[i].RelativePath == issueOutputResultFilename {
@@ -148,15 +245,15 @@ func findResultItem(items []model.TaskRunArtifact) *model.TaskRunArtifact {
 // Missing or unreadable content returns ("", false) — the caller still emits
 // a card without preview.
 func (h *Handler) readArtifactPreview(ctx context.Context, t model.Task, taskRunID, relPath string) (string, bool) {
-	if h.cfg.ArtifactStorage == nil {
+	if h.cfg.RunOutputStorage == nil {
 		return "", false
 	}
 	if relPath != issueOutputResultFilename {
 		// MVP only previews result.md via GetResult; other paths would
-		// need GetArtifactFile and a kind whitelist.
+		// need GetRunOutputFile and a kind whitelist.
 		return "", false
 	}
-	data, err := h.cfg.ArtifactStorage.GetResult(ctx, blob.RunRef{
+	data, err := h.cfg.RunOutputStorage.GetResult(ctx, blob.RunRef{
 		CreatedBy:      t.CreatedBy,
 		ConversationID: t.ConversationID,
 		TaskID:         t.TaskID,

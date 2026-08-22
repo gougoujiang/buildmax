@@ -239,6 +239,12 @@ type TaskRunStore interface {
 	GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error)
 	// GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
 	GetTaskRunWithTask(ctx context.Context, taskRunID string) (*TaskRun, *Task, error)
+	// ListTaskRunIDsByTasks returns each task's run IDs, newest first, keyed by
+	// task ID. Tasks with no runs are absent from the map.
+	//
+	// It exists because a task's last run is not its only run: a retried task
+	// has earlier ones, and what those produced did not stop existing.
+	ListTaskRunIDsByTasks(ctx context.Context, taskIDs []string) (map[string][]string, error)
 	// GetActiveTaskRunByTask returns the task's run in PENDING, SCHEDULED, or
 	// RUNNING, or (nil, nil) when the task has none. A task holds at most one.
 	GetActiveTaskRunByTask(ctx context.Context, taskID string) (*TaskRun, error)

@@ -70,6 +70,7 @@ func runPrintMode(opts printOptions) error {
 		EnableMCP:              true,
 		Policy:                 agentapp.NewNonInteractivePolicy(),
 		ManagedToken:           auth.TokenForServer,
+		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                model.LLMCallSurfaceCLI,
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 	})

@@ -548,6 +548,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
             </div>
             <OutputsList
               outputs={flow.outputs}
+              token={token}
               onOpenFull={(o) => setViewerOutput(o)}
               onOpenConversation={(conversationId) => navigate({ name: "conversation", conversationId })}
               onOpenRun={(workflowRunId) => navigate({ name: "workflowRun", workflowRunId })}

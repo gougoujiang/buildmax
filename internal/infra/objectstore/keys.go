@@ -55,9 +55,9 @@ func PersistObjectKey(prefix, teamID, relPath string) (string, error) {
 	return path.Join(prefix, teamID, "home", clean), nil
 }
 
-// ArtifactResultKey returns the S3 object key for a run's result.md (one artifact per task run).
-func ArtifactResultKey(prefix, createdBy, conversationID, taskID, taskRunID string) string {
-	return artifactResultKey(runKeyScope{
+// RunOutputResultKey returns the S3 object key for a run's result.md (one artifact per task run).
+func RunOutputResultKey(prefix, createdBy, conversationID, taskID, taskRunID string) string {
+	return runOutputResultKey(runKeyScope{
 		Prefix:         prefix,
 		CreatedBy:      createdBy,
 		ConversationID: conversationID,
@@ -66,9 +66,9 @@ func ArtifactResultKey(prefix, createdBy, conversationID, taskID, taskRunID stri
 	})
 }
 
-// ArtifactFileKey returns the S3 object key for one file under a run's output. relPath is validated with CleanRelPath.
-func ArtifactFileKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {
-	return artifactFileKey(runKeyScope{
+// RunOutputFileKey returns the S3 object key for one file under a run's output. relPath is validated with CleanRelPath.
+func RunOutputFileKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {
+	return runOutputFileKey(runKeyScope{
 		Prefix:         prefix,
 		CreatedBy:      createdBy,
 		ConversationID: conversationID,
@@ -77,11 +77,11 @@ func ArtifactFileKey(prefix, createdBy, conversationID, taskID, taskRunID, relPa
 	}, relPath)
 }
 
-func artifactResultKey(scope runKeyScope) string {
+func runOutputResultKey(scope runKeyScope) string {
 	return path.Join(scope.Prefix, scope.CreatedBy, "artifacts", scope.ConversationID, scope.TaskID, scope.TaskRunID, "result.md")
 }
 
-func artifactFileKey(scope runKeyScope, relPath string) (string, error) {
+func runOutputFileKey(scope runKeyScope, relPath string) (string, error) {
 	clean, err := CleanRelPath(relPath)
 	if err != nil {
 		return "", err

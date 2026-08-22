@@ -108,6 +108,11 @@ var teamRoutes = []authzCase{
 	// Retry starts a run, so it sits at the same level as starting one.
 	{"POST", "/api/teams/{team_id}/tasks/{task_id}/retry", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/artifacts", model.TeamRoleMember, false},
+	// Unified artifacts. Any member may keep a file for the team and see what
+	// the team holds; removing one is decided per artifact rather than per
+	// role, so it is not on a team-scoped route -- see the artifact package.
+	{"GET", "/api/teams/{team_id}/artifacts", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/artifacts", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/conversation", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/stream", model.TeamRoleMember, false},
 
@@ -182,6 +187,8 @@ func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.Serv
 		AuditStore:               &mock.MockAuditStore{},
 		SystemGrantStore:         grants,
 		PersistStorage:           mock.NewMockPersistStorage(),
+		RunOutputStorage:         mock.NewMockRunOutputStorage(),
+		ArtifactStore:            &mock.MockArtifactStore{},
 		ArtifactStorage:          mock.NewMockArtifactStorage(),
 		WorkspacesDir:            t.TempDir(),
 	})

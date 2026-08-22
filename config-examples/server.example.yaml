@@ -180,6 +180,9 @@ audit:
 storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio
+  # Largest single artifact this deployment accepts, in MB. 0 uses the built-in
+  # default. This is a per-file limit, not a team storage allowance.
+  max_artifact_mb: 0
   minio:
     # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a vendor's
     # service). Leave it empty for AWS S3 so the SDK resolves the regional

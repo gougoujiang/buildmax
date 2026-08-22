@@ -63,6 +63,12 @@ const (
 	// section 9.
 	AuditSystemAdminGranted = "system.admin_granted"
 	AuditSystemAdminRevoked = "system.admin_revoked"
+	// AuditArtifactCreated and AuditArtifactDeleted record a durable file
+	// entering and leaving a team's keeping. They are metadata-only by
+	// construction: the target is the ar_ ID, and neither the storage key, the
+	// content, nor an uploader-supplied description belongs in the trail.
+	AuditArtifactCreated = "artifact.created"
+	AuditArtifactDeleted = "artifact.deleted"
 	// The plugin actions record changes to what a deployment's members can
 	// install. A release is instructions that cause tool use, processes that
 	// start with someone's credentials, and hooks that run local programs, so

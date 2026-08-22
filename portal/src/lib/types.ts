@@ -21,14 +21,6 @@ export interface Task {
   issueId?: string
 }
 
-export interface Artifact {
-  id: string
-  taskId: string
-  taskRunId?: string
-  timeLabel: string
-  title: string
-}
-
 /** Tier 1 conversation (user-facing dialogue). */
 export interface Conversation {
   id: string
@@ -48,7 +40,7 @@ export type Route =
   | { name: "explore" }
   | { name: "agents" }
   | { name: "account"; section?: "general" | "usage" | "webhook" | "plugins" }
-  | { name: "space"; section?: "overview" | "members" | "audit" | "memberNew" }
+  | { name: "space"; section?: "overview" | "members" | "artifacts" | "audit" | "memberNew" }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }
@@ -182,6 +174,11 @@ export interface IssueOutput {
   title: string
   kind: string
   relativePath?: string
+  /** Set when kind is "artifact": the whole address, no run needed. */
+  artifactId?: string
+  filename?: string
+  mediaType?: string
+  sizeBytes?: number
   preview?: string
   previewTruncated: boolean
   source: OutputSource

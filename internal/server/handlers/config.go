@@ -83,6 +83,10 @@ type Config struct {
 	// SchemaStore reports which migrations a database has had applied. Nil
 	// leaves that field of the system status empty.
 	SchemaStore model.SchemaStore
+	// ArtifactStore records durable files. Nil, or no ArtifactStorage, leaves
+	// the artifact routes answering 503: metadata without content is not an
+	// artifact capability.
+	ArtifactStore model.ArtifactStore
 	// SystemGrantStore reads deployment-scoped role grants. Nil leaves every
 	// /api/admin route answering 503 to an authenticated caller, which is what
 	// a deployment with no database has: no way to know whether anyone is an
@@ -90,9 +94,11 @@ type Config struct {
 	SystemGrantStore model.SystemGrantStore
 
 	// Storage
-	PersistStorage  blob.PersistStorage
-	ArtifactStorage blob.ArtifactStorage
-	WorkspacesDir   string
+	PersistStorage   blob.PersistStorage
+	RunOutputStorage blob.RunOutputStorage
+	ArtifactStorage  blob.ArtifactStorage
+	MaxArtifactBytes int64
+	WorkspacesDir    string
 
 	// Auth / quota
 	DefaultQuotaTier string

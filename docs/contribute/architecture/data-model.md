@@ -94,6 +94,8 @@ erDiagram
     task ||--o{ task_run : "attempted as"
     task_run ||--o{ task_run_artifact : produces
 
+    team ||--o{ artifact : keeps
+
     workflow ||--o{ workflow_run : "instantiated as"
     workflow_run ||--o{ workflow_step_run : "expands to"
     workflow_step_run ||--o| task : "delegates to"
@@ -713,6 +715,50 @@ This table has no public prefixed ID and no timestamps — it is a set, and the
 composite unique index makes re-recording the same artifact idempotent. It
 replaced the older `artifact` / `artifact_item` pair and the `task_run_output_file`
 table; both migrations are in `internal/infra/db/migration.go`.
+
+It is not `artifact`, below. This is a run's index of the files it left in its
+own output directory; that is a durable object a team keeps.
+
+### `artifact`
+
+One durable file the team owns, with one immutable content object. Content
+lives in object storage under a key this table records and no API returns.
+
+The name is reused: the `artifact` table dropped by migration 0001 was a task
+run's child structure. This one is a first-class object whose producer is
+recorded as provenance, so migration 0001 now checks for `artifact_item` and for
+a legacy `task_run_id` column before touching either table. See
+[../../design/unified-artifacts.md](../../design/unified-artifacts.md).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `artifact_id` | `varchar(64)` | no | Public ID, `ar_` prefix, unique |
+| `team_id` | `varchar(64)` | no | Owning team; the authorization boundary |
+| `filename` | `varchar(512)` | no | One path element; directories are stripped |
+| `media_type` | `varchar(255)` | yes | Derived from the extension, never from the uploader |
+| `size_bytes` | `bigint` | no | Measured while streaming |
+| `sha256` | `varchar(64)` | no | Digest of what was stored; not a dedup key |
+| `storage_key` | `varchar(1024)` | no | Object key. Never serialized anywhere |
+| `created_by_type` | `varchar(32)` | no | `user`, `agent`, `worker`, or `system` |
+| `created_by_id` | `varchar(64)` | yes | Empty for automated work |
+| `source_type` | `varchar(32)` | no | `agent`, `task_run`, `user_upload`, `system` |
+| `source_id` | `varchar(64)` | yes | The producing operation |
+| `title` | `varchar(255)` | yes | Display label |
+| `deleted_at` | `bigint` | yes | Tombstone; set means hidden and unreadable |
+| `expires_at` | `bigint` | yes | Retention hook |
+| `created_at` | `bigint` | no | Unix seconds |
+
+Indexes: PK `id`; unique `artifact_id`; `idx_artifact_team_created`
+(`team_id`, `created_at`); `source_id`; `deleted_at`; `expires_at`.
+
+There is deliberately no free-form metadata column. Durable metadata is where
+prompts, file contents, and credentials leak in when a column will take
+anything, so a new product behavior earns a named column instead.
+
+Deletion is a tombstone rather than a row removal: it must take effect at the
+authorization boundary immediately, while reclaiming the object is retention's
+job and may be slower than the request that asked for it.
 
 ## Workflows
 

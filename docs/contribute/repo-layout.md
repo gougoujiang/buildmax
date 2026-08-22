@@ -130,6 +130,7 @@ internal/
 │   │   ├── runtime/    Turn-loop mechanics: replay, tool assembly, streaming
 │   │   └── tool/       Tier 1 tools and the task-runner bridge
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
+│   ├── artifact/       Durable files a team keeps; knows no producer
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
@@ -146,7 +147,8 @@ internal/
 │
 ├── infra/              External-system implementations
 │   ├── db/             MySQL/GORM implementation of the core repositories
-│   ├── objectstore/    Local FS and S3/MinIO persist + artifact storage
+│   ├── objectstore/    Local FS and S3/MinIO storage: team home, run output,
+│   │                   and artifact content — three key spaces, one backend
 │   ├── llm/            LLMClient over the wire protocols BuildMax speaks:
 │   │                   OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
 │   ├── llmwire/        Versioned wire contract for managed inference
@@ -173,6 +175,7 @@ internal/
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
 │   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a team
+│   │   ├── artifact/   Artifacts, addressed by ar_ ID; team comes from the record
 │   │   ├── auth/       Establishing a session: login, refresh, logout, password
 │   │   ├── auditexport/  CSV export shared by the team and admin audit routes
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the team and worker routes

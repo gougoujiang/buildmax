@@ -21,7 +21,7 @@ export type {
   ApiUsage,
   CreateTaskRunResponse,
   ApiArtifact,
-  ApiArtifactItem,
+  ApiArtifactList,
   UploadResponse,
   ApiConversation,
   ApiConversationsListResponse,

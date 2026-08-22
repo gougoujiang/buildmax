@@ -155,7 +155,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.RunOutputs, "artifacts not configured") || !httputil.RequireStore(w, h.cfg.ArtifactStorage, "artifact storage not configured") {
+	if !httputil.RequireStore(w, h.cfg.RunOutputs, "artifacts not configured") || !httputil.RequireStore(w, h.cfg.RunOutputStorage, "artifact storage not configured") {
 		return
 	}
 	taskRunID, ok := httputil.PathValue(w, r, "task_run_id")
@@ -173,14 +173,14 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	var data []byte
 	var err error
 	if pathParam == artifactResultFilename {
-		data, err = h.cfg.ArtifactStorage.GetResult(r.Context(), blob.RunRef{
+		data, err = h.cfg.RunOutputStorage.GetResult(r.Context(), blob.RunRef{
 			CreatedBy:      task.CreatedBy,
 			ConversationID: task.ConversationID,
 			TaskID:         task.TaskID,
 			TaskRunID:      taskRunID,
 		})
 	} else {
-		data, err = h.cfg.ArtifactStorage.GetArtifactFile(r.Context(), blob.RunObjectRef{
+		data, err = h.cfg.RunOutputStorage.GetRunOutputFile(r.Context(), blob.RunObjectRef{
 			CreatedBy:      task.CreatedBy,
 			ConversationID: task.ConversationID,
 			TaskID:         task.TaskID,
