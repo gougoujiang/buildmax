@@ -34,7 +34,7 @@ func cmdRun(args []string) error {
 // runServer preflights the database before starting the server.
 //
 // The server needs MySQL, and the usual local one is the cluster's, forwarded
-// by `mk kind db`. Without the preflight the failure is a dial error from deep
+// by `mk kind forward`. Without the preflight the failure is a dial error from deep
 // inside the server, which says what did not connect but not which of the two
 // commands is missing.
 func runServer() error {
@@ -70,7 +70,7 @@ func checkServerDatabase(sandbox string) error {
 		_ = conn.Close()
 		return nil
 	}
-	return fmt.Errorf("no database is answering at %s, and %s needs one\n  Start the development MySQL with %s kind up, then forward it with %s kind db in another terminal\n  Or point database.host in %s at a database you already run",
+	return fmt.Errorf("no database is answering at %s, and %s needs one\n  Start the development MySQL with %s kind up, then forward it with %s kind forward in another terminal\n  Or point database.host in %s at a database you already run",
 		net.JoinHostPort(host, port), mk()+" run server", mk(), mk(), filepath.Join(sandbox, "server.yaml"))
 }
 
