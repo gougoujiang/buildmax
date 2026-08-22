@@ -74,6 +74,12 @@ GoReleaser, kind, and the Wails CLI — are pinned in [`cmd/mk`](cmd/mk) and run
 through `go run`, so the version you get is the version CI runs and there is
 nothing to keep up to date.
 
+If you use [mise](https://mise.jdx.dev), `mise install` fetches the pinned Go
+and Node from `mise.toml` — which carries the same versions as `go.mod` and
+`.node-version`, and a test fails when it drifts from them. Then run
+`corepack enable` once so npm follows the `packageManager` pin. Neither is
+required: `./make` cares about the versions, not how they arrived.
+
 The task runner reports missing tools; it does not install system packages for
 you. Go is the one prerequisite it cannot even report, because the task runner
 is itself Go: `./make` checks for it first and prints where to get it. Free
