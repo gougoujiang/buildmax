@@ -80,7 +80,7 @@ not silently reversed; §8 decides it explicitly.
 | D6 | A reference stays an opaque string only when it is polymorphic, externally owned, or a value. |
 | D7 | Public-to-numeric translation happens inside `internal/infra/db` and never produces an N+1 read. |
 | D8 | No compatibility layer. Alpha databases and object stores are reset. |
-| D9 | `NewPrefixedID` survives for non-entity identifiers only: `rt_` trace run, `as_` auth session, `p_` Desktop project. |
+| D9 | `NewPrefixedID` survives for non-entity identifiers only: `as_` auth session, `jb_` local background job, `rt_` trace run, `p_` Desktop project. |
 
 ## 4. Public ID Format
 
@@ -161,14 +161,15 @@ returns the empty string, which the store's read path treats as corruption.
 
 ### 4.4 Prefixes Are Retired
 
-The 23 entity prefix constants in `id.go` are deleted along with the prefix
+The entity prefix constants in `id.go` are deleted along with the prefix
 table in [conventions.md](../contribute/conventions.md#entity-ids-are-prefixed).
 Three prefixed IDs remain, and none of them names a database row:
 
 | Prefix | What it names |
 |---|---|
-| `rt_` | One durable trace file, minted in `internal/agentapp/app.go` |
 | `as_` | One login chain of refresh tokens, minted in `handlers/auth` |
+| `jb_` | One local background job: process-lifetime and never persisted, but LLM- and user-facing, so it carries a readable prefix |
+| `rt_` | One durable trace file, minted in `internal/agentapp/app.go` |
 | `p_` | A Desktop project, which is local UI state and not a server entity |
 
 ## 5. Schema Shape

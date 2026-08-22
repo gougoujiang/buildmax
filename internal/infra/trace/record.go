@@ -32,8 +32,11 @@ type Record struct {
 	// ParentRunID is the immediate trace run that delegated this subagent.
 	// Top-level runs leave it absent: an empty value would look like a broken
 	// link rather than a run that has no parent.
-	ParentRunID  string `json:"parent_run_id,omitempty"`
-	TraceVersion int    `json:"trace_version,omitempty"`
+	ParentRunID string `json:"parent_run_id,omitempty"`
+	// ParentToolCallID is the tool call in the parent run that launched this
+	// one, closing the walk parent run → tool call → child run.
+	ParentToolCallID string `json:"parent_tool_call_id,omitempty"`
+	TraceVersion     int    `json:"trace_version,omitempty"`
 
 	// sandbox_boundary
 	//

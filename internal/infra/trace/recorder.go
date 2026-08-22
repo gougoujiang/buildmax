@@ -29,6 +29,10 @@ type Meta struct {
 	// empty for a top-level run and deliberately stays optional so trace
 	// recording remains fail-open when no parent trace was created.
 	ParentRunID string
+	// ParentToolCallID names the tool call in the parent run that launched
+	// this one, so an inspection can walk parent run → tool call → child run.
+	// Empty when the launch context carried none.
+	ParentToolCallID string
 	// Sandbox is the execution boundary resolved for this run. Nil is recorded
 	// as unsandboxed rather than unknown — see boundaryRecord.
 	Sandbox *agent.SandboxInfo
@@ -83,15 +87,16 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		maxRecord: defaultMaxRecords,
 	}
 	r.write(Record{
-		TS:           now(),
-		Type:         "run_start",
-		RunID:        meta.RunID,
-		SessionID:    meta.SessionID,
-		Workspace:    meta.Workspace,
-		Model:        meta.Model,
-		IsSubagent:   meta.IsSubagent,
-		ParentRunID:  meta.ParentRunID,
-		TraceVersion: traceVersion,
+		TS:               now(),
+		Type:             "run_start",
+		RunID:            meta.RunID,
+		SessionID:        meta.SessionID,
+		Workspace:        meta.Workspace,
+		Model:            meta.Model,
+		IsSubagent:       meta.IsSubagent,
+		ParentRunID:      meta.ParentRunID,
+		ParentToolCallID: meta.ParentToolCallID,
+		TraceVersion:     traceVersion,
 	})
 	r.write(boundaryRecord(meta.Sandbox))
 	r.write(layersRecord(meta.PromptLayers))

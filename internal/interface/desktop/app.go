@@ -126,6 +126,10 @@ type App struct {
 	// queues hold prompts submitted while that project's run was in flight, keyed
 	// by project ID. They are drained one prompt per turn by the run goroutine.
 	queues map[string]*agent.MessageQueue
+	// pendingJobEvents park requested background deliveries per
+	// project+session (see deliveryKey) until the frontend pulls them with
+	// DeliverNextJobEvent. Lazily initialized.
+	pendingJobEvents map[string][]agentapp.BackgroundEvent
 	// emit sends an event to the frontend. See uiEmitter.
 	emit uiEmitter
 }
@@ -195,12 +199,13 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 
 	handler := newDesktopApprovalHandler(a, projectID)
 	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
-		WorkspaceDir:      proj.FolderPath,
-		EnableMCP:         true,
-		Policy:            agentapp.NewInteractivePolicy(),
-		ManagedToken:      auth.TokenForServer,
-		ArtifactPublisher: auth.ArtifactPublisherForSession(),
-		Surface:           model.LLMCallSurfaceDesktop,
+		WorkspaceDir:         proj.FolderPath,
+		EnableMCP:            true,
+		Policy:               agentapp.NewInteractivePolicy(),
+		ManagedToken:         auth.TokenForServer,
+		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
+		Surface:              model.LLMCallSurfaceDesktop,
+		EnableBackgroundJobs: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)
@@ -216,6 +221,10 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 	a.agentApps[projectID] = ag
 	a.approvalHandlers[projectID] = handler
 	a.mu.Unlock()
+	if jobs := ag.Jobs(); jobs != nil {
+		// The pump exits when Close releases the subscription in Shutdown.
+		a.pumpJobEvents(projectID, jobs)
+	}
 	return ag, nil
 }
 

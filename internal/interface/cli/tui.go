@@ -33,6 +33,9 @@ func tuiAppConfig(workspace, additionalSystemPrompt string) agentapp.AppConfig {
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                model.LLMCallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
+		// Interactive TUI only: print mode has no host process to own a job
+		// and deliberately does not set this.
+		EnableBackgroundJobs: true,
 	}
 }
 

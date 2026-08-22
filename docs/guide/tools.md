@@ -17,13 +17,17 @@ so they are worth knowing exactly.
 | `Edit` | Exact string replacement in a file | `path`, `old_string`, `new_string`, `replace_all` |
 | `Glob` | List files matching a pattern, newest first | `pattern` |
 | `Grep` | Regex search over file contents | `pattern`, `path`, `glob`, `type`, `output_mode`, `-A/-B/-C`, `-i`, `multiline`, `head_limit` |
-| `Bash` | Run a shell command in the workspace | `command`, `timeout` (default 120s, max 600s) |
+| `Bash` | Run a shell command in the workspace | `command`, `timeout` (default 120s, max 600s), `run_in_background` (TUI and Desktop) |
 | `WebFetch` | Fetch a URL as markdown, optionally summarized by the model | `url`, `prompt` |
 | `TodoWrite` | Track multi-step progress | `todos[]` of `{id, content, status}` |
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | skill name |
-| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type` |
+| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` (TUI and Desktop) |
 | `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
+| `JobList` | List background jobs: ID, kind, state, age, command | — |
+| `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
+| `JobStop` | Stop a background job (kills the whole process tree) | `job_id` |
+| `Monitor` | Watch logs, files, or CI: each stdout line becomes a bounded event | `command`, `description`, `timeout`, `persistent`, `react` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [mcp.md](mcp.md) |
 
 Run `/tools` in the TUI to see the set active for the current run — it varies
@@ -35,6 +39,22 @@ BuildMax server to publish to, so it appears when you are logged in
 running straight against a model provider has no artifact store, and rather
 than offering a tool that could only fail, the agent is not given one — it
 keeps writing files where it already does.
+
+The `Job` tools and `Monitor` follow the same rule. Background jobs need a
+live interactive process to own them, so `run_in_background` on `Bash` and
+`Task`, `Monitor`, and the three `Job` tools exist only in the TUI and
+Desktop — not in print mode (`buildmax -p`), eval, or worker runs, and never
+inside a subagent. `Monitor` runs its command under exactly Bash's risk,
+permission, and sandbox rules; its lines are rate-limited, truncated, and
+delivered as untrusted observations, and dropped lines are counted rather
+than silently discarded.
+Backgrounding changes when a call returns, not what it is allowed to do: the
+permission check runs before the job detaches, and a background subagent that
+would need an approval is denied, exactly as a foreground subagent is. A
+background job shares the workspace with the conversation — avoid delegating
+edits that would race yours — and quitting the application stops every job it
+started. A background subagent's final reply appears in `JobOutput` when it
+completes.
 
 When the agent asks for several tools at once, the read-only ones run at the
 same time: `Read`, `Glob`, `Grep`, `Skill`, and `WebFetch`. Anything that

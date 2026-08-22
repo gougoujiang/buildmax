@@ -326,9 +326,11 @@ Three limits worth knowing before you rely on this:
   the refresh token itself expires or its session is revoked, calls fail with a
   clear error and you re-run `buildmax login`. See
   [design/llm-gateway.md](../design/llm-gateway.md) section 11.
-- **Workers and the evaluation harness never use managed mode.** A worker runs
-  the server's own model with the server's own credential, and `eval/` stays
-  direct so benchmark results do not move with team model policy or quota.
+- **Workers may use either transport; the evaluation harness stays direct.** A
+  task-run worker follows `worker.llm.transport`: `buildmax` gives it a
+  run-scoped credential and no provider key, while `direct` gives it the
+  deployment's configured provider access. `eval/` stays direct so benchmark
+  results do not move with team model policy or quota.
 
 Prompts, tool schemas, and tool results pass through the server for a managed
 call. That is the point of the mode, and it is a real change in where your data

@@ -28,6 +28,7 @@ an issue tracker, or an archive.
 A proposal must:
 
 - state its status as `proposal — under discussion`;
+- record when discussion opened as `Opened: YYYY-MM-DD`;
 - link the current roadmap plans and design records it may affect;
 - distinguish goals, non-goals, options, open questions, and the evidence
   needed to make a decision;

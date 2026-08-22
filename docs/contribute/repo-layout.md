@@ -122,6 +122,7 @@ internal/
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
 │   │                   MCP, hooks, sandbox, traces, skills, sessions, workspace
+│   ├── job/            Local background jobs: identity, state, output, shutdown
 │   └── taskrun/        One task run inside its run-scoped directory (worker)
 │
 ├── service/            Application services: coordinate stores, enforce rules
@@ -156,6 +157,8 @@ internal/
 │   ├── mcp/            MCP protocol, client transport, registry
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
 │   ├── pluginwire/     Wire contract for the private plugin Marketplace
+│   ├── proc/           Process supervision for local background jobs:
+│   │                   group spawn, bounded output rings, tree termination
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher

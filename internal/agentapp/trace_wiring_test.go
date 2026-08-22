@@ -14,6 +14,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/infra/trace"
+	tools "github.com/gougoujiang/buildmax/internal/tool"
 )
 
 type traceScriptClient struct {
@@ -275,7 +277,42 @@ func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
 	if child[0]["is_subagent"] != true {
 		t.Errorf("child is_subagent = %v, want true", child[0]["is_subagent"])
 	}
+	if child[0]["parent_tool_call_id"] != "call_parent" {
+		t.Errorf("child parent_tool_call_id = %v, want call_parent", child[0]["parent_tool_call_id"])
+	}
 	if child[len(child)-1]["type"] != "run_end" {
 		t.Errorf("child trace ends with %v, want run_end", child[len(child)-1]["type"])
+	}
+}
+
+// A background subagent runs on a manager-owned context that never saw this
+// package's trace key; the child trace must still link through the explicit
+// core-level provenance stamped at launch.
+func TestAgentApp_SubagentTraceFallsBackToCoreRunID(t *testing.T) {
+	app := makeAgentAppForHookTests(t)
+
+	ctx := agent.CtxWithRunID(context.Background(), "rt_launcher")
+	ctx = agent.CtxWithToolCall(ctx, "call_bg_task")
+	rec := app.newSubAgentTrace(ctx, "sub-sess", tools.SubAgentRunOpts{Description: "bg"})
+	if rec == nil {
+		t.Fatal("no child trace despite core-level run identity on ctx")
+	}
+	tr, ok := rec.(*trace.Recorder)
+	if !ok {
+		t.Fatalf("trace factory returned %T", rec)
+	}
+	if err := tr.Close(); err != nil {
+		t.Fatalf("close trace: %v", err)
+	}
+	data, err := os.ReadFile(tr.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first map[string]any
+	if err := json.Unmarshal([]byte(strings.SplitN(strings.TrimSpace(string(data)), "\n", 2)[0]), &first); err != nil {
+		t.Fatal(err)
+	}
+	if first["parent_run_id"] != "rt_launcher" || first["parent_tool_call_id"] != "call_bg_task" {
+		t.Fatalf("run_start = %v", first)
 	}
 }

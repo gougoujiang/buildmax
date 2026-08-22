@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
@@ -149,6 +150,16 @@ type Model struct {
 	// queue holds messages typed while a run was in flight. It is drained one
 	// message per turn, after the run that was busy when they arrived finishes.
 	queue *agent.MessageQueue
+	// jobEvents delivers background-job lifecycle events; nil when the surface
+	// has no job manager. jobEventsCancel releases the subscription on quit.
+	jobEvents       <-chan job.Event
+	jobEventsCancel func()
+	// parkedJobEvents are background events waiting to wake their owning
+	// session, keyed by session ID: requested deliveries and react-monitor
+	// lines. Only the session on screen drains — one event per turn, after
+	// the user's own queued messages, because the user's words outrank a
+	// job's news — and the rest wait for their session to come back.
+	parkedJobEvents map[string][]agentapp.BackgroundEvent
 }
 
 // drainQueueMsg asks the model to start the next queued message, if any. It is a
@@ -203,7 +214,7 @@ func NewModel(opts TUIOpts) *Model {
 	if info, err := auth.Info(); err == nil {
 		userEmail = info.Email
 	}
-	return &Model{
+	m := &Model{
 		opts:       opts,
 		inputBlock: NewInputBlock(),
 		width:      80,
@@ -214,11 +225,19 @@ func NewModel(opts TUIOpts) *Model {
 		runStatus:  opts.RunStatus,
 		queue:      agent.NewMessageQueue(agent.DefaultMaxQueuedMessages),
 	}
+	if opts.App != nil && opts.App.Jobs() != nil {
+		m.jobEvents, m.jobEventsCancel = opts.App.Jobs().Subscribe("")
+	}
+	return m
 }
 
 // Init runs when the program starts; focuses input and starts cursor blink.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.inputBlock.Focus())
+	cmds := []tea.Cmd{textarea.Blink, m.inputBlock.Focus()}
+	if listen := listenJobsCmd(m.jobEvents); listen != nil {
+		cmds = append(cmds, listen)
+	}
+	return tea.Batch(cmds...)
 }
 
 // FocusInput returns true when the input has focus (used by tests).
@@ -474,10 +493,13 @@ func handleDrainQueue(m *Model, _ drainQueueMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	text, ok := m.queue.Dequeue()
-	if !ok {
-		return m, nil
+	if ok {
+		return m, startRun(m, text)
 	}
-	return m, startRun(m, text)
+	if ev, ok := m.nextParkedJobEvent(); ok {
+		return m, startBackgroundEventRun(m, ev)
+	}
+	return m, nil
 }
 
 func handleWindowSize(m *Model, msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -871,6 +893,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleCarouselTick(m, msg)
 	case drainQueueMsg:
 		return handleDrainQueue(m, msg)
+	case jobEventMsg:
+		return handleJobEvent(m, msg)
 	case approvalRequestMsg:
 		m.pendingApproval = &msg
 		m.approvalSelected = 0

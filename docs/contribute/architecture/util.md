@@ -32,9 +32,9 @@ either case and rejects everything that is not canonical, so one value has one
 spelling — which is why a canonical ID always ends in `a` or `q`, and why a
 hand-written fixture usually is not one.
 
-`NewPrefixedID` remains for three identifiers that name something other than a
-row: `as_` a login chain of refresh tokens, `rt_` a trace file, and `p_` a
-Desktop project. Agent session IDs are UUIDs.
+`NewPrefixedID` remains for four identifiers that name something other than a
+row: `as_` a login chain of refresh tokens, `jb_` a local background job, `rt_`
+a trace file, and `p_` a Desktop project. Agent session IDs are UUIDs.
 
 IDs carry no ordering — sort by `created_at`, never by ID. `id.go` and its tests
 are the reference for the format.

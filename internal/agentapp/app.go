@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
@@ -62,6 +63,12 @@ type AppConfig struct {
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
 	ArtifactPublisher tools.ArtifactPublisher
+	// EnableBackgroundJobs turns on local background jobs: Bash gains
+	// run_in_background and the Job tools are registered. Only interactive
+	// surfaces (TUI, Desktop) set it — print mode has no host process to own
+	// a job, and eval and workers have no unattended lifecycle for one, per
+	// docs/design/local-background-jobs.md.
+	EnableBackgroundJobs bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -90,6 +97,15 @@ type AgentApp struct {
 	artifactPublisher      tools.ArtifactPublisher
 	grantsMu               sync.Mutex
 	grants                 map[string]*agent.SessionGrants
+	turns                  turnCoordinator
+	jobs                   *job.Manager
+}
+
+// Jobs returns the app's background job manager, or nil where background
+// jobs are disabled. One manager per AgentApp: jobs are process-scoped but
+// owned by this workspace's runtime, and closing the app stops them.
+func (a *AgentApp) Jobs() *job.Manager {
+	return a.jobs
 }
 
 // grantsFor returns the approval grants for one session, creating the store on
@@ -327,16 +343,35 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	app.plugins.addShadowed(app.skillsRegistry.shadowed...)
 	app.plugins.addFindings(app.subagentsRegistry.findings...)
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
+	if cfg.EnableBackgroundJobs {
+		app.jobs = job.NewManager()
+		if config.TraceEnabled() {
+			events, _ := app.jobs.Subscribe("")
+			go logJobEvents(config.TracesDir(), events)
+		}
+	}
 	return app, nil
 }
+
+// jobShutdownTimeout bounds how long Close waits for background jobs after
+// their own TERM-to-KILL escalation. Generous enough for the kill to land,
+// short enough that quitting the app never hangs.
+const jobShutdownTimeout = 10 * time.Second
 
 func (a *AgentApp) Close() error {
 	if a == nil {
 		return nil
 	}
 	var firstErr error
+	if a.jobs != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), jobShutdownTimeout)
+		if err := a.jobs.Close(ctx); err != nil {
+			firstErr = err
+		}
+		cancel()
+	}
 	if a.mcpManager != nil {
-		if err := a.mcpManager.Close(); err != nil {
+		if err := a.mcpManager.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -708,6 +743,10 @@ func withTraceRunContext(ctx context.Context, runID, modelName string) context.C
 	if runID == "" {
 		return ctx
 	}
+	// The core-level run ID travels alongside: tools that detach owned work
+	// (background jobs) read provenance through core/agent, which cannot see
+	// this package's context key.
+	ctx = agent.CtxWithRunID(ctx, runID)
 	return context.WithValue(ctx, traceRunContextKey{}, traceRunContext{runID: runID, modelName: modelName})
 }
 
@@ -717,10 +756,31 @@ func traceRunFromContext(ctx context.Context) traceRunContext {
 }
 
 func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt string, opts RunPromptOpts) (RunResult, error) {
+	return a.runTurn(ctx, sess, prompt, nil, opts)
+}
+
+// RunBackgroundEvent runs one serialized turn caused by a background job
+// event rather than a user prompt. The appended message carries the event's
+// non-user Source and an envelope framing the payload as untrusted
+// observation; UserPromptSubmit does not fire, because nothing here is a
+// user prompt. Serialization against the session is the same as RunPrompt's.
+func (a *AgentApp) RunBackgroundEvent(ctx context.Context, sess *SessionContext, ev BackgroundEvent, opts RunPromptOpts) (RunResult, error) {
+	return a.runTurn(ctx, sess, "", &ev, opts)
+}
+
+func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt string, event *BackgroundEvent, opts RunPromptOpts) (RunResult, error) {
 	sess, modelName, client, err := a.resolveRunContext(sess)
 	if err != nil {
 		return RunResult{}, err
 	}
+	// One writer per session. Surfaces queue prompts behind the active run,
+	// so a concurrent call here is a caller bug or an unserialized background
+	// producer — refused, because Session and SessionManager have no locks of
+	// their own and an overlapping turn would race the history.
+	if err := a.turns.begin(sess.ID); err != nil {
+		return RunResult{SessionID: sess.ID}, fmt.Errorf("session %s: %w", sess.ID, err)
+	}
+	defer a.turns.end(sess.ID)
 	registry, err := a.toolRegistry(modelName, client)
 	if err != nil {
 		return RunResult{}, err
@@ -758,36 +818,44 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	// Give hooks a chance to inspect / reject the prompt before it enters
 	// history or the LLM. A block short-circuits the turn: the prompt is
 	// not appended, the LLM is not called, and the user receives the
-	// hook's reason as the reply.
-	promptHook := a.hooks.Run(ctx, agent.HookInput{
-		Event:     agent.HookUserPromptSubmit,
-		SessionID: sess.ID,
-		Workspace: a.workspaceRoot,
-		Prompt:    prompt,
-	})
-	if promptHook.Blocked() {
-		reason := promptHook.Reason
-		if reason == "" {
-			reason = "prompt blocked by hook"
+	// hook's reason as the reply. Background events skip this: they are not
+	// user prompts, and running a user-prompt hook on them would apply the
+	// wrong contract.
+	if event == nil {
+		promptHook := a.hooks.Run(ctx, agent.HookInput{
+			Event:     agent.HookUserPromptSubmit,
+			SessionID: sess.ID,
+			Workspace: a.workspaceRoot,
+			Prompt:    prompt,
+		})
+		if promptHook.Blocked() {
+			reason := promptHook.Reason
+			if reason == "" {
+				reason = "prompt blocked by hook"
+			}
+			recorder.RecordRunEnd("blocked by hook: " + reason)
+			status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
+			return RunResult{
+				Reply:                 reason,
+				Duration:              time.Since(start),
+				TotalPromptTokens:     sess.PromptTokens,
+				TotalCompletionTokens: sess.CompletionTokens,
+				ContextTokens:         status.ContextTokens,
+				ContextWindow:         status.ContextWindow,
+				SessionID:             sess.ID,
+				Workspace:             a.workspaceRoot,
+				ModelName:             modelName,
+				TraceID:               recorder.RunID(),
+				TracePath:             recorder.Path(),
+			}, nil
 		}
-		recorder.RecordRunEnd("blocked by hook: " + reason)
-		status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
-		return RunResult{
-			Reply:                 reason,
-			Duration:              time.Since(start),
-			TotalPromptTokens:     sess.PromptTokens,
-			TotalCompletionTokens: sess.CompletionTokens,
-			ContextTokens:         status.ContextTokens,
-			ContextWindow:         status.ContextWindow,
-			SessionID:             sess.ID,
-			Workspace:             a.workspaceRoot,
-			ModelName:             modelName,
-			TraceID:               recorder.RunID(),
-			TracePath:             recorder.Path(),
-		}, nil
 	}
 
-	if err := sess.Append(cllm.Message{Role: "user", Content: prompt}); err != nil {
+	turnMsg := cllm.Message{Role: "user", Content: prompt}
+	if event != nil {
+		turnMsg = event.message()
+	}
+	if err := sess.Append(turnMsg); err != nil {
 		return RunResult{}, err
 	}
 
@@ -1031,7 +1099,7 @@ func (a *AgentApp) promptCapabilities() PromptCapabilities {
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher)...)
+	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, a.jobs)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)
@@ -1044,8 +1112,19 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if err == nil {
 		taskTool, err := tools.NewTask(runner, agentTypes)
 		if err == nil {
+			if a.jobs != nil {
+				taskTool = taskTool.WithJobs(a.jobs, a.workspaceRoot)
+			}
 			registry.AppendTools(taskTool)
 		}
+	}
+	// After BuildAgentTypes like Task, so subagents never see the job tools:
+	// a job must be owned by a session the user can still reach.
+	if a.jobs != nil {
+		registry.AppendTools(
+			tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs),
+			tools.NewMonitor(a.workspaceRoot).WithSandbox(a.Sandbox()).WithJobs(a.jobs),
+		)
 	}
 	return registry, nil
 }
@@ -1057,6 +1136,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts tools.SubAgentRunOpts) tools.SubAgentTrace {
 	parent := traceRunFromContext(ctx)
 	if parent.runID == "" {
+		// A background subagent runs on a manager-owned context that carries
+		// only the explicit core-level provenance, not this package's key.
+		parent.runID = agent.RunIDFromCtx(ctx)
+	}
+	if parent.runID == "" {
 		return nil
 	}
 	modelName := parent.modelName
@@ -1064,13 +1148,14 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		modelName = opts.Model
 	}
 	return trace.NewRecorder(config.TracesDir(), trace.Meta{
-		RunID:       util.NewPrefixedID("rt"),
-		ParentRunID: parent.runID,
-		SessionID:   sessionID,
-		Workspace:   a.workspaceRoot,
-		Model:       modelName,
-		IsSubagent:  true,
-		Sandbox:     a.sandboxInfo(),
+		RunID:            util.NewPrefixedID("rt"),
+		ParentRunID:      parent.runID,
+		ParentToolCallID: agent.ToolCallFromCtx(ctx),
+		SessionID:        sessionID,
+		Workspace:        a.workspaceRoot,
+		Model:            modelName,
+		IsSubagent:       true,
+		Sandbox:          a.sandboxInfo(),
 		PromptLayers: []agent.PromptLayer{
 			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
 		},

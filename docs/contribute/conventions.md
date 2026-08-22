@@ -52,9 +52,9 @@ In JSON, a resource names its own handle `id` and keeps semantic names for
 relationships — `{"id": ..., "team_id": ..., "conversation_id": ...}`. Order
 rows by `created_at`, never by ID.
 
-`NewPrefixedID` survives for three identifiers that name something other than a
-row: `as_` a login chain of refresh tokens, `rt_` a trace file, and `p_` a
-Desktop project. Agent session IDs are UUIDs.
+`NewPrefixedID` survives for four identifiers that name something other than a
+row: `as_` a login chain of refresh tokens, `jb_` a local background job, `rt_`
+a trace file, and `p_` a Desktop project. Agent session IDs are UUIDs.
 
 ## Tool Output Is Written For The LLM
 

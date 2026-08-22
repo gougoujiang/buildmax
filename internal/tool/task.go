@@ -8,7 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 // maxSubAgentReplyRunes is the character cap for a sub-agent reply returned to the parent.
@@ -88,6 +91,21 @@ type TaskTool struct {
 	runner     SubAgentRunner
 	agentTypes map[string]AgentTypeConfig
 	typeOrder  []string // deterministic ordering: built-in first, then user-defined alphabetically
+	// jobs enables run_in_background, following the same rule as Bash: nil
+	// keeps the parameter out of the schema entirely.
+	jobs *job.Manager
+	// workspace names the workspace a background subagent shares, recorded in
+	// the job's provenance.
+	workspace string
+}
+
+// WithJobs returns a copy of t that can detach subagents to the given job
+// manager. Nil leaves background execution unavailable.
+func (t *TaskTool) WithJobs(m *job.Manager, workspace string) *TaskTool {
+	out := *t
+	out.jobs = m
+	out.workspace = workspace
+	return &out
 }
 
 // NewTask creates a TaskTool with the given sub-agent runner and agent type configurations.
@@ -146,24 +164,35 @@ func (t *TaskTool) Parameters() any {
 	typeNames := make([]string, len(t.typeOrder))
 	copy(typeNames, t.typeOrder)
 
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"description": map[string]any{
-				"type":        "string",
-				"description": "Short 3-5 word summary of the task",
-			},
-			"prompt": map[string]any{
-				"type":        "string",
-				"description": "Detailed task description for the sub-agent. Be specific about what you want the sub-agent to do and what information to return.",
-			},
-			"subagent_type": map[string]any{
-				"type":        "string",
-				"description": "The type of sub-agent to use",
-				"enum":        typeNames,
-			},
+	properties := map[string]any{
+		"description": map[string]any{
+			"type":        "string",
+			"description": "Short 3-5 word summary of the task",
 		},
-		"required": []string{"description", "prompt", "subagent_type"},
+		"prompt": map[string]any{
+			"type":        "string",
+			"description": "Detailed task description for the sub-agent. Be specific about what you want the sub-agent to do and what information to return.",
+		},
+		"subagent_type": map[string]any{
+			"type":        "string",
+			"description": "The type of sub-agent to use",
+			"enum":        typeNames,
+		},
+	}
+	if t.jobs != nil {
+		properties["run_in_background"] = map[string]any{
+			"type":        "boolean",
+			"description": "Run the sub-agent as a background job and return its job ID immediately instead of waiting. Read its final reply with JobOutput; stop it with JobStop. The sub-agent shares this workspace, so avoid delegating edits that would race yours.",
+		}
+		properties["deliver_result"] = map[string]any{
+			"type":        "boolean",
+			"description": "With run_in_background: when true, the sub-agent's final reply is delivered into this conversation when it completes. Otherwise completion is only shown in the UI and the reply is read with JobOutput.",
+		}
+	}
+	return map[string]any{
+		"type":       "object",
+		"properties": properties,
+		"required":   []string{"description", "prompt", "subagent_type"},
 	}
 }
 
@@ -210,6 +239,10 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 		MaxIter:      config.MaxIterations,
 		Model:        config.Model,
 	}
+	if background, _ := args["run_in_background"].(bool); background {
+		deliver, _ := args["deliver_result"].(bool)
+		return t.executeBackground(ctx, description, opts, prompt, deliver)
+	}
 	reply, err := t.runner.RunSubAgent(ctx, opts, prompt)
 	if err != nil {
 		return "", fmt.Errorf("sub-agent failed: %w", err)
@@ -220,6 +253,49 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 
 	slog.Info("task: sub-agent completed", "type", subagentType, "reply_len", len(reply))
 	return reply, nil
+}
+
+// executeBackground detaches the subagent to the job manager and returns its
+// job identity. The manager owns the run's context; the values a detached run
+// still needs — owner session, launching run and tool call — are copied onto
+// it explicitly, so nothing else of the request context leaks into work that
+// outlives the call.
+func (t *TaskTool) executeBackground(ctx context.Context, description string, opts SubAgentRunOpts, prompt string, deliver bool) (string, error) {
+	if agent.SubagentFromCtx(ctx) {
+		return "Background execution is not available inside a subagent. Return your findings and let the parent session delegate further work.", nil
+	}
+	if t.jobs == nil {
+		return "Background execution is not available on this surface. Run the subagent in the foreground.", nil
+	}
+	sessionID, _ := session.SessionIDFromContext(ctx)
+	runID := agent.RunIDFromCtx(ctx)
+	toolCallID := agent.ToolCallFromCtx(ctx)
+	runner := t.runner
+
+	j, err := t.jobs.StartSubagent(job.SubagentSpec{
+		Description: description,
+		Deliver:     deliver,
+	}, job.Provenance{
+		Workspace:        t.workspace,
+		SessionID:        sessionID,
+		ParentTraceID:    runID,
+		ParentToolCallID: toolCallID,
+	}, func(jobCtx context.Context) (string, error) {
+		jobCtx = session.CtxWithSessionID(jobCtx, sessionID)
+		jobCtx = agent.CtxWithRunID(jobCtx, runID)
+		jobCtx = agent.CtxWithToolCall(jobCtx, toolCallID)
+		reply, err := runner.RunSubAgent(jobCtx, opts, prompt)
+		if err != nil {
+			return "", err
+		}
+		return truncateSubAgentReply(reply, maxSubAgentReplyRunes), nil
+	})
+	if err != nil {
+		return "Cannot start background subagent: " + err.Error(), nil
+	}
+	return "Started background subagent job " + j.ID + " — " + description + ".\n" +
+		"Its final reply appears in JobOutput {\"job_id\": \"" + j.ID + "\"} when it completes; stop it with JobStop. " +
+		"It runs in this workspace, so its file changes are shared with the conversation.", nil
 }
 
 // truncateSubAgentReply applies head+tail truncation when reply exceeds maxRunes.

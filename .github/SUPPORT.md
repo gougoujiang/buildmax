@@ -13,8 +13,13 @@ does not currently provide a guaranteed response or resolution time.
   version, operating system, reproduction steps, and redacted logs.
 - **Feature proposals:** discuss early ideas in GitHub Discussions; use the
   feature request template once the user problem and expected outcome are clear.
-- **Contribution questions:** read [CONTRIBUTING.md](../CONTRIBUTING.md) and ask in
-  the issue or pull request associated with the work.
+- **Deployment experience and show and tell:** use GitHub Discussions. Reports
+  of what worked, what was confusing, and which private environment you adapted
+  are useful even when nothing is broken; remove private names and credentials.
+- **Contribution questions:** choose a
+  [contribution area](../docs/contribute/areas.md), read
+  [CONTRIBUTING.md](../CONTRIBUTING.md), and ask in the issue or pull request
+  associated with the work.
 - **Security vulnerabilities:** follow [SECURITY.md](../SECURITY.md). Never report
   a suspected vulnerability in a public issue.
 - **Community conduct:** follow the private reporting instructions in

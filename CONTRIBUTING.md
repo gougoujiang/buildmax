@@ -31,6 +31,11 @@ Portal, and worker execution.
 path end to end** — clone, build, test, change one thing, open the pull request
 — in about fifteen minutes, without a model API key.
 
+If you know the kind of problem you want to work on but not where it belongs,
+[choose a contribution area](docs/contribute/areas.md). It connects Agent
+Runtime, local experience, enterprise platform, trust and security, and
+documentation work to the current source of truth and public issue labels.
+
 Good first pull requests are small, easy to verify, and close to an existing
 issue. Look for issues labeled `good first issue`, `help wanted`, or
 `documentation`; if none are available, start with a bug report, documentation

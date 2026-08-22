@@ -16,10 +16,11 @@ announcements, or user documentation.
 | GitHub Discussions | Early community feedback and alternatives |
 | GitHub Issues | Implementable work with an owner and acceptance criteria |
 
-Every proposal opens with `Status: proposal — under discussion`, identifies
-related current documents, and separates goals, non-goals, options, and open
-questions. It should be narrow enough that readers can agree, disagree, or
-offer evidence without first reverse-engineering the repository.
+Every proposal opens with `Status: proposal — under discussion` and an
+`Opened: YYYY-MM-DD` date, identifies related current documents, and separates
+goals, non-goals, options, and open questions. It should be narrow enough that
+readers can agree, disagree, or offer evidence without first
+reverse-engineering the repository.
 
 When a decision is made, update [../ROADMAP.md](../ROADMAP.md), the matching
 design record, or a GitHub Issue. Then delete the proposal. Rejected and
@@ -30,11 +31,16 @@ their context.
 
 | Proposal | Question |
 |---|---|
+| [Portal interaction and execution model](portal-interaction-execution-model.md) | How should a full foreground Tier 1 Agent coordinate a potentially specialized Tier 2 execution Agent plane without owning durable state and delivery? |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Agent execution policy](agent-execution-policy.md) | Who chooses a worker's execution boundary, and what happens when the chosen one cannot be applied? |
 | [Trusted private execution loop](trusted-private-execution-loop.md) | Should the next cross-cutting milestone prove one constrained, managed, auditable private team task before broader product expansion? |
+| [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
+| [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? |
+| [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? |
+| [Plugin scope for background runs](plugin-scope-for-background-runs.md) | Is a team's plugin set decided once for the team, or per agent definition? |
 
-Four papers have been retired. *System administration* asked how a private
+Five papers have been retired. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
 design](../design/system-administration.md), which decides the grant model,
@@ -43,7 +49,11 @@ the bootstrap and recovery path, the first API, and what stays out of it.
 separated from compact relational keys before Beta; the direction was accepted
 and is now the [entity identity design](../design/entity-identity.md), which
 decides the identifier format, the table-by-table split, the store boundary,
-and the Alpha cutover.
+and the Alpha cutover. *Local background work and monitors* asked whether TUI
+and Desktop should share a process-scoped job manager for detached commands,
+subagents, and event-driven monitors; the direction was accepted and is now the
+[local background jobs design](../design/local-background-jobs.md), which
+commits the staged delivery and its prerequisites.
 
 The other two were retired because the work they proposed shipped. *Private
 production operations* asked for an operating contract for private deployment;
@@ -54,7 +64,7 @@ lacks is operational evidence, now recorded as open questions in the
 data governance* asked for the smallest useful evidence model; the append-only
 audit trail is it, and retention, export, and correlation remain open in the
 [team governance design](../design/team-governance.md). Git history holds all
-four papers.
+five papers.
 
 ## Starting A Proposal
 

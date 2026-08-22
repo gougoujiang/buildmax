@@ -19,6 +19,31 @@ and subagent behavior**. Differences between them come from environment and
 permissions, not from separate agent implementations. You can use only the
 local surfaces, deploy only the Portal, or use both.
 
+## Two Operating Profiles, Two Model Transports
+
+BuildMax has two product operating profiles:
+
+- **Local Workbench:** CLI/TUI or Desktop runs an agent in a directory on one
+  machine. No BuildMax Server is required.
+- **Team Platform:** Server, Portal, and workers add shared work, background
+  execution, managed models, results, and governance for a private deployment.
+
+These profiles are separate from the way a model call travels. A local CLI or
+Desktop may call a provider directly, or it may use models approved by a
+BuildMax deployment:
+
+| Agent execution | Model transport | Typical use |
+|---|---|---|
+| Local CLI/Desktop | `direct` | Personal endpoint, BYOK, or local inference |
+| Local CLI/Desktop | `buildmax` | Local files and tools with enterprise-managed models |
+| Worker | `buildmax` | Centrally authorized and accounted background execution |
+| Worker | `direct` | A deployment that already distributes or injects provider access |
+
+The transport is always explicit. BuildMax never falls back from a managed
+model to a direct entry, because that would silently change where prompts,
+source code, and tool results go. See
+[Managed models](../reference/configuration.md#managed-models).
+
 ## The Agent Loop
 
 Every run, on every surface, is the same cycle:

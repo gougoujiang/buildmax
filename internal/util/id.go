@@ -10,11 +10,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// PrefixAuthSession names one login chain of refresh tokens. It is the only
-// prefixed entity-shaped identifier left: the rest became public IDs, and the
-// two others still generated here -- "rt" for a trace file and "p" for a
-// Desktop project -- name files and local UI state rather than rows.
-const PrefixAuthSession = "as"
+// Prefixes that survive. Server entities do not use them: their identifiers
+// are public IDs, and a type prefix said nothing a route, a JSON field, or a
+// column did not already say. What is left names something other than a
+// database row.
+//
+//	as  one login chain of refresh tokens
+//	jb  a local background job -- process-lifetime, not persisted, but
+//	    LLM- and user-facing, so it carries a readable prefix
+//	rt  a trace file, minted in internal/agentapp
+//	p   a Desktop project, which is local UI state
+const (
+	PrefixAuthSession = "as"
+	PrefixJob         = "jb"
+)
 
 const (
 	idBodyLen       = 20

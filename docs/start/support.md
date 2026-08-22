@@ -24,7 +24,7 @@
 | `buildmax init` and `buildmax doctor` | **Supported** | First-run configuration and local setup checks. |
 | Local sessions and run traces | **Supported** | Session persistence and bounded JSONL traces under `BUILDMAX_HOME`. |
 | Desktop app | **Beta** | Local chat/session experience using the shared runtime. Built from source; unsigned; not distributed as an end-user installer. |
-| Portal frontend | **Beta** | Team UI for conversations, issues, workflows, agents, files, usage, and artifacts. Production auth is not done. |
+| Portal frontend | **Beta** | Team UI for conversations, issues, workflows, agents, files, usage, and artifacts. Password and login-code flows work; wider public exposure remains unsupported. |
 | Server + local-process worker | **Beta** | Useful for trusted private deployments and development. The Compose path is covered by a full TaskRun and artifact smoke test. |
 | Kubernetes worker mode | **Beta** | The local kind path exercises MySQL, MinIO, Ingress, a worker Job, and artifact retrieval end to end. Deployment APIs may still change. |
 | Inbound webhooks | **Beta** | Authenticated by per-user webhook keys; payload extraction is configurable. |
@@ -58,7 +58,8 @@
 | OpenAI-compatible chat completions | **Supported** | Configured with `models:` entries in `settings.yaml` or `server.yaml`. |
 | OpenRouter | **Supported** | Default quickstart path. |
 | OpenAI-compatible local gateways | **Beta** | Works when the endpoint implements compatible chat completion behavior. |
-| Provider-specific APIs | Not supported | BuildMax uses the OpenAI-compatible surface instead of provider-native SDK features. |
+| OpenAI Responses API | **Supported** | Set `provider: openai`; text, tools, streaming, reasoning state, prompt-cache usage, and image input use the shared LLM contract. |
+| Anthropic Messages API | **Supported** | Set `provider: anthropic`; the native adapter supports the same shared contract, including reasoning state and prompt caching. |
 | Built-in model hosting | Not supported | Bring your own provider, gateway, or local inference server. |
 | Multi-modal generation, voice, or browser automation | Not supported | Current runtime tools are text, files, shell, MCP, hooks, skills, and subagents. |
 
@@ -71,10 +72,10 @@
 | Docker Compose quickstart | **Beta** | Fast contributor and single-machine path. Uses a local-process worker and local filesystem storage. |
 | Local kind deployment | **Beta** | Kubernetes contribution path, with its own MySQL and MinIO. A development environment, not a deployment template. |
 | Private Kubernetes deployment against your own dependencies | **Beta** | `deployment/production/` is a plain-YAML reference plus the contract each dependency has to meet. Written to be read and adapted; not applied as-is, and not yet exercised against a real cloud account. |
-| Public internet server exposure | Not supported | `POST /api/login` is disabled by default and production auth is not wired. |
-| Development fixed OTP | **Experimental** | One code signs in every registered user. Use only on a laptop or trusted network. |
+| Public internet server exposure | Not supported | Password and operator-issued login-code flows exist, but login is not rate limited and there is no SSO or second factor. Put an identity-aware and rate-limiting boundary in front before wider exposure. |
+| Operator-issued login codes | **Beta** | Single-use account-claim and recovery credential, delivered out of band because BuildMax has no mail channel. |
 | JWT user API and team membership authorization | **Beta** | User API uses JWT; team membership is the resource boundary. |
-| Worker token auth | **Beta** | Guards worker routes by task run id. Treat it as sensitive infrastructure credential. |
+| Run-token worker auth | **Beta** | Every dispatched worker receives a credential scoped to one task run. The old shared worker token is a deprecated upgrade fallback. |
 | Bash sandbox | **Beta** | Off by default on every surface. Covers `Bash` subprocesses, not every tool or process on the host. |
 | Worker pod containment | **Beta** | Worker Jobs run non-root with no service-account token, all capabilities dropped, and a read-only root filesystem. This — not the sandbox — is the boundary a Kubernetes deployment relies on. Workers still receive object-storage credentials. |
 | Runtime hooks | **Beta** | Can observe or block selected lifecycle/tool events. Hook failures fail open. |
