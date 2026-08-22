@@ -26,7 +26,8 @@ kubectl context.
 This creates the `buildmaxdev` cluster, then:
 
 1. installs ingress-nginx, MySQL, and MinIO
-2. creates the `bmstore` bucket from an in-cluster Job
+2. creates the `bmstore` bucket and widens the MySQL dev grant, each from an
+   in-cluster Job
 3. builds and loads the server, Portal, and deterministic mock-model images
 4. generates an ephemeral local Secret and applies the BuildMax manifests
 5. waits for every Deployment to become ready
@@ -41,12 +42,17 @@ Open <http://localhost:8080>. Portal and API share that origin, so no
 `/etc/hosts` entries or CORS pairing are needed. The command prints a fresh
 single-use code for `deployment-smoke@buildmax.local` after verification.
 
+That code is spent the first time it is used, and is printed once. When it is
+gone, `./make kind info` issues another one — it does not, and cannot, show the
+old one.
+
 ## Daily Commands
 
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind images  # rebuild and load local images without applying manifests
+./make kind info    # endpoints, plus a fresh login code for the smoke account
 ./make kind db      # forward the in-cluster MySQL to 127.0.0.1:3306
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
@@ -60,6 +66,10 @@ what the default run cannot: a worker Job completes a real task holding no
 provider credential, and its run token reaches the pod through the Job spec.
 The cluster stays in managed mode afterwards — rerun `./make kind up` to return
 it to direct.
+
+`info` prints the cluster, the Portal URL and its health, how to reach MySQL and
+MinIO, and issues a single-use login code — for `deployment-smoke@buildmax.local`
+by default, or for the account named as `./make kind info alice@example.com`.
 
 `status` changes nothing. It prints the selected cluster and context, probes
 <http://localhost:8080/healthz> through the ingress, and lists nodes plus the
@@ -92,7 +102,9 @@ While it runs, connect with any client — `mysql -h 127.0.0.1 -P 3306 -ubuildma
 -pbuildmax buildmax`, or the DSN
 `buildmax:buildmax@tcp(127.0.0.1:3306)/buildmax`. Those are the development
 credentials in `deployment/dev-kind/mysql.yaml`; the database is `emptyDir` and
-goes away with the cluster. The same DSN in `BUILDMAX_TEST_DSN` is what runs the
+goes away with the cluster. The account may use any schema, not just `buildmax`,
+so `database.name` in a local `server.yaml` can say whatever you like — the
+server creates the schema it is pointed at on first start. The same DSN in `BUILDMAX_TEST_DSN` is what runs the
 store integration tests under `internal/infra/db` against a real MySQL.
 
 For a single query, or for MinIO, use kubectl directly:

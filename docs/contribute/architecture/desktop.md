@@ -14,6 +14,28 @@ chat execution.
 The desktop `Project` type is a named local folder used to group sessions. It
 is not the server's team, issue, or project domain model.
 
+## Modes
+
+Desktop runs in one of two modes, the same two the CLI has:
+
+| Mode | What it is |
+|---|---|
+| `local` | The agent runs here against the models in `settings.yaml`. No server. |
+| `server` | The same local agent, plus a signed-in BuildMax account — managed models, and the bridge to a team's work. |
+
+Neither mode changes where the agent runs: chat is always executed locally by
+`agentapp`. A server adds identity and the models it manages, which is why
+Portal login is a connector rather than a gate — see
+[surface positioning](../../design/surface-positioning.md).
+
+`GetAuthStatus` returns the mode plus the signed-in account. A usable login
+always reports `server`; otherwise the mode is whatever was chosen last, read
+from `<BUILDMAX_HOME>/desktop/state.json`. An empty mode means nobody has
+chosen yet, and the frontend shows the sign-in form with its local-mode option.
+`UseLocalMode` and `ConnectToServer` move between the two; `ConnectToServer`
+touches no credentials, and `Logout` clears the mode so signing out asks again
+rather than silently landing in local mode.
+
 ## Layers
 
 | Path | Responsibility |
@@ -62,6 +84,12 @@ the user-selected folder.
 `desktop/frontend` is a nested Go module so root Go commands do not traverse
 npm packages. Vite outputs to `desktop/dist`, outside that nested module, which
 allows `desktop/assets_embed.go` to embed it.
+
+`desktop/frontend` must dedupe react, react-dom, and react/jsx-runtime in its
+Vite config. `@buildmax/gui` is a symlinked `file:` dependency that externalises
+react and has react installed as a peer, so without dedupe the bundle carries
+two React instances, the hook dispatcher of the one that rendered is null, and
+the window opens blank. `internal/architecture` has a test for it.
 
 The embed file is guarded by the `desktop` build tag. Without the tag, a stub
 keeps `go build ./...`, `go vet ./...`, and `go test ./...` valid on a fresh

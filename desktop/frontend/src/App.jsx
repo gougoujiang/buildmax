@@ -266,11 +266,16 @@ export default function App() {
     if (!wailsReady || !app) return;
     app.GetAuthStatus()
       .then((status) => setAuthStatus(status))
-      .catch(() => setAuthStatus({ logged_in: false }));
+      .catch(() => setAuthStatus({ mode: '', logged_in: false }));
   }, [wailsReady, app]);
 
+  // Local mode runs the agent here with no server, so the workbench opens on a
+  // remembered local choice exactly as it does on a login.
+  const localMode = authStatus?.mode === 'local';
+  const workbenchReady = !!authStatus && (authStatus.logged_in || localMode);
+
   useEffect(() => {
-    if (!wailsReady || !app || !authStatus?.logged_in) return;
+    if (!wailsReady || !app || !workbenchReady) return;
     Promise.all([app.ListProjects(), app.ListSessions()])
       .then(([list, sessionList]) => {
         setProjects(list ?? []);
@@ -278,7 +283,7 @@ export default function App() {
         setProjectsLoaded(true);
       })
       .catch(() => setProjectsLoaded(true));
-  }, [wailsReady, app, authStatus?.logged_in]);
+  }, [wailsReady, app, workbenchReady]);
 
   useEffect(() => {
     if (!wailsReady || !app || !currentProject) {
@@ -292,9 +297,18 @@ export default function App() {
 
   function handleLogout() {
     if (!app) return;
+    const signedOut = { mode: '', logged_in: false };
     app.Logout()
-      .then(() => setAuthStatus({ logged_in: false }))
-      .catch(() => setAuthStatus({ logged_in: false }));
+      .then(() => setAuthStatus(signedOut))
+      .catch(() => setAuthStatus(signedOut));
+  }
+
+  // Leaving local mode shows the sign-in form again; nothing local is discarded.
+  function handleConnectToServer() {
+    if (!app) return;
+    app.ConnectToServer()
+      .then((status) => setAuthStatus(status))
+      .catch(() => setAuthStatus({ mode: '', logged_in: false }));
   }
 
   useEffect(() => {
@@ -518,7 +532,7 @@ export default function App() {
       </ThemeProvider>
     );
   }
-  if (authStatus === null || (authStatus?.logged_in && !projectsLoaded)) {
+  if (authStatus === null || (workbenchReady && !projectsLoaded)) {
     return (
       <ThemeProvider>
         <div className="shell"><div className="shell__body" style={{ padding: '2rem' }}>
@@ -527,7 +541,7 @@ export default function App() {
       </ThemeProvider>
     );
   }
-  if (!authStatus.logged_in) {
+  if (!workbenchReady) {
     return (
       <ThemeProvider>
         <LoginPage onLogin={(status) => setAuthStatus(status)} />
@@ -680,24 +694,32 @@ export default function App() {
                 aria-label="User menu"
               >
                 <Avatar
-                  label={(authStatus.name?.trim() || authStatus.email || 'U').slice(0, 1).toUpperCase()}
+                  label={(authStatus.name?.trim() || authStatus.email || 'Local').slice(0, 1).toUpperCase()}
                   size="sm"
                 />
                 <span className="sidebar__user-name">
-                  {authStatus.name?.trim() || (authStatus.email ? authStatus.email.split('@')[0] : '')}
+                  {localMode
+                    ? 'Local mode'
+                    : authStatus.name?.trim() || (authStatus.email ? authStatus.email.split('@')[0] : '')}
                 </span>
               </button>
               {userMenuOpen && (
                 <div className="sidebar__user-menu" role="menu">
-                  <div className="sidebar__user-menu-email">{authStatus.email}</div>
+                  <div className="sidebar__user-menu-email">
+                    {localMode ? 'Models from settings.yaml' : authStatus.email}
+                  </div>
                   <div className="sidebar__user-menu-divider" />
                   <button
                     type="button"
                     className="sidebar__user-menu-item"
                     role="menuitem"
-                    onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (localMode) handleConnectToServer();
+                      else handleLogout();
+                    }}
                   >
-                    Sign out
+                    {localMode ? 'Connect to a server' : 'Sign out'}
                   </button>
                 </div>
               )}

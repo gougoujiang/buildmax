@@ -928,6 +928,12 @@ them. The two will not agree, by design.
 
 ## Changing The Schema
 
+The server creates the database named by `database.name` when the server does
+not have it, then `AutoMigrate` fills it. That runs only after the connection
+failed for that reason, so an existing deployment never issues the statement,
+and an account without `CREATE` rights gets an error naming the statement to run
+by hand.
+
 `AutoMigrate` runs on every server start and is the whole migration story for
 additive changes. Anything it cannot express — a backfill, a drop, a rename —
 is an entry in the ordered `migrations` list, recorded in `schema_migration` so

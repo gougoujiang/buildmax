@@ -434,7 +434,7 @@ database:                            # MySQL
   port: 3306
   user: buildmax
   password: buildmax
-  name: buildmax
+  name: buildmax                     # created on first start if it is missing
 
 webhook:
   message_path: message              # JSON path to the prompt in the request body
