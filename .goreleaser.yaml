@@ -172,3 +172,4 @@ release:
     `SECURITY.md` lists both, along with how to report a vulnerability
     privately. Interfaces and deployment guidance may change before a stable
     release.
+# bounty-fix-ref: https://github.com/gougoujiang/buildmax/issues/127
