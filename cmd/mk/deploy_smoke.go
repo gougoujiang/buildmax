@@ -530,6 +530,10 @@ func printSmokeLogin(target smokeTarget) {
 		return
 	}
 	fmt.Printf("Open %s and sign in as %s with this single-use code:\n%s\n", target.portalURL, smokeEmail, output)
+	// The Desktop app and `buildmax login` want the API, which is the Portal's
+	// own origin behind an ingress and a separate port under Compose. Saying so
+	// here is cheaper than letting someone accept a default that cannot connect.
+	fmt.Printf("Signing in from the Desktop app or `buildmax login`? Use Server URL %s\n", target.apiBase)
 }
 
 func waitForHTTP(ctx context.Context, client *http.Client, endpoint string, timeout time.Duration) error {
