@@ -12,7 +12,7 @@ import (
 
 type conversationRow struct {
 	ID        uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID  []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_conversation_public_id;not null"`
+	PublicID  string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_conversation_public_id;not null"`
 	UserID    uint64 `gorm:"column:user_id;not null;index:idx_conversation_user_created,priority:1"`
 	TeamID    uint64 `gorm:"column:team_id;index:idx_conversation_team_created,priority:1"`
 	Channel   string `gorm:"type:varchar(32);not null"`
@@ -28,12 +28,12 @@ func (conversationRow) TableName() string { return "conversation" }
 
 // conversationReadRow is the row plus the handles its references resolve to.
 // The row is a named field: see teamReadRow for why anonymous embedding does
-// not work here.
+// not work here. A pointer field is one a LEFT JOIN may leave NULL.
 type conversationReadRow struct {
 	Row               conversationRow `gorm:"embedded"`
-	UserPublicID      []byte          `gorm:"column:user_public_id"`
-	TeamPublicID      []byte          `gorm:"column:team_public_id"`
-	CreatedByPublicID []byte          `gorm:"column:created_by_public_id"`
+	UserPublicID      string          `gorm:"column:user_public_id"`
+	TeamPublicID      *string         `gorm:"column:team_public_id"`
+	CreatedByPublicID string          `gorm:"column:created_by_public_id"`
 }
 
 func (s *Store) conversationSelect(ctx context.Context) *gorm.DB {
@@ -49,12 +49,12 @@ func toConversation(row *conversationReadRow) *model.Conversation {
 		return nil
 	}
 	return &model.Conversation{
-		ID:        util.FormatPublicID(row.Row.PublicID),
-		UserID:    util.FormatPublicID(row.UserPublicID),
-		TeamID:    util.FormatPublicID(row.TeamPublicID),
+		ID:        row.Row.PublicID,
+		UserID:    row.UserPublicID,
+		TeamID:    derefPublicID(row.TeamPublicID),
 		Channel:   row.Row.Channel,
 		Title:     row.Row.Title,
-		CreatedBy: util.FormatPublicID(row.CreatedByPublicID),
+		CreatedBy: row.CreatedByPublicID,
 		CreatedAt: row.Row.CreatedAt,
 	}
 }
@@ -99,12 +99,12 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 		}
 		row.CreatedBy = creator
 		return createWithPublicID(ctx, tx, "uq_conversation_public_id",
-			func(b []byte) { row.PublicID = b }, row)
+			func(id string) { row.PublicID = id }, row)
 	}); err != nil {
 		return nil, err
 	}
 	return &model.Conversation{
-		ID:        util.FormatPublicID(row.PublicID),
+		ID:        row.PublicID,
 		UserID:    userID,
 		TeamID:    teamID,
 		Channel:   channel,
@@ -115,12 +115,12 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 
 // GetConversation returns the conversation by conversation_id, or (nil, nil) if not found.
 func (s *Store) GetConversation(ctx context.Context, conversationID string) (*model.Conversation, error) {
-	raw, ok := util.ParsePublicID(conversationID)
+	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil
 	}
 	var c conversationReadRow
-	err := s.conversationSelect(ctx).Where("conversation.public_id = ?", raw).Take(&c).Error
+	err := s.conversationSelect(ctx).Where("conversation.public_id = ?", id).Take(&c).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -177,11 +177,11 @@ func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limi
 
 // UpdateConversationTitle sets the title for the conversation (e.g. after first-round LLM generation).
 func (s *Store) UpdateConversationTitle(ctx context.Context, conversationID, title string) error {
-	raw, ok := util.ParsePublicID(conversationID)
+	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return model.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&conversationRow{}).
-		Where("public_id = ?", raw).
+		Where("public_id = ?", id).
 		Update("title", title).Error
 }

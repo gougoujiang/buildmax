@@ -29,16 +29,17 @@ every table the project creates or migrates.
 A server entity has two identifiers with one role each. `id` is a
 `bigint unsigned` primary key, is the relational key inside MySQL, and never
 leaves `internal/infra/db`. `public_id` is the handle every boundary sees: 96
-bits of crypto-random data, stored as `BINARY(12)` and written as 20 lowercase
-base32 characters.
+bits of crypto-random data, written as 20 lowercase base32 characters and
+stored in that same text form (`char(20) ascii_bin`), so a direct database
+query reads the handle every other boundary shows.
 
 ```text
 ivyoh5qcfu6ypfkhyedq
 ```
 
 Generate one with `util.NewPublicID`, which returns an error rather than
-panicking, and parse one with `util.ParsePublicID`, which accepts either case
-and rejects any non-canonical spelling. Type prefixes are gone: the route, the
+panicking, and validate one with `util.CanonicalPublicID`, which accepts either
+case and rejects any non-canonical spelling. Type prefixes are gone: the route, the
 JSON field, and the column already name the type, and nothing dispatched on the
 prefix.
 

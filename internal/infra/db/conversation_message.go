@@ -11,7 +11,7 @@ import (
 
 type conversationMessageRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_conversation_message_public_id;not null"`
+	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_conversation_message_public_id;not null"`
 	// The composite index is what serves a transcript read: every listing is
 	// one conversation's messages in created_at order.
 	ConversationID    uint64  `gorm:"column:conversation_id;not null;index:idx_conversation_message_conversation,priority:1"`
@@ -30,7 +30,7 @@ func (conversationMessageRow) TableName() string { return "conversation_message"
 // conversationMessageReadRow is the row plus its conversation's handle.
 type conversationMessageReadRow struct {
 	Row                  conversationMessageRow `gorm:"embedded"`
-	ConversationPublicID []byte                 `gorm:"column:conversation_public_id"`
+	ConversationPublicID string                 `gorm:"column:conversation_public_id"`
 }
 
 func (s *Store) conversationMessageSelect(ctx context.Context) *gorm.DB {
@@ -44,8 +44,8 @@ func toConversationMessage(row *conversationMessageReadRow) *model.ConversationM
 		return nil
 	}
 	return &model.ConversationMessage{
-		ID:                util.FormatPublicID(row.Row.PublicID),
-		ConversationID:    util.FormatPublicID(row.ConversationPublicID),
+		ID:                row.Row.PublicID,
+		ConversationID:    row.ConversationPublicID,
 		Role:              row.Row.Role,
 		Content:           row.Row.Content,
 		Channel:           row.Row.Channel,
@@ -85,22 +85,22 @@ func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) 
 		CreatedAt:         time.Now().Unix(),
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_conversation_message_public_id",
-		func(b []byte) { row.PublicID = b }, row); err != nil {
+		func(id string) { row.PublicID = id }, row); err != nil {
 		return nil, err
 	}
 	return toConversationMessage(&conversationMessageReadRow{
-		Row: *row, ConversationPublicID: mustParsePublicID(in.ConversationID),
+		Row: *row, ConversationPublicID: canonicalPublicID(in.ConversationID),
 	}), nil
 }
 
 // ListMessages returns all messages for the conversation ordered by created_at ASC.
 func (s *Store) ListMessages(ctx context.Context, conversationID string) ([]model.ConversationMessage, error) {
-	raw, ok := util.ParsePublicID(conversationID)
+	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil
 	}
 	var list []conversationMessageReadRow
-	err := s.conversationMessageSelect(ctx).Where("c.public_id = ?", raw).
+	err := s.conversationMessageSelect(ctx).Where("c.public_id = ?", id).
 		Order("conversation_message.created_at ASC").
 		Find(&list).Error
 	return toConversationMessages(list), err

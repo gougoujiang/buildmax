@@ -68,8 +68,9 @@ Rationale and the table-by-table decisions:
 
 ## Notes
 
-- A public handle is 96 bits of crypto-random data in `binary(12)`, written as
-  20 lowercase base32 characters. `internal/util/id.go` is the codec.
+- A public handle is 96 bits of crypto-random data, stored as its 20-character
+  lowercase base32 text in `char(20) ascii_bin`. `internal/util/id.go` is the
+  codec.
 - Session IDs are the exception: they are internal and use UUIDs.
 - JSON/API fields use `snake_case`, and a resource names its own handle `id`.
 - `internal/bootstrap/server.go` opens the DB and injects the store into handlers and services.

@@ -18,7 +18,7 @@ import (
 // conversation_message, which resolves its team through its conversation.
 type issueCommentRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_issue_comment_public_id;not null"`
+	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_issue_comment_public_id;not null"`
 	IssueID  uint64 `gorm:"column:issue_id;not null;index:idx_issue_comment_issue_created,priority:1"`
 	// AuthorID stays an opaque handle under author_kind, and the two source
 	// columns record where a comment came from rather than a live relation.
@@ -33,12 +33,13 @@ type issueCommentRow struct {
 
 func (issueCommentRow) TableName() string { return "issue_comment" }
 
-// issueCommentReadRow is the row plus the handles its references resolve to.
+// issueCommentReadRow is the row plus the handles its references resolve to. A
+// pointer field is one a LEFT JOIN may leave NULL.
 type issueCommentReadRow struct {
 	Row                issueCommentRow `gorm:"embedded"`
-	IssuePublicID      []byte          `gorm:"column:issue_public_id"`
-	SourceTaskPublicID []byte          `gorm:"column:source_task_public_id"`
-	SourceRunPublicID  []byte          `gorm:"column:source_run_public_id"`
+	IssuePublicID      string          `gorm:"column:issue_public_id"`
+	SourceTaskPublicID *string         `gorm:"column:source_task_public_id"`
+	SourceRunPublicID  *string         `gorm:"column:source_run_public_id"`
 }
 
 func (s *Store) issueCommentSelect(ctx context.Context) *gorm.DB {
@@ -55,8 +56,8 @@ func toIssueComment(row *issueCommentReadRow) *model.IssueComment {
 		return nil
 	}
 	out := &model.IssueComment{
-		ID:         util.FormatPublicID(row.Row.PublicID),
-		IssueID:    util.FormatPublicID(row.IssuePublicID),
+		ID:         row.Row.PublicID,
+		IssueID:    row.IssuePublicID,
 		AuthorKind: row.Row.AuthorKind,
 		AuthorID:   row.Row.AuthorID,
 		Body:       row.Row.Body,
@@ -64,11 +65,11 @@ func toIssueComment(row *issueCommentReadRow) *model.IssueComment {
 		EditedAt:   row.Row.EditedAt,
 	}
 	if row.Row.SourceTaskID != nil {
-		task := util.FormatPublicID(row.SourceTaskPublicID)
+		task := derefPublicID(row.SourceTaskPublicID)
 		out.SourceTaskID = &task
 	}
 	if row.Row.SourceTaskRunID != nil {
-		run := util.FormatPublicID(row.SourceRunPublicID)
+		run := derefPublicID(row.SourceRunPublicID)
 		out.SourceTaskRunID = &run
 	}
 	return out
@@ -95,14 +96,14 @@ func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueComm
 		Body:       in.Body,
 		CreatedAt:  time.Now().Unix(),
 	}
-	read := &issueCommentReadRow{IssuePublicID: mustParsePublicID(in.IssueID)}
+	read := &issueCommentReadRow{IssuePublicID: canonicalPublicID(in.IssueID)}
 	if in.SourceTaskID != nil && *in.SourceTaskID != "" {
 		key, err := lookupKey(ctx, s.db, "task", *in.SourceTaskID)
 		if err != nil {
 			return nil, err
 		}
 		row.SourceTaskID = &key
-		read.SourceTaskPublicID = mustParsePublicID(*in.SourceTaskID)
+		read.SourceTaskPublicID = optionalCanonicalPublicID(in.SourceTaskID)
 	}
 	if in.SourceTaskRunID != nil && *in.SourceTaskRunID != "" {
 		key, err := lookupKey(ctx, s.db, "task_run", *in.SourceTaskRunID)
@@ -110,10 +111,10 @@ func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueComm
 			return nil, err
 		}
 		row.SourceTaskRunID = &key
-		read.SourceRunPublicID = mustParsePublicID(*in.SourceTaskRunID)
+		read.SourceRunPublicID = optionalCanonicalPublicID(in.SourceTaskRunID)
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_issue_comment_public_id",
-		func(b []byte) { row.PublicID = b }, row); err != nil {
+		func(id string) { row.PublicID = id }, row); err != nil {
 		return nil, err
 	}
 	read.Row = *row
@@ -151,12 +152,12 @@ func (s *Store) ListIssueComments(ctx context.Context, issueID string, limit, of
 
 // GetIssueComment returns the comment by issue_comment_id, or (nil, nil) if not found.
 func (s *Store) GetIssueComment(ctx context.Context, commentID string) (*model.IssueComment, error) {
-	raw, ok := util.ParsePublicID(commentID)
+	id, ok := util.CanonicalPublicID(commentID)
 	if !ok {
 		return nil, nil
 	}
 	var row issueCommentReadRow
-	err := s.issueCommentSelect(ctx).Where("issue_comment.public_id = ?", raw).Take(&row).Error
+	err := s.issueCommentSelect(ctx).Where("issue_comment.public_id = ?", id).Take(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -172,11 +173,11 @@ func (s *Store) UpdateIssueComment(ctx context.Context, commentID, body string) 
 		"body":      body,
 		"edited_at": time.Now().Unix(),
 	}
-	raw, ok := util.ParsePublicID(commentID)
+	id, ok := util.CanonicalPublicID(commentID)
 	if !ok {
 		return nil, nil
 	}
-	if err := s.db.WithContext(ctx).Model(&issueCommentRow{}).Where("public_id = ?", raw).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&issueCommentRow{}).Where("public_id = ?", id).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.GetIssueComment(ctx, commentID)
@@ -188,11 +189,11 @@ func (s *Store) UpdateIssueComment(ctx context.Context, commentID, body string) 
 // deleted_at to one table would set a convention every other table has to
 // answer to. See docs/design/issue-model.md.
 func (s *Store) DeleteIssueComment(ctx context.Context, commentID string) error {
-	raw, ok := util.ParsePublicID(commentID)
+	id, ok := util.CanonicalPublicID(commentID)
 	if !ok {
 		return nil
 	}
-	return s.db.WithContext(ctx).Where("public_id = ?", raw).Delete(&issueCommentRow{}).Error
+	return s.db.WithContext(ctx).Where("public_id = ?", id).Delete(&issueCommentRow{}).Error
 }
 
 // CountIssueComments returns comment totals for the given issues in one grouped
@@ -202,29 +203,29 @@ func (s *Store) CountIssueComments(ctx context.Context, issueIDs []string) (map[
 	if len(issueIDs) == 0 {
 		return out, nil
 	}
-	raws := make([][]byte, 0, len(issueIDs))
-	for _, id := range issueIDs {
-		if raw, ok := util.ParsePublicID(id); ok {
-			raws = append(raws, raw)
+	ids := make([]string, 0, len(issueIDs))
+	for _, handle := range issueIDs {
+		if id, ok := util.CanonicalPublicID(handle); ok {
+			ids = append(ids, id)
 		}
 	}
-	if len(raws) == 0 {
+	if len(ids) == 0 {
 		return out, nil
 	}
 	var rows []struct {
-		IssuePublicID []byte
+		IssuePublicID string
 		Total         int
 	}
 	if err := s.db.WithContext(ctx).Model(&issueCommentRow{}).
 		Select("i.public_id AS issue_public_id, COUNT(*) AS total").
 		Joins("INNER JOIN issue i ON i.id = issue_comment.issue_id").
-		Where("i.public_id IN ?", raws).
+		Where("i.public_id IN ?", ids).
 		Group("i.public_id").
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		out[util.FormatPublicID(row.IssuePublicID)] = row.Total
+		out[row.IssuePublicID] = row.Total
 	}
 	return out, nil
 }

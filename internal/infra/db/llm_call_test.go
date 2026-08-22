@@ -120,10 +120,10 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 		t.Fatalf("OpenLLMCall: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", mustParsePublicID(opened.ID))
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", canonicalPublicID(opened.ID))
 	}()
 
-	if _, ok := util.ParsePublicID(opened.ID); !ok {
+	if _, ok := util.CanonicalPublicID(opened.ID); !ok {
 		t.Errorf("LLMCallID = %q, want a canonical public ID", opened.ID)
 	}
 	if opened.Status != model.LLMCallStatusAccepted {
@@ -206,7 +206,7 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 		t.Fatalf("OpenLLMCall: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", mustParsePublicID(opened.ID))
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", canonicalPublicID(opened.ID))
 	}()
 
 	errorClass := "upstream_unavailable"
@@ -291,7 +291,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 			t.Fatalf("a call with no client key was rejected: %v", err)
 		}
 		defer func() {
-			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", mustParsePublicID(opened.ID))
+			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", canonicalPublicID(opened.ID))
 		}()
 	}
 }

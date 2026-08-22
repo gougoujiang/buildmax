@@ -15,7 +15,7 @@ import (
 // could operate this deployment, and when", and a deleted row cannot answer it.
 type systemGrantRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_system_grant_public_id;not null"`
+	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_system_grant_public_id;not null"`
 
 	// The composite unique index is what keeps one user from holding two
 	// active grants for the same role. RevokedAt participates in it so that
@@ -38,7 +38,7 @@ func (systemGrantRow) TableName() string { return "system_grant" }
 // systemGrantReadRow is the row plus the handle its holder resolves to.
 type systemGrantReadRow struct {
 	Row          systemGrantRow `gorm:"embedded"`
-	UserPublicID []byte         `gorm:"column:user_public_id"`
+	UserPublicID string         `gorm:"column:user_public_id"`
 }
 
 func (s *Store) systemGrantSelect(ctx context.Context) *gorm.DB {
@@ -52,8 +52,8 @@ func toSystemGrant(row *systemGrantReadRow) *model.SystemGrant {
 		return nil
 	}
 	return &model.SystemGrant{
-		ID:        util.FormatPublicID(row.Row.PublicID),
-		UserID:    util.FormatPublicID(row.UserPublicID),
+		ID:        row.Row.PublicID,
+		UserID:    row.UserPublicID,
 		Role:      row.Row.Role,
 		GrantedBy: row.Row.GrantedBy,
 		GrantedAt: row.Row.GrantedAt,
@@ -72,7 +72,7 @@ func (s *Store) ActiveSystemRoles(ctx context.Context, userID string) ([]string,
 	// One join rather than a resolve-then-query: this runs on every admin
 	// request, and the extra round trip would be the cost of the boundary
 	// rather than of the question.
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
 	}
@@ -80,7 +80,7 @@ func (s *Store) ActiveSystemRoles(ctx context.Context, userID string) ([]string,
 	if err := s.db.WithContext(ctx).
 		Model(&systemGrantRow{}).
 		Joins("INNER JOIN `user` u ON u.id = system_grant.user_id").
-		Where("u.public_id = ? AND system_grant.revoked_at IS NULL", raw).
+		Where("u.public_id = ? AND system_grant.revoked_at IS NULL", id).
 		Pluck("role", &roles).Error; err != nil {
 		return nil, err
 	}
@@ -137,10 +137,10 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 		GrantedAt: now,
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_system_grant_public_id",
-		func(b []byte) { row.PublicID = b }, &row); err != nil {
+		func(id string) { row.PublicID = id }, &row); err != nil {
 		return nil, err
 	}
-	return toSystemGrant(&systemGrantReadRow{Row: row, UserPublicID: mustParsePublicID(userID)}), nil
+	return toSystemGrant(&systemGrantReadRow{Row: row, UserPublicID: canonicalPublicID(userID)}), nil
 }
 
 // RevokeSystemRole revokes the active grant, reporting whether one was found.

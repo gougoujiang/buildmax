@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
@@ -15,8 +14,9 @@ import (
 )
 
 // This file is the translation boundary. A public ID is what every caller
-// holds; a row key is what the schema joins on, and it does not leave this
-// package. See docs/design/entity-identity.md.
+// holds — and, since the text form is also the stored form, what the public_id
+// column holds; a row key is what the schema joins on, and it does not leave
+// this package. See docs/design/entity-identity.md.
 
 // publicIDAttempts bounds the retry when a generated public ID collides.
 //
@@ -33,19 +33,6 @@ var ErrPublicIDExhausted = errors.New("could not generate a free public id")
 // mysqlDuplicateEntry is ER_DUP_ENTRY.
 const mysqlDuplicateEntry = 1062
 
-// newPublicIDBytes returns the stored form of a fresh public ID.
-func newPublicIDBytes() ([]byte, error) {
-	id, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
-	raw, ok := util.ParsePublicID(id)
-	if !ok {
-		return nil, fmt.Errorf("generated public id %q is not canonical", id)
-	}
-	return raw, nil
-}
-
 // lookupKey resolves a caller's public handle to the row key that table joins
 // on.
 //
@@ -54,7 +41,7 @@ func newPublicIDBytes() ([]byte, error) {
 // distinguishing them would make a well-formed identifier an existence oracle
 // for rows in other teams.
 func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64, error) {
-	raw, ok := util.ParsePublicID(publicID)
+	id, ok := util.CanonicalPublicID(publicID)
 	if !ok {
 		return 0, model.ErrNotFound
 	}
@@ -62,7 +49,7 @@ func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64
 	// reads a scalar destination as a row struct.
 	var key uint64
 	err := tx.WithContext(ctx).Table(table).
-		Select("id").Where("public_id = ?", raw).Row().Scan(&key)
+		Select("id").Where("public_id = ?", id).Row().Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, model.ErrNotFound
 	}
@@ -93,13 +80,13 @@ func optionalKey(ctx context.Context, tx *gorm.DB, table string, publicID *strin
 // second live grant for one role. Those are the caller's answer and are
 // returned unchanged; retrying one would hide a real conflict behind a
 // generated value.
-func createWithPublicID(ctx context.Context, tx *gorm.DB, index string, assign func([]byte), row any) error {
+func createWithPublicID(ctx context.Context, tx *gorm.DB, index string, assign func(string), row any) error {
 	for range publicIDAttempts {
-		raw, err := newPublicIDBytes()
+		id, err := util.NewPublicID()
 		if err != nil {
 			return err
 		}
-		assign(raw)
+		assign(id)
 		err = tx.WithContext(ctx).Create(row).Error
 		if err == nil {
 			return nil
@@ -148,30 +135,43 @@ func isDuplicateOnIndex(err error, index string) bool {
 // whole account's; resolving the handle in a second, non-locking statement
 // keeps the lock where the write is.
 func publicIDForKey(ctx context.Context, tx *gorm.DB, table string, key uint64) (string, error) {
-	var raw []byte
+	var id string
 	err := tx.WithContext(ctx).Table(table).
-		Select("public_id").Where("id = ?", key).Row().Scan(&raw)
+		Select("public_id").Where("id = ?", key).Row().Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", model.ErrNotFound
 	}
 	if err != nil {
 		return "", err
 	}
-	return util.FormatPublicID(raw), nil
+	return id, nil
 }
 
-// mustParsePublicID is for a handle a caller already resolved through
-// lookupKey: it parsed once, so it parses again, and returning nil rather than
-// failing keeps the caller's happy path free of an impossible branch.
-func mustParsePublicID(publicID string) []byte {
-	raw, _ := util.ParsePublicID(publicID)
-	return raw
+// canonicalPublicID is for a handle a caller already resolved through
+// lookupKey: it canonicalized once, so it canonicalizes again, and returning
+// "" rather than failing keeps the caller's happy path free of an impossible
+// branch.
+func canonicalPublicID(publicID string) string {
+	id, _ := util.CanonicalPublicID(publicID)
+	return id
 }
 
-// optionalRaw is mustParsePublicID for a nullable handle a caller supplied.
-func optionalRaw(publicID *string) []byte {
+// optionalCanonicalPublicID is canonicalPublicID for a nullable handle a
+// caller supplied.
+func optionalCanonicalPublicID(publicID *string) *string {
 	if publicID == nil {
 		return nil
 	}
-	return mustParsePublicID(*publicID)
+	id := canonicalPublicID(*publicID)
+	return &id
+}
+
+// derefPublicID reads a handle a LEFT JOIN may not have produced. An absent
+// row and a dangling reference both come back "", which converters treat as
+// no handle.
+func derefPublicID(publicID *string) string {
+	if publicID == nil {
+		return ""
+	}
+	return *publicID
 }

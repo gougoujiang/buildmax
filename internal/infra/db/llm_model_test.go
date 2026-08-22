@@ -85,10 +85,10 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "public_id = ?", canonicalPublicID(created.ID))
 	}()
 
-	if _, ok := util.ParsePublicID(created.ID); !ok {
+	if _, ok := util.CanonicalPublicID(created.ID); !ok {
 		t.Errorf("LLMModelID = %q, want a canonical public ID", created.ID)
 	}
 	if !created.Enabled {
@@ -142,7 +142,7 @@ func TestLLMModelNameIsUnique(t *testing.T) {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "public_id = ?", canonicalPublicID(created.ID))
 	}()
 
 	if _, err := s.CreateLLMModel(ctx, sampleModelInput(name)); !errors.Is(err, model.ErrLLMModelNameTaken) {
@@ -158,7 +158,7 @@ func TestSetLLMModelEnabled(t *testing.T) {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "public_id = ?", canonicalPublicID(created.ID))
 	}()
 
 	if err := s.SetLLMModelEnabled(ctx, created.ID, false); err != nil {

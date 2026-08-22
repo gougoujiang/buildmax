@@ -14,23 +14,24 @@ Two things that used to live here now do not — git helpers are in
 ## Entity IDs (`id.go`)
 
 ```go
-id, err := util.NewPublicID()        // → "ivyoh5qcfu6ypfkhyedq"
-raw, ok := util.ParsePublicID(id)    // → 12 bytes
-text := util.FormatPublicID(raw)     // → the canonical text again
+id, err := util.NewPublicID()             // → "ivyoh5qcfu6ypfkhyedq"
+id, ok := util.CanonicalPublicID(input)   // any case in → canonical text, or ok=false
 ```
 
-A server entity's public identifier is 96 bits of crypto-random data, stored as
-`BINARY(12)` and written as 20 lowercase base32 characters (`a-z2-7`). It is
-the only handle that leaves the process; the numeric primary key is the
-relational key and stays inside `internal/infra/db`. Why base32 rather than a
-shorter base64url, and which tables have a public ID at all, is in
+A server entity's public identifier is 96 bits of crypto-random data, written
+as 20 lowercase base32 characters (`a-z2-7`) — and stored in exactly that text
+form, so a direct database query reads the same handle every API response
+shows. It is the only handle that leaves the process; the numeric primary key
+is the relational key and stays inside `internal/infra/db`. Why base32 rather
+than a shorter base64url, why the text form is also the stored form, and which
+tables have a public ID at all, is in
 [../../design/entity-identity.md](../../design/entity-identity.md).
 
 `NewPublicID` returns an error rather than panicking: entropy failure must be
-one failed create, not a process abort inside a request. `ParsePublicID` accepts
-either case and rejects everything that is not canonical, so one value has one
-spelling — which is why a canonical ID always ends in `a` or `q`, and why a
-hand-written fixture usually is not one.
+one failed create, not a process abort inside a request. `CanonicalPublicID`
+accepts either case and rejects everything that is not canonical, so one value
+has one spelling — which is why a canonical ID always ends in `a` or `q`, and
+why a hand-written fixture usually is not one.
 
 This is the only identifier this package mints. `internal/agentapp/job` adds a
 `jb_` prefix to one of these for background jobs, because a job ID reaches the

@@ -4,12 +4,36 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
+
+// TestPublicIDHelpersCanonicalizeOrBlank pins the converter contract: a handle
+// canonicalizes to its stored lowercase form, anything else becomes "" rather
+// than an error, and a nil handle stays nil.
+func TestPublicIDHelpersCanonicalizeOrBlank(t *testing.T) {
+	const canonical = "ivyoh5qcfu6ypfkhyedq"
+	upper := strings.ToUpper(canonical)
+	if got := canonicalPublicID(upper); got != canonical {
+		t.Errorf("canonicalPublicID(%q) = %q, want %q", upper, got, canonical)
+	}
+	if got := canonicalPublicID("not a public id"); got != "" {
+		t.Errorf("canonicalPublicID(malformed) = %q, want empty", got)
+	}
+	if got := optionalCanonicalPublicID(nil); got != nil {
+		t.Errorf("optionalCanonicalPublicID(nil) = %v, want nil", got)
+	}
+	if got := optionalCanonicalPublicID(&upper); got == nil || *got != canonical {
+		t.Errorf("optionalCanonicalPublicID(&%q) = %v, want %q", upper, got, canonical)
+	}
+	if derefPublicID(nil) != "" || derefPublicID(&upper) != upper {
+		t.Error("derefPublicID must pass a present handle through and read nil as empty")
+	}
+}
 
 // TestLookupKeyRefusesAMalformedHandleWithoutQuerying is the cheap half of the
 // oracle rule: text that was never a public ID is answered as not-found before

@@ -256,7 +256,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", mustParsePublicID(conv.ID))
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
 	if err != nil {
@@ -340,7 +340,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", mustParsePublicID(conv.ID))
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
 		ConversationID:          conv.ID,
@@ -440,7 +440,7 @@ func TestClaimTask(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", mustParsePublicID(conv.ID))
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 		deleteTestUser(t, s, user.ID)
 	}()
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
@@ -584,7 +584,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 	defer func() {
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationMessageRow{})
-		_ = s.db.WithContext(ctx).Where("public_id = ?", mustParsePublicID(conv.ID)).Delete(&conversationRow{})
+		_ = s.db.WithContext(ctx).Where("public_id = ?", canonicalPublicID(conv.ID)).Delete(&conversationRow{})
 		deleteTestUser(t, s, user.ID)
 	}()
 	if conv.ID == "" || conv.UserID != user.ID || conv.TeamID == "" || conv.Channel != "portal" {
@@ -671,7 +671,7 @@ func TestListConversationsByUser(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Where("public_id = ?", mustParsePublicID(conv.ID)).Delete(&conversationRow{})
+		_ = s.db.WithContext(ctx).Where("public_id = ?", canonicalPublicID(conv.ID)).Delete(&conversationRow{})
 	}()
 
 	convs, total, err := s.ListConversationsByUser(ctx, convListUser, 10, 0)

@@ -112,7 +112,7 @@ func TestUploadThenReadByID(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
 
-	if _, ok := util.ParsePublicID(created.ID); !ok {
+	if _, ok := util.CanonicalPublicID(created.ID); !ok {
 		t.Fatalf("artifact id = %q, want a canonical public ID", created.ID)
 	}
 	// A different member of the same team resolves the same reference, with no
