@@ -250,8 +250,9 @@ at the end:
    than as unknown. Portal reads it beside the run's trace, artifacts, spend,
    and failure cause. Still open from this step, and tracked in
    [design/durable-run-trace.md](design/durable-run-trace.md): per-command
-   boundary decisions and violations, hook and file-change events, subagent
-   `parent_run_id` linkage, and retention of the traces directory.
+   boundary decisions and violations, hook and file-change events, and
+   retention of the traces directory. Subagent traces now carry an immediate
+   `parent_run_id` link.
 2. Shrink what a task run can reach — **done for credentials, open for egress**.
    `config.WorkerNeedsEnv` now decides what a worker is given: `k8s.WorkerEnvFromEnviron`
    builds the Job pod's environment from the `BUILDMAX_*` variables that pass it
