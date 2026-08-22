@@ -99,7 +99,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
-	if _, ok := util.ParsePublicID(result.TraceID); !ok {
+	if _, ok := util.CanonicalPublicID(result.TraceID); !ok {
 		t.Fatalf("TraceID = %q, want a canonical public ID", result.TraceID)
 	}
 

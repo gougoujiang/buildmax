@@ -20,7 +20,7 @@ import (
 // sweep that calls it writes down what it removed.
 type auditEventRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_audit_event_public_id;not null"`
+	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_audit_event_public_id;not null"`
 
 	// TeamID is NULL for actions with no team, such as a login -- a pointer
 	// rather than a zero, because zero is a row key someone owns. The composite
@@ -42,10 +42,11 @@ type auditEventRow struct {
 
 func (auditEventRow) TableName() string { return "audit_event" }
 
-// auditEventReadRow is the row plus its team's handle.
+// auditEventReadRow is the row plus its team's handle. A pointer field is one
+// a LEFT JOIN may leave NULL.
 type auditEventReadRow struct {
 	Row          auditEventRow `gorm:"embedded"`
-	TeamPublicID []byte        `gorm:"column:team_public_id"`
+	TeamPublicID *string       `gorm:"column:team_public_id"`
 }
 
 func (s *Store) auditSelect(ctx context.Context) *gorm.DB {
@@ -59,8 +60,8 @@ func toAuditEvent(row *auditEventReadRow) *model.AuditEvent {
 		return nil
 	}
 	return &model.AuditEvent{
-		ID:         util.FormatPublicID(row.Row.PublicID),
-		TeamID:     util.FormatPublicID(row.TeamPublicID),
+		ID:         row.Row.PublicID,
+		TeamID:     derefPublicID(row.TeamPublicID),
 		ActorType:  row.Row.ActorType,
 		ActorID:    row.Row.ActorID,
 		Action:     row.Row.Action,
@@ -73,7 +74,7 @@ func toAuditEvent(row *auditEventReadRow) *model.AuditEvent {
 
 // RecordAuditEvent appends one event.
 func (s *Store) RecordAuditEvent(ctx context.Context, in model.AuditEvent) error {
-	publicID, err := newPublicIDBytes()
+	publicID, err := util.NewPublicID()
 	if err != nil {
 		return err
 	}
@@ -228,11 +229,11 @@ func (s *Store) applyAuditCursor(ctx context.Context, q *gorm.DB, after model.Au
 	if after.Zero() {
 		return q
 	}
-	raw, ok := util.ParsePublicID(after.ID)
+	id, ok := util.CanonicalPublicID(after.ID)
 	if !ok {
 		return q
 	}
-	key := s.db.WithContext(ctx).Model(&auditEventRow{}).Select("id").Where("public_id = ?", raw)
+	key := s.db.WithContext(ctx).Model(&auditEventRow{}).Select("id").Where("public_id = ?", id)
 	return q.Where("audit_event.created_at < ? OR (audit_event.created_at = ? AND audit_event.id < (?))",
 		after.CreatedAt, after.CreatedAt, key)
 }

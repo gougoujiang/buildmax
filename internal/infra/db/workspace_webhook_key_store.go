@@ -16,7 +16,7 @@ import (
 
 type userWebhookKeyRow struct {
 	ID        uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID  []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_user_webhook_key_public_id;not null"`
+	PublicID  string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_user_webhook_key_public_id;not null"`
 	UserID    uint64 `gorm:"column:user_id;not null;index"`
 	KeyHash   string `gorm:"type:varchar(128);not null;uniqueIndex"`
 	Name      string `gorm:"type:varchar(255)"`
@@ -47,10 +47,10 @@ func (s *Store) CreateKey(ctx context.Context, userID, name string) (plaintextKe
 		Name:    name,
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_user_webhook_key_public_id",
-		func(b []byte) { row.PublicID = b }, &row); err != nil {
+		func(id string) { row.PublicID = id }, &row); err != nil {
 		return "", "", err
 	}
-	return plaintextKey, util.FormatPublicID(row.PublicID), nil
+	return plaintextKey, row.PublicID, nil
 }
 
 // GetUserIDByKey looks up user_id by the plaintext key (hashed and matched).
@@ -58,7 +58,7 @@ func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID
 	hash := sha256.Sum256([]byte(plaintextKey))
 	keyHash := hex.EncodeToString(hash[:])
 	var row struct {
-		UserPublicID []byte
+		UserPublicID string
 	}
 	err = s.db.WithContext(ctx).Model(&userWebhookKeyRow{}).
 		Select("u.public_id AS user_public_id").
@@ -71,7 +71,7 @@ func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID
 		}
 		return "", err
 	}
-	return util.FormatPublicID(row.UserPublicID), nil
+	return row.UserPublicID, nil
 }
 
 // ListKeys returns key metadata for the user.
@@ -89,7 +89,7 @@ func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKey
 	}
 	out := make([]model.WebhookKeyMeta, len(rows))
 	for i := range rows {
-		out[i] = model.WebhookKeyMeta{KeyID: util.FormatPublicID(rows[i].PublicID), Name: rows[i].Name, CreatedAt: rows[i].CreatedAt}
+		out[i] = model.WebhookKeyMeta{KeyID: rows[i].PublicID, Name: rows[i].Name, CreatedAt: rows[i].CreatedAt}
 	}
 	return out, nil
 }
@@ -104,11 +104,11 @@ func (s *Store) RevokeKey(ctx context.Context, userID, keyID string) error {
 	if err != nil {
 		return err
 	}
-	raw, ok := util.ParsePublicID(keyID)
+	id, ok := util.CanonicalPublicID(keyID)
 	if !ok {
 		return notOwned
 	}
-	res := s.db.WithContext(ctx).Where("user_id = ? AND public_id = ?", userKey, raw).Delete(&userWebhookKeyRow{})
+	res := s.db.WithContext(ctx).Where("user_id = ? AND public_id = ?", userKey, id).Delete(&userWebhookKeyRow{})
 	if res.Error != nil {
 		return res.Error
 	}

@@ -17,7 +17,7 @@ import (
 // product behavior earns a new column.
 type artifactRow struct {
 	ID         uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID   []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_artifact_public_id;not null"`
+	PublicID   string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_artifact_public_id;not null"`
 	TeamID     uint64 `gorm:"column:team_id;not null;index:idx_artifact_team_created,priority:1"`
 	Filename   string `gorm:"type:varchar(512);not null"`
 	MediaType  string `gorm:"column:media_type;type:varchar(255)"`
@@ -42,7 +42,7 @@ func (artifactRow) TableName() string { return "artifact" }
 // artifactReadRow is the row plus its team's handle.
 type artifactReadRow struct {
 	Row          artifactRow `gorm:"embedded"`
-	TeamPublicID []byte      `gorm:"column:team_public_id"`
+	TeamPublicID string      `gorm:"column:team_public_id"`
 }
 
 func (s *Store) artifactSelect(ctx context.Context) *gorm.DB {
@@ -56,8 +56,8 @@ func toArtifact(row *artifactReadRow) *model.Artifact {
 		return nil
 	}
 	return &model.Artifact{
-		ID:            util.FormatPublicID(row.Row.PublicID),
-		TeamID:        util.FormatPublicID(row.TeamPublicID),
+		ID:            row.Row.PublicID,
+		TeamID:        row.TeamPublicID,
 		Filename:      row.Row.Filename,
 		MediaType:     row.Row.MediaType,
 		SizeBytes:     row.Row.SizeBytes,
@@ -89,12 +89,12 @@ func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput
 	if err != nil {
 		return nil, err
 	}
-	raw, ok := util.ParsePublicID(in.ArtifactID)
+	id, ok := util.CanonicalPublicID(in.ArtifactID)
 	if !ok {
 		return nil, model.ErrNotFound
 	}
 	row := artifactRow{
-		PublicID:      raw,
+		PublicID:      id,
 		TeamID:        teamKey,
 		Filename:      in.Filename,
 		MediaType:     in.MediaType,
@@ -111,18 +111,18 @@ func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return nil, err
 	}
-	return toArtifact(&artifactReadRow{Row: row, TeamPublicID: mustParsePublicID(in.TeamID)}), nil
+	return toArtifact(&artifactReadRow{Row: row, TeamPublicID: canonicalPublicID(in.TeamID)}), nil
 }
 
 // GetArtifact returns the artifact including a tombstoned one; the caller
 // decides what a deleted artifact means for its route.
 func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*model.Artifact, error) {
-	raw, ok := util.ParsePublicID(artifactID)
+	id, ok := util.CanonicalPublicID(artifactID)
 	if !ok {
 		return nil, nil
 	}
 	var row artifactReadRow
-	err := s.artifactSelect(ctx).Where("artifact.public_id = ?", raw).Take(&row).Error
+	err := s.artifactSelect(ctx).Where("artifact.public_id = ?", id).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -189,12 +189,12 @@ func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (
 // The update is conditional on the row still being live, so two concurrent
 // deletes produce one audit-worthy change and one no-op rather than two.
 func (s *Store) SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt int64) (bool, error) {
-	raw, ok := util.ParsePublicID(artifactID)
+	id, ok := util.CanonicalPublicID(artifactID)
 	if !ok {
 		return false, nil
 	}
 	res := s.db.WithContext(ctx).Model(&artifactRow{}).
-		Where("public_id = ? AND deleted_at IS NULL", raw).
+		Where("public_id = ? AND deleted_at IS NULL", id).
 		Update("deleted_at", deletedAt)
 	if res.Error != nil {
 		return false, res.Error

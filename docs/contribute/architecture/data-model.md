@@ -30,12 +30,16 @@ These hold for every table. They are not repeated in the per-table sections.
 `bigint unsigned` primary key. It is the relational key: every reference in
 this document joins on it, and it never leaves `internal/infra/db`. `public_id`
 is the handle every boundary sees — an API path, a JWT claim, a log line, an
-object key — and it is `binary(12)` holding 96 bits of crypto-random data,
-written as 20 lowercase base32 characters (`ivyoh5qcfu6ypfkhyedq`). The store
-translates between them: a read rooted at a handle resolves it once through the
-unique index and is numeric after that. Why, and which tables have a handle at
-all, is in
-[../../design/entity-identity.md](../../design/entity-identity.md).
+object key — and it stores 96 bits of crypto-random data as its canonical text
+form: 20 lowercase base32 characters (`ivyoh5qcfu6ypfkhyedq`) in a
+`char(20) CHARACTER SET ascii COLLATE ascii_bin` column, written in the tables
+below as `char(20) ascii_bin`. Storing the text keeps a direct `SELECT`
+readable; `ascii_bin` keeps comparison memcmp, and the store writes only the
+canonical lowercase form. A read rooted at a handle resolves it once through
+the unique index and is numeric after that. Why, and which tables have a
+handle at all, is in
+[../../design/entity-identity.md](../../design/entity-identity.md) — the
+storage form is its §17 amendment.
 
 **Not every row has a handle.** A join row, a revision, and a catalog record
 are addressed by something else: `team_member` by its pair, `agent_revision`
@@ -153,7 +157,7 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Auto-increment primary key, internal |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `email` | `varchar(255)` | no | Unique; the login identifier |
 | `name` | `varchar(255)` | yes | Display name |
 | `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
@@ -190,7 +194,7 @@ The ownership and authorization boundary for every Portal resource.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `name` | `varchar(255)` | no | Display name |
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
@@ -251,7 +255,7 @@ operation of the deployment rather than access to its contents — see
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | `user.id` |
 | `role` | `varchar(32)` | no | `system_admin` is the only value this build accepts |
 | `granted_by` | `varchar(64)` | no | Opaque: a user's handle, or `buildmax-server` when the operator command made the grant — the same string the matching audit event carries |
@@ -328,7 +332,7 @@ API keys for the inbound webhook surface documented in
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | `user.id` — keys are user-scoped, not team-scoped |
 | `key_hash` | `varchar(128)` | no | Unique; the secret is shown once at creation and never again |
 | `name` | `varchar(255)` | yes | Human label |
@@ -370,7 +374,7 @@ record that can be edited is not evidence.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `team_id` | `bigint unsigned` | yes | Empty for actions with no team, such as a login |
 | `created_at` | `bigint` | no | Unix seconds |
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
@@ -426,7 +430,7 @@ The primary user-facing work object.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `team_id` | `bigint unsigned` | yes | Owning team; the authorization key |
 | `parent_issue_id` | `bigint unsigned` | yes | `issue.id` of the parent; `NULL` for a top-level issue |
@@ -462,7 +466,7 @@ One statement about an issue, addressed to people.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `issue_id` | `bigint unsigned` | no | `issue.id` |
 | `author_kind` | `varchar(16)` | no | `user`, `agent`, or `system` |
 | `author_id` | `varchar(64)` | no | `user_id` or `agent_id`; empty for `system` |
@@ -496,7 +500,7 @@ under.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `team_id` | `bigint unsigned` | yes | Owning team |
 | `name` | `varchar(255)` | no | |
@@ -570,7 +574,7 @@ the user.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `team_id` | `bigint unsigned` | yes | Owning team |
 | `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, or `webhook` |
@@ -593,7 +597,7 @@ One message in a Tier 1 conversation, including tool traffic.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `conversation_id` | `bigint unsigned` | no | `conversation.id` |
 | `role` | `varchar(16)` | no | LLM message role |
 | `content` | `text` | no | |
@@ -630,7 +634,7 @@ The durable unit of background work. One task, many attempts.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `conversation_id` | `bigint unsigned` | no | The Tier 1 conversation that owns the result |
 | `team_id` | `bigint unsigned` | yes | Owning team; used by quota aggregation |
 | `issue_id` | `bigint unsigned` | yes | The issue this task advances, if any |
@@ -662,7 +666,7 @@ One execution attempt. This is the row quota and token accounting read.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `task_id` | `bigint unsigned` | no | `task.id` |
 | `input` | `text` | no | Prompt for this attempt; a rerun may differ from the task's |
 | `created_by` | `varchar(64)` | yes | `user.id`, empty for system-triggered runs |
@@ -753,7 +757,7 @@ a legacy `task_run_id` column before touching either table. See
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `team_id` | `bigint unsigned` | no | Owning team; the authorization boundary |
 | `filename` | `varchar(512)` | no | One path element; directories are stripped |
 | `media_type` | `varchar(255)` | yes | Derived from the extension, never from the uploader |
@@ -791,7 +795,7 @@ definition into one step run per step, and each agent step delegates to a task.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `team_id` | `bigint unsigned` | no | Owning team — required, unlike most tables |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | no | |
@@ -838,7 +842,7 @@ revision cannot unpublish a workflow teams are running.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `workflow_id` | `bigint unsigned` | no | `workflow.id` |
 | `workflow_revision` | `bigint` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
 | `issue_id` | `bigint unsigned` | yes | Issue this run advances |
@@ -861,7 +865,7 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique. The Go field is `StepRunID` |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique. The Go field is `StepRunID` |
 | `workflow_run_id` | `bigint unsigned` | no | `workflow_run.id` |
 | `step_id` | `varchar(128)` | no | Step identifier authored in the workflow definition, not a reference to a row |
 | `step_index` | `bigint` | no | Position in the linear plan; the execution order |
@@ -911,7 +915,7 @@ on the machine that holds the database credentials.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `name` | `varchar(128)` | no | Operator-facing catalog name, unique |
 | `provider_type` | `varchar(32)` | no | Wire protocol: `openai_compatible`, `openai`, or `anthropic` |
 | `api_url` | `varchar(512)` | no | Upstream base URL |
@@ -949,7 +953,7 @@ One managed inference call. The metering and debugging record.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `public_id` | `binary(12)` | no | Public handle, unique |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `client_call_id` | `varchar(128)` | yes | Caller's idempotency key; part of the composite unique index |
 | `team_id` | `bigint unsigned` | no | Billed team; leads the composite unique index |
 | `user_id` | `bigint unsigned` | yes | |
@@ -1092,7 +1096,8 @@ the next server start adds it. Give it a type tag; an untagged `string` becomes
 singular name, register it in the `AutoMigrate` call in `store.go`, define the
 repository interface in `internal/core/model`, and implement it in
 `internal/infra/db`. Decide whether the row needs a handle: give it a
-`public_id binary(12)` with a `uq_<table>_public_id` unique index when another
+`public_id` — `char(20) CHARACTER SET ascii COLLATE ascii_bin` — with a
+`uq_<table>_public_id` unique index when another
 process must name it, and nothing when a parent plus a natural key already
 addresses it. References to other tables are `bigint unsigned`; the tests in
 `internal/architecture` fail otherwise. Then add it to this document.

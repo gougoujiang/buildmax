@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // llmModelRow is the managed model catalog.
@@ -19,7 +18,7 @@ import (
 // exclude it cannot exist.
 type llmModelRow struct {
 	ID            uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID      []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_llm_model_public_id;not null"`
+	PublicID      string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_llm_model_public_id;not null"`
 	Name          string `gorm:"type:varchar(128);uniqueIndex;not null"`
 	ProviderType  string `gorm:"type:varchar(32);not null"`
 	APIURL        string `gorm:"type:varchar(512);not null"`
@@ -46,7 +45,7 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		return nil
 	}
 	return &model.LLMModel{
-		ID:            util.FormatPublicID(row.PublicID),
+		ID:            row.PublicID,
 		Name:          row.Name,
 		ProviderType:  row.ProviderType,
 		APIURL:        row.APIURL,
@@ -122,7 +121,7 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 		UpdatedAt:     now,
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_llm_model_public_id",
-		func(b []byte) { row.PublicID = b }, row); err != nil {
+		func(id string) { row.PublicID = id }, row); err != nil {
 		if isDuplicateKey(err) {
 			return nil, model.ErrLLMModelNameTaken
 		}
@@ -138,7 +137,7 @@ func (s *Store) GetLLMModel(ctx context.Context, llmModelID string) (*model.LLMM
 	}
 	var row llmModelRow
 	err := s.db.WithContext(ctx).Select(llmModelColumns).
-		Where("public_id = ?", mustParsePublicID(llmModelID)).First(&row).Error
+		Where("public_id = ?", canonicalPublicID(llmModelID)).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -165,7 +164,7 @@ func (s *Store) ListLLMModels(ctx context.Context) ([]model.LLMModel, error) {
 // SetLLMModelEnabled retires or restores a model.
 func (s *Store) SetLLMModelEnabled(ctx context.Context, llmModelID string, enabled bool) error {
 	res := s.db.WithContext(ctx).Model(&llmModelRow{}).
-		Where("public_id = ?", mustParsePublicID(llmModelID)).
+		Where("public_id = ?", canonicalPublicID(llmModelID)).
 		Updates(map[string]any{"enabled": enabled, "updated_at": time.Now().Unix()})
 	if res.Error != nil {
 		return res.Error
@@ -187,7 +186,7 @@ func (s *Store) LLMModelCredential(ctx context.Context, llmModelID string) (stri
 	}
 	var row llmModelRow
 	err := s.db.WithContext(ctx).Select("api_key").
-		Where("public_id = ?", mustParsePublicID(llmModelID)).First(&row).Error
+		Where("public_id = ?", canonicalPublicID(llmModelID)).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", errors.New("model not found")
 	}

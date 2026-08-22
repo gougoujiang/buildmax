@@ -1,7 +1,6 @@
 package util
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -11,7 +10,7 @@ func TestNewPublicID(t *testing.T) {
 	const allowed = "abcdefghijklmnopqrstuvwxyz234567"
 
 	seen := make(map[string]bool)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		id, err := NewPublicID()
 		if err != nil {
 			t.Fatalf("NewPublicID() error = %v", err)
@@ -31,20 +30,17 @@ func TestNewPublicID(t *testing.T) {
 	}
 }
 
-func TestNewPublicIDRoundTrips(t *testing.T) {
+func TestNewPublicIDIsCanonical(t *testing.T) {
 	id, err := NewPublicID()
 	if err != nil {
 		t.Fatalf("NewPublicID() error = %v", err)
 	}
-	b, ok := ParsePublicID(id)
+	got, ok := CanonicalPublicID(id)
 	if !ok {
-		t.Fatalf("ParsePublicID(%q) rejected its own output", id)
+		t.Fatalf("CanonicalPublicID(%q) rejected its own generator's output", id)
 	}
-	if len(b) != PublicIDBytes {
-		t.Fatalf("ParsePublicID(%q) decoded %d bytes, want %d", id, len(b), PublicIDBytes)
-	}
-	if got := FormatPublicID(b); got != id {
-		t.Fatalf("FormatPublicID(ParsePublicID(%q)) = %q", id, got)
+	if got != id {
+		t.Fatalf("CanonicalPublicID(%q) = %q; a fresh ID must already be canonical", id, got)
 	}
 }
 
@@ -65,29 +61,7 @@ func TestNewPublicIDEntropyFailure(t *testing.T) {
 	}
 }
 
-func TestFormatPublicID(t *testing.T) {
-	tests := []struct {
-		name string
-		in   []byte
-		want string
-	}{
-		{"zero_value", make([]byte, PublicIDBytes), "aaaaaaaaaaaaaaaaaaaa"},
-		{"all_ones", bytes.Repeat([]byte{0xff}, PublicIDBytes), "7777777777777777777q"},
-		{"too_short", make([]byte, PublicIDBytes-1), ""},
-		{"too_long", make([]byte, PublicIDBytes+1), ""},
-		{"nil", nil, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := FormatPublicID(tt.in); got != tt.want {
-				t.Fatalf("FormatPublicID(%x) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParsePublicID(t *testing.T) {
+func TestCanonicalPublicID(t *testing.T) {
 	// A real value from NewPublicID. The last character carries one bit of the
 	// value and four bits of slack, so a canonical ID always ends in "a" or "q"
 	// — which is why an invented example is usually not one.
@@ -114,35 +88,33 @@ func TestParsePublicID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, ok := ParsePublicID(tt.in)
+			got, ok := CanonicalPublicID(tt.in)
 			if ok != tt.ok {
-				t.Fatalf("ParsePublicID(%q) ok = %v, want %v", tt.in, ok, tt.ok)
+				t.Fatalf("CanonicalPublicID(%q) ok = %v, want %v", tt.in, ok, tt.ok)
 			}
 			if !ok {
-				if b != nil {
-					t.Fatalf("ParsePublicID(%q) returned %x with ok=false", tt.in, b)
+				if got != "" {
+					t.Fatalf("CanonicalPublicID(%q) returned %q with ok=false", tt.in, got)
 				}
 				return
 			}
-			if got := FormatPublicID(b); got != strings.ToLower(tt.in) {
-				t.Fatalf("ParsePublicID(%q) canonicalized to %q", tt.in, got)
+			if got != strings.ToLower(tt.in) {
+				t.Fatalf("CanonicalPublicID(%q) = %q, want %q", tt.in, got, strings.ToLower(tt.in))
 			}
 		})
 	}
 }
 
-// TestParsePublicIDRejectsNonCanonicalTrailingBits is the reason ParsePublicID
-// re-encodes. 20 base32 characters carry 100 bits and a public ID is 96, so
-// without the check every value would have 16 accepted spellings, and two
-// requests naming the same row would look like requests for different ones.
-func TestParsePublicIDRejectsNonCanonicalTrailingBits(t *testing.T) {
+// TestCanonicalPublicIDRejectsNonCanonicalTrailingBits is the reason
+// CanonicalPublicID re-encodes. 20 base32 characters carry 100 bits and a
+// public ID is 96, so without the check every value would have 16 accepted
+// spellings, and two requests naming the same row would look like requests for
+// different ones — and, now that the database stores the text, 16 distinct
+// unique-index entries for one intended value.
+func TestCanonicalPublicIDRejectsNonCanonicalTrailingBits(t *testing.T) {
 	id, err := NewPublicID()
 	if err != nil {
 		t.Fatalf("NewPublicID() error = %v", err)
-	}
-	want, ok := ParsePublicID(id)
-	if !ok {
-		t.Fatalf("ParsePublicID(%q) rejected a fresh ID", id)
 	}
 
 	const alphabet = "abcdefghijklmnopqrstuvwxyz234567"
@@ -152,21 +124,18 @@ func TestParsePublicIDRejectsNonCanonicalTrailingBits(t *testing.T) {
 	}
 	// The low 4 bits of the final character are slack. Setting any of them
 	// leaves the decoded bytes identical but the text non-canonical.
-	for bit := 0; bit < 4; bit++ {
+	for bit := range 4 {
 		alt := last | (1 << bit)
 		if alt == last {
 			continue
 		}
 		spelling := id[:PublicIDLen-1] + string(alphabet[alt])
-		got, ok := ParsePublicID(spelling)
+		got, ok := CanonicalPublicID(spelling)
 		if ok {
-			t.Fatalf("ParsePublicID(%q) accepted a non-canonical spelling of %q", spelling, id)
+			t.Fatalf("CanonicalPublicID(%q) accepted a non-canonical spelling of %q", spelling, id)
 		}
-		if got != nil {
-			t.Fatalf("ParsePublicID(%q) returned %x with ok=false", spelling, got)
-		}
-		if decoded, err := publicIDEncoding.DecodeString(strings.ToUpper(spelling)); err != nil || !bytes.Equal(decoded, want) {
-			t.Fatalf("test premise broken: %q does not decode to the same bytes as %q", spelling, id)
+		if got != "" {
+			t.Fatalf("CanonicalPublicID(%q) returned %q with ok=false", spelling, got)
 		}
 	}
 }

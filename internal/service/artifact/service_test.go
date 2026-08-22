@@ -52,7 +52,7 @@ func TestCreateMeasuresTheStream(t *testing.T) {
 	if rec.SHA256 != hex.EncodeToString(sum[:]) {
 		t.Errorf("sha256 = %q, want the digest of the content", rec.SHA256)
 	}
-	if _, ok := util.ParsePublicID(rec.ID); !ok {
+	if _, ok := util.CanonicalPublicID(rec.ID); !ok {
 		t.Errorf("artifact id = %q, want a canonical public ID", rec.ID)
 	}
 	if rec.MediaType != "text/plain; charset=utf-8" {

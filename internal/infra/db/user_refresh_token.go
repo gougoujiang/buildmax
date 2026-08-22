@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -42,7 +41,7 @@ func (userRefreshTokenRow) TableName() string { return "user_refresh_token" }
 // rotation result names a user to the caller, and the row holds a key.
 type refreshTokenReadRow struct {
 	Row          userRefreshTokenRow `gorm:"embedded"`
-	UserPublicID []byte              `gorm:"column:user_public_id"`
+	UserPublicID string              `gorm:"column:user_public_id"`
 }
 
 func refreshTokenSelect(tx *gorm.DB) *gorm.DB {
@@ -246,7 +245,7 @@ func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string,
 	if err := revokeSessionTx(s.db.WithContext(ctx), row.Row.SessionID, now); err != nil {
 		return "", "", err
 	}
-	return util.FormatPublicID(row.UserPublicID), row.Row.SessionID, nil
+	return row.UserPublicID, row.Row.SessionID, nil
 }
 
 // RevokeSession implements model.RefreshTokenStore.

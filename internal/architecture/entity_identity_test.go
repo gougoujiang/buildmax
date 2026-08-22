@@ -95,23 +95,28 @@ func TestEntityRelationshipsAreNumeric(t *testing.T) {
 	}
 }
 
-// TestPublicIDsAreBinary12 fails when a handle is stored as anything else.
+// TestPublicIDsAreCanonicalText fails when a handle is stored as anything but
+// char(20) ascii_bin.
 //
-// The width is the format: 96 bits, memcmp comparison, and no collation in the
-// way of identity. A varchar public_id would work and would quietly bring the
-// database's collation back into deciding whether two handles are the same.
-func TestPublicIDsAreBinary12(t *testing.T) {
+// The column stores the canonical text form so a direct database query reads
+// the same handle every API response shows — the raw-byte form made every
+// public_id an unreadable blob, and that operational cost bought 8 bytes per
+// value. ascii_bin keeps identity out of collation's hands: comparison is
+// memcmp, exactly as it was over binary(12), because the store writes and
+// queries only the lowercase canonical form. A utf8mb4 or _ci public_id would
+// quietly hand "which handles are the same" back to the database.
+func TestPublicIDsAreCanonicalText(t *testing.T) {
 	seen := 0
 	for _, f := range rowFields(t) {
 		if f.column != "public_id" {
 			continue
 		}
 		seen++
-		if !strings.Contains(string(f.tag), "type:binary(12)") {
-			t.Errorf("%s: %s.public_id is not binary(12)", f.file, f.table)
+		if !strings.Contains(string(f.tag), "type:char(20) CHARACTER SET ascii COLLATE ascii_bin") {
+			t.Errorf("%s: %s.public_id is not char(20) ascii_bin", f.file, f.table)
 		}
-		if f.goType != "[]byte" {
-			t.Errorf("%s: %s.public_id is %s, want []byte", f.file, f.table, f.goType)
+		if f.goType != "string" {
+			t.Errorf("%s: %s.public_id is %s, want string", f.file, f.table, f.goType)
 		}
 		want := "uniqueIndex:uq_" + f.table + "_public_id"
 		if !strings.Contains(string(f.tag), want) {

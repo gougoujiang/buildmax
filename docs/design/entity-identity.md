@@ -1,6 +1,7 @@
 # Entity Identity And Relational Keys
 
-> **Audience:** contributors and database reviewers · **Status:** implemented
+> **Audience:** contributors and database reviewers · **Status:** implemented,
+> amended — §17 moves storage from `BINARY(12)` to the canonical text form
 
 How a BuildMax server entity is named. Two identifiers, one role each: a
 `bigint unsigned` primary key that is the relational key inside MySQL, and a
@@ -73,7 +74,7 @@ not silently reversed; §8 decides it explicitly.
 | # | Decision |
 |---|---|
 | D1 | `id` is `bigint unsigned auto_increment` and is the relational key. `public_id` is the external handle, present only where one is needed. |
-| D2 | A public ID is 96 bits of crypto-random data, stored as `BINARY(12)` and rendered as 20 lowercase base32 characters. |
+| D2 | A public ID is 96 bits of crypto-random data, rendered as 20 lowercase base32 characters. Amended by §17: the canonical text is also the stored form, `char(20)` ascii_bin, not the raw bytes. |
 | D3 | Strict single-type relationships become `uint64` columns. No `FOREIGN KEY` constraints in this change. |
 | D4 | `internal/core/model` carries public identity only. A struct's own handle is `ID string`, serialized as `id`. |
 | D5 | 18 tables carry a `public_id`, 8 carry none, 2 keep a natural key. |
@@ -86,7 +87,9 @@ not silently reversed; §8 decides it explicitly.
 
 ### 4.1 The Value
 
-96 bits from `crypto/rand`, stored as the raw 12 bytes in `BINARY(12)`.
+96 bits from `crypto/rand`, stored as its canonical text form in
+`char(20) CHARACTER SET ascii COLLATE ascii_bin` (§17; the original decision
+stored the raw 12 bytes in `BINARY(12)`).
 
 At one billion values in one table the birthday-bound collision probability is
 about `6.3e-12`. The unique index is still the final guard: a create that hits
@@ -132,23 +135,25 @@ content overwrite rather than a database error.
 
 ### 4.3 The Codec
 
-`internal/util/id.go` is three functions and nothing else:
+`internal/util/id.go` is two functions and nothing else (§17 folded the
+original parse/format byte pair into one, since no caller holds bytes any
+more):
 
 ```go
-func NewPublicID() (string, error)          // 20-char canonical text
-func ParsePublicID(s string) ([]byte, bool) // canonical text -> 12 bytes
-func FormatPublicID(b []byte) string        // 12 bytes -> canonical text
+func NewPublicID() (string, error)              // 20-char canonical text
+func CanonicalPublicID(s string) (string, bool) // any-case text -> canonical text
 ```
 
 `NewPublicID` returns an error rather than panicking: `crypto/rand` failure
 must surface as a failed create, not as a process abort inside a request.
 
-`ParsePublicID` accepts input case-insensitively and canonicalizes to
+`CanonicalPublicID` accepts input case-insensitively and canonicalizes to
 lowercase, so an ID retyped from a title-cased document still resolves. It
 rejects everything else, and guarantees exactly one canonical text form per
-value by re-encoding the decoded bytes and requiring the result to match. That
-check is what closes base32's trailing-bit ambiguity: 20 characters carry 100
-bits, and the final four must be zero.
+value by decoding, re-encoding, and requiring the result to match. That check
+is what closes base32's trailing-bit ambiguity: 20 characters carry 100 bits,
+and the final four must be zero — and, with the text stored, what keeps one
+value from occupying sixteen distinct unique-index entries.
 
 One visible consequence of that check: a canonical ID always ends in `a` or
 `q`, because those are the only two characters whose low four bits are zero. An
@@ -178,7 +183,7 @@ rather than in `internal/util`.
 ```sql
 CREATE TABLE task (
     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    public_id       BINARY(12)      NOT NULL,
+    public_id       CHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     conversation_id BIGINT UNSIGNED NOT NULL,
     team_id         BIGINT UNSIGNED NOT NULL,
     issue_id        BIGINT UNSIGNED NULL,
@@ -194,7 +199,7 @@ CREATE TABLE task (
 
 CREATE TABLE task_run (
     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    public_id   BINARY(12)      NOT NULL,
+    public_id   CHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     task_id     BIGINT UNSIGNED NOT NULL,
     retry_of_id BIGINT UNSIGNED NULL,
     PRIMARY KEY (id),
@@ -213,10 +218,11 @@ The names carry the roles:
 | `<concept>_public_id` | A deliberately stored external or polymorphic handle. Rare, and named explicitly |
 
 Two mechanical rules go with it. Persisted numeric fields are `uint64`, never
-architecture-dependent `uint`. And the Go field for a public ID is `[]byte`
-with `gorm:"type:binary(12)"` — MySQL right-pads a short `BINARY(12)` write
-with zero bytes without complaint, so the codec's exact-length guarantee is
-what keeps a truncated value from becoming a valid-looking different row.
+architecture-dependent `uint`. And the Go field for a public ID is `string`
+with `gorm:"type:char(20) CHARACTER SET ascii COLLATE ascii_bin"` (§17) — the
+store writes only what the codec generated or canonicalized, so exactly one
+lowercase spelling of each value ever reaches the column, and `ascii_bin`
+keeps the comparison memcmp rather than a collation decision.
 
 Numeric conversion is also the moment to make composite indexes right. A
 team-scoped list ordered by `created_at` wants `(team_id, created_at)`, not the
@@ -774,3 +780,48 @@ identifier format a database was created with. A `schema_migration` row
 asserting the identity baseline would let a future binary refuse a
 pre-cutover database instead of failing at the first query. It is cheap, and
 it is deliberately out of scope here.
+
+## 17. Amendment: The Text Form Is The Stored Form (2026-08)
+
+D2 originally stored the raw 12 bytes in `BINARY(12)` and produced the text
+form only in Go. The storage clause is reversed: `public_id` is
+`char(20) CHARACTER SET ascii COLLATE ascii_bin`, holding exactly the 20
+lowercase characters every other boundary already shows. Sections that narrate
+the original conversion (§5's original DDL, §6.1, §13, §14) remain the record
+of that work as executed; where they say `BINARY(12)`, this amendment applies.
+
+The reversal is an operational argument, and it is the same argument that
+picked base32 over base64url in §4.2: the format follows the ID to every place
+it is read. The original decision weighed storage width and never priced
+readability. In practice the database is one of those places people read IDs —
+`SELECT` in a MySQL client during every debugging and support session — and
+`BINARY(12)` rendered every handle as an unreadable blob there. The
+alternatives tried first — hand-installed stored functions doing base32 in
+SQL, `HEX()` wrappers per query — put a translation step in front of every
+direct query forever. Storing the text removes the translation boundary's
+storage half entirely; `lookupKey` still canonicalizes input, but nothing
+converts on the way out.
+
+What the original decision bought, and what of it is kept:
+
+- **Width.** 8 bytes per value, on the column and its unique index. At this
+  project's row counts that is noise; it was never measured as a constraint.
+- **memcmp identity.** Kept, by `ascii_bin`: comparison is byte equality, no
+  case folding, no collation expansion. The §1 objection to string identity
+  was aimed at `utf8mb4` general collations, not at a fixed-width ascii_bin
+  column carrying a closed alphabet.
+- **One spelling per value.** Kept, and it now matters more: the codec's
+  canonical form (lowercase, zero slack bits) is enforced before every write
+  and lookup, so the unique index sees exactly one spelling — where a lax
+  store would let sixteen spellings of one value coexist as different rows.
+
+The codec consequence is in §4.3: with no caller holding bytes,
+`ParsePublicID`/`FormatPublicID` collapsed into `CanonicalPublicID`. The
+architecture test that enforced `binary(12)` now enforces
+`char(20) CHARACTER SET ascii COLLATE ascii_bin` and a `string` field.
+
+Existing databases are not migrated, in line with D8 and §16's reset answer:
+there is still no formal deployment, and the local environments are
+regenerated (`./make kind down && ./make kind up`, or dropping the Compose
+volume). A pre-amendment database fails at the first `public_id` read;
+recreate it.

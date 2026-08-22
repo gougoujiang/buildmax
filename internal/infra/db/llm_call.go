@@ -15,7 +15,7 @@ import (
 // metadata only — no prompts, tool payloads, or generated content.
 type llmCallRow struct {
 	ID           uint    `gorm:"primaryKey;autoIncrement"`
-	PublicID     []byte  `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_llm_call_public_id;not null"`
+	PublicID     string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_llm_call_public_id;not null"`
 	ClientCallID *string `gorm:"type:varchar(128);uniqueIndex:idx_llm_call_client,priority:2"`
 
 	// The composite unique index leads with team_id, so team-scoped lookups do
@@ -56,13 +56,14 @@ type llmCallRow struct {
 
 func (llmCallRow) TableName() string { return "llm_call" }
 
-// llmCallReadRow is the row plus the handles its references resolve to.
+// llmCallReadRow is the row plus the handles its references resolve to. A
+// pointer field is one a LEFT JOIN may leave NULL.
 type llmCallReadRow struct {
 	Row             llmCallRow `gorm:"embedded"`
-	TeamPublicID    []byte     `gorm:"column:team_public_id"`
-	UserPublicID    []byte     `gorm:"column:user_public_id"`
-	TaskPublicID    []byte     `gorm:"column:task_public_id"`
-	TaskRunPublicID []byte     `gorm:"column:task_run_public_id"`
+	TeamPublicID    string     `gorm:"column:team_public_id"`
+	UserPublicID    *string    `gorm:"column:user_public_id"`
+	TaskPublicID    *string    `gorm:"column:task_public_id"`
+	TaskRunPublicID *string    `gorm:"column:task_run_public_id"`
 }
 
 func (s *Store) llmCallSelect(ctx context.Context) *gorm.DB {
@@ -80,9 +81,9 @@ func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 		return nil
 	}
 	out := &model.LLMCall{
-		ID:                util.FormatPublicID(row.Row.PublicID),
+		ID:                row.Row.PublicID,
 		ClientCallID:      row.Row.ClientCallID,
-		TeamID:            util.FormatPublicID(row.TeamPublicID),
+		TeamID:            row.TeamPublicID,
 		Surface:           row.Row.Surface,
 		SessionID:         row.Row.SessionID,
 		Alias:             row.Row.Alias,
@@ -105,15 +106,15 @@ func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 		UsageSource:       row.Row.UsageSource,
 	}
 	if row.Row.UserID != nil {
-		user := util.FormatPublicID(row.UserPublicID)
+		user := derefPublicID(row.UserPublicID)
 		out.UserID = &user
 	}
 	if row.Row.TaskID != nil {
-		task := util.FormatPublicID(row.TaskPublicID)
+		task := derefPublicID(row.TaskPublicID)
 		out.TaskID = &task
 	}
 	if row.Row.TaskRunID != nil {
-		run := util.FormatPublicID(row.TaskRunPublicID)
+		run := derefPublicID(row.TaskRunPublicID)
 		out.TaskRunID = &run
 	}
 	return out
@@ -202,7 +203,7 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 		return nil, err
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_llm_call_public_id",
-		func(b []byte) { row.PublicID = b }, row); err != nil {
+		func(id string) { row.PublicID = id }, row); err != nil {
 		if isDuplicateKey(err) {
 			return nil, model.ErrDuplicateLLMCall
 		}
@@ -210,10 +211,10 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 	}
 	return toLLMCall(&llmCallReadRow{
 		Row:             *row,
-		TeamPublicID:    mustParsePublicID(stored.TeamID),
-		UserPublicID:    optionalRaw(stored.UserID),
-		TaskPublicID:    optionalRaw(stored.TaskID),
-		TaskRunPublicID: optionalRaw(stored.TaskRunID),
+		TeamPublicID:    canonicalPublicID(stored.TeamID),
+		UserPublicID:    optionalCanonicalPublicID(stored.UserID),
+		TaskPublicID:    optionalCanonicalPublicID(stored.TaskID),
+		TaskRunPublicID: optionalCanonicalPublicID(stored.TaskRunID),
 	}), nil
 }
 
@@ -245,23 +246,23 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome m
 		updates["cache_write_tokens"] = usage.CacheWriteTokens
 		updates["usage_source"] = source
 	}
-	raw, ok := util.ParsePublicID(llmCallID)
+	id, ok := util.CanonicalPublicID(llmCallID)
 	if !ok {
 		return model.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&llmCallRow{}).
-		Where("public_id = ?", raw).
+		Where("public_id = ?", id).
 		Updates(updates).Error
 }
 
 // GetLLMCall returns one call by ID, or (nil, nil) when not found.
 func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*model.LLMCall, error) {
-	raw, ok := util.ParsePublicID(llmCallID)
+	id, ok := util.CanonicalPublicID(llmCallID)
 	if !ok {
 		return nil, nil
 	}
 	var row llmCallReadRow
-	err := s.llmCallSelect(ctx).Where("llm_call.public_id = ?", raw).Take(&row).Error
+	err := s.llmCallSelect(ctx).Where("llm_call.public_id = ?", id).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}

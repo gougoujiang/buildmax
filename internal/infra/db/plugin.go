@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // pluginRow is one catalog entry. It has no team column: the catalog belongs to
@@ -63,16 +62,17 @@ func (pluginReleaseRow) TableName() string { return "plugin_release" }
 
 // pluginReadRow and pluginReleaseReadRow carry the handles of the users a
 // catalog record names. Neither record has a handle of its own: an entry is
-// addressed by name and a release by name plus version.
+// addressed by name and a release by name plus version. A pointer field is one
+// a LEFT JOIN may leave NULL.
 type pluginReadRow struct {
 	Row               pluginRow `gorm:"embedded"`
-	CreatedByPublicID []byte    `gorm:"column:created_by_public_id"`
+	CreatedByPublicID string    `gorm:"column:created_by_public_id"`
 }
 
 type pluginReleaseReadRow struct {
 	Row                 pluginReleaseRow `gorm:"embedded"`
-	PublishedByPublicID []byte           `gorm:"column:published_by_public_id"`
-	YankedByPublicID    []byte           `gorm:"column:yanked_by_public_id"`
+	PublishedByPublicID string           `gorm:"column:published_by_public_id"`
+	YankedByPublicID    *string          `gorm:"column:yanked_by_public_id"`
 }
 
 func (s *Store) pluginSelect(ctx context.Context) *gorm.DB {
@@ -101,7 +101,7 @@ func toPlugin(row *pluginReadRow) *model.Plugin {
 		DisplayName: row.Row.DisplayName,
 		Description: row.Row.Description,
 		ArchivedAt:  row.Row.ArchivedAt,
-		CreatedBy:   util.FormatPublicID(row.CreatedByPublicID),
+		CreatedBy:   row.CreatedByPublicID,
 		CreatedAt:   row.Row.CreatedAt,
 		UpdatedAt:   row.Row.UpdatedAt,
 	}
@@ -118,10 +118,10 @@ func toPluginRelease(row *pluginReleaseReadRow) *model.PluginRelease {
 		Digest:             row.Row.Digest,
 		ObjectKey:          row.Row.ObjectKey,
 		SizeBytes:          row.Row.SizeBytes,
-		PublishedBy:        util.FormatPublicID(row.PublishedByPublicID),
+		PublishedBy:        row.PublishedByPublicID,
 		PublishedAt:        row.Row.PublishedAt,
 		YankedAt:           row.Row.YankedAt,
-		YankedBy:           util.FormatPublicID(row.YankedByPublicID),
+		YankedBy:           derefPublicID(row.YankedByPublicID),
 		YankedReason:       row.Row.YankedReason,
 	}
 	// A document that will not decode costs the report, not the release: the
@@ -153,7 +153,7 @@ func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*
 		}
 		return nil, err
 	}
-	return toPlugin(&pluginReadRow{Row: row, CreatedByPublicID: mustParsePublicID(in.CreatedBy)}), nil
+	return toPlugin(&pluginReadRow{Row: row, CreatedByPublicID: canonicalPublicID(in.CreatedBy)}), nil
 }
 
 // GetPlugin returns one entry by name, or (nil, nil) when there is none.
@@ -269,7 +269,7 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 		return nil, err
 	}
 	return toPluginRelease(&pluginReleaseReadRow{
-		Row: row, PublishedByPublicID: mustParsePublicID(in.PublishedBy),
+		Row: row, PublishedByPublicID: canonicalPublicID(in.PublishedBy),
 	}), nil
 }
 

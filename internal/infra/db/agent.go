@@ -12,7 +12,7 @@ import (
 
 type agentRow struct {
 	ID           uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID     []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_agent_public_id;not null"`
+	PublicID     string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_agent_public_id;not null"`
 	UserID       uint64 `gorm:"column:user_id;not null;index"`
 	TeamID       uint64 `gorm:"column:team_id;index"`
 	Name         string `gorm:"type:varchar(255);not null"`
@@ -25,11 +25,12 @@ type agentRow struct {
 
 func (agentRow) TableName() string { return "agent" }
 
-// agentReadRow is the row plus the handles its references resolve to.
+// agentReadRow is the row plus the handles its references resolve to. A
+// pointer field is one a LEFT JOIN may leave NULL.
 type agentReadRow struct {
 	Row          agentRow `gorm:"embedded"`
-	UserPublicID []byte   `gorm:"column:user_public_id"`
-	TeamPublicID []byte   `gorm:"column:team_public_id"`
+	UserPublicID string   `gorm:"column:user_public_id"`
+	TeamPublicID *string  `gorm:"column:team_public_id"`
 }
 
 func (s *Store) agentSelect(ctx context.Context) *gorm.DB {
@@ -63,8 +64,8 @@ func (agentRevisionRow) TableName() string { return "agent_revision" }
 // The revision itself has none: it is addressed by its agent plus its number.
 type agentRevisionReadRow struct {
 	Row               agentRevisionRow `gorm:"embedded"`
-	AgentPublicID     []byte           `gorm:"column:agent_public_id"`
-	CreatedByPublicID []byte           `gorm:"column:created_by_public_id"`
+	AgentPublicID     string           `gorm:"column:agent_public_id"`
+	CreatedByPublicID string           `gorm:"column:created_by_public_id"`
 }
 
 func (s *Store) agentRevisionSelect(ctx context.Context) *gorm.DB {
@@ -79,9 +80,9 @@ func toAgent(row *agentReadRow) *model.Agent {
 		return nil
 	}
 	return &model.Agent{
-		ID:           util.FormatPublicID(row.Row.PublicID),
-		UserID:       util.FormatPublicID(row.UserPublicID),
-		TeamID:       util.FormatPublicID(row.TeamPublicID),
+		ID:           row.Row.PublicID,
+		UserID:       row.UserPublicID,
+		TeamID:       derefPublicID(row.TeamPublicID),
 		Name:         row.Row.Name,
 		Description:  row.Row.Description,
 		Instructions: row.Row.Instructions,
@@ -96,12 +97,12 @@ func toAgentRevision(row *agentRevisionReadRow) *model.AgentRevision {
 		return nil
 	}
 	return &model.AgentRevision{
-		AgentID:      util.FormatPublicID(row.AgentPublicID),
+		AgentID:      row.AgentPublicID,
 		Revision:     row.Row.Revision,
 		Name:         row.Row.Name,
 		Description:  row.Row.Description,
 		Instructions: row.Row.Instructions,
-		CreatedBy:    util.FormatPublicID(row.CreatedByPublicID),
+		CreatedBy:    row.CreatedByPublicID,
 		CreatedAt:    row.Row.CreatedAt,
 	}
 }
@@ -145,12 +146,12 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *m
 // GetAgent returns the live agent by agent_id, or (nil, nil) when there is none.
 // A deleted agent reads as not found here; see GetAgentIncludingDeleted.
 func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, error) {
-	raw, ok := util.ParsePublicID(agentID)
+	id, ok := util.CanonicalPublicID(agentID)
 	if !ok {
 		return nil, nil
 	}
 	var a agentReadRow
-	err := s.agentSelect(ctx).Where("agent.public_id = ? AND agent.deleted_at IS NULL", raw).Take(&a).Error
+	err := s.agentSelect(ctx).Where("agent.public_id = ? AND agent.deleted_at IS NULL", id).Take(&a).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -163,12 +164,12 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, err
 // GetAgentIncludingDeleted returns the agent whether or not it was deleted. It
 // answers "what did this record refer to", not "what may I use".
 func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*model.Agent, error) {
-	raw, ok := util.ParsePublicID(agentID)
+	id, ok := util.CanonicalPublicID(agentID)
 	if !ok {
 		return nil, nil
 	}
 	var a agentReadRow
-	err := s.agentSelect(ctx).Where("agent.public_id = ?", raw).Take(&a).Error
+	err := s.agentSelect(ctx).Where("agent.public_id = ?", id).Take(&a).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -180,24 +181,24 @@ func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*
 
 // ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Agent, error) {
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
 	}
 	var list []agentReadRow
-	err := s.agentSelect(ctx).Where("u.public_id = ? AND agent.deleted_at IS NULL", raw).
+	err := s.agentSelect(ctx).Where("u.public_id = ? AND agent.deleted_at IS NULL", id).
 		Order("agent.created_at ASC").Find(&list).Error
 	return toAgents(list), err
 }
 
 // ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Agent, error) {
-	raw, ok := util.ParsePublicID(teamID)
+	id, ok := util.CanonicalPublicID(teamID)
 	if !ok {
 		return nil, nil
 	}
 	var list []agentReadRow
-	err := s.agentSelect(ctx).Where("t.public_id = ? AND agent.deleted_at IS NULL", raw).
+	err := s.agentSelect(ctx).Where("t.public_id = ? AND agent.deleted_at IS NULL", id).
 		Order("agent.created_at ASC").Find(&list).Error
 	return toAgents(list), err
 }
@@ -243,7 +244,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 			row.TeamID = teamKey
 		}
 		if err := createWithPublicID(ctx, tx, "uq_agent_public_id",
-			func(b []byte) { row.PublicID = b }, row); err != nil {
+			func(id string) { row.PublicID = id }, row); err != nil {
 			return err
 		}
 		return appendAgentRevision(ctx, tx, row.ID, a, userID)
@@ -251,7 +252,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 	if err != nil {
 		return nil, err
 	}
-	a.ID = util.FormatPublicID(row.PublicID)
+	a.ID = row.PublicID
 	return a, nil
 }
 

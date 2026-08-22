@@ -12,7 +12,7 @@ import (
 
 type userRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_user_public_id;not null"`
+	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_user_public_id;not null"`
 	Email    string `gorm:"type:varchar(255);uniqueIndex;not null"`
 	Name     string `gorm:"type:varchar(255)"`
 	// PasswordHash is NULL for an account that has never set one: created by an
@@ -38,7 +38,7 @@ func toUser(row *userRow) *model.User {
 		return nil
 	}
 	return &model.User{
-		ID:                util.FormatPublicID(row.PublicID),
+		ID:                row.PublicID,
 		Email:             row.Email,
 		Name:              row.Name,
 		QuotaTier:         row.QuotaTier,
@@ -98,13 +98,13 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) 
 // Enabling reverses the state and nothing else: sessions revoked by the disable
 // stay revoked, and runs it stopped stay stopped. Undo is not a goal.
 func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *int64) error {
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return model.ErrUserNotFound
 	}
 	res := s.db.WithContext(ctx).
 		Model(&userRow{}).
-		Where("public_id = ?", raw).
+		Where("public_id = ?", id).
 		Update("disabled_at", disabledAt)
 	if res.Error != nil {
 		return res.Error
@@ -139,12 +139,12 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, err
 
 // GetUser returns the user by user_id, or (nil, nil) when not found.
 func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error) {
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
 	}
 	var u userRow
-	err := s.db.WithContext(ctx).Where("public_id = ?", raw).First(&u).Error
+	err := s.db.WithContext(ctx).Where("public_id = ?", id).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -156,13 +156,13 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error)
 
 // UpdateLoginMeta records the last login timestamp and platform for the user.
 func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error {
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return model.ErrUserNotFound
 	}
 	return s.db.WithContext(ctx).
 		Model(&userRow{}).
-		Where("public_id = ?", raw).
+		Where("public_id = ?", id).
 		Updates(map[string]interface{}{
 			"last_login_at":       loginAt,
 			"last_login_platform": platform,
@@ -201,13 +201,13 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	// can be handed.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := createWithPublicID(ctx, tx, "uq_user_public_id",
-			func(b []byte) { userDB.PublicID = b }, userDB); err != nil {
+			func(id string) { userDB.PublicID = id }, userDB); err != nil {
 			return err
 		}
 		personalTeamDB.PersonalForUserID = &userDB.ID
 		personalTeamDB.CreatedBy = userDB.ID
 		if err := createWithPublicID(ctx, tx, "uq_team_public_id",
-			func(b []byte) { personalTeamDB.PublicID = b }, personalTeamDB); err != nil {
+			func(id string) { personalTeamDB.PublicID = id }, personalTeamDB); err != nil {
 			return err
 		}
 		return tx.Create(&teamMemberRow{
@@ -219,7 +219,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	}); err != nil {
 		return nil, err
 	}
-	u.ID = util.FormatPublicID(userDB.PublicID)
+	u.ID = userDB.PublicID
 	return &u, nil
 }
 
@@ -233,12 +233,12 @@ func (s *Store) PasswordHash(ctx context.Context, userID string) (string, error)
 	if userID == "" {
 		return "", nil
 	}
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return "", nil
 	}
 	var row userRow
-	err := s.db.WithContext(ctx).Select("password_hash").Where("public_id = ?", raw).First(&row).Error
+	err := s.db.WithContext(ctx).Select("password_hash").Where("public_id = ?", id).First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil
@@ -259,12 +259,12 @@ func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, set
 	if encodedHash == "" {
 		return errors.New("set password: hash required")
 	}
-	raw, ok := util.ParsePublicID(userID)
+	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return model.ErrUserNotFound
 	}
 	res := s.db.WithContext(ctx).Model(&userRow{}).
-		Where("public_id = ?", raw).
+		Where("public_id = ?", id).
 		Updates(map[string]any{"password_hash": encodedHash, "password_set_at": setAt})
 	if res.Error != nil {
 		return res.Error

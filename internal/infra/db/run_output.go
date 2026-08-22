@@ -13,7 +13,7 @@ const chatInputSnippetMaxLen = 200
 // ListRunOutputsByConversation returns run outputs (artifacts) in the conversation, optionally filtered by task_id.
 // Order: run created_at DESC. ArtifactID in the result is task_run_id for API compatibility.
 func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error) {
-	convRaw, ok := util.ParsePublicID(conversationID)
+	convID, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil
 	}
@@ -28,22 +28,22 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 		JOIN conversation v ON c.conversation_id = v.id
 		JOIN ` + "`user`" + ` u ON u.id = v.user_id
 		WHERE v.public_id = ? AND r.status = 'SUCCEEDED'`
-	args := []interface{}{chatInputSnippetMaxLen, convRaw}
+	args := []interface{}{chatInputSnippetMaxLen, convID}
 	if taskID != nil {
-		taskRaw, ok := util.ParsePublicID(*taskID)
+		tid, ok := util.CanonicalPublicID(*taskID)
 		if !ok {
 			return nil, nil
 		}
 		q += ` AND c.public_id = ?`
-		args = append(args, taskRaw)
+		args = append(args, tid)
 	}
 	q += ` GROUP BY r.public_id, c.public_id, v.public_id, u.public_id, r.created_at, r.input ORDER BY r.created_at DESC`
 	var rows []struct {
-		ArtifactID       []byte
-		TaskID           []byte
-		TaskRunID        []byte
-		ConversationID   []byte
-		UserID           []byte
+		ArtifactID       string
+		TaskID           string
+		TaskRunID        string
+		ConversationID   string
+		UserID           string
 		CreatedAt        int64
 		TaskInputSnippet string
 	}
@@ -53,11 +53,11 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 	out := make([]model.ArtifactWithTask, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, model.ArtifactWithTask{
-			ArtifactID:       util.FormatPublicID(r.ArtifactID),
-			TaskID:           util.FormatPublicID(r.TaskID),
-			TaskRunID:        util.FormatPublicID(r.TaskRunID),
-			ConversationID:   util.FormatPublicID(r.ConversationID),
-			UserID:           util.FormatPublicID(r.UserID),
+			ArtifactID:       r.ArtifactID,
+			TaskID:           r.TaskID,
+			TaskRunID:        r.TaskRunID,
+			ConversationID:   r.ConversationID,
+			UserID:           r.UserID,
 			CreatedAt:        r.CreatedAt,
 			TaskInputSnippet: r.TaskInputSnippet,
 		})
