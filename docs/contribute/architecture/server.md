@@ -130,15 +130,18 @@ quota applies to it identically.
 ## Notes
 
 - User-facing Portal APIs are team-scoped wherever work ownership matters.
-- Worker APIs use worker-token auth rather than user JWT auth. Managed inference
-  is the exception: `/llm/completions` takes the run token the scheduler minted
-  for that run, so the call carries a user, a team, and a run rather than only
-  "a worker" — see [design/worker-run-token.md](../../design/worker-run-token.md).
+- Worker APIs use the run token the scheduler minted for that task run rather
+  than user JWT auth. The token carries the user, team, task, and run, and every
+  route derives its resource scope from those claims. The old shared worker
+  token remains only as a deprecated upgrade fallback — see
+  [design/worker-run-token.md](../../design/worker-run-token.md).
 - Signing in returns two credentials. The access token is a signed JWT the
   server does not store; the refresh token is a `user_refresh_token` row, which
   is what makes a session revocable. `auth.go` owns both, and every rotation
   stays inside the session named by the access token's `sid` claim.
 - Team membership checks live in handler helpers such as `team_authz.go`.
-- `POST /api/login` is disabled unless a dev OTP is configured — see
+- `POST /api/login` accepts a password or an operator-issued, single-use login
+  code. The latter is the account-claim and recovery path because BuildMax has
+  no mail channel — see
   [deploy/authentication.md](../../deploy/authentication.md).
 - See also: [Store](store.md), [Portal](portal.md), [Boundaries](packages.md).

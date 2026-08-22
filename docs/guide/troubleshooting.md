@@ -32,10 +32,11 @@ down.
 
 ## `POST /api/login` returns 503
 
-Expected, and safe. There is no OTP delivery channel, so login is disabled
-unless you set a development code. See
-[deploy/authentication.md](../deploy/authentication.md) — and read what that
-code does before enabling it.
+The Server could not reach a user, password, or login-code store, or it has no
+JWT secret. Check the startup log and `server.yaml`, then follow
+[deploy/authentication.md](../deploy/authentication.md) to create an account and
+issue its first login code. BuildMax has no mail delivery channel: an operator
+passes that single-use code to the user out of band.
 
 ## Tasks stay `PENDING` and never run
 
@@ -45,7 +46,9 @@ The scheduler claimed the run but could not start a worker. Check, in order:
    `worker.binary` in `server.yaml`
 2. `worker.server_url` is reachable **from the worker**, which is not always the
    same address the server binds
-3. `worker.token` is set — without it the worker cannot call `/api/worker/*`
+3. the scheduler can mint a run token — every dispatched worker uses a
+   run-scoped credential for `/api/worker/*`; `worker.token` is only the
+   deprecated upgrade fallback
 4. `workspaces_dir` exists and is writable by both processes
 5. The `storage:` block is reachable from the worker, which talks to blob
    storage directly rather than through the server
