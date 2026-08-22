@@ -1087,6 +1087,9 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if err == nil {
 		taskTool, err := tools.NewTask(runner, agentTypes)
 		if err == nil {
+			if a.jobs != nil {
+				taskTool = taskTool.WithJobs(a.jobs, a.workspaceRoot)
+			}
 			registry.AppendTools(taskTool)
 		}
 	}
@@ -1104,6 +1107,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 // must never become a reason for a subagent to fail.
 func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts tools.SubAgentRunOpts) tools.SubAgentTrace {
 	parent := traceRunFromContext(ctx)
+	if parent.runID == "" {
+		// A background subagent runs on a manager-owned context that carries
+		// only the explicit core-level provenance, not this package's key.
+		parent.runID = agent.RunIDFromCtx(ctx)
+	}
 	if parent.runID == "" {
 		return nil
 	}

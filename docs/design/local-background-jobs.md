@@ -1,9 +1,10 @@
 # Local Background Jobs
 
-> **Audience:** contributors · **Status:** stage 1 implemented — background
-> `Bash` jobs with the shared manager, `Job` tools, TUI `/tasks`, and the
-> Desktop jobs drawer. Stages 2–4 (background subagents, monitors,
-> durability) open
+> **Audience:** contributors · **Status:** stages 1–2 implemented — background
+> `Bash` and `Task` jobs with the shared manager, `Job` tools, trace linkage
+> to the launching tool call, TUI `/tasks`, and the Desktop jobs drawer. A
+> background subagent's reply is queryable; its push delivery rides the stage
+> 3 inbox. Stages 3–4 (monitors, durability) open
 
 Related: [durable run trace](durable-run-trace.md); [queued
 messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
@@ -329,9 +330,10 @@ state machine, process trees, and shutdown — that later kinds reuse cheaply.
    (TUI `/tasks` or similar, Desktop project activity surface); completion
    visible and queryable, no wake-up.
 2. **Background subagents.** Detach `Task` behind the manager; plumb the
-   parent tool-call ID into trace linkage; deliver final replies through the
-   serialized session inbox; state the shared-workspace conflict in tool
-   output and UI.
+   parent tool-call ID into trace linkage; make the final reply queryable
+   through the job tools; state the shared-workspace conflict in tool output
+   and UI. Push delivery of the reply is stage 3 work: it needs the typed
+   inbox, and shipping it here would mean inventing that machinery twice.
 3. **Monitors and reactive delivery.** Monitor command kind, line framing,
    rate limits, coalescing, stop; typed event provenance in history and
    traces; serialized wake-up with per-monitor `notify`/`react`; TUI/Desktop
