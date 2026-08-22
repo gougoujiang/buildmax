@@ -74,7 +74,9 @@ func loadAgentPromptByName(name, workspace string) (string, error) {
 		}
 		workspace = wd
 	}
-	res, err := tools.ResolveAgentDefs(config.AgentDefSources(workspace, nil))
+	// --agent resolves before a runtime exists, and a plugin-contributed agent
+	// has to be reachable by name like any other.
+	res, err := tools.ResolveAgentDefs(config.AgentDefSources(workspace, config.DiscoverPlugins().Loadable()))
 	if err != nil {
 		return "", fmt.Errorf("load agent definitions: %w", err)
 	}
