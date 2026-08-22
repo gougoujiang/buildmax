@@ -11,8 +11,18 @@ import (
 type ConversationResult struct {
 	// Reply is an optional direct reply to the user (e.g. clarification or acknowledgment).
 	Reply string
-	// TaskRunIDs are task_run_ids of Tier 2 runs spawned for this turn (if any).
-	TaskRunIDs []string
+	// Runs are the Tier 2 runs this turn spawned, if any.
+	//
+	// Each carries both identifiers rather than the run's alone. A caller that
+	// reports one to a client needs to say which task it belongs to, and two
+	// parallel slices are how those drift apart.
+	Runs []SpawnedRun
+}
+
+// SpawnedRun is one Tier 2 run and the task it belongs to.
+type SpawnedRun struct {
+	TaskID string
+	RunID  string
 }
 
 const (

@@ -86,11 +86,15 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "process")
 		return
 	}
-	if len(result.TaskRunIDs) == 0 {
-		httputil.WriteInternalError(w, nil, "webhook handler", "handler", "no_task_id")
+	if len(result.Runs) == 0 {
+		httputil.WriteInternalError(w, nil, "webhook handler", "handler", "no_run")
 		return
 	}
-	httputil.WriteJSON(w, http.StatusAccepted, map[string]string{"task_id": result.TaskRunIDs[0]})
+	spawned := result.Runs[0]
+	httputil.WriteJSON(w, http.StatusAccepted, map[string]string{
+		"task_id":     spawned.TaskID,
+		"task_run_id": spawned.RunID,
+	})
 }
 
 func (h *Handler) extractWebhookKey(r *http.Request) string {

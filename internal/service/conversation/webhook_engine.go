@@ -58,7 +58,7 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 		if err != nil {
 			return ConversationResult{}, err
 		}
-		return ConversationResult{TaskRunIDs: []string{result.RunID}}, nil
+		return ConversationResult{Runs: []SpawnedRun{{TaskID: result.TaskID, RunID: result.RunID}}}, nil
 	}
 	run, err := e.TaskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:        userID,
@@ -70,5 +70,5 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 	if err != nil {
 		return ConversationResult{}, err
 	}
-	return ConversationResult{TaskRunIDs: []string{run.ID}}, nil
+	return ConversationResult{Runs: []SpawnedRun{{TaskID: taskID, RunID: run.ID}}}, nil
 }

@@ -237,11 +237,11 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_run", "task_id", taskID)
 		return true
 	}
-	if len(result.TaskRunIDs) == 0 {
+	if len(result.Runs) == 0 {
 		httputil.WriteJSONError(w, http.StatusInternalServerError, "no run created")
 		return true
 	}
-	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"task_run_id": result.TaskRunIDs[0], "task_id": taskID})
+	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"task_run_id": result.Runs[0].RunID, "task_id": taskID})
 	return true
 }
 

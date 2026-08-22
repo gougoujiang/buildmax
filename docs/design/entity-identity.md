@@ -330,16 +330,43 @@ nullable numeric reference can still record a deleted row's former key.
 
 ## 8. Database Foreign Keys
 
-Unchanged: no GORM relations and no `FOREIGN KEY` constraints. Numeric
-references are plain indexed columns and referential integrity stays an
-application responsibility.
+No GORM relations and no `FOREIGN KEY` constraints. Numeric references are
+plain indexed columns, and referential integrity stays an application
+responsibility.
 
-This is deliberate and separable. Adding `RESTRICT` to strict ownership edges
-would detect orphan writes early, but it requires a specified deletion order
-and makes every existing cleanup and test path conform to it. Numeric
-conversion must not be read as implying `CASCADE`: deleting a team or a task
-stays an explicit domain operation. A follow-up design may add constraints once
-deletion semantics have dedicated tests.
+This was left open pending a deletion-semantics review. That review is below,
+and it closes the question rather than deferring it again.
+
+**BuildMax does not delete parents.** The store has five delete methods, and
+none of them removes a row anything else references:
+
+| Method | What it removes |
+|---|---|
+| `RevokeKey` | A webhook credential its owner revoked |
+| `DeleteIssueComment` | One comment — the schema's only hard delete of user content |
+| `PruneAuditEvents` | Events past the retention window, by age, never by target |
+| `DeleteExpiredLoginCodes` | Codes that can no longer be redeemed |
+| `DeleteExpiredRefreshTokens` | Tokens past their expiry |
+
+`DeleteAgent` is a rename: it sets `deleted_at` so records that name the agent
+still resolve. Everything else that goes away goes away the same way —
+`deleted_at` on an artifact, `archived_at` on a plugin, `revoked_at` on a
+grant, `disabled_at` on an account. There is no path that deletes a user, a
+team, a task, a run, a conversation, an issue, or a workflow.
+
+So `RESTRICT` would guard a hazard that does not exist, and would charge for it
+immediately. Every fixture that creates a user would have to tear down seven
+tables in dependency order — `deleteTestUser` in the store tests already does
+exactly that, by hand, and it is the shape every cleanup path would take. That
+is a real cost against a benefit that is currently zero.
+
+The answer changes when a real deletion feature arrives — "delete this team and
+everything in it" is the obvious one. That feature has to specify an order
+whether or not the database enforces it, and the constraints are worth adding
+in the same change, where the order is being written down anyway. Adding them
+first would only mean writing the order twice.
+
+Numeric references must not be read as implying `CASCADE` in the meantime.
 
 ## 9. The Store Boundary
 
@@ -739,7 +766,7 @@ The retired proposal left four questions. All four are answered.
 |---|---|
 | Normalize creator fields, or keep them typed and opaque? | Split by whether a type column exists. `task_run.created_by`, `issue_comment.author_id`, `audit_event.actor_id`/`target_id`, `artifact.created_by_id`, and `issue.assignee_id` are polymorphic and stay opaque. The nine unconditional-user creator columns of §7 become numeric. Normalizing the actor model is separate work |
 | Is `llm_call.target_id` a live relationship or a snapshot? | A snapshot, and it stays a string. `Target.ID` in `internal/service/llmgateway/catalog.go` is a catalog identifier whose namespace may be owned by configuration rather than by the `llm_model` table — `store_catalog.go` is one catalog implementation, not the only one. A numeric `llm_model` reference would be wrong for a config-backed target |
-| Include `RESTRICT` constraints? | No. §8 keeps the no-constraint rule and defers constraints to a design with deletion-semantics tests |
+| Include `RESTRICT` constraints? | No, and §8 now says why rather than deferring: the store deletes no parent rows, so constraints would guard a hazard that does not exist and charge every fixture for it. The answer changes when a real deletion feature specifies an order |
 | Is an Alpha reset acceptable for every deployment? | Yes. There is no formal deployment, and the local reference environment is regenerated with `./make kind up`. No export/import bridge is written, and none should be added later on the strength of this design |
 
 One question this design adds: nothing currently records which durable
