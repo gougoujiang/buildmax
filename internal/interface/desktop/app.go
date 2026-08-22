@@ -126,6 +126,10 @@ type App struct {
 	// queues hold prompts submitted while that project's run was in flight, keyed
 	// by project ID. They are drained one prompt per turn by the run goroutine.
 	queues map[string]*agent.MessageQueue
+	// pendingJobEvents park requested background deliveries per
+	// project+session (see deliveryKey) until the frontend pulls them with
+	// DeliverNextJobEvent. Lazily initialized.
+	pendingJobEvents map[string][]agentapp.BackgroundEvent
 	// emit sends an event to the frontend. See uiEmitter.
 	emit uiEmitter
 }

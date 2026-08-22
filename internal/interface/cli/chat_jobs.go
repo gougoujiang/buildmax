@@ -9,8 +9,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/infra/proc"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -57,7 +55,7 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 		// Notify-only monitor lines never reach the transcript or the model;
 		// /tasks and JobOutput are their surface. React lines wake the owner.
 		if ev.Job.Deliver && m.ownsJob(ev.Job) {
-			m.pendingJobEvents = append(m.pendingJobEvents, monitorLineEvent(ev))
+			m.pendingJobEvents = append(m.pendingJobEvents, agentapp.MonitorLineEvent(ev))
 			if !m.busy {
 				cmds = append(cmds, drainQueueCmd())
 			}
@@ -70,7 +68,11 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 	}
 	cmds = append(cmds, tea.Println(formatJobEventForScrollback(ev.Job)+"\n"))
 	if ev.Job.Deliver && m.ownsJob(ev.Job) {
-		m.pendingJobEvents = append(m.pendingJobEvents, completionEvent(m, ev.Job))
+		var jobs *job.Manager
+		if m.opts.App != nil {
+			jobs = m.opts.App.Jobs()
+		}
+		m.pendingJobEvents = append(m.pendingJobEvents, agentapp.CompletionEvent(jobs, ev.Job))
 		if !m.busy {
 			cmds = append(cmds, drainQueueCmd())
 		}
@@ -81,58 +83,6 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 // ownsJob reports whether the job belongs to the session currently on screen.
 func (m *Model) ownsJob(j job.Job) bool {
 	return m.opts.Session != nil && j.Provenance.SessionID == m.opts.Session.ID
-}
-
-// monitorLineEvent shapes one react-monitor line for delivery.
-func monitorLineEvent(ev job.Event) agentapp.BackgroundEvent {
-	payload := ev.Line
-	if ev.DroppedLines > 0 {
-		payload += fmt.Sprintf("\n(%d earlier lines were dropped by rate limiting)", ev.DroppedLines)
-	}
-	return agentapp.BackgroundEvent{
-		Source:  llm.MessageSourceMonitorEvent,
-		JobID:   ev.Job.ID,
-		Title:   ev.Job.Command,
-		Payload: payload,
-	}
-}
-
-// completionEventTailBytes bounds how much recent output a command's
-// completion carries into the conversation; the full stream stays behind
-// JobOutput.
-const completionEventTailBytes = 4096
-
-// completionEvent shapes a finished job's requested delivery.
-func completionEvent(m *Model, j job.Job) agentapp.BackgroundEvent {
-	source := llm.MessageSourceCommandResult
-	if j.Kind == job.KindSubagent {
-		source = llm.MessageSourceSubagentResult
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "state: %s", j.State)
-	switch {
-	case j.State == job.StateCanceled && j.StopReason != "":
-		fmt.Fprintf(&b, " (%s)", j.StopReason)
-	case j.State == job.StateFailed && j.Err != "":
-		fmt.Fprintf(&b, " (%s)", j.Err)
-	}
-	b.WriteString("\n")
-	if m.opts.App != nil && m.opts.App.Jobs() != nil {
-		if chunk, err := m.opts.App.Jobs().Output(j.ID, proc.Stdout, 0, 0); err == nil && len(chunk.Data) > 0 {
-			data := chunk.Data
-			if j.Kind == job.KindCommand && len(data) > completionEventTailBytes {
-				data = data[len(data)-completionEventTailBytes:]
-				b.WriteString("(recent output tail; read the rest with JobOutput)\n")
-			}
-			b.Write(data)
-		}
-	}
-	return agentapp.BackgroundEvent{
-		Source:  source,
-		JobID:   j.ID,
-		Title:   j.Command,
-		Payload: b.String(),
-	}
 }
 
 // startBackgroundEventRun mirrors startRun for a background-event turn: same
