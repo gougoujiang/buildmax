@@ -18,6 +18,8 @@ buildmax <command> [flags]
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
 | `buildmax whoami` | Show current login status |
+| `buildmax models` | List configured models and prompt destinations; use `--team` to list server-side aliases |
+| `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
