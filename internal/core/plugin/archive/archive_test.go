@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -109,7 +110,21 @@ func TestPackExtractRoundTrip(t *testing.T) {
 			t.Errorf("%s = %q, want %q", name, got, want)
 		}
 	}
-	// The executable bit survives; nothing else about the mode does.
+	assertExtractedModes(t, dest)
+}
+
+// assertExtractedModes checks that the executable bit survives extraction and
+// nothing else about the mode does.
+//
+// Windows has no Unix permission bits — every extracted file reads back
+// 0666 — so there is nothing to assert there. What the archive carries is
+// still checked: TestPackNormalisesModes reads the header rather than the
+// filesystem, and runs everywhere.
+func assertExtractedModes(t *testing.T, dest string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not carry Unix permission bits")
+	}
 	info, err := os.Stat(filepath.Join(dest, "hooks", "format.sh"))
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +138,41 @@ func TestPackExtractRoundTrip(t *testing.T) {
 	}
 	if plain.Mode().Perm() != 0o644 {
 		t.Errorf("file mode = %v, want 0644", plain.Mode().Perm())
+	}
+}
+
+// Only the executable bit travels, so setuid, setgid, and sticky cannot arrive
+// in a package and a group-writable file cannot either. This reads the archive
+// rather than the filesystem, so it holds on every platform.
+func TestPackNormalisesModes(t *testing.T) {
+	data, _ := packTo(t, fstest.MapFS{
+		"plain.md":     file("x"),
+		"script.sh":    &fstest.MapFile{Data: []byte("#!/bin/sh\n"), Mode: 0o755},
+		"dangerous.sh": &fstest.MapFile{Data: []byte("#!/bin/sh\n"), Mode: 0o4777 | fs.ModeSetuid},
+	})
+	gz, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gz.Close()
+
+	modes := map[string]int64{}
+	tr := tar.NewReader(gz)
+	for {
+		header, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		modes[header.Name] = header.Mode
+	}
+	want := map[string]int64{"plain.md": 0o644, "script.sh": 0o755, "dangerous.sh": 0o755}
+	for name, mode := range want {
+		if modes[name] != mode {
+			t.Errorf("%s mode = %#o, want %#o", name, modes[name], mode)
+		}
 	}
 }
 

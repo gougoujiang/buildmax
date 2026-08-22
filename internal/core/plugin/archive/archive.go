@@ -251,7 +251,7 @@ func Extract(r io.Reader, destDir string, lim Limits) (Summary, error) {
 			return Summary{}, fmt.Errorf("read archive: %w", err)
 		}
 
-		rel, err := safeRelPath(header.Name, lim.MaxPathLength)
+		rel, target, err := destinationFor(root, header.Name, lim.MaxPathLength)
 		if err != nil {
 			return Summary{}, err
 		}
@@ -263,7 +263,6 @@ func Extract(r io.Reader, destDir string, lim Limits) (Summary, error) {
 		}
 		seen[rel] = true
 
-		target := filepath.Join(root, filepath.FromSlash(rel))
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(target, 0o755); err != nil {
@@ -320,29 +319,46 @@ func writeFile(r io.Reader, target string, mode fs.FileMode, lim Limits, written
 	return n, nil
 }
 
-// safeRelPath reduces an archive path to one that can only land inside the
-// destination, or refuses it.
-func safeRelPath(name string, maxLen int) (string, error) {
+// destinationFor reduces an archive path to the one place it may land, or
+// refuses it. It returns the cleaned archive-relative path and the absolute
+// destination.
+//
+// The last check is a prefix test on the joined path. Every rejection above it
+// already makes escape impossible, so the test is redundant as arithmetic — but
+// it is the form CodeQL's go/zipslip query recognises as a barrier, and without
+// it the write below is reported as using an unsanitized archive entry. The
+// same note is on archiveDestination in cmd/mk/release_archive.go, which
+// reached it the same way.
+func destinationFor(root, name string, maxLen int) (rel, dst string, err error) {
+	refuse := func(e error) (string, string, error) {
+		return "", "", fmt.Errorf("%w: %s", e, name)
+	}
 	if len(name) > maxLen {
-		return "", fmt.Errorf("%w: %s", ErrPathTooLong, name)
+		return refuse(ErrPathTooLong)
 	}
 	// A backslash is a separator on Windows and an ordinary character
 	// elsewhere, so the same archive would mean two things.
 	if strings.ContainsAny(name, `\`) || strings.ContainsRune(name, 0) {
-		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
+		return refuse(ErrTraversal)
 	}
 	if path.IsAbs(name) || filepath.IsAbs(name) || strings.HasPrefix(name, "/") {
-		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
+		return refuse(ErrTraversal)
 	}
 	// A Windows drive or UNC prefix is absolute there and relative here.
 	if len(name) > 1 && name[1] == ':' {
-		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
+		return refuse(ErrTraversal)
 	}
 	clean := path.Clean(strings.TrimSuffix(name, "/"))
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
+		return refuse(ErrTraversal)
 	}
-	return clean, nil
+
+	base := filepath.Clean(root)
+	dst = filepath.Join(base, filepath.FromSlash(clean))
+	if !strings.HasPrefix(dst, base+string(filepath.Separator)) {
+		return refuse(ErrTraversal)
+	}
+	return clean, dst, nil
 }
 
 // limitedReader fails once the stream passes its allowance, instead of

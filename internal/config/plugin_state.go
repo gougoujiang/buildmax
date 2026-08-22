@@ -194,10 +194,36 @@ func writePluginStates(pluginsDir string, states PluginStates) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("write plugin state: %w", err)
 	}
-	if err := renamePluginStateFile(tmpName, filepath.Join(pluginsDir, PluginStateFile)); err != nil {
+	if err := replacePluginState(tmpName, filepath.Join(pluginsDir, PluginStateFile)); err != nil {
 		return fmt.Errorf("replace plugin state: %w", err)
 	}
 	return nil
+}
+
+const (
+	// stateRenameAttempts bounds retries for a transient Windows sharing
+	// violation while replacing the state file. POSIX lets a reader survive a
+	// rename; Windows fails the rename while a reader has the file open.
+	// Readers here decode a small document and close it, so waiting longer
+	// would hide a permission problem rather than make the replace work.
+	//
+	// internal/interface/auth carries the same retry for auth.json, for the
+	// same collision: this file has the reader-and-writer-in-two-processes
+	// shape that UpdatePluginStates already documents.
+	stateRenameAttempts   = 10
+	stateRenameRetryDelay = 10 * time.Millisecond
+)
+
+func replacePluginState(tmpName, path string) error {
+	var err error
+	for attempt := range stateRenameAttempts {
+		err = renamePluginStateFile(tmpName, path)
+		if err == nil || !errors.Is(err, os.ErrPermission) || attempt == stateRenameAttempts-1 {
+			return err
+		}
+		time.Sleep(stateRenameRetryDelay)
+	}
+	return err
 }
 
 // Lock timing. These are variables so a test can exercise the contention and

@@ -51,17 +51,19 @@ func TestResolveMCPConfigExpandsEachPluginsOwnRoot(t *testing.T) {
 	}
 	// Each plugin must read the same text and get its own directory, which is
 	// only possible if expansion happens before the merge.
+	//
+	// The separator the author wrote is left alone: substitution replaces a
+	// name, it does not rewrite the path around it. On Windows that leaves
+	// "C:\...\alpha" + "/bin/a", which every path API there accepts, so the
+	// assertion is about the root and the suffix rather than one spelling of
+	// the join.
 	wantA := filepath.Join(root, "alpha")
 	wantB := filepath.Join(root, "beta")
-	if got := res.Config.MCPServers["a"].Command; got != filepath.Join(wantA, "bin/a") {
-		t.Errorf("a command = %q, want it under %q", got, wantA)
-	}
+	assertUnderRoot(t, "a command", res.Config.MCPServers["a"].Command, wantA, "/bin/a")
 	if got := res.Config.MCPServers["a"].Args[1]; got != wantA {
 		t.Errorf("a arg = %q, want %q", got, wantA)
 	}
-	if got := res.Config.MCPServers["b"].Command; got != filepath.Join(wantB, "bin/b") {
-		t.Errorf("b command = %q, want it under %q", got, wantB)
-	}
+	assertUnderRoot(t, "b command", res.Config.MCPServers["b"].Command, wantB, "/bin/b")
 }
 
 // BUILDMAX_PLUGIN_ROOT is supplied by BuildMax; a process environment variable
@@ -191,9 +193,9 @@ post_tool_use:
 		t.Fatalf("got %d entries, want one per plugin", len(entries))
 	}
 
-	wantAlpha := filepath.Join(root, "alpha", "hooks/format.sh")
-	if !strings.HasPrefix(entries[0].Command, wantAlpha) {
-		t.Errorf("alpha command = %q, want it to start with %q", entries[0].Command, wantAlpha)
+	alphaRoot := filepath.Join(root, "alpha")
+	if !strings.HasPrefix(entries[0].Command, alphaRoot+"/hooks/format.sh") {
+		t.Errorf("alpha command = %q, want it under %q", entries[0].Command, alphaRoot)
 	}
 	// Only the BuildMax-provided name is substituted; hook configuration has
 	// never had general environment expansion.
@@ -202,11 +204,11 @@ post_tool_use:
 	}
 	// Hook input is free-form JSON, so a path can be nested anywhere in it.
 	wantBeta := filepath.Join(root, "beta")
-	if got := entries[1].Input["script"]; got != filepath.Join(wantBeta, "hooks/audit.sh") {
+	if got := entries[1].Input["script"]; got != wantBeta+"/hooks/audit.sh" {
 		t.Errorf("beta input script = %v", got)
 	}
 	nested, ok := entries[1].Input["nested"].([]any)
-	if !ok || len(nested) != 1 || nested[0] != filepath.Join(wantBeta, "a") {
+	if !ok || len(nested) != 1 || nested[0] != wantBeta+"/a" {
 		t.Errorf("beta nested input = %v", entries[1].Input["nested"])
 	}
 }
@@ -246,5 +248,18 @@ func TestMergeHooksLayerOrder(t *testing.T) {
 	}
 	if MergeHooks().Entries(corehook.EventPostToolUse) != nil {
 		t.Error("merging nothing should produce nothing")
+	}
+}
+
+// assertUnderRoot checks that an expanded value is the plugin's own root
+// followed by what the author wrote after the variable.
+func assertUnderRoot(t *testing.T, label, got, root, suffix string) {
+	t.Helper()
+	if !strings.HasPrefix(got, root) {
+		t.Errorf("%s = %q, want it under %q", label, got, root)
+		return
+	}
+	if got != root+suffix {
+		t.Errorf("%s = %q, want %q", label, got, root+suffix)
 	}
 }
