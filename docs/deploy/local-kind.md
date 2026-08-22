@@ -53,7 +53,7 @@ old one.
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind images  # rebuild and load local images without applying manifests
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
-./make kind db      # forward the in-cluster MySQL to 127.0.0.1:3306
+./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
 ./make kind down    # delete the selected cluster
@@ -67,8 +67,8 @@ provider credential, and its run token reaches the pod through the Job spec.
 The cluster stays in managed mode afterwards — rerun `./make kind up` to return
 it to direct.
 
-`info` prints the cluster, the Portal URL and its health, how to reach MySQL and
-MinIO, and issues a single-use login code — for `deployment-smoke@buildmax.local`
+`info` prints the cluster, the Portal URL and its health, the MinIO credentials,
+and issues a single-use login code — for `deployment-smoke@buildmax.local`
 by default, or for the account named as `./make kind info alice@example.com`.
 
 `status` changes nothing. It prints the selected cluster and context, probes
@@ -94,25 +94,34 @@ MySQL and MinIO have ClusterIP Services and the cluster publishes only the
 ingress ports, so neither is reachable from this machine on its own.
 
 ```bash
-./make kind db          # forwards mysql to 127.0.0.1:3306 until you stop it
-./make kind db 13306    # another port, when 3306 is taken locally
+./make kind forward     # publishes both to 127.0.0.1 until you stop it
 ```
 
-While it runs, connect with any client — `mysql -h 127.0.0.1 -P 3306 -ubuildmax
--pbuildmax buildmax`, or the DSN
+It forwards MySQL to `3306` and MinIO to `9000` (API) and `9001` (console), and
+prints how to connect to each. Every line the forwards write is tagged with the
+target it came from. A target whose host port is already taken on this machine
+is skipped with a warning — a local MySQL on `3306` costs you that forward, not
+MinIO's — and the warning names the kubectl command that forwards it to a port
+of your choosing.
+
+While it runs, connect to MySQL with any client — `mysql -h 127.0.0.1 -P 3306
+-ubuildmax -pbuildmax buildmax`, or the DSN
 `buildmax:buildmax@tcp(127.0.0.1:3306)/buildmax`. Those are the development
 credentials in `deployment/dev-kind/mysql.yaml`; the database is `emptyDir` and
 goes away with the cluster. The account may use any schema, not just `buildmax`,
 so `database.name` in a local `server.yaml` can say whatever you like — the
-server creates the schema it is pointed at on first start. The same DSN in `BUILDMAX_TEST_DSN` is what runs the
-store integration tests under `internal/infra/db` against a real MySQL.
+server creates the schema it is pointed at on first start. The same DSN in
+`BUILDMAX_TEST_DSN` is what runs the store integration tests under
+`internal/infra/db` against a real MySQL.
 
-For a single query, or for MinIO, use kubectl directly:
+MinIO's console is <http://127.0.0.1:9001> with `minio` / `minio123`, and the
+run artifacts are in the `bmstore` bucket.
+
+For a single query, skip the forward and use kubectl directly:
 
 ```bash
 kubectl --context kind-buildmaxdev -n db exec deployment/mysql -- \
   mysql -ubuildmax -pbuildmax buildmax -e "select * from task_run\G"
-kubectl --context kind-buildmaxdev -n storage port-forward svc/minio 9001:9001
 ```
 
 ## Smoke Versus Real Providers

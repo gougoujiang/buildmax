@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -8,9 +9,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
+	"os/signal"
 	"regexp"
-	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -46,8 +50,11 @@ func cmdKind(args []string) error {
 		return kindUp()
 	case "images":
 		return cmdPubImages()
-	case "db":
-		return kindDB(args[1:])
+	case "forward":
+		if len(args) > 1 {
+			return usageErrorf("kind", "forward takes no arguments")
+		}
+		return kindForward()
 	case "info":
 		return kindInfo(args[1:])
 	case "smoke":
@@ -218,26 +225,59 @@ func kindSmokeTarget() smokeTarget {
 	}
 }
 
-// kindDB forwards the in-cluster MySQL to the host so a client on this machine
-// can read what a run actually wrote.
+// kindForwardTarget is one in-cluster Service a contributor can reach from this
+// machine, with the hints that make the forward useful once it is up.
+type kindForwardTarget struct {
+	name      string
+	namespace string
+	service   string
+	// hostPort:servicePort, in kubectl's own spelling. The host port matches the
+	// service port everywhere here, so a forwarded address reads the same as the
+	// in-cluster one.
+	ports []string
+	hints []string
+}
+
+// kindForwardTargets is every Service worth forwarding. The server and Portal
+// are absent on purpose: the ingress already publishes them on 8080.
+func kindForwardTargets() []kindForwardTarget {
+	return []kindForwardTarget{
+		{
+			name:      "mysql",
+			namespace: "db",
+			service:   "mysql",
+			ports:     []string{"3306:3306"},
+			hints: []string{
+				"mysql -h 127.0.0.1 -P 3306 -ubuildmax -pbuildmax buildmax",
+				"DSN: buildmax:buildmax@tcp(127.0.0.1:3306)/buildmax",
+			},
+		},
+		{
+			name:      "minio",
+			namespace: "storage",
+			service:   "minio",
+			ports:     []string{"9000:9000", "9001:9001"},
+			hints: []string{
+				"Console: http://127.0.0.1:9001 (minio / minio123)",
+				"API: http://127.0.0.1:9000, bucket bmstore",
+			},
+		},
+	}
+}
+
+// kindForward forwards the cluster's backing services to this machine so a
+// client here can read what a run actually wrote.
 //
-// The dependency manifests give MySQL a ClusterIP and the cluster publishes
-// only the ingress ports, so there is no way in from the host without this. It
-// runs in the foreground and stops with the command: a forward left running in
-// the background is a socket into a database that outlives the terminal that
+// MySQL and MinIO have ClusterIP Services and the cluster publishes only the
+// ingress ports, so there is no way in from the host without this. It runs in
+// the foreground and stops with the command: a forward left running in the
+// background is a socket into a database that outlives the terminal that
 // remembers it exists.
 //
-// The credentials are the development ones in deployment/dev-kind/mysql.yaml.
-// They are not a secret and not a deployment: that manifest exists to be thrown
-// away with the cluster.
-func kindDB(args []string) error {
-	port := "3306"
-	if len(args) == 1 && args[0] != "" {
-		port = args[0]
-	}
-	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
-		return usageErrorf("kind", "%q is not a port number", port)
-	}
+// The credentials printed are the development ones in deployment/dev-kind/.
+// They are not a secret and not a deployment: those manifests exist to be
+// thrown away with the cluster.
+func kindForward() error {
 	if err := requireCommands("kubectl"); err != nil {
 		return err
 	}
@@ -249,17 +289,175 @@ func kindDB(args []string) error {
 	if !exists {
 		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
 	}
-	// Same probe as the cluster preflight, for the same reason: kubectl's own
-	// failure names the port but not what is holding it.
-	if conn, dialErr := net.DialTimeout("tcp", "127.0.0.1:"+port, 300*time.Millisecond); dialErr == nil {
-		_ = conn.Close()
-		return fmt.Errorf("host port %s is already in use\n  Stop what is listening, or forward to another port: %s kind db 13306", port, mk())
+
+	var ready []kindForwardTarget
+	for _, target := range kindForwardTargets() {
+		// Same probe as the cluster preflight, for the same reason: kubectl's own
+		// failure names the port but not what is holding it. One busy port skips
+		// its target rather than the whole command, so a local MySQL on 3306 does
+		// not also cost you MinIO.
+		if busy := busyHostPorts(target); len(busy) > 0 {
+			fmt.Printf("Skipping %s: host port %s already in use.\n", target.name, strings.Join(busy, " and "))
+			fmt.Printf("  Stop what is listening, or forward it yourself: kubectl --context %s -n %s port-forward svc/%s %s\n",
+				kindContext(), target.namespace, target.service, strings.Join(placeholderPorts(target), " "))
+			continue
+		}
+		ready = append(ready, target)
 	}
-	fmt.Printf("Forwarding mysql.db.svc.cluster.local:3306 from cluster %s to 127.0.0.1:%s\n", cluster, port)
-	fmt.Printf("  mysql -h 127.0.0.1 -P %s -ubuildmax -pbuildmax buildmax\n", port)
-	fmt.Printf("  DSN: buildmax:buildmax@tcp(127.0.0.1:%s)/buildmax\n", port)
-	fmt.Println("Leave this running; Ctrl+C stops the forward.")
-	return kindKubectl("port-forward", "-n", "db", "svc/mysql", port+":3306")
+	if len(ready) == 0 {
+		return errors.New("every forward target's host port is already in use")
+	}
+
+	for _, target := range ready {
+		fmt.Printf("Forwarding %s.%s.svc.cluster.local from cluster %s\n", target.service, target.namespace, cluster)
+		for _, hint := range target.hints {
+			fmt.Printf("  %s\n", hint)
+		}
+	}
+	fmt.Println("Leave this running; Ctrl+C stops every forward.")
+	return runKindForwards(ready)
+}
+
+// placeholderPorts rewrites a target's mappings for the escape-hatch hint, so a
+// contributor who has to pick their own host ports is shown every port the
+// service needs rather than just the one that collided.
+func placeholderPorts(target kindForwardTarget) []string {
+	ports := make([]string, 0, len(target.ports))
+	for _, mapping := range target.ports {
+		ports = append(ports, "<port>:"+strings.SplitN(mapping, ":", 2)[1])
+	}
+	return ports
+}
+
+func busyHostPorts(target kindForwardTarget) []string {
+	var busy []string
+	for _, mapping := range target.ports {
+		hostPort := strings.SplitN(mapping, ":", 2)[0]
+		conn, dialErr := net.DialTimeout("tcp", "127.0.0.1:"+hostPort, 300*time.Millisecond)
+		if dialErr != nil {
+			continue
+		}
+		_ = conn.Close()
+		busy = append(busy, hostPort)
+	}
+	return busy
+}
+
+// runKindForwards runs one kubectl per target until the first one stops.
+//
+// Whichever ends first ends all of them: a surviving forward would leave the
+// contributor holding a stack they believe is fully reachable and is not.
+func runKindForwards(targets []kindForwardTarget) error {
+	var lines sync.Mutex
+	commands := make([]*exec.Cmd, 0, len(targets))
+	done := make(chan error, len(targets))
+	for _, target := range targets {
+		args := append([]string{"--context", kindContext(), "port-forward", "-n", target.namespace, "svc/" + target.service}, target.ports...)
+		cmd := exec.Command("kubectl", args...)
+		out := &prefixWriter{prefix: target.name, lines: &lines}
+		cmd.Stdout, cmd.Stderr = out, out
+		if err := cmd.Start(); err != nil {
+			stopAll(commands)
+			return fmt.Errorf("forward %s: %w", target.name, err)
+		}
+		commands = append(commands, cmd)
+		go func(name string, cmd *exec.Cmd) {
+			if err := cmd.Wait(); err != nil && !stoppedOnPurpose(err) {
+				done <- fmt.Errorf("forward %s stopped: %w", name, err)
+				return
+			}
+			done <- nil
+		}(target.name, cmd)
+	}
+
+	// Ctrl+C already reaches every kubectl on its own, because the terminal
+	// delivers it to the whole foreground process group. Catching it here keeps
+	// this command alive long enough to end as the ordinary stop it is, and
+	// covers the case where only this process was signalled.
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+	defer signal.Stop(interrupt)
+	interrupted := make(chan struct{})
+	settled := make(chan struct{})
+	defer close(settled)
+	go func() {
+		select {
+		case <-interrupt:
+			close(interrupted)
+			stopAll(commands)
+		case <-settled:
+		}
+	}()
+
+	var first error
+	for i := range commands {
+		err := <-done
+		if i == 0 {
+			first = err
+			stopAll(commands)
+		}
+	}
+	select {
+	case <-interrupted:
+		// The forwards ended because they were asked to, whatever the teardown
+		// above made of the children on its way out.
+		return nil
+	default:
+		return first
+	}
+}
+
+// stoppedOnPurpose reports whether a child ended because something asked it to
+// rather than because the forward broke. Ctrl+C is the documented way to stop
+// this command, and the terminal delivers it to every kubectl directly, so an
+// interrupted child is the ordinary ending rather than a failure to report.
+func stoppedOnPurpose(err error) bool {
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) {
+		return false
+	}
+	status, ok := exit.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() {
+		return false
+	}
+	switch status.Signal() {
+	case syscall.SIGINT, syscall.SIGTERM:
+		return true
+	}
+	return false
+}
+
+func stopAll(commands []*exec.Cmd) {
+	for _, cmd := range commands {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}
+}
+
+// prefixWriter tags each line a child writes with the target it came from, so
+// two forwards sharing one terminal stay tellable apart. kubectl reports every
+// connection it handles, and "Handling connection for 9000" says nothing on its
+// own about which service answered.
+type prefixWriter struct {
+	prefix  string
+	lines   *sync.Mutex
+	pending []byte
+}
+
+func (w *prefixWriter) Write(p []byte) (int, error) {
+	w.lines.Lock()
+	defer w.lines.Unlock()
+	w.pending = append(w.pending, p...)
+	for {
+		end := bytes.IndexByte(w.pending, '\n')
+		if end < 0 {
+			break
+		}
+		fmt.Printf("%s | %s\n", w.prefix, bytes.TrimRight(w.pending[:end], "\r"))
+		w.pending = w.pending[end+1:]
+	}
+	return len(p), nil
 }
 
 // kindInfo prints how to get into the running stack, including a login code.
@@ -290,8 +488,8 @@ func kindInfo(args []string) error {
 
 	fmt.Printf("Cluster: %s (context %s)\n", cluster, kindContext())
 	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL, httpHealth(kindPortalURL+"/healthz"))
-	fmt.Printf("MySQL:   in-cluster only; forward it with %s kind db\n", mk())
-	fmt.Printf("MinIO:   in-cluster only; bucket bmstore, key minio, secret minio123\n")
+	fmt.Printf("MinIO:   bucket bmstore, key minio, secret minio123\n")
+	fmt.Printf("MySQL and MinIO are in-cluster only; reach both with %s kind forward\n", mk())
 
 	code, err := kindSmokeTarget().admin("user", "login-code", email)
 	if err != nil {
