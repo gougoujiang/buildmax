@@ -122,6 +122,7 @@ internal/
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
 │   │                   MCP, hooks, sandbox, traces, skills, sessions, workspace
+│   ├── job/            Local background jobs: identity, state, output, shutdown
 │   └── taskrun/        One task run inside its run-scoped directory (worker)
 │
 ├── service/            Application services: coordinate stores, enforce rules

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
@@ -91,6 +92,14 @@ type AgentApp struct {
 	grantsMu               sync.Mutex
 	grants                 map[string]*agent.SessionGrants
 	turns                  turnCoordinator
+	jobs                   *job.Manager
+}
+
+// Jobs returns the app's background job manager. One manager per AgentApp:
+// jobs are process-scoped but owned by this workspace's runtime, and closing
+// the app stops them.
+func (a *AgentApp) Jobs() *job.Manager {
+	return a.jobs
 }
 
 // grantsFor returns the approval grants for one session, creating the store on
@@ -328,16 +337,29 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	app.plugins.addShadowed(app.skillsRegistry.shadowed...)
 	app.plugins.addFindings(app.subagentsRegistry.findings...)
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
+	app.jobs = job.NewManager()
 	return app, nil
 }
+
+// jobShutdownTimeout bounds how long Close waits for background jobs after
+// their own TERM-to-KILL escalation. Generous enough for the kill to land,
+// short enough that quitting the app never hangs.
+const jobShutdownTimeout = 10 * time.Second
 
 func (a *AgentApp) Close() error {
 	if a == nil {
 		return nil
 	}
 	var firstErr error
+	if a.jobs != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), jobShutdownTimeout)
+		if err := a.jobs.Close(ctx); err != nil {
+			firstErr = err
+		}
+		cancel()
+	}
 	if a.mcpManager != nil {
-		if err := a.mcpManager.Close(); err != nil {
+		if err := a.mcpManager.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
