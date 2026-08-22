@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -241,8 +242,20 @@ func optionalPresence(label, command, note string) {
 	fmt.Printf("[INFO] %s: not installed (%s)\n", label, note)
 }
 
+// ansiEscape matches the colour sequences a tool writes when it has not
+// noticed it is talking to a pipe.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// oneLine reduces a tool's version output to something a doctor line can hold.
+// `wails version` follows the version with a sponsor banner in colour, and
+// joining every line left the first thing a new contributor runs printing raw
+// escape codes. The first line is the version by convention for every command
+// asked here.
 func oneLine(value string) string {
-	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.TrimSpace(ansiEscape.ReplaceAllString(value, ""))
+	if end := strings.IndexByte(value, '\n'); end >= 0 {
+		value = strings.TrimSpace(value[:end])
+	}
 	if len(value) > 120 {
 		return value[:117] + "..."
 	}

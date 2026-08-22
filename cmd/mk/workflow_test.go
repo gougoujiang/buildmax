@@ -573,3 +573,30 @@ func TestUnknownCommandSuggestsTheClosestName(t *testing.T) {
 		}
 	}
 }
+
+// Tools that have not noticed they are talking to a pipe write colour escapes
+// and extra lines. Doctor is the first command a new contributor runs, so its
+// report is the last place that should print raw escape codes.
+func TestOneLineKeepsTheFirstLineWithoutEscapes(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "plain", value: "go version go1.26.6 darwin/arm64", want: "go version go1.26.6 darwin/arm64"},
+		{
+			name:  "wails follows the version with a sponsor banner",
+			value: "v2.14.0\n\x1b[31;107m \u2665  \x1b[0m \x1b[92mIf Wails is useful, please consider sponsoring\x1b[0m\nhttps://example.invalid",
+			want:  "v2.14.0",
+		},
+		{name: "colour around the version itself", value: "\x1b[92mv1.2.3\x1b[0m", want: "v1.2.3"},
+		{name: "long output is still capped", value: strings.Repeat("x", 200), want: strings.Repeat("x", 117) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := oneLine(tt.value); got != tt.want {
+				t.Errorf("oneLine() = %q; want %q", got, tt.want)
+			}
+		})
+	}
+}
