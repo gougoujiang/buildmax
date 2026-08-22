@@ -32,9 +32,15 @@ path end to end** — clone, build, test, change one thing, open the pull reques
 — in about fifteen minutes, without a model API key.
 
 If you know the kind of problem you want to work on but not where it belongs,
-[choose a contribution area](docs/contribute/areas.md). It connects Agent
-Runtime, local experience, enterprise platform, trust and security, and
+[choose a contribution area](docs/contribute/areas.md). It connects testing,
+Agent Runtime, local experience, enterprise platform, trust and security, and
 documentation work to the current source of truth and public issue labels.
+
+**Tests are the sharpest current need.** A large and growing share of this
+code is written with AI assistance, which raises how fast the codebase changes
+without raising test coverage to match, so a pull request that adds regression
+coverage for existing, currently-untested behavior does not need an issue
+filed first — see [Testing](docs/contribute/areas.md#testing).
 
 Good first pull requests are small, easy to verify, and close to an existing
 issue. Look for issues labeled `good first issue`, `help wanted`, or
