@@ -96,16 +96,21 @@ More: [docs/start/concepts.md](docs/start/concepts.md) ·
 ./make doctor     # check contributor tool versions without changing anything
 ./make build cli  # just the CLI — Go is the only tool this needs
 ./make test       # go test ./... against ./testing-sandbox
+./make check go   # the Go half of what a pull request runs
+./make check ci   # everything a pull request runs, except the Windows job
 ./make build      # everything, including the three frontends: also needs Node
 ./make run server # run the already-built buildmax-server
 ./make run portal # Portal dev server
 ```
 
-Go and git are enough for the first four; the frontends and `./make run portal`
-also need the Node in `.node-version`. On Windows use `make.bat` with the same
-commands — both forward to the Go task runner in `cmd/mk`. `./make help` shows
-the common contributor path; `./make help all` shows advanced, deployment, and
-release commands. None of build, test, or lint needs a model API key.
+The Go in `go.mod` and git are enough for `./make doctor`, `./make build cli`,
+`./make test`, and `./make check go` — a complete Go contribution loop. Anything
+that builds a frontend needs the Node in `.node-version` as well: `./make build`,
+`./make check ci`, and `./make run portal`. On Windows use `make.bat` with the
+same commands — both forward to the Go task runner in `cmd/mk`. `./make help`
+shows the common contributor path; `./make help all` shows advanced, deployment,
+and release commands. None of build, test, check, or lint needs a model API
+key.
 
 Two directories in the tree are fixtures rather than product code:
 [`sample-data/`](sample-data/README.md) holds the datasets above — upload them
@@ -133,7 +138,9 @@ For setup questions and early ideas, use
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
+**[docs/contribute/first-pr.md](docs/contribute/first-pr.md)** is the whole path
+from clone to open pull request, and needs no model API key. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
 boundaries, and pull request guidance. Community participation follows the
 [Code of Conduct](.github/CODE_OF_CONDUCT.md); support routes and project decision rules
 are documented in [SUPPORT.md](.github/SUPPORT.md) and [GOVERNANCE.md](.github/GOVERNANCE.md).

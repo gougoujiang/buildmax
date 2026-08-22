@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 )
 
 const (
@@ -92,9 +93,78 @@ func dispatch(args []string) error {
 	case "help", "-h", "--help":
 		return cmdHelp(rest)
 	default:
-		usage()
-		return fmt.Errorf("unknown command: %s", args[0])
+		return unknownCommand(args[0])
 	}
+}
+
+// unknownCommand answers a typo with the one line that says what went wrong.
+// Printing the whole usage block first pushed that line off the top of a short
+// terminal, and every subcommand here already reports a bad argument on its
+// own — `check` names its scopes, `changelog` names its categories. The command
+// list is too long to inline, so this points at help instead.
+func unknownCommand(name string) error {
+	m := mk()
+	if closest, found := nearestCommand(name); found {
+		return fmt.Errorf("unknown command: %s; did you mean `%s %s`? Run `%s help` for the command list", name, m, closest, m)
+	}
+	return fmt.Errorf("unknown command: %s; run `%s help` for the command list", name, m)
+}
+
+// nearestCommand finds the documented command a mistyped word probably meant.
+// The candidates come from the help tables rather than from a list of their
+// own: a command missing from help is undiscoverable anyway, so there is no
+// second place for this to drift from.
+func nearestCommand(name string) (string, bool) {
+	budget := 1
+	if len(name) >= 4 {
+		// Two, so a transposition — `buidl` for `build` — still resolves.
+		budget = 2
+	}
+	best, bestDistance := "", budget+1
+	for _, candidate := range helpCommandNames() {
+		if distance := editDistance(name, candidate); distance < bestDistance {
+			best, bestDistance = candidate, distance
+		}
+	}
+	return best, best != ""
+}
+
+// helpCommandNames lists the bare command word of every help row, dropping the
+// argument placeholders the tables carry for display.
+func helpCommandNames() []string {
+	var names []string
+	add := func(rows []helpRow) {
+		for _, row := range rows {
+			names = append(names, strings.Fields(row.name)[0])
+		}
+	}
+	add(commonHelpRows())
+	for _, section := range allHelpSections() {
+		add(section.rows)
+	}
+	return names
+}
+
+// editDistance is the usual Levenshtein distance, over bytes: every command
+// name here is ASCII.
+func editDistance(a, b string) int {
+	previous := make([]int, len(b)+1)
+	current := make([]int, len(b)+1)
+	for j := range previous {
+		previous[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		current[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			current[j] = min(previous[j]+1, current[j-1]+1, previous[j-1]+cost)
+		}
+		previous, current = current, previous
+	}
+	return previous[len(b)]
 }
 
 // mk names the entry point in help and error text, so Windows users are not
@@ -220,7 +290,10 @@ func usage() {
 	fmt.Printf("  %s doctor\n", m)
 	fmt.Printf("  %s build cli\n", m)
 	fmt.Printf("  %s test\n", m)
-	fmt.Printf("  %s check all\n", m)
+	// `check ci` rather than `check all`: it is what gates the pull request, and
+	// naming a weaker command here than first-pr.md does sent contributors to
+	// whichever document they happened to read.
+	fmt.Printf("  %s check ci\n", m)
 }
 
 func usageAll() {

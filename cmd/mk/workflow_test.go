@@ -16,6 +16,11 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdTest([]string{"fast"}); err == nil {
 		t.Fatal("cmdTest accepted an unknown mode")
 	}
+	// Silently widening to ./... is worse than refusing: the run still passes,
+	// so the ordering mistake is only visible in the minutes it took.
+	if err := cmdTest([]string{"-run", "TestFileValue", "./cmd/mk"}); err == nil {
+		t.Fatal("cmdTest accepted a package after a flag")
+	}
 	if err := cmdCheck([]string{"unknown"}); err == nil {
 		t.Fatal("cmdCheck accepted an unknown scope")
 	}
@@ -504,5 +509,94 @@ func TestEveryCommandPackageIsGitIgnored(t *testing.T) {
 			t.Errorf(".gitignore has no %q; a bare `go build ./cmd/%s` leaves that binary in the repository root",
 				want, entry.Name())
 		}
+	}
+}
+
+func TestPackageAfterFlagLeavesFlagValuesAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		flags []string
+		want  string
+	}{
+		{name: "a package after a flag", flags: []string{"-run", "TestX", "./cmd/mk"}, want: "./cmd/mk"},
+		{name: "a subtest pattern is a flag value", flags: []string{"-run", "Test/Sub"}},
+		{name: "a bare word is a flag value", flags: []string{"-run", "internal/util"}},
+		{name: "nothing after -args belongs to go test", flags: []string{"-args", "./fixture"}},
+		{name: "no flags at all", flags: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, found := packageAfterFlag(tt.flags)
+			if found != (tt.want != "") {
+				t.Fatalf("packageAfterFlag(%q) found = %v; want %v", tt.flags, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Errorf("packageAfterFlag(%q) = %q; want %q", tt.flags, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnknownCommandSuggestsTheClosestName(t *testing.T) {
+	tests := []struct {
+		typo string
+		want string
+	}{
+		{typo: "buidl", want: "build"},
+		{typo: "tset", want: "test"},
+		{typo: "cehck", want: "check"},
+		{typo: "doctro", want: "doctor"},
+		{typo: "zzzzzzzz"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.typo, func(t *testing.T) {
+			got, found := nearestCommand(tt.typo)
+			if found != (tt.want != "") {
+				t.Fatalf("nearestCommand(%q) found = %v; want %v", tt.typo, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Errorf("nearestCommand(%q) = %q; want %q", tt.typo, got, tt.want)
+			}
+		})
+	}
+	// A suggestion is only useful if it names something dispatch accepts. The
+	// candidates come from the help tables, so the two have to agree; the switch
+	// is read rather than exercised because running every command would build,
+	// clean, and lint the tree to assert a spelling.
+	body, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	for _, name := range helpCommandNames() {
+		if !strings.Contains(string(body), fmt.Sprintf("case %q", name)) {
+			t.Errorf("help lists %q, which dispatch does not know", name)
+		}
+	}
+}
+
+// Tools that have not noticed they are talking to a pipe write colour escapes
+// and extra lines. Doctor is the first command a new contributor runs, so its
+// report is the last place that should print raw escape codes.
+func TestOneLineKeepsTheFirstLineWithoutEscapes(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "plain", value: "go version go1.26.6 darwin/arm64", want: "go version go1.26.6 darwin/arm64"},
+		{
+			name:  "wails follows the version with a sponsor banner",
+			value: "v2.14.0\n\x1b[31;107m \u2665  \x1b[0m \x1b[92mIf Wails is useful, please consider sponsoring\x1b[0m\nhttps://example.invalid",
+			want:  "v2.14.0",
+		},
+		{name: "colour around the version itself", value: "\x1b[92mv1.2.3\x1b[0m", want: "v1.2.3"},
+		{name: "long output is still capped", value: strings.Repeat("x", 200), want: strings.Repeat("x", 117) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := oneLine(tt.value); got != tt.want {
+				t.Errorf("oneLine() = %q; want %q", got, tt.want)
+			}
+		})
 	}
 }
