@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/subagent"
 	"sync"
 	"time"
 
@@ -117,7 +118,7 @@ type SkillRegistry struct {
 }
 
 type SubAgentRegistry struct {
-	userDefs []tools.SubAgentDef
+	userDefs []subagent.Def
 	shadowed []plugin.Shadowed
 	findings []plugin.Finding
 }
@@ -404,7 +405,7 @@ func (a *AgentApp) SetDefaultModel(name string) {
 }
 
 // AgentDefs returns the user-defined sub-agent definitions for this workspace.
-func (a *AgentApp) AgentDefs() []tools.SubAgentDef {
+func (a *AgentApp) AgentDefs() []subagent.Def {
 	if a == nil || a.subagentsRegistry == nil {
 		return nil
 	}
@@ -888,11 +889,11 @@ func (s *SubAgentRegistry) Load(workspace string, plugins []config.DiscoveredPlu
 	return nil
 }
 
-func (s *SubAgentRegistry) Definitions() []tools.SubAgentDef {
+func (s *SubAgentRegistry) Definitions() []subagent.Def {
 	if s == nil || len(s.userDefs) == 0 {
 		return nil
 	}
-	cloned := make([]tools.SubAgentDef, len(s.userDefs))
+	cloned := make([]subagent.Def, len(s.userDefs))
 	copy(cloned, s.userDefs)
 	return cloned
 }

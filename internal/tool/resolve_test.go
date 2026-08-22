@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"github.com/gougoujiang/buildmax/internal/core/subagent"
 	"os"
 	"path/filepath"
 	"strings"
@@ -192,7 +193,7 @@ func TestResolveAgentDefsLayerPrecedenceAndCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	byName := map[string]SubAgentDef{}
+	byName := map[string]subagent.Def{}
 	for _, d := range got.Defs {
 		byName[d.Name] = d
 	}

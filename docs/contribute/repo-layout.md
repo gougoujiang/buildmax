@@ -114,6 +114,7 @@ internal/
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
 │   │                   vocabulary discovery, resolution, and publication share
+│   ├── subagent/       The subagent definition file shape and its frontmatter
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
