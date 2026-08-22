@@ -1,6 +1,8 @@
 # Entity Identity And Relational Keys
 
 > **Audience:** contributors and database reviewers · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-22
 
 Related: [../ROADMAP.md](../ROADMAP.md) Beta gate,
 [data model](../contribute/architecture/data-model.md),

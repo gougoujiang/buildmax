@@ -1,6 +1,8 @@
 # Enterprise Identity And Access
 
 > **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-16
 
 Related: [../ROADMAP.md](../ROADMAP.md) P4, [team governance design](../design/team-governance.md), and [deployment authentication](../deploy/authentication.md).
 
