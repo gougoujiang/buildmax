@@ -2,6 +2,9 @@ package desktop
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -9,6 +12,8 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
+	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 // recordingEmitter captures frontend events for assertions.
@@ -115,6 +120,127 @@ func TestDesktopJobBridge(t *testing.T) {
 	}
 	if !strings.Contains(out.Data, "desktop") || out.Running {
 		t.Fatalf("GetJobOutput = %+v", out)
+	}
+}
+
+func (r *recordingEmitter) eventNames() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	names := make([]string, len(r.events))
+	for i, e := range r.events {
+		names[i] = e.name
+	}
+	return names
+}
+
+// writeSessionFile puts a minimal owning session on disk, as the launching
+// turn's finalize would have.
+func writeSessionFile(t *testing.T, id string) {
+	t.Helper()
+	data, err := json.Marshal(session.Session{ID: id, CreatedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := config.SessionsDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, id+".json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A finished deliverable job is parked for its owning session — not pushed —
+// and the frontend is nudged to pull it when that session is on screen.
+func TestDesktopParksRequestedDeliveries(t *testing.T) {
+	app, rec, projectID := newJobsTestApp(t)
+	writeSessionFile(t, "sess-a")
+	ag, err := app.agentAppForProject(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := shellJobSpecForTest("echo result")
+	spec.Deliver = true
+	if _, err := ag.Jobs().StartCommand(spec, job.Provenance{SessionID: "sess-a"}); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	for app.PendingJobDeliveries(projectID, "sess-a") == 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("delivery never parked; events: %v", rec.eventNames())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := app.PendingJobDeliveries(projectID, "other-session"); n != 0 {
+		t.Fatalf("other session sees %d deliveries", n)
+	}
+	found := false
+	for _, name := range rec.eventNames() {
+		if name == eventJobDeliveryPending {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no job-delivery-pending nudge emitted")
+	}
+
+	// While a run is in flight the parked event stays parked.
+	_, cancel := context.WithCancel(context.Background())
+	app.mu.Lock()
+	app.runCancels[projectID] = cancel
+	app.mu.Unlock()
+	started, err := app.DeliverNextJobEvent(projectID, "sess-a")
+	if err != nil || started {
+		t.Fatalf("busy delivery = %v, %v; want false, nil", started, err)
+	}
+	if app.PendingJobDeliveries(projectID, "sess-a") != 1 {
+		t.Fatal("busy delivery consumed the parked event")
+	}
+	app.mu.Lock()
+	delete(app.runCancels, projectID)
+	app.mu.Unlock()
+	cancel()
+
+	// Idle delivery starts a turn. This test app has no model configured, so
+	// the turn fails — through the normal stream-error path — but the parked
+	// event was consumed and the run slot released.
+	started, err = app.DeliverNextJobEvent(projectID, "sess-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !started {
+		t.Fatal("idle delivery did not start")
+	}
+	if app.PendingJobDeliveries(projectID, "sess-a") != 0 {
+		t.Fatal("delivery not consumed")
+	}
+	deadline = time.Now().Add(15 * time.Second)
+	for {
+		app.mu.Lock()
+		_, busy := app.runCancels[projectID]
+		app.mu.Unlock()
+		if !busy {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("run slot never released")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	sawDelivery := false
+	for _, name := range rec.eventNames() {
+		if name == eventJobDelivery {
+			sawDelivery = true
+		}
+	}
+	if !sawDelivery {
+		t.Fatal("no job-delivery event emitted")
+	}
+	// Nothing left: the next pull is a clean no-op.
+	started, err = app.DeliverNextJobEvent(projectID, "sess-a")
+	if err != nil || started {
+		t.Fatalf("empty delivery = %v, %v; want false, nil", started, err)
 	}
 }
 

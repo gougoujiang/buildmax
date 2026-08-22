@@ -112,6 +112,8 @@ export default function App() {
   const EV_RUN_STATUS = 'desktop/run-status';
   const EV_MESSAGE_DEQUEUED = 'desktop/message-dequeued';
   const EV_MESSAGE_BLOCKED = 'desktop/message-blocked';
+  const EV_JOB_DELIVERY = 'desktop/job-delivery';
+  const EV_JOB_DELIVERY_PENDING = 'desktop/job-delivery-pending';
 
   const [approvalRequest, setApprovalRequest] = useState(null);
   const [toolActivity, setToolActivity] = useState('');
@@ -224,8 +226,21 @@ export default function App() {
       setQueuedMessages(payload?.queued ?? []);
       setError(`Message blocked by hook: ${payload?.reason ?? 'no reason given'}`);
     });
+    // A background delivery turn is starting: mark why the agent is about to
+    // speak unprompted. The placeholder is replaced by the persisted envelope
+    // message when stream-done reloads the session.
+    const unsubJobDelivery = EventsOn(EV_JOB_DELIVERY, (payload) => {
+      setError(null);
+      setLoading(true);
+      streamingContentRef.current = '';
+      setMessages((prev) => [...prev, {
+        role: 'user',
+        source: payload?.source || 'background_event',
+        content: `⟳ ${payload?.source ?? 'background event'} from ${payload?.job_id ?? ''} — ${payload?.title ?? ''}`,
+      }]);
+    });
     return () => {
-      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED);
+      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED, EV_JOB_DELIVERY);
       unsubDelta?.();
       unsubDone?.();
       unsubError?.();
@@ -236,8 +251,27 @@ export default function App() {
       unsubRunStatus?.();
       unsubDequeued?.();
       unsubBlocked?.();
+      unsubJobDelivery?.();
     };
   }, []);
+
+  // Pull parked background deliveries whenever this session is on screen and
+  // idle. The Go side parks per session and cannot know what is on screen;
+  // this effect is that knowledge. Re-running on `loading` flips also drains
+  // several parked events one turn at a time.
+  useEffect(() => {
+    if (loading || !wailsReady || !currentProject) return undefined;
+    const app = getApp();
+    if (!app?.DeliverNextJobEvent) return undefined;
+    const pull = () => {
+      app.DeliverNextJobEvent(currentProject.id, selectedId || '').catch(() => {});
+    };
+    pull();
+    const unsub = EventsOn(EV_JOB_DELIVERY_PENDING, (p) => {
+      if (p?.project_id === currentProject.id && (p?.session_id ?? '') === (selectedId || '')) pull();
+    });
+    return unsub;
+  }, [loading, wailsReady, currentProject, selectedId]);
 
   // The queue lives per project on the Go side; re-read it when the visible
   // project changes so a queue built before a switch is still shown after it.
@@ -575,6 +609,22 @@ export default function App() {
         </details>
       );
     });
+    // A user-role message with a source is a background event, not the
+    // user's words: label it and collapse the envelope behind a summary.
+    if (m.source) {
+      return [{
+        id: `message-${i}`,
+        role: m.role,
+        label: 'Background',
+        hideAvatar: true,
+        body: (
+          <details className="page-chat__msg-content">
+            <summary>⟳ {m.source}</summary>
+            {m.content ? <MarkdownMessage content={m.content} /> : null}
+          </details>
+        ),
+      }];
+    }
     return [{
       id: `message-${i}`,
       role: m.role,
