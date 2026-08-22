@@ -675,7 +675,33 @@ moved down from `internal/service/artifact`.
 The design index row and the proposal's retirement landed with this record and
 are not part of PR 6.
 
-## 14. Validation
+## 14. Measured Plans
+
+The five queries the plan named, read back from MySQL 8 after the conversion.
+Every one resolves a handle at most once, through its unique index, and joins
+on row keys after that.
+
+| Query | Access path |
+|---|---|
+| Quota: run count | `task` on `idx_task_team_created` (`ref`, covering), then `task_run` on `idx_task_run_task_created` (`ref`, covering) |
+| Quota: title tokens | `task` on `idx_task_team_created` (`range`, index condition) |
+| Team task list | `task` on `idx_task_team_created` as a **backward index scan** — no sort — then all six joins `eq_ref` on `PRIMARY` |
+| Conversation messages | `conversation` on `uq_conversation_public_id` (`const`, covering), then `conversation_message` on `idx_conversation_message_conversation` (`ref`) |
+| Run output read | `conversation` on `uq_conversation_public_id` (`const`), then `user`, `task`, `task_run`, `task_run_artifact` each on a key |
+
+Three things in that table are the conversion paying for itself. The task list
+sorts by reading its composite index backwards rather than sorting rows, which
+the single-column `team_id` index the string model left behind could not do.
+Both quota queries are answered from indexes alone — `Using index`, no row
+reads — because a `bigint` team reference fits in one. And every join is
+`eq_ref` on a primary key, which is what makes a listing one query rather than
+one query per row.
+
+The handle appears exactly once per query, as a `const` lookup on the unique
+index over `BINARY(12)`. That is the translation boundary in an execution plan:
+one indexed lookup at the root, numeric everywhere after it.
+
+## 15. Validation
 
 The work is complete when all of the following hold:
 
@@ -695,7 +721,7 @@ The work is complete when all of the following hold:
   reads use the intended numeric indexes.
 - `./make check ci` and `./make e2e local` pass.
 
-## 15. Resolved And Open Questions
+## 16. Resolved And Open Questions
 
 The retired proposal left four questions. All four are answered.
 
