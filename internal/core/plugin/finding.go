@@ -26,6 +26,21 @@ type Finding struct {
 	Field    string
 	Line     int
 	Message  string
+
+	// Plugins names the plugins a finding concerns, so a surface can attribute
+	// a collision to every side of it. Filtering on the message text instead
+	// would break the first time a message was reworded.
+	Plugins []string
+}
+
+// Concerns reports whether this finding is about the named plugin.
+func (f Finding) Concerns(name string) bool {
+	for _, p := range f.Plugins {
+		if p == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (f Finding) String() string {

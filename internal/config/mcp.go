@@ -136,7 +136,7 @@ func loadPluginMCPServers(workspaceDir string, plugins []DiscoveredPlugin) (
 		root, err := readMCPJSONFile(path)
 		if err != nil {
 			findings = append(findings, plugin.Finding{
-				Severity: plugin.SeverityError, Field: p.Name(),
+				Severity: plugin.SeverityError, Field: p.Name(), Plugins: []string{p.Name()},
 				Message: fmt.Sprintf("mcp.json: %v", err),
 			})
 			continue
@@ -164,7 +164,7 @@ func loadPluginMCPServers(workspaceDir string, plugins []DiscoveredPlugin) (
 	for id, names := range colliding {
 		sort.Strings(names)
 		findings = append(findings, plugin.Finding{
-			Severity: plugin.SeverityError, Field: id,
+			Severity: plugin.SeverityError, Field: id, Plugins: names,
 			Message: fmt.Sprintf("MCP server %q is declared by plugins %v; "+
 				"remove it from all but one before it can load", id, names),
 		})

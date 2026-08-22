@@ -161,6 +161,18 @@ type HooksConfig struct {
 	StopFailure        []HookEntry `mapstructure:"stop_failure"           json:"stop_failure,omitempty"           yaml:"stop_failure,omitempty"`
 }
 
+// HookEventNames lists every event in dispatch order, for a surface that has to
+// enumerate them.
+func HookEventNames() []string {
+	return []string{
+		HookEventSessionStart, HookEventSessionEnd, HookEventUserPromptSubmit,
+		HookEventPreToolUse, HookEventPostToolUse, HookEventPostToolUseFailure,
+		HookEventNotification, HookEventPreCompact, HookEventPostCompact,
+		HookEventSubagentStart, HookEventSubagentStop,
+		HookEventStop, HookEventStopFailure,
+	}
+}
+
 // Entries returns the configured hooks for the named event, in declared order.
 // Unknown events return nil.
 func (h HooksConfig) Entries(event string) []HookEntry {
@@ -262,7 +274,7 @@ func ResolvePluginHooks(plugins []DiscoveredPlugin) PluginHooks {
 		cfg, err := loadHooksFile(filepath.Join(p.Path, "hooks.yaml"))
 		if err != nil {
 			out.Findings = append(out.Findings, plugin.Finding{
-				Severity: plugin.SeverityError, Field: p.Name(),
+				Severity: plugin.SeverityError, Field: p.Name(), Plugins: []string{p.Name()},
 				Message: fmt.Sprintf("hooks.yaml: %v", err),
 			})
 			continue

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +23,13 @@ type Status struct {
 	// Dirty covers tracked modifications and untracked files alike: either
 	// means the directory is not the commit it names.
 	Dirty bool
+
+	// HasUpstream reports whether the branch tracks one. Ahead and Behind
+	// count commits against the tracking ref as it is known locally, so they
+	// are only current for as long as the last fetch is.
+	HasUpstream bool
+	Ahead       int
+	Behind      int
 }
 
 // IsRepository reports whether dir is the root of a checkout.
@@ -81,6 +89,10 @@ func parseStatusV2(out string) Status {
 			} else {
 				st.Branch = value
 			}
+		case "branch.upstream":
+			st.HasUpstream = value != ""
+		case "branch.ab":
+			st.Ahead, st.Behind = parseAheadBehind(value)
 		}
 	}
 	return st
@@ -98,4 +110,39 @@ func ReadRemoteURL(ctx context.Context, dir string) string {
 		return ""
 	}
 	return strings.TrimSpace(out)
+}
+
+// parseAheadBehind reads porcelain v2's "+A -B" divergence field.
+func parseAheadBehind(value string) (ahead, behind int) {
+	for _, field := range strings.Fields(value) {
+		if len(field) < 2 {
+			continue
+		}
+		n, err := strconv.Atoi(field[1:])
+		if err != nil {
+			continue
+		}
+		switch field[0] {
+		case '+':
+			ahead = n
+		case '-':
+			behind = n
+		}
+	}
+	return ahead, behind
+}
+
+// Fetch updates the remote-tracking refs for dir.
+//
+// This is the only function here that touches the network, and it exists so
+// that reaching the network is something a user asks for by name. Discovery,
+// status, and provenance must never call it.
+func Fetch(ctx context.Context, dir string) error {
+	if !IsRepository(dir) {
+		return fmt.Errorf("%s is not a git checkout", dir)
+	}
+	if out, err := runGit(ctx, dir, "fetch", "--quiet"); err != nil {
+		return fmt.Errorf("git fetch: %w: %s", err, strings.TrimSpace(out))
+	}
+	return nil
 }

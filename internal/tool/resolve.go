@@ -46,7 +46,7 @@ func resolveCandidates[T any](cands []candidate[T], kind string, withOrigin func
 		colliding := pluginNames(group)
 		if len(colliding) > 1 {
 			out.findings = append(out.findings, plugin.Finding{
-				Severity: plugin.SeverityError, Field: name,
+				Severity: plugin.SeverityError, Field: name, Plugins: colliding,
 				Message: fmt.Sprintf("%s %q is contributed by plugins %v; "+
 					"remove it from all but one before it can load", kind, name, colliding),
 			})
