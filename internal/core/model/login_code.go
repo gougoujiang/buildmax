@@ -25,9 +25,16 @@ type LoginCodeStore interface {
 	// plaintext, which is never stored and cannot be recovered afterwards.
 	CreateLoginCode(ctx context.Context, userID string, ttl time.Duration) (plaintext string, expiresAt int64, err error)
 
-	// ConsumeLoginCode redeems a code and returns the user it belongs to.
-	// A code that is unknown, already used, or expired returns ("", nil) —
-	// the caller cannot tell which, and neither can an attacker. Redemption is
-	// atomic: concurrent calls with the same code produce exactly one winner.
-	ConsumeLoginCode(ctx context.Context, plaintext string, now int64) (userID string, err error)
+	// ConsumeLoginCode redeems a code that was issued to userID. A code that
+	// is unknown, already used, expired, or issued to somebody else returns
+	// (false, nil) — the caller cannot tell which, and neither can an
+	// attacker. Redemption is atomic: concurrent calls with the same code
+	// produce exactly one winner.
+	//
+	// The account is named by the caller rather than reported back, so that a
+	// code submitted with the wrong address is left untouched. A redemption
+	// that spent the code first and checked the account afterwards burned it
+	// on a typo, and the person retrying with the right address was then
+	// refused for a reason nobody could see.
+	ConsumeLoginCode(ctx context.Context, plaintext, userID string, now int64) (redeemed bool, err error)
 }
