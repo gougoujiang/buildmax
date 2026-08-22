@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	"github.com/gougoujiang/buildmax/internal/infra/hook"
 )
 
@@ -19,7 +19,7 @@ import (
 // Concurrency: HookManager is safe to call from multiple goroutines. The
 // matcher cache uses a mutex; per-call execution is otherwise stateless.
 type HookManager struct {
-	cfg     config.HooksConfig
+	cfg     corehook.Config
 	drivers map[string]hook.Driver
 
 	mu       sync.Mutex
@@ -39,7 +39,7 @@ type HookStatus struct {
 // and a driver registry. A nil registry is treated as empty; entries whose
 // resolved type has no driver are skipped with a warning at dispatch time
 // (logged once per event invocation).
-func NewHookManager(cfg config.HooksConfig, drivers map[string]hook.Driver) *HookManager {
+func NewHookManager(cfg corehook.Config, drivers map[string]hook.Driver) *HookManager {
 	if drivers == nil {
 		drivers = map[string]hook.Driver{}
 	}
@@ -88,7 +88,7 @@ func (m *HookManager) Run(ctx context.Context, in agent.HookInput) agent.HookOut
 // matcher cache is preserved so previously compiled regexes are still hot.
 // Drivers that watch their own dependencies (HTTP transport, MCP catalog)
 // pick up changes via their Deps.
-func (m *HookManager) Refresh(cfg config.HooksConfig) {
+func (m *HookManager) Refresh(cfg corehook.Config) {
 	if m == nil {
 		return
 	}
@@ -103,19 +103,19 @@ func (m *HookManager) Status() HookStatus {
 		return HookStatus{EventCounts: map[string]int{}}
 	}
 	events := []string{
-		config.HookEventSessionStart,
-		config.HookEventSessionEnd,
-		config.HookEventUserPromptSubmit,
-		config.HookEventPreToolUse,
-		config.HookEventPostToolUse,
-		config.HookEventPostToolUseFailure,
-		config.HookEventNotification,
-		config.HookEventPreCompact,
-		config.HookEventPostCompact,
-		config.HookEventSubagentStart,
-		config.HookEventSubagentStop,
-		config.HookEventStop,
-		config.HookEventStopFailure,
+		corehook.EventSessionStart,
+		corehook.EventSessionEnd,
+		corehook.EventUserPromptSubmit,
+		corehook.EventPreToolUse,
+		corehook.EventPostToolUse,
+		corehook.EventPostToolUseFailure,
+		corehook.EventNotification,
+		corehook.EventPreCompact,
+		corehook.EventPostCompact,
+		corehook.EventSubagentStart,
+		corehook.EventSubagentStop,
+		corehook.EventStop,
+		corehook.EventStopFailure,
 	}
 	counts := make(map[string]int, len(events))
 	total := 0

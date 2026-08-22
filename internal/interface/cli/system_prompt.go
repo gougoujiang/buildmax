@@ -74,12 +74,14 @@ func loadAgentPromptByName(name, workspace string) (string, error) {
 		}
 		workspace = wd
 	}
-	defs, err := tools.LoadAgentDefsFromPaths(config.AgentDefsSearchPaths(workspace))
+	// --agent resolves before a runtime exists, and a plugin-contributed agent
+	// has to be reachable by name like any other.
+	res, err := tools.ResolveAgentDefs(config.AgentDefSources(workspace, config.DiscoverPlugins().Loadable()))
 	if err != nil {
 		return "", fmt.Errorf("load agent definitions: %w", err)
 	}
 	var known []string
-	for _, d := range defs {
+	for _, d := range res.Defs {
 		if d.Name == name {
 			if strings.TrimSpace(d.SystemPrompt) == "" {
 				return "", fmt.Errorf("agent %q has an empty body, so it contributes no prompt text", name)

@@ -14,6 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
 
@@ -32,6 +33,10 @@ type Config struct {
 	TaskRuns      model.TaskRunStore
 
 	Quota *quota.Service
+	// Plugins publishes releases and manages catalog entries. Nil is a
+	// deployment with no Marketplace, which every route here reports rather
+	// than pretending an empty catalog.
+	Plugins *pluginsvc.Service
 	// Audit records who did what. Nil discards it, which is what a deployment
 	// without a database has.
 	Audit *audit.Recorder
@@ -84,6 +89,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/enable", h.setAdminModelEnabledHandler(true))
 	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/disable", h.setAdminModelEnabledHandler(false))
+	mux.HandleFunc("GET /api/admin/plugins", h.listAdminPluginsHandler)
+	mux.HandleFunc("POST /api/admin/plugins", h.createAdminPluginHandler)
+	mux.HandleFunc("GET /api/admin/plugins/{plugin_name}/releases", h.listAdminPluginReleasesHandler)
+	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/releases", h.publishAdminPluginReleaseHandler)
+	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/releases/{version}/yank", h.yankAdminPluginReleaseHandler)
+	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/archive", h.setAdminPluginArchivedHandler(true))
+	mux.HandleFunc("POST /api/admin/plugins/{plugin_name}/unarchive", h.setAdminPluginArchivedHandler(false))
 }
 
 // systemRoleAdmin keeps admin_system.go from importing the model package for

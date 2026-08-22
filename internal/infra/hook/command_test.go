@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 func skipOnWindows(t *testing.T) {
@@ -23,7 +23,7 @@ func TestCommandDriver_SuccessAllows(t *testing.T) {
 	skipOnWindows(t)
 	d := NewCommandDriver()
 	out := d.Run(context.Background(),
-		config.HookEntry{Command: "exit 0"},
+		corehook.Entry{Command: "exit 0"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "echo"},
 	)
 	if out.Blocked() {
@@ -37,7 +37,7 @@ func TestCommandDriver_Exit2Blocks(t *testing.T) {
 	skipOnWindows(t)
 	d := NewCommandDriver()
 	out := d.Run(context.Background(),
-		config.HookEntry{Command: "echo forbidden 1>&2; exit 2"},
+		corehook.Entry{Command: "echo forbidden 1>&2; exit 2"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile"},
 	)
 	if !out.Blocked() {
@@ -54,7 +54,7 @@ func TestCommandDriver_JSONBlocks(t *testing.T) {
 	skipOnWindows(t)
 	d := NewCommandDriver()
 	out := d.Run(context.Background(),
-		config.HookEntry{Command: `printf '%s' '{"decision":"block","reason":"json says no"}'`},
+		corehook.Entry{Command: `printf '%s' '{"decision":"block","reason":"json says no"}'`},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile"},
 	)
 	if !out.Blocked() {
@@ -72,7 +72,7 @@ func TestCommandDriver_FailsOpenOnTimeout(t *testing.T) {
 	d := NewCommandDriver()
 	start := time.Now()
 	out := d.Run(context.Background(),
-		config.HookEntry{Command: "sleep 5", Timeout: 1},
+		corehook.Entry{Command: "sleep 5", Timeout: 1},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "slow"},
 	)
 	dur := time.Since(start)
@@ -93,7 +93,7 @@ func TestCommandDriver_TimeoutIgnoresBackgroundChild(t *testing.T) {
 	d := NewCommandDriver()
 	start := time.Now()
 	out := d.Run(context.Background(),
-		config.HookEntry{Command: "sleep 5 &", Timeout: 1},
+		corehook.Entry{Command: "sleep 5 &", Timeout: 1},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "leaky"},
 	)
 	dur := time.Since(start)
@@ -110,7 +110,7 @@ func TestCommandDriver_FailsOpenOnMiscError(t *testing.T) {
 	skipOnWindows(t)
 	d := NewCommandDriver()
 	out := d.Run(context.Background(),
-		config.HookEntry{Command: "exit 7"},
+		corehook.Entry{Command: "exit 7"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "anything"},
 	)
 	if out.Blocked() {
@@ -123,7 +123,7 @@ func TestCommandDriver_FailsOpenOnMiscError(t *testing.T) {
 func TestCommandDriver_EmptyCommandFailsOpen(t *testing.T) {
 	d := NewCommandDriver()
 	out := d.Run(context.Background(),
-		config.HookEntry{},
+		corehook.Entry{},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "x"},
 	)
 	if out.Blocked() {
@@ -132,7 +132,7 @@ func TestCommandDriver_EmptyCommandFailsOpen(t *testing.T) {
 }
 
 func TestCommandDriver_Type(t *testing.T) {
-	if NewCommandDriver().Type() != config.HookTypeCommand {
-		t.Errorf("Type() = %q, want %q", NewCommandDriver().Type(), config.HookTypeCommand)
+	if NewCommandDriver().Type() != corehook.TypeCommand {
+		t.Errorf("Type() = %q, want %q", NewCommandDriver().Type(), corehook.TypeCommand)
 	}
 }

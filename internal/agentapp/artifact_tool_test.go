@@ -12,9 +12,9 @@ import (
 
 type stubTool struct{}
 
-func (stubTool) Name() string                                          { return "StubSkill" }
-func (stubTool) Description() string                                   { return "stub" }
-func (stubTool) Parameters() any                                       { return map[string]any{} }
+func (stubTool) Name() string                                            { return "StubSkill" }
+func (stubTool) Description() string                                     { return "stub" }
+func (stubTool) Parameters() any                                         { return map[string]any{} }
 func (stubTool) Execute(context.Context, map[string]any) (string, error) { return "", nil }
 
 type stubPublisher struct{}

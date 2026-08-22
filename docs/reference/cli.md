@@ -22,6 +22,14 @@ buildmax <command> [flags]
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
 | `buildmax sandbox mode <auto_allow\|regular>` | Set `sandbox.auto_allow_bash_if_sandboxed` |
+| `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
+| `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
+| `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
+| `buildmax plugin enable` / `disable <name>` | Let a plugin load, or stop it loading without removing it |
+| `buildmax plugin install <name>` | Download a release from the deployment's Marketplace and install it |
+| `buildmax plugin update <name>` | Replace an installed Marketplace plugin with a newer release |
+| `buildmax plugin uninstall <name>` | Remove an installed plugin |
+| `buildmax plugin publish <path>` | Pack a directory and publish it (System Administrator only) |
 
 ## Flags
 
@@ -93,6 +101,29 @@ ran under. Passing one replaces it for that run onward.
 
 The file is written with mode `600` because it holds an API key. Without
 `--force`, an existing file is left untouched and the command exits `2`.
+
+### `buildmax plugin`
+
+A plugin is a directory under `<BUILDMAX_HOME>/plugins` holding `skills/`,
+`agents/`, `mcp.json`, and `hooks.yaml` — the same content a workspace
+`.buildmax/` directory supports. Clone one there and it loads on the next run.
+
+`plugin status` accepts `--workspace` and `--fetch`. Without `--fetch` nothing
+here touches the network, and a checkout's drift from its upstream is only as
+current as the last fetch was; `--fetch` contacts the remote to refresh it.
+
+`disable` records a flag rather than moving anything, so a Git working tree is
+never touched. A run already in flight keeps the plugins it started with.
+
+`install` and `update` take `--version` for an exact release, and
+`--allow-yanked` for one that was withdrawn. Without `--version` they take the
+newest release that is not a prerelease, not withdrawn, and not newer than this
+build supports.
+Both refuse to replace a Git checkout, and `uninstall` refuses to delete one
+without `--force`: a working tree can hold work that exists nowhere else.
+
+`publish` takes the version from the directory's own `plugin.yaml` and needs a
+System Administrator grant on the server you are signed in to.
 
 ### `buildmax doctor`
 

@@ -16,15 +16,19 @@ import (
 type S3Client interface {
 	PutObject(ctx context.Context, bucket, key string, body io.Reader) error
 	GetObject(ctx context.Context, bucket, key string) ([]byte, error)
-	// GetObjectStream hands back the body for the caller to close. It exists
-	// alongside GetObject because artifact content is arbitrary user files:
-	// reading one whole into memory to write it straight back out would make a
-	// download cost the server the size of the file.
-	GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, error)
+	// GetObjectStream opens an object without reading it into memory, and
+	// reports its size. It exists for objects too large to hold: a plugin
+	// package is bounded, but bounded at tens of megabytes per request, and
+	// artifact content is whatever a deployment's limit allows.
+	GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error)
+	// DeleteObject removes one object. A key that is not there is not an error:
+	// the caller is a delete path that has to be safe to retry.
 	DeleteObject(ctx context.Context, bucket, key string) error
 	// ListObjectKeys returns object keys under the given prefix (keys include the prefix).
 	// Prefix should end with "/" for directory-style listing.
 	ListObjectKeys(ctx context.Context, bucket, prefix string) ([]string, error)
+	// ObjectExists reports whether an object is present.
+	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
 }
 
 // s3ClientAdapter adapts *s3.Client to S3Client.
@@ -62,7 +66,7 @@ func (a *s3ClientAdapter) GetObject(ctx context.Context, bucket, key string) ([]
 	return io.ReadAll(out.Body)
 }
 
-func (a *s3ClientAdapter) GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, error) {
+func (a *s3ClientAdapter) GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error) {
 	out, err := a.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
@@ -70,11 +74,31 @@ func (a *s3ClientAdapter) GetObjectStream(ctx context.Context, bucket, key strin
 	if err != nil {
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
-			return nil, ErrNotFound
+			return nil, 0, ErrNotFound
 		}
-		return nil, err
+		return nil, 0, err
 	}
-	return out.Body, nil
+	var size int64
+	if out.ContentLength != nil {
+		size = *out.ContentLength
+	}
+	return out.Body, size, nil
+}
+
+func (a *s3ClientAdapter) ObjectExists(ctx context.Context, bucket, key string) (bool, error) {
+	_, err := a.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err == nil {
+		return true, nil
+	}
+	var nsk *types.NoSuchKey
+	var nf *types.NotFound
+	if errors.As(err, &nsk) || errors.As(err, &nf) {
+		return false, nil
+	}
+	return false, err
 }
 
 // DeleteObject reports success for a key that is not there. S3 already behaves

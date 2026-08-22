@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // PromptDriver runs a single-turn LLM prompt as a hook. The literal
@@ -26,10 +26,10 @@ type PromptDriver struct {
 func NewPromptDriver(caller LLMCaller) *PromptDriver { return &PromptDriver{caller: caller} }
 
 // Type satisfies Driver.
-func (PromptDriver) Type() string { return config.HookTypePrompt }
+func (PromptDriver) Type() string { return corehook.TypePrompt }
 
 // Run renders the configured prompt and asks the LLM for a decision.
-func (d *PromptDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
+func (d *PromptDriver) Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput {
 	if d == nil || d.caller == nil {
 		componentLog().Warn("prompt driver has no caller; failing open", "event", in.Event)
 		return agent.HookOutput{}

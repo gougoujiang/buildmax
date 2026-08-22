@@ -109,7 +109,15 @@ internal/
 │   ├── apierr/         Why a service refused: a Kind a transport maps to a status
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
+│   ├── hook/           The hooks configuration shape, its events and transports
+│   ├── mcp/            The mcp.json document shape and its validation rules
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
+│   ├── plugin/         Plugin manifest, version arithmetic, and the layer
+│   │   │               vocabulary discovery, resolution, and publication share
+│   │   ├── archive/    Packing and hardened extraction of a plugin package
+│   │   └── inspect/    What a plugin package contributes, sanitized for a
+│   │                   catalog record and shared with `plugin validate`
+│   ├── subagent/       The subagent definition file shape and its frontmatter
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
@@ -128,6 +136,7 @@ internal/
 │   ├── workflow/       Workflow and workflow-run orchestration
 │   ├── audit/          Records that a sensitive action happened (governance,
 │   │                   not diagnostics — see the package doc)
+│   ├── plugin/         Marketplace publication and catalog lifecycle
 │   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
@@ -146,6 +155,7 @@ internal/
 │   ├── llmremote/      LLM client that calls a BuildMax managed gateway
 │   ├── mcp/            MCP protocol, client transport, registry
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
+│   ├── pluginwire/     Wire contract for the private plugin Marketplace
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
@@ -157,6 +167,8 @@ internal/
 ├── interface/          Local user-facing entry points
 │   ├── cli/            Cobra CLI, Bubble Tea TUI, print mode
 │   ├── desktop/        Wails app bridge
+│   ├── pluginmgr/      Installing, publishing, and removing plugins locally —
+│   │                   the mechanism the CLI and Desktop both run
 │   ├── auth/           Login client and credential persistence
 │   └── client/         HTTP client for the BuildMax server API
 │

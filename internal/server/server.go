@@ -23,6 +23,7 @@ import (
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -77,6 +78,15 @@ type StoresConfig struct {
 	ArtifactStore model.ArtifactStore
 }
 
+// ServicesConfig holds application services the handlers reach through rather
+// than a store directly.
+type ServicesConfig struct {
+	// Plugin publishes Marketplace releases and manages catalog entries. Nil
+	// is a deployment with no Marketplace, which those routes report rather
+	// than serving an empty catalog.
+	Plugin *pluginsvc.Service
+}
+
 // StorageConfig holds blob storage and workspace paths.
 type StorageConfig struct {
 	PersistStorage   blob.PersistStorage
@@ -117,13 +127,14 @@ type WebhookConfig struct {
 
 // Config holds server configuration. Grouped fields document what is required for auth, storage, worker, and conversation.
 type Config struct {
-	Addr    string // Listen address (e.g. ":5678")
-	Auth    AuthConfig
-	Stores  StoresConfig
-	Storage StorageConfig
-	Worker  WorkerConfig
-	Conv    ConversationConfig
-	Webhook WebhookConfig
+	Addr     string // Listen address (e.g. ":5678")
+	Auth     AuthConfig
+	Stores   StoresConfig
+	Services ServicesConfig
+	Storage  StorageConfig
+	Worker   WorkerConfig
+	Conv     ConversationConfig
+	Webhook  WebhookConfig
 	// Audit records sensitive actions. Nil discards them.
 	Audit *audit.Recorder
 	// Deployment describes this deployment for the admin system status.
@@ -206,6 +217,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		SchemaStore:              cfg.Stores.SchemaStore,
 		LLMModelStore:            cfg.Stores.LLMModelStore,
 		ArtifactStore:            cfg.Stores.ArtifactStore,
+		PluginService:            cfg.Services.Plugin,
 		Deployment:               cfg.Deployment,
 		DependencyProbes:         dependencyProbes(cfg.Readiness),
 		RedactedConfig:           cfg.RedactedConfig,

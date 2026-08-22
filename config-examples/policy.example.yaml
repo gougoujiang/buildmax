@@ -12,12 +12,9 @@
 # `buildmax sandbox status` prints the resolved values and which layer set each
 # one, which is the fastest way to confirm a policy is taking effect.
 #
-# Only the sandbox block is read today. The file is reserved for other
-# operator-controlled subsystems later, so keep the top-level `sandbox:` key.
-#
-# Guide: docs/guide/sandbox.md
+# Guide: docs/guide/sandbox.md, docs/guide/plugins.md
 # Reference: docs/reference/configuration.md
-# Design: docs/design/sandbox-boundaries.md
+# Design: docs/design/sandbox-boundaries.md, docs/design/plugin-marketplace.md
 
 sandbox:
   enabled: true
@@ -71,3 +68,20 @@ sandbox:
   ignore_violations:
     read:
       - "/etc/ssl/**"
+
+# Which plugin sources may load.
+#
+# Unset means every source loads, which is what a deployment that asserted
+# nothing gets. Setting it constrains where plugins come from — not what they
+# may do: tool permissions, hook gates, and the sandbox above are what
+# constrain the bytes that load.
+#
+# A directory whose provenance cannot be established does not pass a policy
+# that names one. That is deliberate: unknown is not the source you asked for.
+#
+# This is fleet management, not a security boundary. policy.yaml lives in the
+# user's own BUILDMAX_HOME, so it is worth setting on a machine an operator
+# controls — a managed device, a built image, a container — and worth
+# nothing against somebody who could write the configuration by hand.
+plugins:
+  allowed_sources: ["marketplace"]

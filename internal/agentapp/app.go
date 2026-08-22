@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/subagent"
 	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/infra/hook"
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
@@ -75,6 +77,7 @@ type AgentApp struct {
 	mcpManager             *MCPManager
 	skillsRegistry         *SkillRegistry
 	subagentsRegistry      *SubAgentRegistry
+	plugins                PluginSnapshot
 	sessionManager         *SessionManager
 	modelMu                sync.Mutex
 	defaultModelOverride   string
@@ -114,11 +117,15 @@ func (a *AgentApp) grantsFor(sessionID string) *agent.SessionGrants {
 }
 
 type SkillRegistry struct {
-	entries []tools.SkillEntry
+	entries  []tools.SkillEntry
+	shadowed []plugin.Shadowed
+	findings []plugin.Finding
 }
 
 type SubAgentRegistry struct {
-	userDefs []tools.SubAgentDef
+	userDefs []subagent.Def
+	shadowed []plugin.Shadowed
+	findings []plugin.Finding
 }
 
 type LLMClientCache struct {
@@ -239,11 +246,19 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	if len(cfg.ModelEntries) > 0 {
 		settings.Models = append([]config.ModelEntry(nil), cfg.ModelEntries...)
 	}
+	// Resolved once, here: every layer below reads the same inventory, and a
+	// plugin installed later must not change a runtime already assembled.
+	pluginSnapshot := discoverPlugins()
+	pluginSnapshot.resolveBase(context.Background())
+	loadedPlugins := pluginSnapshot.Loadable()
+
 	wsHooks, err := config.LoadWorkspaceHooks(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("load workspace hooks: %w", err)
 	}
-	mergedHooks := config.MergeHooks(settings.Hooks, wsHooks)
+	pluginHooks := config.ResolvePluginHooks(loadedPlugins)
+	pluginSnapshot.addFindings(pluginHooks.Findings...)
+	mergedHooks := config.MergeHooks(settings.Hooks, pluginHooks.Config, wsHooks)
 
 	policyCfg, err := config.LoadPolicySandbox()
 	if err != nil {
@@ -273,6 +288,7 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		sandbox:                sandboxView,
 		sandboxManager:         sandboxManager,
 		sandboxResolved:        sandboxResolved,
+		plugins:                pluginSnapshot,
 	}
 	app.llmClients = &LLMClientCache{
 		settings:         app.settings,
@@ -282,11 +298,13 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		clients:          make(map[string]cllm.LLMClient),
 	}
 	if cfg.EnableMCP {
-		mcpCfg, err := config.LoadMCPConfigForWorkspace(app.workspaceRoot)
+		mcpRes, err := config.ResolveMCPConfig(app.workspaceRoot, loadedPlugins)
 		if err != nil {
 			return nil, fmt.Errorf("load mcp config: %w", err)
 		}
-		app.mcpManager, err = NewMCPManager(context.Background(), mcpCfg)
+		app.plugins.addFindings(mcpRes.Findings...)
+		app.plugins.addShadowed(mcpRes.Shadowed...)
+		app.mcpManager, err = NewMCPManager(context.Background(), mcpRes.Config)
 		if err != nil {
 			return nil, err
 		}
@@ -299,12 +317,16 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	}
 	app.hooks = NewHookManager(mergedHooks, hook.NewDriverRegistry(hookDeps))
 
-	if err := app.skillsRegistry.Load(app.workspaceRoot); err != nil {
+	if err := app.skillsRegistry.Load(app.workspaceRoot, loadedPlugins); err != nil {
 		return nil, err
 	}
-	if err := app.subagentsRegistry.Load(app.workspaceRoot); err != nil {
+	if err := app.subagentsRegistry.Load(app.workspaceRoot, loadedPlugins); err != nil {
 		return nil, err
 	}
+	app.plugins.addFindings(app.skillsRegistry.findings...)
+	app.plugins.addShadowed(app.skillsRegistry.shadowed...)
+	app.plugins.addFindings(app.subagentsRegistry.findings...)
+	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
 	return app, nil
 }
 
@@ -389,7 +411,7 @@ func (a *AgentApp) SetDefaultModel(name string) {
 }
 
 // AgentDefs returns the user-defined sub-agent definitions for this workspace.
-func (a *AgentApp) AgentDefs() []tools.SubAgentDef {
+func (a *AgentApp) AgentDefs() []subagent.Def {
 	if a == nil || a.subagentsRegistry == nil {
 		return nil
 	}
@@ -510,11 +532,13 @@ func (a *AgentApp) RefreshMCP(ctx context.Context) (MCPStatus, error) {
 	if a == nil || a.mcpManager == nil {
 		return MCPStatus{}, nil
 	}
-	mcpCfg, err := config.LoadMCPConfigForWorkspace(a.workspaceRoot)
+	// Refresh re-reads the files, not the plugin inventory: a runtime keeps the
+	// snapshot it was assembled with.
+	mcpRes, err := config.ResolveMCPConfig(a.workspaceRoot, a.plugins.Loadable())
 	if err != nil {
 		return MCPStatus{}, fmt.Errorf("load mcp config: %w", err)
 	}
-	if err := a.mcpManager.Refresh(ctx, mcpCfg); err != nil {
+	if err := a.mcpManager.Refresh(ctx, mcpRes.Config); err != nil {
 		return MCPStatus{}, err
 	}
 	a.toolRegistriesMu.Lock()
@@ -725,6 +749,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 			Model:        modelName,
 			Sandbox:      a.sandboxInfo(),
 			PromptLayers: promptLayers,
+			Plugins:      a.plugins.Provenance(ctx),
 		})
 		defer recorder.Close()
 		ctx = withTraceRunContext(ctx, recorder.RunID(), modelName)
@@ -856,11 +881,12 @@ func resolveWorkspaceRoot(dir string) (string, error) {
 	return root, nil
 }
 
-func (s *SkillRegistry) Load(workspace string) error {
+func (s *SkillRegistry) Load(workspace string, plugins []config.DiscoveredPlugin) error {
 	if s == nil {
 		return nil
 	}
-	s.entries = tools.DiscoverSkillEntries(config.SkillSearchPaths(workspace))
+	res := tools.ResolveSkills(config.SkillSources(workspace, plugins))
+	s.entries, s.shadowed, s.findings = res.Entries, res.Shadowed, res.Findings
 	return nil
 }
 
@@ -880,25 +906,33 @@ func (s *SkillRegistry) NewTool() *tools.SkillTool {
 	return tools.NewSkillFromEntries(s.entries)
 }
 
-func (s *SubAgentRegistry) Load(workspace string) error {
+func (s *SubAgentRegistry) Load(workspace string, plugins []config.DiscoveredPlugin) error {
 	if s == nil {
 		return nil
 	}
-	defs, err := tools.LoadAgentDefsFromPaths(config.AgentDefsSearchPaths(workspace))
+	res, err := tools.ResolveAgentDefs(config.AgentDefSources(workspace, plugins))
 	if err != nil {
 		return fmt.Errorf("load agent defs: %w", err)
 	}
-	s.userDefs = defs
+	s.userDefs, s.shadowed, s.findings = res.Defs, res.Shadowed, res.Findings
 	return nil
 }
 
-func (s *SubAgentRegistry) Definitions() []tools.SubAgentDef {
+func (s *SubAgentRegistry) Definitions() []subagent.Def {
 	if s == nil || len(s.userDefs) == 0 {
 		return nil
 	}
-	cloned := make([]tools.SubAgentDef, len(s.userDefs))
+	cloned := make([]subagent.Def, len(s.userDefs))
 	copy(cloned, s.userDefs)
 	return cloned
+}
+
+// Plugins returns the plugin inventory this runtime was assembled with.
+func (a *AgentApp) Plugins() PluginSnapshot {
+	if a == nil {
+		return PluginSnapshot{}
+	}
+	return a.plugins
 }
 
 func (a *AgentApp) ListSessions() ([]session.SessionItem, error) {

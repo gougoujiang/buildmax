@@ -29,7 +29,11 @@ func (s *S3ArtifactStorage) PutArtifact(ctx context.Context, ref ArtifactRef, r 
 // is arbitrary user files bounded only by the upload limit, and a download must
 // not cost the server that much memory per request.
 func (s *S3ArtifactStorage) OpenArtifact(ctx context.Context, ref ArtifactRef) (io.ReadCloser, error) {
-	return s.client.GetObjectStream(ctx, s.bucket, ArtifactObjectKey(s.prefix, ref))
+	// The size the stream reports is discarded: the artifact record already
+	// carries the length that was measured when the content was stored, and
+	// that is the number the download header must use.
+	body, _, err := s.client.GetObjectStream(ctx, s.bucket, ArtifactObjectKey(s.prefix, ref))
+	return body, err
 }
 
 func (s *S3ArtifactStorage) RemoveArtifact(ctx context.Context, ref ArtifactRef) error {

@@ -48,7 +48,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&userRow{}, &teamRow{}, &teamMemberRow{}, &workflowRow{}, &workflowRevisionRow{}, &workflowRunRow{}, &workflowStepRunRow{}, &issueRow{}, &issueCommentRow{}, &agentRow{}, &agentRevisionRow{}, &taskRow{}, &taskRunRow{}, &taskRunArtifactRow{}, &artifactRow{}, &quotaTierRow{}, &conversationRow{}, &conversationMessageRow{}, &userWebhookKeyRow{}, &loginCodeRow{}, &userRefreshTokenRow{}, &llmCallRow{}, &llmModelRow{}, &auditEventRow{}, &systemGrantRow{}, &schemaMigrationRow{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&userRow{}, &teamRow{}, &teamMemberRow{}, &workflowRow{}, &workflowRevisionRow{}, &workflowRunRow{}, &workflowStepRunRow{}, &issueRow{}, &issueCommentRow{}, &agentRow{}, &agentRevisionRow{}, &taskRow{}, &taskRunRow{}, &taskRunArtifactRow{}, &artifactRow{}, &quotaTierRow{}, &conversationRow{}, &conversationMessageRow{}, &userWebhookKeyRow{}, &loginCodeRow{}, &userRefreshTokenRow{}, &llmCallRow{}, &llmModelRow{}, &auditEventRow{}, &systemGrantRow{}, &pluginRow{}, &pluginReleaseRow{}, &schemaMigrationRow{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := (&Store{db: db}).SeedDefaultQuotaTiers(ctx); err != nil {

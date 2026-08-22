@@ -100,8 +100,9 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	}
 
 	records := readTrace(t, sess.ID, result.TraceID)
-	if len(records) != 4 {
-		t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + run_end: %+v", len(records), records)
+	if len(records) != 5 {
+		t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + plugins + run_end: %+v",
+			len(records), records)
 	}
 
 	start := records[0]
@@ -141,7 +142,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 		t.Errorf("prompt_layers records no layers: %+v", layers)
 	}
 
-	end := records[3]
+	end := records[len(records)-1]
 	if end["type"] != "run_end" {
 		t.Errorf("last record type = %v, want run_end", end["type"])
 	}

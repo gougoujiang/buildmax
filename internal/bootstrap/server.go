@@ -22,6 +22,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/scheduler"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
 
@@ -174,13 +175,18 @@ func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error
 	return st, nil
 }
 
-// blobStorage is what a server needs from the object store: the team's mutable
-// home, the reproducible output a run leaves, and the durable artifacts the
-// team keeps. They are three key spaces, not one bucket with three names.
+// blobStorage is what one deployment stores and where.
+//
+// The four are separate key spaces rather than one bucket with four names: a
+// team's mutable home, the reproducible output a run leaves, the durable
+// artifacts the team keeps, and plugin packages.
 type blobStorage struct {
-	Persist   blob.PersistStorage
-	RunOutput blob.RunOutputStorage
-	Artifacts blob.ArtifactStorage
+	persist   blob.PersistStorage
+	runOutput blob.RunOutputStorage
+	artifact  blob.ArtifactStorage
+	packages  blob.PluginPackageStorage
+	// packageKeyPrefix scopes package keys inside whichever backend holds them.
+	packageKeyPrefix string
 }
 
 func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, workspacesDir string) (blobStorage, error) {
@@ -212,7 +218,14 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("artifact storage: %w", err)
 	}
-	return blobStorage{Persist: persistStorage, RunOutput: runOutputStorage, Artifacts: artifactStorage}, nil
+	packages, packagePrefix := BuildPluginPackageStorage(wsCfg, workspacesDir, s3Client)
+	return blobStorage{
+		persist:          persistStorage,
+		runOutput:        runOutputStorage,
+		artifact:         artifactStorage,
+		packages:         packages,
+		packageKeyPrefix: packagePrefix,
+	}, nil
 }
 
 func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageConfig) (blob.S3Client, error) {
@@ -227,6 +240,12 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 }
 
 func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, storage blobStorage) (httpserver.Config, error) {
+	pluginService := &pluginsvc.Service{
+		Catalog:   st,
+		Packages:  storage.packages,
+		KeyPrefix: storage.packageKeyPrefix,
+		Audit:     audit.NewRecorder(st),
+	}
 	quotaService := &quota.Service{
 		TeamStore:   st,
 		UsageReader: st,
@@ -269,10 +288,11 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			LLMModelStore:       st,
 			ArtifactStore:       st,
 		},
+		Services: httpserver.ServicesConfig{Plugin: pluginService},
 		Storage: httpserver.StorageConfig{
-			PersistStorage:   storage.Persist,
-			RunOutputStorage: storage.RunOutput,
-			ArtifactStorage:  storage.Artifacts,
+			PersistStorage:   storage.persist,
+			RunOutputStorage: storage.runOutput,
+			ArtifactStorage:  storage.artifact,
 			MaxArtifactBytes: int64(sc.Storage.MaxArtifactMB) << 20,
 			WorkspacesDir:    workspacesDir,
 		},
@@ -289,7 +309,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			UserID:      sc.Webhook.UserID,
 		},
 		Audit:     audit.NewRecorder(st),
-		Readiness: readinessChecks(st, storage.Persist),
+		Readiness: readinessChecks(st, storage.persist),
 		// What the admin system status reports about this deployment, and the
 		// operator-facing view of server.yaml. The redaction whitelist lives in
 		// internal/config, next to the struct it describes.

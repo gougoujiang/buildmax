@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	mcpcfg "github.com/gougoujiang/buildmax/internal/core/mcp"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -39,7 +39,7 @@ type MCPServerStatus struct {
 }
 
 // NewRegistry connects every server in cfg, lists tools (with pagination), and builds the catalog string.
-func NewRegistry(ctx context.Context, cfg *config.MCPConfigRoot, httpClient *http.Client) (*Registry, error) {
+func NewRegistry(ctx context.Context, cfg *mcpcfg.ConfigRoot, httpClient *http.Client) (*Registry, error) {
 	reg, rows := LoadRegistryState(ctx, cfg, httpClient)
 	if reg != nil {
 		return reg, nil
@@ -58,7 +58,7 @@ func NewRegistry(ctx context.Context, cfg *config.MCPConfigRoot, httpClient *htt
 // LoadRegistryState connects to configured servers once and returns both the
 // usable registry and per-server status rows. If any server fails, the returned
 // registry is nil and all opened sessions are closed.
-func LoadRegistryState(ctx context.Context, cfg *config.MCPConfigRoot, httpClient *http.Client) (*Registry, []MCPServerStatus) {
+func LoadRegistryState(ctx context.Context, cfg *mcpcfg.ConfigRoot, httpClient *http.Client) (*Registry, []MCPServerStatus) {
 	if cfg == nil || len(cfg.MCPServers) == 0 {
 		return nil, nil
 	}

@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getApp } from './lib/app';
 
+// Where a server nobody has named listens on this machine. The Go side answers
+// with settings.yaml's server_url when there is one; this is the fallback for
+// the moment before that answer arrives, and for a browser with no bindings.
 const DEFAULT_SERVER_URL = 'http://localhost:5678';
 
 /**
@@ -23,7 +26,6 @@ export default function LoginPage({ onLogin }) {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function handleUseLocalMode() {
     if (loading || !app) return;
@@ -42,16 +44,27 @@ export default function LoginPage({ onLogin }) {
   const app = getApp();
   const credential = mode === 'password' ? password : otp.trim();
 
+  // The default is a starting point, not an assumption: a deployment behind an
+  // ingress publishes one origin for Portal and API, and it is not this one.
+  useEffect(() => {
+    if (!app?.GetDefaultServerURL) return;
+    let cancelled = false;
+    app.GetDefaultServerURL().then((url) => {
+      if (!cancelled && url) setServerURL(url);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [app]);
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!email.trim() || !credential || loading || !app) return;
+    if (!serverURL.trim() || !email.trim() || !credential || loading || !app) return;
     setError(null);
     setLoading(true);
     try {
       const status =
         mode === 'password'
-          ? await app.DoLoginWithPassword(serverURL, email.trim(), password)
-          : await app.DoLogin(serverURL, email.trim(), otp.trim());
+          ? await app.DoLoginWithPassword(serverURL.trim(), email.trim(), password)
+          : await app.DoLogin(serverURL.trim(), email.trim(), otp.trim());
       if (onLogin) onLogin(status);
     } catch (err) {
       setError(err?.message ?? String(err));
@@ -77,6 +90,22 @@ export default function LoginPage({ onLogin }) {
             : 'Sign in with a login code from your administrator'}
         </p>
         <form onSubmit={handleSubmit} className="login-page__form">
+          <label className="login-page__label" htmlFor="login-server">Server URL</label>
+          <input
+            id="login-server"
+            type="text"
+            className="login-page__input"
+            value={serverURL}
+            onChange={(e) => setServerURL(e.target.value)}
+            placeholder={DEFAULT_SERVER_URL}
+            required
+            disabled={loading}
+          />
+          <p className="login-page__field-hint">
+            The API address. Behind an ingress it is the origin the Portal is on,
+            not the server's own port.
+          </p>
+
           <label className="login-page__label" htmlFor="login-email">Email</label>
           <input
             id="login-email"
@@ -120,32 +149,11 @@ export default function LoginPage({ onLogin }) {
             </>
           )}
 
-          <button
-            type="button"
-            className="login-page__advanced-toggle"
-            onClick={() => setShowAdvanced((v) => !v)}
-          >
-            {showAdvanced ? '▾' : '▸'} Server
-          </button>
-          {showAdvanced && (
-            <>
-              <label className="login-page__label" htmlFor="login-server">Server URL</label>
-              <input
-                id="login-server"
-                type="text"
-                className="login-page__input"
-                value={serverURL}
-                onChange={(e) => setServerURL(e.target.value)}
-                placeholder={DEFAULT_SERVER_URL}
-                disabled={loading}
-              />
-            </>
-          )}
           {error && <p className="login-page__error" role="alert">{error}</p>}
           <button
             type="submit"
             className="login-page__submit"
-            disabled={loading || !email.trim() || !credential}
+            disabled={loading || !serverURL.trim() || !email.trim() || !credential}
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>

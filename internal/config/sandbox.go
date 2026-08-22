@@ -111,34 +111,44 @@ const (
 	SandboxSurfaceWorker SandboxSurface = "worker"
 )
 
-// PolicyFile is the on-disk shape of <BUILDMAX_HOME>/policy.yaml. Only the
-// sandbox block is read in Phase A; the file is reserved for other
-// operator-controlled subsystems in later phases.
+// PolicyFile is the on-disk shape of <BUILDMAX_HOME>/policy.yaml, the
+// operator-controlled layer above settings.yaml.
 type PolicyFile struct {
 	Sandbox SandboxConfig `mapstructure:"sandbox" json:"sandbox,omitempty" yaml:"sandbox,omitempty"`
+	Plugins PluginPolicy  `mapstructure:"plugins" json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
 
-// LoadPolicySandbox reads <BUILDMAX_HOME>/policy.yaml. A missing file is
-// not an error — returns (SandboxConfig{}, nil) so callers can merge
-// unconditionally.
+// LoadPolicySandbox reads the sandbox block of <BUILDMAX_HOME>/policy.yaml. A
+// missing file is not an error — returns (SandboxConfig{}, nil) so callers can
+// merge unconditionally.
 func LoadPolicySandbox() (SandboxConfig, error) {
+	pf, err := LoadPolicyFile()
+	if err != nil {
+		return SandboxConfig{}, err
+	}
+	return pf.Sandbox, nil
+}
+
+// LoadPolicyFile reads <BUILDMAX_HOME>/policy.yaml. A missing file is not an
+// error: it is the state of every deployment that asserted nothing.
+func LoadPolicyFile() (PolicyFile, error) {
 	path := PolicyPath()
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return SandboxConfig{}, nil
+			return PolicyFile{}, nil
 		}
-		return SandboxConfig{}, fmt.Errorf("stat policy: %w", err)
+		return PolicyFile{}, fmt.Errorf("stat policy: %w", err)
 	}
 	v := viper.New()
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
-		return SandboxConfig{}, fmt.Errorf("read policy: %w", err)
+		return PolicyFile{}, fmt.Errorf("read policy: %w", err)
 	}
 	var pf PolicyFile
 	if err := v.Unmarshal(&pf); err != nil {
-		return SandboxConfig{}, fmt.Errorf("parse policy: %w", err)
+		return PolicyFile{}, fmt.Errorf("parse policy: %w", err)
 	}
-	return pf.Sandbox, nil
+	return pf, nil
 }
 
 // SandboxResolution is the resolved sandbox plus a per-field source map

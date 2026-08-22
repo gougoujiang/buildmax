@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
 
@@ -74,6 +75,11 @@ type Config struct {
 	// `buildmax-server model`, on the machine that holds the database
 	// credentials.
 	LLMModelStore model.LLMModelStore
+
+	// PluginService publishes Marketplace releases and manages catalog
+	// entries. Nil leaves the catalog routes reporting that this deployment
+	// has no Marketplace.
+	PluginService *pluginsvc.Service
 	// SchemaStore reports which migrations a database has had applied. Nil
 	// leaves that field of the system status empty.
 	SchemaStore model.SchemaStore

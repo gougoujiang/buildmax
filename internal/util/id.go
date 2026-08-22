@@ -32,6 +32,8 @@ const (
 	PrefixAuditEvent          = "ae"
 	PrefixAuthSession         = "as"
 	PrefixSystemGrant         = "sg"
+	PrefixPlugin              = "pl"
+	PrefixPluginRelease       = "plr"
 )
 
 const (

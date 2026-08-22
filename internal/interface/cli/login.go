@@ -15,8 +15,6 @@ import (
 	"golang.org/x/term"
 )
 
-const defaultServerURL = "http://localhost:5678"
-
 func newLoginCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "login",
@@ -53,7 +51,7 @@ func interactiveLogin() error {
 	s, _ := config.LoadSettings()
 	serverDefault := s.ServerURL
 	if serverDefault == "" {
-		serverDefault = defaultServerURL
+		serverDefault = client.DefaultServerURL
 	}
 	fmt.Fprintf(os.Stdout, "Server URL [%s]: ", serverDefault)
 	serverURL := readLine(reader)

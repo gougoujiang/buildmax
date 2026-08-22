@@ -145,3 +145,47 @@ func taskRunArtifactsKey(scope runKeyScope, relPath string) (string, error) {
 	}
 	return path.Join(scope.Prefix, scope.CreatedBy, "conversations", scope.ConversationID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", clean), nil
 }
+
+// PluginPackagesPrefix is where every published package lives.
+const PluginPackagesPrefix = "plugins"
+
+// ErrInvalidDigest is returned when a digest is not the labelled SHA-256 this
+// format uses.
+var ErrInvalidDigest = errors.New("invalid digest: want sha256:<64 hex characters>")
+
+// PluginPackageKey returns the object key for one release's bytes.
+//
+// The key is derived from the content rather than from the version. A
+// version-derived key would let a second publish of an existing version
+// overwrite the first release's bytes and only afterwards fail on the
+// uniqueness constraint — the bytes somebody reviewed replaced by bytes nobody
+// did. Content addressing also makes republishing identical bytes free, and
+// leaves a failed publish with a harmless orphan rather than a corrupted
+// release.
+//
+// The plugin name stays in the path so an operator can see what is stored, and
+// so removing one plugin's bytes can never reach another's.
+func PluginPackageKey(prefix, pluginName, digest string) (string, error) {
+	name, err := CleanRelPath(pluginName)
+	if err != nil {
+		return "", err
+	}
+	if strings.Contains(name, "/") {
+		return "", ErrInvalidPath
+	}
+	hex, ok := strings.CutPrefix(digest, "sha256:")
+	if !ok || len(hex) != 64 || !isLowerHex(hex) {
+		return "", ErrInvalidDigest
+	}
+	// The colon of the labelled form is not a filename anywhere useful.
+	return path.Join(prefix, PluginPackagesPrefix, name, "sha256-"+hex+".tar.gz"), nil
+}
+
+func isLowerHex(s string) bool {
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}

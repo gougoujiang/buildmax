@@ -7,28 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
-)
 
-// SubAgentDef represents one parsed sub-agent definition file.
-// The file uses YAML-like frontmatter (between --- delimiters) for metadata
-// and the body after the closing --- as the system prompt.
-type SubAgentDef struct {
-	Name          string   // agent type name (used as subagent_type value)
-	Description   string   // LLM-readable description
-	ToolNames     []string // tool names parsed from the "tools" field
-	SystemPrompt  string   // body text used as the sub-agent system prompt
-	Model         string   // model name to use for this agent type; "" = runner default
-	MaxIterations int      // iteration cap; 0 = defaultSubAgentMaxIter (50)
-	Color         string   // color hint (parsed, reserved for UI)
-}
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/gougoujiang/buildmax/internal/core/subagent"
+)
 
 // LoadAgentDefs reads all files from dir, parses each as an agent definition,
 // and returns the valid definitions sorted alphabetically by Name.
 // If dir does not exist, returns (nil, nil) — not an error.
 // Individual files that fail to parse are skipped with a log warning.
-func LoadAgentDefs(dir string) ([]SubAgentDef, error) {
+func LoadAgentDefs(dir string) ([]subagent.Def, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -37,7 +25,7 @@ func LoadAgentDefs(dir string) ([]SubAgentDef, error) {
 		return nil, fmt.Errorf("read agent defs directory: %w", err)
 	}
 
-	var defs []SubAgentDef
+	var defs []subagent.Def
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -48,7 +36,7 @@ func LoadAgentDefs(dir string) ([]SubAgentDef, error) {
 			slog.Warn("skip agent def: read error", "file", entry.Name(), "err", err)
 			continue
 		}
-		def, err := parseAgentDef(data)
+		def, err := subagent.ParseDef(data)
 		if err != nil {
 			slog.Warn("skip agent def: parse error", "file", entry.Name(), "err", err)
 			continue
@@ -62,131 +50,48 @@ func LoadAgentDefs(dir string) ([]SubAgentDef, error) {
 	return defs, nil
 }
 
-// parseAgentDef parses a single agent definition from file content.
-// Expected format: YAML-like frontmatter between --- delimiters, then body.
-func parseAgentDef(data []byte) (SubAgentDef, error) {
-	content := strings.TrimSpace(string(data))
-	if !strings.HasPrefix(content, "---") {
-		return SubAgentDef{}, errors.New("missing opening --- frontmatter delimiter")
-	}
-
-	// Remove the leading ---
-	rest := content[3:]
-
-	// Find the closing ---
-	idx := strings.Index(rest, "\n---")
-	if idx < 0 {
-		return SubAgentDef{}, errors.New("missing closing --- frontmatter delimiter")
-	}
-
-	frontmatterBlock := rest[:idx]
-	body := strings.TrimSpace(rest[idx+4:]) // skip past "\n---"
-
-	kv := parseFrontmatter(frontmatterBlock)
-
-	name := strings.TrimSpace(kv["name"])
-	if name == "" {
-		return SubAgentDef{}, errors.New("required field 'name' is missing or empty")
-	}
-
-	description := strings.TrimSpace(kv["description"])
-	if description == "" {
-		return SubAgentDef{}, errors.New("required field 'description' is missing or empty")
-	}
-
-	toolsRaw := strings.TrimSpace(kv["tools"])
-	if toolsRaw == "" {
-		return SubAgentDef{}, errors.New("required field 'tools' is missing or empty")
-	}
-	toolNames := splitAndTrim(toolsRaw, ",")
-	if len(toolNames) == 0 {
-		return SubAgentDef{}, errors.New("'tools' field has no valid entries")
-	}
-
-	systemPrompt := body
-	if systemPrompt == "" {
-		systemPrompt = description // fallback so sub-agent always has a prompt
-	}
-
-	var maxIter int
-	if s := strings.TrimSpace(kv["max_iterations"]); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			maxIter = n
-		}
-	}
-
-	return SubAgentDef{
-		Name:          name,
-		Description:   description,
-		ToolNames:     toolNames,
-		SystemPrompt:  systemPrompt,
-		Model:         strings.TrimSpace(kv["model"]),
-		MaxIterations: maxIter,
-		Color:         strings.TrimSpace(kv["color"]),
-	}, nil
+// AgentDefResolution is what scanning every source produced: the definitions
+// that load, what a higher layer shadowed, and the collisions that stopped a
+// name from loading at all.
+type AgentDefResolution struct {
+	Defs     []subagent.Def
+	Shadowed []plugin.Shadowed
+	Findings []plugin.Finding
 }
 
-// parseFrontmatter parses a block of key: value lines into a map.
-// Lines without a colon or with an empty key are skipped.
-func parseFrontmatter(block string) map[string]string {
-	kv := make(map[string]string)
-	for _, line := range strings.Split(block, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+// ResolveAgentDefs scans priority-ordered sources and reduces them to one
+// definition per name. Sources come from internal/config: workspace, then
+// global, then each plugin in name order.
+func ResolveAgentDefs(sources []plugin.Source) (AgentDefResolution, error) {
+	var cands []candidate[subagent.Def]
+	for _, src := range sources {
+		defs, err := LoadAgentDefs(src.Dir)
+		if err != nil {
+			return AgentDefResolution{}, err
 		}
-		idx := strings.Index(line, ":")
-		if idx < 0 {
-			continue
+		for _, d := range defs {
+			cands = append(cands, candidate[subagent.Def]{name: d.Name, origin: src.Origin, value: d})
 		}
-		key := strings.TrimSpace(line[:idx])
-		value := strings.TrimSpace(line[idx+1:])
-		if key == "" {
-			continue
-		}
-		kv[key] = value
 	}
-	return kv
+	r := resolveCandidates(cands, "subagent", func(d subagent.Def, o plugin.Origin) subagent.Def {
+		d.Origin = o
+		return d
+	})
+	return AgentDefResolution{Defs: r.values, Shadowed: r.shadowed, Findings: r.findings}, nil
 }
 
 // LoadAgentDefsFromPaths loads agent definitions from multiple directories in priority order.
 // Directories are scanned in order; if two directories contain a definition with the same Name,
 // the first one wins (project-level overrides global-level). Missing directories are gracefully
-// skipped (same behavior as LoadAgentDefs). Returns the merged list sorted alphabetically by Name.
-func LoadAgentDefsFromPaths(dirs []string) ([]SubAgentDef, error) {
-	seen := make(map[string]bool)
-	var merged []SubAgentDef
-
+// skipped. This is the unlabelled form, for a caller with no layering to express.
+func LoadAgentDefsFromPaths(dirs []string) ([]subagent.Def, error) {
+	sources := make([]plugin.Source, 0, len(dirs))
 	for _, dir := range dirs {
-		defs, err := LoadAgentDefs(dir)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range defs {
-			if seen[d.Name] {
-				slog.Debug("skip duplicate agent def", "name", d.Name, "dir", dir)
-				continue
-			}
-			seen[d.Name] = true
-			merged = append(merged, d)
-		}
+		sources = append(sources, plugin.Source{Dir: dir})
 	}
-
-	sort.Slice(merged, func(i, j int) bool {
-		return merged[i].Name < merged[j].Name
-	})
-	return merged, nil
-}
-
-// splitAndTrim splits s by sep and returns trimmed, non-empty parts.
-func splitAndTrim(s, sep string) []string {
-	parts := strings.Split(s, sep)
-	var result []string
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
+	res, err := ResolveAgentDefs(sources)
+	if err != nil {
+		return nil, err
 	}
-	return result
+	return res.Defs, nil
 }

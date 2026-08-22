@@ -85,7 +85,7 @@ func TestCheckServerDatabaseNamesTheCommandsThatStartIt(t *testing.T) {
 	if err == nil {
 		t.Fatal("checkServerDatabase() = nil, want an error naming how to start the database")
 	}
-	for _, want := range []string{"kind up", "kind db", fmt.Sprint(port)} {
+	for _, want := range []string{"kind up", "kind forward", fmt.Sprint(port)} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %q", err, want)
 		}

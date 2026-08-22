@@ -59,3 +59,25 @@ type RunOutputStorage interface {
 	PutRunOutputFile(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetRunOutputFile(ctx context.Context, ref RunObjectRef) ([]byte, error)
 }
+
+// PluginPackageStorage stores the immutable bytes of a published plugin release.
+//
+// It is deliberately not artifact storage. A package belongs to the
+// deployment's catalog rather than to a team's run, so it must not inherit
+// team artifact authorization or retention — a catalog entry that vanished
+// with a team's retention window could no longer explain an installation that
+// is still on somebody's machine.
+//
+// Every method streams. A package is bounded, but bounded at tens of megabytes,
+// and a server that read one into memory per request would be sized by its
+// largest plugin rather than by its traffic.
+type PluginPackageStorage interface {
+	// Put stores bytes under key. Keys are content-addressed, so writing one
+	// twice writes the same bytes and a partial write is never visible.
+	Put(ctx context.Context, key string, r io.Reader) error
+	// Open returns the object and its size, or ErrNotFound.
+	Open(ctx context.Context, key string) (io.ReadCloser, int64, error)
+	// Exists reports whether the bytes are already stored, so a republish of
+	// identical content does not have to upload them again.
+	Exists(ctx context.Context, key string) (bool, error)
+}

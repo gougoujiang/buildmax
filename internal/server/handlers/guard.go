@@ -49,6 +49,7 @@ func (h *Handler) adminHandler() *admin.Handler {
 		Grants:           h.cfg.SystemGrantStore,
 		Audits:           h.cfg.AuditStore,
 		Models:           h.cfg.LLMModelStore,
+		Plugins:          h.cfg.PluginService,
 		Schema:           h.cfg.SchemaStore,
 		TaskRuns:         h.cfg.TaskRunStore,
 		Quota:            h.cfg.QuotaService,

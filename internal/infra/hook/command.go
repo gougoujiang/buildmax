@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // BlockingExitCode is the exit status a command hook can use to deny an
@@ -38,10 +38,10 @@ type CommandDriver struct{}
 func NewCommandDriver() *CommandDriver { return &CommandDriver{} }
 
 // Type satisfies Driver.
-func (CommandDriver) Type() string { return config.HookTypeCommand }
+func (CommandDriver) Type() string { return corehook.TypeCommand }
 
 // Run executes entry.Command with the HookInput JSON on stdin.
-func (CommandDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
+func (CommandDriver) Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput {
 	if entry.Command == "" {
 		componentLog().Warn("command entry missing command", "event", in.Event)
 		return agent.HookOutput{}

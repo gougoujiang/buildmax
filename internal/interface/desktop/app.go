@@ -455,6 +455,18 @@ func (a *App) GetAuthStatus() (*AuthStatus, error) {
 	return &AuthStatus{Mode: readDesktopState().Mode, LoggedIn: false}, nil
 }
 
+// GetDefaultServerURL is what the sign-in form starts with. It reads the same
+// settings.yaml key `buildmax login` does, so the two entry points offer the
+// same address instead of the Desktop insisting on a local server someone has
+// already configured away from.
+func (a *App) GetDefaultServerURL() string {
+	s, err := config.LoadSettings()
+	if err == nil && s.ServerURL != "" {
+		return s.ServerURL
+	}
+	return client.DefaultServerURL
+}
+
 // UseLocalMode runs the agent here, against the models in settings.yaml, with
 // no server involved.
 func (a *App) UseLocalMode() (*AuthStatus, error) {
