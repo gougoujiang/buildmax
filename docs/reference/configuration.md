@@ -10,10 +10,12 @@ the environment, because they must be known before any file can be read.
 |---|---|---|
 | `<BUILDMAX_HOME>/settings.yaml` | CLI, Desktop | Models, hooks, sandbox, log level |
 | `<BUILDMAX_HOME>/server.yaml` | Server, Worker | Port, auth, database, storage, worker, Tier 1 model |
-| `<BUILDMAX_HOME>/policy.yaml` | CLI, Desktop, Worker | Operator sandbox policy that overrides `settings.yaml` |
+| `<BUILDMAX_HOME>/policy.yaml` | CLI, Desktop, Worker | Operator policy: sandbox settings that override `settings.yaml`, and which plugin sources may load |
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
 | `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
+| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop | An installed plugin; see [guide/plugins.md](../guide/plugins.md) |
+| `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
 [`config-examples/`](../../config-examples/):
@@ -643,6 +645,10 @@ Two things to know before enabling it:
 ├── settings.yaml       CLI and Desktop configuration
 ├── server.yaml         Server and worker configuration
 ├── policy.yaml         Optional operator sandbox policy (overrides settings.yaml)
+├── mcp.json            Optional MCP servers, merged with a workspace file
+├── skills/<name>/      Skills available in every workspace
+├── agents/             Subagent definitions available in every workspace
+├── plugins/<name>/     Installed plugins; .state.json holds their source
 ├── sessions/           Local session JSON files plus sessions.json index
 ├── traces/<session>/   Durable run traces, one JSONL file per run
 └── logs/               Rotating buildmax.log

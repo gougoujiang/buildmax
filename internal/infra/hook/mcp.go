@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // MCPDriver invokes a tool on an already-connected MCP server as a hook.
@@ -27,10 +27,10 @@ type MCPDriver struct {
 func NewMCPDriver(caller MCPCaller) *MCPDriver { return &MCPDriver{caller: caller} }
 
 // Type satisfies Driver.
-func (MCPDriver) Type() string { return config.HookTypeMCP }
+func (MCPDriver) Type() string { return corehook.TypeMCP }
 
 // Run invokes the configured MCP tool.
-func (d *MCPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
+func (d *MCPDriver) Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput {
 	if d == nil || d.caller == nil {
 		componentLog().Warn("mcp_tool driver has no caller; failing open", "event", in.Event)
 		return agent.HookOutput{}

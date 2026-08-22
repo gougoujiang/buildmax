@@ -69,7 +69,7 @@ modify files or run shell commands.
 |---|---|
 | `name` | The `subagent_type` value the main agent passes to `Task` |
 | `description` | How the main agent decides to delegate here — write it as a trigger |
-| `tools` | Comma-separated tool names. **Omit to grant every tool.** |
+| `tools` | Comma-separated tool names. **Required** — a definition without it is skipped. |
 | `model` | Optional model override for this agent type |
 | `max_iterations` | Optional cap; defaults to 50 |
 

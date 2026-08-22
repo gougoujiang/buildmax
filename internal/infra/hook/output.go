@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // parseHookOutput tries to decode an agent.HookOutput from a hook's textual
@@ -37,10 +37,10 @@ func parseHookOutput(b []byte) (agent.HookOutput, bool) {
 }
 
 // resolveTimeout returns the duration to enforce on one hook invocation;
-// zero or negative entries fall back to config.DefaultHookTimeoutSecs.
+// zero or negative entries fall back to corehook.DefaultTimeoutSecs.
 func resolveTimeout(seconds int) time.Duration {
 	if seconds <= 0 {
-		return time.Duration(config.DefaultHookTimeoutSecs) * time.Second
+		return time.Duration(corehook.DefaultTimeoutSecs) * time.Second
 	}
 	return time.Duration(seconds) * time.Second
 }

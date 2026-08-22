@@ -19,6 +19,12 @@ type S3Client interface {
 	// ListObjectKeys returns object keys under the given prefix (keys include the prefix).
 	// Prefix should end with "/" for directory-style listing.
 	ListObjectKeys(ctx context.Context, bucket, prefix string) ([]string, error)
+	// GetObjectStream opens an object without reading it into memory, and
+	// reports its size. It exists for objects too large to hold: a plugin
+	// package is bounded, but bounded at tens of megabytes per request.
+	GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error)
+	// ObjectExists reports whether an object is present.
+	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
 }
 
 // s3ClientAdapter adapts *s3.Client to S3Client.
@@ -54,6 +60,41 @@ func (a *s3ClientAdapter) GetObject(ctx context.Context, bucket, key string) ([]
 	}
 	defer func() { _ = out.Body.Close() }()
 	return io.ReadAll(out.Body)
+}
+
+func (a *s3ClientAdapter) GetObjectStream(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error) {
+	out, err := a.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var nsk *types.NoSuchKey
+		if errors.As(err, &nsk) {
+			return nil, 0, ErrNotFound
+		}
+		return nil, 0, err
+	}
+	var size int64
+	if out.ContentLength != nil {
+		size = *out.ContentLength
+	}
+	return out.Body, size, nil
+}
+
+func (a *s3ClientAdapter) ObjectExists(ctx context.Context, bucket, key string) (bool, error) {
+	_, err := a.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err == nil {
+		return true, nil
+	}
+	var nsk *types.NoSuchKey
+	var nf *types.NotFound
+	if errors.As(err, &nsk) || errors.As(err, &nf) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (a *s3ClientAdapter) ListObjectKeys(ctx context.Context, bucket, prefix string) ([]string, error) {

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
+
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // LLM holds resolved LLM provider settings.
@@ -21,13 +23,13 @@ type LLM struct {
 // Settings is the root structure for settings.yaml (BUILDMAX_HOME/settings.yaml).
 // Used by the CLI and desktop app.
 type Settings struct {
-	LogLevel  string        `mapstructure:"log_level"`
-	ServerURL string        `mapstructure:"server_url"`
-	Models    []ModelEntry  `mapstructure:"models"`
-	Hooks     HooksConfig   `mapstructure:"hooks"`
-	Sandbox   SandboxConfig `mapstructure:"sandbox"`
-	Tools     ToolsConfig   `mapstructure:"tools"`
-	Agent     AgentConfig   `mapstructure:"agent"`
+	LogLevel  string          `mapstructure:"log_level"`
+	ServerURL string          `mapstructure:"server_url"`
+	Models    []ModelEntry    `mapstructure:"models"`
+	Hooks     corehook.Config `mapstructure:"hooks"`
+	Sandbox   SandboxConfig   `mapstructure:"sandbox"`
+	Tools     ToolsConfig     `mapstructure:"tools"`
+	Agent     AgentConfig     `mapstructure:"agent"`
 }
 
 // LLM connection modes for a model entry.

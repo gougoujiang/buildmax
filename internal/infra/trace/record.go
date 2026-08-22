@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // traceVersion is stamped on the run_start record so future readers can detect
@@ -54,6 +55,15 @@ type Record struct {
 	// the runtime prompt: an absent record would read as "nobody looked" rather than "there
 	// was nothing else".
 	Layers []agent.PromptLayer `json:"layers,omitempty"`
+
+	// plugins
+	//
+	// Plugins names what a run loaded from outside the workspace and the user's
+	// own configuration, and for a repository plugin whether that input could
+	// still change under it. The record is written even when nothing was
+	// loaded, for the same reason as the two above: absence would read as
+	// "nobody looked".
+	Plugins []plugin.Provenance `json:"plugins,omitempty"`
 
 	// iter_start, llm_start, llm_end
 	Iter int `json:"iter,omitempty"`
@@ -173,6 +183,11 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 // run be able to say which instruction sources it received, and silence is not an answer.
 func layersRecord(layers []agent.PromptLayer) Record {
 	return Record{TS: now(), Type: "prompt_layers", Layers: append([]agent.PromptLayer(nil), layers...)}
+}
+
+// pluginsRecord builds the plugins record written immediately after run_start.
+func pluginsRecord(plugins []plugin.Provenance) Record {
+	return Record{TS: now(), Type: "plugins", Plugins: append([]plugin.Provenance(nil), plugins...)}
 }
 
 // boundaryRecord builds the sandbox_boundary record written immediately after

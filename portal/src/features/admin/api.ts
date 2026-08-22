@@ -16,6 +16,8 @@ import type {
   ApiAdminUserDetail,
   ApiAdminUsersResponse,
   ApiAuditEventsResponse,
+  ApiPluginReleasesResponse,
+  ApiPluginsResponse,
   ApiSystemGrant,
 } from "../../lib/api/types"
 
@@ -113,6 +115,53 @@ export function grantAdminRole(token: string, userId: string): Promise<ApiSystem
  */
 export function revokeAdminRole(token: string, userId: string): Promise<void> {
   return send<void>("DELETE", `/grants/${encodeURIComponent(userId)}`, token)
+}
+
+/**
+ * The catalog as an administrator sees it: archived entries included, because
+ * hiding a retired entry from the person who retired it leaves no way to
+ * restore it.
+ */
+export function listAdminPlugins(token: string): Promise<ApiPluginsResponse> {
+  return get<ApiPluginsResponse>("/plugins", token)
+}
+
+/** Every release of one plugin, withdrawn ones included and marked. */
+export function listAdminPluginReleases(
+  token: string,
+  name: string,
+): Promise<ApiPluginReleasesResponse> {
+  return get<ApiPluginReleasesResponse>(`/plugins/${encodeURIComponent(name)}/releases`, token)
+}
+
+/**
+ * Withdraws one release from default selection.
+ *
+ * It deletes nothing: a copy somebody already installed keeps working, and an
+ * exact version stays recoverable by someone who acknowledges the state.
+ */
+export function yankAdminPluginRelease(
+  token: string,
+  name: string,
+  version: string,
+  reason: string,
+): Promise<void> {
+  return send<void>(
+    "POST",
+    `/plugins/${encodeURIComponent(name)}/releases/${encodeURIComponent(version)}/yank`,
+    token,
+    { reason },
+  )
+}
+
+/** Retires or restores a catalog entry. Archiving refuses new releases. */
+export function setAdminPluginArchived(
+  token: string,
+  name: string,
+  archived: boolean,
+): Promise<void> {
+  const action = archived ? "archive" : "unarchive"
+  return send<void>("POST", `/plugins/${encodeURIComponent(name)}/${action}`, token)
 }
 
 export function listAdminTeams(

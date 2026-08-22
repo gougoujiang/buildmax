@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // HTTPBlockingStatus is the HTTP status code an endpoint can use to deny an
@@ -44,10 +44,10 @@ func NewHTTPDriver() *HTTPDriver {
 }
 
 // Type satisfies Driver.
-func (HTTPDriver) Type() string { return config.HookTypeHTTP }
+func (HTTPDriver) Type() string { return corehook.TypeHTTP }
 
 // Run executes one HTTP hook entry.
-func (d *HTTPDriver) Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput {
+func (d *HTTPDriver) Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput {
 	if entry.URL == "" {
 		componentLog().Warn("http entry missing url", "event", in.Event)
 		return agent.HookOutput{}

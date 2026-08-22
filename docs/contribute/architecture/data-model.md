@@ -89,6 +89,8 @@ erDiagram
     agent ||--o{ agent_revision : "versioned by"
     workflow ||--o{ workflow_revision : "versioned by"
 
+    plugin ||--o{ plugin_release : "published as"
+
     task ||--o{ task_run : "attempted as"
     task_run ||--o{ task_run_artifact : produces
 
@@ -925,6 +927,81 @@ the catalog entry is edited or deleted.
 Note that `llm_call` is *not* what quota reads. Quota aggregates `task_run`
 tokens; `llm_call` records gateway traffic including calls with no task behind
 them. The two will not agree, by design.
+
+## Plugin Catalog
+
+These two tables back the private Marketplace. Read
+[../../design/plugin-marketplace.md](../../design/plugin-marketplace.md) before
+changing either.
+
+The catalog belongs to the deployment, not to a team: neither table carries a
+`team_id`, which is what lets a System Administrator manage company
+capabilities without reaching into any team's prompts, files, or traces.
+
+### `plugin`
+
+One catalog entry — the stable identity releases are published under.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `plugin_id` | `varchar(64)` | no | Public ID, `pl_` prefix, unique |
+| `name` | `varchar(128)` | no | The manifest name, unique; every route addresses the plugin by it |
+| `display_name` | `varchar(255)` | no | Default `''` |
+| `description` | `varchar(1024)` | no | Default `''` |
+| `archived_at` | `bigint` | no | Default `0`; non-zero hides the entry and refuses new releases |
+| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
+| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+
+Indexes: PK `id`; unique `plugin_id`; unique `name`; index `archived_at`;
+index `created_at`.
+
+Archiving never deletes. A copy someone already installed keeps working, and
+the record still explains where that copy came from.
+
+### `plugin_release`
+
+One immutable published version.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `plugin_release_id` | `varchar(64)` | no | Public ID, `plr_` prefix, unique |
+| `plugin_id` | `varchar(64)` | no | `plugin.plugin_id`, indexed |
+| `plugin_name` | `varchar(128)` | no | Denormalised so a release reads without a join |
+| `version` | `varchar(64)` | no | Semantic version from the packed manifest |
+| `min_buildmax_version` | `varchar(64)` | no | Default `''`; default install selection filters on it |
+| `digest` | `varchar(128)` | no | `sha256:<hex>`, calculated by the server over the stored bytes |
+| `object_key` | `varchar(512)` | no | Where the package bytes live in the object store |
+| `size_bytes` | `bigint` | no | Default `0` |
+| `inspection` | `text` | yes | JSON: the sanitized capability report |
+| `source` | `text` | yes | JSON: the publisher's claim about the checkout the bytes came from |
+| `published_by` | `varchar(64)` | no | `user.user_id` |
+| `published_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
+| `yanked_at` | `bigint` | no | Default `0`; non-zero withdraws it from default selection |
+| `yanked_by` | `varchar(64)` | no | Default `''` |
+| `yanked_reason` | `varchar(512)` | no | Default `''` |
+
+Indexes: PK `id`; unique `plugin_release_id`; unique
+(`plugin_name`, `version`); index `plugin_id`; index `digest`; index
+`published_at`; index `yanked_at`.
+
+The unique index over (`plugin_name`, `version`) is what makes a version
+immutable, and it is the guard rather than a preceding read: two publishes
+racing would both pass a check and only one can pass the constraint.
+Publishing an existing version returns `409` even for identical bytes, because
+a release is what someone reviewed and what someone else downloaded.
+
+`inspection` and `source` are JSON documents rather than columns because
+nothing queries inside them: they are written once and read whole, and giving
+each field a column would freeze the report's shape into the schema. Neither
+carries command arguments, header values, environment values, prompt text, or
+file contents — see design §8. `source` is client-reported and cannot be
+verified, so it is presented as a claim rather than as proof.
+
+Package bytes are not in either table. They sit behind the plugin package
+storage interface, so a query that lists or inspects releases cannot carry one.
 
 ## Changing The Schema
 

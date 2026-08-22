@@ -64,14 +64,16 @@ Every run writes one JSONL file:
 <BUILDMAX_HOME>/traces/<session_id>/<run_id>.jsonl
 ```
 
-Run ids are prefixed `rt_`. The file opens with a `run_start` and a
-`sandbox_boundary` record, then one record per event, then a terminal
-`run_end`:
+Run ids are prefixed `rt_`. The file opens with a `run_start` record and three
+records describing what the run started with, then one record per event, then a
+terminal `run_end`:
 
 | Record | Emitted when |
 |---|---|
 | `run_start` | The run begins |
 | `sandbox_boundary` | Always, right after `run_start` — reports the boundary the run actually ran under. `"sandboxed": false` means nothing confined the run's `Bash` commands |
+| `prompt_layers` | Always — what the run was told before the conversation started, and how much of each |
+| `plugins` | Always — which plugins the run loaded, and for one installed from a Git checkout its commit and whether the working tree was dirty |
 | `llm_start` / `llm_end` | Each model call |
 | `tool_start` / `tool_end` | Each tool call |
 | `tool_denied` | A tool call was blocked — by a hook, or by permission |

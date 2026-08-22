@@ -3,8 +3,8 @@ package hook
 import (
 	"context"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // Driver executes one configured hook entry and returns the resulting
@@ -18,10 +18,10 @@ import (
 // exit 2, HTTP 422, JSON {"decision":"block"}).
 type Driver interface {
 	// Type returns the value the manager uses to address this driver. Must
-	// match the values produced by config.HookEntry.ResolvedType.
+	// match the values produced by corehook.Entry.ResolvedType.
 	Type() string
 	// Run executes entry against in and returns the resulting decision.
-	Run(ctx context.Context, entry config.HookEntry, in agent.HookInput) agent.HookOutput
+	Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput
 }
 
 // MCPCaller invokes a named tool on a named MCP server. Implementations live

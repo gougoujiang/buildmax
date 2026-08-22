@@ -35,6 +35,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 |---|---|
 | Anything in `internal/`, `cmd/` | `./make test` |
 | The agent loop, tools, permissions, sessions, the TUI | `./make test`, then `./make e2e cli` |
+| Plugins, packaging, or the Marketplace routes | `./make test`, then `./make e2e cli` |
 | The Desktop bridge, its events, or approvals | `./make e2e desktop` |
 | Portal, `gui`, or a route Portal calls | `./make e2e local` |
 | Server, worker, scheduler, storage, or the model gateway | `./make compose smoke`, and `./make compose smoke managed` if the change touches the gateway |
@@ -49,7 +50,7 @@ failure you already have.
 
 | Suite | Needs | Normal | Owns |
 |---|---|---|---|
-| `./make e2e cli` | Go | under 60 s | a temporary `BUILDMAX_HOME` and workspace |
+| `./make e2e cli` | Go | under 60 s | a temporary `BUILDMAX_HOME`, a workspace, and a Marketplace server it starts in process |
 | `./make e2e desktop` | Go | under 60 s | the same |
 | `./make e2e local` | Docker, Node, Chromium | under 10 min | a Compose stack it starts and stops |
 | `./make e2e compose` | a Compose stack already running | under 2 min | nothing — it is a guest |

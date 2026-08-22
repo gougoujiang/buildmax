@@ -117,6 +117,12 @@ Read the relevant architecture document before making a cross-package change:
   `internal/agentapp/taskrun` leaves `AppConfig.SandboxSurface` empty, which
   resolves to the CLI baseline. The baseline is written, not wired. Do not
   claim the deferred worker hardening is active.
+- Plugins load from `<BUILDMAX_HOME>/plugins/<name>/`, contributing skills,
+  subagents, MCP servers, and hooks beneath the global and workspace layers.
+  `agentapp` resolves them once per runtime and keeps that snapshot, so an
+  install cannot change a run in flight. A worker assembles inside a run-scoped
+  `BUILDMAX_HOME` and therefore loads none; centrally distributing plugins to
+  Portal or workers is a deferred design, not a gap to fill in passing.
 - Every run records a bounded, redacted JSONL trace by default. Trace failure is
   fail-open and must not break an agent run.
 - Server authentication requires a JWT secret. Login codes are single-use;

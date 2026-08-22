@@ -4,6 +4,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -89,4 +90,27 @@ func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(u
 	default:
 		return blob.NewLocalFSArtifactStorage(runOutputDir), nil
 	}
+}
+
+// PluginPackagesDirName is where a deployment with no object store keeps
+// published packages. It is dot-prefixed so it cannot be mistaken for a team's
+// workspace directory, which is what every other entry under workspaces_dir is.
+const PluginPackagesDirName = ".marketplace"
+
+// BuildPluginPackageStorage returns storage for published plugin packages and
+// the key prefix to build keys with.
+//
+// There is no provider setting of its own. A deployment that has an object
+// store keeps packages in it, and one that does not keeps them on the server's
+// disk — the same decision it already made for everything else it stores, and
+// one fewer knob to set inconsistently.
+//
+// Packages are kept apart from team artifacts on purpose: a catalog record that
+// vanished with a team's retention window could no longer explain an
+// installation still sitting on somebody's machine.
+func BuildPluginPackageStorage(cfg config.WorkspaceStorageConfig, workspacesDir string, s3Client blob.S3Client) (blob.PluginPackageStorage, string) {
+	if s3Client != nil {
+		return blob.NewS3PluginPackageStorage(s3Client, cfg.Bucket), cfg.Prefix
+	}
+	return blob.NewLocalFSPluginPackageStorage(filepath.Join(workspacesDir, PluginPackagesDirName)), ""
 }

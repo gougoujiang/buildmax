@@ -1,6 +1,7 @@
 package config
 
 import (
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,13 +37,13 @@ hooks:
 	if err != nil {
 		t.Fatalf("LoadSettings: %v", err)
 	}
-	if got := s.Hooks.Entries(HookEventPreToolUse); len(got) != 1 || got[0].Matcher != "writefile|editfile" || got[0].Command != "./guard.sh" || got[0].Timeout != 5 {
+	if got := s.Hooks.Entries(corehook.EventPreToolUse); len(got) != 1 || got[0].Matcher != "writefile|editfile" || got[0].Command != "./guard.sh" || got[0].Timeout != 5 {
 		t.Errorf("pre_tool_use entries = %+v", got)
 	}
-	if got := s.Hooks.Entries(HookEventPostToolUse); len(got) != 1 || got[0].Command != "gofmt -w ." {
+	if got := s.Hooks.Entries(corehook.EventPostToolUse); len(got) != 1 || got[0].Command != "gofmt -w ." {
 		t.Errorf("post_tool_use entries = %+v", got)
 	}
-	if got := s.Hooks.Entries(HookEventStop); len(got) != 1 || got[0].Command != "/usr/local/bin/audit.sh" {
+	if got := s.Hooks.Entries(corehook.EventStop); len(got) != 1 || got[0].Command != "/usr/local/bin/audit.sh" {
 		t.Errorf("stop entries = %+v", got)
 	}
 	if got := s.Hooks.Entries("UnknownEvent"); got != nil {
@@ -54,20 +55,20 @@ hooks:
 }
 
 func TestHooksConfig_IsEmptyDefault(t *testing.T) {
-	var h HooksConfig
+	var h corehook.Config
 	if !h.IsEmpty() {
-		t.Error("zero-value HooksConfig.IsEmpty = false")
+		t.Error("zero-value corehook.Config.IsEmpty = false")
 	}
 }
 
 // TestHookEntry_ResolvedTypeDefault asserts that omitting "type" falls back
 // to command, matching pre-v2 behavior.
 func TestHookEntry_ResolvedTypeDefault(t *testing.T) {
-	if got := (HookEntry{}).ResolvedType(); got != HookTypeCommand {
-		t.Errorf("ResolvedType() = %q, want %q", got, HookTypeCommand)
+	if got := (corehook.Entry{}).ResolvedType(); got != corehook.TypeCommand {
+		t.Errorf("ResolvedType() = %q, want %q", got, corehook.TypeCommand)
 	}
-	if got := (HookEntry{Type: HookTypeHTTP}).ResolvedType(); got != HookTypeHTTP {
-		t.Errorf("ResolvedType() = %q, want %q", got, HookTypeHTTP)
+	if got := (corehook.Entry{Type: corehook.TypeHTTP}).ResolvedType(); got != corehook.TypeHTTP {
+		t.Errorf("ResolvedType() = %q, want %q", got, corehook.TypeHTTP)
 	}
 }
 
@@ -104,11 +105,11 @@ hooks:
 	if err != nil {
 		t.Fatalf("LoadSettings: %v", err)
 	}
-	entries := s.Hooks.Entries(HookEventPreToolUse)
+	entries := s.Hooks.Entries(corehook.EventPreToolUse)
 	if len(entries) != 3 {
 		t.Fatalf("entries = %d, want 3", len(entries))
 	}
-	if entries[0].Type != HookTypeHTTP || entries[0].URL != "https://policy.example/check" {
+	if entries[0].Type != corehook.TypeHTTP || entries[0].URL != "https://policy.example/check" {
 		t.Errorf("http entry = %+v", entries[0])
 	}
 	// Viper lowercases map keys on load; HTTP headers are case-insensitive
@@ -119,13 +120,13 @@ hooks:
 	if len(entries[0].AllowedEnv) != 1 || entries[0].AllowedEnv[0] != "POLICY_TOKEN" {
 		t.Errorf("allowed_env = %v", entries[0].AllowedEnv)
 	}
-	if entries[1].Type != HookTypeMCP || entries[1].Server != "code-scanner" || entries[1].Tool != "scan_file" {
+	if entries[1].Type != corehook.TypeMCP || entries[1].Server != "code-scanner" || entries[1].Tool != "scan_file" {
 		t.Errorf("mcp_tool entry = %+v", entries[1])
 	}
 	if entries[1].Input["path"] != "${tool_args.path}" {
 		t.Errorf("mcp input = %v", entries[1].Input)
 	}
-	if entries[2].Type != HookTypePrompt || entries[2].Prompt != "judge $ARGUMENTS" || entries[2].Model != "fast" {
+	if entries[2].Type != corehook.TypePrompt || entries[2].Prompt != "judge $ARGUMENTS" || entries[2].Model != "fast" {
 		t.Errorf("prompt entry = %+v", entries[2])
 	}
 }
@@ -173,10 +174,10 @@ post_tool_use:
 	if err != nil {
 		t.Fatalf("LoadWorkspaceHooks: %v", err)
 	}
-	if got := cfg.Entries(HookEventPreToolUse); len(got) != 1 || got[0].Command != "./ws-guard.sh" {
+	if got := cfg.Entries(corehook.EventPreToolUse); len(got) != 1 || got[0].Command != "./ws-guard.sh" {
 		t.Errorf("pre_tool_use = %+v", got)
 	}
-	if got := cfg.Entries(HookEventPostToolUse); len(got) != 1 || got[0].Command != "gofmt -w ." {
+	if got := cfg.Entries(corehook.EventPostToolUse); len(got) != 1 || got[0].Command != "gofmt -w ." {
 		t.Errorf("post_tool_use = %+v", got)
 	}
 }
@@ -199,30 +200,30 @@ func TestLoadWorkspaceHooks_Malformed(t *testing.T) {
 // TestMergeHooks_AdditiveOrder asserts that global entries come before
 // workspace entries for the same event.
 func TestMergeHooks_AdditiveOrder(t *testing.T) {
-	global := HooksConfig{
-		PreToolUse: []HookEntry{{Command: "global-1"}, {Command: "global-2"}},
-		Stop:       []HookEntry{{Command: "global-end"}},
+	global := corehook.Config{
+		PreToolUse: []corehook.Entry{{Command: "global-1"}, {Command: "global-2"}},
+		Stop:       []corehook.Entry{{Command: "global-end"}},
 	}
-	ws := HooksConfig{
-		PreToolUse:  []HookEntry{{Command: "ws-1"}},
-		PostCompact: []HookEntry{{Command: "ws-compact"}},
+	ws := corehook.Config{
+		PreToolUse:  []corehook.Entry{{Command: "ws-1"}},
+		PostCompact: []corehook.Entry{{Command: "ws-compact"}},
 	}
 	merged := MergeHooks(global, ws)
-	got := merged.Entries(HookEventPreToolUse)
+	got := merged.Entries(corehook.EventPreToolUse)
 	if len(got) != 3 || got[0].Command != "global-1" || got[1].Command != "global-2" || got[2].Command != "ws-1" {
 		t.Errorf("pre_tool_use merged = %v", commands(got))
 	}
-	if got := merged.Entries(HookEventStop); len(got) != 1 || got[0].Command != "global-end" {
+	if got := merged.Entries(corehook.EventStop); len(got) != 1 || got[0].Command != "global-end" {
 		t.Errorf("stop merged = %v", commands(got))
 	}
-	if got := merged.Entries(HookEventPostCompact); len(got) != 1 || got[0].Command != "ws-compact" {
+	if got := merged.Entries(corehook.EventPostCompact); len(got) != 1 || got[0].Command != "ws-compact" {
 		t.Errorf("post_compact merged = %v", commands(got))
 	}
 }
 
 // TestMergeHooks_BothEmpty asserts a zero-result merge.
 func TestMergeHooks_BothEmpty(t *testing.T) {
-	merged := MergeHooks(HooksConfig{}, HooksConfig{})
+	merged := MergeHooks(corehook.Config{}, corehook.Config{})
 	if !merged.IsEmpty() {
 		t.Errorf("expected empty merged config, got %+v", merged)
 	}
@@ -231,8 +232,8 @@ func TestMergeHooks_BothEmpty(t *testing.T) {
 // TestMergeHooks_InputsNotMutated asserts that the merge does not modify
 // either input slice.
 func TestMergeHooks_InputsNotMutated(t *testing.T) {
-	global := HooksConfig{PreToolUse: []HookEntry{{Command: "g"}}}
-	ws := HooksConfig{PreToolUse: []HookEntry{{Command: "w"}}}
+	global := corehook.Config{PreToolUse: []corehook.Entry{{Command: "g"}}}
+	ws := corehook.Config{PreToolUse: []corehook.Entry{{Command: "w"}}}
 	merged := MergeHooks(global, ws)
 	merged.PreToolUse[0].Command = "MUTATED"
 	if global.PreToolUse[0].Command != "g" {
@@ -243,7 +244,7 @@ func TestMergeHooks_InputsNotMutated(t *testing.T) {
 	}
 }
 
-func commands(entries []HookEntry) []string {
+func commands(entries []corehook.Entry) []string {
 	out := make([]string, len(entries))
 	for i, e := range entries {
 		out[i] = e.Command

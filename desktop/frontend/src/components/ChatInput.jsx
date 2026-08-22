@@ -3,7 +3,7 @@ import { ChatComposer } from '@buildmax/gui';
 import { formatRunStatus } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { DiffDrawer } from './DiffDrawer';
-import { AgentsModal, MCPModal } from './Modals';
+import { AgentsModal, MCPModal, PluginsModal } from './Modals';
 
 export function SkillsPopup({ skills, filter, selected, onSelect, onHighlight }) {
   const filtered = skills.filter(
@@ -59,6 +59,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   // Lazy-loaded panel state
   const [showMCP, setShowMCP] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
+  const [showPlugins, setShowPlugins] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
 
   // Load project-level data when project changes.
@@ -270,6 +271,16 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         >
           Agents
         </button>
+
+        {/* Plugins button */}
+        <button
+          type="button"
+          className="chat-status-bar__btn"
+          onClick={() => setShowPlugins(true)}
+          title="Installed plugins"
+        >
+          Plugins
+        </button>
       </div>
 
       {showMCP && (
@@ -277,6 +288,9 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       )}
       {showAgents && (
         <AgentsModal projectID={currentProject.id} app={app} onClose={() => setShowAgents(false)} />
+      )}
+      {showPlugins && (
+        <PluginsModal projectID={currentProject.id} app={app} onClose={() => setShowPlugins(false)} />
       )}
       {showDiff && (
         <DiffDrawer projectID={currentProject.id} app={app} onClose={() => setShowDiff(false)} />

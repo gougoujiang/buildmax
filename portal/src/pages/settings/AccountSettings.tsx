@@ -7,6 +7,7 @@ import {
   type AccountSection,
   useSettingsData,
 } from "./shared"
+import { PluginCatalog } from "../../features/plugins"
 import { navigate } from "../../router"
 
 export function AccountSettings({ section }: { section: AccountSection }) {
@@ -68,6 +69,7 @@ export function AccountSettings({ section }: { section: AccountSection }) {
           <SettingsUsageSection loading={usageLoading} error={pageError} usage={usage} />
         ) : null}
         {section === "webhook" ? <AccountWebhookSection token={token} /> : null}
+        {section === "plugins" ? <PluginCatalog token={token} /> : null}
       </div>
     </div>
   )

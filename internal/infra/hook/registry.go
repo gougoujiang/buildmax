@@ -1,7 +1,7 @@
 package hook
 
 import (
-	"github.com/gougoujiang/buildmax/internal/config"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 // NewDriverRegistry builds the per-type driver map used by the HookManager.
@@ -12,16 +12,16 @@ import (
 // are skipped at dispatch time.
 func NewDriverRegistry(deps Deps) map[string]Driver {
 	registry := map[string]Driver{
-		config.HookTypeCommand: NewCommandDriver(),
-		config.HookTypeHTTP:    NewHTTPDriver(),
+		corehook.TypeCommand: NewCommandDriver(),
+		corehook.TypeHTTP:    NewHTTPDriver(),
 	}
 	if deps.MCPCaller != nil {
-		registry[config.HookTypeMCP] = NewMCPDriver(deps.MCPCaller)
+		registry[corehook.TypeMCP] = NewMCPDriver(deps.MCPCaller)
 	} else {
 		componentLog().Debug("no MCP caller; mcp_tool hooks disabled")
 	}
 	if deps.LLMCaller != nil {
-		registry[config.HookTypePrompt] = NewPromptDriver(deps.LLMCaller)
+		registry[corehook.TypePrompt] = NewPromptDriver(deps.LLMCaller)
 	} else {
 		componentLog().Debug("no LLM caller; prompt hooks disabled")
 	}

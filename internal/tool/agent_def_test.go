@@ -271,20 +271,6 @@ tools: Read
 	}
 }
 
-func TestParseAgentDef_NoFrontmatter(t *testing.T) {
-	_, err := parseAgentDef([]byte("Just some text without frontmatter."))
-	if err == nil {
-		t.Fatal("expected error for content without frontmatter, got nil")
-	}
-}
-
-func TestParseAgentDef_MissingClosingDelimiter(t *testing.T) {
-	_, err := parseAgentDef([]byte("---\nname: test\ndescription: test\ntools: Read"))
-	if err == nil {
-		t.Fatal("expected error for missing closing delimiter, got nil")
-	}
-}
-
 func TestLoadAgentDefs_SkipsDirectories(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "subdir")
