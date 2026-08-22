@@ -251,17 +251,19 @@ func Extract(r io.Reader, destDir string, lim Limits) (Summary, error) {
 			return Summary{}, fmt.Errorf("read archive: %w", err)
 		}
 
-		rel, target, err := destinationFor(root, header.Name, lim.MaxPathLength)
+		target, err := archiveDestination(root, header.Name, lim.MaxPathLength)
 		if err != nil {
 			return Summary{}, err
 		}
-		if seen[rel] {
-			// One path with two entries reads differently depending on whether
-			// a reader keeps the first or the last, which is exactly how a
-			// validator and an extractor get told different stories.
-			return Summary{}, fmt.Errorf("%w: %s", ErrDuplicate, rel)
+		// Keyed by destination rather than by the name as written: two entries
+		// that land in the same place are the same path however they were
+		// spelled. One path with two entries reads differently depending on
+		// whether a reader keeps the first or the last, which is exactly how a
+		// validator and an extractor get told different stories.
+		if seen[target] {
+			return Summary{}, fmt.Errorf("%w: %s", ErrDuplicate, header.Name)
 		}
-		seen[rel] = true
+		seen[target] = true
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -279,9 +281,9 @@ func Extract(r io.Reader, destDir string, lim Limits) (Summary, error) {
 			}
 			sum.Bytes += written
 		case tar.TypeSymlink, tar.TypeLink:
-			return Summary{}, fmt.Errorf("%w: %s", ErrLink, rel)
+			return Summary{}, fmt.Errorf("%w: %s", ErrLink, header.Name)
 		default:
-			return Summary{}, fmt.Errorf("%w: %s", ErrIrregular, rel)
+			return Summary{}, fmt.Errorf("%w: %s", ErrIrregular, header.Name)
 		}
 	}
 	return sum, nil
@@ -319,46 +321,44 @@ func writeFile(r io.Reader, target string, mode fs.FileMode, lim Limits, written
 	return n, nil
 }
 
-// destinationFor reduces an archive path to the one place it may land, or
-// refuses it. It returns the cleaned archive-relative path and the absolute
-// destination.
+// archiveDestination reduces an archive path to the one place it may land, or
+// refuses it.
 //
 // The last check is a prefix test on the joined path. Every rejection above it
 // already makes escape impossible, so the test is redundant as arithmetic — but
 // it is the form CodeQL's go/zipslip query recognises as a barrier, and without
 // it the write below is reported as using an unsanitized archive entry. The
+// shape matters as much as the check: one string return, and refusals returned
+// directly rather than through a helper, or the query stops following it. The
 // same note is on archiveDestination in cmd/mk/release_archive.go, which
-// reached it the same way.
-func destinationFor(root, name string, maxLen int) (rel, dst string, err error) {
-	refuse := func(e error) (string, string, error) {
-		return "", "", fmt.Errorf("%w: %s", e, name)
-	}
+// reached this the same way.
+func archiveDestination(root, name string, maxLen int) (string, error) {
 	if len(name) > maxLen {
-		return refuse(ErrPathTooLong)
+		return "", fmt.Errorf("%w: %s", ErrPathTooLong, name)
 	}
 	// A backslash is a separator on Windows and an ordinary character
 	// elsewhere, so the same archive would mean two things.
 	if strings.ContainsAny(name, `\`) || strings.ContainsRune(name, 0) {
-		return refuse(ErrTraversal)
+		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
 	}
 	if path.IsAbs(name) || filepath.IsAbs(name) || strings.HasPrefix(name, "/") {
-		return refuse(ErrTraversal)
+		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
 	}
 	// A Windows drive or UNC prefix is absolute there and relative here.
 	if len(name) > 1 && name[1] == ':' {
-		return refuse(ErrTraversal)
+		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
 	}
-	clean := path.Clean(strings.TrimSuffix(name, "/"))
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-		return refuse(ErrTraversal)
+	clean := filepath.Clean(filepath.FromSlash(strings.TrimSuffix(name, "/")))
+	if clean == "." || clean == ".." || filepath.IsAbs(clean) ||
+		strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
 	}
-
 	base := filepath.Clean(root)
-	dst = filepath.Join(base, filepath.FromSlash(clean))
+	dst := filepath.Join(base, clean)
 	if !strings.HasPrefix(dst, base+string(filepath.Separator)) {
-		return refuse(ErrTraversal)
+		return "", fmt.Errorf("%w: %s", ErrTraversal, name)
 	}
-	return clean, dst, nil
+	return dst, nil
 }
 
 // limitedReader fails once the stream passes its allowance, instead of
