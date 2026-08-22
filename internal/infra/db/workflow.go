@@ -11,47 +11,80 @@ import (
 )
 
 type workflowRow struct {
-	ID          uint   `gorm:"primaryKey;autoIncrement"`
-	WorkflowID  string `gorm:"column:workflow_id;type:varchar(64);uniqueIndex;not null"`
-	TeamID      string `gorm:"column:team_id;type:varchar(64);not null;index"`
+	ID          uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID    []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_workflow_public_id;not null"`
+	TeamID      uint64 `gorm:"column:team_id;not null;index"`
 	Name        string `gorm:"type:varchar(255);not null"`
 	Description string `gorm:"type:text;not null"`
 	Definition  string `gorm:"type:longtext;not null"`
 	Status      string `gorm:"type:varchar(32);not null;default:'draft'"`
 	Revision    int    `gorm:"column:revision;not null;default:1"`
-	CreatedBy   string `gorm:"type:varchar(64);not null"`
+	CreatedBy   uint64 `gorm:"column:created_by;not null"`
 	CreatedAt   int64  `gorm:"autoCreateTime"`
 	UpdatedAt   int64  `gorm:"autoUpdateTime"`
 }
 
 func (workflowRow) TableName() string { return "workflow" }
 
+// workflowReadRow is the row plus the handles its references resolve to.
+type workflowReadRow struct {
+	Row               workflowRow `gorm:"embedded"`
+	TeamPublicID      []byte      `gorm:"column:team_public_id"`
+	CreatedByPublicID []byte      `gorm:"column:created_by_public_id"`
+}
+
+func (s *Store) workflowSelect(ctx context.Context) *gorm.DB {
+	return workflowSelectTx(s.db.WithContext(ctx))
+}
+
+func workflowSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&workflowRow{}).
+		Select("workflow.*, t.public_id AS team_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN team t ON t.id = workflow.team_id").
+		Joins("INNER JOIN `user` cb ON cb.id = workflow.created_by")
+}
+
 // workflowRevisionRow is one recorded version of a workflow. Rows are appended,
 // never updated or deleted.
 type workflowRevisionRow struct {
-	ID          uint   `gorm:"primaryKey;autoIncrement"`
-	WorkflowID  string `gorm:"column:workflow_id;type:varchar(64);not null;index:idx_workflow_revision,unique,priority:1"`
+	ID          uint64 `gorm:"primaryKey;autoIncrement"`
+	WorkflowID  uint64 `gorm:"column:workflow_id;not null;index:idx_workflow_revision,unique,priority:1"`
 	Revision    int    `gorm:"column:revision;not null;index:idx_workflow_revision,unique,priority:2"`
 	Name        string `gorm:"type:varchar(255);not null"`
 	Description string `gorm:"type:text;not null"`
 	Definition  string `gorm:"type:longtext;not null"`
 	Status      string `gorm:"type:varchar(32);not null"`
-	CreatedBy   string `gorm:"column:created_by;type:varchar(64);not null"`
+	CreatedBy   uint64 `gorm:"column:created_by;not null"`
 	CreatedAt   int64  `gorm:"autoCreateTime"`
 }
 
 func (workflowRevisionRow) TableName() string { return "workflow_revision" }
 
+// workflowRevisionReadRow is the row plus the handles its references resolve
+// to. Like an agent revision, it has none of its own.
+type workflowRevisionReadRow struct {
+	Row               workflowRevisionRow `gorm:"embedded"`
+	WorkflowPublicID  []byte              `gorm:"column:workflow_public_id"`
+	CreatedByPublicID []byte              `gorm:"column:created_by_public_id"`
+}
+
+func (s *Store) workflowRevisionSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&workflowRevisionRow{}).
+		Select("workflow_revision.*, w.public_id AS workflow_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN workflow w ON w.id = workflow_revision.workflow_id").
+		Joins("INNER JOIN `user` cb ON cb.id = workflow_revision.created_by")
+}
+
 type workflowRunRow struct {
-	ID               uint    `gorm:"primaryKey;autoIncrement"`
-	WorkflowRunID    string  `gorm:"column:workflow_run_id;type:varchar(64);uniqueIndex;not null"`
-	WorkflowID       string  `gorm:"column:workflow_id;type:varchar(64);not null;index"`
+	ID               uint64  `gorm:"primaryKey;autoIncrement"`
+	PublicID         []byte  `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_workflow_run_public_id;not null"`
+	WorkflowID       uint64  `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
 	WorkflowRevision int     `gorm:"column:workflow_revision;not null;default:0"`
-	IssueID          *string `gorm:"column:issue_id;type:varchar(64);index"`
-	ConversationID   string  `gorm:"column:conversation_id;type:varchar(64);not null;index"`
+	IssueID          *uint64 `gorm:"column:issue_id;index"`
+	ConversationID   uint64  `gorm:"column:conversation_id;not null;index"`
 	Status           string  `gorm:"type:varchar(32);not null"`
-	CreatedBy        string  `gorm:"type:varchar(64);not null"`
-	CreatedAt        int64   `gorm:"autoCreateTime"`
+	CreatedBy        uint64  `gorm:"column:created_by;not null"`
+	CreatedAt        int64   `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
 	StartedAt        *int64  `gorm:""`
 	EndedAt          *int64  `gorm:""`
 	ErrorMessage     *string `gorm:"type:text"`
@@ -59,14 +92,33 @@ type workflowRunRow struct {
 
 func (workflowRunRow) TableName() string { return "workflow_run" }
 
+// workflowRunReadRow is the row plus the handles its references resolve to.
+type workflowRunReadRow struct {
+	Row                  workflowRunRow `gorm:"embedded"`
+	WorkflowPublicID     []byte         `gorm:"column:workflow_public_id"`
+	IssuePublicID        []byte         `gorm:"column:issue_public_id"`
+	ConversationPublicID []byte         `gorm:"column:conversation_public_id"`
+	CreatedByPublicID    []byte         `gorm:"column:created_by_public_id"`
+}
+
+func (s *Store) workflowRunSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&workflowRunRow{}).
+		Select("workflow_run.*, w.public_id AS workflow_public_id, i.public_id AS issue_public_id, " +
+			"c.public_id AS conversation_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN workflow w ON w.id = workflow_run.workflow_id").
+		Joins("LEFT JOIN issue i ON i.id = workflow_run.issue_id").
+		Joins("INNER JOIN conversation c ON c.id = workflow_run.conversation_id").
+		Joins("INNER JOIN `user` cb ON cb.id = workflow_run.created_by")
+}
+
 type workflowStepRunRow struct {
-	ID            uint    `gorm:"primaryKey;autoIncrement"`
-	StepRunID     string  `gorm:"column:workflow_step_run_id;type:varchar(64);uniqueIndex;not null"`
-	WorkflowRunID string  `gorm:"column:workflow_run_id;type:varchar(64);not null;index"`
+	ID            uint64  `gorm:"primaryKey;autoIncrement"`
+	PublicID      []byte  `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_workflow_step_run_public_id;not null"`
+	WorkflowRunID uint64  `gorm:"column:workflow_run_id;not null;index:idx_step_run_run_index,priority:1"`
 	StepID        string  `gorm:"column:step_id;type:varchar(128);not null"`
-	StepIndex     int     `gorm:"column:step_index;not null"`
+	StepIndex     int     `gorm:"column:step_index;not null;index:idx_step_run_run_index,priority:2"`
 	StepType      string  `gorm:"column:step_type;type:varchar(32);not null"`
-	TargetAgentID *string `gorm:"column:target_agent_id;type:varchar(64);index"`
+	TargetAgentID *uint64 `gorm:"column:target_agent_id;index"`
 	// Agent definition captured when the run started; empty on rows written before
 	// step runs snapshotted their agent.
 	AgentName         string  `gorm:"column:agent_name;type:varchar(255);not null"`
@@ -75,8 +127,8 @@ type workflowStepRunRow struct {
 	AgentRevision     int     `gorm:"column:agent_revision;not null;default:0"`
 	Prompt            string  `gorm:"type:text;not null"`
 	Status            string  `gorm:"type:varchar(32);not null"`
-	TaskID            *string `gorm:"column:task_id;type:varchar(64);index"`
-	TaskRunID         *string `gorm:"column:task_run_id;type:varchar(64);index"`
+	TaskID            *uint64 `gorm:"column:task_id;index"`
+	TaskRunID         *uint64 `gorm:"column:task_run_id;index"`
 	OutputSummary     *string `gorm:"type:text"`
 	ErrorMessage      *string `gorm:"type:text"`
 	CreatedAt         int64   `gorm:"autoCreateTime"`
@@ -86,25 +138,48 @@ type workflowStepRunRow struct {
 
 func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
 
-func toWorkflow(row *workflowRow) *model.Workflow {
+// workflowStepRunReadRow is the row plus the handles its references resolve to.
+type workflowStepRunReadRow struct {
+	Row                 workflowStepRunRow `gorm:"embedded"`
+	WorkflowRunPublicID []byte             `gorm:"column:workflow_run_public_id"`
+	TargetAgentPublicID []byte             `gorm:"column:target_agent_public_id"`
+	TaskPublicID        []byte             `gorm:"column:task_public_id"`
+	TaskRunPublicID     []byte             `gorm:"column:task_run_public_id"`
+}
+
+func (s *Store) workflowStepRunSelect(ctx context.Context) *gorm.DB {
+	return workflowStepRunSelectTx(s.db.WithContext(ctx))
+}
+
+func workflowStepRunSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&workflowStepRunRow{}).
+		Select("workflow_step_run.*, wr.public_id AS workflow_run_public_id, a.public_id AS target_agent_public_id, " +
+			"t.public_id AS task_public_id, r.public_id AS task_run_public_id").
+		Joins("INNER JOIN workflow_run wr ON wr.id = workflow_step_run.workflow_run_id").
+		Joins("LEFT JOIN agent a ON a.id = workflow_step_run.target_agent_id").
+		Joins("LEFT JOIN task t ON t.id = workflow_step_run.task_id").
+		Joins("LEFT JOIN task_run r ON r.id = workflow_step_run.task_run_id")
+}
+
+func toWorkflow(row *workflowReadRow) *model.Workflow {
 	if row == nil {
 		return nil
 	}
 	return &model.Workflow{
-		ID:          row.WorkflowID,
-		TeamID:      row.TeamID,
-		Name:        row.Name,
-		Description: row.Description,
-		Definition:  row.Definition,
-		Status:      row.Status,
-		Revision:    row.Revision,
-		CreatedBy:   row.CreatedBy,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ID:          util.FormatPublicID(row.Row.PublicID),
+		TeamID:      util.FormatPublicID(row.TeamPublicID),
+		Name:        row.Row.Name,
+		Description: row.Row.Description,
+		Definition:  row.Row.Definition,
+		Status:      row.Row.Status,
+		Revision:    row.Row.Revision,
+		CreatedBy:   util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:   row.Row.CreatedAt,
+		UpdatedAt:   row.Row.UpdatedAt,
 	}
 }
 
-func toWorkflows(rows []workflowRow) []model.Workflow {
+func toWorkflows(rows []workflowReadRow) []model.Workflow {
 	out := make([]model.Workflow, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflow(&rows[i])
@@ -112,41 +187,23 @@ func toWorkflows(rows []workflowRow) []model.Workflow {
 	return out
 }
 
-func toWorkflowRow(m *model.Workflow) *workflowRow {
-	if m == nil {
-		return nil
-	}
-	return &workflowRow{
-		WorkflowID:  m.ID,
-		TeamID:      m.TeamID,
-		Name:        m.Name,
-		Description: m.Description,
-		Definition:  m.Definition,
-		Status:      m.Status,
-		Revision:    m.Revision,
-		CreatedBy:   m.CreatedBy,
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
-	}
-}
-
-func toWorkflowRevision(row *workflowRevisionRow) *model.WorkflowRevision {
+func toWorkflowRevision(row *workflowRevisionReadRow) *model.WorkflowRevision {
 	if row == nil {
 		return nil
 	}
 	return &model.WorkflowRevision{
-		WorkflowID:  row.WorkflowID,
-		Revision:    row.Revision,
-		Name:        row.Name,
-		Description: row.Description,
-		Definition:  row.Definition,
-		Status:      row.Status,
-		CreatedBy:   row.CreatedBy,
-		CreatedAt:   row.CreatedAt,
+		WorkflowID:  util.FormatPublicID(row.WorkflowPublicID),
+		Revision:    row.Row.Revision,
+		Name:        row.Row.Name,
+		Description: row.Row.Description,
+		Definition:  row.Row.Definition,
+		Status:      row.Row.Status,
+		CreatedBy:   util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:   row.Row.CreatedAt,
 	}
 }
 
-func toWorkflowRevisions(rows []workflowRevisionRow) []model.WorkflowRevision {
+func toWorkflowRevisions(rows []workflowRevisionReadRow) []model.WorkflowRevision {
 	out := make([]model.WorkflowRevision, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflowRevision(&rows[i])
@@ -154,26 +211,30 @@ func toWorkflowRevisions(rows []workflowRevisionRow) []model.WorkflowRevision {
 	return out
 }
 
-func toWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
+func toWorkflowRun(row *workflowRunReadRow) *model.WorkflowRun {
 	if row == nil {
 		return nil
 	}
-	return &model.WorkflowRun{
-		ID:               row.WorkflowRunID,
-		WorkflowID:       row.WorkflowID,
-		WorkflowRevision: row.WorkflowRevision,
-		IssueID:          row.IssueID,
-		ConversationID:   row.ConversationID,
-		Status:           row.Status,
-		CreatedBy:        row.CreatedBy,
-		CreatedAt:        row.CreatedAt,
-		StartedAt:        row.StartedAt,
-		EndedAt:          row.EndedAt,
-		ErrorMessage:     row.ErrorMessage,
+	out := &model.WorkflowRun{
+		ID:               util.FormatPublicID(row.Row.PublicID),
+		WorkflowID:       util.FormatPublicID(row.WorkflowPublicID),
+		WorkflowRevision: row.Row.WorkflowRevision,
+		ConversationID:   util.FormatPublicID(row.ConversationPublicID),
+		Status:           row.Row.Status,
+		CreatedBy:        util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:        row.Row.CreatedAt,
+		StartedAt:        row.Row.StartedAt,
+		EndedAt:          row.Row.EndedAt,
+		ErrorMessage:     row.Row.ErrorMessage,
 	}
+	if row.Row.IssueID != nil {
+		issue := util.FormatPublicID(row.IssuePublicID)
+		out.IssueID = &issue
+	}
+	return out
 }
 
-func toWorkflowRuns(rows []workflowRunRow) []model.WorkflowRun {
+func toWorkflowRuns(rows []workflowRunReadRow) []model.WorkflowRun {
 	out := make([]model.WorkflowRun, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflowRun(&rows[i])
@@ -181,53 +242,44 @@ func toWorkflowRuns(rows []workflowRunRow) []model.WorkflowRun {
 	return out
 }
 
-func toWorkflowRunRow(m *model.WorkflowRun) *workflowRunRow {
-	if m == nil {
-		return nil
-	}
-	return &workflowRunRow{
-		WorkflowRunID:    m.ID,
-		WorkflowID:       m.WorkflowID,
-		WorkflowRevision: m.WorkflowRevision,
-		IssueID:          m.IssueID,
-		ConversationID:   m.ConversationID,
-		Status:           m.Status,
-		CreatedBy:        m.CreatedBy,
-		CreatedAt:        m.CreatedAt,
-		StartedAt:        m.StartedAt,
-		EndedAt:          m.EndedAt,
-		ErrorMessage:     m.ErrorMessage,
-	}
-}
-
-func toWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
+func toWorkflowStepRun(row *workflowStepRunReadRow) *model.WorkflowStepRun {
 	if row == nil {
 		return nil
 	}
-	return &model.WorkflowStepRun{
-		ID:                row.StepRunID,
-		WorkflowRunID:     row.WorkflowRunID,
-		StepID:            row.StepID,
-		StepIndex:         row.StepIndex,
-		StepType:          row.StepType,
-		TargetAgentID:     row.TargetAgentID,
-		AgentName:         row.AgentName,
-		AgentDescription:  row.AgentDescription,
-		AgentInstructions: row.AgentInstructions,
-		AgentRevision:     row.AgentRevision,
-		Prompt:            row.Prompt,
-		Status:            row.Status,
-		TaskID:            row.TaskID,
-		TaskRunID:         row.TaskRunID,
-		OutputSummary:     row.OutputSummary,
-		ErrorMessage:      row.ErrorMessage,
-		CreatedAt:         row.CreatedAt,
-		StartedAt:         row.StartedAt,
-		EndedAt:           row.EndedAt,
+	out := &model.WorkflowStepRun{
+		ID:                util.FormatPublicID(row.Row.PublicID),
+		WorkflowRunID:     util.FormatPublicID(row.WorkflowRunPublicID),
+		StepID:            row.Row.StepID,
+		StepIndex:         row.Row.StepIndex,
+		StepType:          row.Row.StepType,
+		AgentName:         row.Row.AgentName,
+		AgentDescription:  row.Row.AgentDescription,
+		AgentInstructions: row.Row.AgentInstructions,
+		AgentRevision:     row.Row.AgentRevision,
+		Prompt:            row.Row.Prompt,
+		Status:            row.Row.Status,
+		OutputSummary:     row.Row.OutputSummary,
+		ErrorMessage:      row.Row.ErrorMessage,
+		CreatedAt:         row.Row.CreatedAt,
+		StartedAt:         row.Row.StartedAt,
+		EndedAt:           row.Row.EndedAt,
 	}
+	if row.Row.TargetAgentID != nil {
+		agent := util.FormatPublicID(row.TargetAgentPublicID)
+		out.TargetAgentID = &agent
+	}
+	if row.Row.TaskID != nil {
+		task := util.FormatPublicID(row.TaskPublicID)
+		out.TaskID = &task
+	}
+	if row.Row.TaskRunID != nil {
+		run := util.FormatPublicID(row.TaskRunPublicID)
+		out.TaskRunID = &run
+	}
+	return out
 }
 
-func toWorkflowStepRuns(rows []workflowStepRunRow) []model.WorkflowStepRun {
+func toWorkflowStepRuns(rows []workflowStepRunReadRow) []model.WorkflowStepRun {
 	out := make([]model.WorkflowStepRun, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflowStepRun(&rows[i])
@@ -236,19 +288,18 @@ func toWorkflowStepRuns(rows []workflowStepRunRow) []model.WorkflowStepRun {
 }
 
 func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model.Workflow, error) {
-	var list []workflowRow
-	err := s.db.WithContext(ctx).Where("team_id = ?", teamID).Order("created_at ASC").Find(&list).Error
+	raw, ok := util.ParsePublicID(teamID)
+	if !ok {
+		return nil, nil
+	}
+	var list []workflowReadRow
+	err := s.workflowSelect(ctx).Where("t.public_id = ?", raw).Order("workflow.created_at ASC").Find(&list).Error
 	return toWorkflows(list), err
 }
 
 func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
 	now := time.Now().Unix()
-	publicID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
 	workflow := &model.Workflow{
-		ID:          publicID,
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
@@ -259,15 +310,36 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(toWorkflowRow(workflow)).Error; err != nil {
+	row := &workflowRow{
+		Name:        name,
+		Description: description,
+		Definition:  definition,
+		Status:      model.WorkflowStatusDraft,
+		Revision:    1,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		teamKey, err := lookupKey(ctx, tx, "team", teamID)
+		if err != nil {
 			return err
 		}
-		return appendWorkflowRevision(tx, workflow, createdBy)
+		row.TeamID = teamKey
+		creator, err := lookupKey(ctx, tx, "user", createdBy)
+		if err != nil {
+			return err
+		}
+		row.CreatedBy = creator
+		if err := createWithPublicID(ctx, tx, "uq_workflow_public_id",
+			func(b []byte) { row.PublicID = b }, row); err != nil {
+			return err
+		}
+		return appendWorkflowRevision(tx, row.ID, creator, workflow)
 	})
 	if err != nil {
 		return nil, err
 	}
+	workflow.ID = util.FormatPublicID(row.PublicID)
 	return workflow, nil
 }
 
@@ -275,9 +347,9 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 // revision. It runs in the same transaction as the write it describes, and the
 // unique (workflow_id, revision) index makes a concurrent second write fail
 // rather than record two definitions under one number.
-func appendWorkflowRevision(tx *gorm.DB, w *model.Workflow, createdBy string) error {
+func appendWorkflowRevision(tx *gorm.DB, workflowKey, createdBy uint64, w *model.Workflow) error {
 	return tx.Create(&workflowRevisionRow{
-		WorkflowID:  w.ID,
+		WorkflowID:  workflowKey,
 		Revision:    w.Revision,
 		Name:        w.Name,
 		Description: w.Description,
@@ -289,8 +361,12 @@ func appendWorkflowRevision(tx *gorm.DB, w *model.Workflow, createdBy string) er
 }
 
 func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error) {
-	var workflow workflowRow
-	err := s.db.WithContext(ctx).Where("workflow_id = ?", workflowID).First(&workflow).Error
+	raw, ok := util.ParsePublicID(workflowID)
+	if !ok {
+		return nil, nil
+	}
+	var workflow workflowReadRow
+	err := s.workflowSelect(ctx).Where("workflow.public_id = ?", raw).Take(&workflow).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -339,10 +415,18 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 		"updated_at":  updated.UpdatedAt,
 	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&workflowRow{}).Where("workflow_id = ?", workflowID).Updates(updates).Error; err != nil {
+		workflowKey, err := lookupKey(ctx, tx, "workflow", workflowID)
+		if err != nil {
 			return err
 		}
-		return appendWorkflowRevision(tx, &updated, in.UpdatedBy)
+		if err := tx.Model(&workflowRow{}).Where("id = ?", workflowKey).Updates(updates).Error; err != nil {
+			return err
+		}
+		updatedBy, err := lookupKey(ctx, tx, "user", in.UpdatedBy)
+		if err != nil {
+			return err
+		}
+		return appendWorkflowRevision(tx, workflowKey, updatedBy, &updated)
 	})
 	if err != nil {
 		return nil, err
@@ -353,7 +437,15 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 // ListWorkflowRevisions returns a workflow's revisions, newest first.
 func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
 	limit, offset = capPage(limit, offset)
-	rows, total, err := listRevisions[workflowRevisionRow](ctx, s.db, "workflow_id", workflowID, limit, offset)
+	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, total, err := listRevisions[workflowRevisionReadRow](ctx, s.db, s.workflowRevisionSelect(ctx),
+		"workflow_revision", "workflow_id", workflowKey, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -362,7 +454,15 @@ func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, li
 
 // GetWorkflowRevision returns one revision, or (nil, nil) when there is no such revision.
 func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*model.WorkflowRevision, error) {
-	row, err := getRevision[workflowRevisionRow](ctx, s.db, "workflow_id", workflowID, revision)
+	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	row, err := getRevision[workflowRevisionReadRow](s.workflowRevisionSelect(ctx),
+		"workflow_revision", "workflow_id", workflowKey, revision)
 	if err != nil || row == nil {
 		return nil, err
 	}
@@ -371,12 +471,7 @@ func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revi
 
 func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
 	now := time.Now().Unix()
-	publicID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
 	run := &model.WorkflowRun{
-		ID:               publicID,
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
@@ -386,21 +481,59 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRu
 		CreatedAt:        now,
 		StartedAt:        in.StartedAt,
 	}
-	if err := s.db.WithContext(ctx).Create(toWorkflowRunRow(run)).Error; err != nil {
+	row := &workflowRunRow{
+		WorkflowRevision: in.WorkflowRevision,
+		Status:           in.Status,
+		CreatedAt:        now,
+		StartedAt:        in.StartedAt,
+	}
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		workflowKey, err := lookupKey(ctx, tx, "workflow", in.WorkflowID)
+		if err != nil {
+			return err
+		}
+		row.WorkflowID = workflowKey
+		convKey, err := lookupKey(ctx, tx, "conversation", in.ConversationID)
+		if err != nil {
+			return err
+		}
+		row.ConversationID = convKey
+		creator, err := lookupKey(ctx, tx, "user", in.CreatedBy)
+		if err != nil {
+			return err
+		}
+		row.CreatedBy = creator
+		if in.IssueID != nil && *in.IssueID != "" {
+			issueKey, err := lookupKey(ctx, tx, "issue", *in.IssueID)
+			if err != nil {
+				return err
+			}
+			row.IssueID = &issueKey
+		}
+		return createWithPublicID(ctx, tx, "uq_workflow_run_public_id",
+			func(b []byte) { row.PublicID = b }, row)
+	}); err != nil {
 		return nil, err
 	}
+	run.ID = util.FormatPublicID(row.PublicID)
 	return run, nil
 }
 
 func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
 	limit, offset = capPage(limit, offset)
-	q := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("workflow_id = ?", workflowID)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
 		return nil, 0, err
 	}
-	var list []workflowRunRow
-	q = s.db.WithContext(ctx).Where("workflow_id = ?", workflowID).Order("created_at DESC")
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("workflow_id = ?", workflowKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []workflowRunReadRow
+	q := s.workflowRunSelect(ctx).Where("workflow_run.workflow_id = ?", workflowKey).Order("workflow_run.created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -412,13 +545,19 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 
 func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
 	limit, offset = capPage(limit, offset)
-	q := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("issue_id = ?", issueID)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
 		return nil, 0, err
 	}
-	var list []workflowRunRow
-	q = s.db.WithContext(ctx).Where("issue_id = ?", issueID).Order("created_at DESC")
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("issue_id = ?", issueKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []workflowRunReadRow
+	q := s.workflowRunSelect(ctx).Where("workflow_run.issue_id = ?", issueKey).Order("workflow_run.created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -429,8 +568,12 @@ func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, lim
 }
 
 func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*model.WorkflowRun, error) {
-	var run workflowRunRow
-	err := s.db.WithContext(ctx).Where("workflow_run_id = ?", workflowRunID).First(&run).Error
+	raw, ok := util.ParsePublicID(workflowRunID)
+	if !ok {
+		return nil, nil
+	}
+	var run workflowRunReadRow
+	err := s.workflowRunSelect(ctx).Where("workflow_run.public_id = ?", raw).Take(&run).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -441,10 +584,17 @@ func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*mode
 }
 
 func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]model.WorkflowStepRun, error) {
-	var list []workflowStepRunRow
-	err := s.db.WithContext(ctx).
-		Where("workflow_run_id = ?", workflowRunID).
-		Order("step_index ASC, created_at ASC").
+	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var list []workflowStepRunReadRow
+	err = s.workflowStepRunSelect(ctx).
+		Where("workflow_step_run.workflow_run_id = ?", runKey).
+		Order("workflow_step_run.step_index ASC, workflow_step_run.created_at ASC").
 		Find(&list).Error
 	return toWorkflowStepRuns(list), err
 }
@@ -454,32 +604,48 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 		return []model.WorkflowStepRun{}, nil
 	}
 	now := time.Now().Unix()
-	rows := make([]workflowStepRunRow, len(steps))
-	for i := range steps {
-		publicID, err := util.NewPublicID()
-		if err != nil {
-			return nil, err
-		}
-		rows[i] = workflowStepRunRow{
-			StepRunID:         publicID,
-			WorkflowRunID:     workflowRunID,
-			StepID:            steps[i].StepID,
-			StepIndex:         steps[i].StepIndex,
-			StepType:          steps[i].StepType,
-			TargetAgentID:     steps[i].TargetAgentID,
-			AgentName:         steps[i].AgentName,
-			AgentDescription:  steps[i].AgentDescription,
-			AgentInstructions: steps[i].AgentInstructions,
-			AgentRevision:     steps[i].AgentRevision,
-			Prompt:            steps[i].Prompt,
-			Status:            steps[i].Status,
-			CreatedAt:         now,
-		}
-	}
-	if err := s.db.WithContext(ctx).Create(&rows).Error; err != nil {
+	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
+	if err != nil {
 		return nil, err
 	}
-	return toWorkflowStepRuns(rows), nil
+	out := make([]model.WorkflowStepRun, len(steps))
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for i := range steps {
+			row := &workflowStepRunRow{
+				WorkflowRunID:     runKey,
+				StepID:            steps[i].StepID,
+				StepIndex:         steps[i].StepIndex,
+				StepType:          steps[i].StepType,
+				AgentName:         steps[i].AgentName,
+				AgentDescription:  steps[i].AgentDescription,
+				AgentInstructions: steps[i].AgentInstructions,
+				AgentRevision:     steps[i].AgentRevision,
+				Prompt:            steps[i].Prompt,
+				Status:            steps[i].Status,
+				CreatedAt:         now,
+			}
+			if steps[i].TargetAgentID != nil && *steps[i].TargetAgentID != "" {
+				agentKey, err := lookupKey(ctx, tx, "agent", *steps[i].TargetAgentID)
+				if err != nil {
+					return err
+				}
+				row.TargetAgentID = &agentKey
+			}
+			if err := createWithPublicID(ctx, tx, "uq_workflow_step_run_public_id",
+				func(b []byte) { row.PublicID = b }, row); err != nil {
+				return err
+			}
+			out[i] = *toWorkflowStepRun(&workflowStepRunReadRow{
+				Row:                 *row,
+				WorkflowRunPublicID: mustParsePublicID(workflowRunID),
+				TargetAgentPublicID: optionalRaw(steps[i].TargetAgentID),
+			})
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in model.UpdateWorkflowRunInput) (*model.WorkflowRun, error) {
@@ -495,7 +661,11 @@ func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in 
 	if in.ErrorMessage != nil {
 		updates["error_message"] = *in.ErrorMessage
 	}
-	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("workflow_run_id = ?", workflowRunID).Updates(updates).Error; err != nil {
+	raw, ok := util.ParsePublicID(workflowRunID)
+	if !ok {
+		return nil, nil
+	}
+	if err := s.db.WithContext(ctx).Model(&workflowRunRow{}).Where("public_id = ?", raw).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.GetWorkflowRun(ctx, workflowRunID)
@@ -510,14 +680,22 @@ func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in 
 		if *in.TaskID == "" {
 			updates["task_id"] = nil
 		} else {
-			updates["task_id"] = *in.TaskID
+			key, err := lookupKey(ctx, s.db, "task", *in.TaskID)
+			if err != nil {
+				return nil, err
+			}
+			updates["task_id"] = key
 		}
 	}
 	if in.TaskRunID != nil {
 		if *in.TaskRunID == "" {
 			updates["task_run_id"] = nil
 		} else {
-			updates["task_run_id"] = *in.TaskRunID
+			key, err := lookupKey(ctx, s.db, "task_run", *in.TaskRunID)
+			if err != nil {
+				return nil, err
+			}
+			updates["task_run_id"] = key
 		}
 	}
 	if in.OutputSummary != nil {
@@ -543,23 +721,38 @@ func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in 
 	if len(updates) == 0 {
 		return s.getWorkflowStepRun(ctx, stepRunID)
 	}
-	if err := s.db.WithContext(ctx).Model(&workflowStepRunRow{}).Where("workflow_step_run_id = ?", stepRunID).Updates(updates).Error; err != nil {
+	raw, ok := util.ParsePublicID(stepRunID)
+	if !ok {
+		return nil, nil
+	}
+	if err := s.db.WithContext(ctx).Model(&workflowStepRunRow{}).Where("public_id = ?", raw).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.getWorkflowStepRun(ctx, stepRunID)
 }
 
 func (s *Store) GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*model.WorkflowStepRun, error) {
-	return s.getWorkflowStepRunByColumn(ctx, "task_id", taskID)
+	return s.getWorkflowStepRunByOwner(ctx, "task", "workflow_step_run.task_id", taskID)
 }
 
 func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*model.WorkflowStepRun, error) {
-	return s.getWorkflowStepRunByColumn(ctx, "task_run_id", taskRunID)
+	return s.getWorkflowStepRunByOwner(ctx, "task_run", "workflow_step_run.task_run_id", taskRunID)
 }
 
-func (s *Store) getWorkflowStepRunByColumn(ctx context.Context, col, value string) (*model.WorkflowStepRun, error) {
-	var step workflowStepRunRow
-	err := s.db.WithContext(ctx).Where(col+" = ?", value).First(&step).Error
+// getWorkflowStepRunByOwner finds the step run that produced a task or a run.
+//
+// table and col reach a query as text, so both stay constants from this package
+// and never values from a request.
+func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publicID string) (*model.WorkflowStepRun, error) {
+	key, err := lookupKey(ctx, s.db, table, publicID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var step workflowStepRunReadRow
+	err = s.workflowStepRunSelect(ctx).Where(col+" = ?", key).Take(&step).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -570,8 +763,12 @@ func (s *Store) getWorkflowStepRunByColumn(ctx context.Context, col, value strin
 }
 
 func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*model.WorkflowStepRun, error) {
-	var step workflowStepRunRow
-	err := s.db.WithContext(ctx).Where("workflow_step_run_id = ?", stepRunID).First(&step).Error
+	raw, ok := util.ParsePublicID(stepRunID)
+	if !ok {
+		return nil, nil
+	}
+	var step workflowStepRunReadRow
+	err := s.workflowStepRunSelect(ctx).Where("workflow_step_run.public_id = ?", raw).Take(&step).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

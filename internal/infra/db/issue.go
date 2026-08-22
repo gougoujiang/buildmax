@@ -11,69 +11,78 @@ import (
 )
 
 type issueRow struct {
-	ID            uint    `gorm:"primaryKey;autoIncrement"`
-	IssueID       string  `gorm:"column:issue_id;type:varchar(64);uniqueIndex;not null"`
-	UserID        string  `gorm:"type:varchar(64);not null;index"`
-	TeamID        string  `gorm:"type:varchar(64);index"`
-	ParentIssueID *string `gorm:"column:parent_issue_id;type:varchar(64);index"`
+	ID            uint64  `gorm:"primaryKey;autoIncrement"`
+	PublicID      []byte  `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_issue_public_id;not null"`
+	UserID        uint64  `gorm:"column:user_id;not null;index"`
+	TeamID        uint64  `gorm:"column:team_id;index:idx_issue_team_updated,priority:1"`
+	ParentIssueID *uint64 `gorm:"column:parent_issue_id;index"`
 	Title         string  `gorm:"type:varchar(255);not null"`
 	Description   string  `gorm:"type:text;not null"`
 	Status        string  `gorm:"type:varchar(32);not null"`
-	AssigneeKind  *string `gorm:"type:varchar(32)"`
-	AssigneeID    *string `gorm:"type:varchar(64)"`
-	CreatedBy     string  `gorm:"type:varchar(64);not null"`
-	CreatedAt     int64   `gorm:"autoCreateTime"`
-	UpdatedAt     int64   `gorm:"autoUpdateTime"`
+	// AssigneeID stays an opaque handle: assignee_kind admits person, agent, or
+	// workflow, and one numeric column cannot name rows in three tables.
+	AssigneeKind *string `gorm:"type:varchar(32)"`
+	AssigneeID   *string `gorm:"type:varchar(64)"`
+	CreatedBy    uint64  `gorm:"column:created_by;not null"`
+	CreatedAt    int64   `gorm:"autoCreateTime"`
+	UpdatedAt    int64   `gorm:"autoUpdateTime;index:idx_issue_team_updated,priority:2"`
 }
 
 func (issueRow) TableName() string { return "issue" }
 
-func toIssue(row *issueRow) *model.Issue {
+// issueReadRow is the row plus the handles its references resolve to.
+type issueReadRow struct {
+	Row               issueRow `gorm:"embedded"`
+	UserPublicID      []byte   `gorm:"column:user_public_id"`
+	TeamPublicID      []byte   `gorm:"column:team_public_id"`
+	ParentPublicID    []byte   `gorm:"column:parent_public_id"`
+	CreatedByPublicID []byte   `gorm:"column:created_by_public_id"`
+}
+
+func (s *Store) issueSelect(ctx context.Context) *gorm.DB {
+	return issueSelectTx(s.db.WithContext(ctx))
+}
+
+func issueSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&issueRow{}).
+		Select("issue.*, u.public_id AS user_public_id, t.public_id AS team_public_id, " +
+			"p.public_id AS parent_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN `user` u ON u.id = issue.user_id").
+		Joins("LEFT JOIN team t ON t.id = issue.team_id").
+		Joins("LEFT JOIN issue p ON p.id = issue.parent_issue_id").
+		Joins("INNER JOIN `user` cb ON cb.id = issue.created_by")
+}
+
+func toIssue(row *issueReadRow) *model.Issue {
 	if row == nil {
 		return nil
 	}
-	return &model.Issue{
-		ID:            row.IssueID,
-		UserID:        row.UserID,
-		TeamID:        row.TeamID,
-		ParentIssueID: row.ParentIssueID,
-		Title:         row.Title,
-		Description:   row.Description,
-		Status:        row.Status,
-		AssigneeKind:  row.AssigneeKind,
-		AssigneeID:    row.AssigneeID,
-		CreatedBy:     row.CreatedBy,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+	out := &model.Issue{
+		ID:           util.FormatPublicID(row.Row.PublicID),
+		UserID:       util.FormatPublicID(row.UserPublicID),
+		TeamID:       util.FormatPublicID(row.TeamPublicID),
+		Title:        row.Row.Title,
+		Description:  row.Row.Description,
+		Status:       row.Row.Status,
+		AssigneeKind: row.Row.AssigneeKind,
+		AssigneeID:   row.Row.AssigneeID,
+		CreatedBy:    util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:    row.Row.CreatedAt,
+		UpdatedAt:    row.Row.UpdatedAt,
 	}
+	if row.Row.ParentIssueID != nil {
+		parent := util.FormatPublicID(row.ParentPublicID)
+		out.ParentIssueID = &parent
+	}
+	return out
 }
 
-func toIssues(rows []issueRow) []model.Issue {
+func toIssues(rows []issueReadRow) []model.Issue {
 	out := make([]model.Issue, len(rows))
 	for i := range rows {
 		out[i] = *toIssue(&rows[i])
 	}
 	return out
-}
-
-func toIssueRow(m *model.Issue) *issueRow {
-	if m == nil {
-		return nil
-	}
-	return &issueRow{
-		IssueID:       m.ID,
-		UserID:        m.UserID,
-		TeamID:        m.TeamID,
-		ParentIssueID: m.ParentIssueID,
-		Title:         m.Title,
-		Description:   m.Description,
-		Status:        m.Status,
-		AssigneeKind:  m.AssigneeKind,
-		AssigneeID:    m.AssigneeID,
-		CreatedBy:     m.CreatedBy,
-		CreatedAt:     m.CreatedAt,
-		UpdatedAt:     m.UpdatedAt,
-	}
 }
 
 // CreateIssue creates an issue with default status todo. During the transition to
@@ -90,12 +99,41 @@ func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateI
 // CreateIssueInTeam creates a team-scoped issue with default status todo.
 func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
 	now := time.Now().Unix()
-	publicID, err := util.NewPublicID()
-	if err != nil {
+	row := &issueRow{
+		Title:       in.Title,
+		Description: in.Description,
+		Status:      model.IssueStatusTodo,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		creator, err := lookupKey(ctx, tx, "user", createdBy)
+		if err != nil {
+			return err
+		}
+		row.UserID = creator
+		row.CreatedBy = creator
+		if teamID != "" {
+			teamKey, err := lookupKey(ctx, tx, "team", teamID)
+			if err != nil {
+				return err
+			}
+			row.TeamID = teamKey
+		}
+		if in.ParentIssueID != nil && *in.ParentIssueID != "" {
+			parent, err := lookupKey(ctx, tx, "issue", *in.ParentIssueID)
+			if err != nil {
+				return err
+			}
+			row.ParentIssueID = &parent
+		}
+		return createWithPublicID(ctx, tx, "uq_issue_public_id",
+			func(b []byte) { row.PublicID = b }, row)
+	}); err != nil {
 		return nil, err
 	}
-	issue := &model.Issue{
-		ID:            publicID,
+	return &model.Issue{
+		ID:            util.FormatPublicID(row.PublicID),
 		UserID:        createdBy,
 		TeamID:        teamID,
 		ParentIssueID: in.ParentIssueID,
@@ -105,24 +143,25 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 		CreatedBy:     createdBy,
 		CreatedAt:     now,
 		UpdatedAt:     now,
-		AssigneeKind:  nil,
-		AssigneeID:    nil,
-	}
-	if err := s.db.WithContext(ctx).Create(toIssueRow(issue)).Error; err != nil {
-		return nil, err
-	}
-	return issue, nil
+	}, nil
 }
 
 // ListIssuesByUser returns issues for the user ordered by updated_at DESC.
 func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]model.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
-	var total int64
-	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
 		return nil, 0, err
 	}
-	var list []issueRow
-	q := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("updated_at DESC")
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("user_id = ?", userKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []issueReadRow
+	q := s.issueSelect(ctx).Where("issue.user_id = ?", userKey).Order("issue.updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -138,22 +177,40 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 // what callers predating the hierarchy expect.
 func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
-	scope := func(q *gorm.DB) *gorm.DB {
-		q = q.Where("team_id = ?", teamID)
+	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	var parentKey *uint64
+	if filter.ParentIssueID != "" {
+		key, err := lookupKey(ctx, s.db, "issue", filter.ParentIssueID)
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, 0, nil
+		}
+		if err != nil {
+			return nil, 0, err
+		}
+		parentKey = &key
+	}
+	scope := func(q *gorm.DB, col string) *gorm.DB {
+		q = q.Where(col+"team_id = ?", teamKey)
 		switch {
 		case filter.TopLevelOnly:
-			q = q.Where("parent_issue_id IS NULL")
-		case filter.ParentIssueID != "":
-			q = q.Where("parent_issue_id = ?", filter.ParentIssueID)
+			q = q.Where(col + "parent_issue_id IS NULL")
+		case parentKey != nil:
+			q = q.Where(col+"parent_issue_id = ?", *parentKey)
 		}
 		return q
 	}
 	var total int64
-	if err := scope(s.db.WithContext(ctx).Model(&issueRow{})).Count(&total).Error; err != nil {
+	if err := scope(s.db.WithContext(ctx).Model(&issueRow{}), "").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []issueRow
-	q := scope(s.db.WithContext(ctx)).Order("updated_at DESC")
+	var list []issueReadRow
+	q := scope(s.issueSelect(ctx), "issue.").Order("issue.updated_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -173,10 +230,17 @@ func (s *Store) ListIssueChildren(ctx context.Context, parentIssueID string) ([]
 	if parentIssueID == "" {
 		return []model.Issue{}, nil
 	}
-	var list []issueRow
-	if err := s.db.WithContext(ctx).
-		Where("parent_issue_id = ?", parentIssueID).
-		Order("created_at ASC, id ASC").
+	parentKey, err := lookupKey(ctx, s.db, "issue", parentIssueID)
+	if errors.Is(err, model.ErrNotFound) {
+		return []model.Issue{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var list []issueReadRow
+	if err := s.issueSelect(ctx).
+		Where("issue.parent_issue_id = ?", parentKey).
+		Order("issue.created_at ASC, issue.id ASC").
 		Find(&list).Error; err != nil {
 		return nil, err
 	}
@@ -190,28 +254,44 @@ func (s *Store) ChildStatsForIssues(ctx context.Context, issueIDs []string) (map
 	if len(issueIDs) == 0 {
 		return out, nil
 	}
+	raws := make([][]byte, 0, len(issueIDs))
+	for _, id := range issueIDs {
+		if raw, ok := util.ParsePublicID(id); ok {
+			raws = append(raws, raw)
+		}
+	}
+	if len(raws) == 0 {
+		return out, nil
+	}
+	// The parent's handle comes back through the join; the grouping is on its
+	// row key, so one query still answers for every parent asked about.
 	var rows []struct {
-		ParentIssueID string
-		Total         int
-		Done          int
+		ParentPublicID []byte
+		Total          int
+		Done           int
 	}
 	if err := s.db.WithContext(ctx).Model(&issueRow{}).
-		Select("parent_issue_id, COUNT(*) AS total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS done", model.IssueStatusDone).
-		Where("parent_issue_id IN ?", issueIDs).
-		Group("parent_issue_id").
+		Select("p.public_id AS parent_public_id, COUNT(*) AS total, SUM(CASE WHEN issue.status = ? THEN 1 ELSE 0 END) AS done", model.IssueStatusDone).
+		Joins("INNER JOIN issue p ON p.id = issue.parent_issue_id").
+		Where("p.public_id IN ?", raws).
+		Group("p.public_id").
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		out[row.ParentIssueID] = model.IssueChildStats{Total: row.Total, Done: row.Done}
+		out[util.FormatPublicID(row.ParentPublicID)] = model.IssueChildStats{Total: row.Total, Done: row.Done}
 	}
 	return out, nil
 }
 
 // GetIssue returns the issue by issue_id, or (nil, nil) if not found.
 func (s *Store) GetIssue(ctx context.Context, issueID string) (*model.Issue, error) {
-	var issue issueRow
-	err := s.db.WithContext(ctx).Where("issue_id = ?", issueID).First(&issue).Error
+	raw, ok := util.ParsePublicID(issueID)
+	if !ok {
+		return nil, nil
+	}
+	var issue issueReadRow
+	err := s.issueSelect(ctx).Where("issue.public_id = ?", raw).Take(&issue).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -277,10 +357,18 @@ func (s *Store) updateIssue(ctx context.Context, issueID string, in model.Update
 		if *in.ParentIssueID == "" {
 			updates["parent_issue_id"] = nil
 		} else {
-			updates["parent_issue_id"] = *in.ParentIssueID
+			parent, err := lookupKey(ctx, s.db, "issue", *in.ParentIssueID)
+			if err != nil {
+				return nil, err
+			}
+			updates["parent_issue_id"] = parent
 		}
 	}
-	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("issue_id = ?", issueID).Updates(updates).Error; err != nil {
+	raw, ok := util.ParsePublicID(issueID)
+	if !ok {
+		return nil, nil
+	}
+	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("public_id = ?", raw).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	return s.GetIssue(ctx, issueID)

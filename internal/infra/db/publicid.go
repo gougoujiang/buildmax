@@ -154,3 +154,11 @@ func mustParsePublicID(publicID string) []byte {
 	raw, _ := util.ParsePublicID(publicID)
 	return raw
 }
+
+// optionalRaw is mustParsePublicID for a nullable handle a caller supplied.
+func optionalRaw(publicID *string) []byte {
+	if publicID == nil {
+		return nil
+	}
+	return mustParsePublicID(*publicID)
+}

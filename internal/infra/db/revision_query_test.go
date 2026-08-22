@@ -27,17 +27,13 @@ func revisionTestStore(t *testing.T) (*Store, context.Context) {
 
 func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 	s, ctx := revisionTestStore(t)
-	teamID := testPublicID(t)
-	userID := testPublicID(t)
+	userID := newTestUser(t, s, "revision")
+	teamID := newTestTeam(t, s, userID)
 
 	agent, err := s.CreateAgentInTeam(ctx, teamID, userID, "first", "d", "i")
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&agentRevisionRow{}, "agent_id = ?", agent.ID).Error
-		_ = s.db.WithContext(ctx).Delete(&agentRow{}, "agent_id = ?", agent.ID).Error
-	})
 	for _, name := range []string{"second", "third"} {
 		if _, err := s.UpdateAgentInTeam(ctx, agent.ID, teamID, userID, name, "d", "i"); err != nil {
 			t.Fatalf("UpdateAgentInTeam %s: %v", name, err)
@@ -69,17 +65,13 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 
 func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 	s, ctx := revisionTestStore(t)
-	teamID := testPublicID(t)
-	userID := testPublicID(t)
+	userID := newTestUser(t, s, "revision")
+	teamID := newTestTeam(t, s, userID)
 
 	agent, err := s.CreateAgentInTeam(ctx, teamID, userID, "only", "d", "i")
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&agentRevisionRow{}, "agent_id = ?", agent.ID).Error
-		_ = s.db.WithContext(ctx).Delete(&agentRow{}, "agent_id = ?", agent.ID).Error
-	})
 
 	got, err := s.GetAgentRevision(ctx, agent.ID, agent.Revision)
 	if err != nil || got == nil {
@@ -101,8 +93,8 @@ func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 // The same two helpers, a different table and owner column.
 func TestWorkflowRevisionsUseTheSameQueryShape(t *testing.T) {
 	s, ctx := revisionTestStore(t)
-	teamID := testPublicID(t)
-	userID := testPublicID(t)
+	userID := newTestUser(t, s, "revision")
+	teamID := newTestTeam(t, s, userID)
 
 	wf, err := s.CreateWorkflow(ctx, teamID, userID, "wf", "d", `{"steps":[]}`)
 	if err != nil {

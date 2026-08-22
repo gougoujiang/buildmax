@@ -18,11 +18,9 @@ type taskRow struct {
 	// The team index carries created_at: a team's task list is always ordered
 	// by it, and the single-column index the string model left could not serve
 	// the sort.
-	ConversationID uint64 `gorm:"column:conversation_id;not null;index"`
-	TeamID         uint64 `gorm:"column:team_id;index:idx_task_team_created,priority:1"`
-	// IssueID and AgentID still name their rows by handle. Their tables have
-	// not been converted yet, and a reference changes when its target does.
-	IssueID               *string `gorm:"column:issue_id;type:varchar(64);index"`
+	ConversationID        uint64  `gorm:"column:conversation_id;not null;index"`
+	TeamID                uint64  `gorm:"column:team_id;index:idx_task_team_created,priority:1"`
+	IssueID               *uint64 `gorm:"column:issue_id;index"`
 	Status                string  `gorm:"type:varchar(32);not null"`
 	Input                 string  `gorm:"type:text;not null"`
 	Title                 string  `gorm:"type:varchar(256)"`
@@ -36,7 +34,7 @@ type taskRow struct {
 	ErrorMessage          *string `gorm:"type:text"`
 	SessionID             *string `gorm:"type:varchar(36)"`
 	LastRunID             *uint64 `gorm:"column:last_run_id;index"`
-	AgentID               *string `gorm:"column:agent_id;type:varchar(64);index"`
+	AgentID               *uint64 `gorm:"column:agent_id;index"`
 }
 
 func (taskRow) TableName() string { return "task" }
@@ -48,6 +46,8 @@ type taskReadRow struct {
 	TeamPublicID         []byte  `gorm:"column:team_public_id"`
 	CreatedByPublicID    []byte  `gorm:"column:created_by_public_id"`
 	LastRunPublicID      []byte  `gorm:"column:last_run_public_id"`
+	IssuePublicID        []byte  `gorm:"column:issue_public_id"`
+	AgentPublicID        []byte  `gorm:"column:agent_public_id"`
 }
 
 // taskSelect is the one place the join set for a task read is written down, so
@@ -56,11 +56,14 @@ type taskReadRow struct {
 func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&taskRow{}).
 		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS team_public_id, " +
-			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id").
+			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id, " +
+			"i.public_id AS issue_public_id, a.public_id AS agent_public_id").
 		Joins("INNER JOIN conversation c ON c.id = task.conversation_id").
 		Joins("LEFT JOIN team t ON t.id = task.team_id").
 		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
-		Joins("LEFT JOIN task_run lr ON lr.id = task.last_run_id")
+		Joins("LEFT JOIN task_run lr ON lr.id = task.last_run_id").
+		Joins("LEFT JOIN issue i ON i.id = task.issue_id").
+		Joins("LEFT JOIN agent a ON a.id = task.agent_id")
 }
 
 func toTask(row *taskReadRow) *model.Task {
@@ -71,7 +74,6 @@ func toTask(row *taskReadRow) *model.Task {
 		ID:                    util.FormatPublicID(row.Row.PublicID),
 		ConversationID:        util.FormatPublicID(row.ConversationPublicID),
 		TeamID:                util.FormatPublicID(row.TeamPublicID),
-		IssueID:               row.Row.IssueID,
 		Status:                row.Row.Status,
 		Input:                 row.Row.Input,
 		Title:                 row.Row.Title,
@@ -84,11 +86,18 @@ func toTask(row *taskReadRow) *model.Task {
 		EndedAt:               row.Row.EndedAt,
 		ErrorMessage:          row.Row.ErrorMessage,
 		SessionID:             row.Row.SessionID,
-		AgentID:               row.Row.AgentID,
 	}
 	if row.Row.LastRunID != nil {
 		lastRun := util.FormatPublicID(row.LastRunPublicID)
 		out.LastRunID = &lastRun
+	}
+	if row.Row.IssueID != nil {
+		issue := util.FormatPublicID(row.IssuePublicID)
+		out.IssueID = &issue
+	}
+	if row.Row.AgentID != nil {
+		agent := util.FormatPublicID(row.AgentPublicID)
+		out.AgentID = &agent
 	}
 	return out
 }
@@ -150,16 +159,23 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 
 func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
 	limit, offset = capPage(limit, offset)
-	var total int64
-	if err := s.db.WithContext(ctx).Model(&taskRow{}).Where("issue_id = ?", issueID).Count(&total).Error; err != nil {
+	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
 		return nil, 0, err
 	}
-	q := s.taskSelect(ctx).Where("task.issue_id = ?", issueID).Order("task.created_at DESC")
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&taskRow{}).Where("issue_id = ?", issueKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	q := s.taskSelect(ctx).Where("task.issue_id = ?", issueKey).Order("task.created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
 	var list []taskReadRow
-	err := q.Find(&list).Error
+	err = q.Find(&list).Error
 	return toTasks(list), int(total), err
 }
 
@@ -208,8 +224,6 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		TitleCompletionTokens: in.TitleCompletionTokens,
 		CreatedAt:             now,
 		SessionID:             &sessionID,
-		AgentID:               in.AgentID,
-		IssueID:               in.IssueID,
 	}
 	runDB := &taskRunRow{
 		Input:         in.Input,
@@ -245,6 +259,20 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 			return err
 		}
 		taskDB.CreatedBy = creator
+		if in.AgentID != nil && *in.AgentID != "" {
+			key, err := lookupKey(ctx, tx, "agent", *in.AgentID)
+			if err != nil {
+				return err
+			}
+			taskDB.AgentID = &key
+		}
+		if in.IssueID != nil && *in.IssueID != "" {
+			key, err := lookupKey(ctx, tx, "issue", *in.IssueID)
+			if err != nil {
+				return err
+			}
+			taskDB.IssueID = &key
+		}
 		if err := createWithPublicID(ctx, tx, "uq_task_public_id",
 			func(b []byte) { taskDB.PublicID = b }, taskDB); err != nil {
 			return err
@@ -275,6 +303,8 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		TeamPublicID:         mustParsePublicID(teamID),
 		CreatedByPublicID:    mustParsePublicID(in.CreatedBy),
 		LastRunPublicID:      runDB.PublicID,
+		IssuePublicID:        optionalRaw(in.IssueID),
+		AgentPublicID:        optionalRaw(in.AgentID),
 	}), nil
 }
 

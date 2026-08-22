@@ -42,6 +42,26 @@ func newTestUser(t *testing.T, s *Store, label string) string {
 	return u.ID
 }
 
+// newTestTeam creates a team owned by userID and registers its removal.
+func newTestTeam(t *testing.T, s *Store, userID string) string {
+	t.Helper()
+	ctx := context.Background()
+	team, err := s.CreateTeam(ctx, "Test "+testPublicID(t), userID, "")
+	if err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+	t.Cleanup(func() {
+		key, err := lookupKey(ctx, s.db, "team", team.ID)
+		if err != nil {
+			return
+		}
+		db := s.db.WithContext(ctx)
+		_ = db.Delete(&teamMemberRow{}, "team_id = ?", key).Error
+		_ = db.Delete(&teamRow{}, "id = ?", key).Error
+	})
+	return team.ID
+}
+
 // deleteTestUser removes an account and everything keyed to it. Nothing
 // cascades, so the order here is the order the references run.
 func deleteTestUser(t *testing.T, s *Store, userID string) {
