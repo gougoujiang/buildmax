@@ -236,9 +236,18 @@ func e2ePreflight() error {
 	if err := requireCommands("node", "npm"); err != nil {
 		return err
 	}
+	// `check portal` installs the Portal dependencies when they are missing
+	// rather than reporting them, and a browser run has no reason to behave
+	// differently: same tree, same command, same lockfile.
 	if _, err := os.Stat(filepath.Join("portal", "node_modules", "@playwright", "test")); err != nil {
-		return fmt.Errorf("the Portal test dependencies are not installed: run `npm --prefix portal ci`")
+		fmt.Println("[e2e] installing the Portal test dependencies...")
+		if err := runIn("portal", "npm", "ci"); err != nil {
+			return fmt.Errorf("install the Portal test dependencies: %w", err)
+		}
 	}
+	// The browsers stay a decision. They are a few hundred megabytes into a
+	// cache shared with every other project on the machine, not a directory this
+	// repository owns, so downloading them silently is a different kind of act.
 	if dir := playwrightBrowserDir(); dir != "" {
 		if _, err := os.Stat(dir); err != nil {
 			return fmt.Errorf("no Playwright browsers in %s: run `npm --prefix portal exec -- playwright install chromium`", dir)
