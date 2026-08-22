@@ -114,6 +114,7 @@ internal/
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
 │   │   │               vocabulary discovery, resolution, and publication share
+│   │   ├── archive/    Packing and hardened extraction of a plugin package
 │   │   └── inspect/    What a plugin package contributes, sanitized for a
 │   │                   catalog record and shared with `plugin validate`
 │   ├── subagent/       The subagent definition file shape and its frontmatter
