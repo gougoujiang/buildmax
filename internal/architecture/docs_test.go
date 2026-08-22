@@ -321,9 +321,7 @@ func TestWorkspaceMCPPathsExist(t *testing.T) {
 // repaired.
 
 // staleMakeCommands is documented `./make` usage that cmd/mk does not dispatch.
-var staleMakeCommands = map[string]string{
-	".buildmax/README.md: smoke": "#126, renamed to agent-smoke",
-}
+var staleMakeCommands = map[string]string{}
 
 var documentedMakeCommandRe = regexp.MustCompile(`(?:\./make|make\.bat) ([a-z][a-z0-9-]*)`)
 
@@ -391,9 +389,7 @@ func taskRunnerCommands(t *testing.T, root string) map[string]bool {
 }
 
 // staleFilePaths is a cited file that does not exist.
-var staleFilePaths = map[string]string{
-	"docs/contribute/architecture/server.md: internal/server/handlers/conversation_turns.go": "#128, the turn queue is internal/server/turnqueue",
-}
+var staleFilePaths = map[string]string{}
 
 // documentedFileRe matches a backticked repository path carrying a file
 // extension. Only files are checked: a bare `internal/app` is often prose about
@@ -446,10 +442,7 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 
 // undocumentedCLICommands is a command the binary offers that the reference
 // page does not list.
-var undocumentedCLICommands = map[string]string{
-	"models": "#129",
-	"tools":  "#129",
-}
+var undocumentedCLICommands = map[string]string{}
 
 // TestCLIReferenceCoversEveryCommand fails when a command reaches the binary
 // without reaching docs/reference/cli.md. That page is where a user looks for
