@@ -30,7 +30,7 @@ body:
       label: Which surface would this land on?
       description: |
         Capability that belongs to every surface generally goes into the shared
-        agent runtime first. See docs/design/023-desktop-cli-portal-positioning.md.
+        agent runtime first. See docs/design/surface-positioning.md.
       multiple: true
       options:
         - Agent runtime (shared by all surfaces)
@@ -38,6 +38,21 @@ body:
         - Desktop app
         - Portal (web)
         - Server / worker
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-profile
+    attributes:
+      label: Which operating profile needs it?
+      description: Local execution and model transport are separate; a local agent may still use a team's managed models.
+      multiple: true
+      options:
+        - Local workbench without a BuildMax Server
+        - Local CLI / Desktop connected to a BuildMax deployment
+        - Team platform through Portal / workers
+        - Shared behavior across profiles
+        - Not sure
     validations:
       required: true
 

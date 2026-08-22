@@ -1,29 +1,52 @@
-# buildmax
+# BuildMax
 
 [![CI](https://github.com/gougoujiang/buildmax/actions/workflows/ci.yml/badge.svg)](https://github.com/gougoujiang/buildmax/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Build Everything with AI.
+**An open-source Agent runtime for local work and private team deployment.**
 
-BuildMax is an out-of-the-box, privately deployable Agent platform. One Go agent
-runtime, three ways to reach it:
+Run BuildMax locally through CLI/TUI or Desktop with your own model endpoint,
+or deploy it for a team with centrally managed models, background workers,
+shared results, and governance. Both use the same Go Agent Core, so moving from
+one user to an organization does not mean adopting a different agent.
 
-- **CLI/TUI** — one user, one directory, one terminal
-- **Desktop** — the same local capability in a native Wails app
-- **Portal** — a team: shared work, background execution, results, governance
+> **One Agent Core. From one developer to an entire organization.**
 
-All three run the same agent loop, the same tools, and the same MCP, skill, and
-subagent behavior. Use only the local surfaces, deploy only the Portal for your
-company, or both.
+- **[Try it locally](#try-buildmax-locally)** — one user, one directory, no
+  BuildMax Server required
+- **[Run it for a team](#run-buildmax-for-a-team)** — private deployment,
+  shared work, managed models, and background execution
+- **[Help shape it](#help-shape-buildmax)** — contribute to the runtime, local
+  experience, enterprise platform, or trust boundaries
 
 > **Status: Alpha.** Interfaces, deployment guidance, and runtime behavior may
-> change before a stable release. Server authentication is bootstrap-level —
-> an operator creates accounts and issues single-use login codes, and there is
-> no password, SSO, or recovery flow. Read
+> change before a stable release. Password sign-in and operator-assisted
+> account recovery are available, but login is not rate limited and there is no
+> SSO or second factor. Read
 > [docs/deploy/authentication.md](docs/deploy/authentication.md) before exposing
 > a server.
 
-## Quickstart
+## Why BuildMax
+
+- **Local without a control plane.** CLI/TUI and Desktop can call your own
+  provider, compatible gateway, or local inference endpoint. A BuildMax Server,
+  account, and team are optional.
+- **Enterprise without a second agent.** A private deployment adds team
+  identity, centrally approved model aliases, workers, shared results, usage,
+  and audit around the same runtime used locally.
+- **Portable by construction.** The core is Go, the CLI is a single binary,
+  models are not tied to one vendor, and tools can be extended through MCP,
+  skills, subagents, hooks, and plugins.
+
+The user-facing surfaces have distinct jobs:
+
+| Surface | What it is for |
+|---|---|
+| **CLI/TUI** | Fast local execution in a terminal, including sessions and scripting |
+| **Desktop** | A local personal workbench for workspaces, sessions, and results |
+| **Portal** | Team work, workflows, background runs, shared outputs, and governance |
+
+## Try BuildMax Locally
 
 Download a binary from [Releases](https://github.com/gougoujiang/buildmax/releases),
 or:
@@ -58,6 +81,29 @@ exist so you can point the agent at something and watch it work.
 
 Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 
+## Run BuildMax For A Team
+
+A team deployment adds the Server, Portal, and workers around the same Agent
+Core. The fastest complete path is Docker Compose:
+
+```bash
+git clone https://github.com/gougoujiang/buildmax.git
+cd buildmax
+./make compose smoke
+```
+
+The smoke uses a deterministic model, needs no provider key, and proves a full
+conversation, background TaskRun, and artifact round trip. Compose is the
+single-machine evaluation and contributor path. For an interactive deployment
+or a private cluster, start with the
+[Compose quickstart](docs/deploy/compose.md), the
+[deployment overview](docs/deploy/overview.md) and the readable Kubernetes
+reference under [`deployment/production/`](deployment/production/README.md).
+The [support matrix](docs/start/support.md) states the current Alpha/Beta
+boundaries; do not expose a deployment before reading the
+[authentication](docs/deploy/authentication.md) and
+[sandbox](docs/guide/sandbox.md) guidance.
+
 ## Documentation
 
 **[docs/](docs/README.md)** is the index.
@@ -71,24 +117,29 @@ Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 | [docs/ROADMAP.md](docs/ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
 | [Contributing](CONTRIBUTING.md) · [Support](.github/SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
 
-## How It Works
+## Help Shape BuildMax
 
-The Portal separates talking from doing:
+BuildMax is early enough that important runtime and product decisions are still
+being made in public. Contributions are welcome in four main areas:
 
-```text
-Tier 1  conversation  ──creates──▶  Tier 2  task / task_run
-   ▲                                            │
-   └──────────── reports back ──────────────────┘
-```
+- **Agent Runtime** — tool calling, context durability, models, MCP, skills,
+  subagents, and traces
+- **Local Experience** — CLI/TUI, Desktop, workspaces, sessions, and results
+- **Enterprise Platform** — Portal, workers, managed models, deployment, and
+  team governance
+- **Trust And Security** — sandboxing, permissions, credentials, hooks, audit,
+  and observable execution boundaries
 
-Tier 1 is the conversation orchestrator and the only voice to the user. Tier 2
-is background execution: a worker materializes the team's files into a run
-directory, runs the shared agent runtime, writes artifacts, and reports back. A
-long job never blocks the conversation, and its result always returns through
-the conversation that started it.
+Start with the [contribution areas](docs/contribute/areas.md), then choose a
+[`good first issue`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22),
+[`help wanted`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22),
+or
+[`agent-ready`](https://github.com/gougoujiang/buildmax/issues?q=is%3Aissue+is%3Aopen+label%3A%22agent-ready%22)
+task. The last label means the issue has explicit scope, acceptance criteria,
+and verification commands; it does not require using an AI agent.
 
-More: [docs/start/concepts.md](docs/start/concepts.md) ·
-[docs/contribute/architecture/](docs/contribute/architecture/README.md)
+The complete first-contribution path takes about fifteen minutes and needs no
+model API key: [Your First Pull Request](docs/contribute/first-pr.md).
 
 ## Build From Source
 
@@ -134,17 +185,18 @@ reach. Never commit credentials.
 
 Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 
-For setup questions and early ideas, use
-[GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions).
+## Community
 
-## Contributing
+Use [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions)
+for setup questions, early product ideas, deployment experience, and show and
+tell. Confirmed bugs and contributor-ready work belong in
+[Issues](https://github.com/gougoujiang/buildmax/issues).
 
-**[docs/contribute/first-pr.md](docs/contribute/first-pr.md)** is the whole path
-from clone to open pull request, and needs no model API key. Read
-[CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, architectural
 boundaries, and pull request guidance. Community participation follows the
-[Code of Conduct](.github/CODE_OF_CONDUCT.md); support routes and project decision rules
-are documented in [SUPPORT.md](.github/SUPPORT.md) and [GOVERNANCE.md](.github/GOVERNANCE.md).
+[Code of Conduct](.github/CODE_OF_CONDUCT.md); support routes and project
+decision rules are documented in [SUPPORT.md](.github/SUPPORT.md) and
+[GOVERNANCE.md](.github/GOVERNANCE.md).
 
 ## License And Name
 

@@ -51,6 +51,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 | | |
 |---|---|
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Prerequisites, build, test, code boundaries, pull requests |
+| [contribute/areas.md](contribute/areas.md) | Pick a contribution area and find work that matches your experience |
 | [contribute/first-pr.md](contribute/first-pr.md) | Clone to pull request, start to finish, no API key needed |
 | [contribute/conventions.md](contribute/conventions.md) | Naming, IDs, tool output, commit messages, changelog entries |
 | [contribute/repo-layout.md](contribute/repo-layout.md) | The repository tree and dependency direction |
