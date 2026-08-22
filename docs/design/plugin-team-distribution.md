@@ -388,7 +388,11 @@ Implementation is not complete until tests prove:
 1. Should a team be able to activate a release *older* than one it already runs,
    and if so does that need a different word than "update" in Portal?
 2. Should an activation be able to name a subset of a release's content — this
-   skill but not that subagent — or is a plugin the unit a team accepts?
+   skill but not that subagent — or is a plugin the unit a team accepts? The
+   granularity above this one is disputed and has its own paper: [plugin scope
+   for background runs](../proposals/plugin-scope-for-background-runs.md) asks
+   whether the set is decided once for the team or per agent definition, and
+   whichever way that lands should absorb this question.
 3. Does an eligible release need re-reading when a deployment's sandbox policy
    changes, given the administrator accepted it under the old boundary?
 4. Should Tier 1 conversations ever load plugins, and if so does the same
