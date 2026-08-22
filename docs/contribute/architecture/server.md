@@ -67,8 +67,8 @@ callbacks, and scheduler startup. Business workflows are delegated to
 
 ## Conversation Turns
 
-One turn per conversation runs at a time. `turnRegistry` on the `Handler`
-(`internal/server/handlers/conversation_turns.go`) owns a queue per conversation
+One turn per conversation runs at a time. The turn queue
+(`internal/server/turnqueue`) owns a queue per conversation
 and serializes every path into it — WebSocket messages, system turns reporting a
 finished task run, and the HTTP `POST .../messages` and `POST .../conversations`
 routes. It is server-scoped rather than connection-scoped because one
