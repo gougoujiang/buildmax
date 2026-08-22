@@ -739,6 +739,10 @@ func withTraceRunContext(ctx context.Context, runID, modelName string) context.C
 	if runID == "" {
 		return ctx
 	}
+	// The core-level run ID travels alongside: tools that detach owned work
+	// (background jobs) read provenance through core/agent, which cannot see
+	// this package's context key.
+	ctx = agent.CtxWithRunID(ctx, runID)
 	return context.WithValue(ctx, traceRunContextKey{}, traceRunContext{runID: runID, modelName: modelName})
 }
 
@@ -1108,13 +1112,14 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		modelName = opts.Model
 	}
 	return trace.NewRecorder(config.TracesDir(), trace.Meta{
-		RunID:       util.NewPrefixedID("rt"),
-		ParentRunID: parent.runID,
-		SessionID:   sessionID,
-		Workspace:   a.workspaceRoot,
-		Model:       modelName,
-		IsSubagent:  true,
-		Sandbox:     a.sandboxInfo(),
+		RunID:            util.NewPrefixedID("rt"),
+		ParentRunID:      parent.runID,
+		ParentToolCallID: agent.ToolCallFromCtx(ctx),
+		SessionID:        sessionID,
+		Workspace:        a.workspaceRoot,
+		Model:            modelName,
+		IsSubagent:       true,
+		Sandbox:          a.sandboxInfo(),
 		PromptLayers: []agent.PromptLayer{
 			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
 		},

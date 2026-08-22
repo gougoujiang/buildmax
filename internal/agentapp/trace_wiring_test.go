@@ -275,6 +275,9 @@ func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
 	if child[0]["is_subagent"] != true {
 		t.Errorf("child is_subagent = %v, want true", child[0]["is_subagent"])
 	}
+	if child[0]["parent_tool_call_id"] != "call_parent" {
+		t.Errorf("child parent_tool_call_id = %v, want call_parent", child[0]["parent_tool_call_id"])
+	}
 	if child[len(child)-1]["type"] != "run_end" {
 		t.Errorf("child trace ends with %v, want run_end", child[len(child)-1]["type"])
 	}
