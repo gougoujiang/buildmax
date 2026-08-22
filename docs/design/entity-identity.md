@@ -80,7 +80,7 @@ not silently reversed; §8 decides it explicitly.
 | D6 | A reference stays an opaque string only when it is polymorphic, externally owned, or a value. |
 | D7 | Public-to-numeric translation happens inside `internal/infra/db` and never produces an N+1 read. |
 | D8 | No compatibility layer. Alpha databases and object stores are reset. |
-| D9 | `NewPrefixedID` survives for non-entity identifiers only: `as_` auth session, `jb_` local background job, `rt_` trace run, `p_` Desktop project. |
+| D9 | One identifier format. A type prefix survives only where a bare identifier reaches a reader in free prose. |
 
 ## 4. Public ID Format
 
@@ -132,8 +132,7 @@ content overwrite rather than a database error.
 
 ### 4.3 The Codec
 
-`internal/util/id.go` gains three functions and keeps `NewPrefixedID` for the
-identifiers of D9:
+`internal/util/id.go` is three functions and nothing else:
 
 ```go
 func NewPublicID() (string, error)          // 20-char canonical text
@@ -161,16 +160,18 @@ returns the empty string, which the store's read path treats as corruption.
 
 ### 4.4 Prefixes Are Retired
 
-The entity prefix constants in `id.go` are deleted along with the prefix
-table in [conventions.md](../contribute/conventions.md#entity-ids-are-prefixed).
-Three prefixed IDs remain, and none of them names a database row:
+The prefix constants in `id.go` are deleted along with the prefix table in
+[conventions.md](../contribute/conventions.md#entity-ids-are-opaque-public-handles),
+and so is `NewPrefixedID` itself. A login chain, a trace file, and a Desktop
+project are not database rows, but that was never the argument for a prefix —
+it was only the boundary of this change. None of them is read by a person or
+dispatched on, so none keeps one.
 
-| Prefix | What it names |
-|---|---|
-| `as_` | One login chain of refresh tokens, minted in `handlers/auth` |
-| `jb_` | One local background job: process-lifetime and never persisted, but LLM- and user-facing, so it carries a readable prefix |
-| `rt_` | One durable trace file, minted in `internal/agentapp/app.go` |
-| `p_` | A Desktop project, which is local UI state and not a server entity |
+One does. A background job's ID reaches the model as a bare string inside tool
+output — `job: jb_ivyoh5qcfu6ypfkhyedq` beside a command line and a file path —
+and free prose is the one place the surrounding context does not already name
+the type. That prefix lives in `internal/agentapp/job`, which owns the concept,
+rather than in `internal/util`.
 
 ## 5. Schema Shape
 
@@ -673,6 +674,16 @@ moved down from `internal/service/artifact`.
 
 The design index row and the proposal's retirement landed with this record and
 are not part of PR 6.
+
+### Follow-up — one format
+
+The six above left `NewPrefixedID` alive for four identifiers that are not
+database rows. Three of them — a login chain, a trace file, a Desktop project —
+kept a prefix for no reason beyond the scope line this design drew, which is
+not an argument. They became ordinary public IDs, and `NewPrefixedID` went with
+them, taking the base36 encoder and a dependency.
+
+The fourth stayed, and moved. See §4.4.
 
 ## 14. Measured Plans
 

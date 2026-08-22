@@ -9,7 +9,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 func openUserAdminStore(t *testing.T) (*Store, context.Context) {
@@ -28,7 +27,7 @@ func openUserAdminStore(t *testing.T) (*Store, context.Context) {
 
 func createTestUser(t *testing.T, s *Store, ctx context.Context) *model.User {
 	t.Helper()
-	email := util.NewPrefixedID("disabletest") + "@example.com"
+	email := testPublicID(t) + "@example.com"
 	user, err := s.CreateUser(ctx, email, "")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)

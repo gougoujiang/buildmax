@@ -79,7 +79,7 @@ func newCatalogStore(t *testing.T) (*Store, context.Context) {
 func TestCreateAndReadLLMModel(t *testing.T) {
 	s, ctx := newCatalogStore(t)
 
-	name := "Catalog " + util.NewPrefixedID("test")
+	name := "Catalog " + testPublicID(t)
 	created, err := s.CreateLLMModel(ctx, sampleModelInput(name))
 	if err != nil {
 		t.Fatalf("CreateLLMModel: %v", err)
@@ -136,7 +136,7 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 func TestLLMModelNameIsUnique(t *testing.T) {
 	s, ctx := newCatalogStore(t)
 
-	name := "Catalog " + util.NewPrefixedID("test")
+	name := "Catalog " + testPublicID(t)
 	created, err := s.CreateLLMModel(ctx, sampleModelInput(name))
 	if err != nil {
 		t.Fatalf("CreateLLMModel: %v", err)
@@ -153,7 +153,7 @@ func TestLLMModelNameIsUnique(t *testing.T) {
 func TestSetLLMModelEnabled(t *testing.T) {
 	s, ctx := newCatalogStore(t)
 
-	created, err := s.CreateLLMModel(ctx, sampleModelInput("Catalog "+util.NewPrefixedID("test")))
+	created, err := s.CreateLLMModel(ctx, sampleModelInput("Catalog "+testPublicID(t)))
 	if err != nil {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}

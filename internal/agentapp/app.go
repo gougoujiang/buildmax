@@ -802,8 +802,11 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// with no per-surface code. Fail-open — a nil recorder is a no-op.
 	var recorder *trace.Recorder
 	if config.TraceEnabled() {
+		// Tracing is fail-open, so entropy failure costs the trace and not the
+		// run: an empty run ID makes NewRecorder disable itself and say so.
+		runID, _ := util.NewPublicID()
 		recorder = trace.NewRecorder(config.TracesDir(), trace.Meta{
-			RunID:        util.NewPrefixedID("rt"),
+			RunID:        runID,
 			SessionID:    sess.ID,
 			Workspace:    a.workspaceRoot,
 			Model:        modelName,
@@ -1147,8 +1150,10 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 	if opts.Model != "" {
 		modelName = opts.Model
 	}
+	// Fail-open for the same reason as the parent run's recorder above.
+	runID, _ := util.NewPublicID()
 	return trace.NewRecorder(config.TracesDir(), trace.Meta{
-		RunID:            util.NewPrefixedID("rt"),
+		RunID:            runID,
 		ParentRunID:      parent.runID,
 		ParentToolCallID: agent.ToolCallFromCtx(ctx),
 		SessionID:        sessionID,

@@ -4,72 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"fmt"
-	"math/big"
 	"strings"
-
-	"github.com/google/uuid"
 )
-
-// Prefixes that survive. Server entities do not use them: their identifiers
-// are public IDs, and a type prefix said nothing a route, a JSON field, or a
-// column did not already say. What is left names something other than a
-// database row.
-//
-//	as  one login chain of refresh tokens
-//	jb  a local background job -- process-lifetime, not persisted, but
-//	    LLM- and user-facing, so it carries a readable prefix
-//	rt  a trace file, minted in internal/agentapp
-//	p   a Desktop project, which is local UI state
-const (
-	PrefixAuthSession = "as"
-	PrefixJob         = "jb"
-)
-
-const (
-	idBodyLen       = 20
-	idBase36        = 36
-	idAlphabetLower = "0123456789abcdefghijklmnopqrstuvwxyz"
-)
-
-var (
-	idBig36   = big.NewInt(idBase36)
-	idMaxBody = new(big.Int).Exp(big.NewInt(idBase36), big.NewInt(idBodyLen), nil)
-)
-
-// NewPrefixedID returns a string of the form "<prefix>_<body>", where body is 20
-// characters from [a-z0-9] (lowercase base36), derived from 128 bits of
-// crypto-random entropy. Ordering is by created_at; IDs are not time-ordered.
-//
-// Server entities do not use this. They use NewPublicID, whose value is what
-// crosses every boundary; see docs/design/entity-identity.md. What is left here
-// identifies a login chain, a trace file, and a Desktop project.
-func NewPrefixedID(prefix string) string {
-	u := uuid.New()
-	n := new(big.Int).SetBytes(u[:])
-	n.Mod(n, idMaxBody)
-	return prefix + "_" + encodeBase36Lower(n, idBodyLen)
-}
-
-// encodeBase36Lower encodes a non-negative big.Int to a base36 string (0-9, a-z),
-// zero-padded to length characters.
-func encodeBase36Lower(n *big.Int, length int) string {
-	if n.Sign() < 0 {
-		n = new(big.Int).Set(n)
-		n.Neg(n)
-	}
-	buf := make([]byte, length)
-	for i := range buf {
-		buf[i] = idAlphabetLower[0]
-	}
-	mod := new(big.Int)
-	pos := length - 1
-	for n.Sign() > 0 && pos >= 0 {
-		n.DivMod(n, idBig36, mod)
-		buf[pos] = idAlphabetLower[mod.Int64()]
-		pos--
-	}
-	return string(buf)
-}
 
 // A public ID is the only handle a server entity is allowed to show the
 // outside world. It is 96 bits of crypto-random data, stored as BINARY(12) and

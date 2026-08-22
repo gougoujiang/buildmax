@@ -73,13 +73,17 @@ func touchProjectLastUsed(id string) {
 	}
 }
 
-func makeProject(name, folderPath string) Project {
+func makeProject(name, folderPath string) (Project, error) {
+	id, err := util.NewPublicID()
+	if err != nil {
+		return Project{}, err
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	return Project{
-		ID:         util.NewPrefixedID("p"),
+		ID:         id,
 		Name:       name,
 		FolderPath: folderPath,
 		CreatedAt:  now,
 		LastUsedAt: now,
-	}
+	}, nil
 }

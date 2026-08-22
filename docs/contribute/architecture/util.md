@@ -32,9 +32,10 @@ either case and rejects everything that is not canonical, so one value has one
 spelling — which is why a canonical ID always ends in `a` or `q`, and why a
 hand-written fixture usually is not one.
 
-`NewPrefixedID` remains for four identifiers that name something other than a
-row: `as_` a login chain of refresh tokens, `jb_` a local background job, `rt_`
-a trace file, and `p_` a Desktop project. Agent session IDs are UUIDs.
+This is the only identifier this package mints. `internal/agentapp/job` adds a
+`jb_` prefix to one of these for background jobs, because a job ID reaches the
+model as a bare string in tool output; that prefix belongs to the package that
+owns the concept, not here. Agent session IDs are UUIDs.
 
 IDs carry no ordering — sort by `created_at`, never by ID. `id.go` and its tests
 are the reference for the format.

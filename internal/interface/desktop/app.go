@@ -264,7 +264,10 @@ func (a *App) CreateProject(name, folderPath string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := makeProject(name, folderPath)
+	p, err := makeProject(name, folderPath)
+	if err != nil {
+		return nil, err
+	}
 	projects = append(projects, p)
 	if err := writeProjects(projects); err != nil {
 		return nil, err
