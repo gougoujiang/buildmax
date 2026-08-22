@@ -1,5 +1,6 @@
 # MySQL 8.0 for local dev inside kind cluster.
-# Same defaults as former docker-compose: root=buildmax_dev, DB=buildmax, user=buildmax/buildmax_dev.
+# Development credentials only: root and the buildmax account both use the
+# password buildmax, and the entrypoint creates the buildmax schema.
 # Connect in-cluster at mysql.db.svc.cluster.local:3306.
 apiVersion: v1
 kind: Namespace

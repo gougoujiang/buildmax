@@ -48,6 +48,8 @@ func cmdKind(args []string) error {
 		return cmdPubImages()
 	case "db":
 		return kindDB(args[1:])
+	case "info":
+		return kindInfo(args[1:])
 	case "smoke":
 		managed, err := composeSmokeMode(args[1:])
 		if err != nil {
@@ -144,6 +146,9 @@ func kindUp() error {
 	if err := waitForKindDeployment("db", "mysql", "360s"); err != nil {
 		return err
 	}
+	if err := initializeKindDatabase(); err != nil {
+		return err
+	}
 	if err := waitForKindDeployment("storage", "minio", "360s"); err != nil {
 		return err
 	}
@@ -185,6 +190,7 @@ func kindUp() error {
 		return err
 	}
 	fmt.Printf("Kind stack is ready at %s (cluster %s).\n", kindPortalURL, cluster)
+	fmt.Printf("Lost the code above? %s kind info issues another one.\n", mk())
 	return nil
 }
 
@@ -254,6 +260,46 @@ func kindDB(args []string) error {
 	fmt.Printf("  DSN: buildmax:buildmax@tcp(127.0.0.1:%s)/buildmax\n", port)
 	fmt.Println("Leave this running; Ctrl+C stops the forward.")
 	return kindKubectl("port-forward", "-n", "db", "svc/mysql", port+":3306")
+}
+
+// kindInfo prints how to get into the running stack, including a login code.
+//
+// A login code is single-use and printed once, so a contributor who has lost
+// the one `kind up` printed cannot be shown it again — recording it somewhere
+// would only save a code that is already spent. Issuing a fresh one is the
+// answer, and it is cheap: the account already exists.
+func kindInfo(args []string) error {
+	if len(args) > 1 {
+		return usageErrorf("kind", "info takes at most one email address")
+	}
+	email := smokeEmail
+	if len(args) == 1 && args[0] != "" {
+		email = args[0]
+	}
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	cluster := kindClusterName()
+	exists, err := kindClusterExists(cluster)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
+	}
+
+	fmt.Printf("Cluster: %s (context %s)\n", cluster, kindContext())
+	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL, httpHealth(kindPortalURL+"/healthz"))
+	fmt.Printf("MySQL:   in-cluster only; forward it with %s kind db\n", mk())
+	fmt.Printf("MinIO:   in-cluster only; bucket bmstore, key minio, secret minio123\n")
+
+	code, err := kindSmokeTarget().admin("user", "login-code", email)
+	if err != nil {
+		return fmt.Errorf("issue a login code for %s: %w", email, err)
+	}
+	fmt.Printf("\nSign in at %s\n\n%s\n", kindPortalURL, code)
+	fmt.Printf("\nRun %s kind info again for another code.\n", mk())
+	return nil
 }
 
 // kindStatus reports what the selected cluster is running without changing it,
@@ -328,6 +374,7 @@ func dumpKindNamespace(namespace string) {
 		commands = append(commands,
 			[]string{"describe", "deployment/mysql", "-n", namespace},
 			[]string{"logs", "-n", namespace, "deployment/mysql", "--all-containers", "--tail=200"},
+			[]string{"logs", "-n", namespace, "job/mysql-init", "--all-containers", "--tail=200"},
 		)
 	case "storage":
 		commands = append(commands,
@@ -439,6 +486,20 @@ func initializeKindBucket() error {
 	}
 	if err := kindKubectl("wait", "--for=condition=complete", "job/minio-init", "-n", "storage", "--timeout=180s"); err != nil {
 		_ = kindKubectl("logs", "job/minio-init", "-n", "storage")
+		return err
+	}
+	return nil
+}
+
+// initializeKindDatabase widens the dev account's grant so the server can
+// create whichever schema server.yaml names. See deployment/dev-kind/mysql-init.yaml.
+func initializeKindDatabase() error {
+	_ = kindKubectl("delete", "job/mysql-init", "-n", "db", "--ignore-not-found")
+	if err := kindKubectl("apply", "-f", "deployment/dev-kind/mysql-init.yaml"); err != nil {
+		return err
+	}
+	if err := kindKubectl("wait", "--for=condition=complete", "job/mysql-init", "-n", "db", "--timeout=180s"); err != nil {
+		_ = kindKubectl("logs", "job/mysql-init", "-n", "db")
 		return err
 	}
 	return nil

@@ -1,0 +1,27 @@
+# The schema name is the contributor's to choose: server.yaml may say buildmax,
+# buildmax_local, or anything else, and the server creates the schema it is
+# pointed at on first start. The entrypoint grants the dev account only the one
+# schema it created, so widen it — this cluster is thrown away with
+# `./make kind down` and holds nothing that is not test data.
+#
+# Applied on every `./make kind up`, like minio-init, so a cluster created
+# before this file gets the grant without being rebuilt.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-init
+  namespace: db
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mysql-client
+          image: mysql:8.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              until mysql -h mysql.db.svc.cluster.local -uroot -pbuildmax -e "SELECT 1"; do sleep 2; done;
+              mysql -h mysql.db.svc.cluster.local -uroot -pbuildmax
+              -e "GRANT ALL PRIVILEGES ON *.* TO 'buildmax'@'%'; FLUSH PRIVILEGES;"
