@@ -46,6 +46,9 @@ In order of how easy they are to get merged:
 - An issue labeled `good first issue`, `help wanted`, or `documentation`.
 - A documentation fix. Every claim in `docs/` is supposed to match the code — if
   you find one that does not, that is a real bug and a welcome pull request.
+  `./make check docs` verifies it, and its Markdown lint is the one contributor
+  gate that needs Node; without it, open the pull request and let CI run that
+  half.
 - A missing test for behavior that already works.
 - A CLI or TUI rough edge you hit while trying the quickstart.
 

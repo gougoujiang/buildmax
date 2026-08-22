@@ -1,11 +1,17 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
+
+// nodeNote names every path that needs Node, not only the obvious one. Calling
+// it a frontend tool sent documentation contributors — the group first-pr.md
+// recruits first — into `./make check docs` without it.
+const nodeNote = "needed for gui, Portal, Desktop, and the Markdown lint in ./make check docs"
 
 func cmdDoctor(args []string) error {
 	all := false
@@ -19,30 +25,29 @@ func cmdDoctor(args []string) error {
 	fmt.Println("BuildMax contributor doctor")
 	fmt.Println("===========================")
 
-	goWant := "go" + fileValue("go.mod", "go ")
+	goWant := fileValue("go.mod", "go ")
 	nodeWant := "v" + strings.TrimSpace(readText(".node-version"))
 	npmWant := strings.TrimPrefix(fileValue("portal/package.json", `"packageManager": "npm@`), "")
 	npmWant = strings.TrimSuffix(npmWant, `",`)
 	wailsWant := "v" + fileValue("go.mod", "github.com/wailsapp/wails/v2 v")
 
-	failures += requiredVersion("Go", "go", []string{"version"}, goWant)
-	failures += requiredVersion("git", "git", []string{"--version"}, "git version")
+	failures += requiredGoVersion(goWant)
+	failures += requiredPresence("git", "git", []string{"--version"})
 	if all {
 		failures += requiredExactVersion("Node", "node", []string{"--version"}, nodeWant)
 		failures += requiredExactVersion("npm", "npm", []string{"--version"}, npmWant)
 	} else {
-		optionalExactVersion("Node", "node", []string{"--version"}, nodeWant, "needed for gui, Portal, and Desktop")
-		optionalExactVersion("npm", "npm", []string{"--version"}, npmWant, "needed for gui, Portal, and Desktop")
+		optionalExactVersion("Node", "node", []string{"--version"}, nodeWant, nodeNote)
+		optionalExactVersion("npm", "npm", []string{"--version"}, npmWant, nodeNote)
 	}
 	optionalVersion("Wails CLI", "wails", []string{"version"}, wailsWant, "optional; ./make build runs the pinned version through Go")
 	optionalPresence("Docker", "docker", "needed only for Compose/container work")
-	optionalPresence("kind", "kind", "needed only for local Kubernetes work")
 	optionalPresence("kubectl", "kubectl", "needed only for Kubernetes work")
 	// actionlint runs its shell script pass only when shellcheck is on PATH, and
 	// says nothing when it is not, so a `run:` block can pass ./make check ci and
 	// still fail on the runner. Reporting it here is the only warning available.
 	optionalPresence("shellcheck", "shellcheck", "actionlint's shell script pass in ./make check ci needs it")
-	optionalGoReleaser("optional; only ./make check ci and release work use it")
+	optionalPortalBrowserTests()
 
 	status, err := capture("git", "status", "--porcelain")
 	if err != nil {
@@ -56,7 +61,10 @@ func cmdDoctor(args []string) error {
 
 	fmt.Println()
 	fmt.Println("Safe default commands: ./make build cli, ./make test, ./make lint, ./make check <scope>")
-	fmt.Println("External-effect commands: install, release, compose, kind, and publication workflows")
+	// `e2e local` owns a Compose stack: it starts one and takes it down again,
+	// and `e2e all` includes it. Leaving it off this line told a contributor the
+	// command was safe to try.
+	fmt.Println("External-effect commands: install, release, compose, kind, e2e local, and publication workflows")
 	if failures > 0 {
 		return fmt.Errorf("contributor doctor found %d required toolchain problem(s)", failures)
 	}
@@ -95,18 +103,101 @@ func requiredExactVersion(label, command string, args []string, want string) int
 	return 0
 }
 
-func requiredVersion(label, command string, args []string, want string) int {
+// requiredPresence reports a tool that has to exist but has no version floor
+// worth enforcing. git is the only one: every version in circulation can run
+// what this repository asks of it.
+func requiredPresence(label, command string, args []string) int {
 	version, err := capture(command, args...)
 	if err != nil {
 		fmt.Printf("[FAIL] %s: %s not found\n", label, command)
 		return 1
 	}
-	if !strings.Contains(version, want) {
-		fmt.Printf("[FAIL] %s: got %s; want %s\n", label, oneLine(version), want)
-		return 1
-	}
 	fmt.Printf("[OK]   %s: %s\n", label, oneLine(version))
 	return 0
+}
+
+// requiredGoVersion compares the installed Go against the go directive, which
+// is a lower bound rather than a pin. A substring match read it as an exact
+// version, so upgrading to the next patch release turned doctor red while
+// breaking nothing — `go build` is perfectly happy above the floor.
+func requiredGoVersion(want string) int {
+	output, err := capture("go", "version")
+	if err != nil {
+		fmt.Println("[FAIL] Go: go not found")
+		return 1
+	}
+	ok, known := goVersionSatisfies(output, want)
+	switch {
+	case !known:
+		// An unreadable version string is not a reason to block: the toolchain is
+		// present, and the build is the real gate.
+		fmt.Printf("[WARN] Go: cannot compare %s against go.mod's %s\n", oneLine(output), want)
+		return 0
+	case !ok:
+		fmt.Printf("[FAIL] Go: got %s; go.mod needs %s or newer\n", oneLine(output), want)
+		return 1
+	}
+	fmt.Printf("[OK]   Go: %s\n", oneLine(output))
+	return 0
+}
+
+// goVersionSatisfies reports whether `go version` output clears the go.mod
+// floor, and whether the comparison could be made at all.
+func goVersionSatisfies(output, want string) (ok, known bool) {
+	floor, parsed := versionParts(want)
+	if !parsed {
+		return false, false
+	}
+	got, parsed := versionParts(goVersionToken(output))
+	if !parsed {
+		return false, false
+	}
+	for i := range got {
+		if got[i] != floor[i] {
+			return got[i] > floor[i], true
+		}
+	}
+	return true, true
+}
+
+// goVersionToken picks the toolchain out of `go version` output:
+// "go version go1.26.6 darwin/arm64" gives "go1.26.6". Development builds print
+// "devel go1.28-<hash>" in that slot, so the token is found by shape rather
+// than by position.
+func goVersionToken(output string) string {
+	for _, field := range strings.Fields(output) {
+		if rest, found := strings.CutPrefix(field, "go"); found && rest != "" && rest[0] >= '0' && rest[0] <= '9' {
+			return rest
+		}
+	}
+	return ""
+}
+
+// versionParts reads the leading major.minor.patch of a Go version, padding a
+// missing patch with zero: the first release of a minor is "go1.26", not
+// "go1.26.0". A prerelease suffix is dropped rather than ordered — an rc of a
+// later minor already clears an earlier floor, which is all this has to decide.
+func versionParts(value string) ([3]int, bool) {
+	var parts [3]int
+	value = strings.TrimPrefix(strings.TrimSpace(value), "go")
+	if value == "" {
+		return parts, false
+	}
+	for i, field := range strings.SplitN(value, ".", 3) {
+		digits := 0
+		for digits < len(field) && field[digits] >= '0' && field[digits] <= '9' {
+			digits++
+		}
+		if digits == 0 {
+			return parts, false
+		}
+		number, err := strconv.Atoi(field[:digits])
+		if err != nil {
+			return parts, false
+		}
+		parts[i] = number
+	}
+	return parts, true
 }
 
 func optionalVersion(label, command string, args []string, want, note string) {
@@ -122,40 +213,24 @@ func optionalVersion(label, command string, args []string, want, note string) {
 	fmt.Printf("[OK]   %s: %s\n", label, oneLine(version))
 }
 
-// optionalGoReleaser reports the version rather than only presence, because
-// GoReleaser is the one CI tool a contributor installs by hand: nothing in this
-// module pins it, so a local `goreleaser check` can validate the configuration
-// against a different schema than the workflow uses.
-func optionalGoReleaser(note string) {
-	if !have("goreleaser") {
-		fmt.Printf("[INFO] GoReleaser: not installed (%s)\n", note)
-		return
+// optionalPortalBrowserTests reports what `./make e2e local` needs beyond Node.
+// e2ePreflight checks both before a run, but doctor is the command that answers
+// "am I set up", and it did not know either of them existed.
+func optionalPortalBrowserTests() {
+	if exists(filepath.Join("portal", "node_modules", "@playwright", "test")) {
+		fmt.Println("[OK]   Portal test deps: installed (needed by ./make e2e)")
+	} else {
+		fmt.Println("[INFO] Portal test deps: not installed (run `npm --prefix portal ci` for ./make e2e)")
 	}
-	version, err := goreleaserInstalledVersion()
-	if err != nil {
-		fmt.Printf("[WARN] GoReleaser: %v (%s)\n", err, note)
-		return
+	dir := playwrightBrowserDir()
+	switch {
+	case dir == "":
+		fmt.Println("[INFO] Playwright browsers: location unknown on this platform; ./make e2e skips the check too")
+	case exists(dir):
+		fmt.Printf("[OK]   Playwright browsers: %s\n", dir)
+	default:
+		fmt.Printf("[INFO] Playwright browsers: none in %s (run `npm --prefix portal exec -- playwright install chromium`)\n", dir)
 	}
-	if version != goreleaserVersion {
-		fmt.Printf("[WARN] GoReleaser: got %s; CI uses %s (%s)\n", oneLine(version), goreleaserVersion, note)
-		return
-	}
-	fmt.Printf("[OK]   GoReleaser: %s\n", version)
-}
-
-// goreleaserInstalledVersion picks the one useful line out of a banner, six
-// build fields, and a module checksum.
-func goreleaserInstalledVersion() (string, error) {
-	output, err := capture("goreleaser", "--version")
-	if err != nil {
-		return "", fmt.Errorf("goreleaser --version failed: %w", err)
-	}
-	for _, line := range strings.Split(output, "\n") {
-		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "GitVersion:"); ok {
-			return strings.TrimSpace(rest), nil
-		}
-	}
-	return "", errors.New("goreleaser --version printed no GitVersion line")
 }
 
 func optionalPresence(label, command, note string) {

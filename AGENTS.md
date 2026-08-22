@@ -129,6 +129,8 @@ Use the cross-platform task runner from the repository root:
 ./make build cli       # fast CLI-only build
 ./make test            # Go tests with an isolated BUILDMAX_HOME
 ./make test race       # the same suite with the race detector
+./make test ./internal/tool -run TestX   # narrow it; packages first, then flags
+./make fmt             # gofmt every tracked Go file
 ./make lint            # pinned golangci-lint and govulncheck
 ./make check <scope>   # go, portal, desktop, docs, all, or ci
 ./make check ci        # everything a pull request runs, except the Windows job
@@ -156,6 +158,10 @@ Go, Node, npm, and Wails versions are pinned by `go.mod`, `.node-version`, the
 frontend `packageManager` fields, and the Wails module dependency. Use `npm ci`
 for reproducible installs. Normal CLI development has no Node dependency.
 
+Narrow a test run with `./make test`, never a bare `go test`: only the task
+runner sets `BUILDMAX_HOME`, and `config.DataDir` panics rather than fall back
+to a contributor's real `~/.buildmax` under test.
+
 Run checks in proportion to the change, and prefer the narrow scope while
 iterating. Before handoff, run every relevant scope. A full check requires no
 model API key. Tests must not write to a contributor's real `~/.buildmax`.
@@ -181,8 +187,9 @@ inspect their help and use them only when the task authorizes that effect.
 - Keep user documentation task-oriented. Keep contributor architecture factual.
   Keep rationale in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).
-- Add a changelog entry for user-visible changes as a new file,
-  `docs/changelog/<category>/<slug>.md`, holding the one list item it will
+- Add a changelog entry for user-visible changes with
+  `./make changelog new <added|changed|fixed|security> <slug>`, which writes
+  `docs/changelog/<category>/<slug>.md` holding the one list item it will
   become. One file per entry so parallel branches never conflict; the release
   step folds them into `CHANGELOG.md`.
 - Commit subjects are one imperative line. Do not add assistant attribution,

@@ -20,9 +20,14 @@ change.
 
 ## Adding one
 
-Create `docs/changelog/<category>/<slug>.md`, where category is one of
+```bash
+./make changelog new fixed request-id-header
+```
+
+That writes `docs/changelog/<category>/<slug>.md`, where category is one of
 `added`, `changed`, `fixed`, or `security` — the headings a release section
-uses.
+uses. It refuses to overwrite an existing entry: two branches choosing the same
+filename are describing the same change.
 
 The file holds the entry exactly as it will appear: a Markdown list item,
 wrapped, with continuation lines indented two spaces.

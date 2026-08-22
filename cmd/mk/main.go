@@ -67,6 +67,8 @@ func dispatch(args []string) error {
 		return cmdCheck(rest)
 	case "doctor":
 		return cmdDoctor(rest)
+	case "fmt":
+		return cmdFmt()
 	case "lint":
 		return cmdLint()
 	case "agent-smoke":
@@ -152,7 +154,7 @@ func commonHelpRows() []helpRow {
 	return []helpRow{
 		{"doctor [all]", "Check the contributor environment without changing it"},
 		{"build [cli]", "Build everything, or only the CLI"},
-		{"test [race]", "Run Go tests in the isolated testing sandbox"},
+		{"test [race] [pkg]", "Run Go tests in the isolated testing sandbox"},
 		{"check [scope]", "Run pre-PR checks (go|portal|desktop|docs|all|ci)"},
 		{"run <target>", "Run cli, server, desktop, or Portal locally"},
 		{"clean", "Remove build outputs and installed frontend dependencies"},
@@ -165,12 +167,13 @@ func allHelpSections() []helpSection {
 		{"Development", []helpRow{
 			{"doctor [all]", "Inspect core tools; 'all' requires pinned frontend tools"},
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
-			{"test [race]", "Run Go tests, optionally with the race detector"},
+			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
 			{"check [scope]", "Run checks for go, portal, desktop, docs, all, or ci"},
 			{"run <target>", "Run cli, server, desktop, or Portal locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 		}},
 		{"Advanced", []helpRow{
+			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"eval", "Run the agent benchmark (requires a model API key)"},
@@ -181,7 +184,7 @@ func allHelpSections() []helpSection {
 			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local, cli, desktop, or all"},
 		}},
 		{"Release", []helpRow{
-			{"changelog", "Preview unreleased entries; 'release <version>' folds them in"},
+			{"changelog [new]", "Add or preview unreleased entries; 'release <version>' folds them in"},
 			{"release <action>", "Run bump, verify, notices, or licenses"},
 			{"install", "Install binaries to ~/.local/bin"},
 		}},

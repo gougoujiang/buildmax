@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -77,6 +78,21 @@ func runStdin(input, name string, args ...string) error {
 func capture(name string, args ...string) (string, error) {
 	out, err := exec.Command(name, args...).Output()
 	return strings.TrimSpace(string(out)), err
+}
+
+// captureErr returns a command's trimmed stdout, and on failure folds its
+// stderr into the error. capture() discards stderr, which is fine for a command
+// that is already on PATH but loses the whole message for one run through
+// `go run`: a failed toolchain build reports there, leaving only an exit status.
+func captureErr(name string, args ...string) (string, error) {
+	var stderr bytes.Buffer
+	cmd := exec.Command(name, args...)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("%s: %w: %s", commandLine(name, args), err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // succeeds reports whether a command exits zero, for the cases where the exit

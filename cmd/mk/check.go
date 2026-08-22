@@ -61,18 +61,17 @@ func runCheck(name string, check func() error) error {
 }
 
 func checkGo() error {
-	files, err := capture("git", "ls-files", "*.go")
+	files, err := trackedGoFiles()
 	if err != nil {
-		return fmt.Errorf("list tracked Go files: %w", err)
+		return err
 	}
-	if files != "" {
-		args := append([]string{"-l"}, strings.Split(files, "\n")...)
-		unformatted, err := capture("gofmt", args...)
+	for _, batch := range batchArgs(files) {
+		unformatted, err := capture("gofmt", append([]string{"-l"}, batch...)...)
 		if err != nil {
 			return fmt.Errorf("gofmt: %w", err)
 		}
 		if unformatted != "" {
-			return fmt.Errorf("unformatted Go files:\n%s\nrun: git ls-files '*.go' | xargs gofmt -w", unformatted)
+			return fmt.Errorf("unformatted Go files:\n%s\nrun: %s fmt", unformatted, mk())
 		}
 	}
 	if err := runCmd("go", "mod", "tidy", "-diff"); err != nil {
@@ -88,6 +87,81 @@ func checkGo() error {
 		return err
 	}
 	return cmdLint()
+}
+
+// cmdFmt formats every tracked Go file.
+//
+// checkGo has always reported unformatted files, but the fix it handed back was
+// `git ls-files '*.go' | xargs gofmt -w` — a shell pipeline cmd.exe cannot run,
+// from the task runner that exists precisely so all three platforms run the
+// same code. The most frequent remedy in the repository was the one command
+// Windows contributors could not follow.
+func cmdFmt() error {
+	files, err := trackedGoFiles()
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		fmt.Println("No tracked Go files.")
+		return nil
+	}
+	// -l with -w so the report names what actually changed. Saying "formatted
+	// 634 files" after rewriting none is the kind of output that stops being read.
+	var rewritten []string
+	for _, batch := range batchArgs(files) {
+		changed, err := captureErr("gofmt", append([]string{"-l", "-w"}, batch...)...)
+		if err != nil {
+			return fmt.Errorf("gofmt -w: %w", err)
+		}
+		if changed != "" {
+			rewritten = append(rewritten, strings.Split(changed, "\n")...)
+		}
+	}
+	if len(rewritten) == 0 {
+		fmt.Printf("All %d tracked Go files were already formatted.\n", len(files))
+		return nil
+	}
+	for _, file := range rewritten {
+		fmt.Println(file)
+	}
+	fmt.Printf("Reformatted %d of %d tracked Go files.\n", len(rewritten), len(files))
+	return nil
+}
+
+// trackedGoFiles lists the Go files git knows about. gofmt runs over that list
+// rather than over `.` so ignored and generated trees stay untouched.
+func trackedGoFiles() ([]string, error) {
+	files, err := capture("git", "ls-files", "*.go")
+	if err != nil {
+		return nil, fmt.Errorf("list tracked Go files: %w", err)
+	}
+	if files == "" {
+		return nil, nil
+	}
+	return strings.Split(files, "\n"), nil
+}
+
+// batchArgs splits a file list into command lines cmd.exe can carry. Its limit
+// is about 32 KB and the tracked Go files already spend two thirds of that, so
+// the list would have outgrown a single invocation on Windows first — the
+// platform least likely to be the one that noticed.
+func batchArgs(files []string) [][]string {
+	const limit = 6000
+	var batches [][]string
+	var batch []string
+	size := 0
+	for _, file := range files {
+		if len(batch) > 0 && size+len(file)+1 > limit {
+			batches = append(batches, batch)
+			batch, size = nil, 0
+		}
+		batch = append(batch, file)
+		size += len(file) + 1
+	}
+	if len(batch) > 0 {
+		batches = append(batches, batch)
+	}
+	return batches
 }
 
 func checkPortal() error {
@@ -124,6 +198,13 @@ func checkDocs() error {
 	if err := runCmd("go", "test", "./internal/architecture"); err != nil {
 		return err
 	}
+	// markdownlint has no Go equivalent worth swapping the rule set for, so the
+	// documentation gate is the one contributor path that needs Node — and a
+	// documentation fix is what first-pr.md recommends starting with. Saying so
+	// beats `exec: "npm": executable file not found in $PATH`.
+	if !have("npm") {
+		return fmt.Errorf("the Markdown lint needs Node and npm, which are not installed\n  Install the version in .node-version, or open the pull request and let CI run this check")
+	}
 	return runCmd("npm", "exec", "--yes", "--package=markdownlint-cli2@0.23.2", "--", "markdownlint-cli2")
 }
 
@@ -135,10 +216,11 @@ const (
 	gitleaksPkg   = "github.com/zricethezav/gitleaks/v8@v8.30.1"
 	goLicensesPkg = "github.com/google/go-licenses@v1.6.0"
 
-	// GoReleaser arrives through goreleaser-action rather than `go run`, so this
-	// is the `version:` those steps pass. TestGoReleaserPinMatchesWorkflows keeps
-	// it in step with both workflows.
-	goreleaserVersion = "v2.17.1"
+	// GoReleaser reaches CI through goreleaser-action, so nothing here can read
+	// its version from a module path the way the pins above do.
+	// TestGoReleaserPinMatchesWorkflows compares this against the `version:`
+	// those steps pass.
+	goreleaserPkg = "github.com/goreleaser/goreleaser/v2@v2.17.1"
 )
 
 // checkCI runs what a pull request runs, for contributors who would rather
@@ -197,14 +279,15 @@ func checkGoLicenses() error {
 }
 
 // checkReleaseConfig mirrors the pull-request half of the release-snapshot job.
-// GoReleaser is not a Go module dependency here, so this uses the contributor's
-// installation and says when it proved nothing rather than passing silently.
+//
+// It runs the pinned version through `go run` like every other CI tool here.
+// That replaced a check that used whatever `goreleaser` the contributor had
+// installed and skipped itself entirely when they had none — so the one step
+// meant to catch a broken .goreleaser.yaml before it reached a release was the
+// step most likely never to run. The first build takes about half a minute;
+// after that it comes from the Go build cache.
 func checkReleaseConfig() error {
-	if !have("goreleaser") {
-		fmt.Println("goreleaser is not installed; skipping the release configuration check")
-		return nil
-	}
-	return runCmd("goreleaser", "check")
+	return runCmd("go", "run", goreleaserPkg, "check")
 }
 
 // checkWindowsCrossBuild is the closest local signal for the Windows job. It

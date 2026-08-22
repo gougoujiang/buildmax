@@ -140,8 +140,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install kind
-        run: go install sigs.k8s.io/kind@v0.31.0
+      # No kind install step: ./make runs the version cmd/mk pins.
       - name: Run deployment smoke
         run: ./make kind up
       # The browser tests run against the stack the smoke just brought up.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -179,9 +180,13 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 }
 
 // GoReleaser is pinned by the action's `version:` input rather than by a module
-// path, so it needs its own comparison. Every step must run what doctor tells
-// contributors to install.
+// path, so it needs its own comparison: `./make check ci` runs the module and CI
+// runs the action, and a broken .goreleaser.yaml must fail in both or neither.
 func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
+	_, goreleaserVersion, ok := strings.Cut(goreleaserPkg, "@")
+	if !ok {
+		t.Fatalf("goreleaserPkg = %q; want a module@version pin", goreleaserPkg)
+	}
 	// Lazy across lines because a step may carry `if:` between `uses:` and the
 	// version it pins.
 	step := regexp.MustCompile(`goreleaser/goreleaser-action@v\d+(?s:.*?)version:\s*(\S+)`)
@@ -198,6 +203,28 @@ func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
 		for _, match := range matches {
 			if match[1] != goreleaserVersion {
 				t.Errorf("%s pins GoReleaser %s; cmd/mk reports %s", path, match[1], goreleaserVersion)
+			}
+		}
+	}
+}
+
+// kind runs from cmd/mk's pin, so no workflow needs to install it. A step that
+// does is either redundant or, worse, a second version that creates the cluster
+// the pinned one then inspects — so any pin that reappears must match.
+func TestNoWorkflowInstallsADifferentKind(t *testing.T) {
+	_, want, _ := strings.Cut(kindPkg, "@")
+	paths, err := filepath.Glob("../../.github/workflows/*.yml")
+	if err != nil {
+		t.Fatalf("list workflows: %v", err)
+	}
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for _, match := range regexp.MustCompile(`sigs\.k8s\.io/kind@(\S+)`).FindAllStringSubmatch(string(body), -1) {
+			if match[1] != want {
+				t.Errorf("%s installs kind %s; cmd/mk pins %s", filepath.Base(path), match[1], want)
 			}
 		}
 	}
@@ -260,6 +287,142 @@ func TestFileValue(t *testing.T) {
 	}
 	if got := fileValue(path, "second"); got != "another value" {
 		t.Fatalf("fileValue = %q; want another value", got)
+	}
+}
+
+// The go directive is a lower bound, so doctor must accept anything above it.
+// It used to compare by substring, which failed a contributor whose Go was
+// newer than go.mod's — the one direction that is always safe.
+func TestGoVersionSatisfiesTreatsTheGoDirectiveAsAFloor(t *testing.T) {
+	const want = "1.26.6"
+	tests := []struct {
+		output string
+		ok     bool
+		known  bool
+	}{
+		{output: "go version go1.26.6 darwin/arm64", ok: true, known: true},
+		{output: "go version go1.26.7 linux/amd64", ok: true, known: true},
+		{output: "go version go1.27.0 linux/amd64", ok: true, known: true},
+		// Go names the first release of a minor without a patch component.
+		{output: "go version go1.27 linux/amd64", ok: true, known: true},
+		// A prerelease of a later minor clears an earlier floor.
+		{output: "go version go1.27rc1 linux/amd64", ok: true, known: true},
+		{output: "go version devel go1.28-abc123 linux/amd64", ok: true, known: true},
+		{output: "go version go1.26.5 windows/amd64", ok: false, known: true},
+		{output: "go version go1.25.9 darwin/arm64", ok: false, known: true},
+		{output: "go version go1.9.1 linux/amd64", ok: false, known: true},
+		{output: "some vendored wrapper", known: false},
+	}
+	for _, tt := range tests {
+		ok, known := goVersionSatisfies(tt.output, want)
+		if known != tt.known {
+			t.Errorf("goVersionSatisfies(%q).known = %v; want %v", tt.output, known, tt.known)
+		}
+		if known && ok != tt.ok {
+			t.Errorf("goVersionSatisfies(%q, %q) = %v; want %v", tt.output, want, ok, tt.ok)
+		}
+	}
+	// An unreadable floor must not silently pass either; go.mod's directive is
+	// read with fileValue, which yields "unknown" when the line is missing.
+	if _, known := goVersionSatisfies("go version go1.26.6 darwin/arm64", "unknown"); known {
+		t.Error("an unparseable go.mod floor was treated as a usable comparison")
+	}
+}
+
+// Packages come first so a flag's value is never read as one. The order is a
+// real constraint rather than a preference: reading `-run Test/Sub` as a
+// package would run the repository root, find nothing, and report ok — a false
+// pass, which is worse than the alternative mistake of running too much.
+func TestSplitTestTargetsKeepsFlagValuesOutOfPackages(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		packages string
+		flags    string
+	}{
+		{name: "nothing"},
+		{name: "one package", args: []string{"./internal/config"}, packages: "./internal/config"},
+		{name: "package without prefix", args: []string{"internal/config"}, packages: "internal/config"},
+		{name: "two packages", args: []string{"./internal/config", "./cmd/mk"}, packages: "./internal/config ./cmd/mk"},
+		{name: "package then flag", args: []string{"./cmd/mk", "-run", "TestFileValue"}, packages: "./cmd/mk", flags: "-run TestFileValue"},
+		{name: "subtest pattern is a flag value", args: []string{"-run", "Test/Sub"}, flags: "-run Test/Sub"},
+		{name: "flag only", args: []string{"-v"}, flags: "-v"},
+		{name: "the all pattern", args: []string{"all"}, packages: "all"},
+		{name: "a mistyped word is not a package", args: []string{"fast"}, flags: "fast"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			packages, flags := splitTestTargets(tt.args)
+			if got := strings.Join(packages, " "); got != tt.packages {
+				t.Errorf("packages = %q; want %q", got, tt.packages)
+			}
+			if got := strings.Join(flags, " "); got != tt.flags {
+				t.Errorf("flags = %q; want %q", got, tt.flags)
+			}
+		})
+	}
+}
+
+// The tracked Go files already spend two thirds of cmd.exe's command-line
+// budget, so gofmt has to be handed them in pieces.
+func TestBatchArgsSplitsLongCommandLines(t *testing.T) {
+	var files []string
+	for i := range 500 {
+		files = append(files, fmt.Sprintf("internal/some/reasonably/long/path/file%03d.go", i))
+	}
+	batches := batchArgs(files)
+	if len(batches) < 2 {
+		t.Fatalf("batchArgs produced %d batch(es) for %d files; want it to split", len(batches), len(files))
+	}
+	seen := 0
+	for _, batch := range batches {
+		size := 0
+		for _, file := range batch {
+			size += len(file) + 1
+		}
+		if size > 6000 && len(batch) > 1 {
+			t.Errorf("batch of %d files is %d bytes; over the limit", len(batch), size)
+		}
+		seen += len(batch)
+	}
+	if seen != len(files) {
+		t.Errorf("batches hold %d files; want all %d", seen, len(files))
+	}
+	if len(batchArgs(nil)) != 0 {
+		t.Error("batchArgs(nil) produced a batch")
+	}
+}
+
+func TestNewChangelogEntry(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	if err := newChangelogEntry("nonsense", "a-change"); err == nil {
+		t.Error("an unknown category was accepted")
+	}
+	for _, slug := range []string{"", "with space", "a/b", ".hidden"} {
+		if err := newChangelogEntry("fixed", slug); err == nil {
+			t.Errorf("slug %q was accepted", slug)
+		}
+	}
+
+	if err := newChangelogEntry("fixed", "request-id-header"); err != nil {
+		t.Fatalf("newChangelogEntry: %v", err)
+	}
+	path := filepath.Join(changelogDir, "fixed", "request-id-header.md")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	// The release step refuses anything that is not one Markdown list item, so
+	// the template has to already be one.
+	if !strings.HasPrefix(string(body), "- ") {
+		t.Errorf("template does not start with \"- \": %q", body)
+	}
+
+	// Two branches picking the same filename are describing the same change;
+	// overwriting the other one's text would lose it.
+	if err := newChangelogEntry("fixed", "request-id-header"); err == nil {
+		t.Error("an existing entry was overwritten")
 	}
 }
 

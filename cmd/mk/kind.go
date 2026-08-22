@@ -12,7 +12,23 @@ import (
 const (
 	defaultKindCluster = "buildmaxdev"
 	kindPortalURL      = "http://localhost:8080"
+
+	// kind is a plain Go program, so it runs from a pin here rather than from a
+	// contributor's PATH — the same treatment golangci-lint, actionlint, and the
+	// rest already get. Docker and kubectl cannot be handled this way, which is
+	// why they stay in requireCommands. Pinning also means one version creates,
+	// inspects, and deletes a cluster; a PATH install cannot promise that.
+	// The first run builds it in a few seconds, then the Go build cache serves it.
+	kindPkg = "sigs.k8s.io/kind@v0.31.0"
 )
+
+func runKind(args ...string) error {
+	return runCmd("go", append([]string{"run", kindPkg}, args...)...)
+}
+
+func captureKind(args ...string) (string, error) {
+	return captureErr("go", append([]string{"run", kindPkg}, args...)...)
+}
 
 func cmdKind(args []string) error {
 	if len(args) == 0 || len(args) > 2 {
@@ -60,7 +76,7 @@ func captureKindKubectl(args ...string) (string, error) {
 }
 
 func kindUp() error {
-	if err := requireCommands("docker", "kind", "kubectl"); err != nil {
+	if err := requireCommands("docker", "kubectl"); err != nil {
 		return err
 	}
 	if !succeeds("docker", "info") {
@@ -75,7 +91,7 @@ func kindUp() error {
 	}
 	if !exists {
 		fmt.Printf("Creating kind cluster %q...\n", cluster)
-		if err := runCmd("kind", "create", "cluster", "--name", cluster, "--config", "deployment/dev-kind/kind-config.yaml"); err != nil {
+		if err := runKind("create", "cluster", "--name", cluster, "--config", "deployment/dev-kind/kind-config.yaml"); err != nil {
 			return err
 		}
 		// kind makes the new cluster globally current. Every command below uses
@@ -185,7 +201,7 @@ func kindSmokeTarget() smokeTarget {
 // so a contributor can tell "nothing deployed" from "deployed but unhealthy"
 // before reaching for the much noisier kind logs.
 func kindStatus() error {
-	if err := requireCommands("kind", "kubectl"); err != nil {
+	if err := requireCommands("kubectl"); err != nil {
 		return err
 	}
 	cluster := kindClusterName()
@@ -276,7 +292,9 @@ func dumpKindNamespace(namespace string) {
 }
 
 func kindDown() error {
-	if err := requireCommands("kind"); err != nil {
+	// Deleting a cluster still talks to the container engine, so docker is the
+	// prerequisite here even though kind itself no longer is.
+	if err := requireCommands("docker"); err != nil {
 		return err
 	}
 	cluster := kindClusterName()
@@ -288,11 +306,11 @@ func kindDown() error {
 		fmt.Printf("Kind cluster %q does not exist.\n", cluster)
 		return nil
 	}
-	return runCmd("kind", "delete", "cluster", "--name", cluster)
+	return runKind("delete", "cluster", "--name", cluster)
 }
 
 func kindClusterExists(name string) (bool, error) {
-	output, err := capture("kind", "get", "clusters")
+	output, err := captureKind("get", "clusters")
 	if err != nil {
 		return false, fmt.Errorf("list kind clusters: %w", err)
 	}
