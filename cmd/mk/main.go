@@ -290,7 +290,10 @@ func usage() {
 	fmt.Printf("  %s doctor\n", m)
 	fmt.Printf("  %s build cli\n", m)
 	fmt.Printf("  %s test\n", m)
-	fmt.Printf("  %s check all\n", m)
+	// `check ci` rather than `check all`: it is what gates the pull request, and
+	// naming a weaker command here than first-pr.md does sent contributors to
+	// whichever document they happened to read.
+	fmt.Printf("  %s check ci\n", m)
 }
 
 func usageAll() {
