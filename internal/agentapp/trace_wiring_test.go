@@ -4,14 +4,49 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
+
+type traceScriptClient struct {
+	mu          sync.Mutex
+	completions []llm.Completion
+}
+
+func (c *traceScriptClient) ChatCompletionBlocking(_ context.Context, _ []llm.Message, _ []llm.ToolDef) (llm.Completion, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.completions) == 0 {
+		return llm.Completion{}, fmt.Errorf("unexpected model call")
+	}
+	completion := c.completions[0]
+	c.completions = c.completions[1:]
+	return completion, nil
+}
+
+func (c *traceScriptClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+	completion, err := c.ChatCompletionBlocking(ctx, messages, tools)
+	if err == nil && onDelta != nil && completion.Content != "" {
+		onDelta(completion.Content)
+	}
+	return completion, err
+}
+
+func (c *traceScriptClient) ContextWindow() int { return 0 }
+
+type traceAllowPolicy struct{}
+
+func (traceAllowPolicy) Check(string, string, map[string]any) (llm.ToolAction, bool) {
+	return llm.ToolActionAllow, true
+}
 
 // readTrace returns the decoded records of the trace file RunPrompt reported.
 func readTrace(t *testing.T, sessionID, traceID string) []map[string]any {
@@ -163,5 +198,83 @@ func TestAgentApp_RunPromptTraceFailureIsFailOpen(t *testing.T) {
 	}
 	if result.TraceID != "" {
 		t.Errorf("TraceID = %q, want empty when the recorder could not start", result.TraceID)
+	}
+}
+
+// TestAgentApp_SubagentTraceLinksToImmediateParent proves both ends of the
+// relationship: the top-level trace has no stray parent field, while the child
+// records its immediate parent's run id and remains a complete trace itself.
+func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
+	app := makeAgentAppForHookTests(t)
+	app.policy = traceAllowPolicy{}
+	app.llmClients.clients["stub"] = &traceScriptClient{completions: []llm.Completion{
+		{ToolCalls: []llm.ToolCall{{
+			ID:        "call_parent",
+			Name:      "Task",
+			Arguments: `{"description":"inspect traces","prompt":"reply with child result","subagent_type":"general"}`,
+		}}},
+		{Content: "child result"},
+		{Content: "parent result"},
+	}}
+
+	sess, err := app.OpenSession("")
+	if err != nil {
+		t.Fatalf("OpenSession: %v", err)
+	}
+	result, err := app.RunPrompt(context.Background(), sess, "delegate this", RunPromptOpts{})
+	if err != nil {
+		t.Fatalf("RunPrompt: %v", err)
+	}
+	if result.Reply != "parent result" {
+		t.Fatalf("Reply = %q, want parent result", result.Reply)
+	}
+
+	parent := readTrace(t, sess.ID, result.TraceID)
+	if _, exists := parent[0]["parent_run_id"]; exists {
+		t.Errorf("top-level run_start has parent_run_id = %v, want absent", parent[0]["parent_run_id"])
+	}
+
+	var child []map[string]any
+	sessionDirs, err := os.ReadDir(config.TracesDir())
+	if err != nil {
+		t.Fatalf("read traces dir: %v", err)
+	}
+	for _, sessionDir := range sessionDirs {
+		if !sessionDir.IsDir() || sessionDir.Name() == sess.ID {
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(config.TracesDir(), sessionDir.Name()))
+		if err != nil {
+			t.Fatalf("read trace session %s: %v", sessionDir.Name(), err)
+		}
+		for _, file := range files {
+			if file.IsDir() || !strings.HasSuffix(file.Name(), ".jsonl") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(config.TracesDir(), sessionDir.Name(), file.Name()))
+			if err != nil {
+				t.Fatalf("read child trace %s: %v", file.Name(), err)
+			}
+			var records []map[string]any
+			for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+				var record map[string]any
+				if err := json.Unmarshal([]byte(line), &record); err != nil {
+					t.Fatalf("decode child trace %s: %v", file.Name(), err)
+				}
+				records = append(records, record)
+			}
+			if len(records) > 0 && records[0]["parent_run_id"] == result.TraceID {
+				child = records
+			}
+		}
+	}
+	if len(child) == 0 {
+		t.Fatalf("no child trace linked to parent run %q", result.TraceID)
+	}
+	if child[0]["is_subagent"] != true {
+		t.Errorf("child is_subagent = %v, want true", child[0]["is_subagent"])
+	}
+	if child[len(child)-1]["type"] != "run_end" {
+		t.Errorf("child trace ends with %v, want run_end", child[len(child)-1]["type"])
 	}
 }

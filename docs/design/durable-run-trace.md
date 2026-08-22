@@ -73,6 +73,11 @@ omitted.
 {"ts":"2026-06-03T10:00:00Z","type":"run_start","run_id":"rt_…","session_id":"c_…",
  "workspace":"/path","model":"…","is_subagent":false,"trace_version":1}
 
+// subagent run_start — parent_run_id is the immediate parent, so a trace tree
+// can be reconstructed one edge at a time. Top-level runs omit the field.
+{"ts":"…","type":"run_start","run_id":"rt_child","parent_run_id":"rt_parent",
+ "session_id":"…","is_subagent":true,"trace_version":1}
+
 // sandbox_boundary — synthesized at construction; added after phase 1 so a run
 // states the boundary it ran under. Written even when nothing confined the run,
 // because an absent record reads as "not checked" rather than "not confined".
@@ -202,9 +207,6 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
 
 - Activity-view UI in TUI/Desktop (§3.4) — reads these files later.
 - `buildmax trace` CLI inspector / list / export.
-- Subagent child-trace linkage (§3.7): subagents run their own `RunLoop` whose
-  events do not flow to the main sink. Phase 1 records the main run only; a
-  `parent_run_id` linkage is a follow-up.
 - Hook-execution and approval-grant records: only `tool_denied`
   (reason=`hook`/`user`) is visible from today's event stream. Dedicated
   `hook_*` / `approval_*` records need new events and are deferred.
@@ -236,11 +238,18 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
 8. Docs: mark `trust-harness.md` §3.3 in progress/done with the shipped record
    set; update `AGENTS.md` and `design/README.md`.
 
+### Subagent linkage
+
+Subagent traces record `parent_run_id` for their immediate parent. This forms a
+trace tree without making a child depend on a root-run identifier: following
+links yields the root, and future nested subagents compose the same way. When a
+parent recorder could not start, no child trace is written rather than a
+misleading unlinked child, preserving fail-open behavior.
+
 ### Follow-ups (later passes)
 
 - Activity views read traces (§3.4).
 - `buildmax trace` inspector.
-- Subagent `parent_run_id` linkage (§3.7).
 - Hook/approval/file-change/sandbox records (need new events).
 - Retention policy.
 
