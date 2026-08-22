@@ -25,6 +25,6 @@
 eval/** -linguist-detectable
 sample-data/** -linguist-detectable
 
-# Generated at release time by scripts/gen-third-party-notices.sh. Untracked, but
+# Generated at release time by ./make release notices. Untracked, but
 # marked so a local copy never shows up as a reviewable diff.
 NOTICE-THIRD-PARTY linguist-generated=true
