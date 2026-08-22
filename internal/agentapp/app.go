@@ -345,6 +345,10 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
 	if cfg.EnableBackgroundJobs {
 		app.jobs = job.NewManager()
+		if config.TraceEnabled() {
+			events, _ := app.jobs.Subscribe("")
+			go logJobEvents(config.TracesDir(), events)
+		}
 	}
 	return app, nil
 }
