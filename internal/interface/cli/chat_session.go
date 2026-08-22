@@ -250,7 +250,9 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 	output := separator + "\n\n" + history
 	return m, tea.Sequence(
 		tea.Println(output),
-		tea.Batch(textarea.Blink, m.inputBlock.Focus()),
+		// The resumed session may have deliveries parked while it was off
+		// screen; the drain hands them over now that it is the one looking.
+		tea.Batch(textarea.Blink, m.inputBlock.Focus(), drainQueueCmd()),
 	)
 }
 

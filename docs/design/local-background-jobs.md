@@ -2,11 +2,10 @@
 
 > **Audience:** contributors · **Status:** stages 1–3 implemented — background
 > `Bash` and `Task` jobs, the `Monitor` tool with line events and
-> backpressure, typed non-user provenance, and serialized wake-up
-> (`deliver_result`, per-monitor `react`) on both TUI and Desktop. Desktop
-> parks deliveries per session until it is on screen; the TUI still degrades
-> an off-screen session's delivery to a notification. Stage 4 (durability,
-> spool, supervisor) open
+> backpressure, typed non-user provenance, serialized wake-up
+> (`deliver_result`, per-monitor `react`) with per-session parking on both
+> TUI and Desktop, and durable job event logs under `<traces>/jobs/`. Stage 4
+> (output spool, supervisor, worktree writers, scheduling) open
 
 Related: [durable run trace](durable-run-trace.md); [queued
 messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
@@ -374,11 +373,6 @@ Independently reviewable work that stages above depend on:
   internal UUID like sessions while they remain transient.
 - Memory-only output ring versus a `BUILDMAX_HOME` spool in the first version.
 - Safe default concurrency and event-rate limits on a laptop.
-- Whether switching away from the owning session parks `react` deliveries
-  until the owner returns. Desktop parks per session and replays when the
-  session comes back on screen; the TUI still degrades an off-screen
-  session's delivery to a notification with the result queryable. Aligning
-  the TUI is the remaining half.
 - Which hooks observe job lifecycle beyond the launch gate.
 - Plugin-declared monitors, and their trust level, after the interactive tool
   exists.

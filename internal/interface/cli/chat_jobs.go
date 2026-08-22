@@ -35,15 +35,13 @@ func listenJobsCmd(events <-chan job.Event) tea.Cmd {
 	}
 }
 
-// handleJobEvent prints terminal transitions to the scrollback, queues
-// requested deliveries, and re-arms the listener. Job starts are already
-// visible as the launching tool's result, so only the ending — and a react
-// monitor's lines — is news.
+// handleJobEvent prints terminal transitions to the scrollback, parks
+// requested deliveries under their owning session, and re-arms the listener.
+// Job starts are already visible as the launching tool's result, so only the
+// ending — and a react monitor's lines — is news.
 //
-// A delivery wakes only the session that owns the job and only while it is
-// the one on screen; another session's job degrades to the notice line, and
-// its result stays queryable. Reactions parked for an unattached session are
-// a later refinement, not silently promised here.
+// A parked delivery drains only while its session is on screen and idle; the
+// rest wait for their session to come back (see nextParkedJobEvent).
 func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	if listen := listenJobsCmd(m.jobEvents); listen != nil {
@@ -54,11 +52,8 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 	if ev.Type == job.EventMonitorLine {
 		// Notify-only monitor lines never reach the transcript or the model;
 		// /tasks and JobOutput are their surface. React lines wake the owner.
-		if ev.Job.Deliver && m.ownsJob(ev.Job) {
-			m.pendingJobEvents = append(m.pendingJobEvents, agentapp.MonitorLineEvent(ev))
-			if !m.busy {
-				cmds = append(cmds, drainQueueCmd())
-			}
+		if ev.Job.Deliver && ev.Line != "" {
+			cmds = append(cmds, m.parkJobEvent(ev.Job, agentapp.MonitorLineEvent(ev))...)
 		}
 		return m, tea.Batch(cmds...)
 	}
@@ -67,15 +62,12 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 	cmds = append(cmds, tea.Println(formatJobEventForScrollback(ev.Job)+"\n"))
-	if ev.Job.Deliver && m.ownsJob(ev.Job) {
+	if ev.Job.Deliver {
 		var jobs *job.Manager
 		if m.opts.App != nil {
 			jobs = m.opts.App.Jobs()
 		}
-		m.pendingJobEvents = append(m.pendingJobEvents, agentapp.CompletionEvent(jobs, ev.Job))
-		if !m.busy {
-			cmds = append(cmds, drainQueueCmd())
-		}
+		cmds = append(cmds, m.parkJobEvent(ev.Job, agentapp.CompletionEvent(jobs, ev.Job))...)
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -83,6 +75,39 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 // ownsJob reports whether the job belongs to the session currently on screen.
 func (m *Model) ownsJob(j job.Job) bool {
 	return m.opts.Session != nil && j.Provenance.SessionID == m.opts.Session.ID
+}
+
+// parkJobEvent queues one delivery under the job's owning session and, when
+// that session is on screen and idle, asks for a drain.
+func (m *Model) parkJobEvent(j job.Job, ev agentapp.BackgroundEvent) []tea.Cmd {
+	if m.parkedJobEvents == nil {
+		m.parkedJobEvents = make(map[string][]agentapp.BackgroundEvent)
+	}
+	owner := j.Provenance.SessionID
+	m.parkedJobEvents[owner] = append(m.parkedJobEvents[owner], ev)
+	if m.ownsJob(j) && !m.busy {
+		return []tea.Cmd{drainQueueCmd()}
+	}
+	return nil
+}
+
+// nextParkedJobEvent pops the oldest delivery parked for the session on
+// screen.
+func (m *Model) nextParkedJobEvent() (agentapp.BackgroundEvent, bool) {
+	if m.opts.Session == nil {
+		return agentapp.BackgroundEvent{}, false
+	}
+	events := m.parkedJobEvents[m.opts.Session.ID]
+	if len(events) == 0 {
+		return agentapp.BackgroundEvent{}, false
+	}
+	ev := events[0]
+	if len(events) == 1 {
+		delete(m.parkedJobEvents, m.opts.Session.ID)
+	} else {
+		m.parkedJobEvents[m.opts.Session.ID] = events[1:]
+	}
+	return ev, true
 }
 
 // startBackgroundEventRun mirrors startRun for a background-event turn: same
