@@ -1,7 +1,9 @@
 # Local Background Jobs
 
-> **Audience:** contributors · **Status:** design ready for review;
-> implementation not started
+> **Audience:** contributors · **Status:** stage 1 implemented — background
+> `Bash` jobs with the shared manager, `Job` tools, TUI `/tasks`, and the
+> Desktop jobs drawer. Stages 2–4 (background subagents, monitors,
+> durability) open
 
 Related: [durable run trace](durable-run-trace.md); [queued
 messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
