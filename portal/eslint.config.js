@@ -31,6 +31,14 @@ export default tseslint.config(
     },
   },
   {
+    // Build-time node scripts run by the Docker image build, not the browser.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2022,

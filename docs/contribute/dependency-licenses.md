@@ -37,6 +37,19 @@ License tools report `@buildmax/gui`, `buildmax-portal`, and
 `"private": true` field, which suppresses the `"license": "Apache-2.0"` they
 declare. They are this repository's own packages, not third-party code.
 
+The Portal image carries the attribution these licenses require. Its Docker
+build runs `portal/scripts/collect-notices.mjs`, which concatenates the
+license text of every production dependency in the `gui` and `portal`
+lockfiles into `third-party-notices.txt`, served at the site root next to the
+bundle it attributes. That script is the npm counterpart of
+`./make release notices`; it lives in node rather than `cmd/mk` because it
+runs inside the image build stage, which has `node_modules` and no Go
+toolchain. Regenerate locally with:
+
+```bash
+node portal/scripts/collect-notices.mjs --out /tmp/notices.txt gui portal
+```
+
 ## Re-running the audit
 
 Go, including a gate that fails on copyleft that would conflict with
