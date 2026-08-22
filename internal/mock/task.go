@@ -97,7 +97,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *model.CreateTaskInput)
 	taskID := fmt.Sprintf("t_mock_%d", id)
 	lastRunID := fmt.Sprintf("r_mock_%d", id)
 	task := &model.Task{
-		TaskID:         taskID,
+		ID:             taskID,
 		ConversationID: in.ConversationID,
 		TeamID:         in.TeamID,
 		Status:         "PENDING",
@@ -124,7 +124,7 @@ func (m *MockTaskStore) GetTaskBySessionID(_ context.Context, sessionID string) 
 
 func (m *MockTaskStore) UpdateTask(_ context.Context, in model.UpdateTaskInput) error {
 	for i := range m.List {
-		if m.List[i].TaskID == in.TaskID {
+		if m.List[i].ID == in.TaskID {
 			m.List[i].Status = in.Status
 			if in.StartedAt != nil {
 				m.List[i].StartedAt = in.StartedAt
@@ -149,7 +149,7 @@ func (m *MockTaskStore) UpdateTask(_ context.Context, in model.UpdateTaskInput) 
 
 func (m *MockTaskStore) ClaimTask(_ context.Context, in model.ClaimTaskInput) (bool, error) {
 	for i := range m.List {
-		if m.List[i].TaskID == in.TaskID && m.List[i].Status == in.ExpectedStatus {
+		if m.List[i].ID == in.TaskID && m.List[i].Status == in.ExpectedStatus {
 			m.List[i].Status = in.NewStatus
 			if in.StartedAt != nil {
 				m.List[i].StartedAt = in.StartedAt
@@ -174,7 +174,7 @@ func (m *MockTaskStore) ClaimTask(_ context.Context, in model.ClaimTaskInput) (b
 
 func (m *MockTaskStore) GetTask(_ context.Context, taskID string) (*model.Task, error) {
 	for i := range m.List {
-		if m.List[i].TaskID == taskID {
+		if m.List[i].ID == taskID {
 			return &m.List[i], nil
 		}
 	}

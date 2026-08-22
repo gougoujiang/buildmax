@@ -110,7 +110,7 @@ func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*model.TeamM
 	if user == nil {
 		return nil, nil, ErrUserDoesNotExist
 	}
-	member, err := s.Teams.AddTeamMember(ctx, cmd.TeamID, user.UserID, role)
+	member, err := s.Teams.AddTeamMember(ctx, cmd.TeamID, user.ID, role)
 	if err != nil {
 		return nil, nil, err
 	}

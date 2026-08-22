@@ -25,7 +25,7 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, PodConfig{}, fake)
-	run := model.TaskRun{TaskRunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
+	run := model.TaskRun{ID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
 
 	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run, "")
 	if err != nil {
@@ -62,7 +62,7 @@ func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", inherited,
 		PodConfig{ConfigMapName: "buildmax-config", HomeDir: "/buildmax"}, fake)
 
-	if _, _, _, err := runner.Run(context.Background(), model.TaskRun{TaskRunID: "r_1"}, ""); err != nil {
+	if _, _, _, err := runner.Run(context.Background(), model.TaskRun{ID: "r_1"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	container := fake.lastJob.Spec.Template.Spec.Containers[0]
@@ -127,7 +127,7 @@ func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 	fake := &fakeJobCreator{}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{}, fake)
-	if _, _, _, err := runner.Run(context.Background(), model.TaskRun{TaskRunID: "r_2"}, ""); err != nil {
+	if _, _, _, err := runner.Run(context.Background(), model.TaskRun{ID: "r_2"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	for _, v := range fake.lastJob.Spec.Template.Spec.Volumes {
@@ -187,7 +187,7 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 func TestJobPodIsConfined(t *testing.T) {
 	fake := &fakeJobCreator{}
 	r := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{ConfigMapName: "buildmax-config"}, fake)
-	if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}, ""); err != nil {
+	if _, _, _, err := r.Run(context.Background(), model.TaskRun{ID: "run-1"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if fake.lastJob == nil {
@@ -249,7 +249,7 @@ func TestJobPodResources(t *testing.T) {
 		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{
 			Resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi"},
 		}, fake)
-		if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}, ""); err != nil {
+		if _, _, _, err := r.Run(context.Background(), model.TaskRun{ID: "run-1"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
@@ -264,7 +264,7 @@ func TestJobPodResources(t *testing.T) {
 	t.Run("unset stays unbounded", func(t *testing.T) {
 		fake := &fakeJobCreator{}
 		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{}, fake)
-		if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}, ""); err != nil {
+		if _, _, _, err := r.Run(context.Background(), model.TaskRun{ID: "run-1"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
@@ -278,7 +278,7 @@ func TestJobPodResources(t *testing.T) {
 		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{
 			Resources: PodResources{MemoryLimit: "4 gigabytes", CPULimit: "1"},
 		}, fake)
-		if _, _, _, err := r.Run(context.Background(), model.TaskRun{TaskRunID: "run-1"}, ""); err != nil {
+		if _, _, _, err := r.Run(context.Background(), model.TaskRun{ID: "run-1"}, ""); err != nil {
 			t.Fatalf("a typo in a limit must not stop a run: %v", err)
 		}
 		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
@@ -309,7 +309,7 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 	t.Run("minted", func(t *testing.T) {
 		fake := &fakeJobCreator{}
 		runner := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
-		if _, _, _, err := runner.Run(context.Background(), model.TaskRun{TaskRunID: "r_1"}, "signed-token"); err != nil {
+		if _, _, _, err := runner.Run(context.Background(), model.TaskRun{ID: "r_1"}, "signed-token"); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 		if got := envValues(fake.lastJob, config.EnvKeyBuildmaxRunToken); len(got) != 1 || got[0] != "signed-token" {
@@ -320,7 +320,7 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 	t.Run("none", func(t *testing.T) {
 		fake := &fakeJobCreator{}
 		runner := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
-		if _, _, _, err := runner.Run(context.Background(), model.TaskRun{TaskRunID: "r_2"}, ""); err != nil {
+		if _, _, _, err := runner.Run(context.Background(), model.TaskRun{ID: "r_2"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 		if got := envValues(fake.lastJob, config.EnvKeyBuildmaxRunToken); len(got) != 0 {

@@ -52,15 +52,15 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 		JWTSecret:     secret,
 		WorkspacesDir: workspacesDir,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
+			Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
 			Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}},
 		},
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: 1}},
-			TaskList: []model.Task{{TaskID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: 1}},
+			TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1}},
+			Conversations: []model.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1}},
 		},
 		PersistStorage: persist,
 	})

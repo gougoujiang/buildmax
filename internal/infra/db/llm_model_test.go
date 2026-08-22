@@ -85,11 +85,11 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.LLMModelID)
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
 	}()
 
-	if !strings.HasPrefix(created.LLMModelID, "lm_") {
-		t.Errorf("LLMModelID = %q, want an lm_ prefix", created.LLMModelID)
+	if !strings.HasPrefix(created.ID, "lm_") {
+		t.Errorf("LLMModelID = %q, want an lm_ prefix", created.ID)
 	}
 	if !created.Enabled {
 		t.Error("a new model is not enabled")
@@ -98,7 +98,7 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 		t.Error("CreateLLMModel returned the credential")
 	}
 
-	got, err := s.GetLLMModel(ctx, created.LLMModelID)
+	got, err := s.GetLLMModel(ctx, created.ID)
 	if err != nil || got == nil {
 		t.Fatalf("GetLLMModel: %v, %v", got, err)
 	}
@@ -124,7 +124,7 @@ func TestCreateAndReadLLMModel(t *testing.T) {
 	}
 
 	// The one read that is allowed to see it.
-	key, err := s.LLMModelCredential(ctx, created.LLMModelID)
+	key, err := s.LLMModelCredential(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("LLMModelCredential: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestLLMModelNameIsUnique(t *testing.T) {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.LLMModelID)
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
 	}()
 
 	if _, err := s.CreateLLMModel(ctx, sampleModelInput(name)); !errors.Is(err, model.ErrLLMModelNameTaken) {
@@ -158,13 +158,13 @@ func TestSetLLMModelEnabled(t *testing.T) {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.LLMModelID)
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "llm_model_id = ?", created.ID)
 	}()
 
-	if err := s.SetLLMModelEnabled(ctx, created.LLMModelID, false); err != nil {
+	if err := s.SetLLMModelEnabled(ctx, created.ID, false); err != nil {
 		t.Fatalf("SetLLMModelEnabled: %v", err)
 	}
-	got, err := s.GetLLMModel(ctx, created.LLMModelID)
+	got, err := s.GetLLMModel(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("GetLLMModel: %v", err)
 	}

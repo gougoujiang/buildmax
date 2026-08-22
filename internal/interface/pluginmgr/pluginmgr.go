@@ -418,7 +418,7 @@ func recordInstalled(pluginsDir, name, serverURL string, release model.PluginRel
 		st, _ := s.Get(name)
 		st.Source = config.PluginSourceMarketplace
 		st.MarketplaceServer = serverURL
-		st.CatalogID = release.PluginID
+		st.CatalogID = release.PluginName
 		st.ReleaseVersion = release.Version
 		st.Digest = release.Digest
 		// Repository fields would describe a checkout this copy is not.

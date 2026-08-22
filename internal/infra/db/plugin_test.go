@@ -113,7 +113,7 @@ func TestPluginCatalogLifecycle(t *testing.T) {
 	s, ctx := newPluginStore(t)
 	const name = "store-test-code-review"
 	entry := makeCatalogEntry(t, s, ctx, name)
-	if entry.PluginID == "" || entry.Name != name {
+	if entry.Name != name {
 		t.Fatalf("entry = %+v", entry)
 	}
 
@@ -175,7 +175,7 @@ func TestPluginReleaseIsImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreatePluginRelease: %v", err)
 	}
-	if rel.PluginReleaseID == "" || rel.PluginName != name {
+	if rel.PluginName != name {
 		t.Fatalf("release = %+v", rel)
 	}
 

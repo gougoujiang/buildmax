@@ -21,7 +21,6 @@ type AgentResponse struct {
 }
 
 type agentRevisionResponse struct {
-	ID           string `json:"id"`
 	AgentID      string `json:"agent_id"`
 	Revision     int    `json:"revision"`
 	Name         string `json:"name"`
@@ -50,7 +49,7 @@ type patchAgentRequest struct {
 
 func agentToResponse(a model.Agent) AgentResponse {
 	return AgentResponse{
-		ID:           a.AgentID,
+		ID:           a.ID,
 		UserID:       a.UserID,
 		TeamID:       a.TeamID,
 		Name:         a.Name,
@@ -63,7 +62,6 @@ func agentToResponse(a model.Agent) AgentResponse {
 
 func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
 	return agentRevisionResponse{
-		ID:           rev.AgentRevisionID,
 		AgentID:      rev.AgentID,
 		Revision:     rev.Revision,
 		Name:         rev.Name,

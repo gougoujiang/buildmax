@@ -4,7 +4,7 @@ import { callElapsed, describeSpend, summarizeSpend } from "./spend"
 
 function call(overrides: Partial<ApiTaskRunLLMCall> = {}): ApiTaskRunLLMCall {
   return {
-    llm_call_id: "lc_1",
+    id: "lc_1",
     streaming: false,
     accepted_at: 1000,
     status: "SUCCEEDED",
@@ -30,8 +30,8 @@ describe("summarizeSpend", () => {
     // A provider that reported nothing and one that reported zero are different
     // facts. Summing the first as zero would present an unknown as a free call.
     const got = summarizeSpend([
-      call({ llm_call_id: "lc_1", total_tokens: 300 }),
-      call({ llm_call_id: "lc_2" }),
+      call({ id: "lc_1", total_tokens: 300 }),
+      call({ id: "lc_2" }),
     ])
     expect(got.totalTokens).toBe(300)
     expect(got.unreported).toBe(1)
@@ -48,10 +48,10 @@ describe("summarizeSpend", () => {
 
   it("counts a call with no terminal status as neither succeeded nor failed", () => {
     const got = summarizeSpend([
-      call({ llm_call_id: "lc_1", status: "ACCEPTED" }),
-      call({ llm_call_id: "lc_2", status: "FAILED" }),
-      call({ llm_call_id: "lc_3", status: "CANCELED" }),
-      call({ llm_call_id: "lc_4", status: "SUCCEEDED" }),
+      call({ id: "lc_1", status: "ACCEPTED" }),
+      call({ id: "lc_2", status: "FAILED" }),
+      call({ id: "lc_3", status: "CANCELED" }),
+      call({ id: "lc_4", status: "SUCCEEDED" }),
     ])
     expect(got.inFlight).toBe(1)
     expect(got.failed).toBe(2)
@@ -62,18 +62,18 @@ describe("summarizeSpend", () => {
     // Attempts counts tries, so only the second onward is a retry. A ledger row
     // written before the field existed reports 0, which is not one attempt.
     const got = summarizeSpend([
-      call({ llm_call_id: "lc_1", attempts: 3 }),
-      call({ llm_call_id: "lc_2", attempts: 1 }),
-      call({ llm_call_id: "lc_3", attempts: 0 }),
+      call({ id: "lc_1", attempts: 3 }),
+      call({ id: "lc_2", attempts: 1 }),
+      call({ id: "lc_3", attempts: 0 }),
     ])
     expect(got.retried).toBe(2)
   })
 
   it("breaks spend down by approved alias, heaviest first", () => {
     const got = summarizeSpend([
-      call({ llm_call_id: "lc_1", alias: "fast", total_tokens: 10 }),
-      call({ llm_call_id: "lc_2", alias: "deep", total_tokens: 900 }),
-      call({ llm_call_id: "lc_3", alias: "deep", total_tokens: 100 }),
+      call({ id: "lc_1", alias: "fast", total_tokens: 10 }),
+      call({ id: "lc_2", alias: "deep", total_tokens: 900 }),
+      call({ id: "lc_3", alias: "deep", total_tokens: 100 }),
     ])
     expect(got.byAlias.map((entry) => entry.alias)).toEqual(["deep", "fast"])
     expect(got.byAlias[0]).toMatchObject({ calls: 2, totalTokens: 1000, unreported: 0 })
@@ -81,8 +81,8 @@ describe("summarizeSpend", () => {
 
   it("orders equal aliases by name so two runs do not disagree about order", () => {
     const got = summarizeSpend([
-      call({ llm_call_id: "lc_1", alias: "zeta", total_tokens: 5 }),
-      call({ llm_call_id: "lc_2", alias: "alpha", total_tokens: 5 }),
+      call({ id: "lc_1", alias: "zeta", total_tokens: 5 }),
+      call({ id: "lc_2", alias: "alpha", total_tokens: 5 }),
     ])
     expect(got.byAlias.map((entry) => entry.alias)).toEqual(["alpha", "zeta"])
   })

@@ -40,7 +40,7 @@ type createTaskRequest struct {
 
 func taskToResponse(task model.Task) TaskResponse {
 	return TaskResponse{
-		ID:             task.TaskID,
+		ID:             task.ID,
 		ConversationID: task.ConversationID,
 		SessionID:      task.SessionID,
 		Status:         task.Status,
@@ -266,7 +266,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
-	h.createTaskRunViaConversation(w, r, userID, task.TaskID, req.Input)
+	h.createTaskRunViaConversation(w, r, userID, task.ID, req.Input)
 }
 
 // retryTaskResponse names the new run and the one it repeats, so a caller that
@@ -297,7 +297,7 @@ func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.taskService().RetryRun(r.Context(), task.RetryRunCmd{UserID: userID, TaskID: target.TaskID})
+	result, err := h.taskService().RetryRun(r.Context(), task.RetryRunCmd{UserID: userID, TaskID: target.ID})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, nil) {
 			return
@@ -311,11 +311,11 @@ func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "retry_task", "task_id", taskID)
 		return
 	}
-	slog.Info("task run retried", "task_id", target.TaskID, "task_run_id", result.Run.TaskRunID, "retry_of_task_run_id", result.RetriedRun.TaskRunID, "user_id", userID)
+	slog.Info("task run retried", "task_id", target.ID, "task_run_id", result.Run.ID, "retry_of_task_run_id", result.RetriedRun.ID, "user_id", userID)
 	httputil.WriteJSON(w, http.StatusCreated, retryTaskResponse{
-		TaskID:           target.TaskID,
-		TaskRunID:        result.Run.TaskRunID,
-		RetryOfTaskRunID: result.RetriedRun.TaskRunID,
+		TaskID:           target.ID,
+		TaskRunID:        result.Run.ID,
+		RetryOfTaskRunID: result.RetriedRun.ID,
 		Status:           result.Run.Status,
 	})
 }
@@ -355,7 +355,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	run, err := h.cfg.TaskRuns.GetActiveTaskRunByTask(r.Context(), target.TaskID)
+	run, err := h.cfg.TaskRuns.GetActiveTaskRunByTask(r.Context(), target.ID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_id", taskID)
 		return
@@ -369,15 +369,15 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// backstop measures, and it stays true whichever of the two paths below the
 	// run turns out to be on.
 	now := time.Now().Unix()
-	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.TaskRunID, userID, now)
+	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.ID, userID, now)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.TaskRunID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.ID)
 		return
 	}
-	if h.finishUndispatchedRun(r, run.TaskRunID, now) {
+	if h.finishUndispatchedRun(r, run.ID, now) {
 		httputil.WriteJSON(w, http.StatusOK, cancelTaskResponse{
-			TaskID:    target.TaskID,
-			TaskRunID: run.TaskRunID,
+			TaskID:    target.ID,
+			TaskRunID: run.ID,
 			Status:    string(model.RunStatusCanceled),
 		})
 		return
@@ -385,9 +385,9 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Not PENDING any more: either a worker has it, or it finished while this
 	// request was in flight. Re-reading is what tells those apart.
-	current, err := h.cfg.TaskRuns.GetTaskRun(r.Context(), run.TaskRunID)
+	current, err := h.cfg.TaskRuns.GetTaskRun(r.Context(), run.ID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.TaskRunID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.ID)
 		return
 	}
 	if current == nil || model.RunStatusTerminal(current.Status) {
@@ -398,10 +398,10 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusConflict, "this run could not be canceled")
 		return
 	}
-	slog.Info("cancel requested for a running task", "task_id", target.TaskID, "task_run_id", current.TaskRunID, "status", current.Status, "user_id", userID)
+	slog.Info("cancel requested for a running task", "task_id", target.ID, "task_run_id", current.ID, "status", current.Status, "user_id", userID)
 	httputil.WriteJSON(w, http.StatusAccepted, cancelTaskResponse{
-		TaskID:          target.TaskID,
-		TaskRunID:       current.TaskRunID,
+		TaskID:          target.ID,
+		TaskRunID:       current.ID,
 		Status:          current.Status,
 		CancelRequested: true,
 	})
@@ -484,12 +484,12 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 			httputil.WriteJSONError(w, http.StatusNotFound, "conversation file not found")
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "task_id", task.TaskID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "task_id", task.ID)
 		return
 	}
 	var out ConversationResponse
 	if err := json.Unmarshal(data, &out); err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "task_id", task.TaskID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "get_conversation", "task_id", task.ID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)

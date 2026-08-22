@@ -28,14 +28,13 @@ func toConversation(row *conversationRow) *model.Conversation {
 		return nil
 	}
 	return &model.Conversation{
-		ID:             row.ID,
-		ConversationID: row.ConversationID,
-		UserID:         row.UserID,
-		TeamID:         row.TeamID,
-		Channel:        row.Channel,
-		Title:          row.Title,
-		CreatedBy:      row.CreatedBy,
-		CreatedAt:      row.CreatedAt,
+		ID:        row.ConversationID,
+		UserID:    row.UserID,
+		TeamID:    row.TeamID,
+		Channel:   row.Channel,
+		Title:     row.Title,
+		CreatedBy: row.CreatedBy,
+		CreatedAt: row.CreatedAt,
 	}
 }
 
@@ -52,8 +51,7 @@ func toConversationRow(m *model.Conversation) *conversationRow {
 		return nil
 	}
 	return &conversationRow{
-		ID:             m.ID,
-		ConversationID: m.ConversationID,
+		ConversationID: m.ID,
 		UserID:         m.UserID,
 		TeamID:         m.TeamID,
 		Channel:        m.Channel,
@@ -76,12 +74,12 @@ func (s *Store) CreateConversation(ctx context.Context, userID, channel, created
 func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*model.Conversation, error) {
 	now := time.Now().Unix()
 	conv := &model.Conversation{
-		ConversationID: util.NewPrefixedID(util.PrefixConversation),
-		UserID:         userID,
-		TeamID:         teamID,
-		Channel:        channel,
-		CreatedBy:      createdBy,
-		CreatedAt:      now,
+		ID:        util.NewPrefixedID(util.PrefixConversation),
+		UserID:    userID,
+		TeamID:    teamID,
+		Channel:   channel,
+		CreatedBy: createdBy,
+		CreatedAt: now,
 	}
 	if err := s.db.WithContext(ctx).Create(toConversationRow(conv)).Error; err != nil {
 		return nil, err

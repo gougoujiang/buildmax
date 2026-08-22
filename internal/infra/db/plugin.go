@@ -67,8 +67,6 @@ func toPlugin(row *pluginRow) *model.Plugin {
 		return nil
 	}
 	return &model.Plugin{
-		ID:          row.ID,
-		PluginID:    row.PluginID,
 		Name:        row.Name,
 		DisplayName: row.DisplayName,
 		Description: row.Description,
@@ -84,9 +82,6 @@ func toPluginRelease(row *pluginReleaseRow) *model.PluginRelease {
 		return nil
 	}
 	out := &model.PluginRelease{
-		ID:                 row.ID,
-		PluginReleaseID:    row.PluginReleaseID,
-		PluginID:           row.PluginID,
 		PluginName:         row.PluginName,
 		Version:            row.Version,
 		MinBuildmaxVersion: row.MinBuildmaxVersion,
@@ -194,14 +189,18 @@ func (s *Store) SetPluginArchived(ctx context.Context, name string, archived boo
 // preceding read: two publishes racing would both pass a check and only one
 // can pass the constraint.
 func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginReleaseInput) (*model.PluginRelease, error) {
-	entry, err := s.GetPlugin(ctx, in.PluginName)
+	// The parent reference is read from the row: a catalog entry is addressed
+	// by name everywhere above this package, so the model does not carry a
+	// handle for it.
+	var entry pluginRow
+	err := s.db.WithContext(ctx).Where("name = ?", in.PluginName).Take(&entry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
-	if entry == nil {
-		return nil, model.ErrNotFound
-	}
-	if entry.Archived() {
+	if entry.ArchivedAt != 0 {
 		return nil, model.ErrPluginArchived
 	}
 

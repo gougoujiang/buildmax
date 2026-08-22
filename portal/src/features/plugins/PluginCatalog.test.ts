@@ -4,8 +4,6 @@ import type { ApiPluginRelease } from "../../lib/api/types"
 
 function release(version: string, overrides: Partial<ApiPluginRelease> = {}): ApiPluginRelease {
   return {
-    plugin_release_id: `plr_${version}`,
-    plugin_id: "pl_1",
     plugin_name: "code-review",
     version,
     digest: "sha256:abc",

@@ -248,8 +248,8 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			outcome.Status = model.LLMCallStatusCanceled
 		}
 		outcome.ErrorClass = &class
-		s.closeLedger(ctx, call.LLMCallID, outcome)
-		return CompleteResult{LLMCallID: call.LLMCallID}, fmt.Errorf("%w: %w", ErrUpstream, callErr)
+		s.closeLedger(ctx, call.ID, outcome)
+		return CompleteResult{LLMCallID: call.ID}, fmt.Errorf("%w: %w", ErrUpstream, callErr)
 	}
 
 	usage := completion.Usage
@@ -265,10 +265,10 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			Source:           model.LLMUsageSourceReported,
 		}
 	}
-	s.closeLedger(ctx, call.LLMCallID, outcome)
+	s.closeLedger(ctx, call.ID, outcome)
 
 	return CompleteResult{
-		LLMCallID:     call.LLMCallID,
+		LLMCallID:     call.ID,
 		Alias:         routed.Resolution.Alias,
 		Content:       completion.Content,
 		ToolCalls:     completion.ToolCalls,
@@ -317,7 +317,7 @@ func (s *Service) rejectDuplicate(ctx context.Context, req CompleteRequest) erro
 	if err != nil || existing == nil {
 		return nil
 	}
-	return &DuplicateCallError{LLMCallID: existing.LLMCallID, Status: existing.Status}
+	return &DuplicateCallError{LLMCallID: existing.ID, Status: existing.Status}
 }
 
 // Identity belongs in an attr, not in every message string.

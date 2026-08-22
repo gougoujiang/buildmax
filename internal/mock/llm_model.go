@@ -31,7 +31,7 @@ func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in model.CreateLLM
 	}
 	m.next++
 	created := model.LLMModel{
-		LLMModelID:    fmt.Sprintf("lm_mock_%d", m.next),
+		ID:            fmt.Sprintf("lm_mock_%d", m.next),
 		Name:          in.Name,
 		ProviderType:  in.ProviderType,
 		APIURL:        in.APIURL,
@@ -49,7 +49,7 @@ func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in model.CreateLLM
 	if m.Credentials == nil {
 		m.Credentials = make(map[string]string)
 	}
-	m.Credentials[created.LLMModelID] = in.APIKey
+	m.Credentials[created.ID] = in.APIKey
 	return &created, nil
 }
 
@@ -58,7 +58,7 @@ func (m *MockLLMModelStore) GetLLMModel(_ context.Context, llmModelID string) (*
 		return nil, m.Err
 	}
 	for i := range m.Models {
-		if m.Models[i].LLMModelID == llmModelID {
+		if m.Models[i].ID == llmModelID {
 			found := m.Models[i]
 			return &found, nil
 		}
@@ -78,7 +78,7 @@ func (m *MockLLMModelStore) SetLLMModelEnabled(_ context.Context, llmModelID str
 		return m.Err
 	}
 	for i := range m.Models {
-		if m.Models[i].LLMModelID == llmModelID {
+		if m.Models[i].ID == llmModelID {
 			m.Models[i].Enabled = enabled
 			return nil
 		}

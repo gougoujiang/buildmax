@@ -44,13 +44,13 @@ func (f *disableFixture) actions() []string {
 func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	f := newDisableFixture(t)
 	plaintext, _, err := f.sessions.CreateRefreshToken(t.Context(), model.NewRefreshToken{
-		UserID: f.target.UserID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
+		UserID: f.target.ID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
 	})
 	if err != nil {
 		t.Fatalf("CreateRefreshToken: %v", err)
 	}
 
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/disable", adminUser, "")
+	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
 	var body struct {
 		SessionsRevoked int64 `json:"sessions_revoked"`
 	}
@@ -84,9 +84,9 @@ func TestAdminCannotDisableThemselves(t *testing.T) {
 // nothing would read to the operator as "they can sign in now".
 func TestLoginCodeForADisabledAccountIsRefused(t *testing.T) {
 	f := newDisableFixture(t)
-	f.users.DisableForTest(f.target.UserID, 1)
+	f.users.DisableForTest(f.target.ID, 1)
 
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/login-code", adminUser, "")
+	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/login-code", adminUser, "")
 	if rec.Code != http.StatusConflict {
 		t.Errorf("got %d, want 409: %s", rec.Code, rec.Body.String())
 	}
@@ -98,10 +98,10 @@ func TestAdminAccountActionsAreRecorded(t *testing.T) {
 	f := newDisableFixture(t)
 
 	f.do(t, "POST", "/api/admin/users", adminUser, `{"email":"new@example.com"}`)
-	f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/login-code", adminUser, "")
-	f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/disable", adminUser, "")
-	f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/enable", adminUser, "")
-	f.do(t, "DELETE", "/api/admin/users/"+f.target.UserID+"/sessions", adminUser, "")
+	f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/login-code", adminUser, "")
+	f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
+	f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/enable", adminUser, "")
+	f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
 
 	want := []string{
 		model.AuditUserCreated,
@@ -134,12 +134,12 @@ func TestAdminAccountActionsAreRecorded(t *testing.T) {
 // someone returning a row struct instead of a response struct.
 func TestAdminResponsesCarryNoSecrets(t *testing.T) {
 	f := newDisableFixture(t)
-	f.users.ByID[f.target.UserID].HasPassword = true
+	f.users.ByID[f.target.ID].HasPassword = true
 
 	for _, path := range []string{
 		"/api/admin/me",
 		"/api/admin/users",
-		"/api/admin/users/" + f.target.UserID,
+		"/api/admin/users/" + f.target.ID,
 		"/api/admin/grants",
 	} {
 		rec := f.do(t, "GET", path, adminUser, "")
@@ -159,7 +159,7 @@ func TestAdminResponsesCarryNoSecrets(t *testing.T) {
 // account can reach a team, never what is in it.
 func TestAdminUserDetailShowsTeamsWithoutContents(t *testing.T) {
 	f := newDisableFixture(t)
-	rec := f.do(t, "GET", "/api/admin/users/"+f.target.UserID, adminUser, "")
+	rec := f.do(t, "GET", "/api/admin/users/"+f.target.ID, adminUser, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -167,8 +167,8 @@ func TestAdminUserDetailShowsTeamsWithoutContents(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if detail.UserID != f.target.UserID {
-		t.Errorf("user_id = %q", detail.UserID)
+	if detail.ID != f.target.ID {
+		t.Errorf("user_id = %q", detail.ID)
 	}
 	if detail.Teams == nil || detail.SystemRoles == nil {
 		t.Errorf("empty collections should serialize as [], not null: %+v", detail)

@@ -56,8 +56,8 @@ func newBoundaryFixture(t *testing.T) *boundaryFixture {
 	// A team the administrator is not a member of. Membership, not the grant,
 	// is what these routes must ask for.
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: boundaryTeam, Name: "Boundary", CreatedBy: target.UserID}},
-		Members: []model.TeamMember{{TeamID: boundaryTeam, UserID: target.UserID, Role: model.TeamRoleOwner}},
+		Teams:   []model.Team{{ID: boundaryTeam, Name: "Boundary", CreatedBy: target.ID}},
+		Members: []model.TeamMember{{TeamID: boundaryTeam, UserID: target.ID, Role: model.TeamRoleOwner}},
 	}
 
 	h := NewHandler(Config{
@@ -111,23 +111,23 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 
 	// The target can reach an authenticated route before the disable. The
 	// route's own answer does not matter; not being refused does.
-	if got := f.do(t, "GET", "/api/webhook-keys", f.target.UserID, "").Code; got == http.StatusForbidden {
+	if got := f.do(t, "GET", "/api/webhook-keys", f.target.ID, "").Code; got == http.StatusForbidden {
 		t.Fatalf("setup: an enabled account was refused with %d", got)
 	}
 
-	rec := f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/disable", adminUser, "")
+	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("disable got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	after := f.do(t, "GET", "/api/webhook-keys", f.target.UserID, "")
+	after := f.do(t, "GET", "/api/webhook-keys", f.target.ID, "")
 	if after.Code != http.StatusForbidden {
 		t.Errorf("a disabled account's access token got %d, want 403", after.Code)
 	}
 	if !strings.Contains(after.Body.String(), "account_disabled") {
 		t.Errorf("the refusal should say why, got %s", after.Body.String())
 	}
-	work := f.do(t, "GET", "/api/teams/"+boundaryTeam+"/issues", f.target.UserID, "")
+	work := f.do(t, "GET", "/api/teams/"+boundaryTeam+"/issues", f.target.ID, "")
 	if work.Code != http.StatusForbidden {
 		t.Errorf("a disabled account reached the work surface with %d, want 403: %s", work.Code, work.Body.String())
 	}
@@ -137,10 +137,10 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 
 	// And enabling brings it back. Nothing else is restored — that is what
 	// section 8 means by "enabling reverses the state and nothing else".
-	if got := f.do(t, "POST", "/api/admin/users/"+f.target.UserID+"/enable", adminUser, "").Code; got != http.StatusOK {
+	if got := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/enable", adminUser, "").Code; got != http.StatusOK {
 		t.Fatalf("enable got %d", got)
 	}
-	if got := f.do(t, "GET", "/api/webhook-keys", f.target.UserID, "").Code; got == http.StatusForbidden {
+	if got := f.do(t, "GET", "/api/webhook-keys", f.target.ID, "").Code; got == http.StatusForbidden {
 		t.Errorf("an enabled account is still refused: %d", got)
 	}
 }
@@ -151,9 +151,9 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 func TestDisabledAccountCannotLogIn(t *testing.T) {
 	f := newBoundaryFixture(t)
 	f.codes.Codes = map[string]*mock.MockLoginCode{
-		"code-1": {UserID: f.target.UserID, ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		"code-1": {UserID: f.target.ID, ExpiresAt: time.Now().Add(time.Hour).Unix()},
 	}
-	f.users.DisableForTest(f.target.UserID, 1)
+	f.users.DisableForTest(f.target.ID, 1)
 
 	rec := f.do(t, "POST", "/api/login", "", `{"email":"`+f.target.Email+`","otp":"code-1"}`)
 	if rec.Code != http.StatusForbidden {
@@ -198,8 +198,8 @@ func TestSystemGrantIsNotATeamKey(t *testing.T) {
 // check is after the credential verifies rather than before it.
 func TestDisabledAccountsWebhookKeyIsRefused(t *testing.T) {
 	f := newBoundaryFixture(t)
-	f.keys.Keys = map[string]string{"whk-plain": f.target.UserID}
-	f.users.DisableForTest(f.target.UserID, 1)
+	f.keys.Keys = map[string]string{"whk-plain": f.target.ID}
+	f.users.DisableForTest(f.target.ID, 1)
 
 	req := httptest.NewRequest("POST", "/api/webhook", strings.NewReader(`{"message":"hi"}`))
 	req.Header.Set("X-Webhook-Key", "whk-plain")

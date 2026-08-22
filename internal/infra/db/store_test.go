@@ -27,11 +27,11 @@ func TestCreateUser(t *testing.T) {
 	// Clean up if a previous run left the user.
 	existing, _ := s.UserByEmail(ctx, email)
 	if existing != nil {
-		if personal, _ := s.GetPersonalTeamByUser(ctx, existing.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, existing.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", existing.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", existing.ID)
 	}
 
 	u, err := s.CreateUser(ctx, email, "free_trial")
@@ -39,13 +39,13 @@ func TestCreateUser(t *testing.T) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	defer func() {
-		if personal, _ := s.GetPersonalTeamByUser(ctx, u.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, u.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", u.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", u.ID)
 	}()
-	if u.Email != email || u.UserID == "" {
+	if u.Email != email || u.ID == "" {
 		t.Errorf("CreateUser: got user %+v", u)
 	}
 
@@ -54,11 +54,11 @@ func TestCreateUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UserByEmail: %v", err)
 	}
-	if found == nil || found.UserID != u.UserID {
+	if found == nil || found.ID != u.ID {
 		t.Errorf("UserByEmail: got %+v", found)
 	}
 
-	team, err := s.GetPersonalTeamByUser(ctx, u.UserID)
+	team, err := s.GetPersonalTeamByUser(ctx, u.ID)
 	if err != nil {
 		t.Fatalf("GetPersonalTeamByUser: %v", err)
 	}
@@ -72,14 +72,14 @@ func TestCreateUser(t *testing.T) {
 		t.Errorf("personal team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
 	}
 
-	members, err := s.ListTeamMembers(ctx, team.TeamID)
+	members, err := s.ListTeamMembers(ctx, team.ID)
 	if err != nil {
 		t.Fatalf("ListTeamMembers: %v", err)
 	}
 	if len(members) != 1 {
 		t.Fatalf("ListTeamMembers: got %d members, want 1", len(members))
 	}
-	if members[0].UserID != u.UserID || members[0].Role != model.TeamRoleOwner {
+	if members[0].UserID != u.ID || members[0].Role != model.TeamRoleOwner {
 		t.Errorf("team member = %+v", members[0])
 	}
 }
@@ -101,11 +101,11 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 		t.Fatalf("first CreateUser: %v", err)
 	}
 	defer func() {
-		if personal, _ := s.GetPersonalTeamByUser(ctx, u.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, u.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", u.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", u.ID)
 	}()
 
 	_, err = s.CreateUser(ctx, email, "")
@@ -132,29 +132,29 @@ func TestCreateTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	team, err := s.CreateTeam(ctx, "Ops", user.UserID, "free_trial")
+	team, err := s.CreateTeam(ctx, "Ops", user.ID, "free_trial")
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
 
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", team.TeamID)
-		_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", team.TeamID)
-		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", team.ID)
+		_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", team.ID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.ID)
 	}()
 
-	if team.TeamID == "" || team.Name != "Ops" || team.CreatedBy != user.UserID {
+	if team.ID == "" || team.Name != "Ops" || team.CreatedBy != user.ID {
 		t.Fatalf("created team = %+v", team)
 	}
 	if team.QuotaTier != "free_trial" {
 		t.Fatalf("created team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
 	}
 
-	list, err := s.ListTeamsByUser(ctx, user.UserID)
+	list, err := s.ListTeamsByUser(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("ListTeamsByUser: %v", err)
 	}
@@ -162,11 +162,11 @@ func TestCreateTeam(t *testing.T) {
 		t.Fatalf("ListTeamsByUser: got %d teams, want at least 2", len(list))
 	}
 
-	members, err := s.ListTeamMembers(ctx, team.TeamID)
+	members, err := s.ListTeamMembers(ctx, team.ID)
 	if err != nil {
 		t.Fatalf("ListTeamMembers: %v", err)
 	}
-	if len(members) != 1 || members[0].UserID != user.UserID || members[0].Role != model.TeamRoleOwner {
+	if len(members) != 1 || members[0].UserID != user.ID || members[0].Role != model.TeamRoleOwner {
 		t.Fatalf("team members = %+v", members)
 	}
 }
@@ -186,9 +186,9 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ConversationID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
 	}()
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: "run-output-user"})
+	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: "run-output-user"})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -198,8 +198,8 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	taskRunID := *task.LastRunID
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&taskRunArtifactRow{}, "task_run_id = ?", taskRunID)
-		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
 	}()
 	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
 	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{TaskRunID: taskRunID, Status: model.RunStatusSucceeded, Output: util.Ptr("out")}); err != nil {
@@ -218,14 +218,14 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	}
 
 	// ListRunOutputsByWorkspace
-	artList, err := s.ListRunOutputsByConversation(ctx, conv.ConversationID, nil)
+	artList, err := s.ListRunOutputsByConversation(ctx, conv.ID, nil)
 	if err != nil {
 		t.Fatalf("ListRunOutputsByConversation: %v", err)
 	}
 	if len(artList) != 1 {
 		t.Fatalf("ListRunOutputsByConversation: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != taskRunID || artList[0].TaskID != task.TaskID || artList[0].TaskRunID != taskRunID || artList[0].ConversationID != conv.ConversationID || artList[0].UserID != "run-output-user" {
+	if artList[0].ArtifactID != taskRunID || artList[0].TaskID != task.ID || artList[0].TaskRunID != taskRunID || artList[0].ConversationID != conv.ID || artList[0].UserID != "run-output-user" {
 		t.Errorf("ListRunOutputsByConversation: got artifact_id=%q task_id=%q task_run_id=%q conversation_id=%q user_id=%q", artList[0].ArtifactID, artList[0].TaskID, artList[0].TaskRunID, artList[0].ConversationID, artList[0].UserID)
 	}
 	if artList[0].TaskInputSnippet != "input" {
@@ -265,10 +265,10 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ConversationID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
 	}()
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
-		ConversationID:          conv.ConversationID,
+		ConversationID:          conv.ID,
 		Input:                   "initial input",
 		Title:                   "initial title",
 		CreatedBy:               "provenance-user",
@@ -283,8 +283,8 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		t.Fatal("CreateTask should set LastRunID")
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
 	}()
 	initialRun, err := s.GetTaskRun(ctx, *task.LastRunID)
 	if err != nil {
@@ -307,7 +307,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	// run. Asking for one while the first is still PENDING is what the Portal
 	// answers 409 to; see CreateTaskRun and model.ErrRunInProgress.
 	if _, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
-		TaskID:        task.TaskID,
+		TaskID:        task.ID,
 		Input:         "too soon",
 		CreatedBy:     "reviewer-user",
 		CreatedByType: model.RunCreatedByTypeUser,
@@ -318,7 +318,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 
 	endedAt := time.Now().Unix()
 	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID: initialRun.TaskRunID,
+		TaskRunID: initialRun.ID,
 		Status:    model.RunStatusSucceeded,
 		EndedAt:   &endedAt,
 	}); err != nil {
@@ -326,7 +326,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	}
 
 	rerun, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
-		TaskID:        task.TaskID,
+		TaskID:        task.ID,
 		Input:         "follow-up input",
 		CreatedBy:     "reviewer-user",
 		CreatedByType: model.RunCreatedByTypeUser,
@@ -360,71 +360,71 @@ func TestClaimTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, user.UserID, "portal", user.UserID)
+	conv, err := s.CreateConversation(ctx, user.ID, "portal", user.ID)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ConversationID)
-		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.ID)
 	}()
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ConversationID, Input: "input", Title: "", CreatedBy: user.UserID})
+	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.TaskID)
+		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
 	}()
 	if task.TeamID != conv.TeamID {
 		t.Fatalf("task.TeamID = %q, want %q", task.TeamID, conv.TeamID)
 	}
 
 	// PENDING -> SCHEDULED: should update
-	updated, err := s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
+	updated, err := s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
 		t.Fatalf("ClaimTask PENDING->SCHEDULED: %v", err)
 	}
 	if !updated {
 		t.Error("ClaimTask PENDING->SCHEDULED: want updated true, got false")
 	}
-	got, _ := s.GetTask(ctx, task.TaskID)
+	got, _ := s.GetTask(ctx, task.ID)
 	if got == nil || got.Status != "SCHEDULED" {
 		t.Errorf("after PENDING->SCHEDULED: task status = %q, want SCHEDULED", got.Status)
 	}
 
 	// PENDING -> SCHEDULED again: no match, updated false
-	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
+	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
 		t.Fatalf("ClaimTask PENDING->SCHEDULED (second): %v", err)
 	}
 	if updated {
 		t.Error("ClaimTask PENDING->SCHEDULED when already SCHEDULED: want updated false, got true")
 	}
-	got, _ = s.GetTask(ctx, task.TaskID)
+	got, _ = s.GetTask(ctx, task.ID)
 	if got == nil || got.Status != "SCHEDULED" {
 		t.Errorf("task status = %q, want SCHEDULED (unchanged)", got.Status)
 	}
 
 	// SCHEDULED -> RUNNING: should update
-	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
+	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
 		t.Fatalf("ClaimTask SCHEDULED->RUNNING: %v", err)
 	}
 	if !updated {
 		t.Error("ClaimTask SCHEDULED->RUNNING: want updated true, got false")
 	}
-	got, _ = s.GetTask(ctx, task.TaskID)
+	got, _ = s.GetTask(ctx, task.ID)
 	if got == nil || got.Status != "RUNNING" {
 		t.Errorf("after SCHEDULED->RUNNING: task status = %q, want RUNNING", got.Status)
 	}
 
 	// SCHEDULED -> RUNNING again: no match, updated false
-	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.TaskID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
+	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
 		t.Fatalf("ClaimTask SCHEDULED->RUNNING (second): %v", err)
 	}
@@ -448,7 +448,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	issue, err := s.CreateIssue(ctx, user.UserID, model.CreateIssueInput{
+	issue, err := s.CreateIssue(ctx, user.ID, model.CreateIssueInput{
 		Title:       "Initial issue",
 		Description: "Initial description",
 	})
@@ -456,19 +456,19 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 		t.Fatalf("CreateIssue: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&issueRow{}, "issue_id = ?", issue.IssueID)
-		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		_ = s.db.WithContext(ctx).Delete(&issueRow{}, "issue_id = ?", issue.ID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.ID)
 	}()
 
-	if issue.IssueID == "" || issue.Status != model.IssueStatusTodo || issue.UserID != user.UserID || issue.TeamID == "" {
+	if issue.ID == "" || issue.Status != model.IssueStatusTodo || issue.UserID != user.ID || issue.TeamID == "" {
 		t.Fatalf("created issue = %+v", issue)
 	}
 
-	list, total, err := s.ListIssuesByUser(ctx, user.UserID, 50, 0)
+	list, total, err := s.ListIssuesByUser(ctx, user.ID, 50, 0)
 	if err != nil {
 		t.Fatalf("ListIssuesByUser: %v", err)
 	}
@@ -479,8 +479,8 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	title := "Updated issue"
 	status := model.IssueStatusInProgress
 	kind := model.IssueAssigneePerson
-	id := user.UserID
-	updated, err := s.UpdateIssue(ctx, issue.IssueID, user.UserID, model.UpdateIssueInput{
+	id := user.ID
+	updated, err := s.UpdateIssue(ctx, issue.ID, user.ID, model.UpdateIssueInput{
 		Title:        &title,
 		Status:       &status,
 		AssigneeKind: &kind,
@@ -511,36 +511,36 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, user.UserID, "portal", user.UserID)
+	conv, err := s.CreateConversation(ctx, user.ID, "portal", user.ID)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&conversationMessageRow{})
-		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&conversationRow{})
-		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationMessageRow{})
+		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationRow{})
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.ID)
 	}()
-	if conv.ConversationID == "" || conv.UserID != user.UserID || conv.TeamID == "" || conv.Channel != "portal" {
+	if conv.ID == "" || conv.UserID != user.ID || conv.TeamID == "" || conv.Channel != "portal" {
 		t.Errorf("CreateConversation: got %+v", conv)
 	}
 
 	ch := "portal"
 	m1, err := s.AppendMessage(ctx, model.AppendMessageInput{
-		ConversationID: conv.ConversationID, Role: "user", Content: "hello", Channel: &ch,
+		ConversationID: conv.ID, Role: "user", Content: "hello", Channel: &ch,
 	})
 	if err != nil {
 		t.Fatalf("AppendMessage user: %v", err)
 	}
-	if m1.ConversationMessageID == "" || m1.Role != "user" || m1.Content != "hello" {
+	if m1.ID == "" || m1.Role != "user" || m1.Content != "hello" {
 		t.Errorf("AppendMessage user: got %+v", m1)
 	}
 
 	m2, err := s.AppendMessage(ctx, model.AppendMessageInput{
-		ConversationID: conv.ConversationID, Role: "assistant", Content: "hi there",
+		ConversationID: conv.ID, Role: "assistant", Content: "hi there",
 	})
 	if err != nil {
 		t.Fatalf("AppendMessage assistant: %v", err)
@@ -551,7 +551,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 
 	tcID := "call_1"
 	m3, err := s.AppendMessage(ctx, model.AppendMessageInput{
-		ConversationID: conv.ConversationID, Role: "tool", Content: "2025-03-01", ToolCallID: &tcID,
+		ConversationID: conv.ID, Role: "tool", Content: "2025-03-01", ToolCallID: &tcID,
 	})
 	if err != nil {
 		t.Fatalf("AppendMessage tool: %v", err)
@@ -562,7 +562,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 
 	sysCh := "system"
 	m4, err := s.AppendMessage(ctx, model.AppendMessageInput{
-		ConversationID: conv.ConversationID, Role: "system", Content: "[Task Result] internal", Channel: &sysCh,
+		ConversationID: conv.ID, Role: "system", Content: "[Task Result] internal", Channel: &sysCh,
 	})
 	if err != nil {
 		t.Fatalf("AppendMessage system: %v", err)
@@ -571,7 +571,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		t.Errorf("AppendMessage system: got %+v", m4)
 	}
 
-	msgs, err := s.ListMessages(ctx, conv.ConversationID)
+	msgs, err := s.ListMessages(ctx, conv.ID)
 	if err != nil {
 		t.Fatalf("ListMessages: %v", err)
 	}
@@ -607,7 +607,7 @@ func TestListConversationsByUser(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ConversationID).Delete(&conversationRow{})
+		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationRow{})
 	}()
 
 	convs, total, err := s.ListConversationsByUser(ctx, "conv-list-user", 10, 0)
@@ -619,7 +619,7 @@ func TestListConversationsByUser(t *testing.T) {
 	}
 	found := false
 	for _, c := range convs {
-		if c.ConversationID == conv.ConversationID {
+		if c.ID == conv.ID {
 			found = true
 			break
 		}

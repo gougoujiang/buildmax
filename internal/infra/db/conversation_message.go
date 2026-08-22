@@ -29,17 +29,16 @@ func toConversationMessage(row *conversationMessageRow) *model.ConversationMessa
 		return nil
 	}
 	return &model.ConversationMessage{
-		ID:                    row.ID,
-		ConversationMessageID: row.ConversationMessageID,
-		ConversationID:        row.ConversationID,
-		Role:                  row.Role,
-		Content:               row.Content,
-		Channel:               row.Channel,
-		ToolCallID:            row.ToolCallID,
-		ToolCallsJSON:         row.ToolCallsJSON,
-		ProviderStateJSON:     row.ProviderStateJSON,
-		PartsJSON:             row.PartsJSON,
-		CreatedAt:             row.CreatedAt,
+		ID:                row.ConversationMessageID,
+		ConversationID:    row.ConversationID,
+		Role:              row.Role,
+		Content:           row.Content,
+		Channel:           row.Channel,
+		ToolCallID:        row.ToolCallID,
+		ToolCallsJSON:     row.ToolCallsJSON,
+		ProviderStateJSON: row.ProviderStateJSON,
+		PartsJSON:         row.PartsJSON,
+		CreatedAt:         row.CreatedAt,
 	}
 }
 
@@ -56,8 +55,7 @@ func toConversationMessageRow(m *model.ConversationMessage) *conversationMessage
 		return nil
 	}
 	return &conversationMessageRow{
-		ID:                    m.ID,
-		ConversationMessageID: m.ConversationMessageID,
+		ConversationMessageID: m.ID,
 		ConversationID:        m.ConversationID,
 		Role:                  m.Role,
 		Content:               m.Content,
@@ -75,16 +73,16 @@ func toConversationMessageRow(m *model.ConversationMessage) *conversationMessage
 // stored when role is "assistant" with tool calls. Returns the created message.
 func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
 	msg := &model.ConversationMessage{
-		ConversationMessageID: util.NewPrefixedID(util.PrefixConversationMessage),
-		ConversationID:        in.ConversationID,
-		Role:                  in.Role,
-		Content:               in.Content,
-		Channel:               in.Channel,
-		ToolCallID:            in.ToolCallID,
-		ToolCallsJSON:         in.ToolCallsJSON,
-		ProviderStateJSON:     in.ProviderStateJSON,
-		PartsJSON:             in.PartsJSON,
-		CreatedAt:             time.Now().Unix(),
+		ID:                util.NewPrefixedID(util.PrefixConversationMessage),
+		ConversationID:    in.ConversationID,
+		Role:              in.Role,
+		Content:           in.Content,
+		Channel:           in.Channel,
+		ToolCallID:        in.ToolCallID,
+		ToolCallsJSON:     in.ToolCallsJSON,
+		ProviderStateJSON: in.ProviderStateJSON,
+		PartsJSON:         in.PartsJSON,
+		CreatedAt:         time.Now().Unix(),
 	}
 	if err := s.db.WithContext(ctx).Create(toConversationMessageRow(msg)).Error; err != nil {
 		return nil, err

@@ -19,7 +19,7 @@ func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in model.
 
 func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
 	issue := model.Issue{
-		IssueID:       fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
+		ID:            fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
 		UserID:        createdBy,
 		TeamID:        teamID,
 		ParentIssueID: in.ParentIssueID,
@@ -114,7 +114,7 @@ func (m *MockIssueStore) ChildStatsForIssues(_ context.Context, issueIDs []strin
 
 func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*model.Issue, error) {
 	for i := range m.Issues {
-		if m.Issues[i].IssueID == issueID {
+		if m.Issues[i].ID == issueID {
 			return &m.Issues[i], nil
 		}
 	}
@@ -123,7 +123,7 @@ func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*model.Iss
 
 func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, in model.UpdateIssueInput) (*model.Issue, error) {
 	for i := range m.Issues {
-		if m.Issues[i].IssueID != issueID || m.Issues[i].UserID != userID {
+		if m.Issues[i].ID != issueID || m.Issues[i].UserID != userID {
 			continue
 		}
 		return m.applyIssueUpdate(i, in), nil
@@ -133,7 +133,7 @@ func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, 
 
 func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in model.UpdateIssueInput) (*model.Issue, error) {
 	for i := range m.Issues {
-		if m.Issues[i].IssueID != issueID || m.Issues[i].TeamID != teamID {
+		if m.Issues[i].ID != issueID || m.Issues[i].TeamID != teamID {
 			continue
 		}
 		return m.applyIssueUpdate(i, in), nil

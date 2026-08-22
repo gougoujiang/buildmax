@@ -33,8 +33,7 @@ func toIssue(row *issueRow) *model.Issue {
 		return nil
 	}
 	return &model.Issue{
-		ID:            row.ID,
-		IssueID:       row.IssueID,
+		ID:            row.IssueID,
 		UserID:        row.UserID,
 		TeamID:        row.TeamID,
 		ParentIssueID: row.ParentIssueID,
@@ -62,8 +61,7 @@ func toIssueRow(m *model.Issue) *issueRow {
 		return nil
 	}
 	return &issueRow{
-		ID:            m.ID,
-		IssueID:       m.IssueID,
+		IssueID:       m.ID,
 		UserID:        m.UserID,
 		TeamID:        m.TeamID,
 		ParentIssueID: m.ParentIssueID,
@@ -93,7 +91,7 @@ func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateI
 func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
 	now := time.Now().Unix()
 	issue := &model.Issue{
-		IssueID:       util.NewPrefixedID(util.PrefixIssue),
+		ID:            util.NewPrefixedID(util.PrefixIssue),
 		UserID:        createdBy,
 		TeamID:        teamID,
 		ParentIssueID: in.ParentIssueID,

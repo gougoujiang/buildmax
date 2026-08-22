@@ -17,7 +17,7 @@ type MockTeamStore struct {
 
 func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*model.Team, error) {
 	for i := range m.Teams {
-		if m.Teams[i].TeamID == teamID {
+		if m.Teams[i].ID == teamID {
 			return &m.Teams[i], nil
 		}
 	}
@@ -40,7 +40,7 @@ func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]mod
 			continue
 		}
 		for _, team := range m.Teams {
-			if team.TeamID == member.TeamID {
+			if team.ID == member.TeamID {
 				out = append(out, team)
 			}
 		}
@@ -51,7 +51,7 @@ func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]mod
 func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
 	id := fmt.Sprintf("tm_%d", len(m.Teams)+1)
 	team := model.Team{
-		TeamID:    id,
+		ID:        id,
 		Name:      name,
 		QuotaTier: quotaTier,
 		CreatedBy: createdBy,

@@ -19,15 +19,14 @@ type MockWorkflowStore struct {
 
 func (m *MockWorkflowStore) appendRevision(w *model.Workflow, createdBy string) {
 	m.Revisions = append(m.Revisions, model.WorkflowRevision{
-		WorkflowRevisionID: fmt.Sprintf("wrv_mock_%d", len(m.Revisions)+1),
-		WorkflowID:         w.WorkflowID,
-		Revision:           w.Revision,
-		Name:               w.Name,
-		Description:        w.Description,
-		Definition:         w.Definition,
-		Status:             w.Status,
-		CreatedBy:          createdBy,
-		CreatedAt:          time.Now().Unix(),
+		WorkflowID:  w.ID,
+		Revision:    w.Revision,
+		Name:        w.Name,
+		Description: w.Description,
+		Definition:  w.Definition,
+		Status:      w.Status,
+		CreatedBy:   createdBy,
+		CreatedAt:   time.Now().Unix(),
 	})
 }
 
@@ -43,7 +42,7 @@ func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string
 
 func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
 	workflow := model.Workflow{
-		WorkflowID:  fmt.Sprintf("w_mock_%d", len(m.Workflows)+1),
+		ID:          fmt.Sprintf("w_mock_%d", len(m.Workflows)+1),
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
@@ -62,7 +61,7 @@ func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy,
 
 func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*model.Workflow, error) {
 	for i := range m.Workflows {
-		if m.Workflows[i].WorkflowID == workflowID {
+		if m.Workflows[i].ID == workflowID {
 			return &m.Workflows[i], nil
 		}
 	}
@@ -71,7 +70,7 @@ func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*
 
 func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID string, in model.UpdateWorkflowInput) (*model.Workflow, error) {
 	for i := range m.Workflows {
-		if m.Workflows[i].WorkflowID != workflowID || m.Workflows[i].TeamID != teamID {
+		if m.Workflows[i].ID != workflowID || m.Workflows[i].TeamID != teamID {
 			continue
 		}
 		updated := m.Workflows[i]
@@ -124,7 +123,7 @@ func (m *MockWorkflowStore) GetWorkflowRevision(_ context.Context, workflowID st
 
 func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
 	run := model.WorkflowRun{
-		WorkflowRunID:    fmt.Sprintf("wr_mock_%d", len(m.Runs)+1),
+		ID:               fmt.Sprintf("wr_mock_%d", len(m.Runs)+1),
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
@@ -174,7 +173,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID s
 
 func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID string) (*model.WorkflowRun, error) {
 	for i := range m.Runs {
-		if m.Runs[i].WorkflowRunID == workflowRunID {
+		if m.Runs[i].ID == workflowRunID {
 			return &m.Runs[i], nil
 		}
 	}
@@ -195,7 +194,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 	out := make([]model.WorkflowStepRun, len(steps))
 	for i := range steps {
 		out[i] = model.WorkflowStepRun{
-			StepRunID:         fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
+			ID:                fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
 			WorkflowRunID:     workflowRunID,
 			StepID:            steps[i].StepID,
 			StepIndex:         steps[i].StepIndex,
@@ -216,7 +215,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 
 func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID string, in model.UpdateWorkflowRunInput) (*model.WorkflowRun, error) {
 	for i := range m.Runs {
-		if m.Runs[i].WorkflowRunID != workflowRunID {
+		if m.Runs[i].ID != workflowRunID {
 			continue
 		}
 		m.Runs[i].Status = in.Status
@@ -236,7 +235,7 @@ func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID s
 
 func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID string, in model.UpdateWorkflowStepRunInput) (*model.WorkflowStepRun, error) {
 	for i := range m.StepRuns {
-		if m.StepRuns[i].StepRunID != stepRunID {
+		if m.StepRuns[i].ID != stepRunID {
 			continue
 		}
 		if in.Status != nil {

@@ -16,8 +16,8 @@ import (
 
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	taskRunID := "run-1"
-	run := model.TaskRun{TaskRunID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := model.Task{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
+	run := model.TaskRun{ID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
 		WorkerToken: "worker-token-123",
@@ -60,10 +60,10 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 	askedAt := int64(1_800_000_000)
 	runs := &mock.MockTaskRunStore{
 		Runs: []model.TaskRun{{
-			TaskRunID: taskRunID, TaskID: "task-1", Input: "input",
+			ID: taskRunID, TaskID: "task-1", Input: "input",
 			Status: string(model.RunStatusRunning), CancelRequestedAt: &askedAt,
 		}},
-		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
 	h := New(Config{WorkerToken: "worker-token-123", TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -92,8 +92,8 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) {
 	taskRunID := "run-canceled"
 	runs := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
-		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
 	}
 	h := New(Config{WorkerToken: "worker-token-123", TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -150,8 +150,8 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 
 func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	taskRunID := "run-scheduled"
-	run := model.TaskRun{TaskRunID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
-	task := model.Task{TaskID: "task1", ConversationID: "conv-1"}
+	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	task := model.Task{ID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
 		WorkerToken: "token",
@@ -180,8 +180,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 
 func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	taskRunID := "run-pending"
-	run := model.TaskRun{TaskRunID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: 1}
-	task := model.Task{TaskID: "task1", ConversationID: "conv-1"}
+	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: 1}
+	task := model.Task{ID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
 		WorkerToken: "token",
@@ -215,8 +215,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 // stay on this side.
 func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	store := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{TaskRunID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}},
-		TaskList: []model.Task{{TaskID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		Runs:     []model.TaskRun{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
 
 	get := func(t *testing.T, cfg Config) workerclient.GetTaskRunResponse {

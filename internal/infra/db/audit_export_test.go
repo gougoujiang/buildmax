@@ -71,7 +71,7 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 			break
 		}
 		for _, e := range page {
-			seen = append(seen, e.AuditEventID)
+			seen = append(seen, e.ID)
 		}
 		last := page[len(page)-1]
 		cursor = model.AuditCursor{CreatedAt: last.CreatedAt, ID: last.ID}

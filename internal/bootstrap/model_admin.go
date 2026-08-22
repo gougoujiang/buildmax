@@ -131,12 +131,12 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	// a change to it is worth a record. The actor is the operator at a shell on
 	// the server, which the process cannot name — this command already requires
 	// the database credentials, so being on that machine is the authorization.
-	recordModelAudit(ctx, store, model.AuditModelCreated, created.LLMModelID, created.Name)
+	recordModelAudit(ctx, store, model.AuditModelCreated, created.ID, created.Name)
 
-	fmt.Fprintf(out, "Added model %s (%s)\n", created.LLMModelID, created.Name)
+	fmt.Fprintf(out, "Added model %s (%s)\n", created.ID, created.Name)
 	fmt.Fprintf(out, "\nTo let a team use it, add an alias to server.yaml:\n\n"+
 		"  llm:\n    default_alias: default\n    aliases:\n      default: %s\n\nThen restart the server.\n",
-		created.LLMModelID)
+		created.ID)
 	return nil
 }
 
@@ -163,7 +163,7 @@ func runModelList(ctx context.Context, out io.Writer) error {
 			enabled = "no"
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			m.LLMModelID, m.Name, m.ProviderType, m.Model, m.APIURL, enabled)
+			m.ID, m.Name, m.ProviderType, m.Model, m.APIURL, enabled)
 	}
 	return w.Flush()
 }

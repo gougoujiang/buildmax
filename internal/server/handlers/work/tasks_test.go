@@ -21,11 +21,11 @@ func TestListConversationTasksHandler(t *testing.T) {
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
-	task1 := model.Task{TaskID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
-	task2 := model.Task{TaskID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
+	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
 
 	tests := []struct {
 		name         string
@@ -77,7 +77,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := New(Config{
 				JWTSecret:     secret,
-				Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+				Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 				Tasks:         tt.taskStore,
 				Conversations: mockConversations,
 			})
@@ -115,7 +115,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ConversationID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
 		},
 	}
 
@@ -161,7 +161,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name: "valid body returns 201",
 			taskStore: &mock.MockTaskStore{
 				Create: &model.Task{
-					TaskID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
+					ID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
 				},
 			},
@@ -177,7 +177,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			taskStore: &mock.MockTaskStore{},
 			agentStore: &mock.MockAgentStore{
 				Agents: []model.Agent{
-					{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
+					{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
 				},
 			},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
@@ -189,7 +189,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		},
 	}
 	denyChecker := &quota.Service{
-		TeamStore:   &mock.DenyQuotaTeamStore{Team: &model.Team{TeamID: teamID, QuotaTier: "free_trial"}},
+		TeamStore:   &mock.DenyQuotaTeamStore{Team: &model.Team{ID: teamID, QuotaTier: "free_trial"}},
 		UsageReader: &mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
 		TierStore:   &mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -218,7 +218,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				JWTSecret:     secret,
-				Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+				Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 				Tasks:         tt.taskStore,
 				Agents:        tt.agentStore,
 				Conversations: mockConversations,

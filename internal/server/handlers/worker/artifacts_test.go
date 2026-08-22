@@ -18,8 +18,8 @@ const workerArtifactToken = "worker-token-123"
 
 func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, teamID string) *http.ServeMux {
 	t.Helper()
-	run := model.TaskRun{TaskRunID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: 1}
-	task := model.Task{TaskID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
+	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: 1}
+	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
 	h := New(Config{
 		WorkerToken: workerArtifactToken,
 		TaskRuns:    &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
@@ -130,8 +130,8 @@ func TestWorkerArtifactRefusesARunWithNoTeam(t *testing.T) {
 }
 
 func TestWorkerArtifactUnconfiguredDeploymentRefuses(t *testing.T) {
-	run := model.TaskRun{TaskRunID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: 1}
-	task := model.Task{TaskID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
+	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: 1}
+	task := model.Task{ID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
 	h := New(Config{
 		WorkerToken: workerArtifactToken,
 		TaskRuns:    &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},

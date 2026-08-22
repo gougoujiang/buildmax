@@ -70,5 +70,5 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 	if err != nil {
 		return ConversationResult{}, err
 	}
-	return ConversationResult{TaskRunIDs: []string{run.TaskRunID}}, nil
+	return ConversationResult{TaskRunIDs: []string{run.ID}}, nil
 }

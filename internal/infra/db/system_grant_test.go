@@ -48,7 +48,7 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GrantSystemRole: %v", err)
 	}
-	if grant.SystemGrantID == "" || grant.RevokedAt != nil || !grant.Active() {
+	if grant.ID == "" || grant.RevokedAt != nil || !grant.Active() {
 		t.Fatalf("new grant should be active with an id: %+v", grant)
 	}
 
@@ -93,8 +93,8 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-grant after revoke: %v", err)
 	}
-	if regrant.SystemGrantID == grant.SystemGrantID {
-		t.Errorf("re-grant reused the retired row's id %q", regrant.SystemGrantID)
+	if regrant.ID == grant.ID {
+		t.Errorf("re-grant reused the retired row's id %q", regrant.ID)
 	}
 
 	all, err := s.ListSystemGrants(ctx, true)

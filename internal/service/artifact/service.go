@@ -212,7 +212,7 @@ func (s *Service) Open(ctx context.Context, rec *model.Artifact) (io.ReadCloser,
 	if rec == nil {
 		return nil, ErrNotFound
 	}
-	body, err := s.Storage.OpenArtifact(ctx, blob.ArtifactRef{TeamID: rec.TeamID, ArtifactID: rec.ArtifactID})
+	body, err := s.Storage.OpenArtifact(ctx, blob.ArtifactRef{TeamID: rec.TeamID, ArtifactID: rec.ID})
 	if err != nil {
 		if errors.Is(err, blob.ErrNotFound) {
 			return nil, ErrNotFound
@@ -253,7 +253,7 @@ func (s *Service) Delete(ctx context.Context, rec *model.Artifact, actorType, ac
 	if rec == nil {
 		return ErrNotFound
 	}
-	changed, err := s.Artifacts.SoftDeleteArtifact(ctx, rec.ArtifactID, s.now().Unix())
+	changed, err := s.Artifacts.SoftDeleteArtifact(ctx, rec.ID, s.now().Unix())
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (s *Service) audit(ctx context.Context, rec *model.Artifact, action, detail
 		ActorID:    rec.CreatedByID,
 		Action:     action,
 		TargetType: "artifact",
-		TargetID:   rec.ArtifactID,
+		TargetID:   rec.ID,
 		Detail:     detail,
 	})
 }

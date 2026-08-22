@@ -15,8 +15,7 @@ var ErrLLMModelNameTaken = errors.New("a model with this name already exists")
 // listing, resolving, and diagnosing models can never carry it by accident.
 // See docs/design/llm-gateway.md.
 type LLMModel struct {
-	ID         uint   `json:"-"`
-	LLMModelID string `json:"llm_model_id"`
+	ID string `json:"id"`
 	// Name is the operator-facing name, unique within a deployment.
 	Name string `json:"name"`
 	// ProviderType selects the client implementation.

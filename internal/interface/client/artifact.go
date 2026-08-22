@@ -13,9 +13,9 @@ import (
 // artifactResponse is the part of the server's answer a local surface reports.
 // The storage key is not in it and never leaves the server.
 type artifactResponse struct {
-	ArtifactID string `json:"artifact_id"`
-	Filename   string `json:"filename"`
-	SizeBytes  int64  `json:"size_bytes"`
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	SizeBytes int64  `json:"size_bytes"`
 }
 
 // TokenFunc supplies the session credential for serverURL. It is the same seam
@@ -79,9 +79,9 @@ func (p *ArtifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 		return tool.PublishedArtifact{}, err
 	}
 	return tool.PublishedArtifact{
-		ArtifactID: out.ArtifactID,
+		ArtifactID: out.ID,
 		Filename:   out.Filename,
 		SizeBytes:  out.SizeBytes,
-		URL:        p.ServerURL + "/api/artifacts/" + url.PathEscape(out.ArtifactID),
+		URL:        p.ServerURL + "/api/artifacts/" + url.PathEscape(out.ID),
 	}, nil
 }

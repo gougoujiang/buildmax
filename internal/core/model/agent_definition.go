@@ -4,8 +4,7 @@ import "context"
 
 // Agent is a user-defined Portal agent stored in the database.
 type Agent struct {
-	ID           uint   `json:"-"`
-	AgentID      string `json:"agent_id"`
+	ID           string `json:"id"`
 	UserID       string `json:"user_id"`
 	TeamID       string `json:"team_id,omitempty"`
 	Name         string `json:"name"`
@@ -28,13 +27,11 @@ type Agent struct {
 // and restoring an older revision is itself an edit that appends a new one.
 // They outlive the agent, so a deleted agent's history stays readable.
 type AgentRevision struct {
-	ID              uint   `json:"-"`
-	AgentRevisionID string `json:"agent_revision_id"`
-	AgentID         string `json:"agent_id"`
-	Revision        int    `json:"revision"`
-	Name            string `json:"name"`
-	Description     string `json:"description"`
-	Instructions    string `json:"instructions"`
+	AgentID      string `json:"agent_id"`
+	Revision     int    `json:"revision"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Instructions string `json:"instructions"`
 	// CreatedBy is the user who wrote this revision, which is not necessarily
 	// the agent's owner.
 	CreatedBy string `json:"created_by"`

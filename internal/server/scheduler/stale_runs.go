@@ -168,10 +168,10 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 // because from here a dead worker, an evicted pod, and an expired credential
 // look identical.
 func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status model.RunStatus, message string, now time.Time, logMsg string) {
-	ctx = buildmaxlog.With(ctx, "task_run_id", run.TaskRunID)
+	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
 	endedAt := now.Unix()
 	if err := c.runs.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID:    run.TaskRunID,
+		TaskRunID:    run.ID,
 		Status:       status,
 		EndedAt:      &endedAt,
 		ErrorMessage: &message,
@@ -179,7 +179,7 @@ func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status m
 		c.log().ErrorContext(ctx, "could not finish an unreported run", "status", status, "err", err)
 		return
 	}
-	if err := c.runs.SyncTaskFromRun(ctx, run.TaskRunID); err != nil {
+	if err := c.runs.SyncTaskFromRun(ctx, run.ID); err != nil {
 		c.log().WarnContext(ctx, "could not sync a task from its unreported run", "err", err)
 	}
 	c.log().WarnContext(ctx, logMsg, "status_was", run.Status)

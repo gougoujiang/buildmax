@@ -40,8 +40,7 @@ func toArtifact(row *artifactRow) *model.Artifact {
 		return nil
 	}
 	return &model.Artifact{
-		ID:            row.ID,
-		ArtifactID:    row.ArtifactID,
+		ID:            row.ArtifactID,
 		TeamID:        row.TeamID,
 		Filename:      row.Filename,
 		MediaType:     row.MediaType,

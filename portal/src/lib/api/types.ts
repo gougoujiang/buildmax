@@ -45,7 +45,6 @@ export interface ApiAgent {
 }
 
 export interface ApiAgentRevision {
-  id: string
   agent_id: string
   revision: number
   name: string
@@ -111,7 +110,6 @@ export interface ApiWorkflow {
 }
 
 export interface ApiWorkflowRevision {
-  id: string
   workflow_id: string
   revision: number
   name: string
@@ -300,7 +298,7 @@ export interface RetryTaskResponse {
 
 /** Run output (artifact) as returned by task/run artifact endpoints */
 export interface ApiArtifact {
-  artifact_id: string
+  id: string
   team_id: string
   filename: string
   media_type: string
@@ -385,7 +383,7 @@ export interface ApiTaskRunTrace {
  * team's.
  */
 export interface ApiTaskRunLLMCall {
-  llm_call_id: string
+  id: string
   user_id?: string
   task_id?: string
   surface?: string
@@ -414,7 +412,7 @@ export interface ApiTaskRunLLMCall {
  * it — never prompts, generated content, tool output, or credentials.
  */
 export interface ApiAuditEvent {
-  audit_event_id: string
+  id: string
   team_id?: string
   actor_type: string
   actor_id: string
@@ -439,7 +437,7 @@ export interface ApiAuditEventsResponse {
 
 /** One deployment-scoped grant. */
 export interface ApiSystemGrant {
-  system_grant_id: string
+  id: string
   user_id: string
   role: string
   granted_by: string
@@ -462,7 +460,7 @@ export interface ApiAdminGrantsResponse {
 
 /** One account as an administrator sees it. Never a hash, never a token. */
 export interface ApiAdminUser {
-  user_id: string
+  id: string
   email: string
   name?: string
   quota_tier?: string
@@ -538,7 +536,7 @@ export interface ApiAdminSystem {
  * opens a provider connection.
  */
 export interface ApiAdminModel {
-  llm_model_id: string
+  id: string
   name: string
   provider_type: string
   api_url: string
@@ -564,7 +562,6 @@ export interface ApiAdminModelsResponse {
 
 /** One catalog entry in the private plugin Marketplace. */
 export interface ApiPlugin {
-  plugin_id: string
   name: string
   display_name?: string
   description?: string
@@ -615,8 +612,6 @@ export interface ApiPluginReleaseSource {
 
 /** One immutable published version. */
 export interface ApiPluginRelease {
-  plugin_release_id: string
-  plugin_id: string
   plugin_name: string
   version: string
   min_buildmax_version?: string
@@ -653,7 +648,7 @@ export interface ApiSecretStatus {
 }
 
 export interface ApiAdminTeam {
-  team_id: string
+  id: string
   name: string
   personal: boolean
   quota_tier?: string

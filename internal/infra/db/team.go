@@ -38,8 +38,7 @@ func toTeam(row *teamRow) *model.Team {
 		return nil
 	}
 	return &model.Team{
-		ID:                row.ID,
-		TeamID:            row.TeamID,
+		ID:                row.TeamID,
 		Name:              row.Name,
 		PersonalForUserID: row.PersonalForUserID,
 		QuotaTier:         row.QuotaTier,
@@ -62,8 +61,7 @@ func toTeamRow(m *model.Team) *teamRow {
 		return nil
 	}
 	return &teamRow{
-		ID:                m.ID,
-		TeamID:            m.TeamID,
+		TeamID:            m.ID,
 		Name:              m.Name,
 		PersonalForUserID: m.PersonalForUserID,
 		QuotaTier:         m.QuotaTier,
@@ -78,7 +76,6 @@ func toTeamMember(row *teamMemberRow) *model.TeamMember {
 		return nil
 	}
 	return &model.TeamMember{
-		ID:        row.ID,
 		TeamID:    row.TeamID,
 		UserID:    row.UserID,
 		Role:      row.Role,
@@ -99,7 +96,6 @@ func toTeamMemberRow(m *model.TeamMember) *teamMemberRow {
 		return nil
 	}
 	return &teamMemberRow{
-		ID:        m.ID,
 		TeamID:    m.TeamID,
 		UserID:    m.UserID,
 		Role:      m.Role,
@@ -150,7 +146,7 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
 	now := time.Now().Unix()
 	team := &model.Team{
-		TeamID:    util.NewPrefixedID(util.PrefixTeam),
+		ID:        util.NewPrefixedID(util.PrefixTeam),
 		Name:      name,
 		QuotaTier: quotaTier,
 		CreatedBy: createdBy,
@@ -158,7 +154,7 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 		UpdatedAt: now,
 	}
 	member := &model.TeamMember{
-		TeamID:    team.TeamID,
+		TeamID:    team.ID,
 		UserID:    createdBy,
 		Role:      model.TeamRoleOwner,
 		CreatedAt: now,
@@ -230,7 +226,7 @@ func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (strin
 	if team == nil {
 		return "", nil
 	}
-	return team.TeamID, nil
+	return team.ID, nil
 }
 
 // ListAllTeams implements model.TeamStore.

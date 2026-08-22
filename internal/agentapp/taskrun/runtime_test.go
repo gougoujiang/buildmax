@@ -215,12 +215,12 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 		runGlobal:    filepath.Join(t.TempDir(), "global"),
 	}
 	task := &model.Task{
-		TaskID:         "t1",
+		ID:             "t1",
 		ConversationID: "c1",
 		TeamID:         "tm_shared",
 		CreatedBy:      "u_creator",
 	}
-	run := &model.TaskRun{TaskRunID: "r1"}
+	run := &model.TaskRun{ID: "r1"}
 
 	if err := prepareRunWorkspace(ctx, persist, task, run, dirs); err != nil {
 		t.Fatal(err)

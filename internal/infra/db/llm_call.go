@@ -59,8 +59,7 @@ func toLLMCall(row *llmCallRow) *model.LLMCall {
 		return nil
 	}
 	return &model.LLMCall{
-		ID:                row.ID,
-		LLMCallID:         row.LLMCallID,
+		ID:                row.LLMCallID,
 		ClientCallID:      row.ClientCallID,
 		TeamID:            row.TeamID,
 		UserID:            row.UserID,
@@ -94,8 +93,7 @@ func toLLMCallRow(call *model.LLMCall) *llmCallRow {
 		return nil
 	}
 	return &llmCallRow{
-		ID:                call.ID,
-		LLMCallID:         call.LLMCallID,
+		LLMCallID:         call.ID,
 		ClientCallID:      call.ClientCallID,
 		TeamID:            call.TeamID,
 		UserID:            call.UserID,
@@ -131,7 +129,7 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 		return nil, errors.New("llm call is required")
 	}
 	stored := *call
-	stored.LLMCallID = util.NewPrefixedID(util.PrefixLLMCall)
+	stored.ID = util.NewPrefixedID(util.PrefixLLMCall)
 	if stored.AcceptedAt == 0 {
 		stored.AcceptedAt = time.Now().Unix()
 	}

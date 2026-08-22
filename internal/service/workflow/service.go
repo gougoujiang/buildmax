@@ -152,7 +152,7 @@ func (s *Service) ListWorkflowRevisions(ctx context.Context, teamID, workflowID 
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.Workflows.ListWorkflowRevisions(ctx, workflow.WorkflowID, limit, offset)
+	return s.Workflows.ListWorkflowRevisions(ctx, workflow.ID, limit, offset)
 }
 
 // RestoreWorkflowRevision writes an earlier revision's name, description, and
@@ -173,7 +173,7 @@ func (s *Service) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkfl
 	if err != nil {
 		return nil, err
 	}
-	revision, err := s.Workflows.GetWorkflowRevision(ctx, workflow.WorkflowID, cmd.Revision)
+	revision, err := s.Workflows.GetWorkflowRevision(ctx, workflow.ID, cmd.Revision)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func (s *Service) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkfl
 	return s.UpdateWorkflow(ctx, UpdateWorkflowCmd{
 		TeamID:      cmd.TeamID,
 		UserID:      cmd.UserID,
-		WorkflowID:  workflow.WorkflowID,
+		WorkflowID:  workflow.ID,
 		Name:        &revision.Name,
 		Description: &revision.Description,
 		Definition:  &revision.Definition,
@@ -232,7 +232,7 @@ func (s *Service) ListWorkflowRuns(ctx context.Context, teamID, workflowID strin
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.Workflows.ListWorkflowRunsByWorkflow(ctx, workflow.WorkflowID, limit, offset)
+	return s.Workflows.ListWorkflowRunsByWorkflow(ctx, workflow.ID, limit, offset)
 }
 
 func (s *Service) GetWorkflowRunDetail(ctx context.Context, teamID, workflowRunID string) (*model.WorkflowRun, []model.WorkflowStepRun, error) {
@@ -284,7 +284,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := s.validateIssueForRun(ctx, cmd.TeamID, workflow.WorkflowID, cmd.IssueID); err != nil {
+	if err := s.validateIssueForRun(ctx, cmd.TeamID, workflow.ID, cmd.IssueID); err != nil {
 		return nil, nil, err
 	}
 	conv, err := s.Conversations.CreateConversationInTeam(ctx, cmd.TeamID, cmd.UserID, "workflow", cmd.UserID)
@@ -293,10 +293,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	}
 	now := time.Now().Unix()
 	run, err := s.Workflows.CreateWorkflowRun(ctx, model.CreateWorkflowRunInput{
-		WorkflowID:       workflow.WorkflowID,
+		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
 		IssueID:          cmd.IssueID,
-		ConversationID:   conv.ConversationID,
+		ConversationID:   conv.ID,
 		Status:           model.WorkflowRunStatusRunning,
 		CreatedBy:        cmd.UserID,
 		StartedAt:        &now,
@@ -321,18 +321,18 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			Status:            model.WorkflowStepRunStatusPending,
 		}
 	}
-	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.WorkflowRunID, stepsIn)
+	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.ID, stepsIn)
 	if err != nil {
 		return nil, nil, err
 	}
 	if _, err := s.dispatchNextStep(ctx, cmd.TeamID, cmd.UserID, run, stepRuns); err != nil {
 		return nil, nil, err
 	}
-	stepRuns, err = s.Workflows.ListWorkflowStepRuns(ctx, run.WorkflowRunID)
+	stepRuns, err = s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	run, err = s.Workflows.GetWorkflowRun(ctx, run.WorkflowRunID)
+	run, err = s.Workflows.GetWorkflowRun(ctx, run.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -364,7 +364,7 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	if info.Status == string(model.RunStatusSucceeded) {
 		summary := summarizeOutput(info.Output)
 		status := model.WorkflowStepRunStatusSucceeded
-		if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.StepRunID, model.UpdateWorkflowStepRunInput{
+		if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, model.UpdateWorkflowStepRunInput{
 			Status:        &status,
 			TaskRunID:     &info.TaskRunID,
 			OutputSummary: summary,
@@ -372,7 +372,7 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 		}); err != nil {
 			return err
 		}
-		steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.WorkflowRunID)
+		steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
 		if err != nil {
 			return err
 		}
@@ -391,7 +391,7 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 		stepStatus = model.WorkflowStepRunStatusCanceled
 		runStatus = model.WorkflowRunStatusCanceled
 	}
-	if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.StepRunID, model.UpdateWorkflowStepRunInput{
+	if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, model.UpdateWorkflowStepRunInput{
 		Status:       &stepStatus,
 		TaskRunID:    &info.TaskRunID,
 		ErrorMessage: info.ErrorMessage,
@@ -399,19 +399,19 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	}); err != nil {
 		return err
 	}
-	steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.WorkflowRunID)
+	steps, err := s.Workflows.ListWorkflowStepRuns(ctx, run.ID)
 	if err != nil {
 		return err
 	}
 	blocked := model.WorkflowStepRunStatusBlocked
 	for i := range steps {
 		if steps[i].StepIndex > stepRun.StepIndex && steps[i].Status == model.WorkflowStepRunStatusPending {
-			if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].StepRunID, model.UpdateWorkflowStepRunInput{Status: &blocked}); err != nil {
+			if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, model.UpdateWorkflowStepRunInput{Status: &blocked}); err != nil {
 				return err
 			}
 		}
 	}
-	_, err = s.Workflows.UpdateWorkflowRun(ctx, run.WorkflowRunID, model.UpdateWorkflowRunInput{
+	_, err = s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
 		Status:       runStatus,
 		EndedAt:      &now,
 		ErrorMessage: info.ErrorMessage,
@@ -439,13 +439,13 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 		taskItem, taskRunID, err := s.createStepTask(ctx, teamID, userID, run.ConversationID, steps[i])
 		if err != nil {
 			failed := model.WorkflowRunStatusFailed
-			_, _ = s.Workflows.UpdateWorkflowRun(ctx, run.WorkflowRunID, model.UpdateWorkflowRunInput{
+			_, _ = s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
 				Status:       failed,
 				EndedAt:      &startedAt,
 				ErrorMessage: ptrError(err),
 			})
 			stepFailed := model.WorkflowStepRunStatusFailed
-			_, _ = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].StepRunID, model.UpdateWorkflowStepRunInput{
+			_, _ = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, model.UpdateWorkflowStepRunInput{
 				Status:       &stepFailed,
 				ErrorMessage: ptrError(err),
 				StartedAt:    &startedAt,
@@ -453,9 +453,9 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 			})
 			return nil, err
 		}
-		_, err = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].StepRunID, model.UpdateWorkflowStepRunInput{
+		_, err = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, model.UpdateWorkflowStepRunInput{
 			Status:    &running,
-			TaskID:    &taskItem.TaskID,
+			TaskID:    &taskItem.ID,
 			TaskRunID: &taskRunID,
 			StartedAt: &startedAt,
 		})
@@ -466,7 +466,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 	}
 	endedAt := time.Now().Unix()
 	status := model.WorkflowRunStatusSucceeded
-	_, err := s.Workflows.UpdateWorkflowRun(ctx, run.WorkflowRunID, model.UpdateWorkflowRunInput{
+	_, err := s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
 		Status:  status,
 		EndedAt: &endedAt,
 	})
@@ -482,7 +482,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step model.WorkflowStepRun) (*model.Agent, error) {
 	if step.AgentName != "" || step.AgentInstructions != "" {
 		return &model.Agent{
-			AgentID:      agentID,
+			ID:           agentID,
 			TeamID:       teamID,
 			Name:         step.AgentName,
 			Description:  step.AgentDescription,

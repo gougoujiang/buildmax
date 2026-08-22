@@ -20,11 +20,11 @@ type MockSystemGrantStore struct {
 // GrantSystemRole applies. Test setup, not a store method.
 func (m *MockSystemGrantStore) GrantForTest(userID, role string) {
 	m.Grants = append(m.Grants, model.SystemGrant{
-		SystemGrantID: "sg_" + userID + "_" + role,
-		UserID:        userID,
-		Role:          role,
-		GrantedBy:     model.AuditActorOperator,
-		GrantedAt:     1,
+		ID:        "sg_" + userID + "_" + role,
+		UserID:    userID,
+		Role:      role,
+		GrantedBy: model.AuditActorOperator,
+		GrantedAt: 1,
 	})
 }
 
@@ -68,11 +68,11 @@ func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, 
 		}
 	}
 	grant := model.SystemGrant{
-		SystemGrantID: "sg_" + userID + "_" + role,
-		UserID:        userID,
-		Role:          role,
-		GrantedBy:     grantedBy,
-		GrantedAt:     now,
+		ID:        "sg_" + userID + "_" + role,
+		UserID:    userID,
+		Role:      role,
+		GrantedBy: grantedBy,
+		GrantedAt: now,
 	}
 	m.Grants = append(m.Grants, grant)
 	return &grant, nil

@@ -21,7 +21,7 @@ func auditFixture(t *testing.T) (*http.ServeMux, *mock.MockAuditStore, *mock.Moc
 	h := New(Config{
 		JWTSecret: matrixSecret,
 		Teams: &mock.MockTeamStore{
-			Teams: []model.Team{{TeamID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner}},
+			Teams: []model.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner}},
 			Members: []model.TeamMember{
 				{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
 				{TeamID: matrixTeam, UserID: matrixMember, Role: model.TeamRoleMember},
@@ -66,7 +66,7 @@ func TestDenialIsRecorded(t *testing.T) {
 func TestAuditTrailIsOwnerOnly(t *testing.T) {
 	mux, store, _ := auditFixture(t)
 	store.Events = []model.AuditEvent{
-		{AuditEventID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: 1},
+		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: 1},
 	}
 
 	for _, tc := range []struct {
@@ -92,7 +92,7 @@ func TestAuditTrailIsOwnerOnly(t *testing.T) {
 func TestAuditTrailCarriesNoContent(t *testing.T) {
 	mux, store, _ := auditFixture(t)
 	store.Events = []model.AuditEvent{{
-		AuditEventID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser,
+		ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser,
 		ActorID: matrixOwner, Action: model.AuditModelCreated,
 		TargetType: "llm_model", TargetID: "lm_1", Detail: "fast", CreatedAt: 1,
 	}}

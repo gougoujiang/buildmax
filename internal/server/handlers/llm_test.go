@@ -62,7 +62,7 @@ type llmStubLedger struct {
 func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
 	l.opened++
 	stored := *call
-	stored.LLMCallID = "lc_stub"
+	stored.ID = "lc_stub"
 	l.last = stored
 	return &stored, nil
 }
@@ -102,7 +102,7 @@ func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string) {
 func llmTestTeamStore() *mock.MockTeamStore {
 	return &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().Unix()},
+			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().Unix()},
 		},
 		Members: []model.TeamMember{
 			{TeamID: llmTestTeam, UserID: llmTestUser, Role: model.TeamRoleOwner, CreatedAt: time.Now().Unix()},
@@ -513,7 +513,7 @@ func TestLLMDuplicateCallIDIsRefused(t *testing.T) {
 type llmDuplicateLedger struct{ llmStubLedger }
 
 func (l *llmDuplicateLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
-	return &model.LLMCall{LLMCallID: "lc_original", Status: model.LLMCallStatusAccepted}, nil
+	return &model.LLMCall{ID: "lc_original", Status: model.LLMCallStatusAccepted}, nil
 }
 
 func TestLLMModelsUnconfigured(t *testing.T) {

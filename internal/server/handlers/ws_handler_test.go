@@ -27,7 +27,7 @@ func setupWSHandler() *Handler {
 	return NewHandler(Config{
 		JWTSecret:         wsTestSecret,
 		CORSOrigin:        "*",
-		TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+		TeamStore:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 		ConversationStore: &mock.MockConversationStore{},
 	})
 }
@@ -204,7 +204,7 @@ func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
 	h := NewHandler(Config{
 		JWTSecret:                wsTestSecret,
 		CORSOrigin:               "*",
-		TeamStore:                &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+		TeamStore:                &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 		ConversationStore:        &mock.MockConversationStore{},
 		ConversationMessageStore: &mockConversationMessageStore{},
 		ConversationLLMClient:    client,

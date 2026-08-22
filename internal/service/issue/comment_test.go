@@ -67,7 +67,7 @@ func TestCreateComment_NotConfigured(t *testing.T) {
 
 func TestUpdateComment_StampsEditedAt(t *testing.T) {
 	svc, _ := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_1",
+		ID: "ic_1", IssueID: "i_1",
 		AuthorKind: model.IssueCommentAuthorUser, AuthorID: "u1", Body: "first",
 	})
 	updated, err := svc.UpdateComment(context.Background(), UpdateCommentCmd{
@@ -86,7 +86,7 @@ func TestUpdateComment_StampsEditedAt(t *testing.T) {
 
 func TestUpdateComment_OnlyTheAuthor(t *testing.T) {
 	svc, _ := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_1",
+		ID: "ic_1", IssueID: "i_1",
 		AuthorKind: model.IssueCommentAuthorUser, AuthorID: "u1", Body: "first",
 	})
 	_, err := svc.UpdateComment(context.Background(), UpdateCommentCmd{
@@ -101,7 +101,7 @@ func TestUpdateComment_OnlyTheAuthor(t *testing.T) {
 // what a run reported.
 func TestUpdateComment_AgentCommentIsNotEditable(t *testing.T) {
 	svc, _ := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_1",
+		ID: "ic_1", IssueID: "i_1",
 		AuthorKind: model.IssueCommentAuthorAgent, AuthorID: "a_1", Body: "run finished",
 	})
 	_, err := svc.UpdateComment(context.Background(), UpdateCommentCmd{
@@ -116,7 +116,7 @@ func TestUpdateComment_AgentCommentIsNotEditable(t *testing.T) {
 // successful write to somewhere the caller was never authorized against.
 func TestUpdateComment_WrongIssue(t *testing.T) {
 	svc, _ := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_other",
+		ID: "ic_1", IssueID: "i_other",
 		AuthorKind: model.IssueCommentAuthorUser, AuthorID: "u1", Body: "first",
 	})
 	_, err := svc.UpdateComment(context.Background(), UpdateCommentCmd{
@@ -129,7 +129,7 @@ func TestUpdateComment_WrongIssue(t *testing.T) {
 
 func TestDeleteComment_Author(t *testing.T) {
 	svc, store := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_1",
+		ID: "ic_1", IssueID: "i_1",
 		AuthorKind: model.IssueCommentAuthorUser, AuthorID: "u1", Body: "first",
 	})
 	if err := svc.DeleteComment(context.Background(), DeleteCommentCmd{
@@ -144,7 +144,7 @@ func TestDeleteComment_Author(t *testing.T) {
 
 func TestDeleteComment_StrangerRefused(t *testing.T) {
 	svc, store := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_1",
+		ID: "ic_1", IssueID: "i_1",
 		AuthorKind: model.IssueCommentAuthorUser, AuthorID: "u1", Body: "first",
 	})
 	err := svc.DeleteComment(context.Background(), DeleteCommentCmd{
@@ -160,7 +160,7 @@ func TestDeleteComment_StrangerRefused(t *testing.T) {
 
 func TestDeleteComment_ModeratorMayRemoveAnother(t *testing.T) {
 	svc, store := commentService(model.IssueComment{
-		IssueCommentID: "ic_1", IssueID: "i_1",
+		ID: "ic_1", IssueID: "i_1",
 		AuthorKind: model.IssueCommentAuthorAgent, AuthorID: "a_1", Body: "run finished",
 	})
 	if err := svc.DeleteComment(context.Background(), DeleteCommentCmd{
@@ -175,9 +175,9 @@ func TestDeleteComment_ModeratorMayRemoveAnother(t *testing.T) {
 
 func TestListComments(t *testing.T) {
 	svc, _ := commentService(
-		model.IssueComment{IssueCommentID: "ic_1", IssueID: "i_1", Body: "one"},
-		model.IssueComment{IssueCommentID: "ic_2", IssueID: "i_other", Body: "two"},
-		model.IssueComment{IssueCommentID: "ic_3", IssueID: "i_1", Body: "three"},
+		model.IssueComment{ID: "ic_1", IssueID: "i_1", Body: "one"},
+		model.IssueComment{ID: "ic_2", IssueID: "i_other", Body: "two"},
+		model.IssueComment{ID: "ic_3", IssueID: "i_1", Body: "three"},
 	)
 	list, total, err := svc.ListComments(context.Background(), "i_1", 50, 0)
 	if err != nil {

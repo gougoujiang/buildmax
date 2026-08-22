@@ -46,7 +46,7 @@ func (c *StoreCatalog) IDs(ctx context.Context) ([]string, error) {
 	}
 	out := make([]string, 0, len(stored))
 	for _, m := range stored {
-		out = append(out, m.LLMModelID)
+		out = append(out, m.ID)
 	}
 	return out, nil
 }
@@ -62,11 +62,11 @@ func targetFromModel(m model.LLMModel) (Target, error) {
 		capabilities = append(capabilities, Capability(c))
 	}
 	target := Target{
-		ID:            m.LLMModelID,
+		ID:            m.ID,
 		Name:          m.Name,
 		ProviderType:  m.ProviderType,
 		Endpoint:      m.APIURL,
-		CredentialRef: m.LLMModelID,
+		CredentialRef: m.ID,
 		UpstreamModel: m.Model,
 		ContextWindow: m.ContextWindow,
 		CallTimeout:   time.Duration(m.CallTimeout) * time.Second,

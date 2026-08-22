@@ -42,16 +42,15 @@ func toAuditEvent(row *auditEventRow) *model.AuditEvent {
 		return nil
 	}
 	return &model.AuditEvent{
-		ID:           row.ID,
-		AuditEventID: row.AuditEventID,
-		TeamID:       row.TeamID,
-		ActorType:    row.ActorType,
-		ActorID:      row.ActorID,
-		Action:       row.Action,
-		TargetType:   row.TargetType,
-		TargetID:     row.TargetID,
-		Detail:       row.Detail,
-		CreatedAt:    row.CreatedAt,
+		ID:         row.AuditEventID,
+		TeamID:     row.TeamID,
+		ActorType:  row.ActorType,
+		ActorID:    row.ActorID,
+		Action:     row.Action,
+		TargetType: row.TargetType,
+		TargetID:   row.TargetID,
+		Detail:     row.Detail,
+		CreatedAt:  row.CreatedAt,
 	}
 }
 
@@ -160,11 +159,17 @@ func applyAuditFilter(q *gorm.DB, filter model.AuditFilter) *gorm.DB {
 // one-second resolution, so several events can share it, and a `created_at <`
 // bound alone would drop the ones that tied with the last row of the previous
 // page.
-func applyAuditCursor(q *gorm.DB, after model.AuditCursor) *gorm.DB {
+//
+// The tie-break is the row key, which no caller may hold, so the cursor names
+// the event by its public handle and the key is resolved in a subquery. That
+// keeps the translation where every other one lives -- inside this package --
+// and costs one indexed lookup per page rather than a round trip per page.
+func (s *Store) applyAuditCursor(ctx context.Context, q *gorm.DB, after model.AuditCursor) *gorm.DB {
 	if after.Zero() {
 		return q
 	}
-	return q.Where("created_at < ? OR (created_at = ? AND id < ?)", after.CreatedAt, after.CreatedAt, after.ID)
+	key := s.db.WithContext(ctx).Model(&auditEventRow{}).Select("id").Where("audit_event_id = ?", after.ID)
+	return q.Where("created_at < ? OR (created_at = ? AND id < (?))", after.CreatedAt, after.CreatedAt, key)
 }
 
 func auditPageSize(limit int) int {
@@ -189,7 +194,7 @@ func auditRowsToEvents(rows []auditEventRow) []model.AuditEvent {
 // continuing from after.
 func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
 	q := s.db.WithContext(ctx).Model(&auditEventRow{}).Where("team_id = ?", teamID)
-	q = applyAuditCursor(q, after)
+	q = s.applyAuditCursor(ctx, q, after)
 
 	var rows []auditEventRow
 	if err := q.Order("created_at DESC, id DESC").Limit(auditPageSize(limit)).Find(&rows).Error; err != nil {
@@ -202,7 +207,7 @@ func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after 
 // continuing from after.
 func (s *Store) ExportAuditEvents(ctx context.Context, filter model.AuditFilter, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
 	q := applyAuditFilter(s.db.WithContext(ctx).Model(&auditEventRow{}), filter)
-	q = applyAuditCursor(q, after)
+	q = s.applyAuditCursor(ctx, q, after)
 
 	var rows []auditEventRow
 	if err := q.Order("created_at DESC, id DESC").Limit(auditPageSize(limit)).Find(&rows).Error; err != nil {

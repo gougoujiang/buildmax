@@ -17,9 +17,9 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 	cfg := Config{
 		JWTSecret: llmTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs: []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
+			Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
 			TaskList: []model.Task{{
-				TaskID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
+				ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
 				Status: string(model.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
 				AgentID: agentID, CreatedAt: 1,
 			}},
@@ -57,7 +57,7 @@ func getTaskRun(t *testing.T, handler http.Handler) workerclient.GetTaskRunRespo
 func TestGetTaskRun_CarriesAgentInstructions(t *testing.T) {
 	agentID := "ag_1"
 	agents := &mock.MockAgentStore{Agents: []model.Agent{{
-		AgentID:      agentID,
+		ID:           agentID,
 		TeamID:       llmTestTeam,
 		Name:         "law-consultant",
 		Instructions: "You are a law consultant.",
@@ -76,7 +76,7 @@ func TestGetTaskRun_CarriesAgentInstructions(t *testing.T) {
 func TestGetTaskRun_ForeignAgentIsNotDisclosed(t *testing.T) {
 	agentID := "ag_other"
 	agents := &mock.MockAgentStore{Agents: []model.Agent{{
-		AgentID:      agentID,
+		ID:           agentID,
 		TeamID:       "team_somebody_else",
 		Instructions: "secret instructions",
 	}}}
@@ -100,7 +100,7 @@ func TestGetTaskRun_NoAgentIsEmpty(t *testing.T) {
 func TestGetTaskRun_NoAgentStoreStillDispatches(t *testing.T) {
 	agentID := "ag_1"
 	got := getTaskRun(t, getTaskRunHandler(&agentID, nil))
-	if got.Run.TaskRunID != "r_1" {
+	if got.Run.ID != "r_1" {
 		t.Errorf("run not returned: %+v", got.Run)
 	}
 	if got.Task.AgentInstructions != "" {

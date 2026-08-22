@@ -41,8 +41,7 @@ func toTask(row *taskRow) *model.Task {
 		return nil
 	}
 	return &model.Task{
-		ID:                    row.ID,
-		TaskID:                row.TaskID,
+		ID:                    row.TaskID,
 		ConversationID:        row.ConversationID,
 		TeamID:                row.TeamID,
 		IssueID:               row.IssueID,
@@ -76,8 +75,7 @@ func toTaskRow(m *model.Task) *taskRow {
 		return nil
 	}
 	return &taskRow{
-		ID:                    m.ID,
-		TaskID:                m.TaskID,
+		TaskID:                m.ID,
 		ConversationID:        m.ConversationID,
 		TeamID:                m.TeamID,
 		IssueID:               m.IssueID,
@@ -186,7 +184,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 	taskRunID := util.NewPrefixedID(util.PrefixTaskRun)
 	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
 	task := &model.Task{
-		TaskID:                taskID,
+		ID:                    taskID,
 		ConversationID:        in.ConversationID,
 		TeamID:                in.TeamID,
 		Status:                "PENDING",
@@ -202,7 +200,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		IssueID:               in.IssueID,
 	}
 	run := &model.TaskRun{
-		TaskRunID:     taskRunID,
+		ID:            taskRunID,
 		TaskID:        taskID,
 		Input:         in.Input,
 		CreatedBy:     defaultString(in.InitialRunCreatedBy, in.CreatedBy),

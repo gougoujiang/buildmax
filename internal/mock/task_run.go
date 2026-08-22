@@ -27,7 +27,7 @@ func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in model.CreateTaskR
 		}
 	}
 	run := model.TaskRun{
-		TaskRunID:        fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
+		ID:               fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
 		TaskID:           in.TaskID,
 		Input:            in.Input,
 		CreatedBy:        in.CreatedBy,
@@ -53,7 +53,7 @@ func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.Task
 }
 func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*model.TaskRun, error) {
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID == taskRunID {
+		if m.Runs[i].ID == taskRunID {
 			return &m.Runs[i], nil
 		}
 	}
@@ -62,7 +62,7 @@ func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*mod
 func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*model.TaskRun, *model.Task, error) {
 	var run *model.TaskRun
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID == taskRunID {
+		if m.Runs[i].ID == taskRunID {
 			run = &m.Runs[i]
 			break
 		}
@@ -72,7 +72,7 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	}
 	var task *model.Task
 	for i := range m.TaskList {
-		if m.TaskList[i].TaskID == run.TaskID {
+		if m.TaskList[i].ID == run.TaskID {
 			task = &m.TaskList[i]
 			break
 		}
@@ -87,7 +87,7 @@ func (m *MockTaskRunStore) ListTaskRunIDsByTasks(_ context.Context, taskIDs []st
 	out := make(map[string][]string)
 	for i := len(m.Runs) - 1; i >= 0; i-- {
 		if want[m.Runs[i].TaskID] {
-			out[m.Runs[i].TaskID] = append(out[m.Runs[i].TaskID], m.Runs[i].TaskRunID)
+			out[m.Runs[i].TaskID] = append(out[m.Runs[i].TaskID], m.Runs[i].ID)
 		}
 	}
 	return out, nil
@@ -107,7 +107,7 @@ func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID stri
 
 func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error) {
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID != taskRunID {
+		if m.Runs[i].ID != taskRunID {
 			continue
 		}
 		if model.RunStatusTerminal(m.Runs[i].Status) || m.Runs[i].CancelRequestedAt != nil {
@@ -122,7 +122,7 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 
 func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID == in.TaskRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
+		if m.Runs[i].ID == in.TaskRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
 			m.Runs[i].Status = string(in.NewStatus)
 			if in.StartedAt != nil {
 				m.Runs[i].StartedAt = in.StartedAt
@@ -146,7 +146,7 @@ func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in model.ClaimTaskR
 }
 func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID == in.TaskRunID {
+		if m.Runs[i].ID == in.TaskRunID {
 			m.Runs[i].Status = string(in.Status)
 			if in.StartedAt != nil {
 				m.Runs[i].StartedAt = in.StartedAt
@@ -193,16 +193,16 @@ func (m *MockTaskRunStore) OnRunComplete(ctx context.Context, taskRunID string, 
 // the real store does and what callers assert on after a cancel or a failure.
 func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
 	for i := range m.Runs {
-		if m.Runs[i].TaskRunID != taskRunID {
+		if m.Runs[i].ID != taskRunID {
 			continue
 		}
 		run := m.Runs[i]
 		for j := range m.TaskList {
-			if m.TaskList[j].TaskID != run.TaskID {
+			if m.TaskList[j].ID != run.TaskID {
 				continue
 			}
 			m.TaskList[j].Status = run.Status
-			m.TaskList[j].LastRunID = &run.TaskRunID
+			m.TaskList[j].LastRunID = &run.ID
 			m.TaskList[j].Output = run.Output
 			m.TaskList[j].StartedAt = run.StartedAt
 			m.TaskList[j].EndedAt = run.EndedAt

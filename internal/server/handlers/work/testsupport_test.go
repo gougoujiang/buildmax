@@ -23,7 +23,7 @@ type llmStubLedger struct {
 func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
 	l.opened++
 	stored := *call
-	stored.LLMCallID = "lc_stub"
+	stored.ID = "lc_stub"
 	l.last = stored
 	return &stored, nil
 }
@@ -53,7 +53,7 @@ const llmTestSecret = "test-llm-secret"
 func llmTestTeamStore() *mock.MockTeamStore {
 	return &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().Unix()},
+			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().Unix()},
 		},
 		Members: []model.TeamMember{
 			{TeamID: llmTestTeam, UserID: llmTestUser, Role: model.TeamRoleOwner, CreatedAt: time.Now().Unix()},

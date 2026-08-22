@@ -5,8 +5,7 @@ import "context"
 // UserWebhookKey is a webhook API key for a user. Plaintext key is returned only at creation; only key_hash is stored.
 // JSON uses snake_case per project convention.
 type UserWebhookKey struct {
-	ID        uint   `json:"-"`
-	KeyID     string `json:"key_id"`
+	ID        string `json:"id"`
 	UserID    string `json:"user_id"`
 	KeyHash   string `json:"-"` // SHA256 hex of plaintext key
 	Name      string `json:"name,omitempty"`

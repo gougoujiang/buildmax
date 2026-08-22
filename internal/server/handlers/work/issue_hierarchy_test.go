@@ -24,14 +24,14 @@ func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 	t.Helper()
 	issues := &mock.MockIssueStore{
 		Issues: []model.Issue{
-			{IssueID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: model.IssueStatusInProgress},
-			{IssueID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: model.IssueStatusDone, ParentIssueID: util.Ptr("i_parent")},
-			{IssueID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: model.IssueStatusTodo, ParentIssueID: util.Ptr("i_parent")},
-			{IssueID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: model.IssueStatusTodo},
+			{ID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: model.IssueStatusInProgress},
+			{ID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: model.IssueStatusDone, ParentIssueID: util.Ptr("i_parent")},
+			{ID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: model.IssueStatusTodo, ParentIssueID: util.Ptr("i_parent")},
+			{ID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: model.IssueStatusTodo},
 		},
 	}
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: hierarchyTeam, Name: "Hierarchy", CreatedBy: "u_owner"}},
+		Teams:   []model.Team{{ID: hierarchyTeam, Name: "Hierarchy", CreatedBy: "u_owner"}},
 		Members: []model.TeamMember{{TeamID: hierarchyTeam, UserID: "u_owner", Role: model.TeamRoleOwner}},
 	}
 	h := New(Config{

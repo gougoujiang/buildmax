@@ -41,14 +41,14 @@ type spyTaskRunStore struct {
 func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 	return &spyTaskRunStore{
 		pendingRun: &model.TaskRun{
-			TaskRunID: taskRunID,
+			ID:        taskRunID,
 			TaskID:    "t_test",
 			Input:     "input",
 			Status:    "PENDING",
 			CreatedAt: time.Now().Unix(),
 		},
 		task: &model.Task{
-			TaskID:    "t_test",
+			ID:        "t_test",
 			TeamID:    "tm_test",
 			CreatedBy: "u_test",
 		},
@@ -155,7 +155,7 @@ var errSpawnFailed = errors.New("spawn failed for test")
 func TestScheduler_Loop_KeepsAnOutcomeTheWorkerAlreadyReported(t *testing.T) {
 	taskRunID := "r_spy_canceled_00000000"
 	spy := newSpyTaskRunStore(taskRunID)
-	spy.storedRun = &model.TaskRun{TaskRunID: taskRunID, Status: string(model.RunStatusCanceled)}
+	spy.storedRun = &model.TaskRun{ID: taskRunID, Status: string(model.RunStatusCanceled)}
 
 	s, err := NewSchedulerWithPollInterval(spy, &failingRunner{err: errSpawnFailed}, nil, 10*time.Millisecond)
 	if err != nil {

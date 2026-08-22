@@ -276,6 +276,18 @@ Dropping the plugin public IDs is new relative to the proposal, which predates
 those tables. It is safe: Portal uses `plugin_id` and `plugin_release_id` only
 as React list keys, which become `name` and `${plugin_name}@${version}`.
 
+Two things follow from a row losing its handle, and both are decisions rather
+than consequences to discover later:
+
+- An audit record naming that row names it by its natural key instead. A plugin
+  audit event carries the plugin's `name`, and a release event carries
+  `name@version`, which is immutable and is what every route already addresses.
+- A local record of provenance does the same. `PluginState.CatalogID` in
+  `<BUILDMAX_HOME>` records which catalog entry an installed copy came from and
+  now holds the plugin's name. The field is then arguably redundant with the
+  state's own key; removing it is a separate change, because it also appears in
+  a run's origin record.
+
 ### 6.3 Natural-Key Tables — 2
 
 | Table | Reason |
@@ -397,7 +409,28 @@ Writes go the other way: resolve the root once, then take every other key from
 the row already read. Creating a task resolves the conversation and reads its
 `team_id` from that same row rather than resolving the team a second time.
 
-### 9.3 Aggregation
+### 9.3 Keyset Cursors
+
+A keyset cursor is the one place a caller legitimately needs the tie-break that
+the row key provides. The audit export walks in pages ordered by `created_at`
+plus the row key, because `created_at` has one-second resolution and several
+events routinely share a second.
+
+`model.AuditCursor` therefore names the last event of the previous page by its
+**public** handle, and the store resolves that handle to the row key inside the
+keyset predicate:
+
+```sql
+WHERE created_at < ?
+   OR (created_at = ? AND id < (SELECT id FROM audit_event WHERE public_id = ?))
+```
+
+One indexed lookup per page, not per row, and no round trip: the alternative --
+handing the caller the row key so the next request can send it back -- is
+exactly the leak this design exists to prevent. Any future cursor follows the
+same shape.
+
+### 9.4 Aggregation
 
 `TeamUsageInWindow` currently joins `task ON task.task_id = task_run.task_id
 AND task.team_id = ?` — two string comparisons per row. After the team's public
@@ -405,7 +438,7 @@ ID is resolved once at the top, both become numeric and the query never touches
 a string again. This is the query whose `EXPLAIN` output is required evidence
 in §12.
 
-### 9.4 Collision Retry
+### 9.5 Collision Retry
 
 `isDuplicateKey` in `llm_call.go` does not say which index was violated, so it
 cannot distinguish a public-ID collision (regenerate and retry) from a real
@@ -581,7 +614,7 @@ read structs and shared select builders per §9.2, `lookupKey` resolution,
 index-aware duplicate detection with bounded retry, and artifact ID generation
 moved down from `internal/service/artifact`.
 
-- 4b lands the quota aggregation rewrite of §9.3.
+- 4b lands the quota aggregation rewrite of §9.4.
 - Checks per sub-PR: `./make test ./internal/infra/db`, `./make test race`,
   `./make check go`.
 

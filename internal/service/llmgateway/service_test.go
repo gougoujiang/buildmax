@@ -83,7 +83,7 @@ func (l *fakeLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model
 	}
 	l.nextID++
 	stored := *call
-	stored.LLMCallID = "lc_test" + string(rune('0'+l.nextID))
+	stored.ID = "lc_test" + string(rune('0'+l.nextID))
 	l.opened = append(l.opened, stored)
 	return &stored, nil
 }
@@ -118,7 +118,7 @@ func (l *fakeLedger) only(t *testing.T) (model.LLMCall, model.LLMCallOutcome) {
 		t.Fatalf("ledger opened %d calls, want 1", len(l.opened))
 	}
 	call := l.opened[0]
-	return call, l.outcomes[call.LLMCallID]
+	return call, l.outcomes[call.ID]
 }
 
 // denyQuota refuses every team.
@@ -453,7 +453,7 @@ func TestStreamRequiresTheStreamingCapability(t *testing.T) {
 
 func TestDuplicateClientCallIDIsRefused(t *testing.T) {
 	ledger := newFakeLedger()
-	ledger.existing = &model.LLMCall{LLMCallID: "lc_original", Status: model.LLMCallStatusAccepted}
+	ledger.existing = &model.LLMCall{ID: "lc_original", Status: model.LLMCallStatusAccepted}
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
 
 	req := userRequest()

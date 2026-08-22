@@ -32,7 +32,7 @@ type issueCommentRequest struct {
 
 func issueCommentToResponse(comment model.IssueComment) issueCommentResponse {
 	return issueCommentResponse{
-		ID:              comment.IssueCommentID,
+		ID:              comment.ID,
 		IssueID:         comment.IssueID,
 		AuthorKind:      comment.AuthorKind,
 		AuthorID:        comment.AuthorID,

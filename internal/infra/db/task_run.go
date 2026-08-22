@@ -57,8 +57,7 @@ func toTaskRun(row *taskRunRow) *model.TaskRun {
 		return nil
 	}
 	return &model.TaskRun{
-		ID:                row.ID,
-		TaskRunID:         row.TaskRunID,
+		ID:                row.TaskRunID,
 		TaskID:            row.TaskID,
 		Input:             row.Input,
 		CreatedBy:         row.CreatedBy,
@@ -88,8 +87,7 @@ func toTaskRunRow(m *model.TaskRun) *taskRunRow {
 		return nil
 	}
 	return &taskRunRow{
-		ID:                m.ID,
-		TaskRunID:         m.TaskRunID,
+		TaskRunID:         m.ID,
 		TaskID:            m.TaskID,
 		Input:             m.Input,
 		CreatedBy:         m.CreatedBy,
@@ -119,7 +117,6 @@ func toTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
 		return nil
 	}
 	return &model.TaskRunArtifact{
-		ID:           row.ID,
 		TaskRunID:    row.TaskRunID,
 		RelativePath: row.RelativePath,
 	}
@@ -191,7 +188,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 		return nil, model.ErrRunInProgress
 	}
 	run := &model.TaskRun{
-		TaskRunID:        util.NewPrefixedID(util.PrefixTaskRun),
+		ID:               util.NewPrefixedID(util.PrefixTaskRun),
 		TaskID:           in.TaskID,
 		Input:            in.Input,
 		CreatedBy:        in.CreatedBy,

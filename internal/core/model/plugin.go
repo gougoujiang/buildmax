@@ -27,8 +27,6 @@ var ErrPluginArchived = errors.New("this plugin is archived and accepts no new r
 // team. Publishing is a System Administrator action; see
 // docs/design/plugin-marketplace.md §7.1.
 type Plugin struct {
-	ID       uint   `json:"-"`
-	PluginID string `json:"plugin_id"`
 	// Name is the manifest name, unique in the deployment, and the slug every
 	// route addresses the plugin by.
 	Name        string `json:"name"`
@@ -48,9 +46,6 @@ func (p Plugin) Archived() bool { return p.ArchivedAt != 0 }
 
 // PluginRelease is one immutable published version.
 type PluginRelease struct {
-	ID              uint   `json:"-"`
-	PluginReleaseID string `json:"plugin_release_id"`
-	PluginID        string `json:"plugin_id"`
 	// PluginName is denormalised so a release can be reported without a second
 	// read; the catalog entry remains the owner of the name.
 	PluginName string `json:"plugin_name"`

@@ -25,16 +25,16 @@ func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockI
 	t.Helper()
 	issues := &mock.MockIssueStore{
 		Issues: []model.Issue{
-			{IssueID: "i_1", UserID: "u_owner", TeamID: commentTeam, Title: "Parent", Status: model.IssueStatusTodo},
-			{IssueID: "i_2", UserID: "u_owner", TeamID: commentTeam, Title: "Other issue", Status: model.IssueStatusTodo},
-			{IssueID: "i_far", UserID: "u_stranger", TeamID: commentOtherTeam, Title: "Theirs", Status: model.IssueStatusTodo},
+			{ID: "i_1", UserID: "u_owner", TeamID: commentTeam, Title: "Parent", Status: model.IssueStatusTodo},
+			{ID: "i_2", UserID: "u_owner", TeamID: commentTeam, Title: "Other issue", Status: model.IssueStatusTodo},
+			{ID: "i_far", UserID: "u_stranger", TeamID: commentOtherTeam, Title: "Theirs", Status: model.IssueStatusTodo},
 		},
 	}
 	comments := &mock.MockIssueCommentStore{}
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: commentTeam, Name: "Comments", CreatedBy: "u_owner"},
-			{TeamID: commentOtherTeam, Name: "Other", CreatedBy: "u_stranger"},
+			{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"},
+			{ID: commentOtherTeam, Name: "Other", CreatedBy: "u_stranger"},
 		},
 		Members: []model.TeamMember{
 			{TeamID: commentTeam, UserID: "u_owner", Role: model.TeamRoleOwner},
@@ -219,13 +219,13 @@ func TestIssueComments_DeleteAuthorization(t *testing.T) {
 // 503 rather than the deployment losing its issues.
 func TestIssueComments_NotConfigured(t *testing.T) {
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: commentTeam, Name: "Comments", CreatedBy: "u_owner"}},
+		Teams:   []model.Team{{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"}},
 		Members: []model.TeamMember{{TeamID: commentTeam, UserID: "u_owner", Role: model.TeamRoleOwner}},
 	}
 	h := New(Config{
 		JWTSecret: commentTestSecret,
 		Teams:     teams,
-		Issues:    &mock.MockIssueStore{Issues: []model.Issue{{IssueID: "i_1", TeamID: commentTeam}}},
+		Issues:    &mock.MockIssueStore{Issues: []model.Issue{{ID: "i_1", TeamID: commentTeam}}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

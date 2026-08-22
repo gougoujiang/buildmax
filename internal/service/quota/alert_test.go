@@ -12,7 +12,7 @@ import (
 func alertingService(runs, tokens int, maxRuns, maxTokens int) (*Service, *mock.MockAuditStore) {
 	audits := &mock.MockAuditStore{}
 	return &Service{
-		TeamStore:   &mockTeamStore{team: &model.Team{TeamID: "tm_1", QuotaTier: "free_trial"}},
+		TeamStore:   &mockTeamStore{team: &model.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: runs, totalTokens: tokens},
 		TierStore: &mockTierStore{tier: &model.QuotaTier{
 			TierName:           "free_trial",

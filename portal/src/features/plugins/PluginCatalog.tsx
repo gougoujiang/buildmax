@@ -54,7 +54,7 @@ export function PluginCatalog({ token }: { token: string | null }) {
       ) : (
         <ul className="admin-list">
           {plugins.map((entry) => (
-            <li key={entry.plugin_id} className="admin-list__row">
+            <li key={entry.name} className="admin-list__row">
               <span className="admin-list__main">
                 {entry.display_name || entry.name}
                 {entry.description ? (

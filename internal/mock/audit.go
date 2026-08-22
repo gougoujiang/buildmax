@@ -20,7 +20,7 @@ func (m *MockAuditStore) RecordAuditEvent(_ context.Context, in model.AuditEvent
 	if m.Err != nil {
 		return m.Err
 	}
-	in.AuditEventID = "ae_" + in.Action
+	in.ID = "ae_" + in.Action
 	// Stamped here because the real store stamps it, and a caller that reads
 	// its own writes back through a time filter — the quota service does — sees
 	// nothing at all if a recorded event stays at time zero.
@@ -73,34 +73,40 @@ func (m *MockAuditStore) exportPage(keep func(model.AuditEvent) bool, after mode
 	if limit <= 0 {
 		limit = 200
 	}
-	var matched []model.AuditEvent
+	type ordered struct {
+		event model.AuditEvent
+		seq   int
+	}
+	var matched []ordered
 	for i, e := range m.Events {
-		if !keep(e) {
-			continue
+		if keep(e) {
+			matched = append(matched, ordered{event: e, seq: i})
 		}
-		if e.ID == 0 {
-			e.ID = uint(i + 1)
-		}
-		matched = append(matched, e)
 	}
 	sort.SliceStable(matched, func(i, j int) bool {
-		if matched[i].CreatedAt != matched[j].CreatedAt {
-			return matched[i].CreatedAt > matched[j].CreatedAt
+		if matched[i].event.CreatedAt != matched[j].event.CreatedAt {
+			return matched[i].event.CreatedAt > matched[j].event.CreatedAt
 		}
-		return matched[i].ID > matched[j].ID
+		return matched[i].seq > matched[j].seq
 	})
 
-	out := make([]model.AuditEvent, 0, limit)
-	for _, e := range matched {
-		if !after.Zero() {
-			if e.CreatedAt > after.CreatedAt {
-				continue
-			}
-			if e.CreatedAt == after.CreatedAt && e.ID >= after.ID {
-				continue
+	// Keyset paging: the cursor names the last event of the previous page, so
+	// resume at the one after it. Declaration order stands in for the row key
+	// the real store ties with.
+	start := 0
+	if !after.Zero() {
+		start = len(matched)
+		for i, o := range matched {
+			if o.event.ID == after.ID {
+				start = i + 1
+				break
 			}
 		}
-		out = append(out, e)
+	}
+
+	out := make([]model.AuditEvent, 0, limit)
+	for _, o := range matched[min(start, len(matched)):] {
+		out = append(out, o.event)
 		if len(out) == limit {
 			break
 		}

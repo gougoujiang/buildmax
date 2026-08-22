@@ -38,7 +38,7 @@ func (h *Handler) readRunGlobal(ctx context.Context, task *model.Task, taskRunID
 		data, err := h.cfg.PersistStorage.GetRunGlobal(ctx, blob.RunObjectRef{
 			CreatedBy:      task.CreatedBy,
 			ConversationID: task.ConversationID,
-			TaskID:         task.TaskID,
+			TaskID:         task.ID,
 			TaskRunID:      taskRunID,
 			RelPath:        clean,
 		})
@@ -61,7 +61,7 @@ func (h *Handler) runGlobalPath(task *model.Task, taskRunID, cleanRelPath string
 		h.workspacesDir(),
 		task.CreatedBy,
 		"conversations", task.ConversationID,
-		"tasks", task.TaskID,
+		"tasks", task.ID,
 		taskRunID,
 		"global",
 		filepath.FromSlash(cleanRelPath),

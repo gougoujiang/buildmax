@@ -50,8 +50,8 @@ func TestCreateMeasuresTheStream(t *testing.T) {
 	if rec.SHA256 != hex.EncodeToString(sum[:]) {
 		t.Errorf("sha256 = %q, want the digest of the content", rec.SHA256)
 	}
-	if !strings.HasPrefix(rec.ArtifactID, "ar_") {
-		t.Errorf("artifact id = %q, want an ar_ prefix", rec.ArtifactID)
+	if !strings.HasPrefix(rec.ID, "ar_") {
+		t.Errorf("artifact id = %q, want an ar_ prefix", rec.ID)
 	}
 	if rec.MediaType != "text/plain; charset=utf-8" {
 		t.Errorf("media type = %q, want it derived from the extension", rec.MediaType)
@@ -194,7 +194,7 @@ func TestDeleteHidesTheArtifactImmediately(t *testing.T) {
 	if err := svc.Delete(context.Background(), rec, model.ArtifactCreatorUser, "u_1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := svc.Get(context.Background(), rec.ArtifactID); !errors.Is(err, ErrNotFound) {
+	if _, err := svc.Get(context.Background(), rec.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("get after delete = %v, want ErrNotFound", err)
 	}
 	items, total, err := svc.List(context.Background(), "tm_1", 10, 0)

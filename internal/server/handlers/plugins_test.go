@@ -33,8 +33,8 @@ type catalogFixture struct {
 func newCatalogFixture(t *testing.T, withMarketplace bool) *catalogFixture {
 	t.Helper()
 	users := &mock.MockUserStore{
-		ByID:    map[string]*model.User{catalogUser: {UserID: catalogUser, Email: "reader@example.com", CreatedAt: 1}},
-		ByEmail: map[string]*model.User{"reader@example.com": {UserID: catalogUser, Email: "reader@example.com", CreatedAt: 1}},
+		ByID:    map[string]*model.User{catalogUser: {ID: catalogUser, Email: "reader@example.com", CreatedAt: 1}},
+		ByEmail: map[string]*model.User{"reader@example.com": {ID: catalogUser, Email: "reader@example.com", CreatedAt: 1}},
 	}
 	audits := &mock.MockAuditStore{}
 	cfg := Config{

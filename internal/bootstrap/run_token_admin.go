@@ -79,8 +79,8 @@ func RunRunTokenCommand(ctx context.Context, args []string, out io.Writer) error
 	token, err := authtoken.MintRun(sc.JWTSecret, authtoken.RunClaims{
 		UserID:    task.CreatedBy,
 		TeamID:    task.TeamID,
-		TaskRunID: run.TaskRunID,
-		TaskID:    task.TaskID,
+		TaskRunID: run.ID,
+		TaskID:    task.ID,
 	}, *ttl, time.Now())
 	if err != nil {
 		return fmt.Errorf("mint run token: %w", err)

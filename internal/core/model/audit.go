@@ -128,8 +128,7 @@ const (
 // the record that a meaningful action occurred, which is a different question
 // with a different retention answer.
 type AuditEvent struct {
-	ID           uint   `json:"-"`
-	AuditEventID string `json:"audit_event_id"`
+	ID string `json:"id"`
 	// TeamID is empty for actions that are not team-scoped, such as a login.
 	TeamID     string `json:"team_id,omitempty"`
 	ActorType  string `json:"actor_type"`
@@ -177,14 +176,18 @@ type AuditFilter struct {
 //
 // The zero value starts at the newest event. `CreatedAt` alone is not enough to
 // resume from: it has one-second resolution and several actions can share a
-// second, so the id breaks the tie.
+// second, so the event's own identity breaks the tie.
+//
+// That identity is the public one. The row key that actually orders a tie lives
+// below the store boundary, so a store resolves this handle to it rather than
+// handing a database key to a caller.
 type AuditCursor struct {
 	CreatedAt int64
-	ID        uint
+	ID        string
 }
 
 // Zero reports whether the cursor is a fresh start rather than a resumption.
-func (c AuditCursor) Zero() bool { return c.CreatedAt == 0 && c.ID == 0 }
+func (c AuditCursor) Zero() bool { return c.CreatedAt == 0 && c.ID == "" }
 
 // AuditWriter appends audit events.
 //

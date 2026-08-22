@@ -16,14 +16,14 @@ type mockConversationMessageStore struct {
 
 func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
 	msg := model.ConversationMessage{
-		ConversationMessageID: "cm_mock",
-		ConversationID:        in.ConversationID,
-		Role:                  in.Role,
-		Content:               in.Content,
-		Channel:               in.Channel,
-		ToolCallID:            in.ToolCallID,
-		ToolCallsJSON:         in.ToolCallsJSON,
-		ProviderStateJSON:     in.ProviderStateJSON,
+		ID:                "cm_mock",
+		ConversationID:    in.ConversationID,
+		Role:              in.Role,
+		Content:           in.Content,
+		Channel:           in.Channel,
+		ToolCallID:        in.ToolCallID,
+		ToolCallsJSON:     in.ToolCallsJSON,
+		ProviderStateJSON: in.ProviderStateJSON,
 	}
 	m.messages = append(m.messages, msg)
 	return &msg, nil

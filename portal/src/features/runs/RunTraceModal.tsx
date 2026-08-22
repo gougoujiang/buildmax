@@ -249,7 +249,7 @@ function SpendSection({
 
           <ul className="run-trace__calls">
             {calls.map((call) => (
-              <SpendCallRow key={call.llm_call_id} call={call} />
+              <SpendCallRow key={call.id} call={call} />
             ))}
           </ul>
         </>

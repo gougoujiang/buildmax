@@ -24,8 +24,7 @@ func (m *MockArtifactStore) CreateArtifact(_ context.Context, in model.CreateArt
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	rec := model.Artifact{
-		ID:            uint(len(m.items) + 1),
-		ArtifactID:    in.ArtifactID,
+		ID:            in.ArtifactID,
 		TeamID:        in.TeamID,
 		Filename:      in.Filename,
 		MediaType:     in.MediaType,
@@ -49,7 +48,7 @@ func (m *MockArtifactStore) GetArtifact(_ context.Context, artifactID string) (*
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.items {
-		if m.items[i].ArtifactID == artifactID {
+		if m.items[i].ID == artifactID {
 			out := m.items[i]
 			return &out, nil
 		}
@@ -92,7 +91,7 @@ func (m *MockArtifactStore) SoftDeleteArtifact(_ context.Context, artifactID str
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.items {
-		if m.items[i].ArtifactID == artifactID && m.items[i].DeletedAt == nil {
+		if m.items[i].ID == artifactID && m.items[i].DeletedAt == nil {
 			m.items[i].DeletedAt = &deletedAt
 			return true, nil
 		}

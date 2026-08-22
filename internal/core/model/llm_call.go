@@ -41,8 +41,7 @@ const (
 // arguments, tool results, and generated content are deliberately absent. Run
 // detail belongs to durable local traces. See docs/design/llm-gateway.md.
 type LLMCall struct {
-	ID        uint   `json:"-"`
-	LLMCallID string `json:"llm_call_id"`
+	ID string `json:"id"`
 	// ClientCallID is the caller's idempotency key, unique within a team. It is
 	// absent for calls the server makes on its own behalf.
 	ClientCallID *string `json:"client_call_id,omitempty"`

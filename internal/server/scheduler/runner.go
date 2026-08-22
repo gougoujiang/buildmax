@@ -52,8 +52,8 @@ func NewLocalRunner(workerPath string, env []string, runTokenEnvKey string) *Loc
 // The run token is placed in the child's environment rather than on its command
 // line, where every process on the machine could read it.
 func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
-	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.TaskRunID, "task_id", run.TaskID)
-	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.TaskRunID)
+	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.ID, "task_id", run.TaskID)
+	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.ID)
 	cmd.Env = r.env
 	if runToken != "" && r.runTokenEnvKey != "" {
 		cmd.Env = append(slices.Clone(r.env), r.runTokenEnvKey+"="+runToken)

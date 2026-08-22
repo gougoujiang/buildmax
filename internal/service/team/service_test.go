@@ -26,14 +26,14 @@ func newTeam(t *testing.T) (*team.Service, string, string, string) {
 	if err != nil {
 		t.Fatalf("CreateUser member: %v", err)
 	}
-	tm, err := teams.CreateTeam(ctx, "acme", owner.UserID, "free")
+	tm, err := teams.CreateTeam(ctx, "acme", owner.ID, "free")
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
-	if _, err := teams.AddTeamMember(ctx, tm.TeamID, member.UserID, model.TeamRoleMember); err != nil {
+	if _, err := teams.AddTeamMember(ctx, tm.ID, member.ID, model.TeamRoleMember); err != nil {
 		t.Fatalf("AddTeamMember: %v", err)
 	}
-	return &team.Service{Teams: teams, Users: users}, tm.TeamID, owner.UserID, member.UserID
+	return &team.Service{Teams: teams, Users: users}, tm.ID, owner.ID, member.ID
 }
 
 // The owner check existed twice, once per mutating handler. These two cases are
@@ -173,7 +173,7 @@ func TestListMembersResolvesAccounts(t *testing.T) {
 		t.Fatalf("members = %d, want 2", len(members))
 	}
 	for _, m := range members {
-		if m.User == nil || m.User.UserID != m.Membership.UserID {
+		if m.User == nil || m.User.ID != m.Membership.UserID {
 			t.Errorf("membership %s has no resolved account", m.Membership.UserID)
 		}
 	}

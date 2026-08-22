@@ -34,8 +34,7 @@ func sampleLLMCall() *model.LLMCall {
 // silently drops a column when the model grows.
 func TestLLMCallRowRoundTrip(t *testing.T) {
 	call := sampleLLMCall()
-	call.ID = 7
-	call.LLMCallID = "lc_example"
+	call.ID = "lc_example"
 	call.ClientCallID = ptrString("client-key-1")
 	call.TaskID = ptrString("t_one")
 	call.TaskRunID = ptrString("r_one")
@@ -111,11 +110,11 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 		t.Fatalf("OpenLLMCall: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.LLMCallID)
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.ID)
 	}()
 
-	if !strings.HasPrefix(opened.LLMCallID, "lc_") {
-		t.Errorf("LLMCallID = %q, want an lc_ prefix", opened.LLMCallID)
+	if !strings.HasPrefix(opened.ID, "lc_") {
+		t.Errorf("LLMCallID = %q, want an lc_ prefix", opened.ID)
 	}
 	if opened.Status != model.LLMCallStatusAccepted {
 		t.Errorf("Status = %q, want %q", opened.Status, model.LLMCallStatusAccepted)
@@ -129,7 +128,7 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 
 	completedAt := opened.AcceptedAt + 3
 	upstreamStarted := opened.AcceptedAt + 1
-	err = s.CompleteLLMCall(ctx, opened.LLMCallID, model.LLMCallOutcome{
+	err = s.CompleteLLMCall(ctx, opened.ID, model.LLMCallOutcome{
 		Status:            model.LLMCallStatusSucceeded,
 		Attempts:          1,
 		UpstreamStartedAt: &upstreamStarted,
@@ -145,7 +144,7 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 		t.Fatalf("CompleteLLMCall: %v", err)
 	}
 
-	got, err := s.GetLLMCall(ctx, opened.LLMCallID)
+	got, err := s.GetLLMCall(ctx, opened.ID)
 	if err != nil {
 		t.Fatalf("GetLLMCall: %v", err)
 	}
@@ -166,8 +165,8 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetLLMCallByClientID: %v", err)
 	}
-	if byClient == nil || byClient.LLMCallID != opened.LLMCallID {
-		t.Errorf("GetLLMCallByClientID returned %v, want %q", byClient, opened.LLMCallID)
+	if byClient == nil || byClient.ID != opened.ID {
+		t.Errorf("GetLLMCallByClientID returned %v, want %q", byClient, opened.ID)
 	}
 	// Another team's identical key must not resolve this call.
 	other, err := s.GetLLMCallByClientID(ctx, "tm_other", *call.ClientCallID)
@@ -195,11 +194,11 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 		t.Fatalf("OpenLLMCall: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.LLMCallID)
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.ID)
 	}()
 
 	errorClass := "upstream_unavailable"
-	err = s.CompleteLLMCall(ctx, opened.LLMCallID, model.LLMCallOutcome{
+	err = s.CompleteLLMCall(ctx, opened.ID, model.LLMCallOutcome{
 		Status:      model.LLMCallStatusFailed,
 		ErrorClass:  &errorClass,
 		Attempts:    3,
@@ -209,7 +208,7 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 		t.Fatalf("CompleteLLMCall: %v", err)
 	}
 
-	got, err := s.GetLLMCall(ctx, opened.LLMCallID)
+	got, err := s.GetLLMCall(ctx, opened.ID)
 	if err != nil {
 		t.Fatalf("GetLLMCall: %v", err)
 	}
@@ -264,7 +263,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("another team was blocked by the key: %v", err)
 	}
-	if otherOpened.LLMCallID == opened.LLMCallID {
+	if otherOpened.ID == opened.ID {
 		t.Error("two calls share one id")
 	}
 
@@ -275,7 +274,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 			t.Fatalf("a call with no client key was rejected: %v", err)
 		}
 		defer func() {
-			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", anonymous.LLMCallID)
+			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", anonymous.ID)
 		}()
 	}
 }

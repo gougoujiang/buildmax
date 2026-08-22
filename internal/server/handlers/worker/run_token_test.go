@@ -60,8 +60,8 @@ func workerRouteConfig() Config {
 		JWTSecret:   runRouteSecret,
 		WorkerToken: "shared-worker-token",
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
-			TaskList: []model.Task{{TaskID: "t_1", ConversationID: "c_1", TeamID: "tm_1", CreatedBy: "u_1", CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
+			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: "tm_1", CreatedBy: "u_1", CreatedAt: 1}},
 		},
 	}
 }

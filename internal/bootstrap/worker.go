@@ -162,7 +162,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		sessionID = *task.SessionID
 	}
 	now := time.Now().Unix()
-	if err := updater.UpdateRunStatus(ctx, run.TaskRunID, &workerclient.PatchTaskRunRequest{
+	if err := updater.UpdateRunStatus(ctx, run.ID, &workerclient.PatchTaskRunRequest{
 		Status:    string(model.RunStatusRunning),
 		StartedAt: &now,
 		SessionID: &sessionID,

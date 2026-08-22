@@ -171,7 +171,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
               const described = describeEvent(event)
               return (
                 <li
-                  key={event.audit_event_id}
+                  key={event.id}
                   className={described.denied ? "audit-row audit-row--denied" : "audit-row"}
                 >
                   <div className="audit-row__main">

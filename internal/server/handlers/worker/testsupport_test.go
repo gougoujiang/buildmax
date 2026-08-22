@@ -93,7 +93,7 @@ type llmStubLedger struct {
 func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
 	l.opened++
 	stored := *call
-	stored.LLMCallID = "lc_stub"
+	stored.ID = "lc_stub"
 	l.last = stored
 	return &stored, nil
 }

@@ -27,8 +27,7 @@ const (
 // which is enforced in internal/service/issue, not by the schema. See
 // docs/design/issue-model.md.
 type Issue struct {
-	ID            uint    `json:"-"`
-	IssueID       string  `json:"issue_id"`
+	ID            string  `json:"id"`
 	UserID        string  `json:"user_id"`
 	TeamID        string  `json:"team_id,omitempty"`
 	ParentIssueID *string `json:"parent_issue_id,omitempty"`
@@ -98,8 +97,7 @@ type IssueStore interface {
 // outlives any particular conversation and is never replayed. See
 // docs/design/issue-model.md.
 type IssueComment struct {
-	ID              uint    `json:"-"`
-	IssueCommentID  string  `json:"issue_comment_id"`
+	ID              string  `json:"id"`
 	IssueID         string  `json:"issue_id"`
 	AuthorKind      string  `json:"author_kind"`
 	AuthorID        string  `json:"author_id"`

@@ -31,9 +31,9 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 
 	runs := &mock.MockTaskRunStore{Runs: []model.TaskRun{
-		{TaskRunID: "r_1", Status: "SUCCEEDED"},
-		{TaskRunID: "r_2", Status: "SUCCEEDED"},
-		{TaskRunID: "r_3", Status: "PENDING"},
+		{ID: "r_1", Status: "SUCCEEDED"},
+		{ID: "r_2", Status: "SUCCEEDED"},
+		{ID: "r_3", Status: "PENDING"},
 	}}
 	audits := &mock.MockAuditStore{}
 	h := New(Config{

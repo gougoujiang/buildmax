@@ -47,9 +47,9 @@ export function AdminModels({ token }: { token: string | null }) {
       )
     )
       return
-    setBusyId(entry.llm_model_id)
+    setBusyId(entry.id)
     setError(null)
-    setAdminModelEnabled(token, entry.llm_model_id, !entry.enabled)
+    setAdminModelEnabled(token, entry.id, !entry.enabled)
       .then(load)
       .catch((err) => setError(getErrorMessage(err, "The change did not complete")))
       .finally(() => setBusyId(null))
@@ -81,7 +81,7 @@ export function AdminModels({ token }: { token: string | null }) {
         ) : (
           <ul className="admin-list">
             {models.map((entry) => (
-              <li key={entry.llm_model_id} className="admin-list__row">
+              <li key={entry.id} className="admin-list__row">
                 <span className="admin-list__main">
                   {entry.name}
                   <span className="admin-list__meta"> · {entry.model}</span>
@@ -99,7 +99,7 @@ export function AdminModels({ token }: { token: string | null }) {
                 <button
                   type="button"
                   className={entry.enabled ? "admin-button admin-button--danger" : "admin-button"}
-                  disabled={busyId === entry.llm_model_id}
+                  disabled={busyId === entry.id}
                   onClick={() => toggle(entry)}
                 >
                   {entry.enabled ? "Retire" : "Enable"}

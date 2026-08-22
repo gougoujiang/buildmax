@@ -47,8 +47,7 @@ func toAgent(row *agentRow) *model.Agent {
 		return nil
 	}
 	return &model.Agent{
-		ID:           row.ID,
-		AgentID:      row.AgentID,
+		ID:           row.AgentID,
 		UserID:       row.UserID,
 		TeamID:       row.TeamID,
 		Name:         row.Name,
@@ -65,15 +64,13 @@ func toAgentRevision(row *agentRevisionRow) *model.AgentRevision {
 		return nil
 	}
 	return &model.AgentRevision{
-		ID:              row.ID,
-		AgentRevisionID: row.AgentRevisionID,
-		AgentID:         row.AgentID,
-		Revision:        row.Revision,
-		Name:            row.Name,
-		Description:     row.Description,
-		Instructions:    row.Instructions,
-		CreatedBy:       row.CreatedBy,
-		CreatedAt:       row.CreatedAt,
+		AgentID:      row.AgentID,
+		Revision:     row.Revision,
+		Name:         row.Name,
+		Description:  row.Description,
+		Instructions: row.Instructions,
+		CreatedBy:    row.CreatedBy,
+		CreatedAt:    row.CreatedAt,
 	}
 }
 
@@ -98,8 +95,7 @@ func toAgentRow(m *model.Agent) *agentRow {
 		return nil
 	}
 	return &agentRow{
-		ID:           m.ID,
-		AgentID:      m.AgentID,
+		AgentID:      m.ID,
 		UserID:       m.UserID,
 		TeamID:       m.TeamID,
 		Name:         m.Name,
@@ -118,7 +114,7 @@ func toAgentRow(m *model.Agent) *agentRow {
 func appendAgentRevision(tx *gorm.DB, a *model.Agent, createdBy string) error {
 	return tx.Create(&agentRevisionRow{
 		AgentRevisionID: util.NewPrefixedID(util.PrefixAgentRevision),
-		AgentID:         a.AgentID,
+		AgentID:         a.ID,
 		Revision:        a.Revision,
 		Name:            a.Name,
 		Description:     a.Description,
@@ -182,7 +178,7 @@ func (s *Store) CreateAgent(ctx context.Context, userID, name, description, inst
 // CreateAgentInTeam inserts a new team-scoped agent and returns it.
 func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
 	a := &model.Agent{
-		AgentID:      util.NewPrefixedID(util.PrefixAgent),
+		ID:           util.NewPrefixedID(util.PrefixAgent),
 		UserID:       userID,
 		TeamID:       teamID,
 		Name:         name,
@@ -280,7 +276,7 @@ func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	if a == nil || a.UserID != userID {
 		return model.ErrNotFound
 	}
-	return s.markAgentDeleted(ctx, a.AgentID)
+	return s.markAgentDeleted(ctx, a.ID)
 }
 
 // DeleteAgentInTeam marks the agent deleted if it exists and belongs to the team.
@@ -292,7 +288,7 @@ func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) e
 	if a == nil || a.TeamID != teamID {
 		return model.ErrNotFound
 	}
-	return s.markAgentDeleted(ctx, a.AgentID)
+	return s.markAgentDeleted(ctx, a.ID)
 }
 
 // markAgentDeleted stamps deleted_at instead of removing the row.

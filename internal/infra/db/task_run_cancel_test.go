@@ -19,7 +19,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
-		ConversationID: conv.ConversationID,
+		ConversationID: conv.ID,
 		Input:          "input",
 		CreatedBy:      cancelTestUser,
 	})
@@ -27,20 +27,20 @@ func TestTaskRunCancelQueries(t *testing.T) {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ConversationID)
+		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
 	})
 	if task.LastRunID == nil {
 		t.Fatal("CreateTask should create the first run")
 	}
 	runID := *task.LastRunID
 
-	active, err := s.GetActiveTaskRunByTask(ctx, task.TaskID)
+	active, err := s.GetActiveTaskRunByTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("GetActiveTaskRunByTask: %v", err)
 	}
-	if active == nil || active.TaskRunID != runID {
+	if active == nil || active.ID != runID {
 		t.Fatalf("active run = %+v, want the task's pending run %s", active, runID)
 	}
 
@@ -81,7 +81,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 		t.Fatalf("ListCancelRequestedTaskRuns: %v", err)
 	}
 	for _, r := range early {
-		if r.TaskRunID == runID {
+		if r.ID == runID {
 			t.Error("a cancel request newer than the cutoff was swept")
 		}
 	}
@@ -111,7 +111,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	if containsRun(after, runID) {
 		t.Error("a finished run is still listed as awaiting its cancel")
 	}
-	active, err = s.GetActiveTaskRunByTask(ctx, task.TaskID)
+	active, err = s.GetActiveTaskRunByTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("GetActiveTaskRunByTask: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 
 func containsRun(runs []model.TaskRun, taskRunID string) bool {
 	for _, r := range runs {
-		if r.TaskRunID == taskRunID {
+		if r.ID == taskRunID {
 			return true
 		}
 	}

@@ -115,17 +115,17 @@ func runAdminGrant(ctx context.Context, args []string, out io.Writer, store admi
 		return fmt.Errorf("no account for %s; create one first with: buildmax-server user create %s", email, email)
 	}
 
-	grant, err := store.GrantSystemRole(ctx, user.UserID, model.SystemRoleAdmin, model.AuditActorOperator, time.Now().Unix())
+	grant, err := store.GrantSystemRole(ctx, user.ID, model.SystemRoleAdmin, model.AuditActorOperator, time.Now().Unix())
 	if err != nil {
 		if errors.Is(err, model.ErrSystemGrantExists) {
 			return fmt.Errorf("%s already holds %s", email, model.SystemRoleAdmin)
 		}
 		return fmt.Errorf("grant %s: %w", model.SystemRoleAdmin, err)
 	}
-	recordSystemGrantAudit(ctx, store, model.AuditSystemAdminGranted, user.UserID)
+	recordSystemGrantAudit(ctx, store, model.AuditSystemAdminGranted, user.ID)
 
-	fmt.Fprintf(out, "Granted %s to %s (%s).\n", model.SystemRoleAdmin, user.Email, user.UserID)
-	fmt.Fprintf(out, "Grant %s, recorded in the audit trail.\n\n", grant.SystemGrantID)
+	fmt.Fprintf(out, "Granted %s to %s (%s).\n", model.SystemRoleAdmin, user.Email, user.ID)
+	fmt.Fprintf(out, "Grant %s, recorded in the audit trail.\n\n", grant.ID)
 	if !user.HasPassword {
 		fmt.Fprintf(out, "The account has no password yet. Let them in with:\n  buildmax-server user login-code %s\n\n", email)
 	}
@@ -146,7 +146,7 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		return fmt.Errorf("no account for %s", email)
 	}
 
-	revoked, err := store.RevokeSystemRole(ctx, user.UserID, model.SystemRoleAdmin, time.Now().Unix())
+	revoked, err := store.RevokeSystemRole(ctx, user.ID, model.SystemRoleAdmin, time.Now().Unix())
 	if err != nil {
 		return fmt.Errorf("revoke %s: %w", model.SystemRoleAdmin, err)
 	}
@@ -154,9 +154,9 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		fmt.Fprintf(out, "%s does not hold %s; nothing to revoke.\n", email, model.SystemRoleAdmin)
 		return nil
 	}
-	recordSystemGrantAudit(ctx, store, model.AuditSystemAdminRevoked, user.UserID)
+	recordSystemGrantAudit(ctx, store, model.AuditSystemAdminRevoked, user.ID)
 
-	fmt.Fprintf(out, "Revoked %s from %s (%s).\n", model.SystemRoleAdmin, user.Email, user.UserID)
+	fmt.Fprintf(out, "Revoked %s from %s (%s).\n", model.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprint(out, "It stops working on their next request. Their sessions are untouched;\n")
 	fmt.Fprint(out, "revoke those separately if losing the role is not the whole intent.\n")
 

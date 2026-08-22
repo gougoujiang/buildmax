@@ -138,7 +138,7 @@ export function SpaceAuditSection({
       {events.length > 0 ? (
         <ul className="audit-list">
           {events.map((event) => (
-            <AuditRow key={event.audit_event_id} event={event} currentUserId={currentUserId} />
+            <AuditRow key={event.id} event={event} currentUserId={currentUserId} />
           ))}
         </ul>
       ) : null}

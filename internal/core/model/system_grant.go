@@ -36,10 +36,9 @@ func ValidSystemRole(role string) bool {
 // no timestamp, and no history — and those three are the point. Authority that
 // cannot be attributed or revoked is the thing this model exists to avoid.
 type SystemGrant struct {
-	ID            uint   `json:"-"`
-	SystemGrantID string `json:"system_grant_id"`
-	UserID        string `json:"user_id"`
-	Role          string `json:"role"`
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
 	// GrantedBy is the user_id of the admin who made the grant, or
 	// AuditActorOperator when it came from the operator command, which runs
 	// with database credentials and no signed-in identity. It is deliberately

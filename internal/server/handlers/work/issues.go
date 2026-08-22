@@ -80,7 +80,7 @@ type patchIssueRequest struct {
 
 func issueToResponse(issue model.Issue) IssueResponse {
 	return IssueResponse{
-		ID:            issue.IssueID,
+		ID:            issue.ID,
 		UserID:        issue.UserID,
 		TeamID:        issue.TeamID,
 		ParentIssueID: issue.ParentIssueID,
@@ -357,7 +357,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		input = buildIssueAgentRunInput(*issue)
 	}
 	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
-		ConversationID: conv.ConversationID,
+		ConversationID: conv.ID,
 		UserID:         userID,
 		TeamID:         teamID,
 		Input:          input,

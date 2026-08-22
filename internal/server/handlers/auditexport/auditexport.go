@@ -117,7 +117,7 @@ func Stream(w http.ResponseWriter, r *http.Request, page PageFunc, name string) 
 
 func exportRow(e model.AuditEvent) []string {
 	return []string{
-		e.AuditEventID,
+		e.ID,
 		// RFC 3339 rather than the stored Unix seconds: the CSV is meant to be
 		// opened, and a column of epoch integers is not readable by the person
 		// opening it. The JSONL form keeps the raw field.

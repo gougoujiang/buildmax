@@ -18,8 +18,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	cfg := Config{
 		WorkerToken: "worker-tok",
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: taskID}},
-			TaskList: []model.Task{{TaskID: taskID}},
+			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID}},
+			TaskList: []model.Task{{ID: taskID}},
 		},
 		Hub: hub,
 	}

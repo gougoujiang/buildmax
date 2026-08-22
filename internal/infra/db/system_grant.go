@@ -37,13 +37,12 @@ func toSystemGrant(row *systemGrantRow) *model.SystemGrant {
 		return nil
 	}
 	return &model.SystemGrant{
-		ID:            row.ID,
-		SystemGrantID: row.SystemGrantID,
-		UserID:        row.UserID,
-		Role:          row.Role,
-		GrantedBy:     row.GrantedBy,
-		GrantedAt:     row.GrantedAt,
-		RevokedAt:     row.RevokedAt,
+		ID:        row.SystemGrantID,
+		UserID:    row.UserID,
+		Role:      row.Role,
+		GrantedBy: row.GrantedBy,
+		GrantedAt: row.GrantedAt,
+		RevokedAt: row.RevokedAt,
 	}
 }
 

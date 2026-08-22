@@ -37,8 +37,8 @@ type fakeModels struct {
 func newFakeModels(rows ...model.LLMModel) *fakeModels {
 	m := &fakeModels{rows: map[string]model.LLMModel{}, credentials: map[string]string{}}
 	for _, r := range rows {
-		m.rows[r.LLMModelID] = r
-		m.credentials[r.LLMModelID] = "key-for-" + r.LLMModelID
+		m.rows[r.ID] = r
+		m.credentials[r.ID] = "key-for-" + r.ID
 	}
 	return m
 }
@@ -78,7 +78,7 @@ func (m *fakeModels) LLMModelCredential(_ context.Context, id string) (string, e
 
 func catalogRow(id string) model.LLMModel {
 	return model.LLMModel{
-		LLMModelID:    id,
+		ID:            id,
 		Name:          strings.ToUpper(id),
 		ProviderType:  llmgateway.ProviderOpenAICompatible,
 		APIURL:        "https://upstream.example.com/v1",

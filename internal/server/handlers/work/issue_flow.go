@@ -55,7 +55,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, lim
 		} else if parent != nil && parent.TeamID == teamID {
 			flow.Parent = parent
 		}
-	} else if children, err := h.cfg.Issues.ListIssueChildren(ctx, issue.IssueID); err != nil {
+	} else if children, err := h.cfg.Issues.ListIssueChildren(ctx, issue.ID); err != nil {
 		slog.WarnContext(ctx, "issue children not loaded", "err", err, "issue_id", issueID)
 	} else {
 		flow.Children = children
@@ -78,9 +78,9 @@ func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, lim
 	flow.TotalRuns = total
 	flow.Runs = make([]issueFlowRun, len(runs))
 	for i := range runs {
-		steps, err := h.cfg.Workflows.ListWorkflowStepRuns(ctx, runs[i].WorkflowRunID)
+		steps, err := h.cfg.Workflows.ListWorkflowStepRuns(ctx, runs[i].ID)
 		if err != nil {
-			return nil, fmt.Errorf("load steps for workflow run %s: %w", runs[i].WorkflowRunID, err)
+			return nil, fmt.Errorf("load steps for workflow run %s: %w", runs[i].ID, err)
 		}
 		flow.Runs[i] = issueFlowRun{Run: runs[i], Steps: steps}
 		for j := range steps {

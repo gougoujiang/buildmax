@@ -92,8 +92,7 @@ func toWorkflow(row *workflowRow) *model.Workflow {
 		return nil
 	}
 	return &model.Workflow{
-		ID:          row.ID,
-		WorkflowID:  row.WorkflowID,
+		ID:          row.WorkflowID,
 		TeamID:      row.TeamID,
 		Name:        row.Name,
 		Description: row.Description,
@@ -119,8 +118,7 @@ func toWorkflowRow(m *model.Workflow) *workflowRow {
 		return nil
 	}
 	return &workflowRow{
-		ID:          m.ID,
-		WorkflowID:  m.WorkflowID,
+		WorkflowID:  m.ID,
 		TeamID:      m.TeamID,
 		Name:        m.Name,
 		Description: m.Description,
@@ -138,16 +136,14 @@ func toWorkflowRevision(row *workflowRevisionRow) *model.WorkflowRevision {
 		return nil
 	}
 	return &model.WorkflowRevision{
-		ID:                 row.ID,
-		WorkflowRevisionID: row.WorkflowRevisionID,
-		WorkflowID:         row.WorkflowID,
-		Revision:           row.Revision,
-		Name:               row.Name,
-		Description:        row.Description,
-		Definition:         row.Definition,
-		Status:             row.Status,
-		CreatedBy:          row.CreatedBy,
-		CreatedAt:          row.CreatedAt,
+		WorkflowID:  row.WorkflowID,
+		Revision:    row.Revision,
+		Name:        row.Name,
+		Description: row.Description,
+		Definition:  row.Definition,
+		Status:      row.Status,
+		CreatedBy:   row.CreatedBy,
+		CreatedAt:   row.CreatedAt,
 	}
 }
 
@@ -164,8 +160,7 @@ func toWorkflowRun(row *workflowRunRow) *model.WorkflowRun {
 		return nil
 	}
 	return &model.WorkflowRun{
-		ID:               row.ID,
-		WorkflowRunID:    row.WorkflowRunID,
+		ID:               row.WorkflowRunID,
 		WorkflowID:       row.WorkflowID,
 		WorkflowRevision: row.WorkflowRevision,
 		IssueID:          row.IssueID,
@@ -192,8 +187,7 @@ func toWorkflowRunRow(m *model.WorkflowRun) *workflowRunRow {
 		return nil
 	}
 	return &workflowRunRow{
-		ID:               m.ID,
-		WorkflowRunID:    m.WorkflowRunID,
+		WorkflowRunID:    m.ID,
 		WorkflowID:       m.WorkflowID,
 		WorkflowRevision: m.WorkflowRevision,
 		IssueID:          m.IssueID,
@@ -212,8 +206,7 @@ func toWorkflowStepRun(row *workflowStepRunRow) *model.WorkflowStepRun {
 		return nil
 	}
 	return &model.WorkflowStepRun{
-		ID:                row.ID,
-		StepRunID:         row.StepRunID,
+		ID:                row.StepRunID,
 		WorkflowRunID:     row.WorkflowRunID,
 		StepID:            row.StepID,
 		StepIndex:         row.StepIndex,
@@ -252,7 +245,7 @@ func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model
 func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
 	now := time.Now().Unix()
 	workflow := &model.Workflow{
-		WorkflowID:  util.NewPrefixedID(util.PrefixWorkflow),
+		ID:          util.NewPrefixedID(util.PrefixWorkflow),
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
@@ -282,7 +275,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 func appendWorkflowRevision(tx *gorm.DB, w *model.Workflow, createdBy string) error {
 	return tx.Create(&workflowRevisionRow{
 		WorkflowRevisionID: util.NewPrefixedID(util.PrefixWorkflowRevision),
-		WorkflowID:         w.WorkflowID,
+		WorkflowID:         w.ID,
 		Revision:           w.Revision,
 		Name:               w.Name,
 		Description:        w.Description,
@@ -377,7 +370,7 @@ func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revi
 func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
 	now := time.Now().Unix()
 	run := &model.WorkflowRun{
-		WorkflowRunID:    util.NewPrefixedID(util.PrefixWorkflowRun),
+		ID:               util.NewPrefixedID(util.PrefixWorkflowRun),
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,

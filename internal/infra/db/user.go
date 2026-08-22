@@ -38,8 +38,7 @@ func toUser(row *userRow) *model.User {
 		return nil
 	}
 	return &model.User{
-		ID:                row.ID,
-		UserID:            row.UserID,
+		ID:                row.UserID,
 		Email:             row.Email,
 		Name:              row.Name,
 		QuotaTier:         row.QuotaTier,
@@ -57,8 +56,7 @@ func toUserRow(m *model.User) *userRow {
 		return nil
 	}
 	return &userRow{
-		ID:                m.ID,
-		UserID:            m.UserID,
+		UserID:            m.ID,
 		Email:             m.Email,
 		Name:              m.Name,
 		QuotaTier:         m.QuotaTier,
@@ -172,7 +170,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		return nil, model.ErrEmailExists
 	}
 	u := model.User{
-		UserID:    util.NewPrefixedID(util.PrefixUser),
+		ID:        util.NewPrefixedID(util.PrefixUser),
 		Email:     email,
 		Name:      "",
 		CreatedAt: time.Now().Unix(),
@@ -182,17 +180,17 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	}
 	personalTeamID := util.NewPrefixedID(util.PrefixTeam)
 	personalTeam := model.Team{
-		TeamID:            personalTeamID,
+		ID:                personalTeamID,
 		Name:              model.DefaultPersonalTeamName,
-		PersonalForUserID: &u.UserID,
+		PersonalForUserID: &u.ID,
 		QuotaTier:         defaultQuotaTier,
-		CreatedBy:         u.UserID,
+		CreatedBy:         u.ID,
 		CreatedAt:         u.CreatedAt,
 		UpdatedAt:         u.CreatedAt,
 	}
 	personalMember := model.TeamMember{
 		TeamID:    personalTeamID,
-		UserID:    u.UserID,
+		UserID:    u.ID,
 		Role:      model.TeamRoleOwner,
 		CreatedAt: u.CreatedAt,
 	}

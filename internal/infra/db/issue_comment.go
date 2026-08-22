@@ -36,8 +36,7 @@ func toIssueComment(row *issueCommentRow) *model.IssueComment {
 		return nil
 	}
 	return &model.IssueComment{
-		ID:              row.ID,
-		IssueCommentID:  row.IssueCommentID,
+		ID:              row.IssueCommentID,
 		IssueID:         row.IssueID,
 		AuthorKind:      row.AuthorKind,
 		AuthorID:        row.AuthorID,

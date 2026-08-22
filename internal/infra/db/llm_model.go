@@ -46,8 +46,7 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		return nil
 	}
 	return &model.LLMModel{
-		ID:            row.ID,
-		LLMModelID:    row.LLMModelID,
+		ID:            row.LLMModelID,
 		Name:          row.Name,
 		ProviderType:  row.ProviderType,
 		APIURL:        row.APIURL,

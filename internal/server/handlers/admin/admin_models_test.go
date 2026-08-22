@@ -45,7 +45,7 @@ func adminModelsMux(t *testing.T) (*http.ServeMux, *mock.MockLLMModelStore, *moc
 		Audits:    audits,
 		Audit:     audit.NewRecorder(audits),
 		Deployment: DeploymentInfo{
-			ModelAliases:      map[string]string{"default": fast.LLMModelID, "fast": fast.LLMModelID},
+			ModelAliases:      map[string]string{"default": fast.ID, "fast": fast.ID},
 			DefaultModelAlias: "default",
 		},
 	})
@@ -99,7 +99,7 @@ func TestAdminModelsReportWhichAreReachable(t *testing.T) {
 
 func TestAdminModelEnableDisable(t *testing.T) {
 	mux, models, audits := adminModelsMux(t)
-	id := models.Models[0].LLMModelID
+	id := models.Models[0].ID
 
 	rec := adminRequestAs(t, mux, adminCase{"POST", "/api/admin/llm/models/" + id + "/disable"}, adminUser)
 	if rec.Code != http.StatusOK {

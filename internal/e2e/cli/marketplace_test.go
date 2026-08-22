@@ -45,7 +45,7 @@ func startMarketplace(t *testing.T) *httptest.Server {
 		publisherID: "publisher@example.com",
 		consumerID:  "consumer@example.com",
 	} {
-		u := &model.User{UserID: id, Email: email, CreatedAt: 1}
+		u := &model.User{ID: id, Email: email, CreatedAt: 1}
 		users.ByID[id] = u
 		users.ByEmail[email] = u
 	}

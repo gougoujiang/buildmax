@@ -36,16 +36,16 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&agentRevisionRow{}, "agent_id = ?", agent.AgentID).Error
-		_ = s.db.WithContext(ctx).Delete(&agentRow{}, "agent_id = ?", agent.AgentID).Error
+		_ = s.db.WithContext(ctx).Delete(&agentRevisionRow{}, "agent_id = ?", agent.ID).Error
+		_ = s.db.WithContext(ctx).Delete(&agentRow{}, "agent_id = ?", agent.ID).Error
 	})
 	for _, name := range []string{"second", "third"} {
-		if _, err := s.UpdateAgentInTeam(ctx, agent.AgentID, teamID, userID, name, "d", "i"); err != nil {
+		if _, err := s.UpdateAgentInTeam(ctx, agent.ID, teamID, userID, name, "d", "i"); err != nil {
 			t.Fatalf("UpdateAgentInTeam %s: %v", name, err)
 		}
 	}
 
-	all, total, err := s.ListAgentRevisions(ctx, agent.AgentID, 0, 0)
+	all, total, err := s.ListAgentRevisions(ctx, agent.ID, 0, 0)
 	if err != nil {
 		t.Fatalf("ListAgentRevisions: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 		t.Errorf("first row = %q, want the newest revision", all[0].Name)
 	}
 
-	page, total, err := s.ListAgentRevisions(ctx, agent.AgentID, 1, 1)
+	page, total, err := s.ListAgentRevisions(ctx, agent.ID, 1, 1)
 	if err != nil {
 		t.Fatalf("ListAgentRevisions paged: %v", err)
 	}
@@ -78,11 +78,11 @@ func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&agentRevisionRow{}, "agent_id = ?", agent.AgentID).Error
-		_ = s.db.WithContext(ctx).Delete(&agentRow{}, "agent_id = ?", agent.AgentID).Error
+		_ = s.db.WithContext(ctx).Delete(&agentRevisionRow{}, "agent_id = ?", agent.ID).Error
+		_ = s.db.WithContext(ctx).Delete(&agentRow{}, "agent_id = ?", agent.ID).Error
 	})
 
-	got, err := s.GetAgentRevision(ctx, agent.AgentID, agent.Revision)
+	got, err := s.GetAgentRevision(ctx, agent.ID, agent.Revision)
 	if err != nil || got == nil {
 		t.Fatalf("GetAgentRevision(existing) = %v, %v", got, err)
 	}
@@ -90,7 +90,7 @@ func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 		t.Errorf("Name = %q", got.Name)
 	}
 
-	missing, err := s.GetAgentRevision(ctx, agent.AgentID, 999)
+	missing, err := s.GetAgentRevision(ctx, agent.ID, 999)
 	if err != nil {
 		t.Fatalf("GetAgentRevision(missing) returned an error: %v", err)
 	}
@@ -110,11 +110,11 @@ func TestWorkflowRevisionsUseTheSameQueryShape(t *testing.T) {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&workflowRevisionRow{}, "workflow_id = ?", wf.WorkflowID).Error
-		_ = s.db.WithContext(ctx).Delete(&workflowRow{}, "workflow_id = ?", wf.WorkflowID).Error
+		_ = s.db.WithContext(ctx).Delete(&workflowRevisionRow{}, "workflow_id = ?", wf.ID).Error
+		_ = s.db.WithContext(ctx).Delete(&workflowRow{}, "workflow_id = ?", wf.ID).Error
 	})
 
-	list, total, err := s.ListWorkflowRevisions(ctx, wf.WorkflowID, 0, 0)
+	list, total, err := s.ListWorkflowRevisions(ctx, wf.ID, 0, 0)
 	if err != nil {
 		t.Fatalf("ListWorkflowRevisions: %v", err)
 	}
@@ -122,14 +122,14 @@ func TestWorkflowRevisionsUseTheSameQueryShape(t *testing.T) {
 		t.Fatalf("total=%d len=%d, want 1 and 1", total, len(list))
 	}
 
-	got, err := s.GetWorkflowRevision(ctx, wf.WorkflowID, wf.Revision)
+	got, err := s.GetWorkflowRevision(ctx, wf.ID, wf.Revision)
 	if err != nil || got == nil {
 		t.Fatalf("GetWorkflowRevision = %v, %v", got, err)
 	}
 	if got.Name != "wf" {
 		t.Errorf("Name = %q", got.Name)
 	}
-	if missing, err := s.GetWorkflowRevision(ctx, wf.WorkflowID, 999); err != nil || missing != nil {
+	if missing, err := s.GetWorkflowRevision(ctx, wf.ID, 999); err != nil || missing != nil {
 		t.Errorf("missing revision = %v, %v; want nil, nil", missing, err)
 	}
 }

@@ -117,7 +117,7 @@ func (g *Guard) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, ex
 			httputil.WriteJSONError(w, http.StatusForbidden, "team not found")
 			return "", false
 		}
-		return team.TeamID, true
+		return team.ID, true
 	}
 	teams, err := g.Teams.ListTeamsByUser(r.Context(), userID)
 	if err != nil {
@@ -125,7 +125,7 @@ func (g *Guard) resolveTeamID(w http.ResponseWriter, r *http.Request, userID, ex
 		return "", false
 	}
 	for _, team := range teams {
-		if team.TeamID == explicit {
+		if team.ID == explicit {
 			return explicit, true
 		}
 	}

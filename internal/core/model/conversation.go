@@ -4,26 +4,24 @@ import "context"
 
 // Conversation is the Tier 1 conversation container.
 type Conversation struct {
-	ID             uint   `json:"-"`
-	ConversationID string `json:"conversation_id"`
-	UserID         string `json:"user_id"`
-	TeamID         string `json:"team_id,omitempty"`
-	Channel        string `json:"channel"`
-	Title          string `json:"title,omitempty"`
-	CreatedBy      string `json:"created_by"`
-	CreatedAt      int64  `json:"created_at"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	TeamID    string `json:"team_id,omitempty"`
+	Channel   string `json:"channel"`
+	Title     string `json:"title,omitempty"`
+	CreatedBy string `json:"created_by"`
+	CreatedAt int64  `json:"created_at"`
 }
 
 // ConversationMessage is one message in a Tier 1 conversation.
 type ConversationMessage struct {
-	ID                    uint    `json:"-"`
-	ConversationMessageID string  `json:"conversation_message_id"`
-	ConversationID        string  `json:"conversation_id"`
-	Role                  string  `json:"role"`
-	Content               string  `json:"content"`
-	Channel               *string `json:"channel,omitempty"`
-	ToolCallID            *string `json:"tool_call_id,omitempty"`
-	ToolCallsJSON         *string `json:"tool_calls,omitempty"`
+	ID             string  `json:"id"`
+	ConversationID string  `json:"conversation_id"`
+	Role           string  `json:"role"`
+	Content        string  `json:"content"`
+	Channel        *string `json:"channel,omitempty"`
+	ToolCallID     *string `json:"tool_call_id,omitempty"`
+	ToolCallsJSON  *string `json:"tool_calls,omitempty"`
 	// ProviderStateJSON is opaque reasoning state for an assistant message,
 	// stored and replayed but never read here. See core/llm.ProviderState.
 	ProviderStateJSON *string `json:"provider_state,omitempty"`

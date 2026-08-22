@@ -13,16 +13,10 @@ import (
 type MockPluginStore struct {
 	plugins  map[string]*model.Plugin
 	releases map[string][]*model.PluginRelease
-	nextID   int
 }
 
 func NewMockPluginStore() *MockPluginStore {
 	return &MockPluginStore{plugins: map[string]*model.Plugin{}, releases: map[string][]*model.PluginRelease{}}
-}
-
-func (f *MockPluginStore) newID(prefix string) string {
-	f.nextID++
-	return prefix + string(rune('a'+f.nextID%26))
 }
 
 func (f *MockPluginStore) CreatePlugin(_ context.Context, in model.CreatePluginInput) (*model.Plugin, error) {
@@ -30,7 +24,7 @@ func (f *MockPluginStore) CreatePlugin(_ context.Context, in model.CreatePluginI
 		return nil, model.ErrPluginNameTaken
 	}
 	p := &model.Plugin{
-		PluginID: f.newID("pl_"), Name: in.Name, DisplayName: in.DisplayName,
+		Name: in.Name, DisplayName: in.DisplayName,
 		Description: in.Description, CreatedBy: in.CreatedBy,
 	}
 	f.plugins[in.Name] = p
@@ -94,8 +88,8 @@ func (f *MockPluginStore) CreatePluginRelease(_ context.Context, in model.Create
 		}
 	}
 	r := &model.PluginRelease{
-		PluginReleaseID: f.newID("plr_"), PluginID: entry.PluginID, PluginName: in.PluginName,
-		Version: in.Version, MinBuildmaxVersion: in.MinBuildmaxVersion, Digest: in.Digest,
+		PluginName: in.PluginName,
+		Version:    in.Version, MinBuildmaxVersion: in.MinBuildmaxVersion, Digest: in.Digest,
 		ObjectKey: in.ObjectKey, SizeBytes: in.SizeBytes, Inspection: in.Inspection,
 		Source: in.Source, PublishedBy: in.PublishedBy,
 	}

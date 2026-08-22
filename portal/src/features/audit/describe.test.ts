@@ -4,7 +4,7 @@ import { actorLabel, describeEvent, formatEventTime } from "./describe"
 
 function event(partial: Partial<ApiAuditEvent>): ApiAuditEvent {
   return {
-    audit_event_id: "ae_1",
+    id: "ae_1",
     team_id: "tm_1",
     actor_type: "user",
     actor_id: "u_1",

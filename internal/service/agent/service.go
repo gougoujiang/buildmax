@@ -179,7 +179,7 @@ func (s *Service) DeleteAgent(ctx context.Context, teamID, agentID string) error
 func workflowNameList(workflows []model.Workflow) string {
 	parts := make([]string, len(workflows))
 	for i := range workflows {
-		parts[i] = workflows[i].Name + " (" + workflows[i].WorkflowID + ")"
+		parts[i] = workflows[i].Name + " (" + workflows[i].ID + ")"
 	}
 	return strings.Join(parts, ", ")
 }

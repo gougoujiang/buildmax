@@ -22,7 +22,7 @@ func (m *MockIssueCommentStore) CreateIssueComment(_ context.Context, in model.C
 		return nil, m.CreateErr
 	}
 	comment := model.IssueComment{
-		IssueCommentID:  fmt.Sprintf("ic_mock_%d", len(m.Comments)+1),
+		ID:              fmt.Sprintf("ic_mock_%d", len(m.Comments)+1),
 		IssueID:         in.IssueID,
 		AuthorKind:      in.AuthorKind,
 		AuthorID:        in.AuthorID,
@@ -55,7 +55,7 @@ func (m *MockIssueCommentStore) ListIssueComments(_ context.Context, issueID str
 
 func (m *MockIssueCommentStore) GetIssueComment(_ context.Context, commentID string) (*model.IssueComment, error) {
 	for i := range m.Comments {
-		if m.Comments[i].IssueCommentID == commentID {
+		if m.Comments[i].ID == commentID {
 			return &m.Comments[i], nil
 		}
 	}
@@ -64,7 +64,7 @@ func (m *MockIssueCommentStore) GetIssueComment(_ context.Context, commentID str
 
 func (m *MockIssueCommentStore) UpdateIssueComment(_ context.Context, commentID, body string) (*model.IssueComment, error) {
 	for i := range m.Comments {
-		if m.Comments[i].IssueCommentID != commentID {
+		if m.Comments[i].ID != commentID {
 			continue
 		}
 		now := time.Now().Unix()
@@ -77,7 +77,7 @@ func (m *MockIssueCommentStore) UpdateIssueComment(_ context.Context, commentID,
 
 func (m *MockIssueCommentStore) DeleteIssueComment(_ context.Context, commentID string) error {
 	for i := range m.Comments {
-		if m.Comments[i].IssueCommentID == commentID {
+		if m.Comments[i].ID == commentID {
 			m.Comments = append(m.Comments[:i], m.Comments[i+1:]...)
 			return nil
 		}

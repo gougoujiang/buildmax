@@ -182,7 +182,7 @@ func (h *Handler) listConversationsHandler(w http.ResponseWriter, r *http.Reques
 	out := make([]conversationResponse, len(list))
 	for i := range list {
 		out[i] = conversationResponse{
-			ID:        list[i].ConversationID,
+			ID:        list[i].ID,
 			UserID:    list[i].UserID,
 			TeamID:    list[i].TeamID,
 			Channel:   list[i].Channel,
@@ -215,16 +215,16 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if req.Message == "" || h.cfg.ConversationLLM == nil {
-		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: ""})
+		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ID, Reply: ""})
 		return
 	}
 	streamRequested := r.URL.Query().Get("stream") == "1"
 	initialPayload := ""
 	if streamRequested {
-		initialPayload = `{"conversation_id":"` + conv.ConversationID + `"}`
+		initialPayload = `{"conversation_id":"` + conv.ID + `"}`
 	}
 	reply, err := h.runConversationTurn(w, r, runConversationTurnInput{
-		conversationID:       conv.ConversationID,
+		conversationID:       conv.ID,
 		message:              req.Message,
 		channel:              req.Channel,
 		userID:               userID,
@@ -236,11 +236,11 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "conversation_loop", "conversation_id", conv.ConversationID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "conversation_loop", "conversation_id", conv.ID)
 		return
 	}
 	if !streamRequested {
-		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ConversationID, Reply: reply})
+		httputil.WriteJSON(w, http.StatusCreated, createConversationResponse{ConversationID: conv.ID, Reply: reply})
 	}
 }
 
@@ -279,7 +279,7 @@ func (h *Handler) getConversationMessagesHandler(w http.ResponseWriter, r *http.
 			continue
 		}
 		out = append(out, conversationMessageResponse{
-			ID:        msgs[i].ConversationMessageID,
+			ID:        msgs[i].ID,
 			Role:      msgs[i].Role,
 			Content:   msgs[i].Content,
 			Channel:   msgs[i].Channel,
