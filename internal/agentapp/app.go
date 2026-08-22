@@ -90,6 +90,7 @@ type AgentApp struct {
 	artifactPublisher      tools.ArtifactPublisher
 	grantsMu               sync.Mutex
 	grants                 map[string]*agent.SessionGrants
+	turns                  turnCoordinator
 }
 
 // grantsFor returns the approval grants for one session, creating the store on
@@ -721,6 +722,14 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	if err != nil {
 		return RunResult{}, err
 	}
+	// One writer per session. Surfaces queue prompts behind the active run,
+	// so a concurrent call here is a caller bug or an unserialized background
+	// producer — refused, because Session and SessionManager have no locks of
+	// their own and an overlapping turn would race the history.
+	if err := a.turns.begin(sess.ID); err != nil {
+		return RunResult{SessionID: sess.ID}, fmt.Errorf("session %s: %w", sess.ID, err)
+	}
+	defer a.turns.end(sess.ID)
 	registry, err := a.toolRegistry(modelName, client)
 	if err != nil {
 		return RunResult{}, err
