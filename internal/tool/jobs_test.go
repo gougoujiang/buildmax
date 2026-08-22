@@ -79,6 +79,24 @@ func TestBashRunInBackground(t *testing.T) {
 		t.Fatalf("provenance = %+v", j.Provenance)
 	}
 
+	// A launch from inside a run records which run and tool call detached it.
+	ctx := session.CtxWithSessionID(context.Background(), "sess-1")
+	ctx = agent.CtxWithRunID(ctx, "rt_run")
+	ctx = agent.CtxWithToolCall(ctx, "call_bg")
+	bgOut, bgErr := b.Execute(ctx, map[string]any{"command": "echo linked", "run_in_background": true})
+	if bgErr != nil {
+		t.Fatal(bgErr)
+	}
+	idx := strings.Index(bgOut, "jb_")
+	linkedID := bgOut[idx:]
+	if end := strings.IndexAny(linkedID, " \n"); end > 0 {
+		linkedID = linkedID[:end]
+	}
+	linked, _ := m.Get(linkedID)
+	if linked.Provenance.ParentTraceID != "rt_run" || linked.Provenance.ParentToolCallID != "call_bg" {
+		t.Fatalf("provenance = %+v", linked.Provenance)
+	}
+
 	out, err := NewJobOutput(m).Execute(context.Background(), map[string]any{"job_id": id})
 	if err != nil {
 		t.Fatal(err)

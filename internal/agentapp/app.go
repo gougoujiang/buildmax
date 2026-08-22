@@ -739,6 +739,10 @@ func withTraceRunContext(ctx context.Context, runID, modelName string) context.C
 	if runID == "" {
 		return ctx
 	}
+	// The core-level run ID travels alongside: tools that detach owned work
+	// (background jobs) read provenance through core/agent, which cannot see
+	// this package's context key.
+	ctx = agent.CtxWithRunID(ctx, runID)
 	return context.WithValue(ctx, traceRunContextKey{}, traceRunContext{runID: runID, modelName: modelName})
 }
 
@@ -1083,6 +1087,9 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if err == nil {
 		taskTool, err := tools.NewTask(runner, agentTypes)
 		if err == nil {
+			if a.jobs != nil {
+				taskTool = taskTool.WithJobs(a.jobs, a.workspaceRoot)
+			}
 			registry.AppendTools(taskTool)
 		}
 	}
@@ -1101,6 +1108,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts tools.SubAgentRunOpts) tools.SubAgentTrace {
 	parent := traceRunFromContext(ctx)
 	if parent.runID == "" {
+		// A background subagent runs on a manager-owned context that carries
+		// only the explicit core-level provenance, not this package's key.
+		parent.runID = agent.RunIDFromCtx(ctx)
+	}
+	if parent.runID == "" {
 		return nil
 	}
 	modelName := parent.modelName
@@ -1108,13 +1120,14 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		modelName = opts.Model
 	}
 	return trace.NewRecorder(config.TracesDir(), trace.Meta{
-		RunID:       util.NewPrefixedID("rt"),
-		ParentRunID: parent.runID,
-		SessionID:   sessionID,
-		Workspace:   a.workspaceRoot,
-		Model:       modelName,
-		IsSubagent:  true,
-		Sandbox:     a.sandboxInfo(),
+		RunID:            util.NewPrefixedID("rt"),
+		ParentRunID:      parent.runID,
+		ParentToolCallID: agent.ToolCallFromCtx(ctx),
+		SessionID:        sessionID,
+		Workspace:        a.workspaceRoot,
+		Model:            modelName,
+		IsSubagent:       true,
+		Sandbox:          a.sandboxInfo(),
 		PromptLayers: []agent.PromptLayer{
 			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
 		},

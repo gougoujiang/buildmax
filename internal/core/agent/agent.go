@@ -692,6 +692,9 @@ func executeCall(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
 	if c.decided {
 		return
 	}
+	// Stamp the call identity so work the tool detaches (a subagent trace, a
+	// background job) can record which call launched it.
+	ctx = CtxWithToolCall(ctx, c.call.ID)
 	start := time.Now()
 	result, parts, err := executeTool(ctx, c.tool, c.args)
 	dur := time.Since(start)

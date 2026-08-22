@@ -39,7 +39,7 @@ func (j *JobList) Execute(_ context.Context, _ map[string]any) (string, error) {
 	}
 	var b strings.Builder
 	for _, item := range jobs {
-		fmt.Fprintf(&b, "%s  %-9s  %-8s  %s\n", item.ID, string(item.State)+stateDetail(item), age(item), summarizeCommand(item.Command))
+		fmt.Fprintf(&b, "%s  %-8s  %-9s  %-8s  %s\n", item.ID, item.Kind, string(item.State)+stateDetail(item), age(item), summarizeCommand(item.Command))
 	}
 	return strings.TrimRight(b.String(), "\n"), nil
 }
@@ -104,14 +104,21 @@ func (j *JobOutput) Execute(_ context.Context, args map[string]any) (string, err
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "job: %s\nstate: %s%s\ncommand: %s\n", item.ID, item.State, stateDetail(item), summarizeCommand(item.Command))
+	fmt.Fprintf(&b, "job: %s (%s)\nstate: %s%s\ncommand: %s\n", item.ID, item.Kind, item.State, stateDetail(item), summarizeCommand(item.Command))
 	if item.Running() {
 		fmt.Fprintf(&b, "running for: %s\n", age(item))
 	}
 	if chunk.Dropped > 0 {
 		fmt.Fprintf(&b, "note: %d bytes before this point are no longer retained\n", chunk.Dropped)
 	}
-	fmt.Fprintf(&b, "--- %s ---\n", streamName(stream))
+	label := streamName(stream)
+	if item.Kind == job.KindSubagent && stream == proc.Stdout {
+		label = "final reply"
+		if item.Running() {
+			label = "final reply (not available until the subagent completes)"
+		}
+	}
+	fmt.Fprintf(&b, "--- %s ---\n", label)
 	b.Write(chunk.Data)
 	if len(chunk.Data) == 0 {
 		b.WriteString("(no new output)\n")

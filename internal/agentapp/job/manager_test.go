@@ -217,6 +217,103 @@ func TestSubscribeFiltersBySession(t *testing.T) {
 	}
 }
 
+func TestSubagentJobLifecycle(t *testing.T) {
+	m := NewManager()
+	defer closeManager(t, m)
+	events, cancel := m.Subscribe("")
+	defer cancel()
+
+	j, err := m.StartSubagent("investigate flaky test", 0, Provenance{SessionID: "s1", ParentTraceID: "rt_p", ParentToolCallID: "call_t"},
+		func(ctx context.Context) (string, error) { return "the answer", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Kind != KindSubagent || j.State != StateRunning || j.Command != "investigate flaky test" {
+		t.Fatalf("job = %+v", j)
+	}
+	final := waitTerminal(t, events)
+	if final.State != StateSucceeded {
+		t.Fatalf("final = %+v", final)
+	}
+	if final.Provenance.ParentTraceID != "rt_p" || final.Provenance.ParentToolCallID != "call_t" {
+		t.Fatalf("provenance = %+v", final.Provenance)
+	}
+	chunk, err := m.Output(j.ID, proc.Stdout, 0, 0)
+	if err != nil || string(chunk.Data) != "the answer" {
+		t.Fatalf("Output = %q, %v", chunk.Data, err)
+	}
+	// Cursor semantics hold for reply reads too.
+	chunk, _ = m.Output(j.ID, proc.Stdout, 4, 0)
+	if string(chunk.Data) != "answer" || chunk.Next != 10 {
+		t.Fatalf("chunk = %+v", chunk)
+	}
+}
+
+func TestSubagentJobFailure(t *testing.T) {
+	m := NewManager()
+	defer closeManager(t, m)
+	events, cancel := m.Subscribe("")
+	defer cancel()
+
+	if _, err := m.StartSubagent("doomed", 0, Provenance{},
+		func(ctx context.Context) (string, error) { return "", errors.New("model unavailable") }); err != nil {
+		t.Fatal(err)
+	}
+	final := waitTerminal(t, events)
+	if final.State != StateFailed || final.Err != "model unavailable" {
+		t.Fatalf("final = %+v", final)
+	}
+}
+
+func TestSubagentJobStopCancelsContext(t *testing.T) {
+	m := NewManager()
+	defer closeManager(t, m)
+	events, cancel := m.Subscribe("")
+	defer cancel()
+
+	started := make(chan struct{})
+	j, err := m.StartSubagent("long delegation", 0, Provenance{},
+		func(ctx context.Context) (string, error) {
+			close(started)
+			<-ctx.Done()
+			return "", ctx.Err()
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	if err := m.Stop(j.ID); err != nil {
+		t.Fatal(err)
+	}
+	final := waitTerminal(t, events)
+	if final.State != StateCanceled || final.StopReason != StopUser {
+		t.Fatalf("final = %+v", final)
+	}
+}
+
+func TestSubagentJobLimit(t *testing.T) {
+	m := NewManager()
+	m.maxSubagents = 1
+	defer closeManager(t, m)
+
+	block := make(chan struct{})
+	j, err := m.StartSubagent("first", 0, Provenance{}, func(ctx context.Context) (string, error) {
+		select {
+		case <-block:
+		case <-ctx.Done():
+		}
+		return "done", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.StartSubagent("second", 0, Provenance{}, func(ctx context.Context) (string, error) { return "", nil }); err == nil {
+		t.Fatal("expected limit refusal")
+	}
+	close(block)
+	_ = j
+}
+
 // Close releases subscribers so a consumer ranging over the channel exits,
 // after buffered terminal events are still readable.
 func TestCloseReleasesSubscribers(t *testing.T) {

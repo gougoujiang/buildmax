@@ -236,9 +236,11 @@ func (b *Bash) executeBackground(ctx context.Context, command string, args map[s
 		Env:     b.childEnv(),
 		Timeout: parseBackgroundTimeout(args),
 	}, job.Provenance{
-		Workspace: b.root,
-		SessionID: sessionID,
-		Sandboxed: sandboxed,
+		Workspace:        b.root,
+		SessionID:        sessionID,
+		ParentTraceID:    agent.RunIDFromCtx(ctx),
+		ParentToolCallID: agent.ToolCallFromCtx(ctx),
+		Sandboxed:        sandboxed,
 	})
 	if err != nil {
 		return "Cannot start background job: " + err.Error(), nil

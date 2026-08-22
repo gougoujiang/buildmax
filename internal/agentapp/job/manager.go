@@ -17,11 +17,14 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-// Kind says what a job runs. Subagent and monitor kinds arrive with their
-// own delivery stages.
+// Kind says what a job runs. The monitor kind arrives with its own delivery
+// stage.
 type Kind string
 
-const KindCommand Kind = "command"
+const (
+	KindCommand  Kind = "command"
+	KindSubagent Kind = "subagent"
+)
 
 // State is the job state machine:
 // starting → running → succeeded | failed | canceled.
@@ -99,6 +102,10 @@ type Event struct {
 // conservative until resource evidence supports more.
 const DefaultMaxCommandJobs = 8
 
+// DefaultMaxSubagentJobs bounds concurrently running background subagents.
+// Each one is a full agent loop holding model calls; lower than commands.
+const DefaultMaxSubagentJobs = 4
+
 // eventBuffer is each subscriber's channel capacity. Lifecycle events are
 // low-volume; a subscriber that falls this far behind loses the oldest
 // notifications and re-reads state from List instead.
@@ -110,11 +117,15 @@ var (
 )
 
 type record struct {
-	mu   sync.Mutex
-	job  Job
-	proc *proc.Proc
+	mu  sync.Mutex
+	job Job
+	// proc backs command jobs; cancel backs subagent jobs. Exactly one is set.
+	proc   *proc.Proc
+	cancel context.CancelFunc
+	// reply holds a finished subagent job's final reply, read through Output.
+	reply []byte
 	// requested is the stop reason recorded when Stop was accepted, so the
-	// terminal state can say who ended the job — the process only knows it
+	// terminal state can say who ended the job — the execution only knows it
 	// was signaled.
 	requested StopReason
 }
@@ -123,6 +134,17 @@ func (r *record) snapshot() Job {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.job
+}
+
+// signalStop requests termination of whatever backs this job.
+func (r *record) signalStop() {
+	if r.proc != nil {
+		r.proc.Stop()
+		return
+	}
+	if r.cancel != nil {
+		r.cancel()
+	}
 }
 
 type subscriber struct {
@@ -145,16 +167,43 @@ type Manager struct {
 	nextID int
 	closed bool
 
-	maxCommands int
-	wg          sync.WaitGroup
+	maxCommands  int
+	maxSubagents int
+	wg           sync.WaitGroup
 }
 
 func NewManager() *Manager {
 	return &Manager{
-		byID:        make(map[string]*record),
-		subs:        make(map[int]*subscriber),
-		maxCommands: DefaultMaxCommandJobs,
+		byID:         make(map[string]*record),
+		subs:         make(map[int]*subscriber),
+		maxCommands:  DefaultMaxCommandJobs,
+		maxSubagents: DefaultMaxSubagentJobs,
 	}
+}
+
+// runningOfKind counts non-terminal jobs of one kind. Caller holds m.mu.
+func (m *Manager) runningOfKind(kind Kind) int {
+	n := 0
+	for _, r := range m.jobs {
+		if snap := r.snapshot(); snap.Kind == kind && snap.Running() {
+			n++
+		}
+	}
+	return n
+}
+
+// adopt registers a started record, or reports that shutdown began while the
+// work was being launched — the caller must then stop what it started.
+func (m *Manager) adopt(rec *record) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return false
+	}
+	m.jobs = append(m.jobs, rec)
+	m.byID[rec.job.ID] = rec
+	m.wg.Add(1)
+	return true
 }
 
 // StartCommand launches one background command. The permission gate already
@@ -166,13 +215,7 @@ func (m *Manager) StartCommand(spec CommandSpec, prov Provenance) (Job, error) {
 		m.mu.Unlock()
 		return Job{}, ErrClosed
 	}
-	running := 0
-	for _, r := range m.jobs {
-		if snap := r.snapshot(); snap.Kind == KindCommand && snap.Running() {
-			running++
-		}
-	}
-	if running >= m.maxCommands {
+	if running := m.runningOfKind(KindCommand); running >= m.maxCommands {
 		m.mu.Unlock()
 		return Job{}, fmt.Errorf("refusing to start: %d background commands already running (limit %d); stop one first", running, m.maxCommands)
 	}
@@ -201,24 +244,91 @@ func (m *Manager) StartCommand(spec CommandSpec, prov Provenance) (Job, error) {
 		},
 		proc: p,
 	}
-
-	m.mu.Lock()
-	if m.closed {
-		// Shutdown began while the process was spawning; do not adopt a job
+	if !m.adopt(rec) {
+		// Shutdown began while the process was spawning; do not keep a job
 		// nothing will sweep.
-		m.mu.Unlock()
 		p.Stop()
 		<-p.Done()
 		return Job{}, ErrClosed
 	}
-	m.jobs = append(m.jobs, rec)
-	m.byID[rec.job.ID] = rec
-	m.wg.Add(1)
-	m.mu.Unlock()
 
 	snap := rec.snapshot()
 	m.publish(snap)
 	go m.reap(rec)
+	return snap, nil
+}
+
+// StartSubagent launches one background subagent job. run receives a
+// manager-owned context — canceled by Stop, shutdown, or the timeout — and
+// returns the subagent's final reply. The caller stamps any provenance values
+// run needs onto that context itself; the manager deliberately does not
+// inherit the launching request context.
+func (m *Manager) StartSubagent(description string, timeout time.Duration, prov Provenance, run func(context.Context) (string, error)) (Job, error) {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return Job{}, ErrClosed
+	}
+	if running := m.runningOfKind(KindSubagent); running >= m.maxSubagents {
+		m.mu.Unlock()
+		return Job{}, fmt.Errorf("refusing to start: %d background subagents already running (limit %d); wait for one or stop it", running, m.maxSubagents)
+	}
+	m.mu.Unlock()
+
+	var jobCtx context.Context
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		jobCtx, cancel = context.WithTimeout(context.Background(), timeout)
+	} else {
+		jobCtx, cancel = context.WithCancel(context.Background())
+	}
+
+	rec := &record{
+		job: Job{
+			ID:         util.NewPrefixedID(util.PrefixJob),
+			Kind:       KindSubagent,
+			Command:    description,
+			State:      StateRunning,
+			Provenance: prov,
+			CreatedAt:  time.Now(),
+		},
+		cancel: cancel,
+	}
+	if !m.adopt(rec) {
+		cancel()
+		return Job{}, ErrClosed
+	}
+
+	snap := rec.snapshot()
+	m.publish(snap)
+	go func() {
+		defer m.wg.Done()
+		defer cancel()
+		reply, err := run(jobCtx)
+
+		rec.mu.Lock()
+		rec.job.EndedAt = time.Now()
+		switch {
+		case jobCtx.Err() == context.DeadlineExceeded && rec.requested == "":
+			rec.job.State = StateCanceled
+			rec.job.StopReason = StopTimeout
+		case jobCtx.Err() != nil:
+			rec.job.State = StateCanceled
+			rec.job.StopReason = rec.requested
+			if rec.job.StopReason == "" {
+				rec.job.StopReason = StopUser
+			}
+		case err != nil:
+			rec.job.State = StateFailed
+			rec.job.Err = err.Error()
+		default:
+			rec.job.State = StateSucceeded
+			rec.reply = []byte(reply)
+		}
+		done := rec.job
+		rec.mu.Unlock()
+		m.publish(done)
+	}()
 	return snap, nil
 }
 
@@ -283,7 +393,9 @@ func (m *Manager) Get(id string) (Job, bool) {
 }
 
 // Output reads captured output incrementally; see proc.OutputChunk for
-// cursor semantics.
+// cursor semantics. For a subagent job, stdout is its final reply (available
+// once it succeeds) and stderr is empty — failure detail lives on the job's
+// Err field.
 func (m *Manager) Output(id string, stream proc.Stream, cursor uint64, max int) (proc.OutputChunk, error) {
 	m.mu.Lock()
 	rec, ok := m.byID[id]
@@ -291,7 +403,26 @@ func (m *Manager) Output(id string, stream proc.Stream, cursor uint64, max int) 
 	if !ok {
 		return proc.OutputChunk{}, ErrNotFound
 	}
-	return rec.proc.Output(stream, cursor, max), nil
+	if rec.proc != nil {
+		return rec.proc.Output(stream, cursor, max), nil
+	}
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	var data []byte
+	if stream == proc.Stdout {
+		data = rec.reply
+	}
+	if cursor > uint64(len(data)) {
+		cursor = uint64(len(data))
+	}
+	out := data[cursor:]
+	if max > 0 && len(out) > max {
+		out = out[:max]
+	}
+	return proc.OutputChunk{
+		Data: append([]byte(nil), out...),
+		Next: cursor + uint64(len(out)),
+	}, nil
 }
 
 // Stop requests termination of one job on the user's behalf. Stopping an
@@ -312,7 +443,7 @@ func (m *Manager) stop(id string, reason StopReason) error {
 		rec.requested = reason
 	}
 	rec.mu.Unlock()
-	rec.proc.Stop()
+	rec.signalStop()
 	return nil
 }
 
@@ -372,7 +503,7 @@ func (m *Manager) Close(ctx context.Context) error {
 				rec.requested = StopShutdown
 			}
 			rec.mu.Unlock()
-			rec.proc.Stop()
+			rec.signalStop()
 		}
 	}
 

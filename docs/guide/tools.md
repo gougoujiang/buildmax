@@ -22,7 +22,7 @@ so they are worth knowing exactly.
 | `TodoWrite` | Track multi-step progress | `todos[]` of `{id, content, status}` |
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | skill name |
-| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type` |
+| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` (TUI and Desktop) |
 | `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
 | `JobList` | List background jobs: ID, state, age, command | — |
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
@@ -40,12 +40,16 @@ than offering a tool that could only fail, the agent is not given one — it
 keeps writing files where it already does.
 
 The `Job` tools follow the same rule. Background jobs need a live interactive
-process to own them, so `Bash`'s `run_in_background` and the three `Job` tools
-exist only in the TUI and Desktop — not in print mode (`buildmax -p`), eval, or
-worker runs, and never inside a subagent. Backgrounding changes when a `Bash`
-call returns, not what it is allowed to do: the permission check runs before
-the job detaches. A background job shares the workspace with the conversation,
-and quitting the application stops every job it started.
+process to own them, so `run_in_background` on `Bash` and `Task` and the three
+`Job` tools exist only in the TUI and Desktop — not in print mode
+(`buildmax -p`), eval, or worker runs, and never inside a subagent.
+Backgrounding changes when a call returns, not what it is allowed to do: the
+permission check runs before the job detaches, and a background subagent that
+would need an approval is denied, exactly as a foreground subagent is. A
+background job shares the workspace with the conversation — avoid delegating
+edits that would race yours — and quitting the application stops every job it
+started. A background subagent's final reply appears in `JobOutput` when it
+completes.
 
 When the agent asks for several tools at once, the read-only ones run at the
 same time: `Read`, `Glob`, `Grep`, `Skill`, and `WebFetch`. Anything that
