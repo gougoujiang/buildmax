@@ -93,7 +93,8 @@ After the workflow completes:
    failure there leaves the binaries released and the Portal image missing —
    which is the intended trade, but it has to be checked rather than assumed.
    Run it with `BUILDMAX_API_BASE` set and confirm `/config.js` carries the
-   value.
+   value, and that `/third-party-notices.txt` serves the npm license
+   attributions.
 
 The Wails desktop application is not part of the release workflow because its
 native bundles are not yet signed or notarized.
