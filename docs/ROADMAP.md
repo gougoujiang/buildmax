@@ -27,7 +27,7 @@ The near-term goal is:
 
 ## Near-Term Priorities
 
-P0, P1, and P2 are **complete**. Active work starts at P0.5 and P3. The
+P0, P1, and P2 are **complete**. Active work starts at P0.5, P0.6, and P3. The
 completed sections are kept because their focus and acceptance criteria are the
 standard the surfaces are held to, not because the work is outstanding.
 
@@ -112,6 +112,48 @@ Enabling the OS sandbox on workers is not a Beta gate. It continues after Beta
 as defense in depth; see [Beta Gate](#beta-gate) for the boundary Beta does
 require and for what deferring the sandbox costs. The visibility half of this
 priority is still a gate: a run must report the boundary it actually ran under.
+
+### P0.6. Evaluation And Qualification System
+
+BuildMax needs evidence for the capability, reliability, trust, and product
+outcome claims made across the shared runtime and its surfaces. This replaces
+the early coding benchmark rather than extending its formats.
+
+Focus:
+
+- a BuildMax-owned, versioned contract for tasks, subjects, trial bundles,
+  grader results, experiments, and qualification reports
+- black-box evaluation of built binaries and deployment artifacts across local,
+  worker, conversation, and deployment execution
+- product-owned capability, reliability, trust/control, and product-outcome
+  suites, reported separately rather than collapsed into a global score
+- repeated and paired trials, explicit uncertainty, and separate Agent,
+  grader, and infrastructure failure classes
+- private-by-default trial data, an access-controlled or rotating holdout, and
+  explicit bounded export
+- maintainer regression workflows and operator model/config/deployment
+  qualification
+- replaceable framework adapters: Inspect or a thin controller for experiments,
+  Harbor for container/public-benchmark execution, Terminal-Bench as the first
+  external capability coordinate, and optional viewers
+
+Acceptance:
+
+- one representative black-box slice runs local, worker, conversation, and
+  trust-boundary scenarios against built artifacts
+- a failed trial yields a subject manifest, trace, final-state evidence,
+  classification, and bounded reproduction path
+- maintainers can compare a baseline and candidate with repetitions and
+  uncertainty; operators can qualify a model, configuration, or deployment in
+  their own environment
+- no private prompt, trace, workspace snapshot, or grader body must leave the
+  owning environment
+- the legacy `eval/` catalog and `internal/agenteval` are retired rather than
+  preserved behind compatibility code
+
+The black-box vertical slice is enabling work before substantial new Agent
+capability. Framework selection is deliberately downstream of that slice; see
+[design/evaluation-system.md](design/evaluation-system.md).
 
 ### P3. Enterprise Deployment Loop
 
@@ -310,10 +352,16 @@ at the end:
    `FailIfUnavailable: true`, so passing that surface before the image and pod
    can support a backend turns every worker run into a refusal. This step also
    restores `curl`, `npm`, and the rest of the risky-prefix list to workers.
-6. Desktop local workbench polish: sessions, project selection, local
+6. Establish the evaluation and qualification vertical slice: define the
+   canonical contracts, run representative local, worker, conversation, and
+   trust scenarios against built artifacts, and compare an Inspect-backed
+   controller with a thin BuildMax controller. Add Harbor only as an execution
+   and public-benchmark adapter. This step precedes substantial new Agent
+   capability, but can proceed alongside the remaining P0.5 and P3 hardening.
+7. Desktop local workbench polish: sessions, project selection, local
    results, and the local background job manager shared with the TUI
    ([design/local-background-jobs.md](design/local-background-jobs.md)).
-7. Versioned workspace design, ready for implementation planning.
+8. Versioned workspace design, ready for implementation planning.
 
 ## Avoid For Now
 
@@ -330,6 +378,7 @@ at the end:
 - [design/product-vision.md](design/product-vision.md) — long-range AI-native workspace vision
 - [design/surface-positioning.md](design/surface-positioning.md) — product surface positioning
 - [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
+- [design/evaluation-system.md](design/evaluation-system.md) — P0.6 evaluation and qualification design
 - [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
 - [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
