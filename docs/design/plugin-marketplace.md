@@ -921,10 +921,12 @@ the side of the boundary it can honour.
 
 ### Phase D — Team And Worker Distribution, Deferred
 
-Write a follow-on design before implementing centrally activated plugins for
-Portal or workers. It must decide team ownership, who may enable active hooks or
-stdio MCP, server-held secret scope, package materialization, version pinning,
-and sandbox/egress reporting.
+The follow-on design this asked for is
+[plugin-team-distribution.md](./plugin-team-distribution.md). It decides team
+ownership, who may enable active hooks or stdio MCP, package materialization,
+version pinning, and sandbox/egress reporting; it puts secret scope in a
+further record of its own, and it makes the executable half wait on the worker
+sandbox surface actually being wired.
 
 ## 13. Alternatives Rejected
 
