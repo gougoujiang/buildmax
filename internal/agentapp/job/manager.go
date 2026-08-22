@@ -128,7 +128,12 @@ func (r *record) snapshot() Job {
 type subscriber struct {
 	ch        chan Event
 	sessionID string
+	once      sync.Once
 }
+
+// shut closes the channel exactly once, whether the subscriber cancelled or
+// the manager closed first.
+func (s *subscriber) shut() { s.once.Do(func() { close(s.ch) }) }
 
 // Manager owns every job of one AgentApp. All methods are safe for
 // concurrent use.
@@ -322,14 +327,11 @@ func (m *Manager) Subscribe(sessionID string) (<-chan Event, func()) {
 	m.nextID++
 	sub := &subscriber{ch: make(chan Event, eventBuffer), sessionID: sessionID}
 	m.subs[id] = sub
-	var once sync.Once
 	cancel := func() {
-		once.Do(func() {
-			m.mu.Lock()
-			delete(m.subs, id)
-			m.mu.Unlock()
-			close(sub.ch)
-		})
+		m.mu.Lock()
+		delete(m.subs, id)
+		m.mu.Unlock()
+		sub.shut()
 	}
 	return sub.ch, cancel
 }
@@ -379,9 +381,9 @@ func (m *Manager) Close(ctx context.Context) error {
 		m.wg.Wait()
 		close(done)
 	}()
+	var err error
 	select {
 	case <-done:
-		return nil
 	case <-ctx.Done():
 		var stuck []string
 		for _, rec := range recs {
@@ -389,6 +391,20 @@ func (m *Manager) Close(ctx context.Context) error {
 				stuck = append(stuck, rec.snapshot().ID)
 			}
 		}
-		return fmt.Errorf("job manager shutdown timed out; unconfirmed exits: %v", stuck)
+		err = fmt.Errorf("job manager shutdown timed out; unconfirmed exits: %v", stuck)
 	}
+	// Release subscribers so event pumps ranging over the channel exit.
+	// Terminal events published during the sweep are buffered and stay
+	// readable after close.
+	m.mu.Lock()
+	subs := make([]*subscriber, 0, len(m.subs))
+	for _, s := range m.subs {
+		subs = append(subs, s)
+	}
+	m.subs = make(map[int]*subscriber)
+	m.mu.Unlock()
+	for _, s := range subs {
+		s.shut()
+	}
+	return err
 }

@@ -217,6 +217,10 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 	a.agentApps[projectID] = ag
 	a.approvalHandlers[projectID] = handler
 	a.mu.Unlock()
+	if jobs := ag.Jobs(); jobs != nil {
+		// The pump exits when Close releases the subscription in Shutdown.
+		a.pumpJobEvents(projectID, jobs)
+	}
 	return ag, nil
 }
 

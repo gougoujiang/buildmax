@@ -217,6 +217,28 @@ func TestSubscribeFiltersBySession(t *testing.T) {
 	}
 }
 
+// Close releases subscribers so a consumer ranging over the channel exits,
+// after buffered terminal events are still readable.
+func TestCloseReleasesSubscribers(t *testing.T) {
+	m := NewManager()
+	events, cancel := m.Subscribe("")
+	defer cancel() // idempotent with the manager's own shut
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelCtx()
+	if err := m.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case _, ok := <-events:
+		if ok {
+			t.Fatal("unexpected buffered event on an idle manager")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("subscriber channel not closed by manager Close")
+	}
+}
+
 func TestOutputUnknownJob(t *testing.T) {
 	m := NewManager()
 	defer closeManager(t, m)

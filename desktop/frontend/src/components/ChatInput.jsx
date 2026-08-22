@@ -3,7 +3,9 @@ import { ChatComposer } from '@buildmax/gui';
 import { formatRunStatus } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { DiffDrawer } from './DiffDrawer';
+import { JobsDrawer } from './JobsDrawer';
 import { AgentsModal, MCPModal, PluginsModal } from './Modals';
+import { EventsOn } from '../lib/wailsRuntime';
 
 export function SkillsPopup({ skills, filter, selected, onSelect, onHighlight }) {
   const filtered = skills.filter(
@@ -61,6 +63,25 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   const [showAgents, setShowAgents] = useState(false);
   const [showPlugins, setShowPlugins] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
+  const [showJobs, setShowJobs] = useState(false);
+
+  // Count of running background jobs for the status-bar badge. The Go side
+  // owns job state; this refreshes from it on every lifecycle event.
+  const [runningJobs, setRunningJobs] = useState(0);
+  useEffect(() => {
+    if (!currentProject || !app?.ListJobs) return undefined;
+    let cancelled = false;
+    const refresh = () => {
+      app.ListJobs(currentProject.id)
+        .then((list) => { if (!cancelled) setRunningJobs((list ?? []).filter((j) => j.running).length); })
+        .catch(() => {});
+    };
+    refresh();
+    const unsub = EventsOn('desktop/job-update', (payload) => {
+      if (payload?.project_id === currentProject.id) refresh();
+    });
+    return () => { cancelled = true; unsub(); };
+  }, [currentProject, app]);
 
   // Load project-level data when project changes.
   useEffect(() => {
@@ -281,6 +302,16 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         >
           Plugins
         </button>
+
+        {/* Jobs button */}
+        <button
+          type="button"
+          className="chat-status-bar__btn"
+          onClick={() => setShowJobs(true)}
+          title="Background jobs"
+        >
+          {runningJobs > 0 ? `Jobs (${runningJobs})` : 'Jobs'}
+        </button>
       </div>
 
       {showMCP && (
@@ -294,6 +325,9 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       )}
       {showDiff && (
         <DiffDrawer projectID={currentProject.id} app={app} onClose={() => setShowDiff(false)} />
+      )}
+      {showJobs && (
+        <JobsDrawer projectID={currentProject.id} app={app} onClose={() => setShowJobs(false)} />
       )}
     </div>
   );
