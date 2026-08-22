@@ -536,3 +536,40 @@ func TestPackageAfterFlagLeavesFlagValuesAlone(t *testing.T) {
 		})
 	}
 }
+
+func TestUnknownCommandSuggestsTheClosestName(t *testing.T) {
+	tests := []struct {
+		typo string
+		want string
+	}{
+		{typo: "buidl", want: "build"},
+		{typo: "tset", want: "test"},
+		{typo: "cehck", want: "check"},
+		{typo: "doctro", want: "doctor"},
+		{typo: "zzzzzzzz"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.typo, func(t *testing.T) {
+			got, found := nearestCommand(tt.typo)
+			if found != (tt.want != "") {
+				t.Fatalf("nearestCommand(%q) found = %v; want %v", tt.typo, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Errorf("nearestCommand(%q) = %q; want %q", tt.typo, got, tt.want)
+			}
+		})
+	}
+	// A suggestion is only useful if it names something dispatch accepts. The
+	// candidates come from the help tables, so the two have to agree; the switch
+	// is read rather than exercised because running every command would build,
+	// clean, and lint the tree to assert a spelling.
+	body, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	for _, name := range helpCommandNames() {
+		if !strings.Contains(string(body), fmt.Sprintf("case %q", name)) {
+			t.Errorf("help lists %q, which dispatch does not know", name)
+		}
+	}
+}
