@@ -8,6 +8,30 @@
 
 ## Where Help Matters
 
+### Testing
+
+This is the highest-leverage place to start, in any area below. A large and
+growing share of this codebase is written with AI assistance, which raises the
+pace of change faster than it raises test coverage — without deliberate
+effort, reviewers become the bottleneck that tests should be. A pull request
+that adds regression coverage for existing, currently-untested behavior does
+not need a new feature attached to it, and does not need an issue filed first.
+
+Useful experience:
+
+- reading Go code you did not write, well enough to characterize its current
+  behavior before you test it
+- table-driven Go tests, and Playwright or Wails-bridge tests where a change
+  touches Portal or Desktop
+- finding untested branches, error paths, and edge cases, rather than adding
+  more coverage where it already exists
+
+Start with [testing.md](testing.md) to see which suite exercises which
+surface, then look at a package's `_test.go` files next to its implementation.
+A package with thin or missing tests, or a gap called out in an architecture
+document, is a good place to add coverage without waiting for an issue to be
+filed. `./make test` and `./make e2e <suite>` need no model API key.
+
 ### Agent Runtime
 
 The shared runtime is the capability every surface depends on. Work here should

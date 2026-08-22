@@ -120,7 +120,16 @@ boundaries; do not expose a deployment before reading the
 ## Help Shape BuildMax
 
 BuildMax is early enough that important runtime and product decisions are still
-being made in public. Contributions are welcome in four main areas:
+being made in public.
+
+**Tests are the sharpest current need.** A large and growing share of this
+code is written with AI assistance, which raises how fast the codebase changes
+without raising test coverage to match — reviewers become the bottleneck that
+tests should be. A pull request that adds regression coverage for existing,
+currently-untested behavior is as valuable as new capability, and does not
+need a design discussion first: see [Testing](docs/contribute/areas.md#testing).
+
+Contributions are also welcome in four main areas:
 
 - **Agent Runtime** — tool calling, context durability, models, MCP, skills,
   subagents, and traces
