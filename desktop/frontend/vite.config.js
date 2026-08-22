@@ -9,6 +9,12 @@ export default defineConfig({
   plugins: [react()],
   root: '.',
   resolve: {
+    // @buildmax/gui is a symlinked workspace package that externalises react,
+    // so its bare `import "react"` resolves from its own real path — and gui
+    // has react installed as a peer. Without this, the bundle ships two React
+    // instances and every hook throws "Cannot read properties of null", which
+    // the app shows as a blank window. Portal dedupes for the same reason.
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
     alias: {
       // Resolve CSS subpath so Vite does not pass the bare specifier to the file system (avoids ENOENT)
       '@buildmax/gui/theme.css': path.resolve(__dirname, 'node_modules/@buildmax/gui/dist/theme.css'),
