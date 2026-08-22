@@ -619,7 +619,11 @@ The core change, confined almost entirely to `internal/infra/db` because PR 2
 already removed numeric IDs from the models and PR 3 already settled the
 format. Mocks are unaffected: they implement interfaces that speak public IDs.
 
-Four sub-PRs, in dependency order, each landing a complete table group:
+Four sub-PRs, in dependency order. A reference converts when its **target**
+table does, not when the table holding it does — so `task.issue_id` and
+`task.agent_id` stay handles through 4b and become numeric in 4c, and 4c edits
+`task` even though `task` is a 4b table. Grouping by target is what keeps each
+sub-PR's join set stable while it lands.
 
 | | Tables |
 |---|---|

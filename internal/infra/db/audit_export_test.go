@@ -123,6 +123,14 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	now := time.Now().Unix()
+	// Retention is deployment-wide, so the counts below are over the whole
+	// table and cannot tolerate a row this test did not write -- a sign-in from
+	// a stack sharing this database, or an earlier run that was interrupted
+	// before its cleanup. Everything the prune would reach is removed first,
+	// which is what makes an absolute count mean anything here.
+	if err := s.db.WithContext(ctx).Where("created_at < ?", now-100).Delete(&auditEventRow{}).Error; err != nil {
+		t.Fatalf("clear events older than the cutoff: %v", err)
+	}
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{now - 400, now - 300, now - 200, now - 50})
 
 	oldest, err := s.OldestAuditEventAt(ctx)

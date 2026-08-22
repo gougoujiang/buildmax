@@ -13,10 +13,15 @@ import (
 )
 
 type taskRow struct {
-	ID                    uint    `gorm:"primaryKey;autoIncrement"`
-	TaskID                string  `gorm:"column:task_id;type:varchar(64);uniqueIndex;not null"`
-	ConversationID        string  `gorm:"type:varchar(64);not null;index"`
-	TeamID                string  `gorm:"type:varchar(64);index"`
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_task_public_id;not null"`
+	// The team index carries created_at: a team's task list is always ordered
+	// by it, and the single-column index the string model left could not serve
+	// the sort.
+	ConversationID uint64 `gorm:"column:conversation_id;not null;index"`
+	TeamID         uint64 `gorm:"column:team_id;index:idx_task_team_created,priority:1"`
+	// IssueID and AgentID still name their rows by handle. Their tables have
+	// not been converted yet, and a reference changes when its target does.
 	IssueID               *string `gorm:"column:issue_id;type:varchar(64);index"`
 	Status                string  `gorm:"type:varchar(32);not null"`
 	Input                 string  `gorm:"type:text;not null"`
@@ -24,45 +29,71 @@ type taskRow struct {
 	TitlePromptTokens     int     `gorm:""`
 	TitleCompletionTokens int     `gorm:""`
 	Output                *string `gorm:"type:text"`
-	CreatedBy             string  `gorm:"type:varchar(64);not null"`
-	CreatedAt             int64   `gorm:"autoCreateTime"`
+	CreatedBy             uint64  `gorm:"column:created_by;not null"`
+	CreatedAt             int64   `gorm:"autoCreateTime;index:idx_task_team_created,priority:2"`
 	StartedAt             *int64  `gorm:""`
 	EndedAt               *int64  `gorm:""`
 	ErrorMessage          *string `gorm:"type:text"`
 	SessionID             *string `gorm:"type:varchar(36)"`
-	LastRunID             *string `gorm:"type:varchar(64);index"`
-	AgentID               *string `gorm:"type:varchar(64);index"`
+	LastRunID             *uint64 `gorm:"column:last_run_id;index"`
+	AgentID               *string `gorm:"column:agent_id;type:varchar(64);index"`
 }
 
 func (taskRow) TableName() string { return "task" }
 
-func toTask(row *taskRow) *model.Task {
+// taskReadRow is the row plus the handles its converted references resolve to.
+type taskReadRow struct {
+	Row                  taskRow `gorm:"embedded"`
+	ConversationPublicID []byte  `gorm:"column:conversation_public_id"`
+	TeamPublicID         []byte  `gorm:"column:team_public_id"`
+	CreatedByPublicID    []byte  `gorm:"column:created_by_public_id"`
+	LastRunPublicID      []byte  `gorm:"column:last_run_public_id"`
+}
+
+// taskSelect is the one place the join set for a task read is written down, so
+// the detail read, the listings, and the run-output read cannot drift apart.
+// Every join is a primary-key lookup, which is what keeps a listing one query.
+func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&taskRow{}).
+		Select("task.*, c.public_id AS conversation_public_id, t.public_id AS team_public_id, " +
+			"cb.public_id AS created_by_public_id, lr.public_id AS last_run_public_id").
+		Joins("INNER JOIN conversation c ON c.id = task.conversation_id").
+		Joins("LEFT JOIN team t ON t.id = task.team_id").
+		Joins("INNER JOIN `user` cb ON cb.id = task.created_by").
+		Joins("LEFT JOIN task_run lr ON lr.id = task.last_run_id")
+}
+
+func toTask(row *taskReadRow) *model.Task {
 	if row == nil {
 		return nil
 	}
-	return &model.Task{
-		ID:                    row.TaskID,
-		ConversationID:        row.ConversationID,
-		TeamID:                row.TeamID,
-		IssueID:               row.IssueID,
-		Status:                row.Status,
-		Input:                 row.Input,
-		Title:                 row.Title,
-		TitlePromptTokens:     row.TitlePromptTokens,
-		TitleCompletionTokens: row.TitleCompletionTokens,
-		Output:                row.Output,
-		CreatedBy:             row.CreatedBy,
-		CreatedAt:             row.CreatedAt,
-		StartedAt:             row.StartedAt,
-		EndedAt:               row.EndedAt,
-		ErrorMessage:          row.ErrorMessage,
-		SessionID:             row.SessionID,
-		LastRunID:             row.LastRunID,
-		AgentID:               row.AgentID,
+	out := &model.Task{
+		ID:                    util.FormatPublicID(row.Row.PublicID),
+		ConversationID:        util.FormatPublicID(row.ConversationPublicID),
+		TeamID:                util.FormatPublicID(row.TeamPublicID),
+		IssueID:               row.Row.IssueID,
+		Status:                row.Row.Status,
+		Input:                 row.Row.Input,
+		Title:                 row.Row.Title,
+		TitlePromptTokens:     row.Row.TitlePromptTokens,
+		TitleCompletionTokens: row.Row.TitleCompletionTokens,
+		Output:                row.Row.Output,
+		CreatedBy:             util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:             row.Row.CreatedAt,
+		StartedAt:             row.Row.StartedAt,
+		EndedAt:               row.Row.EndedAt,
+		ErrorMessage:          row.Row.ErrorMessage,
+		SessionID:             row.Row.SessionID,
+		AgentID:               row.Row.AgentID,
 	}
+	if row.Row.LastRunID != nil {
+		lastRun := util.FormatPublicID(row.LastRunPublicID)
+		out.LastRunID = &lastRun
+	}
+	return out
 }
 
-func toTasks(rows []taskRow) []model.Task {
+func toTasks(rows []taskReadRow) []model.Task {
 	out := make([]model.Task, len(rows))
 	for i := range rows {
 		out[i] = *toTask(&rows[i])
@@ -70,41 +101,19 @@ func toTasks(rows []taskRow) []model.Task {
 	return out
 }
 
-func toTaskRow(m *model.Task) *taskRow {
-	if m == nil {
-		return nil
-	}
-	return &taskRow{
-		TaskID:                m.ID,
-		ConversationID:        m.ConversationID,
-		TeamID:                m.TeamID,
-		IssueID:               m.IssueID,
-		Status:                m.Status,
-		Input:                 m.Input,
-		Title:                 m.Title,
-		TitlePromptTokens:     m.TitlePromptTokens,
-		TitleCompletionTokens: m.TitleCompletionTokens,
-		Output:                m.Output,
-		CreatedBy:             m.CreatedBy,
-		CreatedAt:             m.CreatedAt,
-		StartedAt:             m.StartedAt,
-		EndedAt:               m.EndedAt,
-		ErrorMessage:          m.ErrorMessage,
-		SessionID:             m.SessionID,
-		LastRunID:             m.LastRunID,
-		AgentID:               m.AgentID,
-	}
-}
-
 // ListTasksByConversation returns tasks in the conversation, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
 func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]model.Task, error) {
-	var list []taskRow
-	q := s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
+	raw, ok := util.ParsePublicID(conversationID)
+	if !ok {
+		return nil, nil
+	}
+	var list []taskReadRow
+	q := s.taskSelect(ctx).Where("c.public_id = ?", raw)
 	if order == "asc" {
-		q = q.Order("created_at ASC")
+		q = q.Order("task.created_at ASC")
 	} else {
-		q = q.Order("created_at DESC")
+		q = q.Order("task.created_at DESC")
 	}
 	err := q.Find(&list).Error
 	return toTasks(list), err
@@ -115,43 +124,53 @@ func (s *Store) ListTasksByConversation(ctx context.Context, conversationID stri
 // total is the total number of matching tasks (ignoring limit/offset).
 func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]model.Task, int, error) {
 	limit, offset = capPage(limit, offset)
-	q := s.db.WithContext(ctx).Model(&taskRow{}).Where("conversation_id = ?", conversationID)
-	if executedOnly {
-		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
+	convKey, err := lookupKey(ctx, s.db, "conversation", conversationID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
 	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	if err != nil {
 		return nil, 0, err
 	}
-	var list []taskRow
-	q = s.db.WithContext(ctx).Where("conversation_id = ?", conversationID)
+	count := s.db.WithContext(ctx).Model(&taskRow{}).Where("conversation_id = ?", convKey)
 	if executedOnly {
-		q = q.Where("last_run_id IS NOT NULL AND last_run_id != ''")
+		count = count.Where("last_run_id IS NOT NULL")
 	}
-	err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
+	var total int64
+	if err := count.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	q := s.taskSelect(ctx).Where("task.conversation_id = ?", convKey)
+	if executedOnly {
+		q = q.Where("task.last_run_id IS NOT NULL")
+	}
+	var list []taskReadRow
+	err = q.Order("task.created_at DESC").Limit(limit).Offset(offset).Find(&list).Error
 	return toTasks(list), int(total), err
 }
 
 func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
 	limit, offset = capPage(limit, offset)
-	q := s.db.WithContext(ctx).Model(&taskRow{}).Where("issue_id = ?", issueID)
 	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&taskRow{}).Where("issue_id = ?", issueID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []taskRow
-	q = s.db.WithContext(ctx).Where("issue_id = ?", issueID).Order("created_at DESC")
+	q := s.taskSelect(ctx).Where("task.issue_id = ?", issueID).Order("task.created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
+	var list []taskReadRow
 	err := q.Find(&list).Error
 	return toTasks(list), int(total), err
 }
 
 // GetTask returns the task by task_id, or (nil, nil) if not found.
 func (s *Store) GetTask(ctx context.Context, taskID string) (*model.Task, error) {
-	var task taskRow
-	err := s.db.WithContext(ctx).Where("task_id = ?", taskID).First(&task).Error
+	raw, ok := util.ParsePublicID(taskID)
+	if !ok {
+		return nil, nil
+	}
+	var task taskReadRow
+	err := s.taskSelect(ctx).Where("task.public_id = ?", raw).Take(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -163,8 +182,8 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (*model.Task, error)
 
 // GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
 func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*model.Task, error) {
-	var task taskRow
-	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).First(&task).Error
+	var task taskReadRow
+	err := s.taskSelect(ctx).Where("task.session_id = ?", sessionID).Take(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -180,34 +199,19 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		return nil, errors.New("model.CreateTaskInput is required")
 	}
 	now := time.Now().Unix()
-	taskID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
-	taskRunID, err := util.NewPublicID()
-	if err != nil {
-		return nil, err
-	}
 	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
-	task := &model.Task{
-		ID:                    taskID,
-		ConversationID:        in.ConversationID,
-		TeamID:                in.TeamID,
+	taskDB := &taskRow{
 		Status:                "PENDING",
 		Input:                 in.Input,
 		Title:                 in.Title,
 		TitlePromptTokens:     in.TitlePromptTokens,
 		TitleCompletionTokens: in.TitleCompletionTokens,
-		CreatedBy:             in.CreatedBy,
 		CreatedAt:             now,
-		LastRunID:             &taskRunID,
 		SessionID:             &sessionID,
 		AgentID:               in.AgentID,
 		IssueID:               in.IssueID,
 	}
-	run := &model.TaskRun{
-		ID:            taskRunID,
-		TaskID:        taskID,
+	runDB := &taskRunRow{
 		Input:         in.Input,
 		CreatedBy:     defaultString(in.InitialRunCreatedBy, in.CreatedBy),
 		CreatedByType: defaultString(in.InitialRunCreatedByType, model.RunCreatedByTypeUser),
@@ -215,23 +219,63 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		Status:        "PENDING",
 		CreatedAt:     now,
 	}
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	teamID := in.TeamID
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The conversation is read once and its team taken from the row already
+		// in hand, rather than resolved a second time from the caller's handle.
 		var conv conversationRow
-		if err := tx.Where("conversation_id = ?", in.ConversationID).First(&conv).Error; err != nil {
+		convRaw, ok := util.ParsePublicID(in.ConversationID)
+		if !ok {
+			return model.ErrNotFound
+		}
+		if err := tx.Where("public_id = ?", convRaw).First(&conv).Error; err != nil {
 			return err
 		}
-		if task.TeamID == "" {
-			task.TeamID = conv.TeamID
+		taskDB.ConversationID = conv.ID
+		taskDB.TeamID = conv.TeamID
+		if teamID != "" {
+			teamKey, err := lookupKey(ctx, tx, "team", teamID)
+			if err != nil {
+				return err
+			}
+			taskDB.TeamID = teamKey
 		}
-		if err := tx.Create(toTaskRow(task)).Error; err != nil {
+		creator, err := lookupKey(ctx, tx, "user", in.CreatedBy)
+		if err != nil {
 			return err
 		}
-		return tx.Create(toTaskRunRow(run)).Error
+		taskDB.CreatedBy = creator
+		if err := createWithPublicID(ctx, tx, "uq_task_public_id",
+			func(b []byte) { taskDB.PublicID = b }, taskDB); err != nil {
+			return err
+		}
+		runDB.TaskID = taskDB.ID
+		if err := createWithPublicID(ctx, tx, "uq_task_run_public_id",
+			func(b []byte) { runDB.PublicID = b }, runDB); err != nil {
+			return err
+		}
+		// The task names its latest run, so the run has to exist first.
+		return tx.Model(&taskRow{}).Where("id = ?", taskDB.ID).
+			Update("last_run_id", runDB.ID).Error
 	})
 	if err != nil {
 		return nil, err
 	}
-	return task, nil
+	taskDB.LastRunID = &runDB.ID
+	if teamID == "" {
+		resolved, err := publicIDForKey(ctx, s.db, "team", taskDB.TeamID)
+		if err != nil {
+			return nil, err
+		}
+		teamID = resolved
+	}
+	return toTask(&taskReadRow{
+		Row:                  *taskDB,
+		ConversationPublicID: mustParsePublicID(in.ConversationID),
+		TeamPublicID:         mustParsePublicID(teamID),
+		CreatedByPublicID:    mustParsePublicID(in.CreatedBy),
+		LastRunPublicID:      runDB.PublicID,
+	}), nil
 }
 
 func defaultString(v, fallback string) string {
@@ -264,7 +308,11 @@ func buildTaskUpdates(status string, startedAt, endedAt *int64, output, errorMes
 // UpdateTask updates a task's status and optional fields.
 // Only non-nil pointer fields are written; status is always set.
 func (s *Store) UpdateTask(ctx context.Context, in model.UpdateTaskInput) error {
-	return s.db.WithContext(ctx).Model(&taskRow{}).Where("task_id = ?", in.TaskID).Updates(
+	raw, ok := util.ParsePublicID(in.TaskID)
+	if !ok {
+		return model.ErrNotFound
+	}
+	return s.db.WithContext(ctx).Model(&taskRow{}).Where("public_id = ?", raw).Updates(
 		buildTaskUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	).Error
 }
@@ -272,7 +320,11 @@ func (s *Store) UpdateTask(ctx context.Context, in model.UpdateTaskInput) error 
 // ClaimTask updates a task's status and optional fields only when current status equals expectedStatus.
 // Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
 func (s *Store) ClaimTask(ctx context.Context, in model.ClaimTaskInput) (bool, error) {
-	result := s.db.WithContext(ctx).Model(&taskRow{}).Where("task_id = ? AND status = ?", in.TaskID, in.ExpectedStatus).Updates(
+	raw, ok := util.ParsePublicID(in.TaskID)
+	if !ok {
+		return false, nil
+	}
+	result := s.db.WithContext(ctx).Model(&taskRow{}).Where("public_id = ? AND status = ?", raw, in.ExpectedStatus).Updates(
 		buildTaskUpdates(in.NewStatus, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),
 	)
 	if result.Error != nil {

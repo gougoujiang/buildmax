@@ -6,13 +6,12 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-const retryTestUser = "retry-store-user"
-
 // A retry is only distinguishable from any other run by what it stores, so the
 // lineage has to survive the round trip: without it, a repeated run is
 // indistinguishable from a follow-up that happened to be asked the same thing.
 func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	s, ctx := newTestStore(t)
+	retryTestUser := newTestUser(t, s, "retry-store")
 
 	conv, err := s.CreateConversation(ctx, retryTestUser, "portal", retryTestUser)
 	if err != nil {

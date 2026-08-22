@@ -230,14 +230,15 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, "run-output-user", "portal", "run-output-user")
+	runOutputUser := newTestUser(t, s, "run-output")
+	conv, err := s.CreateConversation(ctx, runOutputUser, "portal", runOutputUser)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", mustParsePublicID(conv.ID))
 	}()
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: "run-output-user"})
+	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -258,8 +259,12 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OnRunComplete: %v", err)
 	}
+	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
+	if err != nil {
+		t.Fatalf("resolve run: %v", err)
+	}
 	var files []taskRunArtifactRow
-	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Find(&files).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("task_run_id = ?", runKey).Find(&files).Error; err != nil {
 		t.Fatalf("find output files: %v", err)
 	}
 	if len(files) != 2 {
@@ -274,7 +279,7 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 	if len(artList) != 1 {
 		t.Fatalf("ListRunOutputsByConversation: got %d items, want 1", len(artList))
 	}
-	if artList[0].ArtifactID != taskRunID || artList[0].TaskID != task.ID || artList[0].TaskRunID != taskRunID || artList[0].ConversationID != conv.ID || artList[0].UserID != "run-output-user" {
+	if artList[0].ArtifactID != taskRunID || artList[0].TaskID != task.ID || artList[0].TaskRunID != taskRunID || artList[0].ConversationID != conv.ID || artList[0].UserID != runOutputUser {
 		t.Errorf("ListRunOutputsByConversation: got artifact_id=%q task_id=%q task_run_id=%q conversation_id=%q user_id=%q", artList[0].ArtifactID, artList[0].TaskID, artList[0].TaskRunID, artList[0].ConversationID, artList[0].UserID)
 	}
 	if artList[0].TaskInputSnippet != "input" {
@@ -309,19 +314,20 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, "provenance-user", "portal", "provenance-user")
+	provenanceUser := newTestUser(t, s, "provenance")
+	conv, err := s.CreateConversation(ctx, provenanceUser, "portal", provenanceUser)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", mustParsePublicID(conv.ID))
 	}()
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
 		ConversationID:          conv.ID,
 		Input:                   "initial input",
 		Title:                   "initial title",
-		CreatedBy:               "provenance-user",
-		InitialRunCreatedBy:     "provenance-user",
+		CreatedBy:               provenanceUser,
+		InitialRunCreatedBy:     provenanceUser,
 		InitialRunCreatedByType: model.RunCreatedByTypeUser,
 		InitialRunTriggerSource: model.RunTriggerSourcePortalTaskCreate,
 	})
@@ -342,8 +348,8 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	if initialRun == nil {
 		t.Fatal("initial run not found")
 	}
-	if initialRun.CreatedBy != "provenance-user" {
-		t.Fatalf("initial run created_by = %q, want %q", initialRun.CreatedBy, "provenance-user")
+	if initialRun.CreatedBy != provenanceUser {
+		t.Fatalf("initial run created_by = %q, want %q", initialRun.CreatedBy, provenanceUser)
 	}
 	if initialRun.CreatedByType != model.RunCreatedByTypeUser {
 		t.Fatalf("initial run created_by_type = %q, want %q", initialRun.CreatedByType, model.RunCreatedByTypeUser)
@@ -414,7 +420,7 @@ func TestClaimTask(t *testing.T) {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", mustParsePublicID(conv.ID))
 		deleteTestUser(t, s, user.ID)
 	}()
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
@@ -558,7 +564,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 	defer func() {
 		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationMessageRow{})
-		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationRow{})
+		_ = s.db.WithContext(ctx).Where("public_id = ?", mustParsePublicID(conv.ID)).Delete(&conversationRow{})
 		deleteTestUser(t, s, user.ID)
 	}()
 	if conv.ID == "" || conv.UserID != user.ID || conv.TeamID == "" || conv.Channel != "portal" {
@@ -639,15 +645,16 @@ func TestListConversationsByUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	conv, err := s.CreateConversation(ctx, "conv-list-user", "portal", "conv-list-user")
+	convListUser := newTestUser(t, s, "conv-list")
+	conv, err := s.CreateConversation(ctx, convListUser, "portal", convListUser)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Where("conversation_id = ?", conv.ID).Delete(&conversationRow{})
+		_ = s.db.WithContext(ctx).Where("public_id = ?", mustParsePublicID(conv.ID)).Delete(&conversationRow{})
 	}()
 
-	convs, total, err := s.ListConversationsByUser(ctx, "conv-list-user", 10, 0)
+	convs, total, err := s.ListConversationsByUser(ctx, convListUser, 10, 0)
 	if err != nil {
 		t.Fatalf("ListConversationsByUser: %v", err)
 	}

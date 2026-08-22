@@ -6,13 +6,12 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-const cancelTestUser = "cancel-store-user"
-
 // TestTaskRunCancelQueries covers the three queries a cancel depends on. They
 // are guarded by status rather than by the caller, because the caller is an
 // HTTP handler racing a scheduler and a worker for the same row.
 func TestTaskRunCancelQueries(t *testing.T) {
 	s, ctx := newTestStore(t)
+	cancelTestUser := newTestUser(t, s, "cancel-store")
 
 	conv, err := s.CreateConversation(ctx, cancelTestUser, "portal", cancelTestUser)
 	if err != nil {
@@ -53,7 +52,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	}
 	// A second request must not overwrite the first: the stored name is whoever
 	// asked, and the stored time is what the backstop measures against.
-	again, err := s.RequestTaskRunCancel(ctx, runID, "someone-else", 1_800_009_999)
+	again, err := s.RequestTaskRunCancel(ctx, runID, newTestUser(t, s, "cancel-other"), 1_800_009_999)
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel again: %v", err)
 	}
