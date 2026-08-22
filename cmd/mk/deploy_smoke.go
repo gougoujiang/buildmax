@@ -47,7 +47,7 @@ type smokeTarget struct {
 
 func cmdCompose(args []string) error {
 	if len(args) == 0 || len(args) > 2 {
-		return errors.New("usage: ./make compose <up|smoke [managed]|status|logs|down>")
+		return usageErrorf("compose", "compose needs an action")
 	}
 	switch args[0] {
 	case "up":
@@ -79,7 +79,7 @@ func cmdCompose(args []string) error {
 	case "down":
 		return runCmd("docker", append(composeSmokeArgs(true), "down")...)
 	default:
-		return fmt.Errorf("unknown compose command %q (want up, smoke, status, logs, or down)", args[0])
+		return usageErrorf("compose", "unknown compose action: %s", args[0])
 	}
 }
 

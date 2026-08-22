@@ -40,7 +40,7 @@ func cmdE2E(args []string) error {
 		suite = args[0]
 	}
 	if len(args) > 1 {
-		return e2eUsage()
+		return usageErrorf("e2e", "e2e runs one suite at a time")
 	}
 	switch suite {
 	case "cli":
@@ -59,18 +59,8 @@ func cmdE2E(args []string) error {
 		fmt.Printf("[e2e] attaching to the %s deployment at %s (this command did not start it)\n", suite, target.portalURL)
 		return e2ePortal(target, suite)
 	default:
-		return e2eUsage()
+		return usageErrorf("e2e", "unknown e2e suite: %s", suite)
 	}
-}
-
-func e2eUsage() error {
-	return fmt.Errorf("usage: %s e2e [kind|compose|local|cli|desktop|all]\n"+
-		"  kind     Portal browser tests against a running kind deployment (the default)\n"+
-		"  compose  Portal browser tests against a running Compose stack\n"+
-		"  local    the same tests against a Compose stack this command starts and stops\n"+
-		"  cli      the CLI and TUI suite: the built binary, a temporary home, no deployment\n"+
-		"  desktop  the Desktop bridge suite: bound methods, events, and approvals, no window\n"+
-		"  all      every suite that needs no cluster: cli, desktop, then local", mk())
 }
 
 // e2eCLI runs the suite that needs no deployment at all. It is listed here so

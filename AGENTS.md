@@ -148,6 +148,7 @@ Use the cross-platform task runner from the repository root:
 ./make check ci        # everything a pull request runs, except the Windows job
 ./make e2e <suite>     # one end-to-end suite: cli, desktop, local, compose, kind, all
 ./make help            # common contributor commands; add `all` for everything
+./make help <command>  # one command's arguments, examples, and caveats
 ```
 
 End-to-end suites are a local feedback loop, not a pull-request gate. `cli` and

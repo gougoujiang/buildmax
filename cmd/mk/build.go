@@ -12,7 +12,7 @@ const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.14.0"
 
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
-		return fmt.Errorf("usage: %s build [cli]", mk())
+		return usageErrorf("build", "build takes at most one target")
 	}
 	target := "all"
 	if len(args) > 0 && args[0] != "" {
@@ -23,10 +23,7 @@ func cmdBuild(args []string) error {
 	case "cli":
 		return buildGo("cli", cliBinary, "./cmd/buildmax")
 	default:
-		fmt.Printf("Usage: %s build [cli]\n", mk())
-		fmt.Println("  build      Build all local binaries, gui, Portal, and the desktop app")
-		fmt.Printf("  build cli  Build only %s\n", exe(cliBinary))
-		return fmt.Errorf("unknown build target: %s", target)
+		return usageErrorf("build", "unknown build target: %s", target)
 	}
 
 	if err := buildGo("cli", cliBinary, "./cmd/buildmax"); err != nil {
@@ -190,10 +187,10 @@ func cmdTest(args []string) error {
 	}
 	packages, flags := splitTestTargets(args)
 	if len(flags) > 0 && !strings.HasPrefix(flags[0], "-") {
-		return fmt.Errorf("usage: %s test [race] [packages] [go test flags]\n  %q is neither a package pattern nor a flag", mk(), flags[0])
+		return usageErrorf("test", "%q is neither a package pattern nor a flag", flags[0])
 	}
 	if stray, found := packageAfterFlag(flags); found {
-		return fmt.Errorf("usage: %s test [race] [packages] [go test flags]\n  %q is a package pattern but comes after a flag, so the run widens to ./...; put packages first", mk(), stray)
+		return usageErrorf("test", "%q is a package pattern but comes after a flag, so the run widens to ./...; put packages first", stray)
 	}
 	if _, err := useSandboxHome(); err != nil {
 		return err

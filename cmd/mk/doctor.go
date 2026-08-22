@@ -17,7 +17,7 @@ const nodeNote = "needed for gui, Portal, Desktop, and the Markdown lint in ./ma
 func cmdDoctor(args []string) error {
 	all := false
 	if len(args) > 1 || (len(args) == 1 && args[0] != "all") {
-		return fmt.Errorf("usage: %s doctor [all]", mk())
+		return usageErrorf("doctor", "doctor takes no argument but `all`")
 	}
 	if len(args) == 1 {
 		all = true

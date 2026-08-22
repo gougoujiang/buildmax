@@ -21,16 +21,10 @@ func cmdRun(args []string) error {
 	case "portal":
 		return runPortal()
 	default:
-		m := mk()
-		fmt.Printf("Usage: %s run <subcommand>\n", m)
-		fmt.Printf("  server   Run %s  (BUILDMAX_HOME=./%s)\n", exe(serverBinary), sandboxDir)
-		fmt.Printf("  cli      Run %s         (BUILDMAX_HOME=./%s)\n", exe(cliBinary), sandboxDir)
-		fmt.Printf("  desktop  Run %s (BUILDMAX_HOME=./%s)\n", exe(desktopBinary), sandboxDir)
-		fmt.Println("  portal   Start the Portal dev server (Vite)")
 		if sub == "" {
-			return fmt.Errorf("run needs a subcommand")
+			return usageErrorf("run", "run needs a target")
 		}
-		return fmt.Errorf("unknown run subcommand: %s", sub)
+		return usageErrorf("run", "unknown run target: %s", sub)
 	}
 }
 

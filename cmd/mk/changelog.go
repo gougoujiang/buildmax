@@ -24,18 +24,18 @@ var changelogCategories = []string{"added", "changed", "fixed", "security"}
 func cmdChangelog(args []string) error {
 	if len(args) > 0 && args[0] == "release" {
 		if len(args) != 2 {
-			return fmt.Errorf("usage: changelog release <version>")
+			return usageErrorf("changelog", "changelog release needs a version")
 		}
 		return releaseChangelog(args[1])
 	}
 	if len(args) > 0 && args[0] == "new" {
 		if len(args) != 3 {
-			return fmt.Errorf("usage: changelog new <%s> <slug>", strings.Join(changelogCategories, "|"))
+			return usageErrorf("changelog", "changelog new needs a category and a slug")
 		}
 		return newChangelogEntry(args[1], args[2])
 	}
 	if len(args) > 0 {
-		return fmt.Errorf("usage: changelog [new <category> <slug>|release <version>]")
+		return usageErrorf("changelog", "unknown changelog action: %s", args[0])
 	}
 	section, count, err := unreleasedSection()
 	if err != nil {
