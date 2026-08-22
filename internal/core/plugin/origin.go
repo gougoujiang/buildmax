@@ -42,3 +42,13 @@ type Source struct {
 	Dir    string
 	Origin Origin
 }
+
+// Shadowed records a definition that lost to a higher-priority one. It is data
+// rather than a warning: a workspace overriding a plugin is the documented
+// precedence working, and the only failure would be showing the plugin as
+// fully active when part of it never loads.
+type Shadowed struct {
+	Name   string
+	Winner Origin
+	Loser  Origin
+}

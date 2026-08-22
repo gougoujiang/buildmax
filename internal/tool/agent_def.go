@@ -159,7 +159,7 @@ func parseFrontmatter(block string) map[string]string {
 // name from loading at all.
 type AgentDefResolution struct {
 	Defs     []SubAgentDef
-	Shadowed []Shadowed
+	Shadowed []plugin.Shadowed
 	Findings []plugin.Finding
 }
 

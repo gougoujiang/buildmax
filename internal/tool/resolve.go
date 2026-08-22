@@ -7,16 +7,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
-// Shadowed records a definition that lost to a higher-priority one. It is data
-// rather than a warning: a workspace overriding a plugin is the documented
-// precedence working, and the only failure would be showing the plugin as fully
-// active when part of it never loads.
-type Shadowed struct {
-	Name   string
-	Winner plugin.Origin
-	Loser  plugin.Origin
-}
-
 // candidate is one named definition found at one source.
 type candidate[T any] struct {
 	name   string
@@ -27,7 +17,7 @@ type candidate[T any] struct {
 // resolved is the outcome of reducing candidates to one definition per name.
 type resolved[T any] struct {
 	values   []T
-	shadowed []Shadowed
+	shadowed []plugin.Shadowed
 	findings []plugin.Finding
 }
 
@@ -73,7 +63,7 @@ func resolveCandidates[T any](cands []candidate[T], kind string, withOrigin func
 			if loser.origin.Layer == plugin.LayerPlugin && len(colliding) > 1 {
 				continue // already reported as a collision, not as shadowing
 			}
-			out.shadowed = append(out.shadowed, Shadowed{
+			out.shadowed = append(out.shadowed, plugin.Shadowed{
 				Name: name, Winner: winner.origin, Loser: loser.origin,
 			})
 		}

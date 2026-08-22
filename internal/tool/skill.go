@@ -140,7 +140,7 @@ func (s *SkillTool) Execute(ctx context.Context, args map[string]any) (string, e
 // name from loading at all.
 type SkillResolution struct {
 	Entries  []SkillEntry
-	Shadowed []Shadowed
+	Shadowed []plugin.Shadowed
 	Findings []plugin.Finding
 }
 

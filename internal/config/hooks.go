@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/viper"
+
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // WorkspaceHooksPath returns the per-workspace hooks config path
@@ -27,21 +29,27 @@ func LoadWorkspaceHooks(workspace string) (HooksConfig, error) {
 	if workspace == "" {
 		return HooksConfig{}, nil
 	}
-	path := WorkspaceHooksPath(workspace)
+	return loadHooksFile(WorkspaceHooksPath(workspace))
+}
+
+// loadHooksFile reads one hooks.yaml. A missing file is not an error; a
+// malformed one is, so misconfiguration surfaces instead of silently dropping
+// rules.
+func loadHooksFile(path string) (HooksConfig, error) {
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return HooksConfig{}, nil
 		}
-		return HooksConfig{}, fmt.Errorf("stat workspace hooks: %w", err)
+		return HooksConfig{}, fmt.Errorf("stat hooks %q: %w", path, err)
 	}
 	v := viper.New()
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
-		return HooksConfig{}, fmt.Errorf("read workspace hooks: %w", err)
+		return HooksConfig{}, fmt.Errorf("read hooks %q: %w", path, err)
 	}
 	var cfg HooksConfig
 	if err := v.Unmarshal(&cfg); err != nil {
-		return HooksConfig{}, fmt.Errorf("parse workspace hooks: %w", err)
+		return HooksConfig{}, fmt.Errorf("parse hooks %q: %w", path, err)
 	}
 	return cfg, nil
 }
@@ -205,28 +213,105 @@ func (h HooksConfig) IsEmpty() bool {
 		len(h.StopFailure) == 0
 }
 
-// MergeHooks returns a single HooksConfig containing every entry from global
-// followed by every entry from workspace, per event. The merge is additive:
-// both layers run for the same event; the dispatcher's first-block-wins
-// rule still applies, but every matching hook still executes.
+// MergeHooks returns a single HooksConfig containing every entry from every
+// layer, in the order the layers are given, per event. The merge is additive:
+// every layer runs for the same event; the dispatcher's first-block-wins rule
+// still applies, but every matching hook still executes.
+//
+// The documented order is global settings, then plugins in name order, then the
+// workspace. A workspace cannot remove a global hook, which is what makes the
+// global layer usable as an operator control — and the same is true of a plugin.
 //
 // Mutating the returned config does not affect the inputs.
-func MergeHooks(global, workspace HooksConfig) HooksConfig {
-	return HooksConfig{
-		SessionStart:       concatEntries(global.SessionStart, workspace.SessionStart),
-		SessionEnd:         concatEntries(global.SessionEnd, workspace.SessionEnd),
-		UserPromptSubmit:   concatEntries(global.UserPromptSubmit, workspace.UserPromptSubmit),
-		PreToolUse:         concatEntries(global.PreToolUse, workspace.PreToolUse),
-		PostToolUse:        concatEntries(global.PostToolUse, workspace.PostToolUse),
-		PostToolUseFailure: concatEntries(global.PostToolUseFailure, workspace.PostToolUseFailure),
-		Notification:       concatEntries(global.Notification, workspace.Notification),
-		PreCompact:         concatEntries(global.PreCompact, workspace.PreCompact),
-		PostCompact:        concatEntries(global.PostCompact, workspace.PostCompact),
-		SubagentStart:      concatEntries(global.SubagentStart, workspace.SubagentStart),
-		SubagentStop:       concatEntries(global.SubagentStop, workspace.SubagentStop),
-		Stop:               concatEntries(global.Stop, workspace.Stop),
-		StopFailure:        concatEntries(global.StopFailure, workspace.StopFailure),
+func MergeHooks(layers ...HooksConfig) HooksConfig {
+	var out HooksConfig
+	for _, l := range layers {
+		out.SessionStart = concatEntries(out.SessionStart, l.SessionStart)
+		out.SessionEnd = concatEntries(out.SessionEnd, l.SessionEnd)
+		out.UserPromptSubmit = concatEntries(out.UserPromptSubmit, l.UserPromptSubmit)
+		out.PreToolUse = concatEntries(out.PreToolUse, l.PreToolUse)
+		out.PostToolUse = concatEntries(out.PostToolUse, l.PostToolUse)
+		out.PostToolUseFailure = concatEntries(out.PostToolUseFailure, l.PostToolUseFailure)
+		out.Notification = concatEntries(out.Notification, l.Notification)
+		out.PreCompact = concatEntries(out.PreCompact, l.PreCompact)
+		out.PostCompact = concatEntries(out.PostCompact, l.PostCompact)
+		out.SubagentStart = concatEntries(out.SubagentStart, l.SubagentStart)
+		out.SubagentStop = concatEntries(out.SubagentStop, l.SubagentStop)
+		out.Stop = concatEntries(out.Stop, l.Stop)
+		out.StopFailure = concatEntries(out.StopFailure, l.StopFailure)
 	}
+	return out
+}
+
+// PluginHooks is the plugin layer's contribution, already concatenated in name
+// order, plus what loading it noticed.
+type PluginHooks struct {
+	Config   HooksConfig
+	Findings []plugin.Finding
+}
+
+// ResolvePluginHooks reads every plugin's hooks.yaml in name order.
+//
+// A plugin whose file will not parse contributes nothing and is reported: hook
+// configuration fails open by design, and refusing to start the agent over one
+// plugin's typo would be a worse failure than running without its hooks.
+func ResolvePluginHooks(plugins []DiscoveredPlugin) PluginHooks {
+	var out PluginHooks
+	var layers []HooksConfig
+	for _, p := range loadablePlugins(plugins) {
+		cfg, err := loadHooksFile(filepath.Join(p.Path, "hooks.yaml"))
+		if err != nil {
+			out.Findings = append(out.Findings, plugin.Finding{
+				Severity: plugin.SeverityError, Field: p.Name(),
+				Message: fmt.Sprintf("hooks.yaml: %v", err),
+			})
+			continue
+		}
+		if cfg.IsEmpty() {
+			continue
+		}
+		expandHookConfig(&cfg, PluginRootFor(p))
+		layers = append(layers, cfg)
+	}
+	out.Config = MergeHooks(layers...)
+	return out
+}
+
+// expandHookConfig resolves PluginVarRoot everywhere a string appears in one
+// plugin's hooks. The config was just parsed for this plugin alone, so it is
+// mutated in place.
+func expandHookConfig(cfg *HooksConfig, root string) {
+	cfg.eachEventSlice(func(entries *[]HookEntry) {
+		for i := range *entries {
+			e := &(*entries)[i]
+			e.Command = expandPluginVar(e.Command, root)
+			e.URL = expandPluginVar(e.URL, root)
+			e.Prompt = expandPluginVar(e.Prompt, root)
+			for k, v := range e.Headers {
+				e.Headers[k] = expandPluginVar(v, root)
+			}
+			for k, v := range e.Input {
+				e.Input[k] = expandPluginVarAny(v, root)
+			}
+		}
+	})
+}
+
+// eachEventSlice applies fn to every event's entry slice.
+func (h *HooksConfig) eachEventSlice(fn func(*[]HookEntry)) {
+	fn(&h.SessionStart)
+	fn(&h.SessionEnd)
+	fn(&h.UserPromptSubmit)
+	fn(&h.PreToolUse)
+	fn(&h.PostToolUse)
+	fn(&h.PostToolUseFailure)
+	fn(&h.Notification)
+	fn(&h.PreCompact)
+	fn(&h.PostCompact)
+	fn(&h.SubagentStart)
+	fn(&h.SubagentStop)
+	fn(&h.Stop)
+	fn(&h.StopFailure)
 }
 
 func concatEntries(a, b []HookEntry) []HookEntry {
