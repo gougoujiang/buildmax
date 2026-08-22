@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 )
@@ -251,5 +253,57 @@ func TestPluginStatusUnknownName(t *testing.T) {
 	isolatedHome(t)
 	if err := writePluginStatus(context.Background(), &bytes.Buffer{}, t.TempDir(), "nope", false); err == nil {
 		t.Error("an unknown plugin name should be an error")
+	}
+}
+
+// Discovery and status must stay offline. The remote here is unroutable, so a
+// fetch would hang until it timed out and report a failure; a status that
+// returns promptly and says nothing about fetching never contacted it.
+func TestPluginStatusStaysOfflineWithoutFetch(t *testing.T) {
+	home := isolatedHome(t)
+	dir := makePlugin(t, home, "code-review", map[string]string{
+		"plugin.yaml":            "name: code-review\n",
+		"skills/review/SKILL.md": "# review\n\nReview a change.\n",
+	})
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "Test User"},
+		{"add", "-A"},
+		{"commit", "-m", "initial"},
+		{"remote", "add", "origin", "git@192.0.2.1:agents/code-review.git"},
+	} {
+		runGitCmd(t, dir, args...)
+	}
+
+	var buf bytes.Buffer
+	done := make(chan error, 1)
+	go func() {
+		done <- writePluginStatus(context.Background(), &buf, t.TempDir(), "code-review", false)
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("status: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("status did not return; something reached the network")
+	}
+
+	out := buf.String()
+	if strings.Contains(out, "fetch:") {
+		t.Errorf("status reported a fetch it was not asked for:\n%s", out)
+	}
+	// It still reports the checkout, which is read from local metadata.
+	if !strings.Contains(out, "checkout:") || !strings.Contains(out, "192.0.2.1") {
+		t.Errorf("status should still describe the checkout:\n%s", out)
+	}
+}
+
+func runGitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }
