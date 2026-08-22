@@ -158,6 +158,13 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	// Both of these arrive by paste, and both used to fail on whitespace the
+	// person could not see: a login code copied out of a terminal carries the
+	// indentation of the line it was printed on, and an autofilled address can
+	// carry a trailing space. The password is left alone — whitespace in one
+	// may be deliberate.
+	req.Email = strings.TrimSpace(req.Email)
+	req.Otp = strings.TrimSpace(req.Otp)
 	if req.Email == "" {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "email required")
 		return
@@ -485,32 +492,42 @@ func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req Log
 // verifyLoginCode resolves the user the submitted code authenticates, writing
 // the response and returning ok=false when it does not authenticate anyone.
 //
-// The code is spent once redeemed, whether or not the rest of the request
-// succeeds — that is what "single use" has to mean for a replay to be
-// impossible.
+// The account is resolved from the submitted address first, and the code is
+// redeemed only if it was issued to that account. The order matters: redeeming
+// first and comparing the address afterwards spent the code on a typo, so the
+// operator had to issue another one and the person retrying with the right
+// address was refused for a reason neither of them could see.
+//
+// Single use is unaffected. Redemption is still one conditional UPDATE, so two
+// browsers submitting the same code with the right address still produce
+// exactly one session.
 func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
 	if h.cfg.LoginCodes == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login codes are not configured")
 		return nil, false
 	}
-	userID, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, time.Now().Unix())
+	user, err := h.cfg.Users.UserByEmail(r.Context(), req.Email)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "consume_login_code")
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "email", req.Email)
 		return nil, false
 	}
-	if userID == "" {
+	// The reason a sign-in failed is deliberately absent from the response and
+	// present in the log. The operator debugging it is on this side of the
+	// server, and a 401 line was all they had: an unknown address, a spent
+	// code, and a code pasted into the wrong browser were one sentence.
+	if user == nil {
+		slog.InfoContext(r.Context(), "login code rejected", "reason", "no account for that email", "email", req.Email)
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}
-	user, err := h.cfg.Users.GetUser(r.Context(), userID)
+	redeemed, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, user.UserID, time.Now().Unix())
 	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "user_id", userID)
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "stage", "consume_login_code")
 		return nil, false
 	}
-	// The code already names the user; the email is checked so that signing in
-	// as someone else cannot happen by pasting the wrong code into the wrong
-	// browser.
-	if user == nil || !strings.EqualFold(user.Email, req.Email) {
+	if !redeemed {
+		slog.InfoContext(r.Context(), "login code rejected",
+			"reason", "unknown, spent, expired, or issued to another account", "user_id", user.UserID)
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}

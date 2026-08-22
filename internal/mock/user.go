@@ -19,11 +19,23 @@ type MockUserStore struct {
 	NextUserID int
 }
 
+// UserByEmail matches without regard to case, the way the real store's
+// utf8mb4_0900_ai_ci email column does. Login resolves the account by address
+// and nothing compares the two strings afterwards, so a case-sensitive mock
+// would let a regression in that lookup pass here.
 func (m *MockUserStore) UserByEmail(_ context.Context, email string) (*model.User, error) {
 	if m.ByEmail == nil {
 		return nil, nil
 	}
-	return m.ByEmail[email], nil
+	if u, ok := m.ByEmail[email]; ok {
+		return u, nil
+	}
+	for stored, u := range m.ByEmail {
+		if strings.EqualFold(stored, email) {
+			return u, nil
+		}
+	}
+	return nil, nil
 }
 
 func (m *MockUserStore) GetUser(_ context.Context, userID string) (*model.User, error) {

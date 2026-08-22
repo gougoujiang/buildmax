@@ -25,10 +25,14 @@ export function Login() {
     setError(null)
     setLoading(true)
     try {
+      // Trimmed to match canSubmit, and because both fields are pasted: a code
+      // copied out of a terminal carries the indentation of its line. The
+      // server trims too; this keeps the button's idea of "filled in" and the
+      // request the same.
       const res =
         mode === "password"
-          ? await loginWithPassword(email, password)
-          : await login(email, otp)
+          ? await loginWithPassword(email.trim(), password)
+          : await login(email.trim(), otp.trim())
       setAuth(res)
     } catch (err) {
       setError(getErrorMessage(err, "Sign in failed"))

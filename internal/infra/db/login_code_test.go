@@ -73,21 +73,30 @@ func TestLoginCodeLifecycle(t *testing.T) {
 		t.Error("the code is stored in plaintext")
 	}
 
-	got, err := s.ConsumeLoginCode(ctx, code, time.Now().Unix())
+	// Somebody else's address does not redeem it, and does not spend it either.
+	redeemed, err := s.ConsumeLoginCode(ctx, code, "u_someoneelse", time.Now().Unix())
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode for another user: %v", err)
+	}
+	if redeemed {
+		t.Fatal("a code redeemed for a user it was not issued to")
+	}
+
+	redeemed, err = s.ConsumeLoginCode(ctx, code, userID, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode: %v", err)
 	}
-	if got != userID {
-		t.Fatalf("ConsumeLoginCode = %q, want %q", got, userID)
+	if !redeemed {
+		t.Fatal("the code did not redeem for the user it was issued to")
 	}
 
-	// Single use: the second redemption resolves to nobody, without an error.
-	got, err = s.ConsumeLoginCode(ctx, code, time.Now().Unix())
+	// Single use: the second redemption reports nothing, without an error.
+	redeemed, err = s.ConsumeLoginCode(ctx, code, userID, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("second ConsumeLoginCode: %v", err)
 	}
-	if got != "" {
-		t.Errorf("a spent code redeemed again as %q", got)
+	if redeemed {
+		t.Error("a spent code redeemed again")
 	}
 }
 
@@ -103,20 +112,20 @@ func TestLoginCodeRejectsExpiredAndUnknown(t *testing.T) {
 		t.Fatalf("CreateLoginCode: %v", err)
 	}
 	// Redeem as if the clock had passed the expiry, rather than sleeping.
-	got, err := s.ConsumeLoginCode(ctx, code, expiresAt+1)
+	redeemed, err := s.ConsumeLoginCode(ctx, code, userID, expiresAt+1)
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode: %v", err)
 	}
-	if got != "" {
-		t.Errorf("an expired code redeemed as %q", got)
+	if redeemed {
+		t.Error("an expired code redeemed")
 	}
 
-	got, err = s.ConsumeLoginCode(ctx, "bmxlogin_never-issued", time.Now().Unix())
+	redeemed, err = s.ConsumeLoginCode(ctx, "bmxlogin_never-issued", userID, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode on unknown code: %v", err)
 	}
-	if got != "" {
-		t.Errorf("an unknown code redeemed as %q", got)
+	if redeemed {
+		t.Error("an unknown code redeemed")
 	}
 }
 
@@ -136,7 +145,7 @@ func TestLoginCodeConcurrentRedemptionHasOneWinner(t *testing.T) {
 	}
 
 	const attempts = 8
-	results := make([]string, attempts)
+	results := make([]bool, attempts)
 	errs := make([]error, attempts)
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -145,7 +154,7 @@ func TestLoginCodeConcurrentRedemptionHasOneWinner(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			results[i], errs[i] = s.ConsumeLoginCode(ctx, code, time.Now().Unix())
+			results[i], errs[i] = s.ConsumeLoginCode(ctx, code, userID, time.Now().Unix())
 		}()
 	}
 	close(start)
@@ -157,7 +166,7 @@ func TestLoginCodeConcurrentRedemptionHasOneWinner(t *testing.T) {
 			t.Errorf("attempt %d: %v", i, errs[i])
 			continue
 		}
-		if results[i] == userID {
+		if results[i] {
 			winners++
 		}
 	}

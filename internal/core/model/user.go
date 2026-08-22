@@ -30,6 +30,10 @@ func (u User) Disabled() bool { return u.DisabledAt != nil }
 
 // UserStore looks up users by email and creates new users.
 type UserStore interface {
+	// UserByEmail matches the address without regard to case, and returns
+	// (nil, nil) when nobody has it. Login resolves the account this way and
+	// compares nothing afterwards, so a case-sensitive implementation would
+	// refuse people whose address is stored in another case.
 	UserByEmail(ctx context.Context, email string) (*User, error)
 	// GetUser returns the user by user_id, or (nil, nil) when not found.
 	GetUser(ctx context.Context, userID string) (*User, error)
