@@ -864,7 +864,7 @@ tools, instructions, and hooks it receives today.
 
 ## 12. Delivery Phases
 
-### Phase A — Directory Format And Repository Workflow
+### Phase A — Directory Format And Repository Workflow — shipped
 
 - root-level plugin format and the `plugin.yaml` manifest;
 - discovery under `<BUILDMAX_HOME>/plugins`;
@@ -877,7 +877,7 @@ Acceptance: cloning a valid repository into a clean isolated plugins directory
 makes its capability available to CLI and Desktop without copying files or
 writing a generated registry.
 
-### Phase B — Private Marketplace
+### Phase B — Private Marketplace — shipped
 
 - catalog records and package object storage;
 - administrator publish, yank, and archive flows;
@@ -890,6 +890,10 @@ writing a generated registry.
 
 Acceptance: an administrator publishes one version from a tested repository;
 another company account installs it by name; both sides report the same digest.
+Held by `TestMarketplacePublishThenInstall` in the `cli` end-to-end suite, which
+drives the released binary against a server it does not share memory with. The
+account that installs holds no grant, so the authority split of §7.1 is tested
+rather than assumed.
 
 ### Phase C — Product UI
 
@@ -1007,6 +1011,12 @@ Implementation is not complete until tests prove:
 - CLI and Desktop load the same plugin inventory through `agentapp`;
 - `git diff --check`, documentation link checks, focused Go tests, and relevant
   CLI/Desktop end-to-end suites pass.
+
+Two of these are true by construction rather than by a test, and are worth
+naming so nobody reads the list as fully held. Nothing in the audit or trace
+records has a field that could carry a configuration value — the shapes were
+built that way — but no test asserts it; and the CLI and Desktop load one
+inventory because they share `agentapp`, which no test drives from both sides.
 
 ## 15. Open Questions
 
