@@ -17,7 +17,7 @@ import AgentsIcon from "../../icons/agents.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
-export type AccountSection = "general" | "usage" | "webhook"
+export type AccountSection = "general" | "usage" | "webhook" | "plugins"
 export type SpaceSection = "overview" | "members" | "audit" | "memberNew"
 
 interface SettingsNavItem<T extends string> {
@@ -30,6 +30,9 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
   { id: "general", label: "General", icon: SettingsIcon },
   { id: "usage", label: "Usage", icon: UsageIcon },
   { id: "webhook", label: "Webhook", icon: ToolboxIcon },
+  // A reference list rather than a product area: what the deployment offers,
+  // and the command that installs it where the agent actually runs.
+  { id: "plugins", label: "Plugins", icon: ToolboxIcon },
 ]
 
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [

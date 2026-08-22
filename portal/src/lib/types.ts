@@ -47,7 +47,7 @@ export type Route =
   | { name: "conversations" }
   | { name: "explore" }
   | { name: "agents" }
-  | { name: "account"; section?: "general" | "usage" | "webhook" }
+  | { name: "account"; section?: "general" | "usage" | "webhook" | "plugins" }
   | { name: "space"; section?: "overview" | "members" | "audit" | "memberNew" }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }

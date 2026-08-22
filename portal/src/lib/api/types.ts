@@ -627,6 +627,12 @@ export interface ApiPluginReleasesResponse {
   releases: ApiPluginRelease[]
 }
 
+/** One entry and everything published under it. */
+export interface ApiPluginResponse {
+  plugin: ApiPlugin
+  releases: ApiPluginRelease[]
+}
+
 /** Whether a credential is configured. Never its value, length, or prefix. */
 export interface ApiSecretStatus {
   set: boolean
