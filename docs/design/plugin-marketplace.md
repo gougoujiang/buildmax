@@ -1,12 +1,20 @@
 # Plugin Distribution And Private Marketplace
 
-> **Audience:** contributors and operators · **Status:** planned — design ready
-> for review; implementation has not started
+> **Audience:** contributors and operators · **Status:** partly implemented —
+> Phase A ships; the Marketplace does not exist yet
+>
+> User documentation for what ships:
+> [../guide/plugins.md](../guide/plugins.md)
 
 ## Status
 
 - roadmap_priority: `post-Beta, P4 follow-on`
-- status: `ready_for_review`
+- status: `partially_implemented` — Phase A is shipped: the directory format
+  and manifest, discovery under `<BUILDMAX_HOME>/plugins`, resolution and
+  merging for skills, subagents, MCP, and hooks, collision and shadowing
+  reports, `${BUILDMAX_PLUGIN_ROOT}`, per-run plugin provenance in traces, and
+  the local CLI commands. Phases B through D are unstarted, so nothing here
+  publishes, downloads, or verifies a release
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
   [team-governance.md](./team-governance.md), and
   [system-administration.md](./system-administration.md)
@@ -184,6 +192,10 @@ A plugin may contain only a subset. A skill-only plugin is valid; so is a
 plugin that provides MCP configuration and no skill.
 
 ### 3.2 `plugin.yaml`
+
+The field reference for authors is
+[../guide/plugins.md](../guide/plugins.md); what follows is why the format
+stops where it does.
 
 The manifest carries the identity a directory cannot derive for itself, the one
 compatibility bound worth stating before a release exists, and the environment
