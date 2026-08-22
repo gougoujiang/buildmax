@@ -33,6 +33,7 @@ their context.
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Agent execution policy](agent-execution-policy.md) | Who chooses a worker's execution boundary, and what happens when the chosen one cannot be applied? |
 | [Trusted private execution loop](trusted-private-execution-loop.md) | Should the next cross-cutting milestone prove one constrained, managed, auditable private team task before broader product expansion? |
+| [Entity identity and relational keys](entity-identity-and-relational-keys.md) | Should public opaque IDs be separated from compact relational keys before Beta? |
 
 Three papers have been retired. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
