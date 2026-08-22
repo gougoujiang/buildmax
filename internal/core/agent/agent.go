@@ -95,7 +95,8 @@ type RunLoopOpts struct {
 	// Policy is consulted before each tool execution. Nil defaults to AllowAllPolicy.
 	Policy ToolPolicy
 	// Approval is invoked when Policy returns ToolActionAsk.
-	// Nil approval with ToolActionAsk falls through to Allow for backward compatibility.
+	// Nil approval with ToolActionAsk denies the call: an unattended surface
+	// must not widen Ask into Allow.
 	Approval ApprovalHandler
 	// PendingInput carries messages the user submitted after this run started.
 	// They are appended to the history at the next iteration boundary, so they

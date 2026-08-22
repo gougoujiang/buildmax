@@ -18,4 +18,9 @@ const (
 	// ToolNameUploadArtifact is registered only where the surface has an
 	// artifact service; a session with none does not offer it at all.
 	ToolNameUploadArtifact = "UploadArtifact"
+	// The Job tools are registered only where local background jobs are
+	// enabled (TUI and Desktop), and never inside subagents.
+	ToolNameJobList   = "JobList"
+	ToolNameJobOutput = "JobOutput"
+	ToolNameJobStop   = "JobStop"
 )

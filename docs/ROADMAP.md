@@ -95,6 +95,8 @@ Focus:
 - durable run traces with redaction, bounded tool output, usage, and latency
 - scoped memory and instruction loading across user, workspace, team, agent, and session
 - TUI/Desktop activity views and local diagnostics
+- local background jobs and monitors shared by TUI and Desktop
+  (see [design/local-background-jobs.md](design/local-background-jobs.md))
 - subagent trace linkage and optional isolation groundwork
 - safer non-interactive worker execution
 
@@ -308,7 +310,9 @@ at the end:
    `FailIfUnavailable: true`, so passing that surface before the image and pod
    can support a backend turns every worker run into a refusal. This step also
    restores `curl`, `npm`, and the rest of the risky-prefix list to workers.
-6. Desktop local workbench polish: sessions, project selection, local results.
+6. Desktop local workbench polish: sessions, project selection, local
+   results, and the local background job manager shared with the TUI
+   ([design/local-background-jobs.md](design/local-background-jobs.md)).
 7. Versioned workspace design, ready for implementation planning.
 
 ## Avoid For Now
@@ -327,6 +331,7 @@ at the end:
 - [design/surface-positioning.md](design/surface-positioning.md) — product surface positioning
 - [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
 - [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
+- [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/team-governance.md](design/team-governance.md) — P4 Team governance design

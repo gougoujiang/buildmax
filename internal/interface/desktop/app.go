@@ -195,12 +195,13 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 
 	handler := newDesktopApprovalHandler(a, projectID)
 	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
-		WorkspaceDir:      proj.FolderPath,
-		EnableMCP:         true,
-		Policy:            agentapp.NewInteractivePolicy(),
-		ManagedToken:      auth.TokenForServer,
-		ArtifactPublisher: auth.ArtifactPublisherForSession(),
-		Surface:           model.LLMCallSurfaceDesktop,
+		WorkspaceDir:         proj.FolderPath,
+		EnableMCP:            true,
+		Policy:               agentapp.NewInteractivePolicy(),
+		ManagedToken:         auth.TokenForServer,
+		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
+		Surface:              model.LLMCallSurfaceDesktop,
+		EnableBackgroundJobs: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)
@@ -216,6 +217,10 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 	a.agentApps[projectID] = ag
 	a.approvalHandlers[projectID] = handler
 	a.mu.Unlock()
+	if jobs := ag.Jobs(); jobs != nil {
+		// The pump exits when Close releases the subscription in Shutdown.
+		a.pumpJobEvents(projectID, jobs)
+	}
 	return ag, nil
 }
 

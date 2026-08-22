@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
@@ -62,6 +63,12 @@ type AppConfig struct {
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
 	ArtifactPublisher tools.ArtifactPublisher
+	// EnableBackgroundJobs turns on local background jobs: Bash gains
+	// run_in_background and the Job tools are registered. Only interactive
+	// surfaces (TUI, Desktop) set it — print mode has no host process to own
+	// a job, and eval and workers have no unattended lifecycle for one, per
+	// docs/design/local-background-jobs.md.
+	EnableBackgroundJobs bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -90,6 +97,15 @@ type AgentApp struct {
 	artifactPublisher      tools.ArtifactPublisher
 	grantsMu               sync.Mutex
 	grants                 map[string]*agent.SessionGrants
+	turns                  turnCoordinator
+	jobs                   *job.Manager
+}
+
+// Jobs returns the app's background job manager, or nil where background
+// jobs are disabled. One manager per AgentApp: jobs are process-scoped but
+// owned by this workspace's runtime, and closing the app stops them.
+func (a *AgentApp) Jobs() *job.Manager {
+	return a.jobs
 }
 
 // grantsFor returns the approval grants for one session, creating the store on
@@ -327,16 +343,31 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	app.plugins.addShadowed(app.skillsRegistry.shadowed...)
 	app.plugins.addFindings(app.subagentsRegistry.findings...)
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
+	if cfg.EnableBackgroundJobs {
+		app.jobs = job.NewManager()
+	}
 	return app, nil
 }
+
+// jobShutdownTimeout bounds how long Close waits for background jobs after
+// their own TERM-to-KILL escalation. Generous enough for the kill to land,
+// short enough that quitting the app never hangs.
+const jobShutdownTimeout = 10 * time.Second
 
 func (a *AgentApp) Close() error {
 	if a == nil {
 		return nil
 	}
 	var firstErr error
+	if a.jobs != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), jobShutdownTimeout)
+		if err := a.jobs.Close(ctx); err != nil {
+			firstErr = err
+		}
+		cancel()
+	}
 	if a.mcpManager != nil {
-		if err := a.mcpManager.Close(); err != nil {
+		if err := a.mcpManager.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -721,6 +752,14 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	if err != nil {
 		return RunResult{}, err
 	}
+	// One writer per session. Surfaces queue prompts behind the active run,
+	// so a concurrent call here is a caller bug or an unserialized background
+	// producer — refused, because Session and SessionManager have no locks of
+	// their own and an overlapping turn would race the history.
+	if err := a.turns.begin(sess.ID); err != nil {
+		return RunResult{SessionID: sess.ID}, fmt.Errorf("session %s: %w", sess.ID, err)
+	}
+	defer a.turns.end(sess.ID)
 	registry, err := a.toolRegistry(modelName, client)
 	if err != nil {
 		return RunResult{}, err
@@ -1031,7 +1070,7 @@ func (a *AgentApp) promptCapabilities() PromptCapabilities {
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher)...)
+	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, a.jobs)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)
@@ -1046,6 +1085,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 		if err == nil {
 			registry.AppendTools(taskTool)
 		}
+	}
+	// After BuildAgentTypes like Task, so subagents never see the job tools:
+	// a job must be owned by a session the user can still reach.
+	if a.jobs != nil {
+		registry.AppendTools(tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs))
 	}
 	return registry, nil
 }

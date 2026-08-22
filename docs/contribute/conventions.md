@@ -41,6 +41,7 @@ base36 (`[a-z0-9]`).
 | `lc_` | managed LLM call | `lm_` | managed model |
 | `ae_` | audit event | `sg_` | system grant |
 | `pl_` | plugin | `plr_` | plugin release |
+| `jb_` | local background job | | |
 
 Generate them with `internal/util.NewPrefixedID(prefix)`, passing the prefix
 without the underscore; the constants live in `internal/util/id.go`, which with

@@ -150,6 +150,7 @@ Typed into the input line:
 | `/skills` | Discovered skills |
 | `/mcp` | Connected MCP servers and their status |
 | `/diff` | Working-tree diff for the workspace |
+| `/tasks` | Background jobs: state, age, command; `s` stops the selected one |
 
 Slash commands are unavailable while the agent is running.
 

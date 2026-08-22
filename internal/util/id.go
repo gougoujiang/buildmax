@@ -34,6 +34,10 @@ const (
 	PrefixSystemGrant         = "sg"
 	PrefixPlugin              = "pl"
 	PrefixPluginRelease       = "plr"
+	// PrefixJob identifies local background jobs. They are process-lifetime,
+	// not persisted, but the ID is LLM- and user-facing, so it follows the
+	// entity format rather than a session-style UUID.
+	PrefixJob = "jb"
 )
 
 const (

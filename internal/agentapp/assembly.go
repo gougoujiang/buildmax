@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -145,14 +146,17 @@ func ResolveAgentTypeTools(agentName string, toolNames []string, registry llm.To
 // exists only to answer "unavailable" costs a round trip and teaches the model
 // nothing; one that is not there is a fact it can act on immediately. See
 // docs/design/unified-artifacts.md section 7.1.
-func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.Tool, sandboxView agent.SandboxView, publisher tools.ArtifactPublisher) []llm.Tool {
+//
+// jobs follows the same rule for Bash's run_in_background: nil keeps the
+// parameter out of the schema entirely.
+func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.Tool, sandboxView agent.SandboxView, publisher tools.ArtifactPublisher, jobs *job.Manager) []llm.Tool {
 	if sandboxView == nil {
 		sandboxView = agent.NoopSandbox{}
 	}
 	base := []llm.Tool{
 		tools.NewReadFile(workspaceRoot),
 		tools.NewWriteFile(workspaceRoot),
-		tools.NewBash(workspaceRoot).WithSandbox(sandboxView),
+		tools.NewBash(workspaceRoot).WithSandbox(sandboxView).WithJobs(jobs),
 		tools.NewGlob(workspaceRoot),
 		tools.NewEditFile(workspaceRoot),
 		tools.NewGrep(workspaceRoot),
