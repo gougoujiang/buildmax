@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
 
 type stubMCPCaller struct {
@@ -32,7 +32,7 @@ func TestMCPDriver_PassesSubstitutedInput(t *testing.T) {
 	d := NewMCPDriver(caller)
 
 	out := d.Run(context.Background(),
-		config.HookEntry{
+		corehook.Entry{
 			Server: "scanner",
 			Tool:   "scan",
 			Input:  map[string]any{"path": "${tool_args.path}", "event": "${event}"},
@@ -60,7 +60,7 @@ func TestMCPDriver_ToolResultBlocks(t *testing.T) {
 	caller := &stubMCPCaller{wantServer: "scanner", wantTool: "scan", result: `{"decision":"block","reason":"flagged"}`}
 	d := NewMCPDriver(caller)
 	out := d.Run(context.Background(),
-		config.HookEntry{Server: "scanner", Tool: "scan"},
+		corehook.Entry{Server: "scanner", Tool: "scan"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile"},
 	)
 	if !out.Blocked() {
@@ -76,7 +76,7 @@ func TestMCPDriver_FailsOpenOnError(t *testing.T) {
 	caller := &stubMCPCaller{wantServer: "scanner", wantTool: "scan", err: errors.New("server unreachable")}
 	d := NewMCPDriver(caller)
 	out := d.Run(context.Background(),
-		config.HookEntry{Server: "scanner", Tool: "scan"},
+		corehook.Entry{Server: "scanner", Tool: "scan"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile"},
 	)
 	if out.Blocked() {
@@ -88,14 +88,14 @@ func TestMCPDriver_FailsOpenOnError(t *testing.T) {
 // or tool returns allow rather than panicking.
 func TestMCPDriver_MissingFieldsFailOpen(t *testing.T) {
 	d := NewMCPDriver(&stubMCPCaller{})
-	out := d.Run(context.Background(), config.HookEntry{}, agent.HookInput{Event: agent.HookPreToolUse})
+	out := d.Run(context.Background(), corehook.Entry{}, agent.HookInput{Event: agent.HookPreToolUse})
 	if out.Blocked() {
 		t.Errorf("expected allow when server/tool empty, got %+v", out)
 	}
 }
 
 func TestMCPDriver_Type(t *testing.T) {
-	if NewMCPDriver(nil).Type() != config.HookTypeMCP {
+	if NewMCPDriver(nil).Type() != corehook.TypeMCP {
 		t.Errorf("Type() = %q", NewMCPDriver(nil).Type())
 	}
 }

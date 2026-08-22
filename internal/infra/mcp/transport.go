@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	mcpcfg "github.com/gougoujiang/buildmax/internal/core/mcp"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func newTransport(cfg config.MCPServerConfig, httpClient *http.Client) (mcpsdk.Transport, error) {
+func newTransport(cfg mcpcfg.ServerConfig, httpClient *http.Client) (mcpsdk.Transport, error) {
 	switch cfg.Type {
 	case "stdio":
 		cmd := exec.Command(cfg.Command, cfg.Args...)

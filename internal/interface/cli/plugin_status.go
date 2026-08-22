@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
@@ -249,7 +250,7 @@ func ownAgentNames(p config.DiscoveredPlugin) []string {
 func ownHookEvents(p config.DiscoveredPlugin) []string {
 	res := config.ResolvePluginHooks([]config.DiscoveredPlugin{p})
 	var events []string
-	for _, e := range config.HookEventNames() {
+	for _, e := range corehook.EventNames() {
 		if n := len(res.Config.Entries(e)); n > 0 {
 			events = append(events, fmt.Sprintf("%s (%d)", e, n))
 		}

@@ -109,6 +109,8 @@ internal/
 │   ├── apierr/         Why a service refused: a Kind a transport maps to a status
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
+│   ├── hook/           The hooks configuration shape, its events and transports
+│   ├── mcp/            The mcp.json document shape and its validation rules
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
 │   │                   vocabulary discovery, resolution, and publication share

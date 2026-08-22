@@ -1,14 +1,13 @@
 package config
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	coremcp "github.com/gougoujiang/buildmax/internal/core/mcp"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
@@ -16,20 +15,6 @@ import (
 // that resolves to the workspace directory passed to LoadMCPConfigForWorkspace.
 // MCP config authors use it as $WORKSPACE_ROOT in command, args, env, or url fields.
 const MCPVarWorkspaceRoot = "WORKSPACE_ROOT"
-
-// MCPConfigRoot is the root of mcp.json (top-level key mcpServers).
-type MCPConfigRoot struct {
-	MCPServers map[string]MCPServerConfig `json:"mcpServers"`
-}
-
-// MCPServerConfig is one server entry in mcpServers.
-type MCPServerConfig struct {
-	Type    string            `json:"type"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args"`
-	Env     map[string]string `json:"env"`
-	URL     string            `json:"url"`
-}
 
 // ResolveMCPConfigPath returns one existing MCP config path for display or tooling, or "".
 // Order: <workspace>/.buildmax/mcp.json, then <DataDir>/mcp.json.
@@ -52,7 +37,7 @@ func ResolveMCPConfigPath(workspaceDir string) string {
 // MCPResolution is the merged MCP configuration plus what merging noticed.
 type MCPResolution struct {
 	// Config is nil when no layer declared a server.
-	Config *MCPConfigRoot
+	Config *coremcp.ConfigRoot
 	// Shadowed lists plugin servers a higher layer replaced, so a plugin does
 	// not appear fully active when part of it never runs.
 	Shadowed []plugin.Shadowed
@@ -68,7 +53,7 @@ type MCPResolution struct {
 // After loading, $VAR and ${VAR} in each server's command, args, env values, and url are
 // expanded against a variable table: snapshot of the process environment (os.Environ) plus
 // MCPVarWorkspaceRoot set to workspaceDir (overrides the same key from the env if present).
-func LoadMCPConfigForWorkspace(workspaceDir string) (*MCPConfigRoot, error) {
+func LoadMCPConfigForWorkspace(workspaceDir string) (*coremcp.ConfigRoot, error) {
 	res, err := ResolveMCPConfig(workspaceDir, nil)
 	return res.Config, err
 }
@@ -80,7 +65,7 @@ func LoadMCPConfigForWorkspace(workspaceDir string) (*MCPConfigRoot, error) {
 // and get their own directory. Layer precedence then works as it always has:
 // a later layer replaces a server id an earlier one declared.
 func ResolveMCPConfig(workspaceDir string, plugins []DiscoveredPlugin) (MCPResolution, error) {
-	merged := MCPConfigRoot{MCPServers: map[string]MCPServerConfig{}}
+	merged := coremcp.ConfigRoot{MCPServers: map[string]coremcp.ServerConfig{}}
 	owner := map[string]plugin.Origin{}
 	var res MCPResolution
 
@@ -109,7 +94,7 @@ func ResolveMCPConfig(workspaceDir string, plugins []DiscoveredPlugin) (MCPResol
 		return res, nil
 	}
 	for id, s := range merged.MCPServers {
-		if err := validateMCPServerConfig(id, s); err != nil {
+		if err := coremcp.ValidateServerConfig(id, s); err != nil {
 			return MCPResolution{}, err
 		}
 	}
@@ -123,10 +108,10 @@ func ResolveMCPConfig(workspaceDir string, plugins []DiscoveredPlugin) (MCPResol
 // same layer — so it is dropped from both and reported. A higher layer may
 // still declare that id normally.
 func loadPluginMCPServers(workspaceDir string, plugins []DiscoveredPlugin) (
-	map[string]plugin.Origin, map[string]MCPServerConfig, []plugin.Finding,
+	map[string]plugin.Origin, map[string]coremcp.ServerConfig, []plugin.Finding,
 ) {
 	owner := map[string]plugin.Origin{}
-	servers := map[string]MCPServerConfig{}
+	servers := map[string]coremcp.ServerConfig{}
 	colliding := map[string][]string{}
 	var findings []plugin.Finding
 
@@ -176,7 +161,7 @@ func loadPluginMCPServers(workspaceDir string, plugins []DiscoveredPlugin) (
 
 // mergeMCPLayer merges one file over what is already there, recording every
 // plugin server it replaced.
-func mergeMCPLayer(dst *MCPConfigRoot, owner map[string]plugin.Origin, res *MCPResolution,
+func mergeMCPLayer(dst *coremcp.ConfigRoot, owner map[string]plugin.Origin, res *MCPResolution,
 	path string, expand func(string) string, origin plugin.Origin,
 ) error {
 	root, err := readMCPJSONFile(path)
@@ -237,7 +222,7 @@ func mcpExpandMappingFor(workspaceDir, pluginRoot string) func(string) string {
 
 // expandMCPConfig replaces $VAR and ${VAR} in command, args, env values, and url for each
 // mcpServers entry. Missing names expand to empty. Mutates root in place.
-func expandMCPConfig(root *MCPConfigRoot, expand func(string) string) {
+func expandMCPConfig(root *coremcp.ConfigRoot, expand func(string) string) {
 	if root == nil || root.MCPServers == nil {
 		return
 	}
@@ -259,7 +244,7 @@ func expandMCPConfig(root *MCPConfigRoot, expand func(string) string) {
 
 // readMCPJSONFile parses path, returning (nil, nil) when the file does not
 // exist or declares no server.
-func readMCPJSONFile(path string) (*MCPConfigRoot, error) {
+func readMCPJSONFile(path string) (*coremcp.ConfigRoot, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -267,31 +252,9 @@ func readMCPJSONFile(path string) (*MCPConfigRoot, error) {
 		}
 		return nil, fmt.Errorf("mcp config read %q: %w", path, err)
 	}
-	var root MCPConfigRoot
-	if err := json.Unmarshal(raw, &root); err != nil {
+	root, err := coremcp.ParseConfig(raw)
+	if err != nil {
 		return nil, fmt.Errorf("mcp config json %q: %w", path, err)
 	}
-	if len(root.MCPServers) == 0 {
-		return nil, nil
-	}
-	return &root, nil
-}
-
-func validateMCPServerConfig(id string, s MCPServerConfig) error {
-	if strings.TrimSpace(id) == "" {
-		return errors.New("mcp: empty server id in mcpServers")
-	}
-	switch s.Type {
-	case "stdio":
-		if strings.TrimSpace(s.Command) == "" {
-			return fmt.Errorf("mcp server %q: stdio requires command", id)
-		}
-	case "sse", "http":
-		if strings.TrimSpace(s.URL) == "" {
-			return fmt.Errorf("mcp server %q: %s requires url", id, s.Type)
-		}
-	default:
-		return fmt.Errorf("mcp server %q: invalid type %q (want stdio, sse, or http)", id, s.Type)
-	}
-	return nil
+	return root, nil
 }

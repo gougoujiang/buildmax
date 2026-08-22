@@ -1,6 +1,7 @@
 package config
 
 import (
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	"os"
 	"path/filepath"
 	"strings"
@@ -185,7 +186,7 @@ post_tool_use:
 	if plugin.HasErrors(got.Findings) {
 		t.Fatalf("unexpected findings: %v", got.Findings)
 	}
-	entries := got.Config.Entries(HookEventPostToolUse)
+	entries := got.Config.Entries(corehook.EventPostToolUse)
 	if len(entries) != 2 {
 		t.Fatalf("got %d entries, want one per plugin", len(entries))
 	}
@@ -219,7 +220,7 @@ func TestResolvePluginHooksReportsABrokenFile(t *testing.T) {
 	writePluginFile(t, root, "beta", "hooks.yaml", "post_tool_use:\n  - type: command\n    command: ok\n")
 
 	got := ResolvePluginHooks(DiscoverPluginsIn(root).Loadable())
-	if len(got.Config.Entries(HookEventPostToolUse)) != 1 {
+	if len(got.Config.Entries(corehook.EventPostToolUse)) != 1 {
 		t.Errorf("the healthy plugin's hook should still run: %+v", got.Config.PostToolUse)
 	}
 	errs := plugin.Errors(got.Findings)
@@ -229,11 +230,11 @@ func TestResolvePluginHooksReportsABrokenFile(t *testing.T) {
 }
 
 func TestMergeHooksLayerOrder(t *testing.T) {
-	layer := func(cmd string) HooksConfig {
-		return HooksConfig{PostToolUse: []HookEntry{{Type: HookTypeCommand, Command: cmd}}}
+	layer := func(cmd string) corehook.Config {
+		return corehook.Config{PostToolUse: []corehook.Entry{{Type: corehook.TypeCommand, Command: cmd}}}
 	}
 	got := MergeHooks(layer("global"), layer("plugin"), layer("workspace"))
-	entries := got.Entries(HookEventPostToolUse)
+	entries := got.Entries(corehook.EventPostToolUse)
 	want := []string{"global", "plugin", "workspace"}
 	if len(entries) != len(want) {
 		t.Fatalf("got %d entries, want %d", len(entries), len(want))
@@ -243,7 +244,7 @@ func TestMergeHooksLayerOrder(t *testing.T) {
 			t.Errorf("entry %d = %q, want %q", i, entries[i].Command, w)
 		}
 	}
-	if MergeHooks().Entries(HookEventPostToolUse) != nil {
+	if MergeHooks().Entries(corehook.EventPostToolUse) != nil {
 		t.Error("merging nothing should produce nothing")
 	}
 }

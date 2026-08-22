@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/config"
+	mcpcfg "github.com/gougoujiang/buildmax/internal/core/mcp"
 	"github.com/gougoujiang/buildmax/internal/infra/mcp"
 )
 
@@ -23,7 +23,7 @@ type MCPManager struct {
 // NewMCPManager performs an initial Refresh with the provided config. Config load
 // failures are returned as errors; individual server connection failures are
 // surfaced only via Status().
-func NewMCPManager(ctx context.Context, cfg *config.MCPConfigRoot) (*MCPManager, error) {
+func NewMCPManager(ctx context.Context, cfg *mcpcfg.ConfigRoot) (*MCPManager, error) {
 	mgr := &MCPManager{}
 	if err := mgr.Refresh(ctx, cfg); err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (m *MCPManager) Status() MCPStatus {
 
 // Refresh reconnects to all servers in cfg. Individual server connection failures
 // are non-fatal and are recorded in Status() instead.
-func (m *MCPManager) Refresh(ctx context.Context, cfg *config.MCPConfigRoot) error {
+func (m *MCPManager) Refresh(ctx context.Context, cfg *mcpcfg.ConfigRoot) error {
 	if m == nil {
 		return fmt.Errorf("mcp manager is not initialized")
 	}
