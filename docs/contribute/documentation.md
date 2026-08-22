@@ -103,17 +103,27 @@ Repeating a fact in two documents guarantees that one of them becomes wrong.
 ## What Is Enforced
 
 `internal/architecture/docs_test.go` runs with the normal test suite and fails
-the build on the three ways documentation rots silently:
+the build on the ways documentation rots silently:
 
 | Test | Fails when |
 |---|---|
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
 | `TestEnvVarsDocumented` | `config.EnvVars` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | A tool name constant is missing from [guide/tools.md](../guide/tools.md) |
+| `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../AGENTS.md) cites a path or route that does not exist |
+| `TestDocumentedFilePathsExist` | Any document cites a repository file that does not exist |
+| `TestDocumentedMakeCommandsExist` | Any document names a `./make` command the task runner does not dispatch |
+| `TestCLIReferenceCoversEveryCommand` | A command reaches the binary without reaching [reference/cli.md](../reference/cli.md) |
 
 The tool-name check exists because those strings are user-visible contract —
 they appear in hook `matcher` regexes and subagent `tools:` fields, so renaming
 a tool without updating the docs breaks working configuration silently.
+
+The last three carry a short list of the drift they find today, each keyed to an
+open issue. Fixing one means deleting its entry, and an entry nothing reports
+fails the test too — so the list shrinks as the documentation is repaired
+instead of outliving it. Design records are exempt: they record the plan of the
+day, and current code wins when the two disagree.
 
 Everything else is convention, upheld in review.
 

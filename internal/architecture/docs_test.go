@@ -2,8 +2,9 @@ package architecture_test
 
 // Documentation constraints. These keep docs/ honest about things the code is
 // the source of truth for: every relative link must resolve, every environment
-// variable must be documented, and every LLM-facing tool name must appear in
-// the user-facing tool guide.
+// variable must be documented, every LLM-facing tool name must appear in the
+// user-facing tool guide, every cited file and `./make` command must exist, and
+// every CLI command must reach the reference page.
 //
 // Conventions these enforce: docs/contribute/documentation.md.
 
@@ -306,6 +307,230 @@ func TestWorkspaceMCPPathsExist(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(root, strings.TrimPrefix(arg, prefix))); err != nil {
 				t.Errorf("MCP server %q cites missing workspace path %q", server, arg)
 			}
+		}
+	}
+}
+
+// The three checks below extend the ones above from AGENTS.md to every
+// document, and from paths to the two other things a reader can act on and get
+// wrong: a task-runner command, and the command list a user looks up.
+//
+// Each carries the drift it finds today, keyed to the issue open against it.
+// Fixing one means deleting its entry — and an entry nothing reports fails too,
+// so a list cannot quietly become a permanent exemption for something already
+// repaired.
+
+// staleMakeCommands is documented `./make` usage that cmd/mk does not dispatch.
+var staleMakeCommands = map[string]string{
+	".buildmax/README.md: smoke": "#126, renamed to agent-smoke",
+}
+
+var documentedMakeCommandRe = regexp.MustCompile(`(?:\./make|make\.bat) ([a-z][a-z0-9-]*)`)
+
+// TestDocumentedMakeCommandsExist fails when a document tells a contributor to
+// run a task-runner command that no longer exists. Renaming one is cheap and
+// the call sites are prose, so nothing else notices.
+func TestDocumentedMakeCommandsExist(t *testing.T) {
+	root := repoRoot(t)
+	dispatched := taskRunnerCommands(t, root)
+	seen := map[string]bool{}
+
+	for _, file := range markdownFiles(t, root) {
+		rel, _ := filepath.Rel(root, file)
+		// Design records describe the plan of the day. AGENTS.md settles a
+		// conflict in favour of current code, so a record naming a command that
+		// has since been renamed is history rather than drift.
+		if strings.HasPrefix(rel, filepath.Join("docs", "design")) {
+			continue
+		}
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		for _, m := range documentedMakeCommandRe.FindAllStringSubmatch(string(body), -1) {
+			if dispatched[m[1]] {
+				continue
+			}
+			key := rel + ": " + m[1]
+			if _, known := staleMakeCommands[key]; known {
+				seen[key] = true
+				continue
+			}
+			t.Errorf("%s documents `./make %s`, which cmd/mk does not dispatch", rel, m[1])
+		}
+	}
+	assertAllReported(t, "staleMakeCommands", staleMakeCommands, seen)
+}
+
+// taskRunnerCommands reads the names cmd/mk dispatches. The switch is bounded
+// first: the file holds other switches whose cases are not commands.
+func taskRunnerCommands(t *testing.T, root string) map[string]bool {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(root, "cmd", "mk", "main.go"))
+	if err != nil {
+		t.Fatalf("read cmd/mk/main.go: %v", err)
+	}
+	const marker = "switch args[0] {"
+	start := strings.Index(string(body), marker)
+	if start < 0 {
+		t.Fatalf("cmd/mk/main.go has no %q; this test can no longer find the command list", marker)
+	}
+	end := strings.Index(string(body)[start:], "\n\t}\n")
+	if end < 0 {
+		t.Fatal("cmd/mk/main.go: the dispatch switch does not close where expected")
+	}
+	names := map[string]bool{}
+	for _, m := range regexp.MustCompile(`case "([a-z][a-z0-9-]*)"`).
+		FindAllStringSubmatch(string(body)[start:start+end], -1) {
+		names[m[1]] = true
+	}
+	if len(names) < 5 {
+		t.Fatalf("found only %d dispatch cases; the switch shape changed", len(names))
+	}
+	return names
+}
+
+// staleFilePaths is a cited file that does not exist.
+var staleFilePaths = map[string]string{
+	"docs/contribute/architecture/server.md: internal/server/handlers/conversation_turns.go": "#128, the turn queue is internal/server/turnqueue",
+}
+
+// documentedFileRe matches a backticked repository path carrying a file
+// extension. Only files are checked: a bare `internal/app` is often prose about
+// a package that deliberately does not exist — packages.md says exactly that —
+// and `desktop/message-blocked` is an event name that reads like a path. The
+// extension separates a file reference from both without a list of exceptions
+// to maintain.
+var documentedFileRe = regexp.MustCompile("`([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\\.(?:go|md|ya?ml|jsonc?|tsx?|js|sh|toml|mod|sum|bat))`")
+
+// TestDocumentedFilePathsExist extends TestAgentsMDPathsExist to every
+// document. A file moving into its own package is ordinary, and the paragraph
+// describing it is then worse than nothing: it sends a reader to a path that
+// does not exist, in the document that was supposed to save them the search.
+func TestDocumentedFilePathsExist(t *testing.T) {
+	root := repoRoot(t)
+	seen := map[string]bool{}
+
+	for _, file := range markdownFiles(t, root) {
+		rel, _ := filepath.Rel(root, file)
+		if strings.HasPrefix(rel, filepath.Join("docs", "design")) {
+			continue
+		}
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		for _, m := range documentedFileRe.FindAllStringSubmatch(string(body), -1) {
+			cited := m[1]
+			if isBuildArtifact(cited) {
+				continue
+			}
+			// Repository-relative only: a first segment that is not in the tree
+			// belongs to someone else's layout, or to an example.
+			if _, err := os.Stat(filepath.Join(root, strings.SplitN(cited, "/", 2)[0])); err != nil {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(root, cited)); err == nil {
+				continue
+			}
+			key := rel + ": " + cited
+			if _, known := staleFilePaths[key]; known {
+				seen[key] = true
+				continue
+			}
+			t.Errorf("%s cites %s, which does not exist", rel, cited)
+		}
+	}
+	assertAllReported(t, "staleFilePaths", staleFilePaths, seen)
+}
+
+// undocumentedCLICommands is a command the binary offers that the reference
+// page does not list.
+var undocumentedCLICommands = map[string]string{
+	"models": "#129",
+	"tools":  "#129",
+}
+
+// TestCLIReferenceCoversEveryCommand fails when a command reaches the binary
+// without reaching docs/reference/cli.md. That page is where a user looks for
+// the command list, so a command missing from it is one nobody finds.
+func TestCLIReferenceCoversEveryCommand(t *testing.T) {
+	root := repoRoot(t)
+	page := filepath.Join("docs", "reference", "cli.md")
+	body, err := os.ReadFile(filepath.Join(root, page))
+	if err != nil {
+		t.Fatalf("read %s: %v", page, err)
+	}
+	seen := map[string]bool{}
+	for _, name := range rootCLICommands(t, root) {
+		if strings.Contains(string(body), "buildmax "+name) {
+			continue
+		}
+		if _, known := undocumentedCLICommands[name]; known {
+			seen[name] = true
+			continue
+		}
+		t.Errorf("%s does not document `buildmax %s`", page, name)
+	}
+	assertAllReported(t, "undocumentedCLICommands", undocumentedCLICommands, seen)
+}
+
+// rootCLICommands resolves the constructors root.go registers to their Use:
+// names, so the page is compared against the binary rather than against a
+// second list someone has to remember to update.
+func rootCLICommands(t *testing.T, root string) []string {
+	t.Helper()
+	dir := filepath.Join(root, "internal", "interface", "cli")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	var sources strings.Builder
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", e.Name(), err)
+		}
+		sources.Write(body)
+	}
+	all := sources.String()
+
+	rootBody, err := os.ReadFile(filepath.Join(dir, "root.go"))
+	if err != nil {
+		t.Fatalf("read root.go: %v", err)
+	}
+	useRe := regexp.MustCompile(`Use:\s+"([^"]+)"`)
+	var names []string
+	for _, m := range regexp.MustCompile(`AddCommand\((new[A-Za-z0-9_]*Command)\(`).
+		FindAllStringSubmatch(string(rootBody), -1) {
+		at := strings.Index(all, "func "+m[1]+"(")
+		if at < 0 {
+			t.Errorf("root.go registers %s(), which is not defined in the package", m[1])
+			continue
+		}
+		use := useRe.FindStringSubmatch(all[at:])
+		if use == nil {
+			t.Errorf("%s() has no Use: field", m[1])
+			continue
+		}
+		names = append(names, strings.Fields(use[1])[0])
+	}
+	if len(names) < 5 {
+		t.Fatalf("found only %d root commands; the registration shape changed", len(names))
+	}
+	return names
+}
+
+// assertAllReported fails for a known-drift entry that nothing found, so the
+// list shrinks as the drift is fixed instead of outliving it.
+func assertAllReported(t *testing.T, name string, known map[string]string, seen map[string]bool) {
+	t.Helper()
+	for key, issue := range known {
+		if !seen[key] {
+			t.Errorf("%s lists %q (%s), but nothing reported it; delete the entry if it is fixed", name, key, issue)
 		}
 	}
 }
