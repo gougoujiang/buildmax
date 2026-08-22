@@ -16,6 +16,18 @@ code plus the roadmap wins when an older design record disagrees. Design
 records under [`docs/design/`](docs/design/README.md) explain rationale;
 current behavior belongs in user or contributor documentation.
 
+Documentation describes this project; it does not bound it. When a document
+disagrees with the code, the code is the fact and the document is the bug —
+say so, and fix the document, rather than reproducing stale behavior. When a
+document is simply silent, or its reasoning no longer fits the case in front
+of you, use judgment and state the assumption you made.
+
+This applies to descriptions. The architecture boundaries and runtime
+invariants below are decisions, not observations: a rule you believe has
+outlived its rationale is a proposal to make explicitly, not a constraint to
+quietly route around. Proposing one is welcome; this file exists to record
+which is which, not to close the question.
+
 The primary implementation language is Go. The CLI/TUI must remain usable as a
 single binary without Node. Portal and Desktop have React frontends; this is an
 intentional exception, not a reason to add another runtime to the Go core.
