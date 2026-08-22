@@ -37,6 +37,7 @@ their context.
 | [Entity identity and relational keys](entity-identity-and-relational-keys.md) | Should public opaque IDs be separated from compact relational keys before Beta? |
 | [Local background work and monitors](local-background-work-and-monitors.md) | Should TUI and Desktop share a process-scoped job manager for detached commands, subagents, and event-driven monitors? |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
+| [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? |
 | [Plugin scope for background runs](plugin-scope-for-background-runs.md) | Is a team's plugin set decided once for the team, or per agent definition? |
 
