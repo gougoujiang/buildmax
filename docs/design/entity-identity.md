@@ -590,6 +590,13 @@ The three `HasPrefix` assertions in tests become codec assertions.
 - Requires a database reset. First PR that does.
 - Verifies the format end to end — routes, tokens, object keys, Job names,
   Portal — before any relational change is layered on top.
+- Carries the *prescriptive* half of the documentation: `conventions.md`,
+  `AGENTS.md`, and `util.md` tell a contributor what to do, and leaving them
+  saying `NewPrefixedID` for the span of PRs 4 and 5 would mislead whoever adds
+  a table in between. The descriptive half stays in PR 6.
+- Deletes migrations `0001`–`0003` per §12, and with them the append-only guard
+  that named them: the reset is what makes those IDs stop being permanent facts
+  about a database that exists.
 - Checks: `./make check go`, `./make e2e local`.
 - Changelog: `./make changelog new changed opaque-entity-ids`.
 
@@ -640,12 +647,8 @@ moved down from `internal/service/artifact`.
   every per-table column listing.
 - [store.md](../contribute/architecture/store.md): replace the prefix list with
   the two-identifier rule and the translation boundary.
-- [util.md](../contribute/architecture/util.md): replace the entity-ID section
-  with the codec.
-- [conventions.md](../contribute/conventions.md): replace *Entity IDs Are
-  Prefixed*.
-- [AGENTS.md](../../AGENTS.md): the change rule currently names
-  `NewPrefixedID`.
+- `conventions.md`, `AGENTS.md`, and `util.md` were done in PR 3, because they
+  prescribe rather than describe.
 - [deploy/local-kind.md](../deploy/local-kind.md) and
   [contribute/testing.md](../contribute/testing.md): say that crossing this
   cutover needs `./make kind down && ./make kind up` rather than an upgrade.

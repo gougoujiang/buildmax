@@ -66,7 +66,7 @@ conversation:
   # Use a catalog model for Tier 1 instead of the model above. This is an
   # llm_model ID, not a team alias: the server picks its own model rather than
   # being granted one. Leave unset to use conversation.model.
-  # model_target: lm_xxxxxxxxxxxxxxxxxxxx
+  # model_target: ivyoh5qcfu6ypfkhyedq
 
 # Team model policy for the managed LLM gateway.
 #
@@ -86,8 +86,8 @@ conversation:
 # See docs/design/llm-gateway.md.
 # llm:
 #   aliases:
-#     default: lm_xxxxxxxxxxxxxxxxxxxx   # a model ID from `model list`
-#     deep: lm_yyyyyyyyyyyyyyyyyyyy
+#     default: ivyoh5qcfu6ypfkhyedq   # a model ID from `model list`
+#     deep: 2l73hqqx6fcl7eecggda
 #   # Alias used when a caller names none. Required when more than one exists.
 #   default_alias: default
 

@@ -20,12 +20,11 @@ var _ model.PluginStore = (*Store)(nil)
 // and their digest are still exactly what was published.
 func TestToPluginReleaseSurvivesADamagedDocument(t *testing.T) {
 	row := &pluginReleaseRow{
-		PluginReleaseID: "plr_test",
-		PluginName:      "code-review",
-		Version:         "1.2.0",
-		Digest:          "sha256:abc",
-		Inspection:      "{not json",
-		Source:          "{also not json",
+		PluginName: "code-review",
+		Version:    "1.2.0",
+		Digest:     "sha256:abc",
+		Inspection: "{not json",
+		Source:     "{also not json",
 	}
 	got := toPluginRelease(row)
 	if got.Version != "1.2.0" || got.Digest != "sha256:abc" {

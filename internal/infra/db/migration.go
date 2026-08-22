@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
@@ -64,20 +63,14 @@ type Migration struct {
 // Append only. An existing entry has already been recorded in deployments, so
 // editing or reordering one changes what an upgraded database gets relative to
 // a fresh one — which is exactly the divergence this list exists to prevent.
-var migrations = []Migration{
-	{
-		ID:    "0001_artifact_tables_to_task_run_artifact",
-		Apply: migrateFromArtifactTables,
-	},
-	{
-		ID:    "0002_task_run_output_file_to_task_run_artifact",
-		Apply: migrateTaskRunOutputFileToArtifact,
-	},
-	{
-		ID:    "0003_seed_first_agent_and_workflow_revision",
-		Apply: seedFirstRevisions,
-	},
-}
+//
+// The list is empty because the identity cutover reset every database that had
+// entries in it. Its three predecessors — folding the old artifact tables into
+// task_run_artifact, and seeding a first revision for agents and workflows that
+// predated revisions — described a schema that no longer exists and data no
+// deployment kept, so keeping them would have left migrations that cannot run
+// against any database this binary can create. Append-only starts again here.
+var migrations []Migration
 
 // runMigrations applies every migration this binary knows and the database has
 // not recorded.
@@ -147,172 +140,4 @@ func warnIfSchemaIsAhead(applied map[string]bool) {
 	}
 	slog.Warn("database schema is ahead of this binary; supported one release back, not more",
 		"unknown_migrations", unknown)
-}
-
-// tableExists reports whether the current schema has the named table.
-func tableExists(ctx context.Context, db *gorm.DB, table string) (bool, error) {
-	var found int
-	err := db.WithContext(ctx).Raw(
-		"SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1",
-		table).Scan(&found).Error
-	return found != 0, err
-}
-
-// columnExists reports whether the named table has the named column.
-func columnExists(ctx context.Context, db *gorm.DB, table, column string) (bool, error) {
-	var found int
-	err := db.WithContext(ctx).Raw(
-		"SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1",
-		table, column).Scan(&found).Error
-	return found != 0, err
-}
-
-// migrateFromArtifactTables copies artifact_item into task_run_artifact (by task_run_id from artifact),
-// then drops artifact and artifact_item, and drops legacy task artifact columns if present.
-//
-// Both guards here exist because `artifact` is a live table name again. Unified
-// artifacts reuse it for a different object, and AutoMigrate has already
-// created that table by the time migrations run — so this migration has to be
-// able to tell the old table from the new one:
-//
-//   - artifact_item decides whether there is anything to do at all. Only the
-//     old model ever had that table, whereas plain `artifact` is now ambiguous.
-//     Without this, a database that applied the fold before schema_migration
-//     existed (releases before #79 recorded nothing) would retry it, find the
-//     new table, and fail on the missing artifact_item.
-//   - task_run_id decides whether the `artifact` table is still the old shape
-//     before dropping it, so a retry cannot delete the new one.
-func migrateFromArtifactTables(ctx context.Context, db *gorm.DB) error {
-	legacy, err := tableExists(ctx, db, "artifact_item")
-	if err != nil || !legacy {
-		return err
-	}
-	err = db.WithContext(ctx).Exec(`INSERT INTO task_run_artifact (task_run_id, relative_path)
-		SELECT a.task_run_id, i.relative_path FROM artifact_item i INNER JOIN artifact a ON i.artifact_id = a.artifact_id
-		ON DUPLICATE KEY UPDATE relative_path = VALUES(relative_path)`).Error
-	if err != nil {
-		return err
-	}
-	_ = db.WithContext(ctx).Exec("DROP TABLE IF EXISTS artifact_item").Error
-	legacyArtifact, err := columnExists(ctx, db, "artifact", "task_run_id")
-	if err != nil {
-		return err
-	}
-	if legacyArtifact {
-		if err := db.WithContext(ctx).Exec("DROP TABLE IF EXISTS artifact").Error; err != nil {
-			return err
-		}
-		// AutoMigrate ran before this and may have grafted the new columns onto
-		// the old table; recreate it here so the drop does not leave the
-		// running process without one until the next start.
-		if err := db.WithContext(ctx).AutoMigrate(&artifactRow{}); err != nil {
-			return err
-		}
-	}
-	_ = db.WithContext(ctx).Exec("ALTER TABLE task DROP COLUMN last_artifact_id").Error
-	_ = db.WithContext(ctx).Exec("ALTER TABLE task DROP COLUMN artifact_seq").Error
-	_ = db.WithContext(ctx).Exec("ALTER TABLE chat DROP COLUMN last_artifact_id").Error
-	_ = db.WithContext(ctx).Exec("ALTER TABLE chat DROP COLUMN artifact_seq").Error
-	return nil
-}
-
-// migrateTaskRunOutputFileToArtifact copies task_run_output_file into task_run_artifact and drops the old table.
-func migrateTaskRunOutputFileToArtifact(ctx context.Context, db *gorm.DB) error {
-	exists, err := tableExists(ctx, db, "task_run_output_file")
-	if err != nil || !exists {
-		return err
-	}
-	err = db.WithContext(ctx).Exec(`INSERT INTO task_run_artifact (task_run_id, relative_path)
-		SELECT task_run_id, relative_path FROM task_run_output_file`).Error
-	if err != nil {
-		return err
-	}
-	return db.WithContext(ctx).Exec("DROP TABLE task_run_output_file").Error
-}
-
-// seedFirstRevisions gives every agent and workflow that predates revision
-// history a revision 1 holding its current content.
-//
-// The alternative — an empty history until the next edit — would silently lose
-// the definition an edit replaced, which is the one thing history exists to
-// keep. The seeded row is an approximation and is documented as one: its author
-// is whoever created the record, not whoever last changed it, and its timestamp
-// is when the content last moved, not when this content was written.
-//
-// It only inserts for records that have no revision at all, so a retry after a
-// crash between applying and recording adds nothing.
-func seedFirstRevisions(ctx context.Context, db *gorm.DB) error {
-	if err := seedFirstAgentRevisions(ctx, db); err != nil {
-		return err
-	}
-	return seedFirstWorkflowRevisions(ctx, db)
-}
-
-func seedFirstAgentRevisions(ctx context.Context, db *gorm.DB) error {
-	var agents []agentRow
-	err := db.WithContext(ctx).
-		Where("NOT EXISTS (SELECT 1 FROM agent_revision WHERE agent_revision.agent_id = agent.agent_id)").
-		Find(&agents).Error
-	if err != nil {
-		return err
-	}
-	if len(agents) == 0 {
-		return nil
-	}
-	revisions := make([]agentRevisionRow, len(agents))
-	for i := range agents {
-		revisions[i] = agentRevisionRow{
-			AgentRevisionID: util.NewPrefixedID(util.PrefixAgentRevision),
-			AgentID:         agents[i].AgentID,
-			Revision:        firstRevision(agents[i].Revision),
-			Name:            agents[i].Name,
-			Description:     agents[i].Description,
-			Instructions:    agents[i].Instructions,
-			CreatedBy:       agents[i].UserID,
-			CreatedAt:       agents[i].CreatedAt,
-		}
-	}
-	return db.WithContext(ctx).Create(&revisions).Error
-}
-
-func seedFirstWorkflowRevisions(ctx context.Context, db *gorm.DB) error {
-	var workflows []workflowRow
-	err := db.WithContext(ctx).
-		Where("NOT EXISTS (SELECT 1 FROM workflow_revision WHERE workflow_revision.workflow_id = workflow.workflow_id)").
-		Find(&workflows).Error
-	if err != nil {
-		return err
-	}
-	if len(workflows) == 0 {
-		return nil
-	}
-	revisions := make([]workflowRevisionRow, len(workflows))
-	for i := range workflows {
-		createdAt := workflows[i].UpdatedAt
-		if createdAt == 0 {
-			createdAt = workflows[i].CreatedAt
-		}
-		revisions[i] = workflowRevisionRow{
-			WorkflowRevisionID: util.NewPrefixedID(util.PrefixWorkflowRevision),
-			WorkflowID:         workflows[i].WorkflowID,
-			Revision:           firstRevision(workflows[i].Revision),
-			Name:               workflows[i].Name,
-			Description:        workflows[i].Description,
-			Definition:         workflows[i].Definition,
-			Status:             workflows[i].Status,
-			CreatedBy:          workflows[i].CreatedBy,
-			CreatedAt:          createdAt,
-		}
-	}
-	return db.WithContext(ctx).Create(&revisions).Error
-}
-
-// firstRevision returns the revision number a seeded row should carry. The
-// column defaults to 1, so a row that reports less than that predates the
-// column and is still its own first revision.
-func firstRevision(current int) int {
-	if current < 1 {
-		return 1
-	}
-	return current
 }

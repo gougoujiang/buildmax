@@ -24,28 +24,37 @@ One table per entity type, named in the singular: `user`, `agent`,
 `conversation`, `task`, `task_run`. Never `users` or `tasks`. This applies to
 every table the project creates or migrates.
 
-## Entity IDs Are Prefixed
+## Entity IDs Are Opaque Public Handles
 
-Entity IDs use `<prefix>_<body>`, where the body is 20 characters of lowercase
-base36 (`[a-z0-9]`).
+A server entity has two identifiers with one role each. `id` is a
+`bigint unsigned` primary key, is the relational key inside MySQL, and never
+leaves `internal/infra/db`. `public_id` is the handle every boundary sees: 96
+bits of crypto-random data, stored as `BINARY(12)` and written as 20 lowercase
+base32 characters.
 
-| Prefix | Entity | Prefix | Entity |
-|---|---|---|---|
-| `u_` | user | `c_` | conversation |
-| `tm_` | team | `cm_` | conversation message |
-| `i_` | issue | `t_` | task |
-| `a_` | agent | `r_` | task run |
-| `w_` | workflow | `ar_` | artifact |
-| `wr_` | workflow run | `f_` | artifact item |
-| `wsr_` | workflow step run | `whk_` | webhook key |
-| `lc_` | managed LLM call | `lm_` | managed model |
-| `ae_` | audit event | `sg_` | system grant |
-| `pl_` | plugin | `plr_` | plugin release |
+```text
+ivyoh5qcfu6ypfkhyedq
+```
 
-Generate them with `internal/util.NewPrefixedID(prefix)`, passing the prefix
-without the underscore; the constants live in `internal/util/id.go`, which with
-its tests is the reference for the format. Order rows by `created_at`, never by
-ID. Session IDs are the one exception — they are internal and use UUIDs.
+Generate one with `util.NewPublicID`, which returns an error rather than
+panicking, and parse one with `util.ParsePublicID`, which accepts either case
+and rejects any non-canonical spelling. Type prefixes are gone: the route, the
+JSON field, and the column already name the type, and nothing dispatched on the
+prefix.
+
+Not every row earns a handle. A join row, a revision, and a catalog release are
+addressed by their parent plus a natural key instead. Which tables have one,
+which references become numeric, and which stay opaque strings are decided in
+[../design/entity-identity.md](../design/entity-identity.md); read it before
+adding a table.
+
+In JSON, a resource names its own handle `id` and keeps semantic names for
+relationships — `{"id": ..., "team_id": ..., "conversation_id": ...}`. Order
+rows by `created_at`, never by ID.
+
+`NewPrefixedID` survives for three identifiers that name something other than a
+row: `as_` a login chain of refresh tokens, `rt_` a trace file, and `p_` a
+Desktop project. Agent session IDs are UUIDs.
 
 ## Tool Output Is Written For The LLM
 

@@ -129,7 +129,11 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 		return nil, errors.New("llm call is required")
 	}
 	stored := *call
-	stored.ID = util.NewPrefixedID(util.PrefixLLMCall)
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
+	stored.ID = publicID
 	if stored.AcceptedAt == 0 {
 		stored.AcceptedAt = time.Now().Unix()
 	}

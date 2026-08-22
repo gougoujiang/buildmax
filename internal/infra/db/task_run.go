@@ -187,8 +187,12 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 	if inProgress > 0 {
 		return nil, model.ErrRunInProgress
 	}
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	run := &model.TaskRun{
-		ID:               util.NewPrefixedID(util.PrefixTaskRun),
+		ID:               publicID,
 		TaskID:           in.TaskID,
 		Input:            in.Input,
 		CreatedBy:        in.CreatedBy,

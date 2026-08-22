@@ -72,8 +72,12 @@ func toConversationMessageRow(m *model.ConversationMessage) *conversationMessage
 // role "user" and role "system"; tool_call_id is stored when role is "tool"; tool_calls (JSON) is
 // stored when role is "assistant" with tool calls. Returns the created message.
 func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	msg := &model.ConversationMessage{
-		ID:                util.NewPrefixedID(util.PrefixConversationMessage),
+		ID:                publicID,
 		ConversationID:    in.ConversationID,
 		Role:              in.Role,
 		Content:           in.Content,

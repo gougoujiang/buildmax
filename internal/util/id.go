@@ -10,35 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Prefix constants for prefixed IDs. Use with NewPrefixedID.
-// Semantics: u=user, tm=team, a=agent, arv=agent revision, c=conversation, t=task, r=task run, ar=artifact, f=artifact item, cm=conversation message, ic=issue comment, wrv=workflow revision, whk=user webhook key, lc=managed LLM call, lm=managed model catalog entry, as=auth session (one login chain of refresh tokens), sg=system grant (a deployment-scoped role held by a user).
-// Agent session IDs are internal (not user-facing) and use UUID.
-const (
-	PrefixUser                = "u"
-	PrefixTeam                = "tm"
-	PrefixIssue               = "i"
-	PrefixIssueComment        = "ic"
-	PrefixAgent               = "a"
-	PrefixAgentRevision       = "arv"
-	PrefixWorkflow            = "w"
-	PrefixWorkflowRevision    = "wrv"
-	PrefixWorkflowRun         = "wr"
-	PrefixWorkflowStepRun     = "wsr"
-	PrefixConversation        = "c"
-	PrefixTask                = "t"
-	PrefixTaskRun             = "r"
-	PrefixArtifact            = "ar"
-	PrefixArtifactItem        = "f"
-	PrefixConversationMessage = "cm"
-	PrefixWebhookKey          = "whk"
-	PrefixLLMCall             = "lc"
-	PrefixLLMModel            = "lm"
-	PrefixAuditEvent          = "ae"
-	PrefixAuthSession         = "as"
-	PrefixSystemGrant         = "sg"
-	PrefixPlugin              = "pl"
-	PrefixPluginRelease       = "plr"
-)
+// PrefixAuthSession names one login chain of refresh tokens. It is the only
+// prefixed entity-shaped identifier left: the rest became public IDs, and the
+// two others still generated here -- "rt" for a trace file and "p" for a
+// Desktop project -- name files and local UI state rather than rows.
+const PrefixAuthSession = "as"
 
 const (
 	idBodyLen       = 20
@@ -54,6 +30,10 @@ var (
 // NewPrefixedID returns a string of the form "<prefix>_<body>", where body is 20
 // characters from [a-z0-9] (lowercase base36), derived from 128 bits of
 // crypto-random entropy. Ordering is by created_at; IDs are not time-ordered.
+//
+// Server entities do not use this. They use NewPublicID, whose value is what
+// crosses every boundary; see docs/design/entity-identity.md. What is left here
+// identifies a login chain, a trace file, and a Desktop project.
 func NewPrefixedID(prefix string) string {
 	u := uuid.New()
 	n := new(big.Int).SetBytes(u[:])

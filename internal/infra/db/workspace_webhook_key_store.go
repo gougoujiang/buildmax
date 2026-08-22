@@ -37,7 +37,10 @@ func (s *Store) CreateKey(ctx context.Context, userID, name string) (plaintextKe
 	plaintextKey = webhookKeyPrefix + hex.EncodeToString(b)
 	hash := sha256.Sum256([]byte(plaintextKey))
 	keyHash := hex.EncodeToString(hash[:])
-	keyID = util.NewPrefixedID(util.PrefixWebhookKey)
+	keyID, err = util.NewPublicID()
+	if err != nil {
+		return "", "", err
+	}
 	row := userWebhookKeyRow{
 		KeyID:   keyID,
 		UserID:  userID,

@@ -130,7 +130,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Artifact, 
 		return nil, ErrEmptyContent
 	}
 
-	artifactID := util.NewPrefixedID(util.PrefixArtifact)
+	// Generated here rather than in the store because the content is written to
+	// object storage under this ID before the row exists; moving generation down
+	// is part of giving the store its collision retry.
+	artifactID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	ref := blob.ArtifactRef{TeamID: in.TeamID, ArtifactID: artifactID}
 	limit := s.maxFileBytes()
 

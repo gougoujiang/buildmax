@@ -14,17 +14,27 @@ Two things that used to live here now do not — git helpers are in
 ## Entity IDs (`id.go`)
 
 ```go
-util.NewPrefixedID(util.PrefixTask)   // → "t_9f3k2m8x1qwe7rt4zy0p"
+id, err := util.NewPublicID()        // → "ivyoh5qcfu6ypfkhyedq"
+raw, ok := util.ParsePublicID(id)    // → 12 bytes
+text := util.FormatPublicID(raw)     // → the canonical text again
 ```
 
-Pass the prefix **without** the underscore — `NewPrefixedID` joins them.
+A server entity's public identifier is 96 bits of crypto-random data, stored as
+`BINARY(12)` and written as 20 lowercase base32 characters (`a-z2-7`). It is
+the only handle that leaves the process; the numeric primary key is the
+relational key and stays inside `internal/infra/db`. Why base32 rather than a
+shorter base64url, and which tables have a public ID at all, is in
+[../../design/entity-identity.md](../../design/entity-identity.md).
 
-The repository-wide ID format: a short type prefix, then 20 characters of
-lowercase base36, derived from 128 bits of crypto-random entropy.
+`NewPublicID` returns an error rather than panicking: entropy failure must be
+one failed create, not a process abort inside a request. `ParsePublicID` accepts
+either case and rejects everything that is not canonical, so one value has one
+spelling — which is why a canonical ID always ends in `a` or `q`, and why a
+hand-written fixture usually is not one.
 
-Every prefix is a constant in `id.go`; the full set is `u`, `tm`, `i`, `a`, `w`,
-`wr`, `wsr`, `c`, `cm`, `t`, `r`, `ar`, `f`, `whk`. Session IDs are the one
-exception — they are internal and use UUIDs.
+`NewPrefixedID` remains for three identifiers that name something other than a
+row: `as_` a login chain of refresh tokens, `rt_` a trace file, and `p_` a
+Desktop project. Agent session IDs are UUIDs.
 
 IDs carry no ordering — sort by `created_at`, never by ID. `id.go` and its tests
 are the reference for the format.

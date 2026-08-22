@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // pluginRow is one catalog entry. It has no team column: the catalog belongs to
@@ -18,7 +17,6 @@ import (
 // capabilities without reaching into any team's content.
 type pluginRow struct {
 	ID          uint   `gorm:"primaryKey;autoIncrement"`
-	PluginID    string `gorm:"type:varchar(64);uniqueIndex;not null"`
 	Name        string `gorm:"type:varchar(128);uniqueIndex;not null"`
 	DisplayName string `gorm:"type:varchar(255);not null;default:''"`
 	Description string `gorm:"type:varchar(1024);not null;default:''"`
@@ -36,9 +34,7 @@ func (pluginRow) TableName() string { return "plugin" }
 // queries inside them: they are written once and read whole, and giving each
 // field a column would freeze the report's shape into the schema.
 type pluginReleaseRow struct {
-	ID              uint   `gorm:"primaryKey;autoIncrement"`
-	PluginReleaseID string `gorm:"type:varchar(64);uniqueIndex;not null"`
-	PluginID        string `gorm:"type:varchar(64);not null;index"`
+	ID uint `gorm:"primaryKey;autoIncrement"`
 	// PluginName is denormalised so a release reads without a join. The unique
 	// index over (plugin_name, version) is what makes a version immutable.
 	PluginName         string `gorm:"type:varchar(128);not null;uniqueIndex:ux_plugin_release_version,priority:1"`
@@ -108,7 +104,6 @@ func toPluginRelease(row *pluginReleaseRow) *model.PluginRelease {
 // CreatePlugin adds a catalog entry.
 func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*model.Plugin, error) {
 	row := pluginRow{
-		PluginID:    util.NewPrefixedID(util.PrefixPlugin),
 		Name:        in.Name,
 		DisplayName: in.DisplayName,
 		Description: in.Description,
@@ -214,8 +209,6 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 	}
 
 	row := pluginReleaseRow{
-		PluginReleaseID:    util.NewPrefixedID(util.PrefixPluginRelease),
-		PluginID:           entry.PluginID,
 		PluginName:         entry.Name,
 		Version:            in.Version,
 		MinBuildmaxVersion: in.MinBuildmaxVersion,

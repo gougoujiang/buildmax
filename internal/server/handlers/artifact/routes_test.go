@@ -112,8 +112,8 @@ func TestUploadThenReadByID(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
 
-	if !strings.HasPrefix(created.ID, "ar_") {
-		t.Fatalf("artifact id = %q, want an ar_ prefix", created.ID)
+	if _, ok := util.ParsePublicID(created.ID); !ok {
+		t.Fatalf("artifact id = %q, want a canonical public ID", created.ID)
 	}
 	// A different member of the same team resolves the same reference, with no
 	// team named anywhere in the URL.

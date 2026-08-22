@@ -29,15 +29,14 @@ func (agentRow) TableName() string { return "agent" }
 // appended, never updated or deleted, and they outlive the agent: deleting an
 // agent leaves its history in place.
 type agentRevisionRow struct {
-	ID              uint   `gorm:"primaryKey;autoIncrement"`
-	AgentRevisionID string `gorm:"column:agent_revision_id;type:varchar(64);uniqueIndex;not null"`
-	AgentID         string `gorm:"column:agent_id;type:varchar(64);not null;index:idx_agent_revision,unique,priority:1"`
-	Revision        int    `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
-	Name            string `gorm:"type:varchar(255);not null"`
-	Description     string `gorm:"type:text"`
-	Instructions    string `gorm:"type:text"`
-	CreatedBy       string `gorm:"column:created_by;type:varchar(64);not null"`
-	CreatedAt       int64  `gorm:"autoCreateTime"`
+	ID           uint   `gorm:"primaryKey;autoIncrement"`
+	AgentID      string `gorm:"column:agent_id;type:varchar(64);not null;index:idx_agent_revision,unique,priority:1"`
+	Revision     int    `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
+	Name         string `gorm:"type:varchar(255);not null"`
+	Description  string `gorm:"type:text"`
+	Instructions string `gorm:"type:text"`
+	CreatedBy    string `gorm:"column:created_by;type:varchar(64);not null"`
+	CreatedAt    int64  `gorm:"autoCreateTime"`
 }
 
 func (agentRevisionRow) TableName() string { return "agent_revision" }
@@ -113,14 +112,13 @@ func toAgentRow(m *model.Agent) *agentRow {
 // write fail rather than record two different definitions under one number.
 func appendAgentRevision(tx *gorm.DB, a *model.Agent, createdBy string) error {
 	return tx.Create(&agentRevisionRow{
-		AgentRevisionID: util.NewPrefixedID(util.PrefixAgentRevision),
-		AgentID:         a.ID,
-		Revision:        a.Revision,
-		Name:            a.Name,
-		Description:     a.Description,
-		Instructions:    a.Instructions,
-		CreatedBy:       createdBy,
-		CreatedAt:       time.Now().Unix(),
+		AgentID:      a.ID,
+		Revision:     a.Revision,
+		Name:         a.Name,
+		Description:  a.Description,
+		Instructions: a.Instructions,
+		CreatedBy:    createdBy,
+		CreatedAt:    time.Now().Unix(),
 	}).Error
 }
 
@@ -177,8 +175,12 @@ func (s *Store) CreateAgent(ctx context.Context, userID, name, description, inst
 
 // CreateAgentInTeam inserts a new team-scoped agent and returns it.
 func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	a := &model.Agent{
-		ID:           util.NewPrefixedID(util.PrefixAgent),
+		ID:           publicID,
 		UserID:       userID,
 		TeamID:       teamID,
 		Name:         name,
@@ -187,7 +189,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 		Revision:     1,
 		CreatedAt:    time.Now().Unix(),
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(toAgentRow(a)).Error; err != nil {
 			return err
 		}

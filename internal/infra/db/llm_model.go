@@ -104,8 +104,12 @@ var llmModelColumns = []string{
 // end up with two catalog entries that look identical in a listing.
 func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput) (*model.LLMModel, error) {
 	now := time.Now().Unix()
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	row := &llmModelRow{
-		LLMModelID:    util.NewPrefixedID(util.PrefixLLMModel),
+		LLMModelID:    publicID,
 		Name:          in.Name,
 		ProviderType:  in.ProviderType,
 		APIURL:        in.APIURL,

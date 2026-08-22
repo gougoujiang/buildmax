@@ -145,8 +145,12 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 // CreateTeam creates a new team and owner membership.
 func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
 	now := time.Now().Unix()
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	team := &model.Team{
-		ID:        util.NewPrefixedID(util.PrefixTeam),
+		ID:        publicID,
 		Name:      name,
 		QuotaTier: quotaTier,
 		CreatedBy: createdBy,
@@ -161,7 +165,7 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 	}
 	teamDB := toTeamRow(team)
 	memberDB := toTeamMemberRow(member)
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(teamDB).Error; err != nil {
 			return err
 		}

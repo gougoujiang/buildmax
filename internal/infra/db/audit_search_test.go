@@ -7,7 +7,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // TestSearchAuditEvents covers the read the team-scoped method cannot do: an
@@ -25,8 +24,8 @@ func TestSearchAuditEvents(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	actor := util.NewPrefixedID(util.PrefixUser)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
+	actor := testPublicID(t)
+	teamID := testPublicID(t)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	for _, e := range []model.AuditEvent{

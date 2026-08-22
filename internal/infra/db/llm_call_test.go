@@ -113,8 +113,8 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.ID)
 	}()
 
-	if !strings.HasPrefix(opened.ID, "lc_") {
-		t.Errorf("LLMCallID = %q, want an lc_ prefix", opened.ID)
+	if _, ok := util.ParsePublicID(opened.ID); !ok {
+		t.Errorf("LLMCallID = %q, want a canonical public ID", opened.ID)
 	}
 	if opened.Status != model.LLMCallStatusAccepted {
 		t.Errorf("Status = %q, want %q", opened.Status, model.LLMCallStatusAccepted)

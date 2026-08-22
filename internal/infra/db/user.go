@@ -169,8 +169,16 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	if existing != nil {
 		return nil, model.ErrEmailExists
 	}
+	userID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
+	personalTeamID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	u := model.User{
-		ID:        util.NewPrefixedID(util.PrefixUser),
+		ID:        userID,
 		Email:     email,
 		Name:      "",
 		CreatedAt: time.Now().Unix(),
@@ -178,7 +186,6 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	if defaultQuotaTier != "" {
 		u.QuotaTier = defaultQuotaTier
 	}
-	personalTeamID := util.NewPrefixedID(util.PrefixTeam)
 	personalTeam := model.Team{
 		ID:                personalTeamID,
 		Name:              model.DefaultPersonalTeamName,

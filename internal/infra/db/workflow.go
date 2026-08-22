@@ -29,16 +29,15 @@ func (workflowRow) TableName() string { return "workflow" }
 // workflowRevisionRow is one recorded version of a workflow. Rows are appended,
 // never updated or deleted.
 type workflowRevisionRow struct {
-	ID                 uint   `gorm:"primaryKey;autoIncrement"`
-	WorkflowRevisionID string `gorm:"column:workflow_revision_id;type:varchar(64);uniqueIndex;not null"`
-	WorkflowID         string `gorm:"column:workflow_id;type:varchar(64);not null;index:idx_workflow_revision,unique,priority:1"`
-	Revision           int    `gorm:"column:revision;not null;index:idx_workflow_revision,unique,priority:2"`
-	Name               string `gorm:"type:varchar(255);not null"`
-	Description        string `gorm:"type:text;not null"`
-	Definition         string `gorm:"type:longtext;not null"`
-	Status             string `gorm:"type:varchar(32);not null"`
-	CreatedBy          string `gorm:"column:created_by;type:varchar(64);not null"`
-	CreatedAt          int64  `gorm:"autoCreateTime"`
+	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	WorkflowID  string `gorm:"column:workflow_id;type:varchar(64);not null;index:idx_workflow_revision,unique,priority:1"`
+	Revision    int    `gorm:"column:revision;not null;index:idx_workflow_revision,unique,priority:2"`
+	Name        string `gorm:"type:varchar(255);not null"`
+	Description string `gorm:"type:text;not null"`
+	Definition  string `gorm:"type:longtext;not null"`
+	Status      string `gorm:"type:varchar(32);not null"`
+	CreatedBy   string `gorm:"column:created_by;type:varchar(64);not null"`
+	CreatedAt   int64  `gorm:"autoCreateTime"`
 }
 
 func (workflowRevisionRow) TableName() string { return "workflow_revision" }
@@ -244,8 +243,12 @@ func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model
 
 func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
 	now := time.Now().Unix()
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	workflow := &model.Workflow{
-		ID:          util.NewPrefixedID(util.PrefixWorkflow),
+		ID:          publicID,
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
@@ -256,7 +259,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(toWorkflowRow(workflow)).Error; err != nil {
 			return err
 		}
@@ -274,15 +277,14 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 // rather than record two definitions under one number.
 func appendWorkflowRevision(tx *gorm.DB, w *model.Workflow, createdBy string) error {
 	return tx.Create(&workflowRevisionRow{
-		WorkflowRevisionID: util.NewPrefixedID(util.PrefixWorkflowRevision),
-		WorkflowID:         w.ID,
-		Revision:           w.Revision,
-		Name:               w.Name,
-		Description:        w.Description,
-		Definition:         w.Definition,
-		Status:             w.Status,
-		CreatedBy:          createdBy,
-		CreatedAt:          time.Now().Unix(),
+		WorkflowID:  w.ID,
+		Revision:    w.Revision,
+		Name:        w.Name,
+		Description: w.Description,
+		Definition:  w.Definition,
+		Status:      w.Status,
+		CreatedBy:   createdBy,
+		CreatedAt:   time.Now().Unix(),
 	}).Error
 }
 
@@ -369,8 +371,12 @@ func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revi
 
 func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
 	now := time.Now().Unix()
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	run := &model.WorkflowRun{
-		ID:               util.NewPrefixedID(util.PrefixWorkflowRun),
+		ID:               publicID,
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
@@ -450,8 +456,12 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	now := time.Now().Unix()
 	rows := make([]workflowStepRunRow, len(steps))
 	for i := range steps {
+		publicID, err := util.NewPublicID()
+		if err != nil {
+			return nil, err
+		}
 		rows[i] = workflowStepRunRow{
-			StepRunID:         util.NewPrefixedID(util.PrefixWorkflowStepRun),
+			StepRunID:         publicID,
 			WorkflowRunID:     workflowRunID,
 			StepID:            steps[i].StepID,
 			StepIndex:         steps[i].StepIndex,

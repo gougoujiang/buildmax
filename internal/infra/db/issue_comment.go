@@ -58,8 +58,12 @@ func toIssueComments(rows []issueCommentRow) []model.IssueComment {
 
 // CreateIssueComment appends a comment to an issue.
 func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueCommentInput) (*model.IssueComment, error) {
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	row := &issueCommentRow{
-		IssueCommentID:  util.NewPrefixedID(util.PrefixIssueComment),
+		IssueCommentID:  publicID,
 		IssueID:         in.IssueID,
 		AuthorKind:      in.AuthorKind,
 		AuthorID:        in.AuthorID,

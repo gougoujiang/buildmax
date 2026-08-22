@@ -56,8 +56,12 @@ func toAuditEvent(row *auditEventRow) *model.AuditEvent {
 
 // RecordAuditEvent appends one event.
 func (s *Store) RecordAuditEvent(ctx context.Context, in model.AuditEvent) error {
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return err
+	}
 	row := auditEventRow{
-		AuditEventID: util.NewPrefixedID(util.PrefixAuditEvent),
+		AuditEventID: publicID,
 		TeamID:       in.TeamID,
 		ActorType:    in.ActorType,
 		ActorID:      in.ActorID,

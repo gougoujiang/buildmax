@@ -12,6 +12,18 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
+// testPublicID is a distinct handle for a row a test invents. It is a real
+// public ID rather than a readable string so a test cannot pass on a value the
+// codec would reject.
+func testPublicID(t *testing.T) string {
+	t.Helper()
+	id, err := util.NewPublicID()
+	if err != nil {
+		t.Fatalf("NewPublicID: %v", err)
+	}
+	return id
+}
+
 func TestCreateUser(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {

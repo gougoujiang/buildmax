@@ -75,7 +75,7 @@ func TestSetUserDisabled(t *testing.T) {
 		t.Fatalf("after enable: %+v, %v", got, err)
 	}
 
-	if err := s.SetUserDisabled(ctx, util.NewPrefixedID(util.PrefixUser), &now); !errors.Is(err, model.ErrUserNotFound) {
+	if err := s.SetUserDisabled(ctx, testPublicID(t), &now); !errors.Is(err, model.ErrUserNotFound) {
 		t.Errorf("disabling an unknown account = %v, want ErrUserNotFound", err)
 	}
 }

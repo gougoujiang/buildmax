@@ -11,6 +11,8 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 func newService(t *testing.T) (*Service, *mock.MockArtifactStore, *mock.MockArtifactStorage) {
@@ -50,8 +52,8 @@ func TestCreateMeasuresTheStream(t *testing.T) {
 	if rec.SHA256 != hex.EncodeToString(sum[:]) {
 		t.Errorf("sha256 = %q, want the digest of the content", rec.SHA256)
 	}
-	if !strings.HasPrefix(rec.ID, "ar_") {
-		t.Errorf("artifact id = %q, want an ar_ prefix", rec.ID)
+	if _, ok := util.ParsePublicID(rec.ID); !ok {
+		t.Errorf("artifact id = %q, want a canonical public ID", rec.ID)
 	}
 	if rec.MediaType != "text/plain; charset=utf-8" {
 		t.Errorf("media type = %q, want it derived from the extension", rec.MediaType)

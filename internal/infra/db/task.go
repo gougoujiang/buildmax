@@ -180,8 +180,14 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		return nil, errors.New("model.CreateTaskInput is required")
 	}
 	now := time.Now().Unix()
-	taskID := util.NewPrefixedID(util.PrefixTask)
-	taskRunID := util.NewPrefixedID(util.PrefixTaskRun)
+	taskID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
+	taskRunID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
 	task := &model.Task{
 		ID:                    taskID,
@@ -209,7 +215,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		Status:        "PENDING",
 		CreatedAt:     now,
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var conv conversationRow
 		if err := tx.Where("conversation_id = ?", in.ConversationID).First(&conv).Error; err != nil {
 			return err

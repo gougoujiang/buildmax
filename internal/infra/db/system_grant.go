@@ -103,8 +103,12 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 		return nil, err
 	}
 
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	row := systemGrantRow{
-		SystemGrantID: util.NewPrefixedID(util.PrefixSystemGrant),
+		SystemGrantID: publicID,
 		UserID:        userID,
 		Role:          role,
 		GrantedBy:     grantedBy,

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // listRevisions and getRevision resolve their table from a type parameter, so
@@ -28,8 +27,8 @@ func revisionTestStore(t *testing.T) (*Store, context.Context) {
 
 func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 	s, ctx := revisionTestStore(t)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
-	userID := util.NewPrefixedID(util.PrefixUser)
+	teamID := testPublicID(t)
+	userID := testPublicID(t)
 
 	agent, err := s.CreateAgentInTeam(ctx, teamID, userID, "first", "d", "i")
 	if err != nil {
@@ -70,8 +69,8 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 
 func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 	s, ctx := revisionTestStore(t)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
-	userID := util.NewPrefixedID(util.PrefixUser)
+	teamID := testPublicID(t)
+	userID := testPublicID(t)
 
 	agent, err := s.CreateAgentInTeam(ctx, teamID, userID, "only", "d", "i")
 	if err != nil {
@@ -102,8 +101,8 @@ func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 // The same two helpers, a different table and owner column.
 func TestWorkflowRevisionsUseTheSameQueryShape(t *testing.T) {
 	s, ctx := revisionTestStore(t)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
-	userID := util.NewPrefixedID(util.PrefixUser)
+	teamID := testPublicID(t)
+	userID := testPublicID(t)
 
 	wf, err := s.CreateWorkflow(ctx, teamID, userID, "wf", "d", `{"steps":[]}`)
 	if err != nil {

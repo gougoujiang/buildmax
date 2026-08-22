@@ -90,8 +90,12 @@ func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateI
 // CreateIssueInTeam creates a team-scoped issue with default status todo.
 func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
 	now := time.Now().Unix()
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	issue := &model.Issue{
-		ID:            util.NewPrefixedID(util.PrefixIssue),
+		ID:            publicID,
 		UserID:        createdBy,
 		TeamID:        teamID,
 		ParentIssueID: in.ParentIssueID,

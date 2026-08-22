@@ -73,8 +73,12 @@ func (s *Store) CreateConversation(ctx context.Context, userID, channel, created
 // CreateConversationInTeam creates a new team-scoped Tier 1 conversation.
 func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*model.Conversation, error) {
 	now := time.Now().Unix()
+	publicID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	conv := &model.Conversation{
-		ID:        util.NewPrefixedID(util.PrefixConversation),
+		ID:        publicID,
 		UserID:    userID,
 		TeamID:    teamID,
 		Channel:   channel,
