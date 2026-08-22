@@ -40,9 +40,13 @@ type Claims struct {
 
 // Mint signs an access token for userID within sessionID.
 func Mint(secret, userID, sessionID string, now time.Time, ttl time.Duration) (string, error) {
+	tokenID, err := util.NewPublicID()
+	if err != nil {
+		return "", err
+	}
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        util.NewPrefixedID(util.PrefixAuthSession),
+			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},

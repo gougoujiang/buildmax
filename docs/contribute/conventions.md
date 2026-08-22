@@ -52,9 +52,12 @@ In JSON, a resource names its own handle `id` and keeps semantic names for
 relationships — `{"id": ..., "team_id": ..., "conversation_id": ...}`. Order
 rows by `created_at`, never by ID.
 
-`NewPrefixedID` survives for four identifiers that name something other than a
-row: `as_` a login chain of refresh tokens, `jb_` a local background job, `rt_`
-a trace file, and `p_` a Desktop project. Agent session IDs are UUIDs.
+There is one identifier format. A login chain, a trace file, and a Desktop
+project use it unprefixed, the same as any entity. The single exception is a
+local background job, which reads as `jb_<public id>`: its ID reaches the model
+as a bare string inside tool output, and free prose is the one place a type
+prefix says something the surrounding context does not. Agent session IDs are
+UUIDs, because they name a file rather than anything this codec identifies.
 
 ## Tool Output Is Written For The LLM
 

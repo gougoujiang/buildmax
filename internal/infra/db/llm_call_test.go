@@ -114,7 +114,7 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 
 	call := sampleLLMCall()
 	call.TeamID = ledgerTeam(t, s)
-	call.ClientCallID = ptrString(util.NewPrefixedID("clientkey"))
+	call.ClientCallID = ptrString(testPublicID(t))
 	opened, err := s.OpenLLMCall(ctx, call)
 	if err != nil {
 		t.Fatalf("OpenLLMCall: %v", err)
@@ -250,7 +250,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	key := util.NewPrefixedID("clientkey")
+	key := testPublicID(t)
 	team := ledgerTeam(t, s)
 	first := sampleLLMCall()
 	first.TeamID = team

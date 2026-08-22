@@ -203,7 +203,11 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Every login opens its own session. Signing in from a second machine
 	// therefore does not disturb the first, and revoking one leaves the other
 	// alone — which is the whole point of tracking sessions rather than users.
-	sessionID := util.NewPrefixedID(util.PrefixAuthSession)
+	sessionID, err := util.NewPublicID()
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "session_id")
+		return
+	}
 	accessToken, refreshToken, expiresIn, err := h.issueTokenPair(r.Context(), user.ID, platform, sessionID, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "issue_token_pair")
