@@ -195,11 +195,12 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 
 	handler := newDesktopApprovalHandler(a, projectID)
 	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
-		WorkspaceDir: proj.FolderPath,
-		EnableMCP:    true,
-		Policy:       agentapp.NewInteractivePolicy(),
-		ManagedToken: auth.TokenForServer,
-		Surface:      model.LLMCallSurfaceDesktop,
+		WorkspaceDir:      proj.FolderPath,
+		EnableMCP:         true,
+		Policy:            agentapp.NewInteractivePolicy(),
+		ManagedToken:      auth.TokenForServer,
+		ArtifactPublisher: auth.ArtifactPublisherForSession(),
+		Surface:           model.LLMCallSurfaceDesktop,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)

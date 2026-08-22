@@ -456,7 +456,8 @@ worker:
 
 storage:
   persist_backend: local_fs          # or minio — team uploads
-  artifact_backend: local_fs         # or minio — run outputs
+  artifact_backend: local_fs         # or minio — run outputs and artifacts
+  max_artifact_mb: 0                 # per-file upload cap; 0 uses the default
   minio:
     endpoint: http://localhost:9000
     region: us-east-1
@@ -494,6 +495,11 @@ a server to an untrusted network.
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
 `worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
 storage directly rather than proxying through the server.
+
+`storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
+uses the built-in 100 MB limit. It is a per-file limit and not a team storage
+allowance: how many bytes a team may hold in total is a separate decision that
+the quota model does not yet express.
 
 `audit.retention_days` expires events in the governance trail. It defaults to
 **0**, which keeps everything: a deployment that has not chosen a retention

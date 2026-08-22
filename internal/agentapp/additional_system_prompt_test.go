@@ -23,7 +23,7 @@ func TestBuildSystemPrompt_AdditionalTextIsTheLastLayer(t *testing.T) {
 		t.Fatalf("write workspace AGENTS.md: %v", err)
 	}
 
-	got := BuildEffectiveSystemPrompt(ws, "test-model", testPromptText)
+	got := BuildEffectiveSystemPrompt(ws, "test-model", testPromptText, PromptCapabilities{})
 
 	if !strings.HasPrefix(got, DefaultSystemPrompt) {
 		t.Error("the runtime prompt is no longer the first layer")
@@ -40,7 +40,7 @@ func TestBuildSystemPrompt_AdditionalTextIsTheLastLayer(t *testing.T) {
 
 func TestBuildSystemPrompt_NoAdditionalTextAddsNothing(t *testing.T) {
 	ws := t.TempDir()
-	bare := BuildEffectiveSystemPrompt(ws, "m", "")
+	bare := BuildEffectiveSystemPrompt(ws, "m", "", PromptCapabilities{})
 	if strings.Contains(bare, "# Additional instructions") {
 		t.Error("empty additional text still rendered its heading")
 	}
@@ -52,7 +52,7 @@ func TestBuildSystemPromptWithLayers_ReportsWhatItLoaded(t *testing.T) {
 		t.Fatalf("write workspace AGENTS.md: %v", err)
 	}
 
-	_, layers := BuildSystemPromptWithLayers(ws, "m", testPromptText)
+	_, layers := BuildSystemPromptWithLayers(ws, "m", testPromptText, PromptCapabilities{})
 
 	var names []string
 	for _, l := range layers {

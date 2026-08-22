@@ -18,6 +18,7 @@ describe("hash router", () => {
     ["#/space/members/new", { name: "space", section: "memberNew" }],
     // A section reachable only by clicking a tab cannot be linked, shared, or
     // survive a reload, so every one of them needs a URL.
+    ["#/space/artifacts", { name: "space", section: "artifacts" }],
     ["#/space/audit", { name: "space", section: "audit" }],
     ["#/team-settings", { name: "space", section: "overview" }],
     // Deployment administration is a separate area from space settings, and
@@ -52,6 +53,7 @@ describe("hash router", () => {
     [{ name: "admin", section: "audit" }, "#/admin/audit"],
     [{ name: "account", section: "webhook" }, "#/account/webhook"],
     [{ name: "space", section: "overview" }, "#/space"],
+    [{ name: "space", section: "artifacts" }, "#/space/artifacts"],
     [{ name: "space", section: "audit" }, "#/space/audit"],
     [{ name: "space", section: "members" }, "#/space/members"],
     [{ name: "space", section: "memberNew" }, "#/space/members/new"],

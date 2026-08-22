@@ -64,13 +64,16 @@ type RedactedDBConfig struct {
 
 // RedactedStorageConfig shows which backends are in use.
 type RedactedStorageConfig struct {
-	PersistBackend  string       `json:"persist_backend,omitempty"`
-	ArtifactBackend string       `json:"artifact_backend,omitempty"`
-	MinIOEndpoint   string       `json:"minio_endpoint,omitempty"`
-	MinIOBucket     string       `json:"minio_bucket,omitempty"`
-	MinIORegion     string       `json:"minio_region,omitempty"`
-	MinIOAccessKey  SecretStatus `json:"minio_access_key"`
-	MinIOSecretKey  SecretStatus `json:"minio_secret_key"`
+	PersistBackend  string `json:"persist_backend,omitempty"`
+	ArtifactBackend string `json:"artifact_backend,omitempty"`
+	// MaxArtifactMB is shown because an operator diagnosing a refused upload
+	// needs to see the limit that refused it. Zero means the built-in default.
+	MaxArtifactMB  int          `json:"max_artifact_mb,omitempty"`
+	MinIOEndpoint  string       `json:"minio_endpoint,omitempty"`
+	MinIOBucket    string       `json:"minio_bucket,omitempty"`
+	MinIORegion    string       `json:"minio_region,omitempty"`
+	MinIOAccessKey SecretStatus `json:"minio_access_key"`
+	MinIOSecretKey SecretStatus `json:"minio_secret_key"`
 }
 
 // RedactedWorkerConfig shows how runs are launched.
@@ -125,6 +128,7 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 		Storage: RedactedStorageConfig{
 			PersistBackend:  sc.Storage.PersistBackend,
 			ArtifactBackend: sc.Storage.ArtifactBackend,
+			MaxArtifactMB:   sc.Storage.MaxArtifactMB,
 			MinIOEndpoint:   sc.Storage.MinIO.Endpoint,
 			MinIOBucket:     sc.Storage.MinIO.Bucket,
 			MinIORegion:     sc.Storage.MinIO.Region,

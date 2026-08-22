@@ -20,6 +20,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
@@ -51,9 +52,12 @@ type Config struct {
 	// route answering 503, which is what a deployment with no database has.
 	LLMCalls model.LLMCallStore
 
-	PersistStorage  blob.PersistStorage
-	ArtifactStorage blob.ArtifactStorage
-	WorkspacesDir   string
+	PersistStorage   blob.PersistStorage
+	RunOutputStorage blob.RunOutputStorage
+	// Artifacts lets an issue show what its runs published. Nil means this
+	// deployment has no artifact store, and an issue reports only run output.
+	Artifacts     *artifactsvc.Service
+	WorkspacesDir string
 
 	Quota          *quota.Service
 	TitleGenerator llm.TitleGenerator

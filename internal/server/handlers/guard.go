@@ -3,10 +3,12 @@ package handlers
 import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
 	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
 	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 
@@ -70,6 +72,7 @@ func (h *Handler) workerHandler() *worker.Handler {
 		TaskRuns:    h.cfg.TaskRunStore,
 		Agents:      h.cfg.AgentStore,
 		Gateway:     h.cfg.LLMGateway,
+		Artifacts:   h.artifactService(),
 		Hub:         h.hub,
 		OnTerminal:  h.terminalListeners,
 	})
@@ -115,32 +118,62 @@ func (h *Handler) teamHandler() *teamroutes.Handler {
 	})
 }
 
+// artifactHandler builds the artifact surface.
+//
+// It is handed the capability rather than the pieces, and holds neither issue,
+// task, nor conversation store: an artifact service that could reach them is
+// one edit away from an artifact that belongs to a run again.
+func (h *Handler) artifactHandler() *artifactroutes.Handler {
+	return artifactroutes.New(artifactroutes.Config{
+		JWTSecret: h.cfg.JWTSecret,
+		Users:     h.cfg.UserStore,
+		Teams:     h.cfg.TeamStore,
+		Artifacts: h.artifactService(),
+		Audit:     h.cfg.Audit,
+	})
+}
+
+// artifactService returns nil when either half of the capability is missing, so
+// "not configured" is decided once here rather than at each route.
+func (h *Handler) artifactService() *artifactsvc.Service {
+	if h.cfg.ArtifactStore == nil || h.cfg.ArtifactStorage == nil {
+		return nil
+	}
+	return &artifactsvc.Service{
+		Artifacts:    h.cfg.ArtifactStore,
+		Storage:      h.cfg.ArtifactStorage,
+		Audit:        h.cfg.Audit,
+		MaxFileBytes: h.cfg.MaxArtifactBytes,
+	}
+}
+
 // workHandler builds the work surface from the stores those routes read.
 func (h *Handler) workHandler() *work.Handler {
 	return work.New(work.Config{
-		JWTSecret:       h.cfg.JWTSecret,
-		Users:           h.cfg.UserStore,
-		Issues:          h.cfg.IssueStore,
-		IssueComments:   h.cfg.IssueCommentStore,
-		Workflows:       h.cfg.WorkflowStore,
-		Tasks:           h.cfg.TaskStore,
-		TaskRuns:        h.cfg.TaskRunStore,
-		Agents:          h.cfg.AgentStore,
-		Teams:           h.cfg.TeamStore,
-		Conversations:   h.cfg.ConversationStore,
-		Messages:        h.cfg.ConversationMessageStore,
-		RunOutputs:      h.cfg.RunOutputLister,
-		LLMCalls:        h.cfg.LLMCallStore,
-		PersistStorage:  h.cfg.PersistStorage,
-		ArtifactStorage: h.cfg.ArtifactStorage,
-		WorkspacesDir:   h.cfg.WorkspacesDir,
-		Quota:           h.cfg.QuotaService,
-		TitleGenerator:  h.cfg.TitleGenerator,
-		ConversationLLM: h.cfg.ConversationLLMClient,
-		Audit:           h.cfg.Audit,
-		Hub:             h.hub,
-		Turns:           h.turns,
-		OnTerminal:      h.terminalListeners,
+		JWTSecret:        h.cfg.JWTSecret,
+		Users:            h.cfg.UserStore,
+		Issues:           h.cfg.IssueStore,
+		IssueComments:    h.cfg.IssueCommentStore,
+		Workflows:        h.cfg.WorkflowStore,
+		Tasks:            h.cfg.TaskStore,
+		TaskRuns:         h.cfg.TaskRunStore,
+		Agents:           h.cfg.AgentStore,
+		Teams:            h.cfg.TeamStore,
+		Conversations:    h.cfg.ConversationStore,
+		Messages:         h.cfg.ConversationMessageStore,
+		RunOutputs:       h.cfg.RunOutputLister,
+		LLMCalls:         h.cfg.LLMCallStore,
+		PersistStorage:   h.cfg.PersistStorage,
+		RunOutputStorage: h.cfg.RunOutputStorage,
+		Artifacts:        h.artifactService(),
+		WorkspacesDir:    h.cfg.WorkspacesDir,
+		Quota:            h.cfg.QuotaService,
+		TitleGenerator:   h.cfg.TitleGenerator,
+		ConversationLLM:  h.cfg.ConversationLLMClient,
+		Audit:            h.cfg.Audit,
+		Hub:              h.hub,
+		Turns:            h.turns,
+		OnTerminal:       h.terminalListeners,
 	})
 }
 

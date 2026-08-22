@@ -44,15 +44,15 @@ func ValidateAdditionalSystemPrompt(text string) error {
 //
 // Pass an empty modelName when it is not yet known, and empty additional text when the run has
 // none.
-func BuildEffectiveSystemPrompt(workspaceDir, modelName, additionalSystemPrompt string) string {
-	prompt, _ := BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt)
+func BuildEffectiveSystemPrompt(workspaceDir, modelName, additionalSystemPrompt string, caps PromptCapabilities) string {
+	prompt, _ := BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt, caps)
 	return prompt
 }
 
 // BuildSystemPromptWithLayers builds the prompt and reports which layers contributed to it.
 // The layer list goes into the run trace, so a finished run can say what it was told before
 // the conversation began rather than leaving it to be inferred from behaviour.
-func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt string) (string, []agent.PromptLayer) {
+func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt string, caps PromptCapabilities) (string, []agent.PromptLayer) {
 	effectivePrompt := DefaultSystemPrompt
 	layers := []agent.PromptLayer{{Name: "runtime", Chars: len(DefaultSystemPrompt)}}
 	appendLayer := func(name, text string) {
@@ -62,6 +62,9 @@ func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt
 
 	if modelName != "" {
 		effectivePrompt += "\n\n# Runtime context\nCurrent model: " + modelName
+	}
+	if caps.Artifacts {
+		appendLayer("artifacts", artifactPromptLayer)
 	}
 	if global, err := ReadAgentsMd(config.DataDir()); err == nil && global != "" {
 		appendLayer("user_agents_md", global)
@@ -134,11 +137,18 @@ func ResolveAgentTypeTools(agentName string, toolNames []string, registry llm.To
 // buildBaseTools returns the standard set of workspace tools for an agent.
 // sandboxView is the SandboxView the Bash tool wraps spawned commands
 // through; pass agent.NoopSandbox{} (or nil) to leave bash unsandboxed.
-func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.Tool, sandboxView agent.SandboxView) []llm.Tool {
+// buildBaseTools assembles the default tools.
+//
+// publisher is nil on a surface with no artifact service, and the artifact tool
+// is then absent from the list rather than present and failing. A tool that
+// exists only to answer "unavailable" costs a round trip and teaches the model
+// nothing; one that is not there is a fact it can act on immediately. See
+// docs/design/unified-artifacts.md section 7.1.
+func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.Tool, sandboxView agent.SandboxView, publisher tools.ArtifactPublisher) []llm.Tool {
 	if sandboxView == nil {
 		sandboxView = agent.NoopSandbox{}
 	}
-	return []llm.Tool{
+	base := []llm.Tool{
 		tools.NewReadFile(workspaceRoot),
 		tools.NewWriteFile(workspaceRoot),
 		tools.NewBash(workspaceRoot).WithSandbox(sandboxView),
@@ -150,4 +160,8 @@ func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.To
 		tools.NewNoteWrite(),
 		skillTool,
 	}
+	if publisher != nil {
+		base = append(base, tools.NewUploadArtifact(workspaceRoot, publisher))
+	}
+	return base
 }

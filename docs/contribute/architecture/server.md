@@ -35,7 +35,18 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`,
   including `POST /tasks/{task_id}/cancel` — see "Cancelling a run" below — and
   `POST /tasks/{task_id}/retry` — see "Retrying a run"
-- Artifacts: `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
+- Artifacts: `/api/artifacts/{artifact_id}` and `/content`, with
+  `/api/teams/{team_id}/artifacts` for the team's listing and upload, and
+  `POST /api/artifacts` for a client that has a login but has not chosen a team
+  — an optional `?team_id=` is honoured and no team means the caller's personal
+  one, which is how CLI and Desktop publish. The
+  ID-addressed routes take the team from the record rather than the path, so
+  they use `Guard.MemberOfResourceTeam` and answer a non-member with `404` — an
+  `ar_` ID is an identifier, not a credential, and a `403` would make the route
+  an oracle for which IDs exist. See
+  [../../design/unified-artifacts.md](../../design/unified-artifacts.md)
+- Run outputs (the compatibility surface):
+  `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
 - Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
 - Managed model calls: `/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` —
   what a run spent and on which approved alias, without prompts or the
@@ -48,7 +59,10 @@ callbacks, and scheduler startup. Business workflows are delegated to
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
 - WebSocket: `/api/teams/{team_id}/ws`
 - Worker API: `/api/worker/task-runs/{task_run_id}...`, including
-  `/llm/completions` so a worker needs no provider credential
+  `/llm/completions` so a worker needs no provider credential and `/artifacts`
+  so a run's agent can keep a file for the team. The worker never says which
+  team it is writing to: the run token names the run, the run names the task,
+  and the task names the team
 - Inbound webhook: `/api/webhook`
 
 ## Conversation Turns

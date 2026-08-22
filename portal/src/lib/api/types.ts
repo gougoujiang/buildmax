@@ -197,6 +197,11 @@ export interface ApiIssueOutput {
   title: string
   kind: string
   relative_path?: string
+  /** Set when kind is "artifact": the whole address, no run needed. */
+  artifact_id?: string
+  filename?: string
+  media_type?: string
+  size_bytes?: number
   preview?: string
   preview_truncated: boolean
   source: ApiOutputSource
@@ -295,17 +300,26 @@ export interface RetryTaskResponse {
 
 /** Run output (artifact) as returned by task/run artifact endpoints */
 export interface ApiArtifact {
-  task_run_id: string
-  task_id: string
-  conversation_id: string
-  user_id: string
+  artifact_id: string
+  team_id: string
+  filename: string
+  media_type: string
+  size_bytes: number
+  sha256: string
+  title?: string
+  created_by_type: string
+  created_by_id?: string
+  source_type: string
+  source_id?: string
+  /** Whether the server will serve this content for display rather than download. */
+  inline: boolean
+  expires_at?: number
   created_at: number
-  task_input_snippet: string
 }
 
-/** Artifact item as returned by the team-scoped task-run artifact items endpoint. */
-export interface ApiArtifactItem {
-  relative_path: string
+export interface ApiArtifactList {
+  items: ApiArtifact[]
+  total: number
 }
 
 /** The execution boundary a run actually ran under. */

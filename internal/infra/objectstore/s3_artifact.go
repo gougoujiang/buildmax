@@ -1,49 +1,37 @@
 package objectstore
 
 import (
-	"bytes"
 	"context"
 	"io"
 )
 
-// S3ArtifactStorage implements ArtifactStorage using S3-compatible object storage.
+// S3ArtifactStorage implements ArtifactStorage on S3-compatible object storage.
 type S3ArtifactStorage struct {
 	client S3Client
 	bucket string
 	prefix string
 }
 
-// NewS3ArtifactStorage returns an ArtifactStorage that uses the given S3 client and bucket/prefix.
+// NewS3ArtifactStorage returns an ArtifactStorage backed by the given client.
 func NewS3ArtifactStorage(client S3Client, bucket, prefix string) *S3ArtifactStorage {
 	return &S3ArtifactStorage{client: client, bucket: bucket, prefix: prefix}
 }
 
-// PutResult writes the run result as result.md.
-func (s *S3ArtifactStorage) PutResult(ctx context.Context, ref RunRef, data []byte) error {
-	key := ArtifactResultKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
-	return s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data))
-}
-
-// GetResult reads result.md for the run. Returns ErrNotFound if the object does not exist.
-func (s *S3ArtifactStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
-	key := ArtifactResultKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
-	return s.client.GetObject(ctx, s.bucket, key)
-}
-
-// PutArtifactFile writes one file under the run output key path.
-func (s *S3ArtifactStorage) PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := ArtifactFileKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
-	if err != nil {
-		return err
+func (s *S3ArtifactStorage) PutArtifact(ctx context.Context, ref ArtifactRef, r io.Reader) (string, error) {
+	key := ArtifactObjectKey(s.prefix, ref)
+	if err := s.client.PutObject(ctx, s.bucket, key, r); err != nil {
+		return "", err
 	}
-	return s.client.PutObject(ctx, s.bucket, key, r)
+	return key, nil
 }
 
-// GetArtifactFile reads one file under the run output. Returns ErrNotFound if the object does not exist.
-func (s *S3ArtifactStorage) GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := ArtifactFileKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
-	if err != nil {
-		return nil, err
-	}
-	return s.client.GetObject(ctx, s.bucket, key)
+// OpenArtifact streams rather than reading the object whole: artifact content
+// is arbitrary user files bounded only by the upload limit, and a download must
+// not cost the server that much memory per request.
+func (s *S3ArtifactStorage) OpenArtifact(ctx context.Context, ref ArtifactRef) (io.ReadCloser, error) {
+	return s.client.GetObjectStream(ctx, s.bucket, ArtifactObjectKey(s.prefix, ref))
+}
+
+func (s *S3ArtifactStorage) RemoveArtifact(ctx context.Context, ref ArtifactRef) error {
+	return s.client.DeleteObject(ctx, s.bucket, ArtifactObjectKey(s.prefix, ref))
 }

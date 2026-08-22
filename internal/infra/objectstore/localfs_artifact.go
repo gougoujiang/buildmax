@@ -7,66 +7,60 @@ import (
 	"path/filepath"
 )
 
-const resultFilename = "result.md"
+const artifactContentFilename = "content"
 
-// LocalFSArtifactStorage implements ArtifactStorage using the local filesystem.
+// LocalFSArtifactStorage implements ArtifactStorage on the local filesystem.
 type LocalFSArtifactStorage struct {
-	runOutputDir func(userID, conversationID, taskID, taskRunID string) string
+	artifactDir func(teamID, artifactID string) string
 }
 
-// NewLocalFSArtifactStorage returns an ArtifactStorage that uses the given dir function (run output dir, no artifactID).
-func NewLocalFSArtifactStorage(runOutputDir func(userID, conversationID, taskID, taskRunID string) string) *LocalFSArtifactStorage {
-	return &LocalFSArtifactStorage{runOutputDir: runOutputDir}
+// NewLocalFSArtifactStorage returns an ArtifactStorage rooted by the given
+// directory function, which maps a team and artifact ID to a directory holding
+// that artifact's content file.
+func NewLocalFSArtifactStorage(artifactDir func(teamID, artifactID string) string) *LocalFSArtifactStorage {
+	return &LocalFSArtifactStorage{artifactDir: artifactDir}
 }
 
-// PutResult writes the run result file as result.md.
-func (s *LocalFSArtifactStorage) PutResult(ctx context.Context, ref RunRef, data []byte) error {
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+func (s *LocalFSArtifactStorage) path(ref ArtifactRef) string {
+	return filepath.Join(s.artifactDir(ref.TeamID, ref.ArtifactID), artifactContentFilename)
+}
+
+func (s *LocalFSArtifactStorage) PutArtifact(_ context.Context, ref ArtifactRef, r io.Reader) (string, error) {
+	full := s.path(ref)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return "", err
 	}
-	return os.WriteFile(filepath.Join(dir, resultFilename), data, 0644)
-}
-
-// GetResult reads result.md. Returns os.ErrNotExist if not found.
-func (s *LocalFSArtifactStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
-	return os.ReadFile(filepath.Join(dir, resultFilename))
-}
-
-// PutArtifactFile writes one file under the run output dir at relPath.
-func (s *LocalFSArtifactStorage) PutArtifactFile(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	clean, err := CleanRelPath(ref.RelPath)
+	f, err := os.Create(full)
 	if err != nil {
-		return err
+		return "", err
 	}
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
-	fullPath := filepath.Join(dir, filepath.FromSlash(clean))
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-		return err
+	if _, err := io.Copy(f, r); err != nil {
+		_ = f.Close()
+		return "", err
 	}
-	f, err := os.Create(fullPath)
-	if err != nil {
-		return err
+	if err := f.Close(); err != nil {
+		return "", err
 	}
-	defer f.Close()
-	_, err = io.Copy(f, r)
-	return err
+	return full, nil
 }
 
-// GetArtifactFile reads one file under the run output dir. Returns ErrNotFound if not found.
-func (s *LocalFSArtifactStorage) GetArtifactFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	clean, err := CleanRelPath(ref.RelPath)
-	if err != nil {
-		return nil, err
-	}
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
-	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(clean)))
+func (s *LocalFSArtifactStorage) OpenArtifact(_ context.Context, ref ArtifactRef) (io.ReadCloser, error) {
+	f, err := os.Open(s.path(ref))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return data, nil
+	return f, nil
+}
+
+// RemoveArtifact removes the content file and the directory that held it, so a
+// deleted artifact leaves no empty shell behind for an operator to wonder about.
+func (s *LocalFSArtifactStorage) RemoveArtifact(_ context.Context, ref ArtifactRef) error {
+	if err := os.Remove(s.path(ref)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	_ = os.Remove(s.artifactDir(ref.TeamID, ref.ArtifactID))
+	return nil
 }

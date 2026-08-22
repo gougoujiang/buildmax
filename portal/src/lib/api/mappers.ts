@@ -6,7 +6,6 @@
 import type {
   ApiAgent,
   ApiAgentRevision,
-  ApiArtifact,
   ApiIssueOutput,
   ApiOutputSource,
   ApiTask,
@@ -20,7 +19,6 @@ import type {
 import type {
   Agent,
   AgentRevision,
-  Artifact,
   IssueOutput,
   OutputSource,
   Task,
@@ -180,16 +178,6 @@ export function apiWorkflowStepRunToWorkflowStepRun(api: ApiWorkflowStepRun): Wo
   }
 }
 
-export function apiArtifactToArtifact(api: ApiArtifact): Artifact {
-  return {
-    id: api.task_run_id,
-    taskId: api.task_id,
-    taskRunId: api.task_run_id,
-    timeLabel: formatRelativeTime(api.created_at),
-    title: api.task_input_snippet || `Run output ${api.task_run_id}`,
-  }
-}
-
 export function apiTaskToTask(api: ApiTask): Task {
   const title =
     api.title && api.title.trim() !== ""
@@ -242,6 +230,10 @@ export function apiIssueOutputToIssueOutput(api: ApiIssueOutput): IssueOutput {
     title: api.title,
     kind: api.kind,
     relativePath: api.relative_path,
+    artifactId: api.artifact_id,
+    filename: api.filename,
+    mediaType: api.media_type,
+    sizeBytes: api.size_bytes,
     preview: api.preview,
     previewTruncated: api.preview_truncated,
     source: apiOutputSourceToOutputSource(api.source),

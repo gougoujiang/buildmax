@@ -77,9 +77,10 @@ func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(tea
 	}
 }
 
-// BuildArtifactStorage returns the configured artifact storage implementation.
-// runOutputDir is (userID, conversationID, taskID, taskRunID) -> path for run output files.
-func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(userID, conversationID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
+// BuildArtifactStorage returns the configured storage for artifact content.
+// artifactDir is (teamID, artifactID) -> directory for the local-filesystem
+// backend; the S3 backend derives its own key and ignores it.
+func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(teamID, artifactID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
 	switch cfg.ArtifactProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {
@@ -87,6 +88,20 @@ func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(u
 		}
 		return blob.NewS3ArtifactStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
 	default:
-		return blob.NewLocalFSArtifactStorage(runOutputDir), nil
+		return blob.NewLocalFSArtifactStorage(artifactDir), nil
+	}
+}
+
+// BuildRunOutputStorage returns the configured run-output storage implementation.
+// runOutputDir is (userID, conversationID, taskID, taskRunID) -> path for run output files.
+func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(userID, conversationID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.RunOutputStorage, error) {
+	switch cfg.ArtifactProvider {
+	case config.ProviderMinIO:
+		if s3Client == nil {
+			return nil, fmt.Errorf("artifact storage is minio but S3 client is nil")
+		}
+		return blob.NewS3RunOutputStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
+	default:
+		return blob.NewLocalFSRunOutputStorage(runOutputDir), nil
 	}
 }

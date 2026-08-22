@@ -134,8 +134,8 @@ func TestArtifactContentHandler(t *testing.T) {
 			taskRunID: {{TaskRunID: taskRunID, RelativePath: "result.md"}},
 		},
 	}
-	artifactStorage := mock.NewMockArtifactStorage()
-	if err := artifactStorage.PutResult(context.Background(), blob.RunRef{
+	runOutputStorage := mock.NewMockRunOutputStorage()
+	if err := runOutputStorage.PutResult(context.Background(), blob.RunRef{
 		CreatedBy:      userID,
 		ConversationID: conversationID,
 		TaskID:         taskID,
@@ -145,12 +145,12 @@ func TestArtifactContentHandler(t *testing.T) {
 	}
 
 	h := New(Config{
-		JWTSecret:       secret,
-		Teams:           &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
-		TaskRuns:        mockTaskRun,
-		RunOutputs:      mockLister,
-		ArtifactStorage: artifactStorage,
-		Conversations:   mockConversations,
+		JWTSecret:        secret,
+		Teams:            &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		TaskRuns:         mockTaskRun,
+		RunOutputs:       mockLister,
+		RunOutputStorage: runOutputStorage,
+		Conversations:    mockConversations,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

@@ -56,6 +56,10 @@ type AppConfig struct {
 	// agent record a task run names — and the last writer wins. It is bounded because it
 	// lives in the system prompt, which is re-sent in full on every call and never trimmed.
 	AdditionalSystemPrompt string
+	// ArtifactPublisher gives this surface the artifact capability. Nil means it
+	// has none — a session running straight against a model provider, with no
+	// BuildMax server — and no artifact tool is registered at all.
+	ArtifactPublisher tools.ArtifactPublisher
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -80,6 +84,7 @@ type AgentApp struct {
 	sandboxManager         *sandbox.Manager
 	sandboxResolved        config.SandboxResolution
 	additionalSystemPrompt string
+	artifactPublisher      tools.ArtifactPublisher
 	grantsMu               sync.Mutex
 	grants                 map[string]*agent.SessionGrants
 }
@@ -264,6 +269,7 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		subagentsRegistry:      &SubAgentRegistry{},
 		policy:                 NewConfiguredPolicy(config.ResolvePermissions(settings.Tools), cfg.Policy),
 		additionalSystemPrompt: cfg.AdditionalSystemPrompt,
+		artifactPublisher:      cfg.ArtifactPublisher,
 		sandbox:                sandboxView,
 		sandboxManager:         sandboxManager,
 		sandboxResolved:        sandboxResolved,
@@ -621,7 +627,7 @@ func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, con
 	}
 	// This path does not go through RunLoop, so it renders the compaction block itself to
 	// estimate the real prompt size. It uses the same renderer RunLoop does.
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess)) + agent.RenderCompactionBlock(sess.CompactionSummary)
+	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.CompactionSummary)
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunStatus{
 		ContextTokens:         contextTokens,
@@ -704,7 +710,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	// Resolved before the trace opens, because the trace reports which prompt layers this run
 	// loaded and a run that ends early still has to be able to say.
 	extraPrompt := a.effectiveAdditionalPrompt(sess)
-	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspaceRoot, modelName, extraPrompt)
+	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspaceRoot, modelName, extraPrompt, a.promptCapabilities())
 	sess.AdditionalSystemPrompt = extraPrompt
 
 	// Durable run trace: one JSONL file per run, attached at this single
@@ -983,9 +989,15 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 	return client, nil
 }
 
+// promptCapabilities reports what this surface can actually do, so the prompt
+// describes the tools the agent was given rather than the ones it might have.
+func (a *AgentApp) promptCapabilities() PromptCapabilities {
+	return PromptCapabilities{Artifacts: a.artifactPublisher != nil}
+}
+
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox())...)
+	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)

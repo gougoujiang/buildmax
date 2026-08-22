@@ -3,7 +3,11 @@
 ## Status
 
 - roadmap_priority: `P2 follow-on`
-- status: `planned`
+- status: `phases 1–2 implemented` (§10: the artifact object, storage, API, and
+  Portal listing; `UploadArtifact` on every surface with a server, and artifacts
+  on issue result cards. Registering a run's whole output directory as artifacts
+  is the one phase 2 item still open — see §12 question 6. Phases 3–4 — external
+  sharing and follow-ons — are open)
 - follows: [surface-positioning.md](./surface-positioning.md) and
   [team-governance.md](./team-governance.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -11,36 +15,49 @@
 
 ## 1. Decision
 
-BuildMax will make an artifact a durable output object in a personal or team
-workspace, rather than a file that only exists as a child of a worker task
-run. Portal persists remote artifacts in a Team namespace, which is the
-existing authorization boundary; a personal Portal workspace is represented by
-that user's personal Team and need not expose the Team concept in its UI. CLI
-and Desktop may instead use a local personal artifact store.
+An artifact is a first-class BuildMax object, not a by-product of a task run.
+The system provides one artifact capability, and anything that produces a file
+a user should keep — an agent, a background run, a direct upload — uses that
+capability. A task run that wants to preserve its output calls the artifact
+service like any other producer. A run therefore keeps its reproducible output
+directory, while the files it produced can be found, referenced, and shared
+without knowing its task or run ID.
 
-The shared Agent runtime will expose an `UploadArtifact` tool when an artifact
-service is available. It accepts an explicitly named local file, persists it
-through the selected local or remote store, records an Artifact, and returns a
-BuildMax reference. A remote artifact returns a stable BuildMax URL; a local
-artifact returns a local view reference until the user deliberately publishes
-it to a remote personal or team workspace.
+This is what separates the model from the `artifact`/`artifact_item` tables
+that migration `0001_artifact_tables_to_task_run_artifact` removed. Those were
+a child structure of a task run: no run, no artifact, and the only way to name
+one was the run it hung off. The object described here owns its identity and
+lifetime, and records its producer as provenance rather than as a parent.
+
+The artifact's identity is its `ar_...` ID. That ID is what the service
+returns, what a tool reports, and what a user cites. A URL is one surface's
+rendering of that ID, not the identity itself.
+
+Artifacts are a server capability. They live in a Team namespace, which is the
+existing authorization boundary; a user working alone is represented by their
+personal Team and need not see the Team concept in the UI. CLI and Desktop
+reach artifacts by being logged in to a BuildMax server — the private
+deployment case this product is built for. A local session running straight
+against a model provider, with no server, has no artifact capability at all,
+and no artifact tool appears in its tool list.
+
+The shared Agent runtime exposes an `UploadArtifact` tool only where that
+capability is present. It accepts an explicitly named local file, streams it
+through the artifact service, records an Artifact, and returns the artifact's
+ID and canonical URL.
 
 The object store remains an implementation detail. A BuildMax artifact URL is
 not a bucket key and is not an object-store presigned URL.
 
-Task-run artifacts remain a valid producer of unified Artifacts. A run can
-therefore keep its reproducible output directory while users can find, save,
-reference, and share the files it produced without knowing its task or run ID.
-
 ## 2. Product Goal
 
 An agent, a user, or a background run should be able to make a useful file
-available to the team and give the recipient one durable URL. The recipient
-should be able to:
+available to the team and give the recipient one durable reference. The
+recipient should be able to:
 
 - preview or download it when they have team access;
 - attach it to an issue, conversation, or result without copying storage keys;
-- retain the stable internal URL in a document or message; and
+- keep that reference in a document or message and have it still resolve; and
 - intentionally create a revocable external sharing link when access outside
   the team is required.
 
@@ -57,22 +74,32 @@ BuildMax already has most storage primitives, but not the product object:
 | Team files | Portal accepts uploads into a mutable team file tree. | A file has no durable identity, provenance, immutable version, or share model. |
 | Task-run artifacts | A worker archives `artifacts/` and records `task_run_artifact` paths. | A file is addressed through its task run and relative path; it cannot be independently referenced. |
 | Artifact viewing | Team members can retrieve run output through team-authenticated task-run routes. | It is text/Markdown-oriented and not a general file-preview or download contract. |
-| IDs | `ar_` and `f_` prefixes are reserved in `internal/util/id.go`. | They are not the IDs of a public artifact resource today. |
+| IDs | `ar_` and `f_` prefixes are reserved in `internal/util/id.go`. | They named a resource that was removed; see below. |
 
 `task_run_artifact` is intentionally a set of paths, not a durable resource:
 it has no public prefixed ID or timestamps. The new model must not reinterpret
 that table as if it already provided the required contract.
 
+An `artifact`/`artifact_item` table pair existed before the first public
+release. Migration `0001_artifact_tables_to_task_run_artifact` in
+`internal/infra/db/migration.go` removed it: it copies `artifact_item` into
+`task_run_artifact`, drops both tables, and drops the `last_artifact_id` and
+`artifact_seq` columns from `task` and `chat`. That model was a run's child
+structure, which is why collapsing it into a path index lost nothing worth
+keeping. Reusing the `artifact` table name is safe on any deployment that has
+applied migration 0001, and the table this design creates is a different
+object for the reason section 1 gives.
+
 ## 4. Scope
 
 ### 4.1 In Scope
 
-- An Artifact in a personal or team workspace, with a stable `ar_...`
-  identifier.
+- An Artifact in a Team namespace — a personal workspace being the user's
+  personal Team — with a stable `ar_...` ID as its canonical reference.
 - One immutable file per Artifact in the first slice.
 - Server-mediated upload, metadata lookup, preview, and download.
-- `UploadArtifact` as a normal shared Agent tool when configured for the
-  execution surface.
+- `UploadArtifact` as a normal shared Agent tool, registered only on a surface
+  that has an authenticated artifact service.
 - Provenance for agent uploads, task-run outputs, and direct user uploads.
 - Stable authenticated URLs and separate revocable external share links.
 - Portal artifact cards, list/detail view, and safe lightweight previews.
@@ -83,6 +110,9 @@ that table as if it already provided the required contract.
 
 ### 4.2 Out Of Scope
 
+- A local artifact store for a CLI or Desktop session with no server login.
+  Such a session keeps its normal local output behavior and has no artifact
+  tool; see section 7.1.
 - A general editable drive or synchronized local folder.
 - Replacing the mutable team `home/` file space.
 - A public-by-default file host.
@@ -98,9 +128,9 @@ that table as if it already provided the required contract.
 
 ### 5.1 Artifact
 
-The Portal's remote Artifact model has one immutable content object per
-artifact. `TeamID` is required here because Team is the Portal authorization
-namespace, including for a user working alone in their personal Team:
+The Artifact model has one immutable content object per artifact. `TeamID` is
+required because Team is the authorization namespace, including for a user
+working alone in their personal Team:
 
 ```go
 type Artifact struct {
@@ -123,12 +153,11 @@ type Artifact struct {
 }
 ```
 
-A local artifact store uses the same public concepts and immutable-content
-rules, but its metadata need not enter the Portal database. It is owned by the
-local user and project/workspace selected by that surface. A local artifact is
-viewable in that surface but has no remotely reachable or externally shareable
-URL. Publishing it creates a distinct remote Artifact with `source_type` set
-to `local_publish` and the appropriate personal or shared Team scope.
+There is one artifact store. A logged-in CLI or Desktop session creates the
+same Artifact, in the same Team namespace, through the same service Portal
+uses; the surfaces differ only in how they render the result. Should a
+local-only store ever be added, it must issue real `ar_...` IDs from the start,
+so that the reference a tool returns means the same thing on every surface.
 
 `StorageKey` is private and generated by the storage adapter. No API, tool
 output, trace, or UI exposes it. `SHA256` is calculated while streaming the
@@ -160,37 +189,72 @@ operation, and presentation derives the relevant task/issue/conversation from
 that source. A separate many-to-many attachment table is deferred until one
 artifact must be attached to independent work objects.
 
+`source_id` holds the task **run**, not the task. The run is the operation that
+produced the file, and it is what distinguishes one attempt from another; the
+task, issue, and conversation are all reachable from it. A reader going the
+other way — an issue asking what its work produced — has to gather every run of
+every task, not each task's last one, or a retried task hides what its earlier
+attempts published.
+
 This avoids making an uploaded file depend on a task run merely because the
 first producer was a worker.
 
-### 5.3 Existing Task-Run Rows
+### 5.3 Task-Run Output Is Not Artifacts
 
-Keep `task_run_artifact(task_run_id, relative_path)` as the internal run-output
-index during migration. On terminal run processing, each successfully uploaded
-file creates or finds its corresponding Artifact and records its task-run
-origin. Do not change an old task-run path into an `ar_` ID in place.
+`task_run_artifact(task_run_id, relative_path)` stays the run's index of what it
+left in its own output directory, and nothing there becomes an Artifact
+automatically.
 
-The compatibility task-run route can return its current response while the UI
-and new API prefer Artifact records. Once every supported storage backend has
-migrated and consumers use Artifact IDs, a later design can retire the old
-output-only contract.
+This reverses an earlier draft of this section, which had each uploaded file
+create an Artifact on terminal run processing. Two things were wrong with it.
+The copy is real: the compatibility route reads the run-output key space, so
+registering the same files in the artifact key space stores every output twice.
+And the harvesting is the one section 11 rejects — an agent's output directory
+is exactly the place `.env` files, caches, and intermediate work end up, and
+scanning it is no safer for being done by the server.
+
+The two are different objects with different jobs. A run's output directory is
+the reproducible record of what that run produced; an artifact is a file
+someone is meant to keep. An agent turns the first into the second by choosing,
+once, with `UploadArtifact`.
+
+Nothing changes an old task-run path into an `ar_` ID, and old output is not
+backfilled. The task-run route keeps its current response for the runs that
+have one.
 
 ## 6. Access And URLs
 
-### 6.1 Internal URL
+### 6.1 Identity And Routes
 
-The canonical URL is a stable application URL such as:
+The canonical reference is the `ar_...` ID. It is globally unique on its own:
+`util.NewPrefixedID` derives 20 base36 characters from 128 bits of entropy, so
+locating an artifact needs nothing else. Team is an authorization fact the
+record carries, not part of the address.
+
+Two route shapes follow from that split:
 
 ```text
-/api/teams/{team_id}/artifacts/{artifact_id}/content
+GET /api/artifacts/{artifact_id}          # detail
+GET /api/artifacts/{artifact_id}/content  # content
+GET /api/teams/{team_id}/artifacts        # the team's listing
 ```
 
-It requires an authenticated member of the artifact's team. The opaque
-`artifact_id` is an identifier, not a credential. A copied internal URL does
-not grant access to someone outside the team.
+The ID-addressed routes resolve the artifact, read its `TeamID`, and require
+the caller to be a member of that team. This is a new authorization path. It
+cannot reuse `access.Guard.UserAndPathTeam`, which takes the team from the
+request path, so it needs its own guard method and its own entry in the team
+authorization matrix test.
 
-The Portal may provide a human-facing detail route in addition to this API
-route. It must resolve the same Artifact and enforce the same authorization.
+A caller who is not a member gets `404`, never `403`. The opaque
+`artifact_id` is an identifier and not a credential, and no response may turn
+it into an existence oracle — that is what section 13's non-enumeration
+criterion means in practice.
+
+The team-scoped route is the listing and team-view surface. It is not a second
+address for one artifact.
+
+The Portal may provide a human-facing detail route in addition to these API
+routes. It must resolve the same Artifact and enforce the same authorization.
 
 ### 6.2 External Share Links
 
@@ -235,15 +299,21 @@ unknown types download as attachments in the first slice.
 ### 7.1 Availability
 
 `UploadArtifact` is a shared runtime tool, assembled in `internal/agentapp`
-alongside other default tools. It is available by default when the current
-surface supplies either a local personal artifact service or a configured,
-authorized remote personal/team workspace.
+alongside other default tools. It is registered only where the surface has an
+authenticated artifact service: a server deployment's own runtime, or a CLI or
+Desktop session logged in to a BuildMax server. `internal/interface/auth`
+already answers that question for the local surfaces — `IsLoggedIn` and
+`CanAuthenticate(serverURL)` — so it is a precondition of tool assembly, not
+something discovered at call time.
 
-The tool is not silently emulated by merely returning a source-file path. A
-local CLI or Desktop session needs an actual local artifact store; otherwise it
-retains normal local output behavior and reports that artifact upload is
-unavailable if the model attempts it. This preserves the local-first contract
-without claiming that a path on one machine is a shareable object.
+Where there is no such service, the tool is **absent from the tool list**. It
+is not registered in a state where every call fails. A tool that exists only to
+answer "unavailable" costs a round trip and teaches the model nothing, while a
+tool that is not there is a fact the model can act on immediately.
+
+The tool is never emulated by returning a source-file path. A path on one
+machine is not a shareable object, and a session with no server keeps its
+normal local output behavior instead.
 
 ### 7.2 Invocation
 
@@ -258,9 +328,8 @@ The agent supplies:
 The tool must reject directories, device files, symlinks that escape the
 allowed root, files over the active quota, and paths it cannot safely open. It
 streams the file, creates the Artifact only after storage succeeds, and returns
-the Artifact ID, filename, size, and a canonical remote URL or local view
-reference. A storage failure returns a meaningful tool error and leaves no
-successful artifact record.
+the Artifact ID, filename, size, and canonical URL. A storage failure returns a
+meaningful tool error and leaves no successful artifact record.
 
 The tool does not auto-upload every file an agent writes. The model must choose
 the final file it intends to present. This makes the output understandable,
@@ -270,10 +339,10 @@ costs bounded.
 ### 7.3 Prompting And Results
 
 The runtime prompt tells agents to use `UploadArtifact` for a file that should
-be delivered, retained, or shared, and to cite the returned reference in their
-final answer. It must call out when the reference is local-only. An Artifact
-result card should include title, filename, producing run or agent, creation
-time, preview/download action, and canonical link or local view action.
+be delivered, retained, or shared, and to cite the returned `ar_...` reference
+in their final answer. An Artifact result card should include title, filename,
+producing run or agent, creation time, preview/download action, and the
+canonical link.
 
 The LLM-facing name follows `internal/tool/names.go`; when implementation
 adds the constant, `docs/guide/tools.md` becomes the user-facing source of
@@ -281,10 +350,9 @@ truth for its arguments and availability.
 
 ## 8. Authorization, Governance, And Limits
 
-Remote Portal artifacts are team resources. Team membership is the baseline
-read boundary; the user's personal Team is the private single-user case. A
-local artifact is private to its local artifact store until published. An
-artifact never derives authorization from a run URL alone. The detailed matrix
+Artifacts are team resources. Team membership is the baseline read boundary,
+and the user's personal Team is the private single-user case. An artifact never
+derives authorization from a run URL alone. The detailed matrix
 is part of implementation, but the proposed first-slice policy is:
 
 | Action | Member | Admin | Owner | Outside team |
@@ -313,9 +381,26 @@ not been bounded and reviewed.
 
 ## 9. Storage And Failure Semantics
 
-Use a generated key partitioned by team and Artifact ID; a representative
-shape is `teams/{team_id}/artifacts/{artifact_id}/content`. It makes object
-ownership clear while allowing bucket layout to evolve behind the adapter.
+The storage key is private, generated by the adapter, and unrelated to any
+URL. A representative shape for a server deployment is
+`teams/{team_id}/artifacts/{artifact_id}/content`, which makes object ownership
+clear while letting bucket layout evolve behind the adapter. Its resemblance to
+an API route is a naming coincidence and not a contract: nothing outside the
+adapter may parse, construct, or depend on a key.
+
+Existing task-run outputs are keyed by the creating user rather than the team.
+`objectstore.RunOutputFileKey` produces
+`<prefix>/<created_by>/artifacts/<conversation>/<task>/<run>/<path>`. New runs
+write through the artifact service into its key space instead of that one.
+Objects written before this design keep their old keys, stay reachable only
+through the compatibility route, and are not copied.
+
+The interface `internal/infra/objectstore` called `ArtifactStorage` was
+run-output storage — its methods take `RunRef` and `RunObjectRef`. It is now
+`RunOutputStorage`, matching the `cfg.RunOutputs` and `db/run_output.go` naming
+already in use, and `ArtifactStorage` names the native capability. Two
+interfaces sharing that name would have been the easiest way for a later change
+to quietly re-invert the dependency direction this design exists to fix.
 
 Upload is write-once:
 
@@ -330,9 +415,11 @@ No content update endpoint exists. A changed file creates a new artifact and
 may later be linked to its predecessor if product requirements demand version
 lineage.
 
-The storage interface remains portable across local filesystem and S3/MinIO.
-Server-side behavior, not storage-provider URL behavior, defines the product
-contract.
+The storage interface remains portable across the server's local-filesystem
+backend and S3/MinIO. That is a choice about where a deployment's object store
+lives; it says nothing about whether a CLI or Desktop session is local, which
+section 7.1 settles on its own terms. Server-side behavior, not
+storage-provider URL behavior, defines the product contract.
 
 ## 10. Delivery Phases
 
@@ -350,9 +437,8 @@ contract.
 
 - Add `UploadArtifact` to the shared Agent runtime and document it in the tool
   guide.
-- Enable it for Portal task runs and any other authenticated surface with the
-  remote service configured; add a local personal store for direct CLI/Desktop
-  use if it meets the surface's local-result needs.
+- Enable it for Portal task runs and for logged-in CLI and Desktop sessions,
+  and leave it unregistered on a session with no server.
 - Register future worker output files as unified Artifacts and show them in
   conversation/issue result cards.
 - Retain task-run artifact route compatibility and migrate Portal consumers.
@@ -378,9 +464,23 @@ contract.
 
 ### Keep Artifacts Worker-Only
 
-This preserves the simplest current implementation but makes local agents,
-direct user uploads, and future non-worker execution second-class. It also
-forces users to understand task-run hierarchy to preserve a useful output.
+This preserves the simplest current implementation but makes logged-in local
+sessions, direct user uploads, and future non-worker execution second-class. It
+also forces users to understand task-run hierarchy to preserve a useful output.
+
+### Give Server-Less Local Sessions Their Own Artifact Store
+
+A local store would let `UploadArtifact` exist everywhere, which sounds like
+the local-first answer. It is not: the tool would return two different kinds of
+thing depending on the surface, and the model would have to explain which one
+the user got. It also doubles the metadata model and the storage adapter, and
+buys a second sync problem the moment anyone wants to publish upward.
+
+Artifacts exist to be found, referenced, and shared by other people. A session
+with no server has no other people in it. Such a session keeps writing files
+where it already writes them, which is the behavior that fits it. Section 4.2
+records this as out of scope rather than deferred, and section 5.1 records the
+one condition a later local store would have to meet.
 
 ### Reuse Mutable Team Files As Artifacts
 
@@ -402,10 +502,12 @@ model and the user one legible publishing event.
 
 ## 12. Open Questions And Evidence Needed
 
-1. **Scope for local surfaces:** should CLI/Desktop connect to a selected
-   Portal team for upload, or should a later local artifact store synchronize
-   on demand? Prototype the connected-team flow before adding a second sync
-   engine.
+1. **Team selection for local surfaces:** ~~settled for the first slice~~.
+   `POST /api/artifacts` resolves the caller's personal Team when the request
+   names none and honours an explicit `?team_id=` that the caller is a member
+   of. A local client therefore publishes without ever being told about teams.
+   What remains open is only whether a client should be able to *choose* and
+   remember a team, which is a settings question rather than an API one.
 2. **Team storage quota:** which limits belong in the existing quota model,
    and should storage use be a hard admission check or alert-only initially?
 3. **Sensitive-content controls:** which private deployments require malware
@@ -416,9 +518,14 @@ model and the user one legible publishing event.
    without a decision on expiry, revocation, ownership, and audit retention.
 5. **Preview support:** which types can be rendered safely and usefully on all
    Portal clients? Start with an allowlist and measure demand.
-6. **Run compatibility:** should old task-run output be backfilled, or should
-   unified records begin only for new runs? Choose based on deployment upgrade
-   cost and whether existing outputs need stable URLs.
+6. **Run output as artifacts:** ~~decided: no~~. A run's output directory is
+   not registered as artifacts, and no backfill of old output is planned. It
+   would have meant a second copy of every output file — the compatibility
+   route still reads the run-output key space — for the same directory
+   harvesting section 11 rejects for agents, applied to a directory an agent
+   wrote. An agent that wants a file kept publishes it deliberately with
+   `UploadArtifact`; a run's output directory stays the reproducible record of
+   what the run left behind. See section 5.3.
 
 ## 13. Acceptance Criteria
 
@@ -426,10 +533,11 @@ The first usable increment is complete when:
 
 - a user or authorized agent can upload one explicit file to a personal or
   shared Artifact workspace;
-- a remote response includes a stable `ar_...` URL that another authorized
-  team member can open, preview when allowed, or download; a local response is
-  explicitly labelled local-only;
-- a non-member cannot use that URL or enumerate the artifact;
+- the response carries a stable `ar_...` ID that another authorized team member
+  can resolve, preview when allowed, or download;
+- a CLI or Desktop session with no server login has no artifact tool in its
+  tool list at all;
+- a non-member can neither use that reference nor learn whether it exists;
 - object keys, provider credentials, and share tokens do not appear in API
   responses, tool output, traces, or audit events;
 - a worker-created result appears as a unified Artifact without losing its

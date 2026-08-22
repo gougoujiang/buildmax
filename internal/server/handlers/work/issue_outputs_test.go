@@ -12,20 +12,21 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 const outputsTestSecret = "outputs-test-secret"
 
-// errArtifactStorage wraps a MockArtifactStorage and returns a non-NotFound
+// errRunOutputStorage wraps a MockRunOutputStorage and returns a non-NotFound
 // error for GetResult; used to verify the aggregator tolerates read failures.
-type errArtifactStorage struct {
-	*mock.MockArtifactStorage
+type errRunOutputStorage struct {
+	*mock.MockRunOutputStorage
 	err error
 }
 
-func (e *errArtifactStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
+func (e *errRunOutputStorage) GetResult(ctx context.Context, ref blob.RunRef) ([]byte, error) {
 	return nil, e.err
 }
 
@@ -34,12 +35,14 @@ type outputsFixtures struct {
 	tasks       *mock.MockTaskStore
 	workflows   *mock.MockWorkflowStore
 	runLister   *mock.MockRunOutputLister
-	artifacts   *mock.MockArtifactStorage
+	artifacts   *mock.MockRunOutputStorage
+	published   *mock.MockArtifactStore
+	taskRuns    *mock.MockTaskRunStore
 	personalID  string
 	otherTeamID string
 }
 
-func newOutputsFixtures(t *testing.T, artifactStorage blob.ArtifactStorage) *outputsFixtures {
+func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *outputsFixtures {
 	t.Helper()
 	personalTeamID := "tm_personal_u1"
 	otherTeamID := "tm_other"
@@ -70,23 +73,27 @@ func newOutputsFixtures(t *testing.T, artifactStorage blob.ArtifactStorage) *out
 	tasks := &mock.MockTaskStore{}
 	workflows := &mock.MockWorkflowStore{}
 	runLister := &mock.MockRunOutputLister{OutputFiles: map[string][]model.TaskRunArtifact{}}
+	published := &mock.MockArtifactStore{}
+	taskRuns := &mock.MockTaskRunStore{}
 
 	h := New(Config{
-		JWTSecret:       outputsTestSecret,
-		Teams:           teams,
-		Issues:          issues,
-		Agents:          &mock.MockAgentStore{},
-		Workflows:       workflows,
-		Tasks:           tasks,
-		Conversations:   &mock.MockConversationStore{},
-		RunOutputs:      runLister,
-		ArtifactStorage: artifactStorage,
+		JWTSecret:        outputsTestSecret,
+		Teams:            teams,
+		Issues:           issues,
+		Agents:           &mock.MockAgentStore{},
+		Workflows:        workflows,
+		Tasks:            tasks,
+		Conversations:    &mock.MockConversationStore{},
+		RunOutputs:       runLister,
+		RunOutputStorage: runOutputStorage,
+		TaskRuns:         taskRuns,
+		Artifacts:        &artifactsvc.Service{Artifacts: published, Storage: mock.NewMockArtifactStorage()},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	var ms *mock.MockArtifactStorage
-	if s, ok := artifactStorage.(*mock.MockArtifactStorage); ok {
+	var ms *mock.MockRunOutputStorage
+	if s, ok := runOutputStorage.(*mock.MockRunOutputStorage); ok {
 		ms = s
 	}
 	return &outputsFixtures{
@@ -95,6 +102,8 @@ func newOutputsFixtures(t *testing.T, artifactStorage blob.ArtifactStorage) *out
 		workflows:   workflows,
 		runLister:   runLister,
 		artifacts:   ms,
+		published:   published,
+		taskRuns:    taskRuns,
 		personalID:  personalTeamID,
 		otherTeamID: otherTeamID,
 	}
@@ -116,7 +125,7 @@ func fetchIssueFlow(t *testing.T, mux *http.ServeMux, teamID, issueID, userID st
 }
 
 func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
-	artifacts := mock.NewMockArtifactStorage()
+	artifacts := mock.NewMockRunOutputStorage()
 	fx := newOutputsFixtures(t, artifacts)
 	taskID := "t_a"
 	runID := "r_a"
@@ -169,7 +178,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 }
 
 func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
-	artifacts := mock.NewMockArtifactStorage()
+	artifacts := mock.NewMockRunOutputStorage()
 	fx := newOutputsFixtures(t, artifacts)
 	taskID := "t_step"
 	runID := "r_step"
@@ -242,9 +251,9 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 	// Artifact store returns a generic read error; the aggregator must
 	// still emit an output card (without preview) and not fail the flow.
-	artifacts := &errArtifactStorage{
-		MockArtifactStorage: mock.NewMockArtifactStorage(),
-		err:                 errors.New("storage unreachable"),
+	artifacts := &errRunOutputStorage{
+		MockRunOutputStorage: mock.NewMockRunOutputStorage(),
+		err:                  errors.New("storage unreachable"),
 	}
 	fx := newOutputsFixtures(t, artifacts)
 	taskID := "t_a"
@@ -271,7 +280,7 @@ func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 }
 
 func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
-	artifacts := mock.NewMockArtifactStorage()
+	artifacts := mock.NewMockRunOutputStorage()
 	fx := newOutputsFixtures(t, artifacts)
 	// Create a task on the other team's issue.
 	taskID := "t_other"
@@ -296,7 +305,7 @@ func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
 }
 
 func TestIssueFlowOutputs_EmptyWhenNoRuns(t *testing.T) {
-	fx := newOutputsFixtures(t, mock.NewMockArtifactStorage())
+	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
 	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
@@ -309,5 +318,121 @@ func TestIssueFlowOutputs_EmptyWhenNoRuns(t *testing.T) {
 	}
 	if len(flow.Outputs) != 0 {
 		t.Fatalf("outputs len = %d", len(flow.Outputs))
+	}
+}
+
+// An issue shows what its runs published as artifacts, addressed by the
+// artifact's own id. The run is where it came from, not what owns it.
+func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
+	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
+	taskID := "t_pub"
+	runID := "r_pub"
+	fx.tasks.List = []model.Task{{
+		TaskID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
+		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
+	}}
+	fx.taskRuns.Runs = []model.TaskRun{{TaskRunID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 200}}
+	if _, err := fx.published.CreateArtifact(context.Background(), model.CreateArtifactInput{
+		TeamID: fx.personalID, ArtifactID: "ar_published", Filename: "report.pdf",
+		MediaType: "application/pdf", SizeBytes: 2048,
+		SourceType: model.ArtifactSourceAgent, SourceID: runID,
+		CreatedByType: model.ArtifactCreatorAgent, Title: "Quarterly report",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var found *issueOutputResponse
+	for i := range flow.Outputs {
+		if flow.Outputs[i].Kind == "artifact" {
+			found = &flow.Outputs[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("no artifact output in %+v", flow.Outputs)
+	}
+	if found.ArtifactID != "ar_published" {
+		t.Errorf("artifact id = %q", found.ArtifactID)
+	}
+	if found.Title != "Quarterly report" || found.Filename != "report.pdf" || found.SizeBytes != 2048 {
+		t.Errorf("output does not describe the file: %+v", found)
+	}
+	if found.Source.TaskRunID != runID || found.Source.TaskID != taskID {
+		t.Errorf("provenance lost: %+v", found.Source)
+	}
+	// The storage key must not reach a client here either.
+	if strings.Contains(rec.Body.String(), "storage_key") {
+		t.Error("the flow response serialized a storage key")
+	}
+}
+
+// An issue whose runs published nothing reports no artifact outputs, and a
+// deployment with no artifact store answers the same way rather than failing.
+func TestIssueFlowOutputs_NoArtifactStore(t *testing.T) {
+	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
+	fx.published = nil
+	runID := "r_none"
+	fx.tasks.List = []model.Task{{
+		TaskID: "t_none", ConversationID: "c_1", TeamID: fx.personalID,
+		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
+		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
+	}}
+	fx.taskRuns.Runs = []model.TaskRun{{TaskRunID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: 200}}
+	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	for _, o := range flow.Outputs {
+		if o.Kind == "artifact" {
+			t.Errorf("unexpected artifact output %+v", o)
+		}
+	}
+}
+
+// A retried task keeps what its earlier runs published. The task's last run is
+// not its only run, and an artifact does not stop being the issue's output
+// because the work was attempted again.
+func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
+	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
+	taskID := "t_retry"
+	firstRun, secondRun := "r_first", "r_second"
+	fx.tasks.List = []model.Task{{
+		TaskID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
+		CreatedBy: "u1", CreatedAt: 200, LastRunID: &secondRun,
+	}}
+	fx.taskRuns.Runs = []model.TaskRun{
+		{TaskRunID: firstRun, TaskID: taskID, Status: "FAILED", CreatedAt: 200},
+		{TaskRunID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 300},
+	}
+	for _, c := range []struct{ id, run, name string }{
+		{"ar_from_first", firstRun, "draft.pdf"},
+		{"ar_from_second", secondRun, "final.pdf"},
+	} {
+		if _, err := fx.published.CreateArtifact(context.Background(), model.CreateArtifactInput{
+			TeamID: fx.personalID, ArtifactID: c.id, Filename: c.name,
+			SourceType: model.ArtifactSourceAgent, SourceID: c.run,
+			CreatedByType: model.ArtifactCreatorAgent,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
+	seen := map[string]bool{}
+	for _, o := range flow.Outputs {
+		if o.ArtifactID != "" {
+			seen[o.ArtifactID] = true
+		}
+	}
+	if !seen["ar_from_second"] {
+		t.Error("the latest run's artifact is missing")
+	}
+	if !seen["ar_from_first"] {
+		t.Error("an earlier run's artifact was dropped; a retry must not hide what the first attempt published")
 	}
 }

@@ -51,26 +51,26 @@ func TestPersistObjectKey(t *testing.T) {
 	}
 }
 
-func TestArtifactResultKey(t *testing.T) {
-	key := ArtifactResultKey("workspaces", "u1", "conv1", "chat1", "run1")
+func TestRunOutputResultKey(t *testing.T) {
+	key := RunOutputResultKey("workspaces", "u1", "conv1", "chat1", "run1")
 	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
 		t.Errorf("got %q", key)
 	}
-	key = artifactResultKey(runKeyScope{Prefix: "workspaces", CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"})
+	key = runOutputResultKey(runKeyScope{Prefix: "workspaces", CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"})
 	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
-		t.Errorf("artifactResultKey got %q", key)
+		t.Errorf("runOutputResultKey got %q", key)
 	}
 }
 
-func TestArtifactFileKey(t *testing.T) {
-	key, err := ArtifactFileKey("workspaces", "u1", "conv1", "chat1", "run1", "result.md")
+func TestRunOutputFileKey(t *testing.T) {
+	key, err := RunOutputFileKey("workspaces", "u1", "conv1", "chat1", "run1", "result.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
 		t.Errorf("got %q", key)
 	}
-	key, err = ArtifactFileKey("w", "u", "conv", "c", "r", "sub/file.txt")
+	key, err = RunOutputFileKey("w", "u", "conv", "c", "r", "sub/file.txt")
 	if err != nil {
 		t.Fatal(err)
 	}

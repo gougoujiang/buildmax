@@ -149,13 +149,43 @@ func warnIfSchemaIsAhead(applied map[string]bool) {
 		"unknown_migrations", unknown)
 }
 
+// tableExists reports whether the current schema has the named table.
+func tableExists(ctx context.Context, db *gorm.DB, table string) (bool, error) {
+	var found int
+	err := db.WithContext(ctx).Raw(
+		"SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1",
+		table).Scan(&found).Error
+	return found != 0, err
+}
+
+// columnExists reports whether the named table has the named column.
+func columnExists(ctx context.Context, db *gorm.DB, table, column string) (bool, error) {
+	var found int
+	err := db.WithContext(ctx).Raw(
+		"SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1",
+		table, column).Scan(&found).Error
+	return found != 0, err
+}
+
 // migrateFromArtifactTables copies artifact_item into task_run_artifact (by task_run_id from artifact),
 // then drops artifact and artifact_item, and drops legacy task artifact columns if present.
+//
+// Both guards here exist because `artifact` is a live table name again. Unified
+// artifacts reuse it for a different object, and AutoMigrate has already
+// created that table by the time migrations run — so this migration has to be
+// able to tell the old table from the new one:
+//
+//   - artifact_item decides whether there is anything to do at all. Only the
+//     old model ever had that table, whereas plain `artifact` is now ambiguous.
+//     Without this, a database that applied the fold before schema_migration
+//     existed (releases before #79 recorded nothing) would retry it, find the
+//     new table, and fail on the missing artifact_item.
+//   - task_run_id decides whether the `artifact` table is still the old shape
+//     before dropping it, so a retry cannot delete the new one.
 func migrateFromArtifactTables(ctx context.Context, db *gorm.DB) error {
-	var exists int
-	err := db.WithContext(ctx).Raw("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'artifact' LIMIT 1").Scan(&exists).Error
-	if err != nil || exists == 0 {
-		return nil
+	legacy, err := tableExists(ctx, db, "artifact_item")
+	if err != nil || !legacy {
+		return err
 	}
 	err = db.WithContext(ctx).Exec(`INSERT INTO task_run_artifact (task_run_id, relative_path)
 		SELECT a.task_run_id, i.relative_path FROM artifact_item i INNER JOIN artifact a ON i.artifact_id = a.artifact_id
@@ -164,7 +194,21 @@ func migrateFromArtifactTables(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	_ = db.WithContext(ctx).Exec("DROP TABLE IF EXISTS artifact_item").Error
-	_ = db.WithContext(ctx).Exec("DROP TABLE IF EXISTS artifact").Error
+	legacyArtifact, err := columnExists(ctx, db, "artifact", "task_run_id")
+	if err != nil {
+		return err
+	}
+	if legacyArtifact {
+		if err := db.WithContext(ctx).Exec("DROP TABLE IF EXISTS artifact").Error; err != nil {
+			return err
+		}
+		// AutoMigrate ran before this and may have grafted the new columns onto
+		// the old table; recreate it here so the drop does not leave the
+		// running process without one until the next start.
+		if err := db.WithContext(ctx).AutoMigrate(&artifactRow{}); err != nil {
+			return err
+		}
+	}
 	_ = db.WithContext(ctx).Exec("ALTER TABLE task DROP COLUMN last_artifact_id").Error
 	_ = db.WithContext(ctx).Exec("ALTER TABLE task DROP COLUMN artifact_seq").Error
 	_ = db.WithContext(ctx).Exec("ALTER TABLE chat DROP COLUMN last_artifact_id").Error
@@ -174,10 +218,9 @@ func migrateFromArtifactTables(ctx context.Context, db *gorm.DB) error {
 
 // migrateTaskRunOutputFileToArtifact copies task_run_output_file into task_run_artifact and drops the old table.
 func migrateTaskRunOutputFileToArtifact(ctx context.Context, db *gorm.DB) error {
-	var exists int
-	err := db.WithContext(ctx).Raw("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'task_run_output_file' LIMIT 1").Scan(&exists).Error
-	if err != nil || exists == 0 {
-		return nil
+	exists, err := tableExists(ctx, db, "task_run_output_file")
+	if err != nil || !exists {
+		return err
 	}
 	err = db.WithContext(ctx).Exec(`INSERT INTO task_run_artifact (task_run_id, relative_path)
 		SELECT task_run_id, relative_path FROM task_run_output_file`).Error

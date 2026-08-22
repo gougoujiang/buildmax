@@ -23,10 +23,18 @@ so they are worth knowing exactly.
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | skill name |
 | `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type` |
+| `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [mcp.md](mcp.md) |
 
 Run `/tools` in the TUI to see the set active for the current run — it varies
 with what is configured.
+
+`UploadArtifact` is the one built-in that is not always there. It needs a
+BuildMax server to publish to, so it appears when you are logged in
+(`buildmax login`) and when a worker runs a task for a team. A local session
+running straight against a model provider has no artifact store, and rather
+than offering a tool that could only fail, the agent is not given one — it
+keeps writing files where it already does.
 
 When the agent asks for several tools at once, the read-only ones run at the
 same time: `Read`, `Glob`, `Grep`, `Skill`, and `WebFetch`. Anything that
@@ -64,12 +72,26 @@ discards the messages that produced it. Notes are capped at 15 entries of 200
 characters; a longer list is rejected and the agent is asked to merge it. A
 session that never writes either one carries nothing extra.
 
+**`UploadArtifact` publishes; it does not save.** It hands one file to the team
+and returns an `ar_...` reference anyone with access can open. Content is
+immutable, so a corrected version is a second artifact rather than a change to
+the first. The agent chooses the file: nothing is uploaded automatically, which
+is what keeps `.env` files, caches, and intermediate output out of the team's
+artifact list. A symlink whose target is outside the workspace is refused even
+though the link itself is inside it. See
+[../reference/configuration.md](../reference/configuration.md) for
+`storage.max_artifact_mb`, the per-file limit an operator sets.
+
 ## The Path Boundary
 
 File tools resolve every path against the workspace root and refuse anything
 outside it. This boundary is independent of the sandbox — it applies whether or
 not the sandbox is enabled, and it applies to `Read`, `Write`, `Edit`, `Glob`,
 and `Grep`.
+
+`UploadArtifact` applies it twice: once to the path you name, and again to what
+that path resolves to, so a link inside the workspace cannot publish a file
+outside it.
 
 `Bash` is the exception: a shell command can reach anywhere the process can.
 That is exactly what [the sandbox](sandbox.md) is for, and why it only covers

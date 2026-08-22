@@ -42,7 +42,7 @@ reference, then delete the plan.
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
 | [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths and the packaged-app smoke open |
-| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Planned: personal/team durable outputs, shared Agent upload, and revocable sharing |
+| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Phase 1 implemented: durable team artifacts with stable `ar_` references, upload/preview/download, and tombstoned deletion; the agent tool, worker producers, and external sharing open |
 
 ## Subsystem Specifications
 

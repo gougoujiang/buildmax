@@ -30,6 +30,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string) agentapp.AppConfig {
 		EnableMCP:              true,
 		Policy:                 agentapp.NewInteractivePolicy(),
 		ManagedToken:           auth.TokenForServer,
+		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                model.LLMCallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
 	}

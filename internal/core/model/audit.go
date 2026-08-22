@@ -63,6 +63,12 @@ const (
 	// section 9.
 	AuditSystemAdminGranted = "system.admin_granted"
 	AuditSystemAdminRevoked = "system.admin_revoked"
+	// AuditArtifactCreated and AuditArtifactDeleted record a durable file
+	// entering and leaving a team's keeping. They are metadata-only by
+	// construction: the target is the ar_ ID, and neither the storage key, the
+	// content, nor an uploader-supplied description belongs in the trail.
+	AuditArtifactCreated = "artifact.created"
+	AuditArtifactDeleted = "artifact.deleted"
 	// AuditEventsExported records the trail itself being read out in bulk.
 	// Reading every recorded action is a sensitive action, and an export that
 	// left no trace would be the one way to consult the record without

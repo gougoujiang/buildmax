@@ -20,6 +20,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
+	tool "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -125,11 +126,29 @@ type RunTaskInput struct {
 	SessionID              string
 	Paths                  RuntimePaths
 	Persist                blob.PersistStorage
-	ArtifactStorage        blob.ArtifactStorage
+	RunOutputStorage       blob.RunOutputStorage
 	Updater                TaskRunUpdater
 	StreamSender           workerclient.StreamSender
 	Model                  config.ModelEntry
 	Managed                ManagedInference
+	// WorkerAPI is how this run reaches the server it was dispatched by. Its
+	// zero value leaves the run without the artifact capability, so the agent
+	// gets no artifact tool rather than one that always fails.
+	WorkerAPI workerclient.WorkerAPIClientConfig
+}
+
+// artifactPublisher gives a run the artifact capability, or nil when it has no
+// way to reach a server.
+//
+// A worker holds object-store credentials and could write the bytes itself.
+// Going through the server is the point: one code path creates artifacts, and a
+// worker is never told which team it is writing to — the run token names the
+// run, and the server derives the rest.
+func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string) tool.ArtifactPublisher {
+	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
+		return nil
+	}
+	return &workerclient.ArtifactPublisher{Cfg: cfg, TaskRunID: taskRunID, ServerBaseURL: cfg.BaseURL}
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
@@ -144,8 +163,8 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if task == nil || run == nil {
 		return errors.New("runtime: task and run must not be nil")
 	}
-	if input.Paths == nil || input.Persist == nil || input.ArtifactStorage == nil || input.Updater == nil {
-		return errors.New("runtime: paths, persist, artifactStorage and updater must not be nil")
+	if input.Paths == nil || input.Persist == nil || input.RunOutputStorage == nil || input.Updater == nil {
+		return errors.New("runtime: paths, persist, runOutputStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, task, run)
 	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.TaskID, TaskRunID: run.TaskRunID}
@@ -172,7 +191,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 
 	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, input.ArtifactStorage, input.Updater); err != nil {
+	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, input.RunOutputStorage, input.Updater); err != nil {
 		return err
 	}
 	componentLog().Info("run succeeded", "task_run_id", run.TaskRunID)
@@ -206,7 +225,7 @@ func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, di
 		result.EndTime = time.Now().Unix()
 	}
 	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(reportCtx, scope, result, model.RunStatusCanceled, input.ArtifactStorage, input.Updater); err != nil {
+	if err := reportRunOutcome(reportCtx, scope, result, model.RunStatusCanceled, input.RunOutputStorage, input.Updater); err != nil {
 		componentLog().Error("could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
@@ -244,7 +263,8 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt)
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
+		artifactPublisher(input.WorkerAPI, run.TaskRunID))
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
 		OutputStr:        string(agentRun.output),
@@ -314,7 +334,7 @@ type agentRunOutput struct {
 	tracePath string
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
@@ -335,6 +355,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 			ManagedTaskRunID:       managedRunScope(managed, run.TaskRunID),
 			Surface:                managedSurface,
 			AdditionalSystemPrompt: additionalSystemPrompt,
+			ArtifactPublisher:      publisher,
 		})
 		if err != nil {
 			return err
@@ -439,11 +460,11 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // result file, whatever artifacts the run wrote, and the tokens it spent. Only
 // the status differs, and it is what tells a reader whether the output is the
 // answer or as far as the run got.
-func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, artifactStorage blob.ArtifactStorage, updater TaskRunUpdater) error {
-	if putErr := artifactStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
+func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
+	if putErr := runOutputStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
 		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}
-	relativePaths := uploadRunArtifactsToStorage(ctx, result.RunArtifactsDir, scope, artifactStorage)
+	relativePaths := uploadRunArtifactsToStorage(ctx, result.RunArtifactsDir, scope, runOutputStorage)
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
@@ -520,14 +541,14 @@ func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunS
 }
 
 // uploadRunArtifactsToStorage scans runArtifactsDir and uploads each file to artifact blob storage. Returns relative paths (slash form) for each file.
-func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, scope RunScope, artifactStorage blob.ArtifactStorage) []string {
+func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, scope RunScope, runOutputStorage blob.RunOutputStorage) []string {
 	return walkAndUploadFiles(
 		ctx,
 		runArtifactsDir,
 		scope,
 		"runtime: artifact file open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
-			return artifactStorage.PutArtifactFile(ctx, blob.RunObjectRef{
+			return runOutputStorage.PutRunOutputFile(ctx, blob.RunObjectRef{
 				CreatedBy:      scope.CreatedBy,
 				ConversationID: scope.ConversationID,
 				TaskID:         scope.TaskID,

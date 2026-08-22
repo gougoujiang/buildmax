@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
 import type { IssueOutput } from "../../lib/types"
-import { getArtifactContent } from "../artifacts/api"
+import { getRunOutputContent } from "../runs/runOutputs"
+import { artifactContentUrl } from "../artifacts"
+import { downloadAuthenticated } from "../../lib/download"
 import { getErrorMessage } from "../../lib/errorMessage"
 
 interface OutputCardProps {
   output: IssueOutput
+  token?: string | null
   onOpenFull: (output: IssueOutput) => void
   onOpenConversation?: (conversationId: string) => void
   onOpenRun?: (workflowRunId: string) => void
@@ -18,27 +21,39 @@ function formatTimestamp(seconds: number): string {
 
 export function OutputCard({
   output,
+  token,
   onOpenFull,
   onOpenConversation,
   onOpenRun,
   onOpenTrace,
 }: OutputCardProps) {
   const { source } = output
+  // An artifact is reached by its own id and has no preview text to show. It is
+  // a file someone is meant to keep, so the action is to take it away.
+  const isArtifact = !!output.artifactId
   return (
     <article className="issue-outputs__card">
       <header className="issue-outputs__card-head">
         <div>
           <h3 className="issue-outputs__card-title">{output.title}</h3>
           <div className="page-activity__meta">
-            {output.relativePath ? <span>{output.relativePath}</span> : null}
-            {output.relativePath ? <span> · </span> : null}
+            {output.filename ?? output.relativePath ? (
+              <>
+                <span>{output.filename ?? output.relativePath}</span>
+                <span> · </span>
+              </>
+            ) : null}
             <span>{output.kind}</span>
             <span> · </span>
             <span>{formatTimestamp(output.createdAt)}</span>
           </div>
         </div>
       </header>
-      {output.preview ? (
+      {isArtifact ? (
+        <p className="page-activity__meta">
+          <code>{output.artifactId}</code>
+        </p>
+      ) : output.preview ? (
         <pre className="issue-outputs__preview">
           {output.preview}
           {output.previewTruncated ? "\n…" : ""}
@@ -47,14 +62,32 @@ export function OutputCard({
         <p className="page-activity__empty">Preview unavailable.</p>
       )}
       <footer className="issue-outputs__card-actions">
-        <button
-          type="button"
-          className="page-activity__action-btn"
-          onClick={() => onOpenFull(output)}
-          disabled={!source.taskRunId}
-        >
-          Open full output
-        </button>
+        {isArtifact ? (
+          <button
+            type="button"
+            className="page-activity__action-btn"
+            onClick={() => {
+              if (!token || !output.artifactId) return
+              void downloadAuthenticated(
+                artifactContentUrl(output.artifactId),
+                token,
+                output.filename ?? output.title
+              )
+            }}
+            disabled={!token}
+          >
+            Download
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="page-activity__action-btn"
+            onClick={() => onOpenFull(output)}
+            disabled={!source.taskRunId}
+          >
+            Open full output
+          </button>
+        )}
         {source.conversationId && onOpenConversation ? (
           <button
             type="button"
@@ -89,13 +122,14 @@ export function OutputCard({
 
 interface OutputsListProps {
   outputs: IssueOutput[]
+  token?: string | null
   onOpenFull: (output: IssueOutput) => void
   onOpenConversation?: (conversationId: string) => void
   onOpenRun?: (workflowRunId: string) => void
   onOpenTrace?: (taskRunId: string) => void
 }
 
-export function OutputsList({ outputs, onOpenFull, onOpenConversation, onOpenRun, onOpenTrace }: OutputsListProps) {
+export function OutputsList({ outputs, token, onOpenFull, onOpenConversation, onOpenRun, onOpenTrace }: OutputsListProps) {
   if (outputs.length === 0) {
     return <p className="page-activity__empty">No results produced yet.</p>
   }
@@ -105,6 +139,7 @@ export function OutputsList({ outputs, onOpenFull, onOpenConversation, onOpenRun
         <OutputCard
           key={o.id}
           output={o}
+          token={token}
           onOpenFull={onOpenFull}
           onOpenConversation={onOpenConversation}
           onOpenRun={onOpenRun}
@@ -136,7 +171,7 @@ export function OutputViewerModal({ open, teamId, token, output, onClose }: Outp
     setLoading(true)
     setError(null)
     setContent("")
-    getArtifactContent(teamId, output.source.taskRunId, token, output.relativePath)
+    getRunOutputContent(teamId, output.source.taskRunId, token, output.relativePath)
       .then((text) => {
         if (!cancelled) setContent(text)
       })

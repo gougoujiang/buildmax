@@ -54,6 +54,23 @@ Tool results and user messages may include <system_reminder> tags; those are int
 # Code references
 When referring to specific code, use the pattern file_path:line_number so the user can jump to the source (e.g. "Handled in src/services/process.ts:712.").`
 
+// PromptCapabilities are runtime facts that change what the agent should be
+// told, as distinct from text a person authored.
+//
+// A capability the surface does not have contributes nothing, so a session with
+// no server is never told about a tool it does not have.
+type PromptCapabilities struct {
+	// Artifacts is true when this surface registered the artifact tool.
+	Artifacts bool
+}
+
+// artifactPromptLayer is what an agent needs to know that the tool's own
+// description cannot say: when to reach for it in the shape of a whole task,
+// and that the reference has to survive into the final answer. Everything about
+// how to call it stays on the tool.
+const artifactPromptLayer = `# Delivering files
+When your work produces a file someone is meant to receive — a report, an export, a generated document — publish it with the UploadArtifact tool and cite the reference it returns in your final answer. A path on this machine is not something the person can open. Publish the finished file only, once, and never one holding credentials or configuration.`
+
 // AgentsMdFilename is the name of the workspace-level agent instructions file
 // per the agents.md convention (https://agents.md/).
 const AgentsMdFilename = "AGENTS.md"

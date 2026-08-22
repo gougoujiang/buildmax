@@ -1,1 +1,8 @@
-export { getArtifactContent, getArtifactItems, getArtifacts } from "./api"
+export {
+  artifactContentUrl,
+  deleteArtifact,
+  fetchArtifactPreview,
+  listArtifacts,
+  uploadArtifact,
+} from "./api"
+export { SpaceArtifactsSection } from "./SpaceArtifactsSection"

@@ -20,6 +20,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// entities are one story, not four that happen to sit together.
 	h.workHandler().Register(mux)
 
+	// Artifacts are their own object with their own authorization shape: a
+	// route addressed by ar_ ID takes the team from the record, not the path.
+	// See docs/design/unified-artifacts.md.
+	h.artifactHandler().Register(mux)
+
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)
