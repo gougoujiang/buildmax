@@ -1,0 +1,661 @@
+# BuildMax Evaluation And Qualification System
+
+> **Audience:** contributors, operators, and product designers · **Status:**
+> planned — direction accepted; contract and black-box vertical slice not implemented
+>
+> **Accepted:** 2026-08-22 · **Roadmap:** P0.6
+
+Related: [roadmap](../ROADMAP.md), [product vision](product-vision.md),
+[surface positioning](surface-positioning.md), [trust harness](trust-harness.md),
+[durable run trace](durable-run-trace.md), [end-to-end testing](end-to-end-testing.md),
+[managed LLM gateway](llm-gateway.md), and [versioned workspace](versioned-workspace.md).
+
+## 1. Summary
+
+BuildMax needs an evaluation system that measures its product promise, not a larger version of
+its current coding smoke test.
+
+The product is one shared Agent runtime exposed through a local workbench and a private Team
+Platform. Its useful output is not merely an assistant response: it is an intentional, bounded,
+explainable transformation of workspace or team state, with results a user can inspect and an
+operator can govern. Evaluation must therefore cover capability, reliability, trust, and the
+end-to-end product outcome across local and worker execution.
+
+This design decides that BuildMax will:
+
+1. retire the current `eval/` catalog, `internal/agenteval`, and the current benchmark runner
+   without preserving their task or result formats;
+2. create a new top-level `evaluation/` workspace in the main repository;
+3. own a provider- and framework-neutral contract for tasks, evaluation subjects, trial bundles,
+   grader results, and experiment comparisons;
+4. evaluate built binaries and deployment artifacts through black-box execution adapters rather
+   than making internal Go functions the benchmark interface;
+5. use external frameworks where they are strong — for example Inspect for experiment control and
+   statistics, Harbor for terminal environments and public benchmarks, and a self-hosted
+   observability platform as an optional viewer — without giving any one framework ownership of
+   BuildMax's evaluation semantics;
+6. keep public benchmarks as external coordinates while product-owned suites determine BuildMax
+   release and qualification decisions; and
+7. design first for maintainers and private-deployment operators, while leaving a deliberate path
+   to pre-publication evaluation of Team Agents and Workflows.
+
+The accepted product and governance decisions, and the technical choices still
+delegated to evidence, are recorded in [section 15](#15-decisions).
+
+## 2. Problem And Current Context
+
+### 2.1 The current benchmark answers too small a question
+
+The current harness runs a short prompt against a temporary workspace and executes one shell
+grader. Its catalog contains small, synthetic Go tasks. This is useful as an early smoke test, but
+it does not represent the current product:
+
+- it measures mostly short-horizon local coding;
+- it runs one trial and reports one binary pass/fail result;
+- task instructions and grader logic share a fixture directory visible to the Agent;
+- user settings, hooks, plugins, permissions, and sandbox configuration can change the subject
+  being measured;
+- malformed tasks and missing fixtures do not reliably invalidate the experiment;
+- it does not distinguish Agent failure from grader or infrastructure failure;
+- it does not evaluate Portal orchestration, worker execution, artifacts, managed inference,
+  governance, or cross-surface parity; and
+- although every run already creates a durable trace, the result format does not use that trace for
+  grading or diagnosis.
+
+This design treats the implementation and its formats as disposable. Some fixture ideas may be
+recreated as low-value smoke cases, but compatibility with the current catalog is not a goal.
+
+### 2.2 The product has outgrown model-only evaluation
+
+BuildMax's behavior is produced by more than a model. A run depends on:
+
+- the shared Agent loop and BuildMax revision;
+- provider, model, reasoning configuration, context window, and output limits;
+- system instructions, workspace instructions, memory, skills, and Agent definitions;
+- built-in tools, MCP servers, plugins, and subagents;
+- hooks, permissions, approvals, and sandbox resolution;
+- the local, worker, or conversation execution surface;
+- operating system, container image, resource limits, network availability, and model transport;
+  and
+- the state materialized before the run.
+
+The evaluated subject is therefore an **Agent system configuration**, not a model name. A result
+that cannot identify that configuration cannot support a model qualification or a regression
+decision.
+
+### 2.3 Product correctness has several kinds of evidence
+
+A unit test can prove that a tool rejects an invalid path. It cannot prove that a real Agent
+reliably chooses the correct tool. A model-graded rubric can assess whether a report is useful. It
+should not decide whether an unauthorized write occurred. A Portal browser test can prove that a
+result is displayed. It cannot prove that a worker produced the right business outcome over five
+independent trials.
+
+BuildMax should keep deterministic tests, behavioral evaluations, safety scenarios, public
+benchmarks, and production feedback distinct. The evaluation system may aggregate their evidence,
+but it must not turn them into one misleading score.
+
+## 3. Product Question
+
+The evaluation system should answer:
+
+> Can this BuildMax configuration reliably and safely transform a user's intent into a useful,
+> inspectable outcome on the surfaces and within the execution boundaries the product promises?
+
+That question produces four evaluation domains:
+
+| Domain | Question | Typical evidence |
+|---|---|---|
+| Capability | Can the Agent complete useful work? | Final state, tests, artifacts, rubric dimensions |
+| Reliability | Does it complete the work consistently and recover from ordinary failure? | Repeated trials, pass^k, failure taxonomy, variance |
+| Trust and control | Does it remain inside instructions, authorization, and execution boundaries? | Policy and trace assertions, adversarial scenarios, boundary records |
+| Product outcome | Does the whole local or Team Platform flow deliver the intended result? | Conversation, TaskRun, artifact, state, trace, ledger, and UI evidence |
+
+These domains have separate scorecards and gates. Capability must not compensate for a trust
+violation, and a polished final response must not compensate for an incorrect final state.
+
+## 4. Evaluation Consumers
+
+### 4.1 BuildMax maintainers
+
+Maintainers need to compare a candidate revision with a baseline after changing the Agent loop,
+instructions, tools, adapters, model defaults, policies, or execution environment. The system must
+identify per-case regressions, statistical uncertainty, failure class, cost, and a reproduction
+path.
+
+### 4.2 Private-deployment operators
+
+An operator needs to qualify a model and deployment profile against representative private work:
+
+- whether an approved model is capable enough for local and worker use;
+- what reliability, latency, token use, and infrastructure error rate to expect;
+- whether the worker and model transport enforce the intended boundary; and
+- whether deployment-specific dependencies cause product failures.
+
+The operator's dataset and traces must remain inside the deployment unless the operator explicitly
+exports them.
+
+### 4.3 Team Agent and Workflow authors
+
+A later product surface may let a Team author run private scenarios before publishing an Agent or
+Workflow. This design does not commit to that UI or data model. It does require that the task,
+subject, trial, and grader contracts do not assume evaluation is maintainer-only.
+
+## 5. Goals
+
+- Define a stable BuildMax-owned evaluation contract independent of model provider and evaluation
+  framework.
+- Evaluate the artifacts users and operators run: built binaries, worker images, and deployed
+  surfaces.
+- Make local and worker differences explicit and measurable.
+- Grade final state and observable outcomes before natural-language style.
+- Use the durable run trace as structured process evidence without making exact trajectory matching
+  the default.
+- Support repeated trials, paired baseline comparisons, uncertainty, and separate infrastructure
+  reliability reporting.
+- Keep hidden graders and private holdouts isolated from the Agent.
+- Preserve enough bounded evidence to reproduce and diagnose failures.
+- Permit external benchmark and analysis integrations without a required SaaS dependency.
+- Keep evaluation tooling dependencies outside the product runtime and Go Core.
+
+## 6. Non-Goals
+
+- Preserving the current task Markdown, inline shell grader, result JSONL, or benchmark CLI
+  behavior.
+- Building a public leaderboard or general-purpose evaluation SaaS.
+- Treating one public benchmark as BuildMax's product score.
+- Replacing deterministic unit, integration, architecture, or end-to-end tests with real-model
+  trials.
+- Sending private prompts, traces, workspaces, or grader output to BuildMax or a third party by
+  default.
+- Requiring a Server, Python, Node, Docker, or an evaluation platform for normal CLI and Desktop
+  use.
+- Productizing Team-facing evaluation before maintainer and operator workflows are credible.
+- Claiming that an LLM judge is ground truth without calibration against human or deterministic
+  labels.
+
+## 7. Design Principles
+
+### 7.1 Outcome first
+
+For a state-changing Agent, the authoritative answer is normally the final environment state. A
+reply saying that a report was uploaded is not evidence that the artifact exists. A reply saying a
+booking was made is not evidence that the database changed. Deterministic state and contract
+checks take precedence where they are possible.
+
+### 7.2 Process evidence, not one approved path
+
+The trace should answer whether the Agent used forbidden tools, crossed a boundary, omitted a
+required verification, looped, compacted, delegated, or encountered a tool error. Exact tool-call
+order should be required only when order is itself a product or safety contract. A creative path
+that reaches a valid outcome inside the boundary should be allowed to pass.
+
+### 7.3 Evaluate the system that ships
+
+An in-process test helper is useful for development but is not the primary capability benchmark.
+The authoritative execution adapters invoke built deliverables with a frozen subject manifest.
+
+### 7.4 Separate capability failure from harness failure
+
+Agent failure, invalid task, infrastructure failure, grader failure, timeout, and cancellation are
+different results. Infrastructure failures do not silently count as model failures or disappear
+from the report.
+
+### 7.5 No global score hides a hard failure
+
+Reports may offer suite summaries, but no weighted average turns a trust violation into a passing
+release because coding quality increased elsewhere. Critical assertions remain hard gates.
+
+### 7.6 Local-first and private by default
+
+Trial bundles remain on the machine or deployment that produced them. Export is explicit,
+redacted, bounded, and separable from execution. Optional hosted tools must not become required
+for evaluation or normal product operation.
+
+## 8. Proposed System Model
+
+The proposed flow is:
+
+```text
+dataset + experiment
+        |
+        v
+subject resolver --------> immutable subject manifest
+        |
+        v
+execution adapter --------> isolated trial environment
+        |
+        v
+canonical trial bundle <-- trace + final state + artifacts + usage + errors
+        |
+        v
+graders ------------------> per-dimension scores, labels, explanations
+        |
+        v
+experiment comparison ---> qualification report and gates
+```
+
+### 8.1 Task
+
+A task defines:
+
+- stable ID, version, suite, tags, and target evaluation domain;
+- instruction or multi-turn scenario;
+- visible initial state;
+- execution surface and required capabilities;
+- wall-time, turn, tool-call, token, and resource limits;
+- required and optional graders;
+- trial count defaults;
+- environment and dependency versions; and
+- references to hidden verification and an oracle.
+
+Every committed task must pass preflight:
+
+1. its initial state does not already satisfy the required outcome;
+2. its oracle completes the task;
+3. all required graders accept the oracle;
+4. repeated oracle runs are deterministic enough for the stated interpretation; and
+5. the Agent cannot access hidden grader or oracle material through the trial boundary.
+
+### 8.2 Subject
+
+The subject manifest freezes the evaluated configuration, including:
+
+- BuildMax commit, build identity, and dirty-state digest;
+- binary or container image digest;
+- surface and execution adapter version;
+- provider transport, model target or alias, reasoning and generation limits;
+- effective system-prompt and tool-schema digests;
+- prompt layers, skills, plugins, MCP, and Agent-definition provenance;
+- permissions, hooks, and sandbox resolution;
+- operating system, architecture, CPU, memory, and network profile; and
+- dataset and contract versions.
+
+Secrets and full private instruction bodies do not belong in the manifest. Their digests and safe
+provenance identify the subject without making the result a credential or content store. When a
+provider cannot reveal the exact model revision, the manifest records that uncertainty rather
+than inventing precision.
+
+### 8.3 Trial
+
+A trial is one independent attempt by one subject at one task. Its terminal status is one of:
+
+| Status | Meaning |
+|---|---|
+| passed | All required graders passed |
+| failed | Execution completed but one or more required graders failed |
+| agent_error | The Agent runtime failed before producing a gradable outcome |
+| infrastructure_error | The environment or dependency failed independently of Agent capability |
+| grader_error | Required grading could not complete |
+| timed_out | The shared task wall-time budget expired |
+| canceled | The experiment controller stopped the trial |
+| invalid_task | Preflight or task integrity failed |
+
+### 8.4 Canonical trial bundle
+
+The trial bundle is the stable interchange boundary. It contains or safely references:
+
+- task, dataset, experiment, subject, and trial identity;
+- input and initial-state digests;
+- terminal status and failure classification;
+- final reply and structured result when permitted by retention policy;
+- durable trace and child-trace references;
+- final workspace or database-state evidence;
+- artifact identities, hashes, and verification output;
+- grader versions and per-dimension results;
+- LLM calls, tool calls, tokens, duration, and resource observations; and
+- a bounded reproduction description.
+
+The contract is versioned and serializable without a BuildMax process. Runners and viewers may add
+extensions, but qualification gates read only the BuildMax-owned fields.
+
+## 9. Execution Adapters
+
+The contract supports several adapters because no one environment represents the product:
+
+| Adapter | Purpose |
+|---|---|
+| Agent Core/local | Fast behavioral work against the shared local runtime |
+| CLI binary | Verify the shipped local command and workspace behavior |
+| Desktop runtime | Verify local workbench parity below UI presentation |
+| Worker/TaskRun | Verify materialization, non-interactive execution, artifacts, transport, and boundary |
+| Conversation | Verify Tier 1 decisions, Tier 2 delegation, result return, and multi-turn outcomes |
+| Deployment | Verify Compose or Kubernetes dependencies and operator-visible failure behavior |
+| Harbor | Run standardized terminal environments and supported public benchmarks |
+
+The deterministic end-to-end suites remain distinct. They may share environment and process-launch
+helpers with evaluation adapters, but a scripted model protocol test and a probabilistic real-model
+trial retain different names, results, and release interpretations.
+
+## 10. Graders
+
+### 10.1 Deterministic outcome graders
+
+Preferred whenever possible:
+
+- tests and static analysis;
+- file, artifact, schema, and content assertions;
+- database or API state verification;
+- authorization and ownership checks;
+- deployment and dependency health evidence; and
+- fail-to-pass plus pass-to-pass regression checks.
+
+### 10.2 Trace and policy graders
+
+These inspect structured events rather than prose:
+
+- forbidden or missing tool use;
+- argument and scope validity;
+- approval, hook, and sandbox decisions;
+- retry, loop, compaction, and premature-stop behavior;
+- required verification before completion;
+- subagent lineage and inherited policy; and
+- boundary or redaction violations.
+
+The current durable trace does not yet express every desired event. Missing hook execution,
+file-change, per-command boundary, and retry evidence should remain explicit gaps rather than be
+inferred from free text.
+
+### 10.3 Model graders
+
+Used for dimensions that cannot be reduced to state checks, such as usefulness, groundedness,
+coverage, clarity, or whether a clarification was appropriate. Each dimension has an independent,
+structured rubric and an `unknown` path. A model grader records its own subject and cost.
+
+Before a model grader can become a hard gate, it must be evaluated on a frozen human-labeled set
+for agreement, self-consistency, position or style bias, and adversarial robustness. Deterministic
+failure cannot be overruled by a model grader.
+
+### 10.4 Human grading
+
+Human review calibrates model graders, adjudicates task or grader defects, and samples important
+production-derived cases. It is not required on every routine experiment, and a post-hoc human
+decision is recorded separately from the original automated result.
+
+## 11. Suite Strategy
+
+The first product-owned suites should be:
+
+| Suite | Primary purpose |
+|---|---|
+| Agent Core regression | Tool loop, recovery, compaction, parallel calls, queued input, stopping |
+| Local workbench | Coding, files, structured data, research, sessions, local artifacts |
+| Worker and TaskRun | Materialization, managed/direct transport, artifacts, cancel, retry, timeout |
+| Conversation and Workflow | Intent handling, clarification, delegation, result delivery, multi-turn state |
+| Trust and control | Permissions, hooks, sandbox, injection, secrets, paths, network, team scope |
+| Extensibility | MCP, skills, plugins, subagents, missing dependencies, provenance |
+| Cross-surface parity | The same abstract task across local and worker environments |
+
+Suites contain positive and negative cases. For example, testing whether the Agent searches when
+required must be paired with cases where searching is unnecessary or forbidden. Capability suites
+include difficult tasks with room to improve; regression suites contain behavior expected to pass
+nearly all the time.
+
+Public development suites are transparent and reproducible. A private or rotating holdout uses the
+same contract but is retrieved by immutable dataset version and digest. Private data is not a Git
+submodule and does not make public-suite execution depend on private access.
+
+## 12. Metrics, Comparisons, And Gates
+
+Each suite reports a vector rather than one project-wide score:
+
+- pass@1 estimated from independent trials;
+- pass@k where multiple attempts are a valid product behavior;
+- pass^k where consistency is the requirement;
+- confidence intervals and per-case variance;
+- required-grader and critical-case failures;
+- infrastructure, grader, timeout, and cancellation rates;
+- LLM and tool calls, prompt and completion tokens;
+- wall time and relevant latency percentiles;
+- cost only when pricing input is explicit, versioned, and applicable; and
+- trust, policy, and boundary violations as counts and named cases.
+
+Candidate and baseline subjects run over the same task set and, where practical, in the same time
+window and infrastructure profile. Comparison is paired by task and trial index. The report shows
+absolute results, paired deltas, uncertainty, improved cases, regressed cases, and failures that
+could not be scored.
+
+The proposed cadence is:
+
+| Cadence | Evaluation |
+|---|---|
+| Every pull request | Deterministic schema, oracle, grader, adapter, and mock-model checks |
+| Risky Agent change, on demand | Small paired real-model regression experiment |
+| Nightly | Pinned regression subjects with multiple trials |
+| Weekly or qualification event | Broader capability, deployment, and model matrix |
+| Release | Critical trust and reliability cases plus accepted paired-regression thresholds |
+| Periodic external | Public benchmark subsets and reproducibility audit |
+
+Real-model trials should not gate every pull request by default. Provider drift, credentials,
+latency, and spend make them a poor substitute for deterministic verification. They become hard
+gates only after the suite's own variance, task validity, infrastructure reliability, and expected
+budget are measured.
+
+## 13. Repository And Dependency Boundary
+
+The new `evaluation/` workspace should remain in the main repository initially. Logical isolation
+is required; a separate Git repository is not.
+
+The intended ownership areas are:
+
+| Area | Responsibility |
+|---|---|
+| contract | Task, subject, trial-bundle, grader-result, and experiment schemas |
+| suites | Public product-owned task and scenario catalogs |
+| adapters | CLI, worker, conversation, deployment, and external harness bridges |
+| graders | Reusable deterministic, trace, policy, and semantic graders |
+| environments | Local, container, Compose, and Kubernetes trial definitions |
+| runner | Experiment execution, repetition, comparison, statistics, and reporting |
+
+This is an ownership model, not yet a committed directory tree. The implementation
+updates the repository-layout source of truth when the first slice establishes the actual shape.
+
+Evaluation tooling may use Python, containers, or other developer dependencies with their own
+lockfiles. Those dependencies do not enter the Go module, product binaries, or normal local and
+deployment prerequisites. The cross-platform task runner remains the contributor entry point.
+
+Large outputs live under the ignored artifact area rather than in source control. Private holdouts
+may live in an access-controlled Git repository, object store, or CI artifact registry, but they
+implement the main repository's versioned contract. A separate evaluation repository should be
+considered only when independent ownership, release cadence, access control, scale, or reuse makes
+cross-repository compatibility cheaper than co-development.
+
+## 14. External Frameworks And Benchmarks
+
+### 14.1 Framework roles
+
+No external framework is the system of record. The first slice evaluates two
+implementation candidates: an Inspect-backed controller and a thin BuildMax
+controller. Harbor is a separate environment and benchmark adapter, not the
+alternative controller. The other integrations remain optional and follow only
+when a demonstrated workflow needs them.
+
+| Framework class | Candidate role | Boundary |
+|---|---|---|
+| Inspect AI | First-choice experiment-controller candidate: epochs, limits, scoring, logs, and statistics | Must emit and consume the BuildMax trial contract; reject it if adapter or schema impedance dominates the slice |
+| Thin BuildMax controller | Fallback controller and comparison baseline | Own only the minimum orchestration missing from the contract; do not grow an LLMOps platform |
+| Harbor | First-choice container and public-benchmark adapter, including Terminal-Bench | An execution adapter, not the controller or product-result model |
+| Phoenix or Langfuse | Later, optional self-hosted trace, experiment, and annotation UI | Viewer/export target; never required or authoritative; select at most one after local reports prove insufficient |
+| Promptfoo | Optional adversarial prompt and red-team case generation | Generated cases return to BuildMax-owned tasks and graders; it is not in the main evaluation path |
+| Provider eval APIs | Optional semantic graders or comparison services | No provider becomes required for the core workflow |
+
+The controller choice follows a representative spike, not preference. The spike must attempt at
+least a local task, a worker artifact task, a Portal delegation task, a trust-boundary task, and a
+repeated comparison. It compares an Inspect-backed controller with a thin BuildMax controller and
+records the amount of adapter code, schema impedance, diagnostic quality, concurrency behavior,
+and operational dependencies. Inspect is selected only if it reduces controller
+work without weakening the canonical contract, private-by-default execution,
+diagnostics, or portability. Harbor is evaluated separately because its
+strongest role is a container backend and public-benchmark bridge.
+
+### 14.2 Public benchmark roles
+
+- Terminal-Bench is the first external capability benchmark. BuildMax runs a
+  pinned dataset release through Harbor using a BuildMax Agent adapter; it does
+  not maintain a second Terminal-Bench runner or copy those tasks into the
+  product suites. The vertical slice validates the adapter and oracle on a
+  bounded subset. Full benchmark runs are scheduled, release-time, or explicit
+  comparison jobs rather than ordinary pull-request gates.
+- SWE-bench-style tasks provide an external coding coordinate but do not define the product.
+- tau-bench-style scenarios inform multi-turn user, policy, tool, and final-state evaluation.
+- BFCL provides a model/tool-call coordinate rather than an end-to-end BuildMax score.
+- GUI-computer benchmarks remain deferred while computer use is not a core product surface.
+
+Public benchmark versions, harness versions, patches, exclusions, resources, attempts, and all
+other deviations are reported. A leaderboard number without that context is not a qualification
+result. Terminal-Bench can establish relative terminal and container task
+capability; it cannot establish worker governance, Portal delivery,
+cross-surface parity, private-deployment operability, or the other BuildMax
+product outcomes.
+
+## 15. Decisions
+
+### 15.1 Evaluation boundary
+
+| Decision | Accepted direction |
+|---|---|
+| Legacy compatibility | Retire the current catalog and harness; do not preserve their formats |
+| Location | Use a new top-level `evaluation/` workspace in the main repository |
+| Repository | Do not create a separate repository initially |
+| Evaluation interface | Black-box built artifacts behind a BuildMax-owned contract |
+| Framework posture | External frameworks are replaceable adapters or viewers |
+| Product metric | Product-owned suites drive release decisions; public benchmarks are external coordinates |
+| Aggregation | Separate capability, reliability, trust, and product-outcome scorecards; no global score |
+
+### 15.2 Product and governance defaults
+
+| Decision | Accepted direction |
+|---|---|
+| Audience | Maintainer and operator qualification are both initial scope; Team authoring is later |
+| Priority | The black-box vertical slice is near-term enabling work before substantial new Agent capability |
+| Private holdout | Qualification may use access-controlled or rotating data with a public schema, immutable version and digest, and a fully runnable public development suite |
+| Real-model gate | Scheduled and release qualification may consume provider credentials and a bounded budget; ordinary pull requests remain deterministic by default |
+| Trial privacy | Raw prompts, replies, traces, workspace snapshots, and grader bodies remain local/private by default and require explicit bounded export |
+| Future Team scope | Contracts support future pre-publication Agent and Workflow evaluation without committing a Team-facing UI or roadmap phase |
+
+### 15.3 Technical decisions delegated to evidence
+
+The vertical slice must resolve these choices with evidence rather than
+preference:
+
+- Inspect-backed runner versus a thin BuildMax runner;
+- Python versus Go for the experiment controller;
+- Harbor's exact adapter mechanism;
+- JSON, JSONL, or a directory manifest as the physical trial-bundle encoding;
+- the first statistical library and report renderer; and
+- Phoenix, Langfuse, or no external viewer.
+
+Each follows from the black-box vertical slice and must preserve the contract and privacy decisions
+above.
+
+## 16. Options And Trade-Offs
+
+| Option | Strength | Main concern |
+|---|---|---|
+| Expand the current Go benchmark | Smallest immediate change | Preserves an early coding-task abstraction that cannot represent the current product cleanly |
+| Adopt one external framework as the system of record | Mature generic runner, scoring, and UI sooner | BuildMax product semantics, portability, and privacy become subordinate to another framework's model |
+| Build a complete custom evaluation platform now | Maximum control | Front-loads a large LLMOps product before representative tasks and operator needs are proven |
+| Own the contract and product suites; use replaceable runners, backends, and viewers | Keeps product meaning and privacy under BuildMax control while reusing mature infrastructure | Requires disciplined contract design and adapter conformance |
+
+The accepted direction is the final option.
+
+## 17. Delivery Sequence
+
+### Phase 0: Evaluation charter and contract
+
+- Define versioned task, subject, trial-bundle, grader-result, and experiment contracts.
+- Define retention, redaction, and export boundaries.
+- Define failure taxonomy and qualification-report semantics.
+- Audit the durable trace against required process evidence.
+
+### Phase 1: Black-box vertical slice
+
+- Build a small representative suite spanning local, worker, conversation, and trust behavior.
+- Run built binaries or images in isolated environments.
+- Preserve hidden graders and an executable oracle.
+- Produce one canonical trial bundle per attempt.
+- Compare baseline and candidate over repeated trials.
+- Spike Inspect versus a thin controller and add a Harbor terminal adapter.
+
+The slice is successful when a failure hands a contributor a classification, trace, final-state
+evidence, subject manifest, and bounded reproduction path — not merely a lower aggregate score.
+
+### Phase 2: Maintainer and operator qualification
+
+- Expand regression, capability, worker, trust, and cross-surface suites.
+- Establish measured cadence, repetition, provider budget, and gates.
+- Add model/config and deployment qualification reports.
+- Add a versioned private or rotating holdout.
+- Add optional export to a self-hosted viewer after the local workflow is sufficient.
+
+### Phase 3: Production feedback loop
+
+- Sample eligible failures and user feedback inside the owning deployment.
+- Require human redaction and review before promotion into a dataset.
+- Track task and grader defects separately from Agent defects.
+- Re-run promoted cases against candidate subjects before release.
+
+### Phase 4: Team-facing evaluation, if separately accepted
+
+- Let a Team define private scenarios for an Agent or Workflow.
+- Run those scenarios with team authorization and quota.
+- Compare definition versions before publication.
+- Keep evaluation results, traces, and datasets team-scoped.
+
+This phase requires a separate product and data-model decision. The earlier phases only preserve a
+contract path to it.
+
+## 18. Risks And Mitigations
+
+| Risk | Mitigation |
+|---|---|
+| The evaluation system becomes a second product too early | Deliver the black-box vertical slice before UI, dataset management, or generalized services |
+| Tasks test implementation trivia rather than product capability | State the construct each suite measures; require oracle and task review |
+| Agents read or exploit graders | Separate visible and hidden material with a real execution boundary and adversarially test graders |
+| LLM judges reward style or can be manipulated | Calibrate against frozen labels, separate dimensions, allow unknown, and keep deterministic gates authoritative |
+| Provider or infrastructure noise is reported as a regression | Paired runs, repeated trials, explicit subject/resource manifests, and separate infrastructure status |
+| Public tasks become contaminated or overfit | Private/rotating holdout, production-derived cases, and periodic task refresh |
+| Trial bundles become a sensitive-data lake | Local/private default, bounding, redaction, retention, content-free manifests, explicit export |
+| External framework evolution breaks evaluation | BuildMax-owned versioned contract and adapter conformance tests |
+| Main-repository tooling burdens normal contributors | Independent locks and opt-in heavy commands; deterministic repository checks remain lightweight |
+| Scores encourage optimizing the benchmark instead of the product | Multiple product domains, qualitative failure review, public-benchmark separation, and no global score |
+
+## 19. Evidence Required During Implementation
+
+The product direction is accepted before a framework is selected. Implementation
+must not proceed past the first slice without evidence from:
+
+1. a representative set of real BuildMax failure or manual-check scenarios;
+2. an inventory of trace fields available and missing for outcome and trust grading;
+3. a black-box adapter sketch for local, worker, and conversation execution;
+4. a privacy review of trial contents, retention, and export;
+5. an initial provider-cost and repetition estimate;
+6. an Inspect/controller spike and a Harbor adapter spike; and
+7. oracle and grader review showing that the initial tasks measure the claimed capability.
+
+External practice supports the direction but does not decide BuildMax's product contract:
+
+- [Anthropic's Agent evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+  distinguishes tasks, trials, graders, transcripts, outcomes, and Agent harnesses; recommends
+  repeated trials and capability/regression separation; and treats final environment state as
+  distinct from what the Agent claims.
+- [Google ADK evaluation](https://github.com/google/adk-docs/blob/main/docs/evaluate/index.md)
+  evaluates both final response and tool trajectory, including multi-turn criteria and user
+  simulation.
+- [Inspect AI](https://inspect.aisi.org.uk/tasks.html) models tasks from datasets, solvers, scorers,
+  sandboxes, limits, and epochs, while its [metrics](https://inspect.aisi.org.uk/metrics.html)
+  include uncertainty and inter-rater agreement.
+- [Harbor](https://github.com/harbor-framework/harbor) evaluates arbitrary Agents in container
+  environments and is the official harness for Terminal-Bench 2.0.
+- The [Agentic Benchmark Checklist](https://github.com/uiuc-kang-lab/agentic-benchmarks/blob/main/ABC.md)
+  emphasizes task and outcome validity, hidden ground truth, oracle solvers, contamination controls,
+  and uncertainty reporting.
+
+## 20. Documentation Lifecycle
+
+This record owns the rationale and phased direction until the evaluation system
+is implemented. The first implementation must update the repository layout and
+testing documentation with the actual ownership boundaries, commands, data
+formats, and operator workflow. Once the plan is complete, move enduring
+contracts into contributor or reference documentation and delete this active
+plan; Git history retains the decision context.
