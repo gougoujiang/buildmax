@@ -36,6 +36,7 @@ their context.
 | [Trusted private execution loop](trusted-private-execution-loop.md) | Should the next cross-cutting milestone prove one constrained, managed, auditable private team task before broader product expansion? |
 | [Entity identity and relational keys](entity-identity-and-relational-keys.md) | Should public opaque IDs be separated from compact relational keys before Beta? |
 | [Local background work and monitors](local-background-work-and-monitors.md) | Should TUI and Desktop share a process-scoped job manager for detached commands, subagents, and event-driven monitors? |
+| [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
 
 Three papers have been retired. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
