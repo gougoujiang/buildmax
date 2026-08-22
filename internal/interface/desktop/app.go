@@ -416,24 +416,60 @@ func (a *App) GetRunStatus(projectID, sessionID string) (RunStatusPayload, error
 	}, nil
 }
 
-// --- Auth bindings ---
+// --- Mode and auth bindings ---
 
-// GetAuthStatus returns the current authentication state for the frontend.
-func (a *App) GetAuthStatus() (*auth.AuthInfo, error) {
+// AuthStatus is what the frontend needs to decide which surface to show: the
+// mode the app is in, and who is signed in when that mode is server.
+//
+// Mode is empty only before anyone has chosen, which is what makes the app ask.
+type AuthStatus struct {
+	Mode      string `json:"mode"`
+	LoggedIn  bool   `json:"logged_in"`
+	ServerURL string `json:"server_url,omitempty"`
+	UserID    string `json:"user_id,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Name      string `json:"name,omitempty"`
+}
+
+// GetAuthStatus returns the current mode and authentication state.
+//
+// A usable login wins over a remembered local choice: the credentials are the
+// stronger statement, and someone who signed in should not land in local mode
+// because they once picked it.
+func (a *App) GetAuthStatus() (*AuthStatus, error) {
 	info, err := auth.Info()
 	if err != nil {
 		return nil, fmt.Errorf("load auth: %w", err)
 	}
-	if !info.LoggedIn {
-		return &auth.AuthInfo{LoggedIn: false}, nil
+	if info.LoggedIn {
+		return &AuthStatus{
+			Mode:      ModeServer,
+			LoggedIn:  true,
+			ServerURL: info.ServerURL,
+			UserID:    info.UserID,
+			Email:     info.Email,
+			Name:      info.Name,
+		}, nil
 	}
-	return &auth.AuthInfo{
-		LoggedIn:  true,
-		ServerURL: info.ServerURL,
-		UserID:    info.UserID,
-		Email:     info.Email,
-		Name:      info.Name,
-	}, nil
+	return &AuthStatus{Mode: readDesktopState().Mode, LoggedIn: false}, nil
+}
+
+// UseLocalMode runs the agent here, against the models in settings.yaml, with
+// no server involved.
+func (a *App) UseLocalMode() (*AuthStatus, error) {
+	if err := writeDesktopState(desktopState{Mode: ModeLocal}); err != nil {
+		return nil, fmt.Errorf("save mode: %w", err)
+	}
+	return &AuthStatus{Mode: ModeLocal, LoggedIn: false}, nil
+}
+
+// ConnectToServer leaves local mode so the sign-in form is shown again. It
+// touches no credentials — there are none to touch in local mode.
+func (a *App) ConnectToServer() (*AuthStatus, error) {
+	if err := writeDesktopState(desktopState{}); err != nil {
+		return nil, fmt.Errorf("save mode: %w", err)
+	}
+	return a.GetAuthStatus()
 }
 
 // RequestOTP calls the server's OTP endpoint.
@@ -444,7 +480,7 @@ func (a *App) RequestOTP(serverURL, email, intent string) error {
 
 // DoLoginWithPassword authenticates with a password and saves credentials on
 // success. This is the everyday path.
-func (a *App) DoLoginWithPassword(serverURL, email, password string) (*auth.AuthInfo, error) {
+func (a *App) DoLoginWithPassword(serverURL, email, password string) (*AuthStatus, error) {
 	c := client.NewClient(serverURL)
 	lr, err := c.LoginWithPassword(context.Background(), email, password, "desktop")
 	if err != nil {
@@ -456,7 +492,7 @@ func (a *App) DoLoginWithPassword(serverURL, email, password string) (*auth.Auth
 // DoLogin authenticates with a single-use login code and saves credentials on
 // success. It is the recovery path: claiming a new account, or getting back in
 // after a forgotten password.
-func (a *App) DoLogin(serverURL, email, otp string) (*auth.AuthInfo, error) {
+func (a *App) DoLogin(serverURL, email, otp string) (*AuthStatus, error) {
 	c := client.NewClient(serverURL)
 	lr, err := c.Login(context.Background(), email, otp, "desktop")
 	if err != nil {
@@ -465,7 +501,7 @@ func (a *App) DoLogin(serverURL, email, otp string) (*auth.AuthInfo, error) {
 	return a.saveLogin(serverURL, lr)
 }
 
-func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*auth.AuthInfo, error) {
+func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*AuthStatus, error) {
 	creds := &auth.Credentials{
 		ServerURL:    serverURL,
 		Token:        lr.Access(),
@@ -477,7 +513,13 @@ func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*auth.AuthI
 	if err := auth.SaveCredentials(creds); err != nil {
 		return nil, fmt.Errorf("save credentials: %w", err)
 	}
-	return &auth.AuthInfo{
+	// Remember the mode as well as the credentials, so signing out returns to
+	// the sign-in form rather than to a mode chosen before this login.
+	if err := writeDesktopState(desktopState{Mode: ModeServer}); err != nil {
+		return nil, fmt.Errorf("save mode: %w", err)
+	}
+	return &AuthStatus{
+		Mode:      ModeServer,
 		LoggedIn:  true,
 		ServerURL: serverURL,
 		UserID:    lr.User.ID,
@@ -494,6 +536,11 @@ func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*auth.AuthI
 func (a *App) Logout() error {
 	if err := auth.LogoutAndRevoke(); err != nil {
 		slog.Warn("logout could not revoke the session on the server", "err", err)
+	}
+	// Signing out is not a vote for local mode: clear the remembered mode so the
+	// app asks again.
+	if err := writeDesktopState(desktopState{}); err != nil {
+		slog.Warn("logout could not clear the saved mode", "err", err)
 	}
 	return nil
 }

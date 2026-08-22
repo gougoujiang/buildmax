@@ -120,3 +120,48 @@
 .login-page__advanced-toggle:hover {
   color: var(--color-text-muted);
 }
+
+.login-page__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.login-page__divider::before,
+.login-page__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.login-page__local {
+  font: inherit;
+  font-size: 0.95rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: none;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-page__local:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.login-page__local:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-page__local-hint {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-text-subtle);
+}

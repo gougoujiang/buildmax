@@ -4,11 +4,16 @@ import { getApp } from './lib/app';
 const DEFAULT_SERVER_URL = 'http://localhost:5678';
 
 /**
- * Two ways in, for two different jobs.
+ * Sign in to a server, or skip it.
  *
- * A password is the everyday one. A login code is how a new account is claimed
- * and how a forgotten password is recovered — BuildMax has no mail channel, so
- * an operator issues that code by hand.
+ * A server is optional: the agent runs on this machine either way, and local
+ * mode is the single-user install — the same thing `buildmax` does in a
+ * terminal without `buildmax login`. Signing in adds the account: managed
+ * models and a team's work.
+ *
+ * Of the two ways in, a password is the everyday one. A login code is how a new
+ * account is claimed and how a forgotten password is recovered — BuildMax has
+ * no mail channel, so an operator issues that code by hand.
  */
 export default function LoginPage({ onLogin }) {
   const [mode, setMode] = useState('password');
@@ -19,6 +24,20 @@ export default function LoginPage({ onLogin }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  async function handleUseLocalMode() {
+    if (loading || !app) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const status = await app.UseLocalMode();
+      if (onLogin) onLogin(status);
+    } catch (err) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const app = getApp();
   const credential = mode === 'password' ? password : otp.trim();
@@ -54,7 +73,7 @@ export default function LoginPage({ onLogin }) {
         <h1 className="login-page__title">BuildMax</h1>
         <p className="login-page__subtitle">
           {mode === 'password'
-            ? 'Sign in to continue'
+            ? 'Sign in to a BuildMax server, or use this machine on its own'
             : 'Sign in with a login code from your administrator'}
         </p>
         <form onSubmit={handleSubmit} className="login-page__form">
@@ -141,6 +160,19 @@ export default function LoginPage({ onLogin }) {
               : 'Sign in with a password'}
           </button>
         </form>
+        <div className="login-page__divider"><span>or</span></div>
+        <button
+          type="button"
+          className="login-page__local"
+          onClick={handleUseLocalMode}
+          disabled={loading}
+        >
+          Use BuildMax without a server
+        </button>
+        <p className="login-page__local-hint">
+          The agent runs on this machine, with the models in your settings.yaml.
+          You can connect to a server later.
+        </p>
       </div>
     </div>
   );
