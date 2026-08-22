@@ -103,22 +103,13 @@
   color: var(--color-text);
 }
 
-.login-page__advanced-toggle {
-  font: inherit;
-  font-size: 0.8rem;
-  padding: 0;
-  background: none;
-  border: none;
+/* Sits right under the field it explains, so the negative margin pulls it out
+   of the form's own row gap. */
+.login-page__field-hint {
+  margin: -0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
   color: var(--color-text-subtle);
-  cursor: pointer;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.login-page__advanced-toggle:hover {
-  color: var(--color-text-muted);
 }
 
 .login-page__divider {

@@ -80,6 +80,10 @@ choose "Forgot your password, or have a login code?", and enter that email and
 code. Then set a password from account settings — after that you sign in with it
 normally.
 
+The Desktop app and `buildmax login` sign in to the same account, but they call
+the API directly: their **Server URL** is <http://localhost:5678>, not the
+Portal's port.
+
 ## Add a Model
 
 The Portal runs without one, but conversations cannot reach a model until you

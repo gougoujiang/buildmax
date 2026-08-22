@@ -14,6 +14,13 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 )
 
+// DefaultServerURL is where a client looks when nobody has named a server: the
+// address buildmax-server listens on when it runs on this machine. It is the
+// last fallback, not an assumption — settings.yaml's server_url wins, and a
+// deployment behind an ingress publishes one origin for Portal and API that is
+// not this one.
+const DefaultServerURL = "http://localhost:5678"
+
 // LoginUser is the user subset returned in a login response.
 type LoginUser struct {
 	ID    string `json:"id"`
