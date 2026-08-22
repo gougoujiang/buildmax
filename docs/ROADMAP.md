@@ -277,10 +277,12 @@ at the end:
    deliberately forward-only: every migration is additive and a rollback is a
    rollback of the binary, which the schema it left behind must keep serving —
    so there is no down path to write, but the compatibility rule has to hold in
-   review. Still open: the readiness probe reads the object store without ever
-   writing to it, so a bucket that refuses writes reports ready and then fails
-   every run, and readiness does not check worker launch mode, worker token, or
-   the LLM configuration the conversation paths need.
+   review. The production storage contract requires read, write, and list access,
+   but BuildMax still has no explicit deployment-initialization check that proves
+   those permissions against the operator's actual bucket and identity. That is
+   deliberately not a `/readyz` responsibility: readiness remains a read-only
+   dependency-availability check. It also does not check worker launch mode,
+   worker token, or the LLM configuration the conversation paths need.
 4. Minimum team governance — **done, with one gap named**. The role and team
    authorization matrix is covered end to end by tests, the audit trail records
    sign-in, configuration, model, and credential actions, and deployment
