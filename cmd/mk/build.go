@@ -192,6 +192,9 @@ func cmdTest(args []string) error {
 	if len(flags) > 0 && !strings.HasPrefix(flags[0], "-") {
 		return fmt.Errorf("usage: %s test [race] [packages] [go test flags]\n  %q is neither a package pattern nor a flag", mk(), flags[0])
 	}
+	if stray, found := packageAfterFlag(flags); found {
+		return fmt.Errorf("usage: %s test [race] [packages] [go test flags]\n  %q is a package pattern but comes after a flag, so the run widens to ./...; put packages first", mk(), stray)
+	}
 	if _, err := useSandboxHome(); err != nil {
 		return err
 	}
@@ -222,6 +225,25 @@ func splitTestTargets(args []string) (packages, flags []string) {
 		}
 	}
 	return args, nil
+}
+
+// packageAfterFlag finds a package pattern that arrived too late to be one.
+// `go test` reads a single pattern list, so a package written after a flag is
+// not a narrower run: packages stays empty, the run widens to ./..., and the
+// contributor waits for the whole tree believing they narrowed it. Only a
+// `./`-prefixed argument is reported, because a bare word or a subtest pattern
+// like `Test/Sub` is far more likely to be a flag's value, and the scan stops
+// at `-args`, after which everything belongs to the test binary.
+func packageAfterFlag(flags []string) (string, bool) {
+	for _, flag := range flags {
+		if flag == "-args" || flag == "--args" {
+			return "", false
+		}
+		if strings.HasPrefix(flag, "./") {
+			return flag, true
+		}
+	}
+	return "", false
 }
 
 // looksLikePackage recognises what a Go package pattern can be. Every form is a

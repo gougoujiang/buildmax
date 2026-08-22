@@ -16,6 +16,11 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdTest([]string{"fast"}); err == nil {
 		t.Fatal("cmdTest accepted an unknown mode")
 	}
+	// Silently widening to ./... is worse than refusing: the run still passes,
+	// so the ordering mistake is only visible in the minutes it took.
+	if err := cmdTest([]string{"-run", "TestFileValue", "./cmd/mk"}); err == nil {
+		t.Fatal("cmdTest accepted a package after a flag")
+	}
 	if err := cmdCheck([]string{"unknown"}); err == nil {
 		t.Fatal("cmdCheck accepted an unknown scope")
 	}
@@ -504,5 +509,30 @@ func TestEveryCommandPackageIsGitIgnored(t *testing.T) {
 			t.Errorf(".gitignore has no %q; a bare `go build ./cmd/%s` leaves that binary in the repository root",
 				want, entry.Name())
 		}
+	}
+}
+
+func TestPackageAfterFlagLeavesFlagValuesAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		flags []string
+		want  string
+	}{
+		{name: "a package after a flag", flags: []string{"-run", "TestX", "./cmd/mk"}, want: "./cmd/mk"},
+		{name: "a subtest pattern is a flag value", flags: []string{"-run", "Test/Sub"}},
+		{name: "a bare word is a flag value", flags: []string{"-run", "internal/util"}},
+		{name: "nothing after -args belongs to go test", flags: []string{"-args", "./fixture"}},
+		{name: "no flags at all", flags: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, found := packageAfterFlag(tt.flags)
+			if found != (tt.want != "") {
+				t.Fatalf("packageAfterFlag(%q) found = %v; want %v", tt.flags, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Errorf("packageAfterFlag(%q) = %q; want %q", tt.flags, got, tt.want)
+			}
+		})
 	}
 }
