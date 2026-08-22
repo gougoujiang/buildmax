@@ -69,6 +69,20 @@ type CommandSpec struct {
 	Dir     string
 	Env     []string
 	Timeout time.Duration
+	// Deliver requests that completion wake the owning session with the
+	// result. Default false: completion is only notified and queryable, per
+	// docs/design/local-background-jobs.md ("When completion wakes the
+	// model").
+	Deliver bool
+}
+
+// SubagentSpec describes one background subagent job.
+type SubagentSpec struct {
+	Description string
+	// Timeout cancels the subagent when exceeded; 0 means none.
+	Timeout time.Duration
+	// Deliver requests that the final reply wake the owning session.
+	Deliver bool
 }
 
 // Job is an immutable snapshot of one job's identity and state.
@@ -78,6 +92,9 @@ type Job struct {
 	Command    string
 	State      State
 	StopReason StopReason
+	// Deliver says the launching call asked for completion to wake the
+	// owning session with the result.
+	Deliver bool
 	// ExitCode is meaningful only in StateFailed after a non-zero exit.
 	ExitCode   int
 	Err        string
@@ -238,6 +255,7 @@ func (m *Manager) StartCommand(spec CommandSpec, prov Provenance) (Job, error) {
 			Kind:       KindCommand,
 			Command:    spec.Command,
 			State:      StateRunning,
+			Deliver:    spec.Deliver,
 			PID:        p.PID(),
 			Provenance: prov,
 			CreatedAt:  time.Now(),
@@ -263,7 +281,7 @@ func (m *Manager) StartCommand(spec CommandSpec, prov Provenance) (Job, error) {
 // returns the subagent's final reply. The caller stamps any provenance values
 // run needs onto that context itself; the manager deliberately does not
 // inherit the launching request context.
-func (m *Manager) StartSubagent(description string, timeout time.Duration, prov Provenance, run func(context.Context) (string, error)) (Job, error) {
+func (m *Manager) StartSubagent(spec SubagentSpec, prov Provenance, run func(context.Context) (string, error)) (Job, error) {
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -277,8 +295,8 @@ func (m *Manager) StartSubagent(description string, timeout time.Duration, prov 
 
 	var jobCtx context.Context
 	var cancel context.CancelFunc
-	if timeout > 0 {
-		jobCtx, cancel = context.WithTimeout(context.Background(), timeout)
+	if spec.Timeout > 0 {
+		jobCtx, cancel = context.WithTimeout(context.Background(), spec.Timeout)
 	} else {
 		jobCtx, cancel = context.WithCancel(context.Background())
 	}
@@ -287,8 +305,9 @@ func (m *Manager) StartSubagent(description string, timeout time.Duration, prov 
 		job: Job{
 			ID:         util.NewPrefixedID(util.PrefixJob),
 			Kind:       KindSubagent,
-			Command:    description,
+			Command:    spec.Description,
 			State:      StateRunning,
+			Deliver:    spec.Deliver,
 			Provenance: prov,
 			CreatedAt:  time.Now(),
 		},

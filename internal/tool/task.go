@@ -184,6 +184,10 @@ func (t *TaskTool) Parameters() any {
 			"type":        "boolean",
 			"description": "Run the sub-agent as a background job and return its job ID immediately instead of waiting. Read its final reply with JobOutput; stop it with JobStop. The sub-agent shares this workspace, so avoid delegating edits that would race yours.",
 		}
+		properties["deliver_result"] = map[string]any{
+			"type":        "boolean",
+			"description": "With run_in_background: when true, the sub-agent's final reply is delivered into this conversation when it completes. Otherwise completion is only shown in the UI and the reply is read with JobOutput.",
+		}
 	}
 	return map[string]any{
 		"type":       "object",
@@ -236,7 +240,8 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 		Model:        config.Model,
 	}
 	if background, _ := args["run_in_background"].(bool); background {
-		return t.executeBackground(ctx, description, opts, prompt)
+		deliver, _ := args["deliver_result"].(bool)
+		return t.executeBackground(ctx, description, opts, prompt, deliver)
 	}
 	reply, err := t.runner.RunSubAgent(ctx, opts, prompt)
 	if err != nil {
@@ -255,7 +260,7 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 // still needs — owner session, launching run and tool call — are copied onto
 // it explicitly, so nothing else of the request context leaks into work that
 // outlives the call.
-func (t *TaskTool) executeBackground(ctx context.Context, description string, opts SubAgentRunOpts, prompt string) (string, error) {
+func (t *TaskTool) executeBackground(ctx context.Context, description string, opts SubAgentRunOpts, prompt string, deliver bool) (string, error) {
 	if agent.SubagentFromCtx(ctx) {
 		return "Background execution is not available inside a subagent. Return your findings and let the parent session delegate further work.", nil
 	}
@@ -267,7 +272,10 @@ func (t *TaskTool) executeBackground(ctx context.Context, description string, op
 	toolCallID := agent.ToolCallFromCtx(ctx)
 	runner := t.runner
 
-	j, err := t.jobs.StartSubagent(description, 0, job.Provenance{
+	j, err := t.jobs.StartSubagent(job.SubagentSpec{
+		Description: description,
+		Deliver:     deliver,
+	}, job.Provenance{
 		Workspace:        t.workspace,
 		SessionID:        sessionID,
 		ParentTraceID:    runID,
