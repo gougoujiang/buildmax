@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ type Kind string
 const (
 	KindCommand  Kind = "command"
 	KindSubagent Kind = "subagent"
+	KindMonitor  Kind = "monitor"
 )
 
 // State is the job state machine:
@@ -85,6 +87,26 @@ type SubagentSpec struct {
 	Deliver bool
 }
 
+// MonitorSpec describes one monitor job: a command whose stdout lines become
+// events until exit, timeout, stop, or shutdown. Name and Args are the final
+// argv after the same permission, sandbox, and environment resolution a Bash
+// call gets.
+type MonitorSpec struct {
+	Command string
+	Name    string
+	Args    []string
+	Dir     string
+	Env     []string
+	Timeout time.Duration
+	// Persistent documents application-session lifetime intent — never
+	// survival past process exit.
+	Persistent bool
+	// React makes each delivered line wake the owning session (the job's
+	// Deliver flag). Default is notify-only: lines reach the UI and are
+	// queryable, but cause no model call.
+	React bool
+}
+
 // Job is an immutable snapshot of one job's identity and state.
 type Job struct {
 	ID         string
@@ -93,8 +115,10 @@ type Job struct {
 	State      State
 	StopReason StopReason
 	// Deliver says the launching call asked for completion to wake the
-	// owning session with the result.
+	// owning session with the result; for a monitor, that its lines react.
 	Deliver bool
+	// Persistent records a monitor's application-session-lifetime intent.
+	Persistent bool
 	// ExitCode is meaningful only in StateFailed after a non-zero exit.
 	ExitCode   int
 	Err        string
@@ -109,10 +133,23 @@ func (j Job) Running() bool {
 	return j.State == StateStarting || j.State == StateRunning
 }
 
-// Event is one lifecycle notification carrying the job snapshot after the
-// transition.
+// EventType distinguishes what an Event reports. The zero value is a
+// lifecycle transition, so pre-monitor consumers keep working unchanged.
+type EventType string
+
+const (
+	EventLifecycle   EventType = ""
+	EventMonitorLine EventType = "monitor_line"
+)
+
+// Event is one notification carrying the job snapshot at that moment. A
+// monitor line additionally carries the line and the count of lines that
+// backpressure dropped since the previous delivered event.
 type Event struct {
-	Job Job
+	Job          Job
+	Type         EventType
+	Line         string
+	DroppedLines int
 }
 
 // DefaultMaxCommandJobs bounds concurrently running command jobs. Deliberately
@@ -122,6 +159,22 @@ const DefaultMaxCommandJobs = 8
 // DefaultMaxSubagentJobs bounds concurrently running background subagents.
 // Each one is a full agent loop holding model calls; lower than commands.
 const DefaultMaxSubagentJobs = 4
+
+// DefaultMaxMonitors bounds concurrently running monitors.
+const DefaultMaxMonitors = 4
+
+// Monitor backpressure. Without these bounds, `tail -F` on a busy log is a
+// context-exhaustion tool: the caps are what make a monitor event safe to
+// deliver anywhere.
+const (
+	// monitorPollInterval is how often the line pump drains the stdout ring.
+	monitorPollInterval = 200 * time.Millisecond
+	// maxMonitorLineBytes truncates one line before it becomes an event.
+	maxMonitorLineBytes = 2048
+	// maxMonitorEventsPerSecond rate-limits delivered lines; the rest are
+	// coalesced into the next event's DroppedLines count.
+	maxMonitorEventsPerSecond = 5
+)
 
 // eventBuffer is each subscriber's channel capacity. Lifecycle events are
 // low-volume; a subscriber that falls this far behind loses the oldest
@@ -141,6 +194,10 @@ type record struct {
 	cancel context.CancelFunc
 	// reply holds a finished subagent job's final reply, read through Output.
 	reply []byte
+	// linesDone, when set (monitor jobs), is closed by the line pump after
+	// its final flush, so the terminal lifecycle event orders after the last
+	// line event.
+	linesDone chan struct{}
 	// requested is the stop reason recorded when Stop was accepted, so the
 	// terminal state can say who ended the job — the execution only knows it
 	// was signaled.
@@ -186,6 +243,7 @@ type Manager struct {
 
 	maxCommands  int
 	maxSubagents int
+	maxMonitors  int
 	wg           sync.WaitGroup
 }
 
@@ -195,6 +253,7 @@ func NewManager() *Manager {
 		subs:         make(map[int]*subscriber),
 		maxCommands:  DefaultMaxCommandJobs,
 		maxSubagents: DefaultMaxSubagentJobs,
+		maxMonitors:  DefaultMaxMonitors,
 	}
 }
 
@@ -271,7 +330,7 @@ func (m *Manager) StartCommand(spec CommandSpec, prov Provenance) (Job, error) {
 	}
 
 	snap := rec.snapshot()
-	m.publish(snap)
+	m.publish(Event{Job: snap})
 	go m.reap(rec)
 	return snap, nil
 }
@@ -319,7 +378,7 @@ func (m *Manager) StartSubagent(spec SubagentSpec, prov Provenance, run func(con
 	}
 
 	snap := rec.snapshot()
-	m.publish(snap)
+	m.publish(Event{Job: snap})
 	go func() {
 		defer m.wg.Done()
 		defer cancel()
@@ -346,15 +405,162 @@ func (m *Manager) StartSubagent(spec SubagentSpec, prov Provenance, run func(con
 		}
 		done := rec.job
 		rec.mu.Unlock()
-		m.publish(done)
+		m.publish(Event{Job: done})
 	}()
 	return snap, nil
 }
 
-// reap waits for the process and publishes the terminal transition.
+// StartMonitor launches one monitor job. Lifecycle is a command job's; in
+// addition, a line pump turns stdout lines into bounded, rate-limited
+// monitor events until the process ends.
+func (m *Manager) StartMonitor(spec MonitorSpec, prov Provenance) (Job, error) {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return Job{}, ErrClosed
+	}
+	if running := m.runningOfKind(KindMonitor); running >= m.maxMonitors {
+		m.mu.Unlock()
+		return Job{}, fmt.Errorf("refusing to start: %d monitors already running (limit %d); stop one first", running, m.maxMonitors)
+	}
+	m.mu.Unlock()
+
+	p, err := proc.Start(proc.Spec{
+		Name:    spec.Name,
+		Args:    spec.Args,
+		Dir:     spec.Dir,
+		Env:     spec.Env,
+		Timeout: spec.Timeout,
+	})
+	if err != nil {
+		return Job{}, fmt.Errorf("start monitor: %w", err)
+	}
+
+	rec := &record{
+		job: Job{
+			ID:         util.NewPrefixedID(util.PrefixJob),
+			Kind:       KindMonitor,
+			Command:    spec.Command,
+			State:      StateRunning,
+			Deliver:    spec.React,
+			Persistent: spec.Persistent,
+			PID:        p.PID(),
+			Provenance: prov,
+			CreatedAt:  time.Now(),
+		},
+		proc:      p,
+		linesDone: make(chan struct{}),
+	}
+	if !m.adopt(rec) {
+		p.Stop()
+		<-p.Done()
+		return Job{}, ErrClosed
+	}
+
+	snap := rec.snapshot()
+	m.publish(Event{Job: snap})
+	go m.pumpMonitorLines(rec)
+	go m.reap(rec)
+	return snap, nil
+}
+
+// pumpMonitorLines drains the monitor's stdout ring into line events,
+// applying every backpressure bound before anything can reach a model:
+// line-byte cap, event rate limit, coalesced drop accounting, and drop
+// accounting for ring overruns and full subscriber buffers. Stderr is
+// diagnostic output and never becomes an event.
+func (m *Manager) pumpMonitorLines(rec *record) {
+	defer close(rec.linesDone)
+	var cursor uint64
+	var partial []byte
+	dropped := 0 // lines lost to rate limit, overruns, or full subscribers
+	window := time.Now()
+	sentInWindow := 0
+
+	flush := func(final bool) {
+		chunk := rec.proc.Output(proc.Stdout, cursor, 0)
+		cursor = chunk.Next
+		if chunk.Dropped > 0 {
+			// The ring overran between polls; whatever the partial line was,
+			// it is gone, and an unknown number of lines with it. Count what
+			// is countable: at least one.
+			partial = nil
+			dropped++
+		}
+		data := append(partial, chunk.Data...)
+		lines := strings.Split(string(data), "\n")
+		partial = []byte(lines[len(lines)-1])
+		lines = lines[:len(lines)-1]
+		if final && len(partial) > 0 {
+			lines = append(lines, string(partial))
+			partial = nil
+		}
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+			if now := time.Now(); now.Sub(window) >= time.Second {
+				window = now
+				sentInWindow = 0
+			}
+			if sentInWindow >= maxMonitorEventsPerSecond {
+				dropped++
+				continue
+			}
+			sentInWindow++
+			if len(line) > maxMonitorLineBytes {
+				line = string(truncateUTF8([]byte(line), maxMonitorLineBytes)) + "…"
+			}
+			ev := Event{Job: rec.snapshot(), Type: EventMonitorLine, Line: line, DroppedLines: dropped}
+			if m.publish(ev) {
+				dropped = 0
+			} else {
+				// No subscriber had room; the line is gone but not silently.
+				dropped++
+			}
+		}
+	}
+
+	ticker := time.NewTicker(monitorPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-rec.proc.Done():
+			flush(true)
+			if dropped > 0 {
+				// Nothing further will carry the count; an empty-line event
+				// is the drop summary, so the accounting is complete even
+				// when the monitor ends mid-flood.
+				m.publish(Event{Job: rec.snapshot(), Type: EventMonitorLine, DroppedLines: dropped})
+			}
+			return
+		case <-ticker.C:
+			flush(false)
+		}
+	}
+}
+
+// truncateUTF8 cuts b at max bytes without splitting a rune.
+func truncateUTF8(b []byte, max int) []byte {
+	if len(b) <= max {
+		return b
+	}
+	cut := max
+	for cut > 0 && b[cut]&0xC0 == 0x80 {
+		cut--
+	}
+	return b[:cut]
+}
+
+// reap waits for the process and publishes the terminal transition. For a
+// monitor it also waits for the line pump's final flush, so the terminal
+// event is ordered after the last line event.
 func (m *Manager) reap(rec *record) {
 	defer m.wg.Done()
 	<-rec.proc.Done()
+	if rec.linesDone != nil {
+		<-rec.linesDone
+	}
 	res, _ := rec.proc.Result()
 
 	rec.mu.Lock()
@@ -384,7 +590,7 @@ func (m *Manager) reap(rec *record) {
 	}
 	snap := rec.job
 	rec.mu.Unlock()
-	m.publish(snap)
+	m.publish(Event{Job: snap})
 }
 
 // List returns snapshots of every job in creation order.
@@ -486,18 +692,25 @@ func (m *Manager) Subscribe(sessionID string) (<-chan Event, func()) {
 	return sub.ch, cancel
 }
 
-func (m *Manager) publish(j Job) {
+// publish fans the event to interested subscribers without ever blocking job
+// progress. It reports whether every interested subscriber accepted it, so a
+// monitor pump can count a full buffer as a dropped line instead of losing it
+// silently. A lifecycle event that misses a buffer is recoverable from List.
+func (m *Manager) publish(ev Event) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	delivered := true
 	for _, sub := range m.subs {
-		if sub.sessionID != "" && sub.sessionID != j.Provenance.SessionID {
+		if sub.sessionID != "" && sub.sessionID != ev.Job.Provenance.SessionID {
 			continue
 		}
 		select {
-		case sub.ch <- Event{Job: j}:
+		case sub.ch <- ev:
 		default:
+			delivered = false
 		}
 	}
+	return delivered
 }
 
 // Close stops accepting jobs, requests cancellation everywhere, and waits.

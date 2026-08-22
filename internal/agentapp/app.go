@@ -1117,7 +1117,10 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.
 	if a.jobs != nil {
-		registry.AppendTools(tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs))
+		registry.AppendTools(
+			tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs),
+			tools.NewMonitor(a.workspaceRoot).WithSandbox(a.Sandbox()).WithJobs(a.jobs),
+		)
 	}
 	return registry, nil
 }
