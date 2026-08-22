@@ -1,468 +1,539 @@
-# Session Tree、Agent Mailbox 与分支工作区
+# Session Trees, Agent Mailboxes, and Branched Workspaces
 
 > **Audience:** contributors, product designers, and early adopters · **Status:** proposal — under discussion
 
-相关文档：[路线图](../ROADMAP.md) P0.5 与 P5、[产品愿景](../design/product-vision.md)、
-[表面定位](../design/surface-positioning.md)、[版本化工作区](../design/versioned-workspace.md)、
-[上下文持久化](../design/context-durability.md)、[排队消息](../design/queued-messages.md)、
-[并行工具执行](../design/parallel-tool-execution.md)、[持久运行轨迹](../design/durable-run-trace.md)、
-[Session 架构](../contribute/architecture/session.md)、[Agent Loop](../contribute/architecture/agent-loop.md)
-以及[数据模型](../contribute/architecture/data-model.md)。
+Related: [roadmap](../ROADMAP.md) P0.5 and P5, [product vision](../design/product-vision.md),
+[surface positioning](../design/surface-positioning.md),
+[versioned workspace](../design/versioned-workspace.md),
+[context durability](../design/context-durability.md),
+[queued messages](../design/queued-messages.md),
+[parallel tool execution](../design/parallel-tool-execution.md),
+[durable run trace](../design/durable-run-trace.md),
+[Session architecture](../contribute/architecture/session.md),
+[Agent Loop](../contribute/architecture/agent-loop.md), and the
+[data model](../contribute/architecture/data-model.md).
 
-## 1. 摘要
+## 1. Summary
 
-BuildMax 当前有三类彼此相关、但没有形成统一用户模型的执行单元：
+BuildMax currently has three related execution units that do not form one
+user-facing model:
 
-- CLI、TUI 和 Desktop 中可恢复、由用户直接交互的本地 Session；
-- Portal 中作为 Tier 1、对用户保持单一声音的 Conversation；
-- 由主 Agent 委派、拥有私有临时 Session 的 subagent，以及由 Task/TaskRun
-  承载的持久后台执行。
+- local Sessions in CLI, TUI, and Desktop that users can resume and interact
+  with directly;
+- Portal Conversations, which are Tier 1 and retain the single voice to the
+  user; and
+- subagents with private, temporary Sessions, plus durable background execution
+  represented by Task and TaskRun.
 
-线性 Session 适合从问题到答案的一条路径，却不能自然表达复杂工作中常见的
-“先共同澄清，再并行探索，最后汇总决策”。用户可以新建空 Session、手工复制背景，
-也可以把工作交给 subagent，但前者丢失来源关系，后者不是用户可持续介入的独立会话。
+A linear Session works for one path from question to answer. It does not
+naturally express a longer task that first establishes shared constraints, then
+explores several directions in parallel, and finally combines their findings.
+Users can create empty Sessions and manually restate context, or delegate to a
+subagent. The first loses provenance; the second is not a persistent,
+user-controllable conversation.
 
-本提案讨论一个长期方向：
+This proposal evaluates a longer-term direction:
 
-1. 用户或 Parent Agent 可以从稳定检查点 fork 一个 Child Session；
-2. Child 继承该检查点的上下文快照，并在独立 worktree 或 workspace snapshot 中工作；
-3. Child 通过受限、结构化、持久的 mailbox report 向直接 Parent 返回结论和变更引用；
-4. Parent 的 supervisor 按显式 return/join policy 通知用户或恢复 Parent Agent Loop；
-5. Parent 综合多个 Child 的报告，并明确决定是否接受相应工作区变更。
+1. A user or parent Agent forks a child Session from a stable checkpoint.
+2. The child receives a snapshot of the checkpoint context and works in an
+   isolated worktree or workspace snapshot.
+3. The child returns conclusions and change references to its direct parent
+   through a restricted, structured, durable mailbox report.
+4. A parent supervisor notifies the user or resumes the parent Agent Loop under
+   an explicit return or join policy.
+5. The parent combines one or more child reports and explicitly decides whether
+   to accept the associated workspace changes.
 
-这不是把普通聊天改成任意节点互发消息的社交网络，也不是在现有 Session 文件上增加
-一个 `parent_id` 就宣称支持并行 Agent。它需要把上下文继承、执行隔离、结果回传、
-生命周期、调度、权限、成本和变更合并作为一个完整语义来评估。
+This is neither an arbitrary chat network between Sessions nor a claim that
+adding `parent_id` to the existing Session file creates safe parallel Agents. It
+requires context inheritance, execution isolation, result delivery,
+lifecycle management, scheduling, permissions, cost bounds, and change
+integration to have one coherent meaning.
 
-本提案不承诺实现。它记录候选产品模型、推荐方向、替代方案、风险、阶段划分和接受该
-方向之前需要的证据。
+The proposal does not commit BuildMax to implementation. It records a candidate
+product model, alternatives, risks, staged delivery, and the evidence needed
+before accepting the direction.
 
-## 2. 问题与当前上下文
+## 2. Problem and Current Context
 
-### 2.1 复杂工作天然会分叉
+### 2.1 Complex work branches naturally
 
-一项较长工作通常不是单线推进：
+Long-running work is rarely a single path:
 
 ```text
-需求讨论与约束澄清
-          │
-          ├── 架构方案 A
-          ├── 架构方案 B
-          ├── 代码定位与复现
-          ├── 测试与风险分析
-          └── 文档或迁移影响
-                    │
-                    ▼
-              综合结论与执行决策
+requirements and constraints
+             │
+             ├── architecture option A
+             ├── architecture option B
+             ├── code investigation and reproduction
+             ├── tests and risk analysis
+             └── documentation or migration impact
+                          │
+                          ▼
+                  synthesis and execution decision
 ```
 
-如果全部内容进入一个 Session，彼此冲突的假设、旁支讨论和大量工具输出会共同占用上下文，
-降低主线可读性并加速 compaction。如果拆成多个空 Session，用户需要重复背景、约束和已做
-决定，系统也无法回答“这个 Session 从哪里来”以及“它的结论应该回到哪里”。
+Putting every branch into one Session mixes incompatible hypotheses, side
+conversations, and large tool output. That makes the main path harder to read
+and accelerates context compaction. Splitting into empty Sessions requires users
+to repeat constraints and decisions, while leaving the system unable to answer
+where a Session came from or where its findings belong.
 
-### 2.2 Subagent 只覆盖了一部分需求
+### 2.2 Subagents cover only part of the need
 
-当前 `Task` 工具启动的 subagent：
+The current `Task` tool starts a subagent that:
 
-- 由主 Agent 决定何时创建；
-- 接收主 Agent 编写的一份任务 prompt，而不是 Parent 的可追溯上下文快照；
-- 在自己的私有 Session 中运行；
-- 完成后把一份字符串结果返回给调用它的工具；
-- 运行结束后丢弃该 Session，用户不能进入其中继续讨论。
+- is created when the parent Agent decides to create it;
+- receives a task prompt written by the parent rather than a traceable parent
+  context snapshot;
+- runs in its own private Session;
+- returns one text result to the calling tool when complete; and
+- discards that Session after completion, so the user cannot open it and
+  continue the discussion.
 
-这适合边界清晰的一次性委派，但不适合用户希望查看探索过程、修正 Child 方向、保留分支、
-稍后继续或把精选结论汇总回 Parent 的场景。
+That is appropriate for bounded, one-shot delegation. It does not cover a user
+who wants to inspect exploration, redirect a child, keep a branch, continue it
+later, or return selected findings to the parent.
 
-### 2.3 Portal 已经有“完成后回到 Parent”的窄实现
+### 2.3 Portal already has a narrow return-to-parent pattern
 
-Portal 的 Tier 2 TaskRun 完成后，会把 `[Task Result]` 发送回启动它的 Tier 1 Conversation，
-再由 Conversation Agent 生成面向用户的回复。这个闭环证明“后台执行单元结束后，恢复父级
-推理并由父级统一表达”符合 BuildMax 当前产品边界。
+When a Portal Tier 2 TaskRun completes, BuildMax sends a `[Task Result]` back to
+the Tier 1 Conversation that started it. The Conversation Agent then produces
+the user-facing reply. This proves that “background execution completes, then
+its parent reasons about the result and remains the user-facing voice” fits the
+current product boundary.
 
-但当前路径不是通用的 Session 通讯机制：
+The current path is not a general Session communication mechanism:
 
-- 结果只回到 Task 所属的固定 Conversation；
-- 结果是截断后的非结构化字符串；
-- 回传依赖用户存在活跃 WebSocket，离线时会跳过；
-- turn queue 位于内存，Server 重启会丢失未开始的 turn；
-- 没有 fork base、工作区变更、证据、join group 或处理确认等语义。
+- the result returns only to the fixed Conversation that owns the Task;
+- the result is truncated, unstructured text;
+- delivery depends on an active user WebSocket connection and is skipped while
+  the user is offline;
+- the turn queue is in memory, so a Server restart loses turns that have not
+  started; and
+- it has no fork base, workspace-change reference, evidence, join group, or
+  processing acknowledgement.
 
-本提案把它视为概念先例，而不是可以直接扩展的持久消息总线。
+This proposal treats that path as a conceptual precedent, not as a durable
+message bus that can simply be generalized.
 
-### 2.4 Worktree 是并行执行的必要条件，而不是 Session Tree 的附属 UI
+### 2.4 Worktrees are required for parallel execution
 
-Desktop 当前每个 Project 最多有一个运行中的 Agent。即使解除这一限制，多个 Session
-直接操作同一目录仍会产生文件覆盖、命令互相干扰、测试输出冲突和不可解释的最终状态。
+Desktop currently permits at most one running Agent per Project. Removing that
+restriction would still not make concurrent Sessions safe: several Agents
+writing one directory can overwrite files, interfere with commands and tests,
+and leave an unexplained final state.
 
-因此需要区分四个问题：
+The proposal separates four questions:
 
-| 问题 | 候选能力 |
+| Question | Candidate capability |
 |---|---|
-| 对话从哪里分叉 | Session lineage 与 fork checkpoint |
-| Child 从什么上下文开始 | 冻结的 context snapshot |
-| Child 在哪里修改文件 | 独立 worktree/workspace snapshot |
-| Child 如何返回并被 Parent 处理 | Durable mailbox 与 session supervisor |
+| Where does the conversation divide? | Session lineage and fork checkpoint |
+| What context starts the child? | Frozen context snapshot |
+| Where does the child change files? | Isolated worktree or workspace snapshot |
+| How does the child return and get processed? | Durable mailbox and Session supervisor |
 
-只有四者组合起来，系统才可以诚实地称为并行、可汇合的 Agent 执行模型。
+Only the combination can honestly be described as a parallel, convergent Agent
+execution model.
 
-## 3. 用户场景
+## 3. User Scenarios
 
-### 3.1 用户主动探索两个方案
+### 3.1 A user explores two options
 
-用户与 Parent 完成需求澄清，从同一个 assistant 回复处创建两个 Child：
+After clarifying a requirement with a parent, the user forks two children from
+the same assistant reply:
 
-- Child A 验证数据库迁移方案；
-- Child B 验证无迁移的兼容方案。
+- child A evaluates a database-migration design;
+- child B evaluates a compatible design without migration.
 
-用户可以分别进入 Child 继续提问。两个 Child 最终各自向 Parent 发送结论、证据和变更集。
-Parent 保留原主线，综合两份报告并指出冲突与推荐选择。
+The user can enter either child and continue the discussion. Each child returns
+its conclusions, evidence, and change set to the parent. The parent preserves
+the original path and combines the reports, including conflicts and a
+recommended choice.
 
-### 3.2 Parent 委派多个可并行子任务
+### 3.2 A parent delegates parallel subtasks
 
-Parent 明确创建三个 Child，并进入 `waiting_children`：
+The parent explicitly creates three children and enters `waiting_children`:
 
-- 一个只读代码探索 Child；
-- 一个在独立 worktree 中实现；
-- 一个设计测试用例。
+- a read-only code exploration child;
+- an implementation child in an isolated worktree; and
+- a test-design child.
 
-Parent 使用 `join: all_terminal`，所以不会在每个 Child 完成时分别消耗一次模型调用。所有
-Child 结束或 deadline 到达后，Parent 只恢复一次，处理完整结果集。
+The parent chooses `join: all_terminal`. It therefore does not spend one model
+turn for each child completion. It resumes once every child has completed,
+failed, or been cancelled, and receives the complete result set.
 
-### 3.3 用户介入一个已经委派的 Child
+### 3.3 A user intervenes in a delegated child
 
-实现 Child 遇到模糊行为，没有把问题压缩成一句 subagent reply，而是进入 `waiting_input`。
-用户打开该 Child，补充约束并让它继续。Child 完成后仍沿原 return policy 报告 Parent。
+An implementation child discovers an ambiguous behavior and reaches
+`waiting_input`. Rather than compressing the question into a subagent reply,
+the user opens the child, adds a constraint, and continues it. Its eventual
+report still follows the original return policy.
 
-### 3.4 Child 只同步结论，不合并代码
+### 3.4 A child returns a conclusion but no code
 
-安全审查 Child 没有产生文件变更，只发送结论、证据位置和建议。Parent 可以据此修改计划，
-而不需要接收 Child 的完整 transcript。
+A security-review child produces no file changes. It sends a concise finding,
+evidence locations, and a recommendation. The parent can revise its plan
+without receiving the child's complete transcript.
 
-### 3.5 Child 返回可审查的工作区变更
+### 3.5 A child returns reviewable workspace changes
 
-实现 Child 在独立 worktree 完成修改，报告中附带：
+An implementation child works in an isolated worktree and reports its fork base,
+head revision, change set or diff reference, validation result, and remaining
+risks. The parent receives a conclusion plus inspectable changes; it does not
+silently replace its own workspace with the child's worktree.
 
-- fork 时的 base revision；
-- Child 当前 head revision；
-- change set/diff 引用；
-- 已运行的验证及结果；
-- 未解决风险。
+### 3.6 The parent has moved on
 
-Parent 收到的是“结论 + 可检查变更”，而不是把 Child worktree 静默覆盖到 Parent workspace。
+After the fork, the parent advances several turns and changes a constraint. The
+child report carries the original fork point and workspace base. The system must
+tell the parent that the report may be stale rather than presenting it as a
+finding derived from the current state.
 
-### 3.6 Parent 已经前进
-
-Child fork 后，Parent 又进行了三轮讨论并改变了约束。Child 报告必须携带原 fork point 和
-base revision；系统向 Parent Agent 明确指出报告可能过时，而不是把它伪装成基于最新状态
-产生的结论。
-
-## 4. 术语与心智模型
+## 4. Terms and Mental Model
 
 ### 4.1 Session Node
 
-Session Tree 中一个可独立恢复和交互的节点。本提案使用 Session 作为概念名称，但不要求
-立即把本地 `Session`、Portal `Conversation`、Task 或 TaskRun 合并成一个数据库实体。
-不同 surface 可以保留自己的当前实体，通过共同语义和适配器逐步对齐。
+A Session Node is one independently resumable and interactive node in a Session
+Tree. This proposal uses Session as a product concept. It does not require local
+`Session`, Portal `Conversation`, Task, and TaskRun to become one database
+entity. Surfaces may retain their current entities and converge through shared
+semantics and adapters.
 
 ### 4.2 Fork Checkpoint
 
-Parent 中一个稳定、可复现的切点。它至少包括：
+A Fork Checkpoint is a stable, reproducible point in the parent. It includes at
+least:
 
-- Parent Session ID；
-- 可见消息对应的安全内部消息边界；
-- Parent 当时的 compaction 状态；
-- 有效 Agent/runtime profile；
-- workspace base revision；
-- 创建者、时间和授权范围。
+- parent Session ID;
+- safe internal message boundary corresponding to the visible message;
+- parent compaction state at that point;
+- effective Agent and runtime profile;
+- workspace base revision; and
+- creator, timestamp, and authorization scope.
 
-Fork 不允许截断 `assistant(tool_calls) -> tool results` 组合，也不允许把正在进行的文件写入
-中间态当成稳定基线。
+A fork must not split an `assistant(tool_calls) -> tool results` sequence or
+treat files being written by an active run as a stable workspace baseline.
 
 ### 4.3 Context Snapshot
 
-Child 在 fork 时获得的冻结上下文。Parent 后续消息不会自动流入 Child；Child 后续内容也
-不会自动污染 Parent。父子关系是来源关系，不是共享可变内存。
+A Context Snapshot is the frozen context a child receives at fork time. Later
+parent messages do not automatically enter the child, and later child messages
+do not automatically enter the parent. Lineage is provenance, not shared mutable
+memory.
 
 ### 4.4 Workspace Branch
 
-Child 独立的文件状态。对于本地 Git workspace，底层可以是 worktree；对于 Portal/Worker，
-产品语义应是 workspace snapshot/change set，不能要求用户理解 Git branch、commit 或对象
-存储路径。
+A Workspace Branch is the child's isolated file state. For a local Git
+workspace, the implementation may be a worktree. For Portal and Worker
+execution, the product model should use workspace snapshots and change sets,
+without exposing Git branches, commits, or object-store paths to users.
 
 ### 4.5 Session Signal
 
-一个 Session 向另一个 Session mailbox 发送的结构化、持久、带来源的事件。第一阶段只考虑
-`child -> direct parent` 的 Result Report，不提供任意 Session ID 之间的通用聊天。
+A Session Signal is a structured, durable, source-attributed event sent to a
+Session mailbox. The first slice considers only a child-to-direct-parent result
+report. It does not expose arbitrary target IDs or general Session chat.
 
 ### 4.6 Session Supervisor
 
-拥有 Session 生命周期和单写者调度的组件。它负责：
+A Session Supervisor owns Session lifecycle and single-writer scheduling. It:
 
-- 创建与恢复 Session；
-- 串行化一个 Session 的 Agent turns；
-- 接收 mailbox signal；
-- 判断通知、排队、自动恢复或等待 join；
-- 执行预算、深度、权限和取消策略；
-- 在进程重启后恢复未处理的 durable signals。
+- creates and resumes Sessions;
+- serializes Agent turns for one Session;
+- receives mailbox signals;
+- decides whether to notify, queue, resume, or wait for a join;
+- enforces budgets, depth, permissions, and cancellation; and
+- restores durable, unprocessed signals after a process restart.
 
-Supervisor 不是 Agent Loop 的一部分。Agent Loop 仍负责一次运行内的 LLM/tool 循环，
-Supervisor 位于其上方，决定何时启动下一次运行。
+The supervisor is above the Agent Loop. The Agent Loop still owns one LLM and
+tool-calling run; the supervisor decides when to begin the next run.
 
-## 5. 目标
+## 5. Goals
 
-- 允许用户从稳定消息点创建有来源、可持续交互的 Child Session。
-- 让 Parent 和 Child 的上下文在 fork 后独立演进，避免隐式共享状态。
-- 允许 Child 返回经过压缩的结论、证据和工作区变更引用，而非完整 transcript。
-- 允许 Parent 在明确策略下等待一个或多个 Child，并在满足条件后恢复 Agent Loop。
-- 保证 Session Signal 持久、可追踪、幂等，不依赖某个 UI 连接存活。
-- 对 Parent 明确报告的 fork base 和新鲜度，避免把旧结论当成最新结论。
-- 让所有自动恢复受权限、预算、深度、次数和取消状态约束。
-- 保持 Parent 为汇总结果的单一声音，不让后台 Child 直接伪装成用户或系统指令。
-- 让 worktree 变更通过可审查 change set 进入 Parent，而不是隐式共享文件系统。
-- 给本地 Session、Portal Conversation 和后台执行提供一致的产品语义，同时允许它们保留
-  不同的持久化和调度实现。
+- Let a user fork a persistent child Session from a stable message point.
+- Keep parent and child context independent after the fork.
+- Let a child return distilled conclusions, evidence, and workspace-change
+  references instead of a full transcript.
+- Let a parent wait for one or more children and resume under an explicit
+  return or join policy.
+- Make signals durable, attributable, traceable, and idempotent without relying
+  on a UI connection.
+- Make fork base and freshness visible to the parent.
+- Bound automatic execution by permission, budget, depth, count, and
+  cancellation rules.
+- Keep the parent as the synthesizing user-facing voice.
+- Make workspace changes reviewable before they affect the parent workspace.
+- Give local Sessions, Portal Conversations, and detached execution compatible
+  product semantics without identical persistence implementations.
 
-## 6. 非目标
+## 6. Non-Goals
 
-- 任意 Session 之间的实时聊天或广播。
-- 多主写入同一 Session history。
-- 让 sibling 直接互相发送命令。
-- 自动把 Child transcript 全量合并到 Parent transcript。
-- 自动、无冲突检查地合并 worktree。
-- 在第一阶段提供可视化 Git branch、commit、staging 或 merge-conflict UI。
-- 用 Session Tree 替换 Task、TaskRun、Workflow 或 Issue 的持久业务语义。
-- 把现有 subagent 强制迁移成持久用户 Session。
-- 承诺本地 CLI 退出后仍有常驻后台进程自动运行 Agent。
-- exactly-once 的分布式执行承诺；设计目标是持久、可重试和幂等处理。
-- 在没有用户授权和预算限制时形成无限递归的 Agent 自治网络。
+- Arbitrary real-time chat or broadcast between Sessions.
+- Multiple writers to one Session history.
+- Direct sibling-to-sibling command delivery.
+- Automatically merging a full child transcript into its parent transcript.
+- Automatically merging a child worktree without review and conflict checks.
+- A first-slice Git branch, commit, staging, or merge-conflict user interface.
+- Replacing Task, TaskRun, Workflow, or Issue business semantics.
+- Forcing existing subagents to become persistent user Sessions.
+- Promising local background execution after a CLI process exits.
+- Distributed exactly-once execution; the goal is durable, retryable,
+  idempotent effects.
+- An unconstrained recursive network of autonomous Agents.
 
-## 7. 设计原则
+## 7. Design Principles
 
-### 7.1 Lineage 是不可变事实
+### 7.1 Lineage is immutable fact
 
-Child 创建后，其 `parent_session_id`、`fork_point` 和 `workspace_base_revision`
-不可修改。允许用户改变显示位置或归档方式，但不能重写来源。
+After creation, a child's `parent_session_id`, fork point, and workspace base
+revision do not change. A user may alter display or archive state, but cannot
+rewrite provenance.
 
-### 7.2 Snapshot，而不是实时继承
+### 7.2 Snapshot, not live inheritance
 
-Fork 的语义是“从 Parent 当时的状态开始”，不是持续订阅 Parent。实时同步会导致 Child
-推理基础在运行中变化，也会让同一次执行无法重现。
+Fork means “start from the parent's state at that time,” not “subscribe to every
+future parent message.” Live synchronization changes the basis of child reasoning
+during execution and makes runs difficult to reproduce.
 
-### 7.3 报告是数据，不是高权限指令
+### 7.3 A report is data, not a high-authority instruction
 
-Child 可能读取外部网页、仓库内容或不可信文件。其报告不能以 system role 注入 Parent，
-也不能自动获得用户指令的权威。Parent 接收到的是带来源标签的 Agent Report。
+A child may have read external web content, repositories, or untrusted files.
+Its report must not enter the parent as a system message or be mistaken for a
+user instruction. The parent receives an attributed Agent Report.
 
-### 7.4 单 Session 单写者
+### 7.4 One writer per Session
 
-同一个 Session 同时最多有一个 Agent turn 写 history。多个 Child 可以在隔离 workspace 中
-并行运行，但 Parent mailbox 的处理必须经过 Supervisor 串行化。
+At most one Agent turn writes one Session history. Sibling Sessions can run in
+parallel only when their workspaces are isolated. The parent supervisor serializes
+mailbox delivery and parent turns.
 
-### 7.5 先持久化，再通知
+### 7.5 Persist before notification
 
-Signal 必须在任何 WebSocket、桌面事件或 Agent 唤醒之前写入 durable inbox/outbox。UI
-事件是通知，不能成为结果唯一副本。
+Write a Signal to a durable inbox or outbox before a WebSocket event, desktop
+event, or Agent wake-up. UI delivery is notification; it cannot be the sole copy
+of a result.
 
-### 7.6 结论同步与变更合并分离
+### 7.6 Keep conclusions and change application separate
 
-Parent 可以接受一个结论而拒绝相应 patch，也可以查看 patch 后让另一个 Child 重做。
-Mailbox 只传递 change set 引用；Workspace Service 拥有检查和应用变更的责任。
+A parent may accept a conclusion and reject its patch, or inspect a patch and
+ask another child to redo it. A mailbox carries a change-set reference;
+Workspace Service owns inspection and application.
 
-### 7.7 自动恢复必须来自显式授权
+### 7.7 Automatic resume needs explicit authority
 
-用户手工 fork 并不等于授权 Parent 在未来自动花费 token 或执行工具。自动恢复只能来自
-fork/dispatch 时明确选择的 return policy，并受树级预算和审批策略约束。
+A user manually creating a child does not authorize future token spending or
+tool execution in the parent. Automatic resume is chosen at fork or dispatch
+time and remains bounded by a tree-level budget and approval policy.
 
-### 7.8 取消不会被结果偷偷撤销
+### 7.8 Cancellation is not undone by a late result
 
-如果用户暂停或取消 Parent，迟到的 Child Report 可以进入 inbox，但不得自动重启 Parent。
-恢复必须由用户重新授权。
+If a user pauses or cancels a parent, late child reports may enter its inbox but
+must not restart it. The user must explicitly authorize a later resume.
 
-## 8. Fork 语义
+## 8. Fork Semantics
 
-### 8.1 合法 Fork Point
+### 8.1 Valid fork points
 
-用户 UI 可以在一条可见的 user 或最终 assistant 消息上显示“从这里分支”，但 runtime 必须
-把它映射为内部安全边界：
+The UI may offer “fork from here” on a visible user or final assistant message,
+but the runtime maps that action to a safe internal boundary:
 
-- fork user message 后，可以让 Child 针对同一输入探索另一答案；
-- fork final assistant message 后，Child 继承该轮完整结果；
-- 不暴露内部 assistant tool-call 消息作为用户切点；
-- 如果可见 assistant 回复之前存在 tool calls，必须包含完整 tool results；
-- 正在运行的 Session 只能从最后一个稳定 checkpoint fork，或等待当前 turn 完成。
+- forking after a user message lets a child pursue an alternative answer;
+- forking after a final assistant message carries the complete turn result;
+- internal assistant tool-call messages are not exposed as user fork points;
+- a visible assistant reply that used tools includes all matching tool results;
+- an active Session forks only from its last stable checkpoint, or waits for the
+  current turn to finish.
 
-Portal 已有稳定 `conversation_message_id`。本地 Session 当前直接保存 `[]llm.Message`，没有
-message ID。候选最小方案是保存 `{message_count, prefix_digest}`：索引定位 append-only
-历史，digest 检测文件被外部修改。若未来支持编辑或删除单条消息，则需要给持久 Session
-消息增加稳定 ID，不能继续依赖索引。
+Portal already has stable `conversation_message_id` values. Local Sessions
+persist an array of `llm.Message` values without message IDs. A minimal option is
+`{message_count, prefix_digest}`: the count locates an append-only prefix and the
+digest detects out-of-band file modification. If local message editing or
+deletion is added later, persisted local messages need stable IDs rather than
+array positions.
 
-### 8.2 上下文复制策略
+### 8.2 Context-copy options
 
-有三个候选方案：
-
-| 方案 | 优点 | 主要问题 |
+| Option | Strength | Main concern |
 |---|---|---|
-| 物理复制 fork point 前缀 | 简单、独立、Parent 删除不影响 Child | 存储重复，但文本 Session 通常可接受 |
-| Parent 引用 + copy-on-write | 节省存储，天然表达共享前缀 | Parent 删除、权限、查询、迁移和 compaction 更复杂 |
-| 只生成 summary | 上下文和存储最小 | 有损，容易遗漏代码约束、标识符和未决条件 |
+| Physically copy the prefix | Simple, independent, survives parent deletion | Repeats storage, usually acceptable for text Sessions |
+| Parent reference with copy-on-write | Saves storage and naturally represents a shared prefix | Makes deletion, permissions, compaction, migration, and reads more complex |
+| Generate only a summary | Minimal context and storage | Lossy; can omit code constraints, identifiers, and unresolved decisions |
 
-候选推荐是**冻结快照语义，第一阶段物理复制**。底层以后可以使用内容寻址或
-copy-on-write 优化，但不得改变 Parent 后续内容不会进入 Child 的产品语义。
+The candidate direction is **frozen snapshot semantics with a physical copy in
+the first slice**. Later content-addressed or copy-on-write storage may optimize
+the implementation without changing the product guarantee that later parent
+content never enters the child.
 
 ### 8.3 Compaction
 
-Fork 必须复制“Parent 在该点实际提供给模型的上下文”，而不是简单清零 compaction：
+A fork copies the context the parent actually gave the model at that point, not
+just raw messages with compaction discarded:
 
-- fork point 位于当前 compaction boundary 之后时，可以复制当时的 summary、boundary 和
-  后续消息；
-- fork point 早于当前 boundary 时，现有 summary 可能包含 fork point 之后的信息，不能复用；
-- 这种情况下需要基于原始前缀重新 compaction，或在上下文允许时清除 boundary 并使用
-  原始前缀；
-- summary 的生成模型、预算和来源需要记录，避免 Child 看起来像精确复制却实际有损。
+- if the fork point is after the current compaction boundary, the child can copy
+  the summary, boundary, and later messages;
+- if the fork point is before that boundary, the current summary can contain
+  content after the fork point and cannot be reused;
+- in that case BuildMax must compact the raw prefix again or clear the boundary
+  and use the raw prefix when it fits; and
+- the summary's producer, budget, and origin need recording so a child never
+  appears to be an exact clone while actually receiving a lossy reconstruction.
 
-### 8.4 继承与不继承的状态
+### 8.4 State that does and does not cross the fork
 
-候选规则：
-
-| 状态 | Fork 行为 | 原因 |
+| State | Fork behavior | Reason |
 |---|---|---|
-| 消息历史 | 继承到安全边界 | 形成共同背景 |
-| Additional system prompt / Agent profile | 继承有效快照 | 保持身份和约束连续性 |
-| Durable notes | 复制为 Child seed | 保留 compaction 前的重要事实 |
-| Parent todos | 只读展示为“fork 时计划”，不作为 Child 可变 todo | 避免 Child 修改 Parent 计划语义 |
-| 模型选择 | 记录有效选择，允许 fork 时覆盖 | 可复现，也允许专门模型 |
-| Token usage | Child 从零计费，另记 inherited context size | 避免重复统计历史花费 |
-| Approval grants | 不继承 | 对一个 Session 的授权不是对子树授权 |
-| Pending queue | 不继承 | 它属于 Parent 当时尚未执行的未来输入 |
-| Running/cancel state | 不继承 | Child 有独立生命周期 |
-| Trace identity | 新 run/session trace，记录 fork causality | 保留独立可解释性 |
-| Workspace | 从稳定 base 创建独立 branch | 避免共享写入 |
+| Message history | Copy to the safe boundary | Establishes shared context |
+| Additional system prompt and Agent profile | Copy effective snapshot | Preserves identity and constraints |
+| Durable notes | Copy as child seed | Retains facts that survived compaction |
+| Parent todos | Show as read-only fork-time plan, not mutable child todos | A child must not alter the parent plan |
+| Model selection | Record effective choice and allow override | Supports reproduction and specialization |
+| Token usage | Start child at zero; record inherited-context size separately | Avoids charging historical usage twice |
+| Approval grants | Do not inherit | A Session grant is not a subtree grant |
+| Pending queue | Do not inherit | It represents parent future input that has not run |
+| Running or cancel state | Do not inherit | The child has an independent lifecycle |
+| Trace identity | Start a new trace and record causality | Keeps each execution explainable |
+| Workspace | Create from a stable isolated base | Avoids shared writes |
 
-当前本地 `selectedModel` 只存在于 runtime wrapper，没有持久化。实现 fork 前需要决定是把
-有效模型写入 Session 元数据，还是明确让 Child 使用 fork 时的默认模型；不能在 proposal
-中假设当前 Session 文件已经具备这个能力。
+The current local `selectedModel` lives only in a runtime wrapper and is not
+persisted. An implementation must decide whether to persist the effective model
+in Session metadata or explicitly use the fork-time default. It must not assume
+that today's Session JSON file already supports reproducible model inheritance.
 
-### 8.5 Fork Intent
+### 8.5 Fork intent
 
-用户创建 Child 时应提供一个短目标或选择“仅复制，稍后输入”。系统不应仅复制 Parent 并
-立即自动运行一个没有新目标的 Agent。Parent 委派创建 Child 时，dispatch prompt 就是
-fork intent，并应成为 Child 的第一条本地指令。
+When a user creates a child, they provide a short goal or choose “copy now,
+prompt later.” BuildMax should not copy a parent and immediately run an Agent
+without a new goal. When a parent dispatches a child, the dispatch prompt is the
+fork intent and becomes the child's first local instruction.
 
-## 9. Workspace Branch 语义
+## 9. Workspace Branch Semantics
 
-### 9.1 本地 Workspace
+### 9.1 Local workspaces
 
-本地 Git workspace 的候选实现是为每个可写 Child 创建独立 worktree：
+For a local Git workspace, a writable child can use a separate worktree:
 
-- base commit/revision 来自 fork checkpoint；
-- worktree 路径是本地运行细节，不进入跨机器 report；
-- Child 所有文件工具和 Bash 在自己的 workspace root 下运行；
-- 只读 Child 可以选择快照视图而不必创建完整 worktree，但不能退化成共享可写目录；
-- Parent 和 Child 各自保留独立 dirty-state 说明。
+- the fork checkpoint supplies the base revision;
+- the local worktree path is an implementation detail and is not sent in a
+  cross-machine report;
+- file tools and Bash resolve under the child workspace root;
+- a read-only child may use a snapshot view, but must not degrade into a shared
+  writable directory; and
+- each node reports its own dirty state.
 
-若 Parent workspace 在 fork 时存在未提交修改，必须做出显式选择：
+If the parent has uncommitted changes at fork time, BuildMax must choose
+explicitly:
 
-1. 把当前文件状态捕获成隐藏 snapshot，再从该 snapshot 创建 Child；
-2. 只从当前 committed base fork，并明确告知未包含未提交修改；
-3. 拒绝 fork。
+1. capture the current file state in a hidden snapshot and fork from it;
+2. fork only the committed base and state that uncommitted changes are absent;
+3. reject the fork.
 
-静默忽略 Parent 未提交修改不可接受，因为 Child 的对话上下文可能讨论了它看不到的代码。
+Silently ignoring uncommitted changes is not acceptable: the conversation may
+describe code the child cannot see.
 
-### 9.2 Portal 与 Worker Workspace
+### 9.2 Portal and Worker workspaces
 
-Portal 不应向用户暴露 worktree 路径。长期产品实体应是：
+Portal must not expose worktree paths. The longer-term product references are:
 
-- `workspace_base_snapshot_id`；
-- `workspace_head_snapshot_id`；
-- `workspace_change_set_id`；
-- 产生这些状态的 Session/TaskRun；
-- server/workspace service 的应用结果。
+- `workspace_base_snapshot_id`;
+- `workspace_head_snapshot_id`;
+- `workspace_change_set_id`;
+- the Session or TaskRun that produced them; and
+- the workspace-service application result.
 
-这扩展了当前 Versioned Workspace 设计。该设计明确把 Branch UI 和 Merge Conflict UI
-排除在第一阶段之外，因此接受本提案需要显式修改 P5 范围，而不是在实现中绕过已有决策。
+This expands the current Versioned Workspace design. That design deliberately
+keeps branch and merge-conflict UI outside its first slice, so accepting this
+proposal requires an explicit P5 scope decision rather than an implementation
+that quietly routes around the existing record.
 
-### 9.3 应用 Child 变更
+### 9.3 Applying child changes
 
-候选流程：
+The candidate flow is:
 
-1. Child 完成并封存 head revision；
-2. 生成 change set、验证结果和语义摘要；
-3. Report 引用这些实体；
-4. Parent Agent 可以读取 diff、测试和冲突预检；
-5. 用户批准，或明确允许的自动策略决定应用；
-6. Workspace Service 把 change set 应用到当前 Parent base；
-7. 成功产生新的 Parent snapshot，失败产生可检查冲突结果；
-8. 应用行为和操作者进入 trace/audit/timeline。
+1. The child completes and seals its head revision.
+2. BuildMax generates a change set, validation results, and semantic summary.
+3. The report references those durable records.
+4. The parent Agent may inspect the diff, tests, and conflict preflight.
+5. The user, or an explicitly authorized policy, chooses whether to apply.
+6. Workspace Service applies the change set against the current parent base.
+7. Success creates a new parent snapshot; failure creates an inspectable
+   conflict result.
+8. The operation and actor appear in trace, audit, and workspace timeline data.
 
-第一阶段不应自动 merge。即使代码层可以无冲突 cherry-pick，语义上也可能与 Parent 后续
-决定冲突。
+The first slice must not automatically merge. A patch can be mechanically clean
+and still contradict decisions the parent made after the fork.
 
 ## 10. Session Mailbox
 
-### 10.1 为什么不是普通 Chat Message
+### 10.1 Why this is not an ordinary chat message
 
-Human message、Agent reply、tool result 和 Child report 有不同来源与权限。把 Child report
-伪装成 `role=user` 会让模型误以为用户发出了指令；伪装成 `role=system` 会给不可信 Child
-内容过高权威；伪装成 `role=tool` 又缺少匹配的 Parent tool call。
+Human input, Agent replies, tool results, and child reports have different
+origins and authority. Treating a child report as `role=user` makes it look like
+a user instruction. Treating it as `role=system` grants untrusted child content
+too much authority. Treating it as `role=tool` lacks a matching parent tool call.
 
-因此 mailbox 中应先保存领域级 `SessionSignal`，再由 surface/runtime 明确投影为 LLM 可读
-内容。Parent transcript 可以显示 Result Card，而 Agent Loop 收到一个带来源说明、被包裹
-为数据的报告块。
+The mailbox should first store a domain `SessionSignal`. A surface or runtime
+then projects it deliberately into model-readable content. The parent transcript
+may show a result card, while the Agent Loop receives a report block that names
+its source and authority.
 
-### 10.2 候选持久模型
+### 10.2 Candidate durable model
 
-以下字段用于讨论，不是已决定数据库 schema：
+The following is for discussion, not a committed schema:
 
 ```go
 type SessionSignal struct {
-    ID                    uint
-    SignalID              string
-    TreeID                string
-    FromSessionID         string
-    ToSessionID           string
-    ForkID                string
-    Kind                  string
-    PayloadJSON           string
-    BasedOnParentMessage  string
-    WorkspaceBaseID       string
-    WorkspaceChangeSetID  string
-    CorrelationID         string
-    CausationID           string
-    DeliveryPolicy        string
-    State                 string
-    AttemptCount          int
-    AvailableAt           int64
-    CreatedAt             int64
-    DeliveredAt           *int64
-    ProcessedAt           *int64
+    ID                   uint
+    SignalID             string
+    TreeID               string
+    FromSessionID        string
+    ToSessionID          string
+    ForkID               string
+    Kind                 string
+    PayloadJSON          string
+    BasedOnParentMessage string
+    WorkspaceBaseID      string
+    WorkspaceChangeSetID string
+    CorrelationID        string
+    CausationID          string
+    DeliveryPolicy       string
+    State                string
+    AttemptCount         int
+    AvailableAt          int64
+    CreatedAt            int64
+    DeliveredAt          *int64
+    ProcessedAt          *int64
 }
 ```
 
-若成为数据库实体，表名、公共 ID 和普通关系键需要遵守当前 conventions，并与尚在讨论的
-[实体身份与关系键提案](entity-identity-and-relational-keys.md)协调。此处不提前决定 ID 前缀。
+If this becomes a database entity, its table name, public ID, and ordinary
+relationships must follow repository conventions and coordinate with the open
+[entity identity and relational keys](entity-identity-and-relational-keys.md)
+proposal. This paper does not select an ID prefix.
 
-### 10.3 Signal 状态
+### 10.3 Signal state
 
-候选状态机：
+The candidate state machine is:
 
 ```text
 pending ──lease──▶ delivering ──append once──▶ delivered ──parent run──▶ processed
    │                    │
-   │                    └──crash/timeout──▶ pending
+   │                    └──crash or timeout──▶ pending
    ├──target deleted──▶ orphaned
-   └──policy/hook deny──▶ rejected
+   └──policy or hook deny──▶ rejected
 ```
 
-设计目标不是分布式 exactly-once，而是：
+The goal is not distributed exactly-once execution. It is:
 
-- Signal 本身至少一次可投递；
-- 向 Parent history/inbox 的追加通过唯一 `signal_id` 幂等；
-- Parent run 记录已处理的 signal 集合或 join group；
-- 重试不会让同一报告在 transcript 出现两次，也不会重复应用 change set。
+- a Signal is deliverable at least once;
+- adding it to parent inbox or history is idempotent by `signal_id`;
+- parent execution records the Signals or join group it processed; and
+- retry cannot duplicate a report in the transcript or apply one change set
+  twice.
 
-### 10.4 Result Report Payload
+### 10.4 Result report payload
 
-第一阶段只需要一种 `kind=result`。候选 payload：
+The first slice needs only `kind=result`. A candidate payload is:
 
 ```json
 {
@@ -482,87 +553,97 @@ pending ──lease──▶ delivering ──append once──▶ delivered ─
 }
 ```
 
-`summary` 应有严格大小上限。大量日志、完整 diff 和二进制结果通过 Artifact/Change Set 引用，
-不能塞进 mailbox content。
+`summary` needs a strict size limit. Large logs, complete diffs, and binary
+output belong behind Artifact or Change Set references rather than in mailbox
+content.
 
-### 10.5 `ReportToParent` Tool
+### 10.5 `ReportToParent` tool
 
-候选 Agent 能力叫 `ReportToParent`，而不是 `SendSessionMessage`：
+The candidate Agent capability is `ReportToParent`, not `SendSessionMessage`:
 
-- runtime 注入 direct Parent，参数中没有任意 target ID；
-- 没有 Parent 时工具不注册，或返回明确不可用原因；
-- capability 限定为当前 fork、允许的 report 次数和 kind；
-- tool success 返回 `signal_id`、投递策略和“是否会自动恢复 Parent”的可读说明；
-- durable write 失败时工具失败，不能先告诉 Child“已发送”；
-- hook/policy 可以拒绝包含敏感数据或越权 artifact 的 report；
-- report send 和 parent receive 都进入 trace。
+- the runtime injects the direct parent, so arguments contain no arbitrary
+  target ID;
+- without a parent, the tool is absent or returns a useful unavailable reason;
+- the capability is scoped to the current fork, allowed report count, and kind;
+- success says which signal was created, which delivery policy applies, and
+  whether the parent will resume automatically;
+- a durable-write failure fails the tool rather than falsely claiming delivery;
+- hooks and policy can reject sensitive data or unauthorized references; and
+- send and receive both enter the trace.
 
-用户也可以在 UI 中选择“将这段结论发送回 Parent”。UI 与 Agent Tool 必须调用同一个
-application service，不能分别实现两套权限和持久化语义。
+A user-facing “send this conclusion to parent” action and the Agent tool must
+call the same application service, not maintain separate persistence and
+authorization paths.
 
-### 10.6 第一阶段不支持的 Signal
+### 10.6 Signals deferred from the first slice
 
-以下能力有价值，但会显著增加循环和状态复杂度，应该推迟：
+These are useful but add substantial state and loop complexity:
 
-- `progress`：频繁更新 Parent；
-- `question`：Child 暂停并要求 Parent Agent 自动回答；
-- `command`：Parent 远程控制正在运行的 Child；
-- sibling message；
-- broadcast；
-- 任意双向 agent-to-agent conversation。
+- frequent `progress` updates;
+- `question`, where a child pauses and asks its parent Agent to answer;
+- `command`, where a parent controls a running child;
+- sibling messages;
+- broadcast; and
+- arbitrary bidirectional Agent-to-Agent conversation.
 
-若以后增加 `question`，默认接收方应是用户或 Parent inbox，而不是立即自动启动 Parent Agent
-回答，再自动唤醒 Child。否则两个 Agent 可以在没有人观察时形成付费对话循环。
+If `question` is later added, its default recipient should be the user or the
+parent inbox, not an immediate automatic parent answer followed by automatic
+child wake-up. Otherwise two Agents can create an unattended, paid dialogue
+loop.
 
-## 11. Parent Supervisor 与自动恢复
+## 11. Parent Supervisor and Automatic Resume
 
-### 11.1 Session 生命周期
+### 11.1 Session lifecycle
 
-本提案需要比当前 Session 文件更明确的运行状态。候选状态：
+The proposal needs explicit runtime state beyond the current Session file.
+Candidate states are:
 
-| 状态 | 含义 | Signal 到达时 |
+| State | Meaning | Signal arrival |
 |---|---|---|
-| `idle` | 没有运行，也没有等待条件 | 通知或按 policy 启动新 turn |
-| `running` | 当前有一个 Agent turn | 持久排队，当前 turn 后处理 |
-| `waiting_children` | Parent 明确等待一个 join group | 更新 group，满足条件后恢复 |
-| `waiting_user` | Agent 需要用户决定 | 显示报告，不越过用户问题自动运行 |
-| `paused` | 用户暂停自动处理 | 只入 inbox |
-| `canceled` | 用户取消当前意图 | 只入 inbox，不重新启动 |
-| `archived` | 不再主动运行 | 通知或 orphan，不自动恢复 |
+| `idle` | No run and no waiting condition | Notify or start a new turn under policy |
+| `running` | One Agent turn is writing | Persist and queue behind the current turn |
+| `waiting_children` | Parent explicitly waits for a join group | Update the group and resume when satisfied |
+| `waiting_user` | An Agent needs a human decision | Show the report; do not bypass the question |
+| `paused` | User paused automatic processing | Add only to inbox |
+| `canceled` | User cancelled the current intent | Add only to inbox; do not restart |
+| `archived` | No longer actively runnable | Notify or orphan; never auto-resume |
 
-状态可以是可恢复执行记录，而不一定成为 Session 主表上的一个永久枚举。关键不变量是：
-Supervisor 在决定是否启动 run 时必须能区分 idle、waiting、paused 和 canceled。
+This state may be recoverable execution state rather than a permanent Session
+table enum. The important invariant is that the supervisor can distinguish idle,
+waiting, paused, and canceled before it starts a run.
 
-### 11.2 Return Policy
+### 11.2 Return policy
 
-候选策略：
-
-| 策略 | 行为 | 推荐默认场景 |
+| Policy | Behavior | Recommended default |
 |---|---|---|
-| `notify` | Parent inbox 和 UI 出现报告，不调用模型 | 用户手工 fork |
-| `resume_parent` | Parent 空闲时创建一个独立处理 turn | Parent 明确委派单个 Child |
-| `join` | 报告进入 join group，满足条件后只恢复一次 | Parent fan-out 多个 Child |
-| `manual` | 记录但不主动通知或运行，由用户打开处理 | 低优先级长期探索 |
+| `notify` | Add a parent inbox and UI notification; do not call the model | User-created child |
+| `resume_parent` | Create an independent parent processing turn when idle | Parent-dispatched child |
+| `join` | Add to a join group and resume once it is satisfied | Parent fan-out to several children |
+| `manual` | Persist without active notification or execution until opened | Low-priority exploration |
 
-Return policy 在 fork/dispatch 时确定，之后只能由用户或具备相应授权的 Parent 更改。
-Child 无权把自己的 `notify` 升级为 `resume_parent`。
+Return policy is selected at fork or dispatch time. Only the user, or an
+authorized parent, can change it later. A child cannot upgrade its own `notify`
+policy to `resume_parent`.
 
-### 11.3 Join Policy
+### 11.3 Join policy
 
-多个 Child 的候选 join 条件：
+Candidate join conditions include:
 
-- `all_terminal`：所有 Child 成功、失败或取消后恢复；
-- `all_success`：全部成功才恢复，任一失败转 `waiting_user`；
-- `any_success`：第一个成功结果恢复，其余继续但只通知；
-- `deadline`：到期时用已有结果恢复，并列出未完成 Child；
-- `manual`：用户选择何时汇总。
+- `all_terminal`: resume after every child succeeds, fails, or is cancelled;
+- `all_success`: resume only after every child succeeds; any failure moves the
+  parent to `waiting_user`;
+- `any_success`: resume with the first successful result and only notify about
+  later completion;
+- `deadline`: resume at a deadline with all results received so far; and
+- `manual`: let the user choose when to synthesize.
 
-Parent 应一次接收 join group 的完整快照，而不是每个 Child 完成就启动一次 Agent Loop。
-迟到结果仍进入 inbox，并明确标记“到达于 join 已处理之后”。
+The parent should receive one complete join snapshot rather than starting one
+model turn per child completion. A late report still enters the inbox and says
+that it arrived after the join had already been processed.
 
-### 11.4 Parent Agent 看到什么
+### 11.4 What the parent Agent sees
 
-Supervisor 为 LLM 生成的内容应类似：
+The supervisor can generate model-readable content shaped like:
 
 ```text
 <child_session_reports authority="agent_report" join_group="...">
@@ -579,207 +660,238 @@ Report 1:
 </child_session_reports>
 ```
 
-具体 wire projection 由 LLM adapter/runtime 决定，但领域存储不能丢失 `authority`、来源、
-base 和 signal ID。Parent 的 assistant reply 应明确区分：
+The exact wire projection belongs to the LLM adapter and runtime, but domain
+storage must retain authority, source, base, and signal identity. The parent
+reply should distinguish accepted findings, conflicting child views, unverified
+reports, proposed-but-unapplied code changes, and the next user decision.
 
-- 已接受的结论；
-- 相互冲突的 Child 观点；
-- 尚未验证的报告；
-- 建议应用但还未应用的代码变更；
-- 需要用户决定的下一步。
+### 11.5 Permissions for automatic resume
 
-### 11.5 自动恢复的权限
+Automatic parent resume may reason and make read-only checks. A child report
+must not create new write authority:
 
-自动恢复 Parent 可以进行推理和只读检查，但不能因为 Child report 到达就获得新的写授权：
+- parent Session grants do not extend to children and child grants do not flow
+  back to the parent;
+- without an interactive approval handler, write actions that require approval
+  remain Ask -> Deny or move the parent to `waiting_user`;
+- fork-time policies may grant a narrowly scoped automatic execution profile,
+  with recorded source and limits; and
+- automatic resume should normally synthesize findings and propose a change set,
+  leaving application for explicit user approval.
 
-- Parent 原有 session approval grants 不扩展到 Child，也不从 Child 回流；
-- 没有交互 ApprovalHandler 时，需询问的写操作继续 Ask -> Deny 或进入 `waiting_user`；
-- fork 时可以授予一个范围明确的自动执行 profile，但必须记录来源和上限；
-- 应优先让自动恢复产出综合结论和拟议 change set，再由用户批准应用。
+## 12. Concurrency, Ordering, and Consistency
 
-## 12. 并发、顺序与一致性
+### 12.1 One turn queue per Session
 
-### 12.1 一个 Session 一个 Turn Queue
+Each Session needs a serialized turn queue. Sibling Sessions with isolated
+workspaces may run in parallel; a parent's user input, child reports, and system
+events are handled in durable order.
 
-每个 Session 必须有自己的串行 turn queue。不同 worktree 的 sibling Session 可以并行，
-同一个 Parent 的用户输入、Child report 和系统事件按持久顺序处理。
+The existing Portal turn registry can remain an online serialization mechanism,
+but the durable mailbox becomes the source of truth. After restart, a supervisor
+rebuilds pending work from Signals rather than from an in-memory queue.
 
-当前 Portal turn registry 可以继续承担在线串行化，但 durable mailbox 才是 source of truth。
-Server 重启后 Supervisor 从 pending signals 重建待处理工作，而不是依赖内存 queue 恢复。
+### 12.2 Reports do not inject in the middle of a tool batch
 
-### 12.2 Report 不进行 Mid-Tool-Batch Injection
+A final child result is not the same as immediate user input while an Agent is
+running. The candidate behavior is a separate parent turn:
 
-Child final result 与用户对运行中 Agent 的即时补充不同。推荐把 report 作为 Parent 的独立
-turn 处理，而不是注入当前 Agent Loop：
+- run trace and token accounting remain clear;
+- the parent can finish a current write before replanning;
+- one reply does not silently combine an original request with an asynchronous
+  completion event; and
+- a join can collect results before spending one synthesis turn.
 
-- run trace 和 token accounting 更清楚；
-- Parent 可以完成当前写操作后再重新规划；
-- 不会在一次回复中混合“原用户问题”和异步 Child 完成事件；
-- join group 可以先收齐结果再启动一次推理。
+If progress Signals later support mid-run delivery, they still enter only at a
+complete iteration boundary and never break assistant-to-tool pairing.
 
-如果未来允许 progress signal mid-run，仍只能在完整 iteration boundary 插入，不能破坏
-assistant/tool 配对。
+### 12.3 Freshness and conflict
 
-### 12.3 新鲜度与冲突
+Every report should calculate or display:
 
-每份报告都应计算或展示：
+- how many parent turns occurred after the fork;
+- whether the current parent workspace revision still equals the fork base;
+- whether the change set can cleanly apply;
+- whether the child used the same Agent, model, and runtime profile; and
+- whether the report arrived after its deadline.
 
-- Parent fork 后新增了多少 turns；
-- Parent 当前 workspace revision 是否仍等于 fork base；
-- Change set 是否可以 clean apply；
-- Child 使用的 Agent/model/runtime profile 是否与 Parent 相同；
-- 报告是否在 deadline 后到达。
+Freshness is not only a boolean. A parent may accept an older architecture
+finding while rejecting a patch derived from older code.
 
-新鲜度不是简单 boolean。Parent 可以接受旧的架构结论，同时拒绝基于旧代码产生的 patch。
+## 13. Security, Governance, and Cost
 
-## 13. 安全、治理与成本
+### 13.1 Capability boundary
 
-### 13.1 能力边界
+A child receives only a scoped return capability:
 
-Child 只获得一个 scoped return capability：
+- the target is its direct parent;
+- kind and report count are limited;
+- Artifact and change references must belong to the same user, Team, or
+  workspace scope;
+- the capability expires when the child is archived, cancelled, or its tree
+  policy expires; and
+- a report cannot ask the parent to bypass its tool policy.
 
-- 目标固定为 direct Parent；
-- kind 和次数有限；
-- artifact/change references 必须属于同一用户、team 或 workspace scope；
-- capability 随 Child 归档、取消或 tree policy 到期而失效；
-- 不能借 report 请求 Parent 绕过自己的 tool policy。
+Cross-Team forks and reports are outside the first slice.
 
-跨 Team fork 或 report 不在本提案第一阶段范围内。
+### 13.2 Prompt injection
 
-### 13.2 Prompt Injection
+A child can place untrusted external text in its summary. The system cannot rely
+only on a prompt asking the parent to ignore malicious instructions:
 
-Child 可能把外部不可信文本写进 summary。系统不能只依赖“请忽略恶意指令”一句 prompt：
+- reports retain separate authority and origin metadata;
+- large source text remains an Artifact instead of entering parent context;
+- evidence previews have content-type and size bounds;
+- hooks and policy may scan or reject reports;
+- automatic parent runs cannot execute newly approval-gated writes; and
+- the trace identifies which signal preceded subsequent tool calls.
 
-- report 使用独立 authority/origin 元数据；
-- 大段原文作为 Artifact，不直接注入 Parent context；
-- evidence preview 有长度限制和内容类型；
-- policy/hook 可以扫描或拒绝 report；
-- Parent 自动恢复默认不能执行需要新批准的写操作；
-- trace 显示哪一条 signal 导致后续工具调用。
+### 13.3 Budget and loop protection
 
-### 13.3 预算与循环保护
+Candidate tree-level limits are:
 
-候选 tree-level 限制：
+- maximum fork depth;
+- maximum active children;
+- maximum pending Signals;
+- maximum children in one join group;
+- maximum automatic resumes;
+- tree-level prompt and completion token budget;
+- tree-level wall-clock deadline;
+- Signal hop count, fixed at one in the first slice; and
+- no automatic resume for paused or canceled parents.
 
-- 最大 fork depth；
-- 最大 active children；
-- 最大 pending signals；
-- 每个 join group 最大 Child 数；
-- 最大自动恢复次数；
-- tree 级 prompt/completion token budget；
-- tree 级 wall-clock deadline；
-- signal hop count，第一阶段固定为 1；
-- Parent canceled/paused 时禁止自动恢复。
+An exceeded limit moves the parent to `waiting_user` with an explanation. The
+system must not silently drop reports or retry forever.
 
-达到上限时应进入 `waiting_user` 并给出可解释原因，不能静默丢 report，也不能无限重试。
+### 13.4 Trace and audit
 
-### 13.4 Trace 与审计
+The run trace needs at least these fields or events:
 
-运行轨迹至少需要增加或扩展以下因果字段/事件：
+- `session_forked`: parent, child, fork point, and workspace base;
+- `session_signal_sent`: signal, source, target, kind, and bounded payload
+  summary;
+- `session_signal_received`: delivery and join group;
+- `session_resumed`: the signal, join, or user action that caused it;
+- `workspace_change_proposed`; and
+- `workspace_change_applied`, `workspace_change_rejected`, or
+  `workspace_change_conflicted`.
 
-- `session_forked`：Parent、Child、fork point、workspace base；
-- `session_signal_sent`：signal、source、target、kind、payload 摘要；
-- `session_signal_received`：投递和 join group；
-- `session_resumed`：触发它的 signal/join/user；
-- `workspace_change_proposed`；
-- `workspace_change_applied/rejected/conflicted`；
-- `parent_run_id` 仍用于 run/subagent 直接调用链，但不能替代持久 Session lineage。
+`parent_run_id` remains useful for a direct run and subagent call chain, but it
+does not replace durable Session lineage.
 
-普通 operational delivery 不一定都需要复制成 `audit_event`。涉及权限提升、用户批准、跨所有者
-访问、应用工作区变更或修改自动策略的操作才是治理审计候选；其余因果链可以留在 Session、
-Signal、Run 和 Trace 记录中。
+Not every operational delivery needs an `audit_event`. Permission elevation,
+user approval, cross-owner access, workspace application, and automatic-policy
+changes are governance-audit candidates. Ordinary causal delivery belongs in
+Session, Signal, Run, and Trace records.
 
-## 14. 生命周期与失败语义
+## 14. Lifecycle and Failure Semantics
 
-### 14.1 Child 成功、失败与取消
+### 14.1 Child success, failure, and cancellation
 
-所有 terminal 状态都应产生可选 Result Report：
+Every terminal state may produce a Result Report:
 
-- `succeeded`：结论、验证和变更引用；
-- `failed`：已获得的部分结论、失败原因、可重试建议；
-- `canceled`：谁取消、保留了哪些结果、是否有未应用变更。
+- `succeeded`: conclusions, validation, and change references;
+- `failed`: partial findings, failure reason, and retry recommendation; and
+- `canceled`: cancelling actor, retained output, and unapplied changes.
 
-Parent join policy 必须基于 terminal 状态，而不能等待“只在成功时发送”的报告。
+A join policy reasons about terminal state. It cannot wait for a report that is
+sent only on success.
 
-### 14.2 Parent 删除或归档
+### 14.2 Parent deletion and archive
 
-物理复制 context snapshot 后，Child 不依赖 Parent history 才能运行。但 lineage 和 mailbox
-仍需要 Parent tombstone：
+A physical context snapshot means a child can continue after parent history is
+gone. Lineage and mailbox delivery still need a parent tombstone:
 
-- 删除有 Child 的 Parent 时 UI 必须提示；
-- Child 保留 `parent_session_id` 和只读来源摘要；
-- 未处理 signals 进入 `orphaned`，不能悄悄丢弃；
-- 第一阶段不自动 reparent，因为那会改变授权和语义；
-- 用户可以导出或手工转发 orphan result。
+- UI warns before deleting a parent that has children;
+- the child retains `parent_session_id` and a read-only source summary;
+- pending Signals become `orphaned`, not silently lost;
+- the first slice does not automatically reparent because that changes
+  authorization and meaning; and
+- a user can export or manually forward an orphaned result.
 
-### 14.3 进程或服务重启
+### 14.3 Process and service restart
 
-- 已持久化但未投递的 signal 重试；
-- 已追加 Parent inbox 但未启动 run 的 signal 保持 `delivered`；
-- run 已启动则由 durable run/session state 决定恢复或重新调度；
-- 本地 CLI 没有 daemon 时，不承诺进程退出后自动运行；下次打开 Parent 时提示并处理 inbox；
-- Desktop 可以只在应用运行时提供 supervisor，后台常驻能力是独立产品决策；
-- Portal supervisor 可以由 Server scheduler 驱动，不依赖用户 WebSocket 在线。
+- A persisted, undelivered Signal is retried.
+- A Signal already appended to parent inbox but not yet run stays `delivered`.
+- A run that has started resumes or is rescheduled according to durable
+  run/session state.
+- A local CLI without a daemon does not promise automatic Agent execution after
+  its process exits; opening the parent later reveals and handles the inbox.
+- Desktop may supervise while the application is open; a persistent background
+  daemon is a separate product decision.
+- A Portal supervisor can run from Server scheduling and does not depend on a
+  user WebSocket connection.
 
-### 14.4 Mailbox 写入失败
+### 14.4 Mailbox write failure
 
-`ReportToParent` 只有在 durable write 成功后才能返回成功。Artifact 或 change set 尚未封存时，
-report 保持不可投递或发送失败，不能发布悬空引用。通知失败不回滚已经持久化的 signal；之后
-可以重试通知。
+`ReportToParent` succeeds only after a durable write. If an Artifact or change
+set is not sealed, the report remains unavailable or fails to send; BuildMax
+must not publish a dangling reference. A notification failure does not roll back
+the durable Signal and can be retried separately.
 
-## 15. Surface 行为
+## 15. Surface Behavior
 
 ### 15.1 Desktop
 
-Desktop 是最适合验证用户主动 fork 的第一 surface：
+Desktop is the best first surface for validating user-created forks:
 
-- Project sidebar 可以轻量缩进 Child，并显示 Parent breadcrumb；
-- 消息菜单提供“从这里分支”；
-- Child header 显示 fork point、workspace branch 状态和 return policy；
-- Parent inbox 显示 Child Result Card；
-- 用户可以选择“查看 Child”“让 Parent 处理”“检查变更”；
-- 真正并行运行只在 Child workspace 已隔离时开放。
+- a Project sidebar can lightly indent children and show a parent breadcrumb;
+- a message menu exposes “fork from here”;
+- a child header shows fork point, workspace-branch state, and return policy;
+- a parent inbox shows child result cards; and
+- the user can open the child, ask the parent to process its report, or inspect
+  changes.
 
-第一版不需要完整树形画布。数据模型是树，主要导航仍可以保持按最近使用排序，并通过
-breadcrumb、child count 和一个按需 Tree View 暴露关系。
+The first slice does not need a full tree canvas. The data is a tree, while main
+navigation may remain recency-sorted with breadcrumbs, child counts, and an
+on-demand tree view. Concurrent execution is exposed only after workspace
+isolation exists.
 
-### 15.2 CLI/TUI
+### 15.2 CLI and TUI
 
-候选交互：
+Candidate interactions include:
 
-- `/fork` 从当前稳定 turn 创建 Child；
-- `/sessions` 显示 lineage 标记；
-- `/inbox` 查看待处理 Child reports；
-- `buildmax --resume <parent>` 时提示 pending reports；
-- 没有常驻进程时，Child 完成后的 Parent 自动恢复只发生在同一 supervisor 进程仍运行时。
+- `/fork` creates a child from the current stable turn;
+- `/sessions` shows lineage markers;
+- `/inbox` lists pending child reports; and
+- `buildmax --resume <parent>` prompts for pending reports.
 
-具体命令名不在本 proposal 中决定；若接受并实现，必须同步 CLI reference。
+Without a persistent process, child completion can auto-resume the parent only
+while the same supervisor process remains alive. Command names are not decided
+by this proposal; an implementation must update the CLI reference.
 
 ### 15.3 Portal
 
-Portal 的长期价值在于团队成员可以从共享 Conversation 分支并异步协作，但它比本地 MVP
-复杂：
+Portal may eventually let team members branch a shared Conversation and
+collaborate asynchronously, but it is materially more complex than the local
+MVP:
 
-- Conversation 是 Team 资源，fork 和读取 Child 需要 Team 授权；
-- Task 当前属于一个 Conversation，Child 复制文本不等于继承 Task 所有权；
-- 继续 Parent Task 会把新结果路由回哪个 Conversation，需要明确；
-- 多人共享项目需要记录 fork 创建者、Child owner 和可见性；
-- durable mailbox 和 scheduler 必须在用户离线时工作；
-- workspace changes 应引用 Team snapshot/change，而不是本地 worktree。
+- a Conversation is a Team resource, so forks and child reads need Team
+  authorization;
+- a Task belongs to one Conversation, so copied child context does not confer
+  Task ownership;
+- continuing a parent Task needs an explicit result-routing decision;
+- shared work requires fork creator, child owner, and visibility provenance;
+- durable delivery and scheduling must work while everyone is offline; and
+- workspace changes refer to Team snapshots and change sets rather than a local
+  worktree.
 
-候选安全规则是：Child 默认不继承 Parent Task 的可变所有权，只继承已经进入上下文的结果。
-若需要继续 Parent Task，应通过显式“clone/adopt task into child”或定义新的 family-level
-orchestration 语义，不能仅放宽当前 `conversation_id` 检查。
+A conservative default is that a child inherits parent Task results already in
+context but not mutable Task ownership. Continuing work should use an explicit
+clone or adopt operation, or a new family-level orchestration concept. It should
+not weaken the existing `conversation_id` ownership check.
 
-### 15.4 Worker 与现有 TaskRun
+### 15.4 Worker and TaskRun
 
-TaskRun 可以逐步成为一种 detached execution child，但不应为了概念统一立即改写现有
-Task/TaskRun 数据模型。更小的路径是让它的完成事件通过同一 durable report service 返回
-Tier 1，替代当前依赖活跃 WebSocket 的窄路径。
+TaskRun may gradually become one kind of detached execution child, but the
+proposal does not require rewriting the current Task/TaskRun model. A smaller
+path is to send terminal TaskRun results through the same durable report service,
+replacing the current active-WebSocket-only delivery path.
 
-### 15.5 现有 Subagent
+### 15.5 Existing subagents
 
-现有 subagent 可以保持轻量、同步、一次性。长期可以把它解释为：
+Existing subagents can remain light, synchronous, and one-shot. A longer-term
+interpretation is:
 
 ```text
 visibility: hidden
@@ -788,228 +900,278 @@ return_policy: immediate tool result
 workspace: inherited or isolated by agent definition
 ```
 
-只有当持久 Child Session 的 supervisor 和成本被证明可接受后，才值得考虑让某些 subagent
-升级为可“detach/open as session”的节点。概念统一不要求物理实现统一。
+Only after persistent child supervision and its cost are proven should BuildMax
+consider allowing a subagent to detach or be opened as a visible Session. A
+conceptual model does not require one physical implementation today.
 
-## 16. 架构落点
+## 16. Architecture Landing Areas
 
-如果方向被接受，候选职责边界如下：
+If accepted, candidate ownership boundaries are:
 
-| 责任 | 候选所有者 |
+| Responsibility | Candidate owner |
 |---|---|
-| 纯 lineage、fork snapshot 和 signal 类型/接口 | `internal/core/session` 或新的纯 core 包 |
-| 本地 Session fork、文件持久化和恢复 | `internal/agentapp` |
-| `ReportToParent` runtime tool | `internal/tool`，通过注入的 application service 执行 |
-| 本地 worktree 创建和 change inspection | `internal/agentapp` + `internal/util`/专用 service，待设计 |
-| Desktop/CLI supervisor | `internal/interface/desktop`、`internal/interface/cli` 调用共享 application 能力 |
-| Portal Conversation fork 与汇总 | `internal/service/conversation` |
-| Durable mailbox store | `internal/core/model` contract + `internal/infra/db` adapter |
-| Server 调度、lease 和离线恢复 | `internal/server/scheduler` 或专用 supervisor service |
-| Workspace snapshot/change/apply | P5 workspace service，而不是 Session message handler |
-| HTTP routes | `internal/server/handlers/routes.go`，接受实现时再定义 |
+| Pure lineage, fork snapshot, and Signal types/interfaces | `internal/core/session` or a new pure core package |
+| Local Session fork, file persistence, and restore | `internal/agentapp` |
+| `ReportToParent` runtime tool | `internal/tool`, through an injected application service |
+| Local worktree creation and change inspection | `internal/agentapp` plus `internal/util` or a dedicated service, to be designed |
+| Desktop and CLI supervision | Surface packages over shared application behavior |
+| Portal Conversation fork and synthesis | `internal/service/conversation` |
+| Durable mailbox store | `internal/core/model` contract plus `internal/infra/db` adapter |
+| Server lease, retry, and offline recovery | `internal/server/scheduler` or a dedicated supervisor service |
+| Workspace snapshot, change, and application | P5 workspace service, not the Session message handler |
+| HTTP routes | `internal/server/handlers/routes.go` once implementation defines them |
 
-`internal/core` 不能导入 infra、service、server、agentapp 或 interface。Supervisor 的持久调度
-不应塞入 Agent Loop；Agent Loop 只需要接收已经投影好的单次输入并产生运行事件。
+`internal/core` must not import infra, service, server, agentapp, or interface
+packages. A durable supervisor does not belong inside Agent Loop; the loop
+receives one projected input and emits one run's events.
 
-## 17. 方案比较
+## 17. Options and Trade-Offs
 
-| 方案 | 优点 | 主要问题 |
+| Option | Strength | Main concern |
 |---|---|---|
-| A. 只做 Session Tree 导航 | 实现最小，解决来源和整理 | 不会汇总结果，也没有并行执行闭环 |
-| B. 任意 Session 消息总线 | 灵活，未来能力看似最大 | 权限、循环、噪音、成本和一致性难以控制 |
-| C. Direct Child Report + Durable Mailbox + Supervisor | 覆盖真实 fan-out/fan-in，边界清楚，可分阶段实现 | 需要新的持久状态、调度和 UX |
-| D. 立即统一 Session、Conversation、Subagent、TaskRun | 心智模型最整齐 | 高迁移风险，会破坏当前 Tier 1/Tier 2 与 surface 边界 |
+| A. Session Tree navigation only | Small implementation; gives provenance and organization | Does not return results or close the parallel-execution loop |
+| B. Arbitrary Session message bus | Flexible and superficially broad | Permissions, loops, noise, cost, and consistency are difficult to control |
+| C. Direct child reports, durable mailbox, and supervisor | Covers real fan-out/fan-in with clear boundaries and staged delivery | Adds persistent state, scheduling, and UX complexity |
+| D. Immediately unify Session, Conversation, subagent, and TaskRun | The cleanest theoretical model | High migration risk and can break current Tier 1/Tier 2 and surface boundaries |
 
-候选推荐是 **C**，并以 **A** 作为可独立验证的第一切片。不推荐 B。D 可以作为长期解释模型，
-但不应成为第一阶段的数据迁移目标。
+The candidate recommendation is **C**, using **A** as an independently useful
+first validation slice. B is not recommended. D can guide future explanation
+but should not drive the first data migration.
 
-## 18. 分阶段路径
+## 18. Staged Delivery
 
-### Phase 0：用户问题验证
+### Phase 0: Validate the user problem
 
-- 对长 Session 用户进行访谈或可用性测试；
-- 观察用户是否手工复制上下文到新 Session；
-- 验证“用户主动分支”和“Parent 自动委派”哪个更常见；
-- 验证用户真正需要的是结论回传、代码合并，还是仅仅避免污染主线。
+- Interview or observe users with long Sessions.
+- Measure whether users manually copy context into new Sessions.
+- Learn whether user-created branches or parent-created delegations are more
+  common.
+- Learn whether the real need is report delivery, code integration, or only a
+  cleaner main conversation.
 
-### Phase 1：Local Lineage 与手工 Report
+### Phase 1: Local lineage and manual report
 
-- 本地 Session 增加 Parent/fork metadata；
-- 从稳定消息点物理复制 context snapshot；
-- 为可写 Child 创建隔离 worktree；
-- UI 显示 Parent/Child 关系；
-- 用户手工发送结构化 summary 回 Parent inbox；
-- 默认 `notify`，不自动运行 Parent；
-- 不提供 Agent `ReportToParent` tool。
+- Add parent and fork metadata to local Sessions.
+- Physically copy a context snapshot at a stable message point.
+- Create an isolated worktree for writable children.
+- Show parent and child relationships in the UI.
+- Let the user manually send a structured summary and change reference to the
+  parent inbox.
+- Default to `notify`; do not auto-run the parent.
+- Do not provide an Agent `ReportToParent` tool yet.
 
-这个阶段验证树和回传是否真实使用，不需要先建立完整自动调度。
+This validates whether branches and result return are genuinely used without
+first building automatic scheduling.
 
-### Phase 2：Durable Mailbox 与 `ReportToParent`
+### Phase 2: Durable mailbox and `ReportToParent`
 
-- 引入持久 signal store 和幂等投递；
-- Agent 可调用 scoped `ReportToParent`；
-- Parent inbox 显示 result/evidence/change set；
-- Parent 手工选择处理；
-- send/receive 进入 trace；
-- 本地进程退出后 signal 仍存在。
+- Add a persistent Signal store and idempotent delivery.
+- Let an Agent call scoped `ReportToParent`.
+- Show parent result, evidence, and change-set cards.
+- Let a user manually ask the parent to process the report.
+- Trace send and receive.
+- Preserve signals after a local process exits.
 
-### Phase 3：Parent Dispatch、Resume 与单 Child
+### Phase 3: Parent dispatch, resume, and one child
 
-- Parent 可以显式创建 Child 并选择 `resume_parent`；
-- Supervisor 管理 Parent `waiting_children`；
-- Child terminal report 自动创建一个独立 Parent turn；
-- 自动恢复受 token、turn、depth 和 permission budget 限制；
-- canceled/paused Parent 不会被唤醒。
+- Let a parent explicitly create a child with `resume_parent`.
+- Add parent `waiting_children` supervision.
+- Create one independent parent processing turn when a child terminates.
+- Enforce token, turn, depth, and permission budgets.
+- Never wake a canceled or paused parent.
 
-### Phase 4：Fan-Out/Fan-In
+### Phase 4: Fan-out and fan-in
 
-- join group 与 `all_terminal`/deadline；
-- 多 Child 结果一次性投影给 Parent；
-- partial failure、late report 和 retry 语义；
-- Tree activity/trace view；
-- tree 级成本与运行状态。
+- Add join groups and `all_terminal` or deadline behavior.
+- Project multiple results into one parent synthesis turn.
+- Define partial failure, late report, and retry behavior.
+- Add tree activity and trace views.
+- Enforce tree-level cost and run-state visibility.
 
-### Phase 5：Workspace Change Integration
+### Phase 5: Workspace change integration
 
-- Change Set、冲突预检和 Parent 审查；
-- 用户批准 apply；
-- Server/Workspace Service 成为 Team workspace 写入所有者；
-- snapshot/timeline/restore 与 Session Tree 因果链连接；
-- 评估安全的自动 apply profile。
+- Create Change Sets, conflict preflight, and parent review.
+- Apply only after user approval.
+- Make Server or Workspace Service own Team workspace writes.
+- Connect snapshot, timeline, restore, and Session Tree causality.
+- Evaluate a safe automatic-apply profile.
 
-### Phase 6：Portal 与 Detached Execution 对齐
+### Phase 6: Align Portal and detached execution
 
-- Team 授权和共享 Conversation branch；
-- 离线 Server supervisor；
-- TaskRun completion 迁移到 durable report；
-- 评估 task clone/adopt 语义；
-- 决定是否允许把 ephemeral subagent detach 成可见 Session。
+- Add Team authorization and shared Conversation branches.
+- Add offline Server supervision.
+- Move TaskRun completion to durable reports.
+- Evaluate Task clone or adopt semantics.
+- Decide whether an ephemeral subagent can detach into a visible Session.
 
-## 19. 原型验收标准
+## 19. Prototype Acceptance Criteria
 
-Phase 1 原型至少应证明：
+The Phase 1 prototype must show that:
 
-- Child 在正确稳定边界继承 Parent context；
-- Parent 后续消息不会进入 Child；
-- Child 使用独立 worktree，两个 Child 的写入不会互相覆盖；
-- Parent 有未提交修改时不会静默丢失；
-- compaction 前后的 fork 都不会泄漏 fork point 之后的信息；
-- Child token usage 不重复计算 Parent 已经发生的花费；
-- Child 不继承 Parent approval grants 和 pending queue；
-- Parent 删除/归档时 Child 不丢失，lineage 有明确 tombstone；
-- 用户可以把一份结论和变更引用送回 Parent inbox；
-- 不读取 Child 完整 transcript，Parent 仍能理解 report 的来源和新鲜度。
+- a child inherits parent context at the right stable boundary;
+- later parent messages do not enter the child;
+- a child has an isolated worktree, so writable children do not overwrite one
+  another;
+- uncommitted parent changes are never silently lost;
+- forks before and after compaction cannot leak content after the fork point;
+- child token accounting does not charge the parent history twice;
+- a child does not inherit parent approval grants or pending queue state;
+- parent deletion or archive does not destroy the child and lineage has a clear
+  tombstone state;
+- a user can return a conclusion and change reference to a parent inbox; and
+- the parent can understand report provenance and freshness without reading the
+  full child transcript.
 
-Phase 3 自动恢复还必须证明：
+Phase 3 automatic resume must additionally show that:
 
-- signal 在进程重启后不会丢；
-- duplicate delivery 不会重复写 Parent history 或重复启动 apply；
-- Parent running 时 report 串行等待，不会交错 history；
-- Parent paused/canceled 时不会自动恢复；
-- 没有 ApprovalHandler 时，自动 Parent run 不会执行需询问的写操作；
-- 每次自动恢复都能从 trace 追到触发 signal 和 source Child；
-- tree budget 耗尽后停止并请求用户，而不是继续递归。
+- a Signal survives restart;
+- duplicate delivery cannot duplicate parent history or apply a change twice;
+- a report waits behind a running parent turn rather than interleaving history;
+- a paused or canceled parent never auto-resumes;
+- an automatic parent run cannot perform approval-gated writes without an
+  approval handler;
+- every automatic resume traces back to its source signal and child; and
+- an exhausted tree budget stops with a user-visible explanation rather than
+  recursively continuing.
 
-## 20. 需要决策的开放问题
+## 20. Open Questions
 
-### 产品与 UX
+### Product and UX
 
-- 用户最常从 user message 还是 assistant message fork？
-- Tree 是否需要完整可视化，还是 breadcrumb + recent list 已足够？
-- 用户手工 fork 的默认 return policy 应是 `notify` 还是 `manual`？
-- Parent 处理报告后，是否应向 Child 写回“accepted/rejected”状态？
-- 用户是否需要把已有独立 Session 关联为某个 Parent 的 Child？这会缺少真实 fork checkpoint。
+- Do users most often fork from user messages or assistant messages?
+- Does the product need a full tree view, or are breadcrumbs and a recent list
+  enough?
+- Should a manually created child default to `notify` or `manual`?
+- After a parent processes a report, should it send acceptance or rejection
+  status back to the child?
+- Can an existing independent Session become a child when it lacks a genuine
+  fork checkpoint?
 
-### 上下文
+### Context
 
-- Parent todos 应如何作为只读 fork state 展示，而不与 Child 可变 todo 混淆？
-- Fork 是否必须固化模型和 Agent profile，还是允许默认随配置变化？
-- Summary-only fork 是否有足够真实的成本收益，值得承担信息损失？
-- 本地消息何时需要从 array index 升级为稳定 message ID？
+- How should parent todos appear as fork-time, read-only state without being
+  confused with mutable child todos?
+- Must a fork freeze model and Agent profile, or may it follow configuration
+  changes?
+- Does a summary-only fork offer enough real cost reduction to justify loss?
+- When must local messages move from array positions to stable message IDs?
 
 ### Workspace
 
-- Parent dirty workspace 应默认 snapshot、拒绝还是询问？
-- 非 Git workspace 的隔离后端是什么？
-- Read-only Child 是否可以共享 snapshot mount，还是仍需独立 materialization？
-- Change Set 应由 Git diff、内容寻址 snapshot，还是统一 artifact model 表达？
-- 本提案是否应扩大当前 P5，还是成为 P5 之后独立的 Branching Workspace 计划？
+- Should a dirty parent workspace snapshot, reject, or prompt by default?
+- What isolation backend serves a non-Git workspace?
+- Can a read-only child share a snapshot mount, or must it materialize one?
+- Should a Change Set use Git diffs, content-addressed snapshots, or the unified
+  Artifact model?
+- Does this proposal expand P5 or follow it as a distinct Branching Workspace
+  plan?
 
-### Mailbox 与调度
+### Mailbox and scheduling
 
-- Local durable mailbox 应进入 Session 文件、独立索引文件还是嵌入式数据库？
-- Parent Agent report projection 应使用什么 LLM message role/wire shape？
-- 是否需要新的 hook 事件，还是使用更通用的 external input hook？
-- Join group 是 Session 领域实体、Task/Workflow 概念，还是 Supervisor 的持久执行状态？
-- Portal 的 signal lease、重试和 dead-letter 策略由现有 scheduler 还是新 service 拥有？
+- Does a local durable mailbox belong in Session JSON, a separate index, or an
+  embedded database?
+- Which LLM role or wire shape best projects a report without misleading the
+  model about authority?
+- Is a new hook event needed, or is a generic external-input hook sufficient?
+- Is a join group a Session entity, a Task or Workflow concept, or supervisor
+  execution state?
+- Does existing scheduler infrastructure own Portal signal lease, retry, and
+  dead-letter behavior, or does it need a dedicated service?
 
-### 权限与治理
+### Permissions and governance
 
-- Team Conversation branch 的 owner 和 visibility 如何确定？
-- Child report 引用 Parent 无权访问的 artifact 时如何降级？
-- 自动 resume 的 token budget 是用户级、Team 级、Tree 级还是多层限制？
-- 哪些操作进入 audit event，哪些只进入 trace/operational records？
-- Parent/Child 使用不同 Agent profile 时，报告中需要显示哪些 provenance？
+- How are owner and visibility chosen for a Team Conversation branch?
+- How does BuildMax degrade when a child report references an Artifact the
+  parent may not read?
+- Is automatic-resume budget user-, Team-, tree-, or multi-layer scoped?
+- Which operations become audit events and which remain trace or operational
+  records?
+- Which provenance must appear when parent and child use different Agent
+  profiles?
 
-### 现有实体关系
+### Existing entities
 
-- Portal Child 是否能读取 Parent Task 结果，但不能继续该 Task？
-- “继续 Parent Task”应创建新 Task、克隆 Task，还是允许结果路由迁移？
-- TaskRun 是否最终表现为 Session Tree 节点，还是只作为 report producer？
-- Ephemeral subagent 是否值得支持“完成后保留为 Session”？
+- Can a Portal child read parent Task results while remaining unable to continue
+  that Task?
+- Should “continue parent Task” create a new Task, clone the Task, or migrate
+  result routing?
+- Does a TaskRun eventually appear as a Session Tree node, or only as a report
+  producer?
+- Is retaining an ephemeral subagent as a Session worth the additional state?
 
-## 21. 接受方向前需要的证据
+## 21. Evidence Needed Before Acceptance
 
-- 设计伙伴在真实长任务中重复使用 fork，而不只是第一次觉得新颖。
-- Child 在创建后通常有多轮交互或实际工具工作，而不是立即废弃。
-- Result Report 明显减少手工复制 transcript，并且 Parent 能基于报告正确决策。
-- 多 Child join 比逐个回传减少 Parent 模型调用和上下文噪音。
-- Worktree isolation 能稳定复现、比较并安全丢弃两个并行修改。
-- 用户能理解“接受结论”和“应用代码变更”是两个动作。
-- Prompt injection 测试证明 Child report 不能借自动 resume 绕过 Parent permission。
-- Crash/restart 测试证明 signal 不丢失、不重复追加且不会重复应用 change set。
-- 成本实验给出一个真实 fan-out tree 的 token、时间和存储开销，而不是只估算单个 Child。
-- Portal 团队用户确认共享 branch 的价值足以承担 Task ownership 和权限复杂度。
+- Design partners use forks repeatedly on real long tasks, not only because the
+  feature is novel.
+- Children commonly have several turns or meaningful tool work rather than being
+  immediately abandoned.
+- Result reports materially reduce manual transcript copying and let parents make
+  correct decisions.
+- Join groups reduce parent model calls and context noise compared with one
+  parent wake-up per child.
+- Worktree isolation can reliably reproduce, compare, and discard concurrent
+  edits.
+- Users understand that accepting a conclusion and applying code changes are
+  two different actions.
+- Prompt-injection tests show that a child report cannot bypass parent
+  permission through automatic resume.
+- Crash and restart tests show that signals are neither lost nor appended twice,
+  and change sets are not applied twice.
+- Cost experiments measure token, time, and storage costs for a real fan-out
+  tree rather than estimating one child.
+- Portal users confirm that shared branches are worth the additional Task
+  ownership and authorization complexity.
 
-建议只采集行为计数和生命周期指标，不采集 proposal 验证不需要的对话正文：
+Validation should collect lifecycle and behavior counts rather than conversation
+content that is unnecessary to answer the product question:
 
-- 长 Session 中 fork 的比例；
-- 每个 Child 的后续 turns、工具调用和存活时间；
-- report send/receive/processed 比例；
-- Parent 手工复制内容减少情况；
-- join group 大小、等待时间和 late report 比例；
-- 自动 resume 次数、暂停率和预算中止率；
-- change set 被检查、接受、拒绝和冲突的比例；
-- 同一用户是否重复使用。
+- fork rate among long Sessions;
+- child follow-up turns, tool calls, and lifetime;
+- report sent, received, and processed rate;
+- reduction in manual parent-context copying;
+- join-group size, wait time, and late-report rate;
+- automatic-resume count, pause rate, and budget-stop rate;
+- change-set inspected, accepted, rejected, and conflicted rate; and
+- repeat use by the same user.
 
-## 22. 如果接受，文档与路线图去向
+## 22. Destination if Accepted
 
-如果证据支持该方向：
+If evidence supports the direction:
 
-1. 在 [ROADMAP.md](../ROADMAP.md) 中明确它与 P5 Versioned Workspace 的先后和边界；
-2. 修改[版本化工作区设计](../design/versioned-workspace.md)，明确 branching、change set 和
-   write ownership，而不是保留当前“Branch UI out of scope”后另行实现；
-3. 把稳定的 Session lineage、mailbox、supervisor 和 report authority 决策拆入一个或多个
-   `docs/design/` 记录；
-4. 为 Local MVP、durable mailbox、auto resume、join、workspace apply 和 Portal 对齐分别创建
-   可实现 Issue；
-5. 实现后更新 Session、Desktop、CLI、Server、Store、Portal 和 Data Model 架构文档；
-6. 为用户可配置的 fork/return/budget 行为补充 guide/reference；
-7. 删除本 proposal，由 Git history 保留讨论过程。
+1. Update [ROADMAP.md](../ROADMAP.md) with its sequence and boundary relative to
+   P5 Versioned Workspace.
+2. Update [versioned workspace](../design/versioned-workspace.md) to decide
+   branching, change sets, and write ownership rather than leaving Branch UI out
+   of scope while implementing it elsewhere.
+3. Split durable decisions about lineage, mailbox, supervision, and report
+   authority into one or more `docs/design/` records.
+4. Create separate implementation issues for local MVP, durable mailbox,
+   automatic resume, join groups, workspace apply, and Portal alignment.
+5. Update Session, Desktop, CLI, Server, Store, Portal, and Data Model
+   architecture documents as implementation lands.
+6. Add guide and reference material for configurable fork, return, and budget
+   behavior.
+7. Delete this proposal when its decision has moved to roadmap, design, and
+   implementation records; Git history preserves the discussion.
 
-如果证据只支持对话整理，不支持自动 Agent 汇总，则接受 Phase 1 的 lineage/branch UX，拒绝
-mailbox supervisor 扩张。如果证据表明用户只需要后台委派，则应加强现有 Task/subagent 的
-可见性和持久结果，而不是建立新的 Session 执行层。
+If evidence supports only conversation organization, accept Phase 1 lineage and
+branch UX but reject mailbox-supervisor expansion. If it shows users only need
+background delegation, improve visibility and durable results for existing Task
+and subagent execution instead of creating a Session execution layer.
 
-## 23. 候选结论
+## 23. Candidate Direction
 
-本提案的候选方向是：
+The candidate direction is:
 
-> BuildMax 应把 Session Tree 设计为一种可追溯的交互式执行树。每个 Child 从 Parent 的
-> 稳定上下文和 workspace base fork，在隔离工作区独立运行，并通过受限、结构化、持久的
-> Result Report 返回 direct Parent。Parent Supervisor 按显式 return/join policy 串行处理
-> mailbox，在权限和预算边界内恢复 Agent Loop。结论同步与 workspace change apply 始终是
-> 两个独立、可审查的动作。
+> BuildMax should treat a Session Tree as a traceable interactive execution
+> tree. Each child forks from a stable parent context and workspace base, works
+> in an isolated workspace, and returns a restricted, structured, durable Result
+> Report to its direct parent. A parent supervisor serializes mailbox processing
+> and resumes the Agent Loop only under explicit return or join policy and
+> permission and budget bounds. Returning a conclusion and applying a workspace
+> change are always separate, reviewable actions.
 
-这个方向比单纯树形导航更有产品价值，也比任意 Agent 消息总线更可控。它是否值得成为 P5
-的一部分，仍取决于真实用户对 fork、report、join 和 worktree merge 的重复使用证据。
+This offers more product value than tree navigation alone and more control than
+an arbitrary Agent message bus. Whether it belongs in P5 still depends on
+repeated evidence of real use for forks, reports, joins, and worktree change
+integration.
