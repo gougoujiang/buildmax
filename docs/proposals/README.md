@@ -16,10 +16,11 @@ announcements, or user documentation.
 | GitHub Discussions | Early community feedback and alternatives |
 | GitHub Issues | Implementable work with an owner and acceptance criteria |
 
-Every proposal opens with `Status: proposal — under discussion`, identifies
-related current documents, and separates goals, non-goals, options, and open
-questions. It should be narrow enough that readers can agree, disagree, or
-offer evidence without first reverse-engineering the repository.
+Every proposal opens with `Status: proposal — under discussion` and an
+`Opened: YYYY-MM-DD` date, identifies related current documents, and separates
+goals, non-goals, options, and open questions. It should be narrow enough that
+readers can agree, disagree, or offer evidence without first
+reverse-engineering the repository.
 
 When a decision is made, update [../ROADMAP.md](../ROADMAP.md), the matching
 design record, or a GitHub Issue. Then delete the proposal. Rejected and

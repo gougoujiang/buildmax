@@ -1,6 +1,8 @@
 # Portal Interaction And Execution Model
 
 > **Audience:** contributors and product reviewers · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-22
 
 Related: [ROADMAP](../ROADMAP.md) P2 and P0.5, the
 [product vision](../design/product-vision.md),

@@ -1,6 +1,8 @@
 # Durable Agent Sessions
 
 > **Audience:** contributors, operators, security reviewers, and early adopters · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-22
 
 Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
 [surface positioning](../design/surface-positioning.md),

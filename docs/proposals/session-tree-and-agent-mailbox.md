@@ -1,6 +1,8 @@
 # Session Trees, Agent Mailboxes, and Branched Workspaces
 
 > **Audience:** contributors, product designers, and early adopters · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-22
 
 Related: [roadmap](../ROADMAP.md) P0.5 and P5, [product vision](../design/product-vision.md),
 [surface positioning](../design/surface-positioning.md),

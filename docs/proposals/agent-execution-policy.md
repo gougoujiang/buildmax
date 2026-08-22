@@ -1,6 +1,8 @@
 # Agent Execution Policy
 
 > **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-16
 
 Related: [../ROADMAP.md](../ROADMAP.md) P0.5, [trust harness design](../design/trust-harness.md), [sandbox boundaries](../design/sandbox-boundaries.md), [sandbox guide](../guide/sandbox.md), and [production deployment reference](../../deployment/production/README.md).
 

@@ -2,6 +2,8 @@
 
 > **Audience:** contributors, operators, and early adopters · **Status:**
 > proposal — under discussion
+>
+> **Opened:** 2026-08-17
 
 Related: [roadmap](../ROADMAP.md) P0.5, P3, and P4; [trust harness
 design](../design/trust-harness.md); [enterprise deployment

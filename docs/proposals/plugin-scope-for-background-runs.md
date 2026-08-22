@@ -1,6 +1,8 @@
 # Plugin Scope For Background Runs
 
 > **Audience:** contributors and operators · **Status:** proposal — under discussion
+>
+> **Opened:** 2026-08-22
 
 Related: [team and worker plugin
 distribution](../design/plugin-team-distribution.md), which this may amend
