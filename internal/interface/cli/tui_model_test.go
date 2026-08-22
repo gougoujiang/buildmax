@@ -912,3 +912,48 @@ func TestUnknownToolEndDoesNotDropAnotherCall(t *testing.T) {
 		t.Errorf("activeTools = %d, want the unrelated call still in flight", len(m.activeTools))
 	}
 }
+
+// The footer says where prompts go, because a session can hold both kinds of
+// entry and switch between them with /model.
+func TestModelTransportTag(t *testing.T) {
+	entries := []agentapp.ModelConfig{
+		{Name: "local", ProviderModel: "qwen3:8b"},
+		{Name: "team", ProviderModel: "default", Transport: config.TransportBuildMax, ServerURL: "http://localhost:5678", TeamID: "t_abc"},
+		{Name: "broken", Transport: config.TransportBuildMax},
+	}
+	cases := []struct {
+		name  string
+		model string
+		want  string
+	}{
+		{"direct entry", "local", "direct"},
+		{"managed entry names its deployment", "team", "buildmax localhost:5678"},
+		// The provider model, not the display name: that is what a session
+		// records when someone passes -m.
+		{"matched by provider model", "qwen3:8b", "direct"},
+		{"managed entry with no server", "broken", "buildmax, no server_url"},
+		// No entry claims it, so nothing is claimed about it either.
+		{"unknown model", "gpt-5", ""},
+		{"no model", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := modelTransportTag(entries, tc.model); got != tc.want {
+				t.Errorf("modelTransportTag(_, %q) = %q, want %q", tc.model, got, tc.want)
+			}
+		})
+	}
+}
+
+// The footer renders without an app, which is what a test model and an early
+// failure both have.
+func TestFooterWithoutAnAppHasNoTransportTag(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir(), ModelName: "local"})
+	footer := m.renderFooterView()
+	if !strings.Contains(footer, "model: local") {
+		t.Fatalf("footer = %q, want it to name the model", footer)
+	}
+	if strings.Contains(footer, "(direct)") {
+		t.Errorf("footer = %q, want no transport claim without an app", footer)
+	}
+}

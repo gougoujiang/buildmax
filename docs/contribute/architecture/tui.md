@@ -22,13 +22,16 @@ input, formatting, styles, approval, and one file per slash panel.
 │ ╭────────────────────────────────────────╮ │
 │ │ Type here…                             │ │  input
 │ ╰────────────────────────────────────────╯ │
-│ model: gpt-4o | ~/proj (|-main) | sandbox… │  footer line 1
+│ model: gpt-4o (direct) | ~/proj (|-main) … │  footer line 1
 │ 12.4k/128k · 2 tools | ctrl+c: quit | …    │  footer line 2
 └────────────────────────────────────────────┘
 ```
 
-Footer line 1: model, workspace with git branch, sandbox tag when active, logged
-in email. Line 2: run status (context usage, token counts, tool calls), key
+Footer line 1: model with the transport its entry uses, workspace with git
+branch, sandbox tag when active, logged in email. The transport is `direct` or
+`buildmax <host>`, because the CLI has no app-level mode — where prompts go is a
+property of the model entry, and `/model` switches entries mid-session. A model
+name no entry claims gets no tag rather than a guess. Line 2: run status (context usage, token counts, tool calls), key
 hints, and a panel-specific hint when a slash panel is open.
 
 ## Model State
