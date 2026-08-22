@@ -23,8 +23,7 @@ func openSlashSkills(m *Model) (tea.Model, tea.Cmd) {
 	if m.opts.App != nil {
 		entries = m.opts.App.SkillEntries()
 	} else {
-		paths := config.SkillSearchPaths(m.opts.Workspace)
-		entries = tools.DiscoverSkillEntries(paths)
+		entries = tools.ResolveSkills(config.SkillSources(m.opts.Workspace, nil)).Entries
 	}
 	st := &slashSkillsState{Entries: entries}
 	m.slashSkills = st

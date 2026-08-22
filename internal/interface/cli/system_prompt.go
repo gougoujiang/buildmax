@@ -74,12 +74,12 @@ func loadAgentPromptByName(name, workspace string) (string, error) {
 		}
 		workspace = wd
 	}
-	defs, err := tools.LoadAgentDefsFromPaths(config.AgentDefsSearchPaths(workspace))
+	res, err := tools.ResolveAgentDefs(config.AgentDefSources(workspace, nil))
 	if err != nil {
 		return "", fmt.Errorf("load agent definitions: %w", err)
 	}
 	var known []string
-	for _, d := range defs {
+	for _, d := range res.Defs {
 		if d.Name == name {
 			if strings.TrimSpace(d.SystemPrompt) == "" {
 				return "", fmt.Errorf("agent %q has an empty body, so it contributes no prompt text", name)

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // SubAgentDef represents one parsed sub-agent definition file.
@@ -22,6 +24,9 @@ type SubAgentDef struct {
 	Model         string   // model name to use for this agent type; "" = runner default
 	MaxIterations int      // iteration cap; 0 = defaultSubAgentMaxIter (50)
 	Color         string   // color hint (parsed, reserved for UI)
+	// Origin is the layer this definition was found in, so status can show a
+	// plugin's contribution and anything that shadowed it.
+	Origin plugin.Origin
 }
 
 // LoadAgentDefs reads all files from dir, parses each as an agent definition,
@@ -149,33 +154,50 @@ func parseFrontmatter(block string) map[string]string {
 	return kv
 }
 
+// AgentDefResolution is what scanning every source produced: the definitions
+// that load, what a higher layer shadowed, and the collisions that stopped a
+// name from loading at all.
+type AgentDefResolution struct {
+	Defs     []SubAgentDef
+	Shadowed []Shadowed
+	Findings []plugin.Finding
+}
+
+// ResolveAgentDefs scans priority-ordered sources and reduces them to one
+// definition per name. Sources come from internal/config: workspace, then
+// global, then each plugin in name order.
+func ResolveAgentDefs(sources []plugin.Source) (AgentDefResolution, error) {
+	var cands []candidate[SubAgentDef]
+	for _, src := range sources {
+		defs, err := LoadAgentDefs(src.Dir)
+		if err != nil {
+			return AgentDefResolution{}, err
+		}
+		for _, d := range defs {
+			cands = append(cands, candidate[SubAgentDef]{name: d.Name, origin: src.Origin, value: d})
+		}
+	}
+	r := resolveCandidates(cands, "subagent", func(d SubAgentDef, o plugin.Origin) SubAgentDef {
+		d.Origin = o
+		return d
+	})
+	return AgentDefResolution{Defs: r.values, Shadowed: r.shadowed, Findings: r.findings}, nil
+}
+
 // LoadAgentDefsFromPaths loads agent definitions from multiple directories in priority order.
 // Directories are scanned in order; if two directories contain a definition with the same Name,
 // the first one wins (project-level overrides global-level). Missing directories are gracefully
-// skipped (same behavior as LoadAgentDefs). Returns the merged list sorted alphabetically by Name.
+// skipped. This is the unlabelled form, for a caller with no layering to express.
 func LoadAgentDefsFromPaths(dirs []string) ([]SubAgentDef, error) {
-	seen := make(map[string]bool)
-	var merged []SubAgentDef
-
+	sources := make([]plugin.Source, 0, len(dirs))
 	for _, dir := range dirs {
-		defs, err := LoadAgentDefs(dir)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range defs {
-			if seen[d.Name] {
-				slog.Debug("skip duplicate agent def", "name", d.Name, "dir", dir)
-				continue
-			}
-			seen[d.Name] = true
-			merged = append(merged, d)
-		}
+		sources = append(sources, plugin.Source{Dir: dir})
 	}
-
-	sort.Slice(merged, func(i, j int) bool {
-		return merged[i].Name < merged[j].Name
-	})
-	return merged, nil
+	res, err := ResolveAgentDefs(sources)
+	if err != nil {
+		return nil, err
+	}
+	return res.Defs, nil
 }
 
 // splitAndTrim splits s by sep and returns trimmed, non-empty parts.

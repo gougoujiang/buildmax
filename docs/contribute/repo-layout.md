@@ -110,8 +110,8 @@ internal/
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
-│   ├── plugin/         Plugin manifest format, its rules, and version arithmetic,
-│   │                   shared by plugin discovery and Marketplace publication
+│   ├── plugin/         Plugin manifest, version arithmetic, and the layer
+│   │                   vocabulary discovery, resolution, and publication share
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

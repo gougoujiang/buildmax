@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // SkillEntry holds metadata for one discovered skill.
@@ -18,6 +18,9 @@ type SkillEntry struct {
 	Name        string // skill identifier (directory name)
 	Description string // short description extracted from SKILL.md
 	Path        string // absolute path to the SKILL.md file
+	// Origin is the layer this skill was found in. Status surfaces it so a
+	// plugin's contribution is visible, and so is anything that shadowed it.
+	Origin plugin.Origin
 }
 
 // SkillTool is an agent tool that discovers and invokes skills from disk.
@@ -132,66 +135,89 @@ func (s *SkillTool) Execute(ctx context.Context, args map[string]any) (string, e
 	return content, nil
 }
 
+// SkillResolution is what scanning every source produced: the skills that load,
+// the definitions a higher layer shadowed, and the collisions that stopped a
+// name from loading at all.
+type SkillResolution struct {
+	Entries  []SkillEntry
+	Shadowed []Shadowed
+	Findings []plugin.Finding
+}
+
+// ResolveSkills scans priority-ordered sources and reduces them to one skill per
+// name. Sources come from internal/config: workspace, then global, then each
+// plugin in name order.
+func ResolveSkills(sources []plugin.Source) SkillResolution {
+	var cands []candidate[SkillEntry]
+	for _, src := range sources {
+		for _, e := range scanSkillDir(src.Dir) {
+			cands = append(cands, candidate[SkillEntry]{name: e.Name, origin: src.Origin, value: e})
+		}
+	}
+	r := resolveCandidates(cands, "skill", func(e SkillEntry, o plugin.Origin) SkillEntry {
+		e.Origin = o
+		return e
+	})
+	return SkillResolution{Entries: r.values, Shadowed: r.shadowed, Findings: r.findings}
+}
+
 // DiscoverSkillEntries scans search paths for subdirectories containing SKILL.md.
 // First-path-wins on name conflicts. Returns skills sorted alphabetically by name.
-// This is the single discovery implementation used by NewSkill and other callers
-// that need a listing (e.g. TUI /skills).
+// This is the unlabelled form, for a caller with no layering to express.
 func DiscoverSkillEntries(searchPaths []string) []SkillEntry {
-	seen := make(map[string]bool)
-	var skills []SkillEntry
-
+	sources := make([]plugin.Source, 0, len(searchPaths))
 	for _, dir := range searchPaths {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				skillLog().Debug("search path does not exist, skipping", "path", dir)
-			} else {
-				skillLog().Warn("error reading search path, skipping", "path", dir, "err", err)
-			}
+		sources = append(sources, plugin.Source{Dir: dir})
+	}
+	return ResolveSkills(sources).Entries
+}
+
+// scanSkillDir reads one directory. Every readable skill is returned, including
+// names another source also defines: resolution decides what that means, and it
+// cannot decide from a list the losers were already dropped from.
+func scanSkillDir(dir string) []SkillEntry {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			skillLog().Debug("search path does not exist, skipping", "path", dir)
+		} else {
+			skillLog().Warn("error reading search path, skipping", "path", dir, "err", err)
+		}
+		return nil
+	}
+
+	var skills []SkillEntry
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+
+		skillPath := filepath.Join(dir, name, "SKILL.md")
+		info, err := os.Stat(skillPath)
+		if err != nil || info.IsDir() {
 			continue
 		}
 
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			name := entry.Name()
-			if seen[name] {
-				continue
-			}
-
-			skillPath := filepath.Join(dir, name, "SKILL.md")
-			info, err := os.Stat(skillPath)
-			if err != nil || info.IsDir() {
-				continue
-			}
-
-			data, err := os.ReadFile(skillPath)
-			if err != nil {
-				skillLog().Warn("error reading SKILL.md, skipping", "path", skillPath, "err", err)
-				continue
-			}
-
-			absPath, err := filepath.Abs(skillPath)
-			if err != nil {
-				skillLog().Warn("error resolving path, skipping", "path", skillPath, "err", err)
-				continue
-			}
-
-			desc := extractDescription(data)
-			skills = append(skills, SkillEntry{
-				Name:        name,
-				Description: desc,
-				Path:        absPath,
-			})
-			seen[name] = true
-			skillLog().Info("discovered", "name", name, "path", absPath)
+		data, err := os.ReadFile(skillPath)
+		if err != nil {
+			skillLog().Warn("error reading SKILL.md, skipping", "path", skillPath, "err", err)
+			continue
 		}
-	}
 
-	sort.Slice(skills, func(i, j int) bool {
-		return skills[i].Name < skills[j].Name
-	})
+		absPath, err := filepath.Abs(skillPath)
+		if err != nil {
+			skillLog().Warn("error resolving path, skipping", "path", skillPath, "err", err)
+			continue
+		}
+
+		skills = append(skills, SkillEntry{
+			Name:        name,
+			Description: extractDescription(data),
+			Path:        absPath,
+		})
+		skillLog().Info("discovered", "name", name, "path", absPath)
+	}
 	return skills
 }
 

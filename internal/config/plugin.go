@@ -185,3 +185,57 @@ func markPluginNameCollisions(plugins []DiscoveredPlugin) {
 		}
 	}
 }
+
+// Plugin content subdirectories. A plugin contributes only what a workspace
+// .buildmax directory already supports, under the same names.
+const (
+	PluginSkillsSubdir = "skills"
+	PluginAgentsSubdir = "agents"
+)
+
+// SkillSources returns the priority-ordered directories to scan for skills:
+// workspace, then global, then each plugin in name order.
+//
+// Plugins come last because a workspace or a user's own configuration may
+// deliberately override what a plugin ships. Plugins are sorted by name so
+// loading is deterministic — not so that order can settle a collision between
+// two of them, which resolution refuses to do.
+func SkillSources(workspace string, plugins []DiscoveredPlugin) []plugin.Source {
+	return layeredSources(workspace, PluginSkillsSubdir, plugins)
+}
+
+// AgentDefSources returns the priority-ordered directories to scan for subagent
+// definitions, in the same layering as SkillSources.
+func AgentDefSources(workspace string, plugins []DiscoveredPlugin) []plugin.Source {
+	return layeredSources(workspace, PluginAgentsSubdir, plugins)
+}
+
+func layeredSources(workspace, subdir string, plugins []DiscoveredPlugin) []plugin.Source {
+	sources := []plugin.Source{
+		{
+			Dir:    filepath.Join(workspace, ".buildmax", subdir),
+			Origin: plugin.Origin{Layer: plugin.LayerWorkspace, Dir: filepath.Join(workspace, ".buildmax", subdir)},
+		},
+		{
+			Dir:    filepath.Join(DataDir(), subdir),
+			Origin: plugin.Origin{Layer: plugin.LayerGlobal, Dir: filepath.Join(DataDir(), subdir)},
+		},
+	}
+	// Filtering here as well as at the call site keeps a disabled or broken
+	// plugin from contributing through a caller that passed the whole scan.
+	loadable := make([]DiscoveredPlugin, 0, len(plugins))
+	for _, p := range plugins {
+		if p.Loadable() {
+			loadable = append(loadable, p)
+		}
+	}
+	sort.Slice(loadable, func(i, j int) bool { return loadable[i].Name() < loadable[j].Name() })
+	for _, p := range loadable {
+		dir := filepath.Join(p.Path, subdir)
+		sources = append(sources, plugin.Source{
+			Dir:    dir,
+			Origin: plugin.Origin{Layer: plugin.LayerPlugin, Plugin: p.Name(), Dir: dir},
+		})
+	}
+	return sources
+}

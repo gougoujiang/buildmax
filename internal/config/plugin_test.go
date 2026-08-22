@@ -213,3 +213,76 @@ func findingText(fs []plugin.Finding) string {
 	}
 	return b.String()
 }
+
+func TestSkillSourcesLayerOrder(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	// Directory order and name order differ, so the sort is observable.
+	writePlugin(t, root, "z-dir", "name: alpha\n")
+	writePlugin(t, root, "a-dir", "name: beta\n")
+	discovery := DiscoverPluginsIn(root)
+
+	got := SkillSources("/ws", discovery.Loadable())
+	want := []struct {
+		dir    string
+		layer  plugin.Layer
+		plugin string
+	}{
+		{filepath.Join("/ws", ".buildmax", "skills"), plugin.LayerWorkspace, ""},
+		{filepath.Join(home, "skills"), plugin.LayerGlobal, ""},
+		{filepath.Join(root, "z-dir", "skills"), plugin.LayerPlugin, "alpha"},
+		{filepath.Join(root, "a-dir", "skills"), plugin.LayerPlugin, "beta"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d sources, want %d: %+v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		if got[i].Dir != w.dir || got[i].Origin.Layer != w.layer || got[i].Origin.Plugin != w.plugin {
+			t.Errorf("source %d = %+v, want dir %q layer %q plugin %q", i, got[i], w.dir, w.layer, w.plugin)
+		}
+		if got[i].Origin.Dir != got[i].Dir {
+			t.Errorf("source %d origin dir %q does not match %q", i, got[i].Origin.Dir, got[i].Dir)
+		}
+	}
+}
+
+func TestAgentDefSourcesUseTheAgentsSubdir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "code-review", "name: code-review\n")
+
+	got := AgentDefSources("/ws", DiscoverPluginsIn(root).Loadable())
+	if len(got) != 3 {
+		t.Fatalf("got %d sources, want 3: %+v", len(got), got)
+	}
+	if want := filepath.Join(root, "code-review", "agents"); got[2].Dir != want {
+		t.Errorf("plugin source = %q, want %q", got[2].Dir, want)
+	}
+}
+
+// Passing the whole scan rather than the loadable subset must not turn a
+// disabled or broken plugin into a contributor.
+func TestSkillSourcesSkipUnloadablePlugins(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "good", "name: good\n")
+	writePlugin(t, root, "broken", "name: Bad Name\n")
+	writePlugin(t, root, "off", "name: off\n")
+	if err := UpdatePluginStates(root, func(s *PluginStates) error {
+		s.Set("off", PluginState{Source: PluginSourceLocal, Disabled: true})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := SkillSources("/ws", DiscoverPluginsIn(root).Plugins)
+	if len(got) != 3 {
+		t.Fatalf("got %d sources, want workspace, global, and one plugin: %+v", len(got), got)
+	}
+	if got[2].Origin.Plugin != "good" {
+		t.Errorf("contributing plugin = %q, want \"good\"", got[2].Origin.Plugin)
+	}
+}

@@ -831,7 +831,7 @@ func (s *SkillRegistry) Load(workspace string) error {
 	if s == nil {
 		return nil
 	}
-	s.entries = tools.DiscoverSkillEntries(config.SkillSearchPaths(workspace))
+	s.entries = tools.ResolveSkills(config.SkillSources(workspace, nil)).Entries
 	return nil
 }
 
@@ -855,11 +855,11 @@ func (s *SubAgentRegistry) Load(workspace string) error {
 	if s == nil {
 		return nil
 	}
-	defs, err := tools.LoadAgentDefsFromPaths(config.AgentDefsSearchPaths(workspace))
+	res, err := tools.ResolveAgentDefs(config.AgentDefSources(workspace, nil))
 	if err != nil {
 		return fmt.Errorf("load agent defs: %w", err)
 	}
-	s.userDefs = defs
+	s.userDefs = res.Defs
 	return nil
 }
 
