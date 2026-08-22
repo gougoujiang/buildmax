@@ -433,9 +433,8 @@ Marketplace release.
 
 A deployment that means "only administrator-published plugins run here" needs
 something to check, not only something to say. `<BUILDMAX_HOME>/policy.yaml` is
-the existing operator-controlled file — `internal/config` reads its `sandbox`
-block today and reserves the file for other operator-controlled subsystems —
-so this is one more block on a mechanism that already exists:
+the existing operator-controlled file, so this is one more block on a mechanism
+that already exists:
 
 ```yaml
 # <BUILDMAX_HOME>/policy.yaml
@@ -474,6 +473,17 @@ dropped, because a worker's `BUILDMAX_HOME` is created fresh per run and
 nothing placed there could reach the surface that needed it. Plugins differ —
 the plugins directory is part of a persistent `BUILDMAX_HOME` — but the worker
 path must be checked before this block is specified as covering workers.
+
+Source classification lives with discovery rather than with each surface that
+displays it. A recorded source is the answer when there is one; otherwise the
+directory is classified by looking for `.git`, which is a stat rather than a
+call to Git — asking Git would answer for the nearest enclosing repository, so
+a plugins directory inside somebody's home checkout would make every plugin in
+it look like a clone.
+
+A policy that will not parse is reported and applies nothing. Refusing every
+plugin because `policy.yaml` has a typo would turn one mistake into an outage,
+and the scan says what it could not apply.
 
 ## 5. Runtime Resolution
 

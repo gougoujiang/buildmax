@@ -37,7 +37,6 @@ type pluginBase struct {
 	name      string
 	path      string
 	source    config.PluginSource
-	isRepo    bool
 	remoteURL string
 	state     config.PluginState
 }
@@ -82,25 +81,14 @@ func discoverPlugins() PluginSnapshot {
 	return snap
 }
 
-// resolveBase classifies each loaded plugin and reads the source facts that do
-// not change under a live runtime.
+// resolveBase reads the source facts that do not change under a live runtime.
 //
-// Classification is where §4.2's "unmanaged repository plugin" is settled: a
-// directory nothing recorded is a repository when it holds a checkout and a
-// local directory otherwise. It is decided by looking, not persisted, because
-// the directory is the source of truth and writing state on every assembly
-// would be surprising.
+// Classification itself belongs to internal/config, which discovery already
+// uses to decide what an operator's source policy applies to. What is left here
+// is the part that needs Git: a checkout's remote.
 func (s *PluginSnapshot) resolveBase(ctx context.Context) {
 	for _, p := range s.Loadable() {
-		b := pluginBase{name: p.Name(), path: p.Path, source: p.State.Source, state: p.State}
-		b.isRepo = git.IsRepository(p.Path)
-		if b.source == config.PluginSourceUnknown {
-			if b.isRepo {
-				b.source = config.PluginSourceRepository
-			} else {
-				b.source = config.PluginSourceLocal
-			}
-		}
+		b := pluginBase{name: p.Name(), path: p.Path, source: p.Source(), state: p.State}
 		if b.source == config.PluginSourceRepository {
 			b.remoteURL = p.State.RepositoryURL
 			if b.remoteURL == "" {

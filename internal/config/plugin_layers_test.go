@@ -39,7 +39,7 @@ func TestResolveMCPConfigExpandsEachPluginsOwnRoot(t *testing.T) {
 	writePluginFile(t, root, "beta", "mcp.json", `{"mcpServers":{"b":{"type":"stdio",
 		"command":"${BUILDMAX_PLUGIN_ROOT}/bin/b"}}}`)
 
-	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root).Loadable())
+	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestResolveMCPConfigIgnoresAnEnvironmentPluginRoot(t *testing.T) {
 	writePluginFile(t, root, "alpha", "mcp.json",
 		`{"mcpServers":{"a":{"type":"stdio","command":"${BUILDMAX_PLUGIN_ROOT}/bin/a"}}}`)
 
-	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root).Loadable())
+	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestResolveMCPConfigWorkspaceShadowsAPluginServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := ResolveMCPConfig(ws, DiscoverPluginsIn(root).Loadable())
+	res, err := ResolveMCPConfig(ws, DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestResolveMCPConfigPluginCollisionLoadsNeither(t *testing.T) {
 			  "`+dir+`-only":{"type":"stdio","command":"x"}}}`)
 	}
 
-	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root).Loadable())
+	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestResolveMCPConfigReportsABrokenPluginFile(t *testing.T) {
 	writePluginFile(t, root, "beta", "mcp.json",
 		`{"mcpServers":{"b":{"type":"stdio","command":"ok"}}}`)
 
-	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root).Loadable())
+	res, err := ResolveMCPConfig("/ws", DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if err != nil {
 		t.Fatalf("one plugin's broken file must not fail the load: %v", err)
 	}
@@ -182,7 +182,7 @@ post_tool_use:
         - "${BUILDMAX_PLUGIN_ROOT}/a"
 `)
 
-	got := ResolvePluginHooks(DiscoverPluginsIn(root).Loadable())
+	got := ResolvePluginHooks(DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if plugin.HasErrors(got.Findings) {
 		t.Fatalf("unexpected findings: %v", got.Findings)
 	}
@@ -219,7 +219,7 @@ func TestResolvePluginHooksReportsABrokenFile(t *testing.T) {
 	writePluginFile(t, root, "alpha", "hooks.yaml", "post_tool_use: [ unclosed\n")
 	writePluginFile(t, root, "beta", "hooks.yaml", "post_tool_use:\n  - type: command\n    command: ok\n")
 
-	got := ResolvePluginHooks(DiscoverPluginsIn(root).Loadable())
+	got := ResolvePluginHooks(DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if len(got.Config.Entries(corehook.EventPostToolUse)) != 1 {
 		t.Errorf("the healthy plugin's hook should still run: %+v", got.Config.PostToolUse)
 	}

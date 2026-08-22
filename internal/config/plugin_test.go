@@ -32,7 +32,7 @@ func TestPluginsDirFollowsBuildmaxHome(t *testing.T) {
 }
 
 func TestDiscoverPluginsMissingDirIsEmpty(t *testing.T) {
-	got := DiscoverPluginsIn(filepath.Join(t.TempDir(), "nope"))
+	got := DiscoverPluginsIn(filepath.Join(t.TempDir(), "nope"), PluginPolicy{})
 	if len(got.Plugins) != 0 || len(got.Findings) != 0 || got.StateErr != nil {
 		t.Errorf("scanning a missing directory should be empty and quiet: %+v", got)
 	}
@@ -44,7 +44,7 @@ func TestDiscoverPluginsFindsAClonedDirectory(t *testing.T) {
 	root := t.TempDir()
 	writePlugin(t, root, "code-review", "name: code-review\ndescription: Reviews.\n")
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	if got.StateErr != nil {
 		t.Fatalf("StateErr = %v", got.StateErr)
 	}
@@ -78,7 +78,7 @@ func TestDiscoverPluginsSkipsReservedAndStrayEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	if len(got.Plugins) != 1 || got.Plugins[0].Dir != "real" {
 		t.Fatalf("got %d plugins, want only \"real\": %+v", len(got.Plugins), got.Plugins)
 	}
@@ -95,7 +95,7 @@ func TestDiscoverPluginsReportsBrokenManifest(t *testing.T) {
 	writePlugin(t, root, "broken", "name: Bad Name\nversion: v1\n")
 	writePlugin(t, root, "unparseable", "- not a mapping\n")
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	if len(got.Plugins) != 2 {
 		t.Fatalf("both directories should be discovered so they can be reported: %+v", got.Plugins)
 	}
@@ -118,7 +118,7 @@ func TestDiscoverPluginsWarnsOnDirectoryNameMismatch(t *testing.T) {
 	root := t.TempDir()
 	writePlugin(t, root, "code-review-fork", "name: code-review\n")
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	p := got.Plugins[0]
 	if !p.Loadable() {
 		t.Fatalf("a mismatch must not block loading: %v", p.Findings)
@@ -145,7 +145,7 @@ func TestDiscoverPluginsFailsBothSidesOfANameCollision(t *testing.T) {
 	writePlugin(t, root, "b-copy", "name: code-review\n")
 	writePlugin(t, root, "innocent", "name: innocent\n")
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	loadable := got.Loadable()
 	if len(loadable) != 1 || loadable[0].Dir != "innocent" {
 		t.Fatalf("only the uninvolved plugin should load: %+v", loadable)
@@ -172,7 +172,7 @@ func TestDiscoverPluginsHonoursDisabledState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	p := got.Plugins[0]
 	if !p.StateKnown || p.State.Source != PluginSourceRepository {
 		t.Errorf("state not attached: %+v", p)
@@ -193,7 +193,7 @@ func TestDiscoverPluginsSurvivesDamagedState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := DiscoverPluginsIn(root)
+	got := DiscoverPluginsIn(root, PluginPolicy{})
 	if got.StateErr == nil {
 		t.Error("a damaged state file must be reported")
 	}
@@ -221,7 +221,7 @@ func TestSkillSourcesLayerOrder(t *testing.T) {
 	// Directory order and name order differ, so the sort is observable.
 	writePlugin(t, root, "z-dir", "name: alpha\n")
 	writePlugin(t, root, "a-dir", "name: beta\n")
-	discovery := DiscoverPluginsIn(root)
+	discovery := DiscoverPluginsIn(root, PluginPolicy{})
 
 	got := SkillSources("/ws", discovery.Loadable())
 	want := []struct {
@@ -253,7 +253,7 @@ func TestAgentDefSourcesUseTheAgentsSubdir(t *testing.T) {
 	root := filepath.Join(home, "plugins")
 	writePlugin(t, root, "code-review", "name: code-review\n")
 
-	got := AgentDefSources("/ws", DiscoverPluginsIn(root).Loadable())
+	got := AgentDefSources("/ws", DiscoverPluginsIn(root, PluginPolicy{}).Loadable())
 	if len(got) != 3 {
 		t.Fatalf("got %d sources, want 3: %+v", len(got), got)
 	}
@@ -278,11 +278,169 @@ func TestSkillSourcesSkipUnloadablePlugins(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := SkillSources("/ws", DiscoverPluginsIn(root).Plugins)
+	got := SkillSources("/ws", DiscoverPluginsIn(root, PluginPolicy{}).Plugins)
 	if len(got) != 3 {
 		t.Fatalf("got %d sources, want workspace, global, and one plugin: %+v", len(got), got)
 	}
 	if got[2].Origin.Plugin != "good" {
 		t.Errorf("contributing plugin = %q, want \"good\"", got[2].Origin.Plugin)
+	}
+}
+
+func TestPluginSourceClassification(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "cloned", "name: cloned\n")
+	writePlugin(t, root, "copied", "name: copied\n")
+	writePlugin(t, root, "installed", "name: installed\n")
+	// A checkout is a directory with .git; asking Git would answer for the
+	// nearest enclosing repository instead.
+	if err := os.MkdirAll(filepath.Join(root, "cloned", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdatePluginStates(root, func(s *PluginStates) error {
+		s.Set("installed", PluginState{Source: PluginSourceMarketplace, ReleaseVersion: "1.0.0"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	want := map[string]PluginSource{
+		"cloned": PluginSourceRepository, "copied": PluginSourceLocal,
+		"installed": PluginSourceMarketplace,
+	}
+	for _, p := range DiscoverPluginsIn(root, PluginPolicy{}).Plugins {
+		if got := p.Source(); got != want[p.Dir] {
+			t.Errorf("%s source = %q, want %q", p.Dir, got, want[p.Dir])
+		}
+	}
+}
+
+// Unset means every source loads, which is the state of a deployment that
+// asserted nothing.
+func TestPluginPolicyUnsetAllowsEverything(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "copied", "name: copied\n")
+
+	got := DiscoverPluginsIn(root, PluginPolicy{})
+	if len(got.Loadable()) != 1 {
+		t.Errorf("an unrestricted scan should load everything: %+v", got.Plugins)
+	}
+}
+
+func TestPluginPolicyRefusesADisallowedSource(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "installed", "name: installed\n")
+	writePlugin(t, root, "copied", "name: copied\n")
+	if err := UpdatePluginStates(root, func(s *PluginStates) error {
+		s.Set("installed", PluginState{Source: PluginSourceMarketplace, ReleaseVersion: "1.0.0"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := DiscoverPluginsIn(root, PluginPolicy{AllowedSources: []string{"marketplace"}})
+	loadable := got.Loadable()
+	if len(loadable) != 1 || loadable[0].Dir != "installed" {
+		t.Fatalf("loadable = %+v", loadable)
+	}
+	// A plugin that will not load says why, by name, rather than disappearing.
+	var refused string
+	for _, p := range got.Plugins {
+		if p.Dir == "copied" {
+			refused = findingText(p.Findings)
+		}
+	}
+	if !strings.Contains(refused, "operator policy") || !strings.Contains(refused, "local") {
+		t.Errorf("refusal = %q", refused)
+	}
+}
+
+// Source type comes from .state.json unless the directory can be classified by
+// looking, so a Marketplace install that lost its record has provenance nobody
+// can establish — and unknown is not the source an operator named.
+func TestPluginPolicyRefusesUnestablishedProvenance(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "installed", "name: installed\n")
+
+	got := DiscoverPluginsIn(root, PluginPolicy{AllowedSources: []string{"marketplace"}})
+	if len(got.Loadable()) != 0 {
+		t.Fatal("a directory with no record should not pass a marketplace-only policy")
+	}
+	if !strings.Contains(findingText(got.Plugins[0].Findings), "policy") {
+		t.Errorf("refusal = %q", findingText(got.Plugins[0].Findings))
+	}
+}
+
+// A policy that cannot be read is reported and applies nothing: one typo in
+// policy.yaml should not be an outage.
+func TestDiscoverPluginsSurvivesADamagedPolicy(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	writePlugin(t, filepath.Join(home, "plugins"), "copied", "name: copied\n")
+	if err := os.WriteFile(PolicyPath(), []byte("plugins: [not, a, mapping\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := DiscoverPlugins()
+	if len(got.Loadable()) != 1 {
+		t.Errorf("a damaged policy must not cost the plugins: %+v", got.Plugins)
+	}
+	if !strings.Contains(findingText(got.Findings), "policy could not be read") {
+		t.Errorf("findings = %q", findingText(got.Findings))
+	}
+}
+
+func TestPluginPolicyAllows(t *testing.T) {
+	unset := PluginPolicy{}
+	if unset.IsSet() || !unset.Allows(PluginSourceLocal) {
+		t.Error("an unset policy allows everything")
+	}
+	set := PluginPolicy{AllowedSources: []string{"marketplace", " repository "}}
+	if !set.Allows(PluginSourceMarketplace) || !set.Allows(PluginSourceRepository) {
+		t.Error("a listed source should be allowed, surrounding space included")
+	}
+	if set.Allows(PluginSourceLocal) || set.Allows(PluginSourceUnknown) {
+		t.Error("an unlisted source should not be allowed")
+	}
+}
+
+// A refusal is a decision, not a defect, so it is distinguishable from a
+// plugin that will not load because something about it is wrong.
+func TestPluginPolicyRefusalIsDistinguishable(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, home)
+	root := filepath.Join(home, "plugins")
+	writePlugin(t, root, "copied", "name: copied\n")
+	// An allowed source that still will not load: the policy has nothing to
+	// say about it, and something else does.
+	writePlugin(t, root, "broken", "name: Bad Name\n")
+	if err := UpdatePluginStates(root, func(s *PluginStates) error {
+		s.Set("broken", PluginState{Source: PluginSourceMarketplace})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := DiscoverPluginsIn(root, PluginPolicy{AllowedSources: []string{"marketplace"}})
+	byDir := map[string]DiscoveredPlugin{}
+	for _, p := range got.Plugins {
+		byDir[p.Dir] = p
+	}
+	if !byDir["copied"].PolicyRefused {
+		t.Error("a source the policy excludes should be marked refused")
+	}
+	if byDir["broken"].PolicyRefused {
+		t.Error("a malformed manifest is not a policy refusal")
+	}
+	if byDir["broken"].Loadable() {
+		t.Error("it still must not load")
 	}
 }

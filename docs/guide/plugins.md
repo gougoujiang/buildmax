@@ -231,6 +231,27 @@ deterministic, not to pick a winner.
 When your workspace overrides part of a plugin, `buildmax plugin status` says so
 under `shadowed:` rather than showing the plugin as fully active.
 
+## When Your Deployment Restricts Sources
+
+An operator can require that only certain kinds of plugin load on a machine
+they manage:
+
+```yaml
+# <BUILDMAX_HOME>/policy.yaml
+plugins:
+  allowed_sources: ["marketplace"]
+```
+
+`buildmax plugin list` says when a restriction is in force, and a plugin it
+excludes shows as `refused` with the reason rather than disappearing. A
+directory whose provenance cannot be established — a Marketplace copy whose
+record was lost, say — does not pass a policy that names one: unknown is not
+the source the operator asked for.
+
+This constrains where plugins come from, not what they may do. What a plugin
+that does load may do is [tool-permissions.md](tool-permissions.md) and
+[sandbox.md](sandbox.md).
+
 ## Before You Trust One
 
 A plugin runs with the same reach you have. Its skills and subagents are

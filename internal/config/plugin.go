@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
@@ -13,6 +14,39 @@ import (
 // keeps tests, workers, and isolated installations out of a contributor's real
 // plugins directory.
 func PluginsDir() string { return filepath.Join(DataDir(), "plugins") }
+
+// PluginPolicy is the operator-controlled `plugins` block of policy.yaml.
+//
+// It constrains where plugins may come from, not what they may do. Restricting
+// sources says which bytes are allowed to load; tool permissions, hook gates,
+// and the sandbox are what constrain the bytes that do.
+//
+// It is fleet management rather than a security boundary: policy.yaml sits in
+// the user's own BUILDMAX_HOME, so a local user can edit it. It is worth having
+// where an operator controls the machine — a managed device, a built image, a
+// container — and worth nothing against somebody who could equally write the
+// configuration by hand.
+type PluginPolicy struct {
+	// AllowedSources lists the source types that may load. Empty means every
+	// source loads, which is the state of a deployment that asserted nothing.
+	AllowedSources []string `mapstructure:"allowed_sources" json:"allowed_sources,omitempty" yaml:"allowed_sources,omitempty"`
+}
+
+// IsSet reports whether the operator constrained anything.
+func (p PluginPolicy) IsSet() bool { return len(p.AllowedSources) > 0 }
+
+// Allows reports whether a source may load under this policy.
+func (p PluginPolicy) Allows(source PluginSource) bool {
+	if !p.IsSet() {
+		return true
+	}
+	for _, allowed := range p.AllowedSources {
+		if PluginSource(strings.TrimSpace(allowed)) == source {
+			return true
+		}
+	}
+	return false
+}
 
 // DiscoveredPlugin is one directory under the plugins directory that holds a
 // plugin.yaml, whether or not that manifest turned out to be usable.
@@ -31,6 +65,12 @@ type DiscoveredPlugin struct {
 	// StateKnown is false when nothing recorded this directory, which is the
 	// normal condition of a manual `git clone`.
 	StateKnown bool
+
+	// PolicyRefused says the operator's source restriction is what stopped this
+	// plugin, so a surface can tell a decision from a defect. The reason is
+	// also in Findings, which is what carries it to every surface without each
+	// one having to know about policy.
+	PolicyRefused bool
 }
 
 // Name is the plugin's identity: the manifest name, falling back to the
@@ -47,6 +87,27 @@ func (d DiscoveredPlugin) Loadable() bool {
 	return !plugin.HasErrors(d.Findings) && !d.State.Disabled
 }
 
+// Source is where this directory came from.
+//
+// A recorded source is the answer when there is one. Otherwise the directory is
+// classified by looking: a checkout is a repository plugin and anything else is
+// a local one. That is decided here rather than persisted, because the
+// directory is the source of truth and a stored answer would go stale the first
+// time somebody ran `git init` in it.
+//
+// The look is a stat for `.git`, not a call to Git. Asking Git would answer for
+// the nearest enclosing repository, so a plugins directory inside somebody's
+// home checkout would make every plugin in it look like a clone.
+func (d DiscoveredPlugin) Source() PluginSource {
+	if d.State.Source != PluginSourceUnknown {
+		return d.State.Source
+	}
+	if _, err := os.Stat(filepath.Join(d.Path, ".git")); err == nil {
+		return PluginSourceRepository
+	}
+	return PluginSourceLocal
+}
+
 // PluginDiscovery is the result of scanning the plugins directory.
 type PluginDiscovery struct {
 	Dir     string
@@ -59,6 +120,10 @@ type PluginDiscovery struct {
 	// valid plugin still loads; what is lost is provenance and the disabled
 	// flag, and a caller must say so rather than report a clean scan.
 	StateErr error
+
+	// Policy is the source restriction this scan applied, so a surface can say
+	// that a plugin is missing by decision rather than by accident.
+	Policy PluginPolicy
 }
 
 // Loadable returns the plugins that should contribute to a runtime, in
@@ -73,16 +138,30 @@ func (d PluginDiscovery) Loadable() []DiscoveredPlugin {
 	return out
 }
 
-// DiscoverPlugins scans <BUILDMAX_HOME>/plugins.
-func DiscoverPlugins() PluginDiscovery { return DiscoverPluginsIn(PluginsDir()) }
+// DiscoverPlugins scans <BUILDMAX_HOME>/plugins under the deployment's policy.
+//
+// A policy that cannot be read is reported and treated as asserting nothing.
+// Refusing to load any plugin because policy.yaml has a typo would turn one
+// mistake into an outage, and the scan says what it could not apply.
+func DiscoverPlugins() PluginDiscovery {
+	policy, err := LoadPolicyFile()
+	result := DiscoverPluginsIn(PluginsDir(), policy.Plugins)
+	if err != nil {
+		result.Findings = append(result.Findings, plugin.Finding{
+			Severity: plugin.SeverityWarning,
+			Message:  "plugin policy could not be read, so no source restriction was applied: " + err.Error(),
+		})
+	}
+	return result
+}
 
 // DiscoverPluginsIn scans one plugins directory.
 //
 // Directory contents are the source of truth: a manually cloned repository is a
 // plugin the moment it holds a valid plugin.yaml, with no registry to generate
 // and no state file to write. Nothing here touches the network or Git.
-func DiscoverPluginsIn(dir string) PluginDiscovery {
-	result := PluginDiscovery{Dir: dir}
+func DiscoverPluginsIn(dir string, policy PluginPolicy) PluginDiscovery {
+	result := PluginDiscovery{Dir: dir, Policy: policy}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -148,7 +227,44 @@ func DiscoverPluginsIn(dir string) PluginDiscovery {
 		return result.Plugins[i].Dir < result.Plugins[j].Dir
 	})
 	markPluginNameCollisions(result.Plugins)
+	applyPluginPolicy(result.Plugins, policy)
 	return result
+}
+
+// applyPluginPolicy refuses the plugins an operator did not allow.
+//
+// This is the one place the supplemental state stops being optional. Source
+// type comes from .state.json unless the directory can be classified by
+// looking, so a Marketplace install that lost its record has provenance nobody
+// can establish — and unknown provenance is not the source an operator named.
+// Discovery stays fail-open where nothing was asserted and turns fail-closed
+// only where somebody asserted something, which is what each of those two
+// positions deserves.
+func applyPluginPolicy(plugins []DiscoveredPlugin, policy PluginPolicy) {
+	if !policy.IsSet() {
+		return
+	}
+	for i := range plugins {
+		source := plugins[i].Source()
+		if policy.Allows(source) {
+			continue
+		}
+		plugins[i].PolicyRefused = true
+		plugins[i].Findings = append(plugins[i].Findings, plugin.Finding{
+			Severity: plugin.SeverityError, Field: plugins[i].Dir,
+			Message: fmt.Sprintf("operator policy allows only %v, and this is a %s plugin",
+				policy.AllowedSources, sourceLabel(source)),
+		})
+	}
+}
+
+// sourceLabel names a source for a message, including the case where the
+// record that would have named it is gone.
+func sourceLabel(source PluginSource) string {
+	if source == PluginSourceUnknown {
+		return "plugin whose source could not be established"
+	}
+	return string(source)
 }
 
 // markPluginNameCollisions fails every side of a duplicate identity rather than

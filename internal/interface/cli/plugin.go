@@ -7,7 +7,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/git"
 
 	"github.com/spf13/cobra"
 )
@@ -159,6 +158,9 @@ func writePluginList(w io.Writer, d config.PluginDiscovery) error {
 
 // writeDiscoveryNotes reports what the scan noticed about the directory itself.
 func writeDiscoveryNotes(w io.Writer, d config.PluginDiscovery) error {
+	if d.Policy.IsSet() {
+		fmt.Fprintf(w, "\nOperator policy allows only these plugin sources: %v\n", d.Policy.AllowedSources)
+	}
 	if d.StateErr != nil {
 		fmt.Fprintf(w, "\nPlugin state could not be read, so source and disabled state are unknown: %v\n", d.StateErr)
 	}
@@ -171,18 +173,10 @@ func writeDiscoveryNotes(w io.Writer, d config.PluginDiscovery) error {
 	return nil
 }
 
-// pluginSourceLabel names where a directory came from. An unrecorded directory
-// is classified by looking, which is what makes a manual clone legible without
-// BuildMax having written anything into it.
+// pluginSourceLabel names where a directory came from, adding the release a
+// Marketplace copy is.
 func pluginSourceLabel(p config.DiscoveredPlugin) string {
-	src := p.State.Source
-	if src == config.PluginSourceUnknown {
-		if git.IsRepository(p.Path) {
-			src = config.PluginSourceRepository
-		} else {
-			src = config.PluginSourceLocal
-		}
-	}
+	src := p.Source()
 	if src == config.PluginSourceMarketplace && p.State.ReleaseVersion != "" {
 		return "marketplace " + p.State.ReleaseVersion
 	}
@@ -191,6 +185,10 @@ func pluginSourceLabel(p config.DiscoveredPlugin) string {
 
 func pluginStateLabel(p config.DiscoveredPlugin) string {
 	switch {
+	// A refusal is a decision, not a defect, and calling it an error would send
+	// somebody looking for a problem with the plugin.
+	case p.PolicyRefused:
+		return "refused"
 	case plugin.HasErrors(p.Findings):
 		return "error"
 	case p.State.Disabled:

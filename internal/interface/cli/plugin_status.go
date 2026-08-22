@@ -124,7 +124,7 @@ func writePluginSource(ctx context.Context, w io.Writer, p config.DiscoveredPlug
 		if p.State.Digest != "" {
 			fmt.Fprintf(w, "  digest:     %s\n", p.State.Digest)
 		}
-	case git.IsRepository(p.Path):
+	case p.Source() == config.PluginSourceRepository:
 		if fetch {
 			// The only path here that reaches the network, and only because it
 			// was asked for by name.
