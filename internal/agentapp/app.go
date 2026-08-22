@@ -63,6 +63,12 @@ type AppConfig struct {
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
 	ArtifactPublisher tools.ArtifactPublisher
+	// EnableBackgroundJobs turns on local background jobs: Bash gains
+	// run_in_background and the Job tools are registered. Only interactive
+	// surfaces (TUI, Desktop) set it — print mode has no host process to own
+	// a job, and eval and workers have no unattended lifecycle for one, per
+	// docs/design/local-background-jobs.md.
+	EnableBackgroundJobs bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -95,9 +101,9 @@ type AgentApp struct {
 	jobs                   *job.Manager
 }
 
-// Jobs returns the app's background job manager. One manager per AgentApp:
-// jobs are process-scoped but owned by this workspace's runtime, and closing
-// the app stops them.
+// Jobs returns the app's background job manager, or nil where background
+// jobs are disabled. One manager per AgentApp: jobs are process-scoped but
+// owned by this workspace's runtime, and closing the app stops them.
 func (a *AgentApp) Jobs() *job.Manager {
 	return a.jobs
 }
@@ -337,7 +343,9 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	app.plugins.addShadowed(app.skillsRegistry.shadowed...)
 	app.plugins.addFindings(app.subagentsRegistry.findings...)
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
-	app.jobs = job.NewManager()
+	if cfg.EnableBackgroundJobs {
+		app.jobs = job.NewManager()
+	}
 	return app, nil
 }
 
@@ -1062,7 +1070,7 @@ func (a *AgentApp) promptCapabilities() PromptCapabilities {
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher)...)
+	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, a.jobs)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)
@@ -1077,6 +1085,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 		if err == nil {
 			registry.AppendTools(taskTool)
 		}
+	}
+	// After BuildAgentTypes like Task, so subagents never see the job tools:
+	// a job must be owned by a session the user can still reach.
+	if a.jobs != nil {
+		registry.AppendTools(tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs))
 	}
 	return registry, nil
 }

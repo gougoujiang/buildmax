@@ -11,8 +11,10 @@ import (
 
 	"os"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 const (
@@ -27,6 +29,11 @@ type Bash struct {
 	// sandbox wraps spawned commands when Enabled(). Defaults to
 	// NoopSandbox so existing callers (and tests) keep today's behavior.
 	sandbox agent.SandboxView
+	// jobs enables run_in_background. Nil on surfaces without local
+	// background work (print mode, eval, workers): the parameter is then
+	// absent from the schema, following the artifact-publisher pattern of
+	// not offering a tool surface that only answers "unavailable".
+	jobs *job.Manager
 }
 
 // NewBash creates a Bash tool that runs commands under the given workspace root.
@@ -47,6 +54,14 @@ func (b *Bash) WithSandbox(v agent.SandboxView) *Bash {
 	} else {
 		out.sandbox = v
 	}
+	return &out
+}
+
+// WithJobs returns a copy of b that can detach commands to the given job
+// manager. Nil leaves background execution unavailable.
+func (b *Bash) WithJobs(m *job.Manager) *Bash {
+	out := *b
+	out.jobs = m
 	return &out
 }
 
@@ -73,23 +88,30 @@ func (b *Bash) Description() string {
 
 // Parameters returns the OpenAI-style JSON schema for the tool arguments.
 func (b *Bash) Parameters() any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"command": map[string]any{
-				"type":        "string",
-				"description": "The shell command to execute",
-			},
-			"timeout": map[string]any{
-				"type":        "number",
-				"description": "Optional timeout in milliseconds (default 120000, max 600000)",
-			},
-			"dangerously_disable_sandbox": map[string]any{
-				"type":        "boolean",
-				"description": "If the sandbox is causing this command to fail (e.g. tool incompatible with isolation), set true to retry the command outside the sandbox. The retry goes through the regular permission flow. Ignored when sandbox.allow_unsandboxed_commands is false (strict sandbox mode).",
-			},
+	properties := map[string]any{
+		"command": map[string]any{
+			"type":        "string",
+			"description": "The shell command to execute",
 		},
-		"required": []string{"command"},
+		"timeout": map[string]any{
+			"type":        "number",
+			"description": "Optional timeout in milliseconds (default 120000, max 600000)",
+		},
+		"dangerously_disable_sandbox": map[string]any{
+			"type":        "boolean",
+			"description": "If the sandbox is causing this command to fail (e.g. tool incompatible with isolation), set true to retry the command outside the sandbox. The retry goes through the regular permission flow. Ignored when sandbox.allow_unsandboxed_commands is false (strict sandbox mode).",
+		},
+	}
+	if b.jobs != nil {
+		properties["run_in_background"] = map[string]any{
+			"type":        "boolean",
+			"description": "Run the command as a background job and return its job ID immediately instead of waiting. Use for long builds, test suites, or servers. timeout then defaults to none. Read progress with JobOutput; stop with JobStop. The job shares this workspace.",
+		}
+	}
+	return map[string]any{
+		"type":       "object",
+		"properties": properties,
+		"required":   []string{"command"},
 	}
 }
 
@@ -151,28 +173,22 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 	if err != nil {
 		return "", err
 	}
+	if background, _ := args["run_in_background"].(bool); background {
+		return b.executeBackground(ctx, command, args)
+	}
 	timeout := parseTimeout(args)
 
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	disable, _ := args["dangerously_disable_sandbox"].(bool)
-	name, shellArgs, err := b.spawnArgs(runCtx, command, disable)
+	name, shellArgs, _, err := b.spawnArgs(runCtx, command, disable)
 	if err != nil {
 		return "", err
 	}
 	cmd := exec.CommandContext(runCtx, name, shellArgs...)
 	cmd.Dir = b.root
-	// Compose child env. When the sandbox is active, secret-shaped vars
-	// are stripped before adding the proxy routing env. Untouched
-	// otherwise so existing behaviour is unchanged.
-	if b.sandbox != nil {
-		extra := b.sandbox.ChildEnv()
-		scrubbed := b.sandbox.ScrubEnv(os.Environ())
-		if len(extra) > 0 || len(scrubbed) != len(os.Environ()) {
-			cmd.Env = append(scrubbed, extra...)
-		}
-	}
+	cmd.Env = b.childEnv()
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -195,6 +211,58 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 	return output, nil
 }
 
+// executeBackground detaches the command to the job manager. The permission
+// gate already ran on this call's arguments — detachment changes when the
+// call finishes, never what was allowed — and the argv, sandbox wrap, and
+// scrubbed environment are resolved exactly as the foreground path would.
+func (b *Bash) executeBackground(ctx context.Context, command string, args map[string]any) (string, error) {
+	if agent.SubagentFromCtx(ctx) {
+		return "Background execution is not available inside a subagent: the subagent's session is discarded when it returns, so the job would have no visible owner. Run the command in the foreground, or let the parent session start it.", nil
+	}
+	if b.jobs == nil {
+		return "Background execution is not available on this surface. Run the command in the foreground.", nil
+	}
+	disable, _ := args["dangerously_disable_sandbox"].(bool)
+	name, shellArgs, sandboxed, err := b.spawnArgs(ctx, command, disable)
+	if err != nil {
+		return "", err
+	}
+	sessionID, _ := session.SessionIDFromContext(ctx)
+	j, err := b.jobs.StartCommand(job.CommandSpec{
+		Command: command,
+		Name:    name,
+		Args:    shellArgs,
+		Dir:     b.root,
+		Env:     b.childEnv(),
+		Timeout: parseBackgroundTimeout(args),
+	}, job.Provenance{
+		Workspace: b.root,
+		SessionID: sessionID,
+		Sandboxed: sandboxed,
+	})
+	if err != nil {
+		return "Cannot start background job: " + err.Error(), nil
+	}
+	return "Started background job " + j.ID + " (pid " + strconv.Itoa(j.PID) + ").\n" +
+		"Read incremental output and status with JobOutput {\"job_id\": \"" + j.ID + "\"}; stop it with JobStop. " +
+		"The job runs in this workspace, so its file changes are shared with the conversation.", nil
+}
+
+// childEnv composes the child environment. When the sandbox is active,
+// secret-shaped vars are stripped before adding the proxy routing env; nil
+// otherwise so existing behavior (inherit everything) is unchanged.
+func (b *Bash) childEnv() []string {
+	if b.sandbox == nil {
+		return nil
+	}
+	extra := b.sandbox.ChildEnv()
+	scrubbed := b.sandbox.ScrubEnv(os.Environ())
+	if len(extra) > 0 || len(scrubbed) != len(os.Environ()) {
+		return append(scrubbed, extra...)
+	}
+	return nil
+}
+
 func parseTimeout(args map[string]any) time.Duration {
 	ms := defaultTimeoutMs
 	if v, ok := args["timeout"]; ok && v != nil {
@@ -208,30 +276,42 @@ func parseTimeout(args map[string]any) time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-// spawnArgs returns the (binary, argv) to exec for the given command. When
-// the sandbox is active and accepts the command, it returns the sandbox
-// wrap (e.g. bwrap argv on Linux); otherwise it returns the direct shell
-// invocation that has always been used.
+// parseBackgroundTimeout differs from the foreground rules: no default and no
+// cap. The foreground bounds exist to keep a turn from stalling; a background
+// job does not hold a turn, and a default would silently kill a dev server.
+func parseBackgroundTimeout(args map[string]any) time.Duration {
+	if v, ok := args["timeout"]; ok && v != nil {
+		if f, ok := toFloat64(v); ok && f > 0 {
+			return time.Duration(f) * time.Millisecond
+		}
+	}
+	return 0
+}
+
+// spawnArgs returns the (binary, argv) to exec for the given command, plus
+// whether that argv is a sandbox wrap. When the sandbox is active and accepts
+// the command, it returns the wrap (e.g. bwrap argv on Linux); otherwise the
+// direct shell invocation that has always been used.
 //
 // disable is the per-call dangerously_disable_sandbox arg from the LLM.
 // It is honored only when the sandbox's AllowUnsandboxed() reports true
 // ("strict sandbox mode" ignores the flag — matches Claude Code's
 // allowUnsandboxedCommands semantics).
-func (b *Bash) spawnArgs(ctx context.Context, command string, disable bool) (string, []string, error) {
+func (b *Bash) spawnArgs(ctx context.Context, command string, disable bool) (string, []string, bool, error) {
 	if b.sandbox != nil {
 		if !(disable && b.sandbox.AllowUnsandboxed()) {
 			shell, _ := b.directShellInvocation(command)
 			name, args, err := b.sandbox.WrapBashCommand(ctx, command, shell)
 			if err != nil {
-				return "", nil, err
+				return "", nil, false, err
 			}
 			if name != "" {
-				return name, args, nil
+				return name, args, true, nil
 			}
 		}
 	}
 	name, args := b.directShellInvocation(command)
-	return name, args, nil
+	return name, args, false, nil
 }
 
 // directShellInvocation returns the executable name and args to run the
