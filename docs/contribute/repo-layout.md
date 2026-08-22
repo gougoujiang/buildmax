@@ -165,6 +165,8 @@ internal/
 ├── interface/          Local user-facing entry points
 │   ├── cli/            Cobra CLI, Bubble Tea TUI, print mode
 │   ├── desktop/        Wails app bridge
+│   ├── pluginmgr/      Installing, publishing, and removing plugins locally —
+│   │                   the mechanism the CLI and Desktop both run
 │   ├── auth/           Login client and credential persistence
 │   └── client/         HTTP client for the BuildMax server API
 │

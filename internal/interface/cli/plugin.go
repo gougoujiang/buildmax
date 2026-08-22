@@ -7,6 +7,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/gougoujiang/buildmax/internal/interface/pluginmgr"
 
 	"github.com/spf13/cobra"
 )
@@ -106,20 +107,7 @@ func newPluginDisableCommand() *cobra.Command {
 // setPluginDisabled records the flag against the plugin's directory, which is
 // what .state.json is keyed by.
 func setPluginDisabled(w io.Writer, name string, disabled bool) error {
-	found, ok := findPlugin(config.DiscoverPlugins(), name)
-	if !ok {
-		return fmt.Errorf("no plugin named %q under %s", name, config.PluginsDir())
-	}
-	dir := config.PluginsDir()
-	// Only the flag is written. Recording the classification here would save a
-	// stat and freeze an answer the directory can change afterwards — a plugin
-	// that becomes a checkout would keep reporting itself as a plain copy.
-	err := config.UpdatePluginStates(dir, func(s *config.PluginStates) error {
-		st, _ := s.Get(found.Dir)
-		st.Disabled = disabled
-		s.Set(found.Dir, st)
-		return nil
-	})
+	resolved, err := pluginmgr.SetDisabled(name, disabled)
 	if err != nil {
 		return err
 	}
@@ -127,7 +115,7 @@ func setPluginDisabled(w io.Writer, name string, disabled bool) error {
 	if disabled {
 		verb = "disabled"
 	}
-	fmt.Fprintf(w, "%s %s. Runs already in flight keep the plugins they started with.\n", verb, found.Name())
+	fmt.Fprintf(w, "%s %s. Runs already in flight keep the plugins they started with.\n", verb, resolved)
 	return nil
 }
 

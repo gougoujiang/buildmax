@@ -47,6 +47,18 @@ func (s PluginSnapshot) Loadable() []config.DiscoveredPlugin { return s.Discover
 // HasErrors reports whether anything in the plugin layer failed to load.
 func (s PluginSnapshot) HasErrors() bool { return plugin.HasErrors(s.Findings) }
 
+// ShadowedNames lists what a higher layer overrode for one plugin, so a surface
+// can say a plugin is partly inactive without knowing how layering works.
+func (s PluginSnapshot) ShadowedNames(name string) []string {
+	var out []string
+	for _, sh := range s.Shadowed {
+		if sh.Loser.Layer == plugin.LayerPlugin && sh.Loser.Plugin == name {
+			out = append(out, sh.Name+" (overridden by "+sh.Winner.String()+")")
+		}
+	}
+	return out
+}
+
 // addFindings appends findings, skipping the empty case so a snapshot with
 // nothing wrong keeps a nil slice.
 func (s *PluginSnapshot) addFindings(f ...plugin.Finding) {

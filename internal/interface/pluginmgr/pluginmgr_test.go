@@ -1,4 +1,4 @@
-package cli
+package pluginmgr
 
 import (
 	"bytes"
@@ -125,9 +125,8 @@ func TestPluginInstallEndToEnd(t *testing.T) {
 	signIn(t, m.server.URL)
 	release := m.publish(t, "code-review", "1.2.0")
 
-	var buf bytes.Buffer
-	if err := runPluginInstall(context.Background(), &buf, "code-review", "", false, false); err != nil {
-		t.Fatalf("install: %v\n%s", err, buf.String())
+	if err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: false}); err != nil {
+		t.Fatalf("install: %v", err)
 	}
 
 	// The plugin is where a run would look for it, and loads.
@@ -159,7 +158,7 @@ func TestPluginInstallEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), pluginStagingPrefix) || strings.HasPrefix(e.Name(), pluginRetiredPrefix) {
+		if strings.HasPrefix(e.Name(), stagingPrefix) || strings.HasPrefix(e.Name(), retiredPrefix) {
 			t.Errorf("left behind %s", e.Name())
 		}
 	}
@@ -174,25 +173,29 @@ func TestPluginInstallSelectsARelease(t *testing.T) {
 	m.publish(t, "code-review", "1.2.0")
 	m.publish(t, "code-review", "2.0.0-rc.1")
 
-	var buf bytes.Buffer
-	if err := runPluginInstall(context.Background(), &buf, "code-review", "", false, false); err != nil {
+	if err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: false}); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 	if got := installedVersion(t); got != "1.2.0" {
 		t.Errorf("installed %s, want 1.2.0 rather than the prerelease", got)
 	}
 
-	// Installing the same release again is a no-op that says so.
-	buf.Reset()
-	if err := runPluginInstall(context.Background(), &buf, "code-review", "", false, false); err != nil {
+	// Asked for the release that is already there, the plan says so rather
+	// than downloading it again, and a surface reports that instead of acting.
+	session, err := Open()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "already installed") {
-		t.Errorf("output = %q", buf.String())
+	plan, err := session.Resolve(context.Background(), Options{Name: "code-review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.AlreadyInstalled || plan.Release.Version != "1.2.0" {
+		t.Errorf("plan = %+v", plan)
 	}
 
 	// A prerelease is reachable by name.
-	if err := runPluginInstall(context.Background(), &buf, "code-review", "2.0.0-rc.1", false, true); err != nil {
+	if err := installForTest(t, Options{Name: "code-review", Version: "2.0.0-rc.1", AllowYanked: false, RequireInstalled: true}); err != nil {
 		t.Fatalf("update to a named prerelease: %v", err)
 	}
 	if got := installedVersion(t); got != "2.0.0-rc.1" {
@@ -212,7 +215,7 @@ func TestPluginInstallRefusesBytesTheCatalogDoesNotName(t *testing.T) {
 	m.publish(t, "code-review", "1.0.0")
 	m.packages["1.0.0"] = append(m.packages["1.0.0"], 0x00)
 
-	err := runPluginInstall(context.Background(), &bytes.Buffer{}, "code-review", "", false, false)
+	err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: false})
 	if err == nil {
 		t.Fatal("a download the catalog does not name should be refused")
 	}
@@ -232,7 +235,7 @@ func TestPluginInstallRefusesATruncatedDownload(t *testing.T) {
 	m.packages["1.0.0"] = m.packages["1.0.0"][:len(m.packages["1.0.0"])-8]
 	m.servedDigest = release.Digest
 
-	err := runPluginInstall(context.Background(), &bytes.Buffer{}, "code-review", "", false, false)
+	err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: false})
 	if err == nil {
 		t.Fatal("a truncated download should be refused")
 	}
@@ -251,7 +254,7 @@ func TestPluginInstallRefusesToReplaceACheckout(t *testing.T) {
 	m.publish(t, "code-review", "1.0.0")
 	dir := makeCheckout(t, filepath.Join(home, "plugins", "code-review"), "name: code-review\n")
 
-	err := runPluginInstall(context.Background(), &bytes.Buffer{}, "code-review", "", false, false)
+	err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: false})
 	if err == nil || !strings.Contains(err.Error(), "Git checkout") {
 		t.Fatalf("err = %v, want a refusal naming the checkout", err)
 	}
@@ -267,7 +270,7 @@ func TestPluginUpdateRequiresAnInstalledPlugin(t *testing.T) {
 	signIn(t, m.server.URL)
 	m.publish(t, "code-review", "1.0.0")
 
-	err := runPluginInstall(context.Background(), &bytes.Buffer{}, "code-review", "", false, true)
+	err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: true})
 	if err == nil || !strings.Contains(err.Error(), "not installed") {
 		t.Errorf("err = %v, want a refusal", err)
 	}
@@ -278,12 +281,11 @@ func TestPluginUninstall(t *testing.T) {
 	m := newFakeMarketplace(t)
 	signIn(t, m.server.URL)
 	m.publish(t, "code-review", "1.0.0")
-	if err := runPluginInstall(context.Background(), &bytes.Buffer{}, "code-review", "", false, false); err != nil {
+	if err := installForTest(t, Options{Name: "code-review", Version: "", AllowYanked: false, RequireInstalled: false}); err != nil {
 		t.Fatal(err)
 	}
 
-	var buf bytes.Buffer
-	if err := runPluginUninstall(&buf, "code-review", false); err != nil {
+	if err := uninstallForTest(t, "code-review", false); err != nil {
 		t.Fatalf("uninstall: %v", err)
 	}
 	assertNothingInstalled(t, home)
@@ -294,7 +296,7 @@ func TestPluginUninstall(t *testing.T) {
 	if _, recorded := states.Get("code-review"); recorded {
 		t.Error("uninstall left provenance behind")
 	}
-	if err := runPluginUninstall(&buf, "code-review", false); err == nil {
+	if err := uninstallForTest(t, "code-review", false); err == nil {
 		t.Error("uninstalling twice should say there is nothing there")
 	}
 }
@@ -304,14 +306,14 @@ func TestPluginUninstallRefusesACheckoutWithoutForce(t *testing.T) {
 	home := marketplaceHome(t)
 	dir := makeCheckout(t, filepath.Join(home, "plugins", "code-review"), "name: code-review\n")
 
-	err := runPluginUninstall(&bytes.Buffer{}, "code-review", false)
-	if err == nil || !strings.Contains(err.Error(), "--force") {
-		t.Fatalf("err = %v, want a refusal naming --force", err)
+	err := uninstallForTest(t, "code-review", false)
+	if !errors.Is(err, ErrIsCheckout) {
+		t.Fatalf("err = %v, want the checkout refusal", err)
 	}
 	if _, statErr := os.Stat(dir); statErr != nil {
 		t.Error("the checkout was removed anyway")
 	}
-	if err := runPluginUninstall(&bytes.Buffer{}, "code-review", true); err != nil {
+	if err := uninstallForTest(t, "code-review", true); err != nil {
 		t.Fatalf("forced uninstall: %v", err)
 	}
 	if _, statErr := os.Stat(dir); !errors.Is(statErr, os.ErrNotExist) {
@@ -383,3 +385,32 @@ func makeCheckout(t *testing.T, dir, manifest string) string {
 	}
 	return dir
 }
+
+// uninstallForTest keeps the tests reading as the command does, now that the
+// mechanism moved and only the printing stayed.
+func uninstallForTest(t *testing.T, name string, force bool) error {
+	t.Helper()
+	_, err := Uninstall(name, force)
+	return err
+}
+
+// installForTest resolves and installs, which is what a surface does either
+// side of showing somebody what is about to change.
+func installForTest(t *testing.T, opts Options) error {
+	t.Helper()
+	session, err := Open()
+	if err != nil {
+		return err
+	}
+	plan, err := session.Resolve(context.Background(), opts)
+	if err != nil {
+		return err
+	}
+	if plan.AlreadyInstalled {
+		return errAlreadyInstalled
+	}
+	return session.Install(context.Background(), opts, plan.Release)
+}
+
+// errAlreadyInstalled marks the no-op a surface reports rather than performs.
+var errAlreadyInstalled = errors.New("already installed")

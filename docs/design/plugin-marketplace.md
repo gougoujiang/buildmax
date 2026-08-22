@@ -800,7 +800,14 @@ to manage or explicitly confirm removal.
 
 ### 9.2 Desktop
 
-Desktop uses the same Go services to show:
+Desktop reports what a project's runtime resolved rather than what the plugins
+directory holds: a plugin whose skill a workspace overrides is not contributing
+that skill however installed it is. Installing, updating, and removing go
+through the same mechanism the CLI runs, and every action rebuilds the assembled
+runtimes — a runtime keeps the inventory it started with, and Desktop is the
+surface where the same person does both.
+
+It shows:
 
 - repository, local, or Marketplace source, and whether operator policy
   restricts which of those load;
