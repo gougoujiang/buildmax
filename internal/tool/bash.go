@@ -107,6 +107,10 @@ func (b *Bash) Parameters() any {
 			"type":        "boolean",
 			"description": "Run the command as a background job and return its job ID immediately instead of waiting. Use for long builds, test suites, or servers. timeout then defaults to none. Read progress with JobOutput; stop with JobStop. The job shares this workspace.",
 		}
+		properties["deliver_result"] = map[string]any{
+			"type":        "boolean",
+			"description": "With run_in_background: when true, the command's completion is delivered into this conversation with its result. Otherwise completion is only shown in the UI and readable via JobOutput.",
+		}
 	}
 	return map[string]any{
 		"type":       "object",
@@ -228,6 +232,7 @@ func (b *Bash) executeBackground(ctx context.Context, command string, args map[s
 		return "", err
 	}
 	sessionID, _ := session.SessionIDFromContext(ctx)
+	deliver, _ := args["deliver_result"].(bool)
 	j, err := b.jobs.StartCommand(job.CommandSpec{
 		Command: command,
 		Name:    name,
@@ -235,6 +240,7 @@ func (b *Bash) executeBackground(ctx context.Context, command string, args map[s
 		Dir:     b.root,
 		Env:     b.childEnv(),
 		Timeout: parseBackgroundTimeout(args),
+		Deliver: deliver,
 	}, job.Provenance{
 		Workspace:        b.root,
 		SessionID:        sessionID,

@@ -752,6 +752,19 @@ func traceRunFromContext(ctx context.Context) traceRunContext {
 }
 
 func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt string, opts RunPromptOpts) (RunResult, error) {
+	return a.runTurn(ctx, sess, prompt, nil, opts)
+}
+
+// RunBackgroundEvent runs one serialized turn caused by a background job
+// event rather than a user prompt. The appended message carries the event's
+// non-user Source and an envelope framing the payload as untrusted
+// observation; UserPromptSubmit does not fire, because nothing here is a
+// user prompt. Serialization against the session is the same as RunPrompt's.
+func (a *AgentApp) RunBackgroundEvent(ctx context.Context, sess *SessionContext, ev BackgroundEvent, opts RunPromptOpts) (RunResult, error) {
+	return a.runTurn(ctx, sess, "", &ev, opts)
+}
+
+func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt string, event *BackgroundEvent, opts RunPromptOpts) (RunResult, error) {
 	sess, modelName, client, err := a.resolveRunContext(sess)
 	if err != nil {
 		return RunResult{}, err
@@ -801,36 +814,44 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 	// Give hooks a chance to inspect / reject the prompt before it enters
 	// history or the LLM. A block short-circuits the turn: the prompt is
 	// not appended, the LLM is not called, and the user receives the
-	// hook's reason as the reply.
-	promptHook := a.hooks.Run(ctx, agent.HookInput{
-		Event:     agent.HookUserPromptSubmit,
-		SessionID: sess.ID,
-		Workspace: a.workspaceRoot,
-		Prompt:    prompt,
-	})
-	if promptHook.Blocked() {
-		reason := promptHook.Reason
-		if reason == "" {
-			reason = "prompt blocked by hook"
+	// hook's reason as the reply. Background events skip this: they are not
+	// user prompts, and running a user-prompt hook on them would apply the
+	// wrong contract.
+	if event == nil {
+		promptHook := a.hooks.Run(ctx, agent.HookInput{
+			Event:     agent.HookUserPromptSubmit,
+			SessionID: sess.ID,
+			Workspace: a.workspaceRoot,
+			Prompt:    prompt,
+		})
+		if promptHook.Blocked() {
+			reason := promptHook.Reason
+			if reason == "" {
+				reason = "prompt blocked by hook"
+			}
+			recorder.RecordRunEnd("blocked by hook: " + reason)
+			status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
+			return RunResult{
+				Reply:                 reason,
+				Duration:              time.Since(start),
+				TotalPromptTokens:     sess.PromptTokens,
+				TotalCompletionTokens: sess.CompletionTokens,
+				ContextTokens:         status.ContextTokens,
+				ContextWindow:         status.ContextWindow,
+				SessionID:             sess.ID,
+				Workspace:             a.workspaceRoot,
+				ModelName:             modelName,
+				TraceID:               recorder.RunID(),
+				TracePath:             recorder.Path(),
+			}, nil
 		}
-		recorder.RecordRunEnd("blocked by hook: " + reason)
-		status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
-		return RunResult{
-			Reply:                 reason,
-			Duration:              time.Since(start),
-			TotalPromptTokens:     sess.PromptTokens,
-			TotalCompletionTokens: sess.CompletionTokens,
-			ContextTokens:         status.ContextTokens,
-			ContextWindow:         status.ContextWindow,
-			SessionID:             sess.ID,
-			Workspace:             a.workspaceRoot,
-			ModelName:             modelName,
-			TraceID:               recorder.RunID(),
-			TracePath:             recorder.Path(),
-		}, nil
 	}
 
-	if err := sess.Append(cllm.Message{Role: "user", Content: prompt}); err != nil {
+	turnMsg := cllm.Message{Role: "user", Content: prompt}
+	if event != nil {
+		turnMsg = event.message()
+	}
+	if err := sess.Append(turnMsg); err != nil {
 		return RunResult{}, err
 	}
 
@@ -1096,7 +1117,10 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.
 	if a.jobs != nil {
-		registry.AppendTools(tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs))
+		registry.AppendTools(
+			tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs),
+			tools.NewMonitor(a.workspaceRoot).WithSandbox(a.Sandbox()).WithJobs(a.jobs),
+		)
 	}
 	return registry, nil
 }

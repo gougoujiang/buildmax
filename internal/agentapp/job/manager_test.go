@@ -223,7 +223,7 @@ func TestSubagentJobLifecycle(t *testing.T) {
 	events, cancel := m.Subscribe("")
 	defer cancel()
 
-	j, err := m.StartSubagent("investigate flaky test", 0, Provenance{SessionID: "s1", ParentTraceID: "rt_p", ParentToolCallID: "call_t"},
+	j, err := m.StartSubagent(SubagentSpec{Description: "investigate flaky test"}, Provenance{SessionID: "s1", ParentTraceID: "rt_p", ParentToolCallID: "call_t"},
 		func(ctx context.Context) (string, error) { return "the answer", nil })
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +255,7 @@ func TestSubagentJobFailure(t *testing.T) {
 	events, cancel := m.Subscribe("")
 	defer cancel()
 
-	if _, err := m.StartSubagent("doomed", 0, Provenance{},
+	if _, err := m.StartSubagent(SubagentSpec{Description: "doomed"}, Provenance{},
 		func(ctx context.Context) (string, error) { return "", errors.New("model unavailable") }); err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,7 @@ func TestSubagentJobStopCancelsContext(t *testing.T) {
 	defer cancel()
 
 	started := make(chan struct{})
-	j, err := m.StartSubagent("long delegation", 0, Provenance{},
+	j, err := m.StartSubagent(SubagentSpec{Description: "long delegation"}, Provenance{},
 		func(ctx context.Context) (string, error) {
 			close(started)
 			<-ctx.Done()
@@ -297,7 +297,7 @@ func TestSubagentJobLimit(t *testing.T) {
 	defer closeManager(t, m)
 
 	block := make(chan struct{})
-	j, err := m.StartSubagent("first", 0, Provenance{}, func(ctx context.Context) (string, error) {
+	j, err := m.StartSubagent(SubagentSpec{Description: "first"}, Provenance{}, func(ctx context.Context) (string, error) {
 		select {
 		case <-block:
 		case <-ctx.Done():
@@ -307,7 +307,7 @@ func TestSubagentJobLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.StartSubagent("second", 0, Provenance{}, func(ctx context.Context) (string, error) { return "", nil }); err == nil {
+	if _, err := m.StartSubagent(SubagentSpec{Description: "second"}, Provenance{}, func(ctx context.Context) (string, error) { return "", nil }); err == nil {
 		t.Fatal("expected limit refusal")
 	}
 	close(block)

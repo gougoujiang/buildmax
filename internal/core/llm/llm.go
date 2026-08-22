@@ -11,6 +11,12 @@ type Message struct {
 	Content    string     `json:"content,omitempty"`      // message content
 	ToolCallID string     `json:"tool_call_id,omitempty"` // for role "tool": the ID of the tool call this result answers
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // for role "assistant": tool calls made by the model
+	// Source records non-user provenance for a user-role message. Model
+	// providers share no portable mid-history event role, so a background
+	// event travels on the wire as a user message — but the persisted history
+	// and the trace must not claim the user said it. Empty means genuinely
+	// user-authored. Wire adapters map fields explicitly and never send it.
+	Source string `json:"source,omitempty"`
 	// ProviderState is opaque reasoning state the producing protocol requires
 	// back on later turns. For role "assistant" only. See ProviderState.
 	ProviderState *ProviderState `json:"provider_state,omitempty"`
@@ -24,6 +30,14 @@ type Message struct {
 const (
 	ContentPartText  = "text"
 	ContentPartImage = "image"
+)
+
+// Message sources for background-event provenance. See Message.Source; the
+// set mirrors docs/design/local-background-jobs.md.
+const (
+	MessageSourceCommandResult  = "command_result"
+	MessageSourceSubagentResult = "subagent_result"
+	MessageSourceMonitorEvent   = "monitor_event"
 )
 
 // ContentPart is one piece of a message's content.

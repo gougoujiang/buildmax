@@ -9,6 +9,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 func testAgentAppWithJobs(t *testing.T, workspace string) *agentapp.AgentApp {
@@ -91,6 +92,81 @@ func TestSlashTasksPanelListsAndStops(t *testing.T) {
 	rendered = panel.Render(mod, 120)
 	if !strings.Contains(rendered, "canceled") {
 		t.Fatalf("render after stop = %q", rendered)
+	}
+}
+
+func deliverableJob(m *Model, kind job.Kind) job.Job {
+	return job.Job{
+		ID: "jb_deliver", Kind: kind, State: job.StateSucceeded, Deliver: true,
+		Command:    "npm test",
+		Provenance: job.Provenance{SessionID: m.opts.Session.ID},
+	}
+}
+
+// A requested delivery queues a wake-up for the owning session; other
+// sessions' jobs and non-requested completions only notify.
+func TestJobEventQueuesRequestedDelivery(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+
+	_, cmd := handleJobEvent(m, jobEventMsg{Event: job.Event{Job: deliverableJob(m, job.KindCommand)}})
+	if len(m.pendingJobEvents) != 1 {
+		t.Fatalf("pending = %d, want 1", len(m.pendingJobEvents))
+	}
+	if cmd == nil {
+		t.Fatal("idle model should get a drain command")
+	}
+	ev := m.pendingJobEvents[0]
+	if ev.Source != llm.MessageSourceCommandResult || ev.JobID != "jb_deliver" {
+		t.Fatalf("event = %+v", ev)
+	}
+
+	// Subagent kind maps to subagent_result.
+	m.pendingJobEvents = nil
+	_, _ = handleJobEvent(m, jobEventMsg{Event: job.Event{Job: deliverableJob(m, job.KindSubagent)}})
+	if m.pendingJobEvents[0].Source != llm.MessageSourceSubagentResult {
+		t.Fatalf("event = %+v", m.pendingJobEvents[0])
+	}
+
+	// Another session's job does not wake this one.
+	m.pendingJobEvents = nil
+	other := deliverableJob(m, job.KindCommand)
+	other.Provenance.SessionID = "someone-else"
+	_, _ = handleJobEvent(m, jobEventMsg{Event: job.Event{Job: other}})
+	if len(m.pendingJobEvents) != 0 {
+		t.Fatalf("pending = %d, want 0 for another session", len(m.pendingJobEvents))
+	}
+
+	// A completion nobody asked to deliver only notifies.
+	quiet := deliverableJob(m, job.KindCommand)
+	quiet.Deliver = false
+	_, _ = handleJobEvent(m, jobEventMsg{Event: job.Event{Job: quiet}})
+	if len(m.pendingJobEvents) != 0 {
+		t.Fatalf("pending = %d, want 0 without deliver", len(m.pendingJobEvents))
+	}
+}
+
+func TestJobEventQueuesReactMonitorLine(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	watcher := deliverableJob(m, job.KindMonitor)
+	watcher.State = job.StateRunning
+
+	_, _ = handleJobEvent(m, jobEventMsg{Event: job.Event{
+		Job: watcher, Type: job.EventMonitorLine, Line: "ERROR boom", DroppedLines: 3,
+	}})
+	if len(m.pendingJobEvents) != 1 {
+		t.Fatalf("pending = %d, want 1", len(m.pendingJobEvents))
+	}
+	ev := m.pendingJobEvents[0]
+	if ev.Source != llm.MessageSourceMonitorEvent || !strings.Contains(ev.Payload, "ERROR boom") || !strings.Contains(ev.Payload, "3 earlier lines") {
+		t.Fatalf("event = %+v", ev)
+	}
+
+	// A notify-only monitor line queues nothing.
+	m.pendingJobEvents = nil
+	watcher.Deliver = false
+	_, _ = handleJobEvent(m, jobEventMsg{Event: job.Event{Job: watcher, Type: job.EventMonitorLine, Line: "info"}})
+	if len(m.pendingJobEvents) != 0 {
+		t.Fatalf("pending = %d, want 0 for notify-only", len(m.pendingJobEvents))
 	}
 }
 
