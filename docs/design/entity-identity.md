@@ -112,7 +112,7 @@ RFC 4648 base32, no padding, lowercased: alphabet `a-z2-7`, exactly 20
 characters, decoding to exactly 12 bytes.
 
 ```text
-k7m2q4xz9rvt3bc8ndfp
+ivyoh5qcfu6ypfkhyedq
 ```
 
 The proposal specified 16 characters of base64url. Base32 costs four more
@@ -151,6 +151,11 @@ rejects everything else, and guarantees exactly one canonical text form per
 value by re-encoding the decoded bytes and requiring the result to match. That
 check is what closes base32's trailing-bit ambiguity: 20 characters carry 100
 bits, and the final four must be zero.
+
+One visible consequence of that check: a canonical ID always ends in `a` or
+`q`, because those are the only two characters whose low four bits are zero. An
+invented fixture that ends in anything else is not a public ID. Take test
+values from the generator, not from imagination.
 
 `FormatPublicID` on a slice that is not 12 bytes is a programming error and
 returns the empty string, which the store's read path treats as corruption.
@@ -432,9 +437,9 @@ its own handle as `id`; relationships keep semantic names:
 
 ```json
 {
-  "id": "k7m2q4xz9rvt3bc8ndfp",
-  "team_id": "q9wd4h2ncr7vk3sxzmtb",
-  "conversation_id": "f4n7wk2pr9mx6cdeb3sa",
+  "id": "ivyoh5qcfu6ypfkhyedq",
+  "team_id": "lzmomgl6mzg2bve3bgka",
+  "conversation_id": "2l73hqqx6fcl7eecggda",
   "status": "SUCCEEDED"
 }
 ```

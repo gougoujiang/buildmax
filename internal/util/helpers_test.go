@@ -164,3 +164,23 @@ func TestFormatUnixMinute(t *testing.T) {
 		t.Fatalf("FormatUnixMinute() = %q, want %q", got, want)
 	}
 }
+
+// TestWorkerJobNameForTaskRunAt_PublicIDSurvivesSanitizing is the reason public
+// IDs are base32 rather than base64url. This sanitizer lowercases its input and
+// rewrites every character Kubernetes will not take, and its only suffix is a
+// second-resolution timestamp — so an encoding that folds under those rules can
+// give two runs created in the same second one Job name.
+func TestWorkerJobNameForTaskRunAt_PublicIDSurvivesSanitizing(t *testing.T) {
+	id, err := NewPublicID()
+	if err != nil {
+		t.Fatalf("NewPublicID() error = %v", err)
+	}
+	got := WorkerJobNameForTaskRunAt(id, time.Unix(1700000000, 0))
+	want := "buildmax-worker-" + id + "-1700000000"
+	if got != want {
+		t.Fatalf("WorkerJobNameForTaskRunAt(%q) = %q, want %q", id, got, want)
+	}
+	if len(got) > 63 {
+		t.Fatalf("WorkerJobNameForTaskRunAt(%q) length = %d, want <= 63", id, len(got))
+	}
+}
