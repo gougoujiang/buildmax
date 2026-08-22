@@ -4,6 +4,7 @@ import {
   AdminAudit,
   AdminModels,
   AdminOverview,
+  AdminPlugins,
   AdminTeams,
   useAdminAccess,
 } from "../../features/admin"
@@ -15,7 +16,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import UsageIcon from "../../icons/usage.svg?react"
 import ToolboxIcon from "../../icons/toolbox.svg?react"
 
-export type AdminSection = "overview" | "accounts" | "teams" | "models" | "audit"
+export type AdminSection = "overview" | "accounts" | "teams" | "models" | "plugins" | "audit"
 
 interface AdminNavItem {
   id: AdminSection
@@ -33,6 +34,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { id: "accounts", label: "Accounts", icon: AgentsIcon },
   { id: "teams", label: "Spaces", icon: IssueIcon },
   { id: "models", label: "Models", icon: ToolboxIcon },
+  { id: "plugins", label: "Plugins", icon: ToolboxIcon },
   { id: "audit", label: "Audit", icon: UsageIcon },
 ]
 
@@ -103,6 +105,7 @@ export function AdminSettings({ section }: { section: AdminSection }) {
         {section === "accounts" ? <AdminAccounts token={token} /> : null}
         {section === "teams" ? <AdminTeams token={token} /> : null}
         {section === "models" ? <AdminModels token={token} /> : null}
+        {section === "plugins" ? <AdminPlugins token={token} /> : null}
         {section === "audit" ? <AdminAudit token={token} currentUserId={user?.id} /> : null}
       </div>
     </div>

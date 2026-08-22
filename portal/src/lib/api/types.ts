@@ -548,6 +548,85 @@ export interface ApiAdminModelsResponse {
   default_alias?: string
 }
 
+/** One catalog entry in the private plugin Marketplace. */
+export interface ApiPlugin {
+  plugin_id: string
+  name: string
+  display_name?: string
+  description?: string
+  /** Non-zero means retired: out of the default catalog, and no new releases. */
+  archived_at?: number
+  created_by: string
+  created_at: number
+  updated_at: number
+}
+
+/**
+ * What a release says it contributes.
+ *
+ * Names, transports, executables, and hosts — never arguments, header values,
+ * environment values, prompts, or file contents. The server's inspection is
+ * what decides that, and this shape can only carry what it kept.
+ */
+export interface ApiPluginInspection {
+  skills?: string[]
+  subagents?: { name: string; tools?: string[]; model?: string }[]
+  mcp?: { id: string; transport: string; executable?: string; host?: string }[]
+  hooks?: {
+    event: string
+    type: string
+    matcher?: string
+    executable?: string
+    host?: string
+    mcp_server?: string
+    mcp_tool?: string
+  }[]
+  env_refs?: string[]
+  plugin_paths?: string[]
+  warnings?: string[]
+}
+
+/**
+ * The publisher's claim about the checkout the bytes came from.
+ *
+ * Unlike the digest, the server cannot verify any of it, so it is shown as a
+ * claim rather than as proof.
+ */
+export interface ApiPluginReleaseSource {
+  remote_url?: string
+  commit?: string
+  branch?: string
+  dirty?: boolean
+}
+
+/** One immutable published version. */
+export interface ApiPluginRelease {
+  plugin_release_id: string
+  plugin_id: string
+  plugin_name: string
+  version: string
+  min_buildmax_version?: string
+  digest: string
+  object_key: string
+  size_bytes: number
+  inspection: ApiPluginInspection
+  source: ApiPluginReleaseSource
+  published_by: string
+  published_at: number
+  /** Non-zero means withdrawn from default selection. Nothing is deleted. */
+  yanked_at?: number
+  yanked_by?: string
+  yanked_reason?: string
+}
+
+export interface ApiPluginsResponse {
+  plugins: ApiPlugin[]
+}
+
+export interface ApiPluginReleasesResponse {
+  releases: ApiPluginRelease[]
+}
+
 /** Whether a credential is configured. Never its value, length, or prefix. */
 export interface ApiSecretStatus {
   set: boolean
