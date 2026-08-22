@@ -336,11 +336,11 @@ func TestDocumentedMakeCommandsExist(t *testing.T) {
 	seen := map[string]bool{}
 
 	for _, file := range markdownFiles(t, root) {
-		rel, _ := filepath.Rel(root, file)
+		rel := docPath(root, file)
 		// Design records describe the plan of the day. AGENTS.md settles a
 		// conflict in favour of current code, so a record naming a command that
 		// has since been renamed is history rather than drift.
-		if strings.HasPrefix(rel, filepath.Join("docs", "design")) {
+		if strings.HasPrefix(rel, "docs/design/") {
 			continue
 		}
 		body, err := os.ReadFile(file)
@@ -412,8 +412,8 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 	seen := map[string]bool{}
 
 	for _, file := range markdownFiles(t, root) {
-		rel, _ := filepath.Rel(root, file)
-		if strings.HasPrefix(rel, filepath.Join("docs", "design")) {
+		rel := docPath(root, file)
+		if strings.HasPrefix(rel, "docs/design/") {
 			continue
 		}
 		body, err := os.ReadFile(file)
@@ -456,8 +456,8 @@ var undocumentedCLICommands = map[string]string{
 // the command list, so a command missing from it is one nobody finds.
 func TestCLIReferenceCoversEveryCommand(t *testing.T) {
 	root := repoRoot(t)
-	page := filepath.Join("docs", "reference", "cli.md")
-	body, err := os.ReadFile(filepath.Join(root, page))
+	const page = "docs/reference/cli.md"
+	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(page)))
 	if err != nil {
 		t.Fatalf("read %s: %v", page, err)
 	}
@@ -522,6 +522,18 @@ func rootCLICommands(t *testing.T, root string) []string {
 		t.Fatalf("found only %d root commands; the registration shape changed", len(names))
 	}
 	return names
+}
+
+// docPath is the repository-relative path with forward slashes, so a key and a
+// message read the same on every platform. The Windows job found the need for
+// it: filepath.Rel hands back backslashes there, so every known-drift entry
+// both fired as an error and was reported as never seen.
+func docPath(root, file string) string {
+	rel, err := filepath.Rel(root, file)
+	if err != nil {
+		return file
+	}
+	return filepath.ToSlash(rel)
 }
 
 // assertAllReported fails for a known-drift entry that nothing found, so the
