@@ -50,6 +50,59 @@ buildmax plugin disable code-review
 buildmax plugin enable code-review
 ```
 
+## Install One From Your Deployment
+
+If your BuildMax server publishes a plugin catalog, installing is a name rather
+than a URL:
+
+```bash
+buildmax login                    # once, if you have not
+buildmax plugin install code-review
+```
+
+You get the newest release that is not a prerelease, not withdrawn, and not
+newer than your build supports. `--version` takes an exact one — including a
+prerelease, which the default deliberately skips.
+
+Before the bytes land, BuildMax checks them twice: the digest the server sent
+against the one the catalog published, and then the bytes themselves against
+that same record. The first catches a server serving something else; the second
+catches a download cut short under a header that described the whole thing.
+
+A withdrawn release still installs with `--allow-yanked`, and says why it was
+withdrawn when you ask for it without. Yanking takes a release out of the
+default choice; it does not delete it, and a copy you already have keeps
+working.
+
+```bash
+buildmax plugin update code-review
+buildmax plugin uninstall code-review
+```
+
+Installing never replaces a Git checkout, and `uninstall` will not delete one
+without `--force`. A working tree can hold work that exists nowhere else, and
+neither command is one you expect to lose it to.
+
+## Publish One
+
+Publishing needs a System Administrator grant on the server you are signed in
+to:
+
+```bash
+buildmax plugin publish ./code-review
+```
+
+The version comes from the directory's own `plugin.yaml`, so a release is a
+line in a commit rather than an argument in one person's shell history.
+Publishing a version that already exists is refused even for identical bytes: a
+release is what somebody reviewed and what somebody else downloaded.
+
+The server does not take your word for any of it. It hashes what it receives,
+unpacks it, and reads it with the same parsers a run uses — so a package that
+would not load cannot be published. If the directory is a Git checkout, the
+remote, commit, and whether the tree was dirty travel with it and are recorded
+as the publisher's claim beside a digest the server calculated itself.
+
 ## What A Plugin Contains
 
 ```text

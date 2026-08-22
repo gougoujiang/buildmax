@@ -7,36 +7,14 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
+	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
 
-// AdminPluginsResponse is the catalog as an administrator sees it, archived
-// entries included: hiding a retired entry from the person who retired it would
-// leave no way to restore it.
-type AdminPluginsResponse struct {
-	Plugins []model.Plugin `json:"plugins"`
-}
-
-// AdminPluginReleasesResponse lists one plugin's releases, yanked ones
-// included, for the same reason.
-type AdminPluginReleasesResponse struct {
-	Releases []model.PluginRelease `json:"releases"`
-}
-
-// CreateAdminPluginRequest reserves a catalog name.
-type CreateAdminPluginRequest struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name,omitempty"`
-	Description string `json:"description,omitempty"`
-}
-
-// YankAdminPluginReleaseRequest withdraws one release.
-type YankAdminPluginReleaseRequest struct {
-	// Reason is shown to anyone who asks for the version afterwards, so it is
-	// worth writing for a person rather than for a log.
-	Reason string `json:"reason,omitempty"`
-}
+// The catalog as an administrator sees it includes archived entries and yanked
+// releases: hiding a retired entry from the person who retired it would leave
+// no way to restore it.
 
 // listAdminPluginsHandler serves GET /api/admin/plugins.
 func (h *Handler) listAdminPluginsHandler(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +29,7 @@ func (h *Handler) listAdminPluginsHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_plugins")
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, AdminPluginsResponse{Plugins: plugins})
+	httputil.WriteJSON(w, http.StatusOK, pluginwire.CatalogResponse{Plugins: plugins})
 }
 
 // listAdminPluginReleasesHandler serves GET /api/admin/plugins/{plugin_name}/releases.
@@ -71,7 +49,7 @@ func (h *Handler) listAdminPluginReleasesHandler(w http.ResponseWriter, r *http.
 		writePluginError(w, err, "admin_list_plugin_releases", name)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, AdminPluginReleasesResponse{Releases: releases})
+	httputil.WriteJSON(w, http.StatusOK, pluginwire.ReleasesResponse{Releases: releases})
 }
 
 // createAdminPluginHandler serves POST /api/admin/plugins.
@@ -83,7 +61,7 @@ func (h *Handler) createAdminPluginHandler(w http.ResponseWriter, r *http.Reques
 	if !h.requirePlugins(w) {
 		return
 	}
-	var req CreateAdminPluginRequest
+	var req pluginwire.CreatePluginRequest
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
@@ -120,15 +98,15 @@ func (h *Handler) publishAdminPluginReleaseHandler(w http.ResponseWriter, r *htt
 		return
 	}
 	q := r.URL.Query()
-	dirty, _ := strconv.ParseBool(q.Get("source_dirty"))
+	dirty, _ := strconv.ParseBool(q.Get(pluginwire.QuerySourceDirty))
 
 	release, err := h.cfg.Plugins.Publish(r.Context(), pluginsvc.PublishInput{
 		PluginName: name,
 		Body:       r.Body,
 		Source: model.PluginReleaseSource{
-			RemoteURL: q.Get("source_remote"),
-			Commit:    q.Get("source_commit"),
-			Branch:    q.Get("source_branch"),
+			RemoteURL: q.Get(pluginwire.QuerySourceRemote),
+			Commit:    q.Get(pluginwire.QuerySourceCommit),
+			Branch:    q.Get(pluginwire.QuerySourceBranch),
 			Dirty:     dirty,
 		},
 		ActorID: actorID,
@@ -158,7 +136,7 @@ func (h *Handler) yankAdminPluginReleaseHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	var req YankAdminPluginReleaseRequest
+	var req pluginwire.YankReleaseRequest
 	// A body is optional here: a withdrawal with no reason is still a
 	// withdrawal, and refusing one would leave a broken release published.
 	if r.ContentLength > 0 && !httputil.DecodeJSONBody(w, r, &req) {

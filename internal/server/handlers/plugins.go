@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -17,20 +18,6 @@ import (
 // administrator's half and lives in the admin package; browsing and downloading
 // are not privileged actions, because a release changes nothing until somebody
 // installs it deliberately.
-
-// PluginsResponse is the browsable catalog.
-type PluginsResponse struct {
-	Plugins []model.Plugin `json:"plugins"`
-}
-
-// PluginDetailResponse is one entry and everything published under it.
-type PluginDetailResponse struct {
-	Plugin model.Plugin `json:"plugin"`
-	// Releases includes withdrawn ones, marked. Hiding them would make an
-	// exact-version recovery impossible to discover, and the client is what
-	// applies the default selection rule anyway.
-	Releases []model.PluginRelease `json:"releases"`
-}
 
 // listPluginsHandler serves GET /api/plugins.
 func (h *Handler) listPluginsHandler(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +34,7 @@ func (h *Handler) listPluginsHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_plugins")
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, PluginsResponse{Plugins: plugins})
+	httputil.WriteJSON(w, http.StatusOK, pluginwire.CatalogResponse{Plugins: plugins})
 }
 
 // getPluginHandler serves GET /api/plugins/{plugin_name}.
@@ -76,7 +63,7 @@ func (h *Handler) getPluginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_plugin", "plugin_name", name)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, PluginDetailResponse{Plugin: *entry, Releases: releases})
+	httputil.WriteJSON(w, http.StatusOK, pluginwire.PluginResponse{Plugin: *entry, Releases: releases})
 }
 
 // downloadPluginReleaseHandler serves
@@ -112,7 +99,7 @@ func (h *Handler) downloadPluginReleaseHandler(w http.ResponseWriter, r *http.Re
 	// A withdrawn release is still downloadable, but not by accident: the
 	// caller has to say it knows. Yanking is a default-selection control, not
 	// a deletion, so refusing outright would strand a recovery.
-	allowYanked, _ := strconv.ParseBool(r.URL.Query().Get("allow_yanked"))
+	allowYanked, _ := strconv.ParseBool(r.URL.Query().Get(pluginwire.QueryAllowYanked))
 	if release.Yanked() && !allowYanked {
 		httputil.WriteJSONError(w, http.StatusConflict, yankedMessage(*release))
 		return
@@ -132,7 +119,7 @@ func (h *Handler) downloadPluginReleaseHandler(w http.ResponseWriter, r *http.Re
 	// The digest travels with the bytes so a client can verify what it received
 	// without a second request, which is the whole point of publishing one.
 	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("X-Buildmax-Digest", release.Digest)
+	w.Header().Set(pluginwire.DigestHeader, release.Digest)
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf("attachment; filename=%q", name+"-"+version+".tar.gz"))
 	if size > 0 {

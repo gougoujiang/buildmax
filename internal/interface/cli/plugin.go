@@ -20,13 +20,18 @@ func newPluginCommand() *cobra.Command {
 		Use:   "plugin",
 		Short: "Inspect and manage installed plugins",
 		Long: "A plugin is a directory under <BUILDMAX_HOME>/plugins holding skills, subagents,\n" +
-			"MCP servers, and hooks. Clone one there and it loads on the next run.",
+			"MCP servers, and hooks. Clone one there and it loads on the next run, or\n" +
+			"install one your deployment has published.",
 	}
 	cmd.AddCommand(newPluginListCommand())
 	cmd.AddCommand(newPluginStatusCommand())
 	cmd.AddCommand(newPluginValidateCommand())
 	cmd.AddCommand(newPluginEnableCommand())
 	cmd.AddCommand(newPluginDisableCommand())
+	cmd.AddCommand(newPluginPublishCommand())
+	cmd.AddCommand(newPluginInstallCommand())
+	cmd.AddCommand(newPluginUpdateCommand())
+	cmd.AddCommand(newPluginUninstallCommand())
 	return cmd
 }
 

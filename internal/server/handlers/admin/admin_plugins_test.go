@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
+	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
@@ -105,7 +106,7 @@ func TestAdminPluginPublishAndCatalog(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list = %d: %s", rec.Code, rec.Body)
 	}
-	var list AdminPluginsResponse
+	var list pluginwire.CatalogResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +196,7 @@ func TestAdminPluginArchiveAndYank(t *testing.T) {
 
 func TestAdminPluginCreateEntry(t *testing.T) {
 	mux, _, _ := pluginMux(t)
-	body, err := json.Marshal(CreateAdminPluginRequest{Name: "code-review", DisplayName: "Code Review"})
+	body, err := json.Marshal(pluginwire.CreatePluginRequest{Name: "code-review", DisplayName: "Code Review"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,7 @@ func TestAdminPluginCreateEntry(t *testing.T) {
 		t.Errorf("duplicate name = %d, want 409", rec.Code)
 	}
 
-	bad, err := json.Marshal(CreateAdminPluginRequest{Name: "Bad Name"})
+	bad, err := json.Marshal(pluginwire.CreatePluginRequest{Name: "Bad Name"})
 	if err != nil {
 		t.Fatal(err)
 	}

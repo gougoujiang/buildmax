@@ -26,6 +26,10 @@ buildmax <command> [flags]
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
 | `buildmax plugin enable` / `disable <name>` | Let a plugin load, or stop it loading without removing it |
+| `buildmax plugin install <name>` | Download a release from the deployment's Marketplace and install it |
+| `buildmax plugin update <name>` | Replace an installed Marketplace plugin with a newer release |
+| `buildmax plugin uninstall <name>` | Remove an installed plugin |
+| `buildmax plugin publish <path>` | Pack a directory and publish it (System Administrator only) |
 
 ## Flags
 
@@ -110,6 +114,16 @@ current as the last fetch was; `--fetch` contacts the remote to refresh it.
 
 `disable` records a flag rather than moving anything, so a Git working tree is
 never touched. A run already in flight keeps the plugins it started with.
+
+`install` and `update` take `--version` for an exact release, and
+`--allow-yanked` for one that was withdrawn. Without `--version` they take the
+newest release that is not a prerelease, not withdrawn, and not newer than this
+build supports.
+Both refuse to replace a Git checkout, and `uninstall` refuses to delete one
+without `--force`: a working tree can hold work that exists nowhere else.
+
+`publish` takes the version from the directory's own `plugin.yaml` and needs a
+System Administrator grant on the server you are signed in to.
 
 ### `buildmax doctor`
 

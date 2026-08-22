@@ -1,7 +1,7 @@
 # Plugin Distribution And Private Marketplace
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> Phase A ships; the Marketplace does not exist yet
+> Phases A and B ship; Portal, Desktop, and worker distribution do not
 >
 > User documentation for what ships:
 > [../guide/plugins.md](../guide/plugins.md)
@@ -9,12 +9,14 @@
 ## Status
 
 - roadmap_priority: `post-Beta, P4 follow-on`
-- status: `partially_implemented` — Phase A is shipped: the directory format
-  and manifest, discovery under `<BUILDMAX_HOME>/plugins`, resolution and
-  merging for skills, subagents, MCP, and hooks, collision and shadowing
-  reports, `${BUILDMAX_PLUGIN_ROOT}`, per-run plugin provenance in traces, and
-  the local CLI commands. Phases B through D are unstarted, so nothing here
-  publishes, downloads, or verifies a release
+- status: `partially_implemented` — Phases A and B are shipped: the directory
+  format and manifest, discovery, resolution and merging for skills,
+  subagents, MCP, and hooks, collision and shadowing reports,
+  `${BUILDMAX_PLUGIN_ROOT}`, per-run provenance in traces, the local CLI
+  commands, and the Marketplace itself — packaging, the catalog and its
+  releases, package storage, publication, browse, download, and install.
+  Phase C (Portal and Desktop) and Phase D (team and worker distribution) are
+  unstarted
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
   [team-governance.md](./team-governance.md), and
   [system-administration.md](./system-administration.md)

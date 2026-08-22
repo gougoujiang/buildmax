@@ -12,6 +12,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
+	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
@@ -123,7 +124,7 @@ func TestCatalogListAndDetail(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list = %d: %s", rec.Code, rec.Body)
 	}
-	var list PluginsResponse
+	var list pluginwire.CatalogResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +136,7 @@ func TestCatalogListAndDetail(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detail = %d: %s", rec.Code, rec.Body)
 	}
-	var detail PluginDetailResponse
+	var detail pluginwire.PluginResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestCatalogHidesArchivedFromTheListing(t *testing.T) {
 	}
 
 	rec := f.get(t, "/api/plugins", catalogUser)
-	var list PluginsResponse
+	var list pluginwire.CatalogResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
 	}

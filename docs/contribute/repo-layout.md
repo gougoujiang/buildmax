@@ -153,6 +153,7 @@ internal/
 │   ├── llmremote/      LLM client that calls a BuildMax managed gateway
 │   ├── mcp/            MCP protocol, client transport, registry
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
+│   ├── pluginwire/     Wire contract for the private plugin Marketplace
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
