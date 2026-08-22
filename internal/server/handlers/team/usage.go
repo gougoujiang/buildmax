@@ -34,7 +34,7 @@ func (h *Handler) usageHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusNotFound, "personal team not found")
 		return
 	}
-	h.writeUsageForTeam(w, r, team.TeamID)
+	h.writeUsageForTeam(w, r, team.ID)
 }
 
 func (h *Handler) teamUsageHandler(w http.ResponseWriter, r *http.Request) {

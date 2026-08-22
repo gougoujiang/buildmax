@@ -37,7 +37,7 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 		return
 	}
 	info := model.TaskRunTerminalInfo{
-		TaskRunID:      run.TaskRunID,
+		TaskRunID:      run.ID,
 		TaskID:         run.TaskID,
 		ConversationID: task.ConversationID,
 		UserID:         task.CreatedBy,

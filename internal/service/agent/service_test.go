@@ -49,7 +49,7 @@ func TestAnotherTeamsAgentReadsAsNotFound(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
-	_, err := s.GetAgent(ctx, "tm_mine", other.AgentID)
+	_, err := s.GetAgent(ctx, "tm_mine", other.ID)
 
 	if !errors.Is(err, agent.ErrAgentNotFound) {
 		t.Fatalf("err = %v, want ErrAgentNotFound", err)
@@ -63,10 +63,10 @@ func TestRevisionsAndRestoreStayInsideTheTeam(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
-	if _, _, err := s.ListRevisions(ctx, "tm_mine", other.AgentID, 10, 0); !errors.Is(err, agent.ErrAgentNotFound) {
+	if _, _, err := s.ListRevisions(ctx, "tm_mine", other.ID, 10, 0); !errors.Is(err, agent.ErrAgentNotFound) {
 		t.Errorf("ListRevisions leaked another team's agent: %v", err)
 	}
-	_, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{TeamID: "tm_mine", UserID: "u_1", AgentID: other.AgentID, Revision: 1})
+	_, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{TeamID: "tm_mine", UserID: "u_1", AgentID: other.ID, Revision: 1})
 	if !errors.Is(err, agent.ErrAgentNotFound) {
 		t.Errorf("RestoreRevision leaked another team's agent: %v", err)
 	}
@@ -77,13 +77,13 @@ func TestRestoreAppendsRatherThanRewinds(t *testing.T) {
 	s, _, ctx := newService(t)
 	a := create(t, s, "tm_1")
 	if _, err := s.UpdateAgent(ctx, agent.UpdateCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.AgentID, Name: "renamed", Description: "d2", Instructions: "i2",
+		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Name: "renamed", Description: "d2", Instructions: "i2",
 	}); err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
 	}
 
 	restored, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.AgentID, Revision: 1,
+		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Revision: 1,
 	})
 	if err != nil {
 		t.Fatalf("RestoreRevision: %v", err)
@@ -92,7 +92,7 @@ func TestRestoreAppendsRatherThanRewinds(t *testing.T) {
 		t.Errorf("Name = %q, want the first revision's name back", restored.Name)
 	}
 
-	_, total, err := s.ListRevisions(ctx, "tm_1", a.AgentID, 0, 0)
+	_, total, err := s.ListRevisions(ctx, "tm_1", a.ID, 0, 0)
 	if err != nil {
 		t.Fatalf("ListRevisions: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestMissingRevisionIsReported(t *testing.T) {
 	a := create(t, s, "tm_1")
 
 	_, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.AgentID, Revision: 999,
+		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Revision: 999,
 	})
 
 	if !errors.Is(err, agent.ErrRevisionNotFound) {
@@ -125,9 +125,9 @@ func (u usedBy) PublishedWorkflowsUsingAgent(context.Context, string, string) ([
 func TestDeleteNamesTheWorkflowsBlockingIt(t *testing.T) {
 	s, _, ctx := newService(t)
 	a := create(t, s, "tm_1")
-	s.Workflows = usedBy{{WorkflowID: "w_1", Name: "nightly"}, {WorkflowID: "w_2", Name: "release"}}
+	s.Workflows = usedBy{{ID: "w_1", Name: "nightly"}, {ID: "w_2", Name: "release"}}
 
-	err := s.DeleteAgent(ctx, "tm_1", a.AgentID)
+	err := s.DeleteAgent(ctx, "tm_1", a.ID)
 
 	if !errors.Is(err, agent.ErrUsedByPublishedFlows) {
 		t.Fatalf("err = %v, want ErrUsedByPublishedFlows", err)
@@ -148,10 +148,10 @@ func TestDeleteProceedsWithoutAWorkflowSource(t *testing.T) {
 	s, _, ctx := newService(t)
 	a := create(t, s, "tm_1")
 
-	if err := s.DeleteAgent(ctx, "tm_1", a.AgentID); err != nil {
+	if err := s.DeleteAgent(ctx, "tm_1", a.ID); err != nil {
 		t.Fatalf("DeleteAgent: %v", err)
 	}
-	if _, err := s.GetAgent(ctx, "tm_1", a.AgentID); !errors.Is(err, agent.ErrAgentNotFound) {
+	if _, err := s.GetAgent(ctx, "tm_1", a.ID); !errors.Is(err, agent.ErrAgentNotFound) {
 		t.Errorf("a deleted agent should read as not found, got %v", err)
 	}
 }
@@ -160,7 +160,7 @@ func TestDeletingAnotherTeamsAgentIsNotFound(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
-	if err := s.DeleteAgent(ctx, "tm_mine", other.AgentID); !errors.Is(err, agent.ErrAgentNotFound) {
+	if err := s.DeleteAgent(ctx, "tm_mine", other.ID); !errors.Is(err, agent.ErrAgentNotFound) {
 		t.Errorf("err = %v, want ErrAgentNotFound", err)
 	}
 }

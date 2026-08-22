@@ -14,8 +14,8 @@ import (
 // produced it, it is content — is what keeps this struct from growing an
 // "issue count" that turns into an issue list that turns into issue titles.
 type AdminTeam struct {
-	TeamID string `json:"team_id"`
-	Name   string `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 	// Personal marks a user's own space rather than a collaborative team.
 	Personal    bool   `json:"personal"`
 	QuotaTier   string `json:"quota_tier,omitempty"`
@@ -74,7 +74,7 @@ func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	ids := make([]string, 0, len(teams))
 	for _, team := range teams {
-		ids = append(ids, team.TeamID)
+		ids = append(ids, team.ID)
 	}
 	counts, err := h.cfg.Teams.CountTeamMembers(r.Context(), ids)
 	if err != nil {
@@ -85,11 +85,11 @@ func (h *Handler) listAdminTeamsHandler(w http.ResponseWriter, r *http.Request) 
 	out := make([]AdminTeam, 0, len(teams))
 	for _, team := range teams {
 		out = append(out, AdminTeam{
-			TeamID:      team.TeamID,
+			ID:          team.ID,
 			Name:        team.Name,
 			Personal:    team.PersonalForUserID != nil,
 			QuotaTier:   team.QuotaTier,
-			MemberCount: counts[team.TeamID],
+			MemberCount: counts[team.ID],
 			CreatedBy:   team.CreatedBy,
 			CreatedAt:   team.CreatedAt,
 		})
@@ -126,7 +126,7 @@ func (h *Handler) getAdminTeamHandler(w http.ResponseWriter, r *http.Request) {
 
 	detail := AdminTeamDetail{
 		AdminTeam: AdminTeam{
-			TeamID:      team.TeamID,
+			ID:          team.ID,
 			Name:        team.Name,
 			Personal:    team.PersonalForUserID != nil,
 			QuotaTier:   team.QuotaTier,

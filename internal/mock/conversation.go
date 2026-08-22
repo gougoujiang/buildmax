@@ -19,12 +19,12 @@ func (m *MockConversationStore) CreateConversation(_ context.Context, userID, ch
 
 func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, teamID, userID, channel, createdBy string) (*model.Conversation, error) {
 	conv := model.Conversation{
-		ConversationID: fmt.Sprintf("v_%d", len(m.Conversations)+1),
-		UserID:         userID,
-		TeamID:         teamID,
-		Channel:        channel,
-		CreatedBy:      createdBy,
-		CreatedAt:      time.Now().Unix(),
+		ID:        fmt.Sprintf("v_%d", len(m.Conversations)+1),
+		UserID:    userID,
+		TeamID:    teamID,
+		Channel:   channel,
+		CreatedBy: createdBy,
+		CreatedAt: time.Now().Unix(),
 	}
 	m.Conversations = append(m.Conversations, conv)
 	return &m.Conversations[len(m.Conversations)-1], nil
@@ -32,7 +32,7 @@ func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, team
 
 func (m *MockConversationStore) GetConversation(_ context.Context, conversationID string) (*model.Conversation, error) {
 	for i := range m.Conversations {
-		if m.Conversations[i].ConversationID == conversationID {
+		if m.Conversations[i].ID == conversationID {
 			return &m.Conversations[i], nil
 		}
 	}
@@ -75,7 +75,7 @@ func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamI
 
 func (m *MockConversationStore) UpdateConversationTitle(_ context.Context, conversationID, title string) error {
 	for i := range m.Conversations {
-		if m.Conversations[i].ConversationID == conversationID {
+		if m.Conversations[i].ID == conversationID {
 			m.Conversations[i].Title = title
 			return nil
 		}

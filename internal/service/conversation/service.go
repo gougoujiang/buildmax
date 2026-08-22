@@ -73,7 +73,7 @@ func (s *Service) RerunTask(ctx context.Context, cmd RerunTaskCmd) (Conversation
 	if err != nil {
 		return ConversationResult{}, err
 	}
-	return ConversationResult{TaskRunIDs: []string{run.TaskRunID}}, nil
+	return ConversationResult{TaskRunIDs: []string{run.ID}}, nil
 }
 
 func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {
@@ -131,7 +131,7 @@ func (s *Service) fetchAgentSummaries(ctx context.Context, teamID, channel strin
 	}
 	summaries := make([]convtool.AgentSummary, len(agents))
 	for i, a := range agents {
-		summaries[i] = convtool.AgentSummary{ID: a.AgentID, Name: a.Name, Description: a.Description}
+		summaries[i] = convtool.AgentSummary{ID: a.ID, Name: a.Name, Description: a.Description}
 	}
 	return summaries
 }

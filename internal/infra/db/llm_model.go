@@ -18,8 +18,8 @@ import (
 // store exposes it through LLMModelCredential alone, so a query that forgets to
 // exclude it cannot exist.
 type llmModelRow struct {
-	ID            uint   `gorm:"primaryKey;autoIncrement"`
-	LLMModelID    string `gorm:"type:varchar(64);uniqueIndex;not null"`
+	ID            uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID      []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_llm_model_public_id;not null"`
 	Name          string `gorm:"type:varchar(128);uniqueIndex;not null"`
 	ProviderType  string `gorm:"type:varchar(32);not null"`
 	APIURL        string `gorm:"type:varchar(512);not null"`
@@ -46,8 +46,7 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		return nil
 	}
 	return &model.LLMModel{
-		ID:            row.ID,
-		LLMModelID:    row.LLMModelID,
+		ID:            util.FormatPublicID(row.PublicID),
 		Name:          row.Name,
 		ProviderType:  row.ProviderType,
 		APIURL:        row.APIURL,
@@ -95,7 +94,7 @@ func joinCapabilities(in []string) string {
 // llmModelColumns is every column except the credential. Reads name it
 // explicitly so adding a column later cannot silently start returning the key.
 var llmModelColumns = []string{
-	"id", "llm_model_id", "name", "provider_type", "api_url", "model",
+	"id", "public_id", "name", "provider_type", "api_url", "model",
 	"context_window", "call_timeout", "max_tokens", "reasoning", "prompt_cache",
 	"vision", "capabilities", "enabled",
 	"created_at", "updated_at",
@@ -106,7 +105,6 @@ var llmModelColumns = []string{
 func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput) (*model.LLMModel, error) {
 	now := time.Now().Unix()
 	row := &llmModelRow{
-		LLMModelID:    util.NewPrefixedID(util.PrefixLLMModel),
 		Name:          in.Name,
 		ProviderType:  in.ProviderType,
 		APIURL:        in.APIURL,
@@ -123,7 +121,8 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	if err := s.db.WithContext(ctx).Create(row).Error; err != nil {
+	if err := createWithPublicID(ctx, s.db, "uq_llm_model_public_id",
+		func(b []byte) { row.PublicID = b }, row); err != nil {
 		if isDuplicateKey(err) {
 			return nil, model.ErrLLMModelNameTaken
 		}
@@ -139,7 +138,7 @@ func (s *Store) GetLLMModel(ctx context.Context, llmModelID string) (*model.LLMM
 	}
 	var row llmModelRow
 	err := s.db.WithContext(ctx).Select(llmModelColumns).
-		Where("llm_model_id = ?", llmModelID).First(&row).Error
+		Where("public_id = ?", mustParsePublicID(llmModelID)).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -166,7 +165,7 @@ func (s *Store) ListLLMModels(ctx context.Context) ([]model.LLMModel, error) {
 // SetLLMModelEnabled retires or restores a model.
 func (s *Store) SetLLMModelEnabled(ctx context.Context, llmModelID string, enabled bool) error {
 	res := s.db.WithContext(ctx).Model(&llmModelRow{}).
-		Where("llm_model_id = ?", llmModelID).
+		Where("public_id = ?", mustParsePublicID(llmModelID)).
 		Updates(map[string]any{"enabled": enabled, "updated_at": time.Now().Unix()})
 	if res.Error != nil {
 		return res.Error
@@ -188,7 +187,7 @@ func (s *Store) LLMModelCredential(ctx context.Context, llmModelID string) (stri
 	}
 	var row llmModelRow
 	err := s.db.WithContext(ctx).Select("api_key").
-		Where("llm_model_id = ?", llmModelID).First(&row).Error
+		Where("public_id = ?", mustParsePublicID(llmModelID)).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", errors.New("model not found")
 	}

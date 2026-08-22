@@ -74,7 +74,9 @@ export function apiAgentToAgent(api: ApiAgent): Agent {
 
 export function apiAgentRevisionToAgentRevision(api: ApiAgentRevision): AgentRevision {
   return {
-    id: api.id,
+    // A revision has no handle of its own: its parent plus its number is what
+    // the API addresses it by, and it is what makes a list key unique.
+    id: `${api.agent_id}@${api.revision}`,
     agentId: api.agent_id,
     revision: api.revision,
     name: api.name,
@@ -108,7 +110,7 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
 
 export function apiWorkflowRevisionToWorkflowRevision(api: ApiWorkflowRevision): WorkflowRevision {
   return {
-    id: api.id,
+    id: `${api.workflow_id}@${api.revision}`,
     workflowId: api.workflow_id,
     revision: api.revision,
     name: api.name,

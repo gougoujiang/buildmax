@@ -11,24 +11,16 @@ import (
 
 func TestPasswordLifecycle(t *testing.T) {
 	s, ctx := newTestStore(t)
-	email := "passwordtest@example.com"
-	t.Cleanup(func() {
-		_ = s.db.WithContext(context.Background()).Delete(&userRow{}, "email = ?", email)
-	})
-
+	email := "passwordtest-" + testPublicID(t) + "@example.com"
 	user, err := s.CreateUser(ctx, email, "")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	t.Cleanup(func() {
-		bg := context.Background()
-		_ = s.db.WithContext(bg).Delete(&teamMemberRow{}, "user_id = ?", user.UserID)
-		_ = s.db.WithContext(bg).Delete(&teamRow{}, "personal_for_user_id = ?", user.UserID)
-	})
+	t.Cleanup(func() { deleteTestUser(t, s, user.ID) })
 
 	// A new account has no password, which is what sends its owner to a login
 	// code rather than to a sign-in form they cannot satisfy.
-	hash, err := s.PasswordHash(ctx, user.UserID)
+	hash, err := s.PasswordHash(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("PasswordHash: %v", err)
 	}
@@ -43,11 +35,11 @@ func TestPasswordLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	if err := s.SetPassword(ctx, user.UserID, encoded, time.Now().Unix()); err != nil {
+	if err := s.SetPassword(ctx, user.ID, encoded, time.Now().Unix()); err != nil {
 		t.Fatalf("SetPassword: %v", err)
 	}
 
-	stored, err := s.PasswordHash(ctx, user.UserID)
+	stored, err := s.PasswordHash(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("PasswordHash: %v", err)
 	}
@@ -56,7 +48,7 @@ func TestPasswordLifecycle(t *testing.T) {
 	}
 
 	// HasPassword follows, and the hash itself does not ride along on the user.
-	reloaded, err := s.GetUser(ctx, user.UserID)
+	reloaded, err := s.GetUser(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
@@ -77,21 +69,17 @@ func TestPasswordHashFitsItsColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	t.Cleanup(func() {
-		bg := context.Background()
-		_ = s.db.WithContext(bg).Delete(&teamMemberRow{}, "user_id = ?", user.UserID)
-		_ = s.db.WithContext(bg).Delete(&teamRow{}, "personal_for_user_id = ?", user.UserID)
-	})
+	t.Cleanup(func() { deleteTestUser(t, s, user.ID) })
 
 	const password = "a password at the long end of what anyone would actually type"
 	encoded, err := model.HashPassword(password)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	if err := s.SetPassword(ctx, user.UserID, encoded, time.Now().Unix()); err != nil {
+	if err := s.SetPassword(ctx, user.ID, encoded, time.Now().Unix()); err != nil {
 		t.Fatalf("SetPassword: %v", err)
 	}
-	stored, err := s.PasswordHash(ctx, user.UserID)
+	stored, err := s.PasswordHash(ctx, user.ID)
 	if err != nil {
 		t.Fatalf("PasswordHash: %v", err)
 	}

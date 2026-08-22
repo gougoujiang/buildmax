@@ -11,10 +11,12 @@ import (
 )
 
 type taskRunRow struct {
-	ID               uint    `gorm:"primaryKey;autoIncrement"`
-	TaskRunID        string  `gorm:"column:task_run_id;type:varchar(64);uniqueIndex;not null"`
-	TaskID           string  `gorm:"column:task_id;type:varchar(64);not null;index"`
-	Input            string  `gorm:"type:text;not null"`
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_task_run_public_id;not null"`
+	TaskID   uint64 `gorm:"column:task_id;not null;index:idx_task_run_task_created,priority:1"`
+	Input    string `gorm:"type:text;not null"`
+	// CreatedBy stays an opaque handle: created_by_type admits "webhook" and
+	// "system", neither of which is a user row.
 	CreatedBy        string  `gorm:"type:varchar(64);index"`
 	CreatedByType    string  `gorm:"type:varchar(32)"`
 	TriggerSource    string  `gorm:"type:varchar(64)"`
@@ -34,84 +36,80 @@ type taskRunRow struct {
 	// separate column rather than a status because a started run stays RUNNING
 	// until its own worker reports the outcome.
 	CancelRequestedAt *int64  `gorm:"column:cancel_requested_at;index"`
-	CancelRequestedBy *string `gorm:"column:cancel_requested_by;type:varchar(64)"`
+	CancelRequestedBy *uint64 `gorm:"column:cancel_requested_by"`
 	// RetryOfTaskRunID names the run this one repeats. A nullable column rather
 	// than a trigger_source detail because the question a reader asks is which
 	// run this repeated, and a source string cannot answer it.
-	RetryOfTaskRunID *string `gorm:"column:retry_of_task_run_id;type:varchar(64);index"`
-	CreatedAt        int64   `gorm:"autoCreateTime"`
+	RetryOfTaskRunID *uint64 `gorm:"column:retry_of_task_run_id;index"`
+	CreatedAt        int64   `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
 
 type taskRunArtifactRow struct {
-	ID           uint   `gorm:"primaryKey;autoIncrement"`
-	TaskRunID    string `gorm:"type:varchar(64);not null;uniqueIndex:uq_task_run_artifact_run_path"`
+	ID           uint64 `gorm:"primaryKey;autoIncrement"`
+	TaskRunID    uint64 `gorm:"column:task_run_id;not null;uniqueIndex:uq_task_run_artifact_run_path"`
 	RelativePath string `gorm:"type:varchar(512);not null;uniqueIndex:uq_task_run_artifact_run_path"`
 }
 
 func (taskRunArtifactRow) TableName() string { return "task_run_artifact" }
 
-func toTaskRun(row *taskRunRow) *model.TaskRun {
+// taskRunReadRow is the row plus the handles its references resolve to.
+type taskRunReadRow struct {
+	Row                  taskRunRow `gorm:"embedded"`
+	TaskPublicID         []byte     `gorm:"column:task_public_id"`
+	RetryOfPublicID      []byte     `gorm:"column:retry_of_public_id"`
+	CancelRequestedByPub []byte     `gorm:"column:cancel_requested_by_public_id"`
+}
+
+func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
+	return taskRunSelectTx(s.db.WithContext(ctx))
+}
+
+func taskRunSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&taskRunRow{}).
+		Select("task_run.*, t.public_id AS task_public_id, ro.public_id AS retry_of_public_id, " +
+			"cb.public_id AS cancel_requested_by_public_id").
+		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Joins("LEFT JOIN task_run ro ON ro.id = task_run.retry_of_task_run_id").
+		Joins("LEFT JOIN `user` cb ON cb.id = task_run.cancel_requested_by")
+}
+
+func toTaskRun(row *taskRunReadRow) *model.TaskRun {
 	if row == nil {
 		return nil
 	}
-	return &model.TaskRun{
-		ID:                row.ID,
-		TaskRunID:         row.TaskRunID,
-		TaskID:            row.TaskID,
-		Input:             row.Input,
-		CreatedBy:         row.CreatedBy,
-		CreatedByType:     row.CreatedByType,
-		TriggerSource:     row.TriggerSource,
-		Status:            row.Status,
-		Output:            row.Output,
-		ErrorMessage:      row.ErrorMessage,
-		StartedAt:         row.StartedAt,
-		EndedAt:           row.EndedAt,
-		SessionID:         row.SessionID,
-		WorkerType:        row.WorkerType,
-		K8sJobName:        row.K8sJobName,
-		K8sJobCreatedAt:   row.K8sJobCreatedAt,
-		PromptTokens:      row.PromptTokens,
-		CompletionTokens:  row.CompletionTokens,
-		TracePath:         row.TracePath,
-		CancelRequestedAt: row.CancelRequestedAt,
-		CancelRequestedBy: row.CancelRequestedBy,
-		RetryOfTaskRunID:  row.RetryOfTaskRunID,
-		CreatedAt:         row.CreatedAt,
+	out := &model.TaskRun{
+		ID:                util.FormatPublicID(row.Row.PublicID),
+		TaskID:            util.FormatPublicID(row.TaskPublicID),
+		Input:             row.Row.Input,
+		CreatedBy:         row.Row.CreatedBy,
+		CreatedByType:     row.Row.CreatedByType,
+		TriggerSource:     row.Row.TriggerSource,
+		Status:            row.Row.Status,
+		Output:            row.Row.Output,
+		ErrorMessage:      row.Row.ErrorMessage,
+		StartedAt:         row.Row.StartedAt,
+		EndedAt:           row.Row.EndedAt,
+		SessionID:         row.Row.SessionID,
+		WorkerType:        row.Row.WorkerType,
+		K8sJobName:        row.Row.K8sJobName,
+		K8sJobCreatedAt:   row.Row.K8sJobCreatedAt,
+		PromptTokens:      row.Row.PromptTokens,
+		CompletionTokens:  row.Row.CompletionTokens,
+		TracePath:         row.Row.TracePath,
+		CancelRequestedAt: row.Row.CancelRequestedAt,
+		CreatedAt:         row.Row.CreatedAt,
 	}
-}
-
-func toTaskRunRow(m *model.TaskRun) *taskRunRow {
-	if m == nil {
-		return nil
+	if row.Row.CancelRequestedBy != nil {
+		by := util.FormatPublicID(row.CancelRequestedByPub)
+		out.CancelRequestedBy = &by
 	}
-	return &taskRunRow{
-		ID:                m.ID,
-		TaskRunID:         m.TaskRunID,
-		TaskID:            m.TaskID,
-		Input:             m.Input,
-		CreatedBy:         m.CreatedBy,
-		CreatedByType:     m.CreatedByType,
-		TriggerSource:     m.TriggerSource,
-		Status:            m.Status,
-		Output:            m.Output,
-		ErrorMessage:      m.ErrorMessage,
-		StartedAt:         m.StartedAt,
-		EndedAt:           m.EndedAt,
-		SessionID:         m.SessionID,
-		WorkerType:        m.WorkerType,
-		K8sJobName:        m.K8sJobName,
-		K8sJobCreatedAt:   m.K8sJobCreatedAt,
-		PromptTokens:      m.PromptTokens,
-		CompletionTokens:  m.CompletionTokens,
-		TracePath:         m.TracePath,
-		CancelRequestedAt: m.CancelRequestedAt,
-		CancelRequestedBy: m.CancelRequestedBy,
-		RetryOfTaskRunID:  m.RetryOfTaskRunID,
-		CreatedAt:         m.CreatedAt,
+	if row.Row.RetryOfTaskRunID != nil {
+		of := util.FormatPublicID(row.RetryOfPublicID)
+		out.RetryOfTaskRunID = &of
 	}
+	return out
 }
 
 func toTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
@@ -119,8 +117,6 @@ func toTaskRunArtifact(row *taskRunArtifactRow) *model.TaskRunArtifact {
 		return nil
 	}
 	return &model.TaskRunArtifact{
-		ID:           row.ID,
-		TaskRunID:    row.TaskRunID,
 		RelativePath: row.RelativePath,
 	}
 }
@@ -182,29 +178,45 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 
 // CreateTaskRun creates a new run (PENDING). Returns model.ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
 func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) (*model.TaskRun, error) {
+	taskKey, err := lookupKey(ctx, s.db, "task", in.TaskID)
+	if err != nil {
+		return nil, err
+	}
 	var inProgress int64
-	err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", in.TaskID, model.ActiveRunStatuses).Count(&inProgress).Error
+	err = s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskKey, model.ActiveRunStatuses).Count(&inProgress).Error
 	if err != nil {
 		return nil, err
 	}
 	if inProgress > 0 {
 		return nil, model.ErrRunInProgress
 	}
-	run := &model.TaskRun{
-		TaskRunID:        util.NewPrefixedID(util.PrefixTaskRun),
-		TaskID:           in.TaskID,
-		Input:            in.Input,
-		CreatedBy:        in.CreatedBy,
-		CreatedByType:    defaultString(in.CreatedByType, model.RunCreatedByTypeUser),
-		TriggerSource:    defaultString(in.TriggerSource, model.RunTriggerSourceTaskRerun),
-		Status:           "PENDING",
-		RetryOfTaskRunID: in.RetryOfTaskRunID,
-		CreatedAt:        time.Now().Unix(),
+	row := &taskRunRow{
+		TaskID:        taskKey,
+		Input:         in.Input,
+		CreatedBy:     in.CreatedBy,
+		CreatedByType: defaultString(in.CreatedByType, model.RunCreatedByTypeUser),
+		TriggerSource: defaultString(in.TriggerSource, model.RunTriggerSourceTaskRerun),
+		Status:        "PENDING",
+		CreatedAt:     time.Now().Unix(),
 	}
-	if err := s.db.WithContext(ctx).Create(toTaskRunRow(run)).Error; err != nil {
+	var retryOf []byte
+	if in.RetryOfTaskRunID != nil && *in.RetryOfTaskRunID != "" {
+		key, err := lookupKey(ctx, s.db, "task_run", *in.RetryOfTaskRunID)
+		if err != nil {
+			return nil, err
+		}
+		row.RetryOfTaskRunID = &key
+		retryOf = mustParsePublicID(*in.RetryOfTaskRunID)
+	}
+	if err := createWithPublicID(ctx, s.db, "uq_task_run_public_id",
+		func(b []byte) { row.PublicID = b }, row); err != nil {
 		return nil, err
 	}
-	return run, nil
+	return toTaskRun(&taskRunReadRow{
+		Row:             *row,
+		TaskPublicID:    mustParsePublicID(in.TaskID),
+		RetryOfPublicID: retryOf,
+	}), nil
 }
 
 // CountTaskRunsByStatus implements model.TaskRunStore.
@@ -229,8 +241,8 @@ func (s *Store) CountTaskRunsByStatus(ctx context.Context) (map[string]int, erro
 
 // GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*model.TaskRun, error) {
-	var r taskRunRow
-	err := s.db.WithContext(ctx).Where("status = ?", "PENDING").Order("created_at ASC").First(&r).Error
+	var r taskRunReadRow
+	err := s.taskRunSelect(ctx).Where("task_run.status = ?", "PENDING").Order("task_run.created_at ASC").Take(&r).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -242,8 +254,12 @@ func (s *Store) GetNextPendingTaskRun(ctx context.Context) (*model.TaskRun, erro
 
 // GetTaskRun returns the run by task_run_id, or (nil, nil) if not found.
 func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*model.TaskRun, error) {
-	var r taskRunRow
-	err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).First(&r).Error
+	raw, ok := util.ParsePublicID(taskRunID)
+	if !ok {
+		return nil, nil
+	}
+	var r taskRunReadRow
+	err := s.taskRunSelect(ctx).Where("task_run.public_id = ?", raw).Take(&r).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -273,11 +289,18 @@ func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*mode
 // can match; the ordering only makes the answer deterministic if that ever
 // stops being true.
 func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*model.TaskRun, error) {
-	var r taskRunRow
-	err := s.db.WithContext(ctx).
-		Where("task_id = ? AND status IN ?", taskID, model.ActiveRunStatuses).
-		Order("created_at DESC").
-		First(&r).Error
+	taskKey, err := lookupKey(ctx, s.db, "task", taskID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var r taskRunReadRow
+	err = s.taskRunSelect(ctx).
+		Where("task_run.task_id = ? AND task_run.status IN ?", taskKey, model.ActiveRunStatuses).
+		Order("task_run.created_at DESC").
+		Take(&r).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -295,11 +318,19 @@ func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*mod
 // is still executing, and the worker's own report would overwrite it moments
 // later.
 func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error) {
+	raw, ok := util.ParsePublicID(taskRunID)
+	if !ok {
+		return false, nil
+	}
+	requester, err := lookupKey(ctx, s.db, "user", requestedBy)
+	if err != nil {
+		return false, err
+	}
 	result := s.db.WithContext(ctx).Model(&taskRunRow{}).
-		Where("task_run_id = ? AND status IN ? AND cancel_requested_at IS NULL", taskRunID, model.ActiveRunStatuses).
+		Where("public_id = ? AND status IN ? AND cancel_requested_at IS NULL", raw, model.ActiveRunStatuses).
 		Updates(map[string]interface{}{
 			"cancel_requested_at": requestedAt,
-			"cancel_requested_by": requestedBy,
+			"cancel_requested_by": requester,
 		})
 	if result.Error != nil {
 		return false, result.Error
@@ -317,11 +348,11 @@ func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoffUnix int6
 	if limit <= 0 {
 		limit = 100
 	}
-	var rows []taskRunRow
-	err := s.db.WithContext(ctx).
-		Where("status IN ?", model.ActiveRunStatuses).
-		Where("cancel_requested_at IS NOT NULL AND cancel_requested_at <= ?", cutoffUnix).
-		Order("cancel_requested_at ASC").
+	var rows []taskRunReadRow
+	err := s.taskRunSelect(ctx).
+		Where("task_run.status IN ?", model.ActiveRunStatuses).
+		Where("task_run.cancel_requested_at IS NOT NULL AND task_run.cancel_requested_at <= ?", cutoffUnix).
+		Order("task_run.cancel_requested_at ASC").
 		Limit(limit).
 		Find(&rows).Error
 	if err != nil {
@@ -336,7 +367,11 @@ func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoffUnix int6
 
 // ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
 func (s *Store) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
-	result := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_run_id = ? AND status = ?", in.TaskRunID, string(in.ExpectedStatus)).Updates(
+	raw, ok := util.ParsePublicID(in.TaskRunID)
+	if !ok {
+		return false, nil
+	}
+	result := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("public_id = ? AND status = ?", raw, string(in.ExpectedStatus)).Updates(
 		buildTaskRunUpdates(taskRunUpdate{
 			status:       string(in.NewStatus),
 			startedAt:    in.StartedAt,
@@ -357,7 +392,11 @@ func (s *Store) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (b
 
 // UpdateRun updates a run's status and optional fields.
 func (s *Store) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
-	if err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_run_id = ?", in.TaskRunID).Updates(
+	raw, ok := util.ParsePublicID(in.TaskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
+	if err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("public_id = ?", raw).Updates(
 		buildTaskRunUpdates(taskRunUpdate{
 			status:           string(in.Status),
 			startedAt:        in.StartedAt,
@@ -380,8 +419,12 @@ func (s *Store) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) erro
 
 // syncTaskStatusFromRun updates the task row (denormalized status) for the run's task_id to match the run's status.
 func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status string, startedAt, endedAt *int64) error {
+	raw, ok := util.ParsePublicID(taskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
 	var run taskRunRow
-	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).Select("task_id").First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("public_id = ?", raw).Select("task_id").First(&run).Error; err != nil {
 		return err
 	}
 	taskUpdates := map[string]interface{}{"status": status}
@@ -396,7 +439,7 @@ func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status str
 			taskUpdates["ended_at"] = *endedAt
 		}
 	}
-	return s.db.WithContext(ctx).Model(&taskRow{}).Where("task_id = ?", run.TaskID).Updates(taskUpdates).Error
+	return s.db.WithContext(ctx).Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(taskUpdates).Error
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.
@@ -408,7 +451,11 @@ func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerTy
 	if k8sJobCreatedAt != nil {
 		updates["k8s_job_created_at"] = *k8sJobCreatedAt
 	}
-	return s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_run_id = ?", taskRunID).Updates(updates).Error
+	raw, ok := util.ParsePublicID(taskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
+	return s.db.WithContext(ctx).Model(&taskRunRow{}).Where("public_id = ?", raw).Updates(updates).Error
 }
 
 // ListTaskRunIDsByTasks groups run IDs by their task, newest first.
@@ -416,21 +463,34 @@ func (s *Store) ListTaskRunIDsByTasks(ctx context.Context, taskIDs []string) (ma
 	if len(taskIDs) == 0 {
 		return map[string][]string{}, nil
 	}
+	// Both handles come back through the join rather than being resolved one
+	// task at a time; the grouping is still on the row key.
+	raws := make([][]byte, 0, len(taskIDs))
+	for _, id := range taskIDs {
+		if raw, ok := util.ParsePublicID(id); ok {
+			raws = append(raws, raw)
+		}
+	}
+	if len(raws) == 0 {
+		return map[string][]string{}, nil
+	}
 	var rows []struct {
-		TaskID    string
-		TaskRunID string
+		TaskPublicID    []byte
+		TaskRunPublicID []byte
 	}
 	err := s.db.WithContext(ctx).Model(&taskRunRow{}).
-		Select("task_id", "task_run_id").
-		Where("task_id IN ?", taskIDs).
-		Order("created_at DESC, id DESC").
+		Select("t.public_id AS task_public_id, task_run.public_id AS task_run_public_id").
+		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Where("t.public_id IN ?", raws).
+		Order("task_run.created_at DESC, task_run.id DESC").
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	out := make(map[string][]string, len(taskIDs))
 	for _, row := range rows {
-		out[row.TaskID] = append(out[row.TaskID], row.TaskRunID)
+		task := util.FormatPublicID(row.TaskPublicID)
+		out[task] = append(out[task], util.FormatPublicID(row.TaskRunPublicID))
 	}
 	return out, nil
 }
@@ -440,18 +500,22 @@ func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePat
 	if len(relativePaths) == 0 {
 		relativePaths = []string{"result.md"}
 	}
+	raw, ok := util.ParsePublicID(taskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var run taskRunRow
-		if err := tx.Where("task_run_id = ?", taskRunID).First(&run).Error; err != nil {
+		if err := tx.Where("public_id = ?", raw).First(&run).Error; err != nil {
 			return err
 		}
 		for _, relPath := range relativePaths {
-			if err := tx.Create(&taskRunArtifactRow{TaskRunID: taskRunID, RelativePath: relPath}).Error; err != nil {
+			if err := tx.Create(&taskRunArtifactRow{TaskRunID: run.ID, RelativePath: relPath}).Error; err != nil {
 				return err
 			}
 		}
 		updates := map[string]interface{}{
-			"last_run_id":   taskRunID,
+			"last_run_id":   run.ID,
 			"status":        run.Status,
 			"output":        run.Output,
 			"started_at":    run.StartedAt,
@@ -461,18 +525,22 @@ func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePat
 		if run.SessionID != nil {
 			updates["session_id"] = *run.SessionID
 		}
-		return tx.Model(&taskRow{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
+		return tx.Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(updates).Error
 	})
 }
 
 // SyncTaskFromRun updates task denormalized fields and last_run_id from the run. Use when run ends with FAILED (no artifact).
 func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
+	raw, ok := util.ParsePublicID(taskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
 	var run taskRunRow
-	if err := s.db.WithContext(ctx).Where("task_run_id = ?", taskRunID).First(&run).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("public_id = ?", raw).First(&run).Error; err != nil {
 		return err
 	}
 	updates := map[string]interface{}{
-		"last_run_id":   taskRunID,
+		"last_run_id":   run.ID,
 		"status":        run.Status,
 		"output":        run.Output,
 		"started_at":    run.StartedAt,
@@ -482,7 +550,7 @@ func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
 	if run.SessionID != nil {
 		updates["session_id"] = *run.SessionID
 	}
-	return s.db.WithContext(ctx).Model(&taskRow{}).Where("task_id = ?", run.TaskID).Updates(updates).Error
+	return s.db.WithContext(ctx).Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(updates).Error
 }
 
 // ListStaleTaskRuns returns runs that were dispatched before cutoffUnix and have
@@ -496,11 +564,11 @@ func (s *Store) ListStaleTaskRuns(ctx context.Context, cutoffUnix int64, limit i
 	if limit <= 0 {
 		limit = 100
 	}
-	var rows []taskRunRow
-	err := s.db.WithContext(ctx).
-		Where("status IN ?", []string{string(model.RunStatusScheduled), string(model.RunStatusRunning)}).
-		Where("created_at <= ?", cutoffUnix).
-		Order("created_at ASC").
+	var rows []taskRunReadRow
+	err := s.taskRunSelect(ctx).
+		Where("task_run.status IN ?", []string{string(model.RunStatusScheduled), string(model.RunStatusRunning)}).
+		Where("task_run.created_at <= ?", cutoffUnix).
+		Order("task_run.created_at ASC").
 		Limit(limit).
 		Find(&rows).Error
 	if err != nil {

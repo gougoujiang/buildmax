@@ -130,7 +130,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Artifact, 
 		return nil, ErrEmptyContent
 	}
 
-	artifactID := util.NewPrefixedID(util.PrefixArtifact)
+	// Generated here rather than in the store because the content is written to
+	// object storage under this ID before the row exists; moving generation down
+	// is part of giving the store its collision retry.
+	artifactID, err := util.NewPublicID()
+	if err != nil {
+		return nil, err
+	}
 	ref := blob.ArtifactRef{TeamID: in.TeamID, ArtifactID: artifactID}
 	limit := s.maxFileBytes()
 
@@ -212,7 +218,7 @@ func (s *Service) Open(ctx context.Context, rec *model.Artifact) (io.ReadCloser,
 	if rec == nil {
 		return nil, ErrNotFound
 	}
-	body, err := s.Storage.OpenArtifact(ctx, blob.ArtifactRef{TeamID: rec.TeamID, ArtifactID: rec.ArtifactID})
+	body, err := s.Storage.OpenArtifact(ctx, blob.ArtifactRef{TeamID: rec.TeamID, ArtifactID: rec.ID})
 	if err != nil {
 		if errors.Is(err, blob.ErrNotFound) {
 			return nil, ErrNotFound
@@ -253,7 +259,7 @@ func (s *Service) Delete(ctx context.Context, rec *model.Artifact, actorType, ac
 	if rec == nil {
 		return ErrNotFound
 	}
-	changed, err := s.Artifacts.SoftDeleteArtifact(ctx, rec.ArtifactID, s.now().Unix())
+	changed, err := s.Artifacts.SoftDeleteArtifact(ctx, rec.ID, s.now().Unix())
 	if err != nil {
 		return err
 	}
@@ -280,7 +286,7 @@ func (s *Service) audit(ctx context.Context, rec *model.Artifact, action, detail
 		ActorID:    rec.CreatedByID,
 		Action:     action,
 		TargetType: "artifact",
-		TargetID:   rec.ArtifactID,
+		TargetID:   rec.ID,
 		Detail:     detail,
 	})
 }

@@ -141,7 +141,7 @@ func (s *Scheduler) loop() {
 				continue
 			}
 			updated, err := s.taskRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
-				TaskRunID:      run.TaskRunID,
+				TaskRunID:      run.ID,
 				ExpectedStatus: model.RunStatusPending,
 				NewStatus:      model.RunStatusScheduled,
 			})
@@ -154,7 +154,7 @@ func (s *Scheduler) loop() {
 			}
 			// From here the run is ours, so its id goes on the context once and
 			// every record below -- including failRun's -- carries it.
-			ctx = buildmaxlog.With(ctx, "task_run_id", run.TaskRunID)
+			ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
 			// Work queued by an account that has since been disabled does not
 			// start. It fails here rather than being left PENDING for the same
 			// reason the credential failure below does: a run nobody will ever
@@ -163,7 +163,7 @@ func (s *Scheduler) loop() {
 			// see docs/design/system-administration.md section 8.
 			if s.creatorIsDisabled(ctx, run) {
 				s.log().WarnContext(ctx, "run creator is disabled; marking run FAILED", "user_id", run.CreatedBy)
-				s.failRun(ctx, run.TaskRunID, errCreatorDisabled)
+				s.failRun(ctx, run.ID, errCreatorDisabled)
 				continue
 			}
 			// A run that cannot be given its credential fails here rather than
@@ -172,16 +172,16 @@ func (s *Scheduler) loop() {
 			runToken, err := s.runTokenFor(ctx, run)
 			if err != nil {
 				s.log().ErrorContext(ctx, "could not mint a run token; marking run FAILED", "err", err)
-				s.failRun(ctx, run.TaskRunID, err)
+				s.failRun(ctx, run.ID, err)
 				continue
 			}
 			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run, runToken)
 			if err != nil {
 				s.log().ErrorContext(ctx, "worker spawn failed; marking run FAILED", "err", err)
-				s.failRun(ctx, run.TaskRunID, err)
+				s.failRun(ctx, run.ID, err)
 				continue
 			}
-			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.TaskRunID, workerType, k8sName, k8sAt); err != nil {
+			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.ID, workerType, k8sName, k8sAt); err != nil {
 				s.log().WarnContext(ctx, "could not persist worker info", "err", err)
 			}
 		}
@@ -197,18 +197,18 @@ func (s *Scheduler) runTokenFor(ctx context.Context, run *model.TaskRun) (string
 	if s.mintRunToken == nil {
 		return "", nil
 	}
-	_, task, err := s.taskRuns.GetTaskRunWithTask(ctx, run.TaskRunID)
+	_, task, err := s.taskRuns.GetTaskRunWithTask(ctx, run.ID)
 	if err != nil {
 		return "", fmt.Errorf("load the task behind this run: %w", err)
 	}
 	if task == nil {
-		return "", fmt.Errorf("run %s has no task", run.TaskRunID)
+		return "", fmt.Errorf("run %s has no task", run.ID)
 	}
 	return s.mintRunToken(authtoken.RunClaims{
 		UserID:    task.CreatedBy,
 		TeamID:    task.TeamID,
-		TaskRunID: run.TaskRunID,
-		TaskID:    task.TaskID,
+		TaskRunID: run.ID,
+		TaskID:    task.ID,
 	})
 }
 

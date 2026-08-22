@@ -21,7 +21,7 @@ func reporterFor(task model.Task, comments *mock.MockIssueCommentStore) *RunRepo
 func TestReportRunTerminal_WritesOneAgentComment(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
 	reporter := reporterFor(model.Task{
-		TaskID:  "t_1",
+		ID:      "t_1",
 		IssueID: util.Ptr("i_1"),
 		AgentID: util.Ptr("a_1"),
 	}, comments)
@@ -59,22 +59,22 @@ func TestReportRunTerminal_SilentCases(t *testing.T) {
 	}{
 		{
 			name: "task not on an issue",
-			task: model.Task{TaskID: "t_1"},
+			task: model.Task{ID: "t_1"},
 			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusSucceeded), Output: util.Ptr("done")},
 		},
 		{
 			name: "success with no output",
-			task: model.Task{TaskID: "t_1", IssueID: util.Ptr("i_1")},
+			task: model.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
 			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusSucceeded)},
 		},
 		{
 			name: "success with blank output",
-			task: model.Task{TaskID: "t_1", IssueID: util.Ptr("i_1")},
+			task: model.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
 			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusSucceeded), Output: util.Ptr("  \n ")},
 		},
 		{
 			name: "failure with no message",
-			task: model.Task{TaskID: "t_1", IssueID: util.Ptr("i_1")},
+			task: model.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
 			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusFailed)},
 		},
 	}
@@ -93,7 +93,7 @@ func TestReportRunTerminal_SilentCases(t *testing.T) {
 
 func TestReportRunTerminal_FailureReportsTheError(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
-	reporter := reporterFor(model.Task{TaskID: "t_1", IssueID: util.Ptr("i_1"), AgentID: util.Ptr("a_1")}, comments)
+	reporter := reporterFor(model.Task{ID: "t_1", IssueID: util.Ptr("i_1"), AgentID: util.Ptr("a_1")}, comments)
 	if err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
 		TaskRunID:    "r_1",
 		TaskID:       "t_1",
@@ -112,7 +112,7 @@ func TestReportRunTerminal_FailureReportsTheError(t *testing.T) {
 
 func TestReportRunTerminal_TruncatesLongOutput(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
-	reporter := reporterFor(model.Task{TaskID: "t_1", IssueID: util.Ptr("i_1")}, comments)
+	reporter := reporterFor(model.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
 	if err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
 		TaskRunID: "r_1",
 		TaskID:    "t_1",
@@ -137,7 +137,7 @@ func TestReportRunTerminal_TruncatesLongOutput(t *testing.T) {
 func TestReportRunTerminal_StoreFailureIsReturnedNotSwallowed(t *testing.T) {
 	sentinel := errors.New("comment store down")
 	comments := &mock.MockIssueCommentStore{CreateErr: sentinel}
-	reporter := reporterFor(model.Task{TaskID: "t_1", IssueID: util.Ptr("i_1")}, comments)
+	reporter := reporterFor(model.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
 	err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
 		TaskRunID: "r_1",
 		TaskID:    "t_1",

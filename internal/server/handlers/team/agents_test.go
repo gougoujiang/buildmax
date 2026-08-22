@@ -21,14 +21,14 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 	teamID := "tm_1"
 	agentStore := &mock.MockAgentStore{}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: teamID, Name: "Team", CreatedBy: "u1"}},
+		Teams:   []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
 		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
 	}
 	created, err := agentStore.CreateAgentInTeam(t.Context(), teamID, "u1", "Collector", "collects", "collect carefully")
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
-	if _, err := agentStore.UpdateAgentInTeam(t.Context(), created.AgentID, teamID, "u1", "Collector", "collects", "collect faster"); err != nil {
+	if _, err := agentStore.UpdateAgentInTeam(t.Context(), created.ID, teamID, "u1", "Collector", "collects", "collect faster"); err != nil {
 		t.Fatalf("UpdateAgentInTeam: %v", err)
 	}
 
@@ -36,7 +36,7 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 	token := "Bearer " + testsupport.SignJWT("u1", agentTestSecret)
-	base := "/api/teams/" + teamID + "/agents/" + created.AgentID
+	base := "/api/teams/" + teamID + "/agents/" + created.ID
 
 	req := httptest.NewRequest(http.MethodGet, base+"/revisions", nil)
 	req.Header.Set("Authorization", token)
@@ -107,11 +107,11 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 	teamID := "tm_1"
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "Collector", Revision: 1}},
+		Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Collector", Revision: 1}},
 	}
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
-			WorkflowID: "w_1",
+			ID:         "w_1",
 			TeamID:     teamID,
 			Name:       "Nightly report",
 			Definition: `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`,
@@ -119,7 +119,7 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 		}},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: teamID, Name: "Team", CreatedBy: "u1"}},
+		Teams:   []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
 		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
 	}
 	h := New(Config{
@@ -169,11 +169,11 @@ func TestPatchAgentHandler(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
+			{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
 		},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+		Teams:   []model.Team{{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
 		Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
 	}
 
@@ -304,11 +304,11 @@ func TestDeleteAgentHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &mock.MockAgentStore{
 				Agents: []model.Agent{
-					{AgentID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
+					{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
 				},
 			}
 			teamStore := &mock.MockTeamStore{
-				Teams:   []model.Team{{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+				Teams:   []model.Team{{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
 				Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
 			}
 			h := New(Config{

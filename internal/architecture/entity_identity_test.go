@@ -1,0 +1,343 @@
+package architecture_test
+
+import (
+	"go/ast"
+	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
+	"testing"
+)
+
+// The rules in this file are the schema half of
+// docs/design/entity-identity.md. A server entity has two identifiers with one
+// role each: a bigint row key that never leaves internal/infra/db, and an
+// opaque public_id that is the only handle any boundary sees.
+//
+// They are parsed from source rather than asserted against a live database
+// because the row structs are the schema: a rule that needs MySQL to run is a
+// rule that does not run in CI.
+
+// opaqueColumns are the *_id columns that stay text on purpose. Each is listed
+// with the reason one numeric reference cannot say what it says, because that
+// reason is the whole test: a column added here without one is how the rule
+// erodes.
+var opaqueColumns = map[string]string{
+	// Polymorphic: a type column beside them names which table, or names
+	// something that is not a table at all.
+	"audit_event.actor_id":         "actor_type admits an operator and a worker, neither a user row",
+	"audit_event.target_id":        "target_type admits a permission name and a model alias",
+	"issue.assignee_id":            "assignee_kind admits person, agent, or workflow",
+	"issue_comment.author_id":      "author_kind admits an agent as well as a person",
+	"artifact.created_by_id":       "created_by_type admits a worker",
+	"artifact.source_id":           "source_type admits a run, a conversation, or an upload",
+	"task_run.created_by":          "created_by_type admits webhook and system",
+	"system_grant.granted_by":      "the operator who bootstraps the first grant is a command line",
+	"task_run.cancel_requested_by": "a cancel can be recorded for a run whose canceller is not a user row",
+
+	// Externally owned: the format belongs to something other than this schema.
+	"conversation_message.tool_call_id": "a provider's tool-call id",
+	"llm_call.session_id":               "an agent session names a file under a run's BUILDMAX_HOME",
+	"llm_call.target_id":                "a catalog id whose namespace may belong to configuration",
+	"task.session_id":                   "an agent session names a file",
+	"task_run.session_id":               "an agent session names a file",
+	"user_refresh_token.session_id":     "a login chain, carried as a claim in every access token issued under it",
+	"login_code.code_hash":              "an authentication format",
+	"user_refresh_token.token_hash":     "an authentication format",
+	"user_webhook_key.key_hash":         "an authentication format",
+	"user_refresh_token.replaced_by":    "the hash of the next token in the chain, not a reference to a row",
+}
+
+// numericRelationExempt are columns whose name ends in _id but which are not
+// references at all.
+var numericRelationExempt = map[string]bool{
+	"workflow_step_run.step_id": true, // authored inside a workflow definition
+	"schema_migration.id":       true, // the migration's permanent authored name
+}
+
+type rowField struct {
+	file   string
+	table  string
+	column string
+	tag    reflect.StructTag
+	goType string
+}
+
+// TestEntityRelationshipsAreNumeric fails when a reference is stored as text.
+//
+// cancel_requested_by is the shape this catches: it was a varchar naming a
+// user, and nothing but a rule stops the next one being written the same way.
+func TestEntityRelationshipsAreNumeric(t *testing.T) {
+	// A _type column beside a reference says which table it names. It is a
+	// discriminator, never a reference itself.
+	isReference := func(col string) bool {
+		if strings.HasSuffix(col, "_type") {
+			return false
+		}
+		return strings.HasSuffix(col, "_id") || strings.HasSuffix(col, "_by")
+	}
+	for _, f := range rowFields(t) {
+		if !isReference(f.column) {
+			continue
+		}
+		qualified := f.table + "." + f.column
+		if numericRelationExempt[qualified] || opaqueColumns[qualified] != "" {
+			continue
+		}
+		if f.column == "public_id" {
+			continue
+		}
+		if strings.Contains(string(f.tag), "varchar") || strings.Contains(f.goType, "string") {
+			t.Errorf("%s: %s is text; a reference to one entity is a bigint, "+
+				"or it belongs in opaqueColumns with the reason it cannot be",
+				f.file, qualified)
+		}
+	}
+}
+
+// TestPublicIDsAreBinary12 fails when a handle is stored as anything else.
+//
+// The width is the format: 96 bits, memcmp comparison, and no collation in the
+// way of identity. A varchar public_id would work and would quietly bring the
+// database's collation back into deciding whether two handles are the same.
+func TestPublicIDsAreBinary12(t *testing.T) {
+	seen := 0
+	for _, f := range rowFields(t) {
+		if f.column != "public_id" {
+			continue
+		}
+		seen++
+		if !strings.Contains(string(f.tag), "type:binary(12)") {
+			t.Errorf("%s: %s.public_id is not binary(12)", f.file, f.table)
+		}
+		if f.goType != "[]byte" {
+			t.Errorf("%s: %s.public_id is %s, want []byte", f.file, f.table, f.goType)
+		}
+		want := "uniqueIndex:uq_" + f.table + "_public_id"
+		if !strings.Contains(string(f.tag), want) {
+			t.Errorf("%s: %s.public_id lacks %q; the unique index is the collision guard, "+
+				"and its name is what tells a collision from a duplicate email",
+				f.file, f.table, want)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("found no public_id columns; the parser stopped seeing the row structs")
+	}
+}
+
+// TestRowKeysStayInsideTheStore fails when a row key can be named from outside
+// internal/infra/db.
+//
+// The keys are unexported fields of unexported types, so the only way one
+// escapes is through an exported signature. That is the whole surface, and it
+// is worth a rule: an exported helper taking a key would put a MySQL detail in
+// every caller and every mock.
+func TestRowKeysStayInsideTheStore(t *testing.T) {
+	root := moduleRoot(t)
+	for _, path := range goFiles(t, filepath.Join(root, "internal/infra/db")) {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		f := parseFile(t, path)
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || !fn.Name.IsExported() {
+				continue
+			}
+			for _, field := range signatureTypes(fn) {
+				if field == "uint64" || field == "*uint64" {
+					t.Errorf("%s: exported %s has a row key in its signature; "+
+						"a caller outside this package must never hold one",
+						rel(root, path), fn.Name.Name)
+				}
+			}
+		}
+	}
+}
+
+func signatureTypes(fn *ast.FuncDecl) []string {
+	var out []string
+	collect := func(fl *ast.FieldList) {
+		if fl == nil {
+			return
+		}
+		for _, f := range fl.List {
+			out = append(out, exprString(f.Type))
+		}
+	}
+	collect(fn.Type.Params)
+	collect(fn.Type.Results)
+	return out
+}
+
+// rowFields returns every struct field in internal/infra/db that carries a
+// gorm tag, with the table its struct names.
+func rowFields(t *testing.T) []rowField {
+	t.Helper()
+	root := moduleRoot(t)
+	var out []rowField
+	for _, path := range goFiles(t, filepath.Join(root, "internal/infra/db")) {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file := parseFile(t, path)
+		tables := tableNames(file)
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			st, ok := spec.Type.(*ast.StructType)
+			if !ok {
+				return true
+			}
+			table := tables[spec.Name.Name]
+			if table == "" {
+				return true
+			}
+			for _, field := range st.Fields.List {
+				if field.Tag == nil || len(field.Names) == 0 {
+					continue
+				}
+				raw, err := strconv.Unquote(field.Tag.Value)
+				if err != nil {
+					t.Fatalf("unquote tag in %s: %v", path, err)
+				}
+				tag := reflect.StructTag(raw)
+				out = append(out, rowField{
+					file:   rel(root, path),
+					table:  table,
+					column: columnName(tag, field.Names[0].Name),
+					tag:    tag,
+					goType: exprString(field.Type),
+				})
+			}
+			return true
+		})
+	}
+	if len(out) == 0 {
+		t.Fatal("found no row struct fields; the parser stopped matching TableName methods")
+	}
+	return out
+}
+
+// tableNames maps a row struct's Go name to the table its TableName reports.
+// A struct without one is not a table and is skipped.
+func tableNames(file *ast.File) map[string]string {
+	out := map[string]string{}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "TableName" || fn.Recv == nil || len(fn.Recv.List) != 1 {
+			continue
+		}
+		recv := strings.TrimPrefix(exprString(fn.Recv.List[0].Type), "*")
+		ast.Inspect(fn, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok {
+				return true
+			}
+			if name, err := strconv.Unquote(lit.Value); err == nil {
+				out[recv] = name
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// columnName is the column a field maps to: the gorm tag's column: when it has
+// one, and GORM's snake_case of the field name otherwise.
+func columnName(tag reflect.StructTag, fieldName string) string {
+	for _, part := range strings.Split(tag.Get("gorm"), ";") {
+		if after, found := strings.CutPrefix(part, "column:"); found {
+			return after
+		}
+	}
+	return snakeCase(fieldName)
+}
+
+func snakeCase(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 {
+				b.WriteByte('_')
+			}
+			b.WriteRune(r - 'A' + 'a')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func exprString(e ast.Expr) string {
+	switch t := e.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		return "*" + exprString(t.X)
+	case *ast.ArrayType:
+		return "[]" + exprString(t.Elt)
+	case *ast.SelectorExpr:
+		return exprString(t.X) + "." + t.Sel.Name
+	case *ast.Ellipsis:
+		return "..." + exprString(t.Elt)
+	}
+	return ""
+}
+
+// TestModelIdentifiersCrossAsStrings fails when a domain struct carries an
+// identifier as a number.
+//
+// internal/core/model is what every boundary serializes: an API response, a
+// JWT claim, an object key, a trace record, a WebSocket frame. Keeping row keys
+// out of it is what keeps them out of all of those at once, and it is why the
+// models lost their ID uint rather than hiding it behind json:"-" -- a field
+// that exists is a field a log line or a mock can reach.
+func TestModelIdentifiersCrossAsStrings(t *testing.T) {
+	root := moduleRoot(t)
+	// Numeric fields whose name ends in ID but which count something rather
+	// than name it.
+	numericByDesign := map[string]bool{
+		"AuditCursor.ID": false, // a keyset position, and it is the public handle
+	}
+	checked := 0
+	for _, path := range goFiles(t, filepath.Join(root, "internal/core/model")) {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file := parseFile(t, path)
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			st, ok := spec.Type.(*ast.StructType)
+			if !ok {
+				return true
+			}
+			for _, field := range st.Fields.List {
+				for _, name := range field.Names {
+					if !strings.HasSuffix(name.Name, "ID") && name.Name != "ID" {
+						continue
+					}
+					checked++
+					qualified := spec.Name.Name + "." + name.Name
+					if numericByDesign[qualified] {
+						continue
+					}
+					goType := exprString(field.Type)
+					if goType != "string" && goType != "*string" {
+						t.Errorf("%s: %s is %s; an identifier crosses this boundary as text",
+							rel(root, path), qualified, goType)
+					}
+				}
+			}
+			return true
+		})
+	}
+	if checked == 0 {
+		t.Fatal("found no identifier fields in internal/core/model")
+	}
+}

@@ -9,7 +9,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 func openUserAdminStore(t *testing.T) (*Store, context.Context) {
@@ -28,18 +27,18 @@ func openUserAdminStore(t *testing.T) (*Store, context.Context) {
 
 func createTestUser(t *testing.T, s *Store, ctx context.Context) *model.User {
 	t.Helper()
-	email := util.NewPrefixedID("disabletest") + "@example.com"
+	email := testPublicID(t) + "@example.com"
 	user, err := s.CreateUser(ctx, email, "")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	t.Cleanup(func() {
-		if personal, _ := s.GetPersonalTeamByUser(ctx, user.UserID); personal != nil {
-			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.TeamID)
-			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.TeamID)
+		if personal, _ := s.GetPersonalTeamByUser(ctx, user.ID); personal != nil {
+			_ = s.db.WithContext(ctx).Delete(&teamMemberRow{}, "team_id = ?", personal.ID)
+			_ = s.db.WithContext(ctx).Delete(&teamRow{}, "team_id = ?", personal.ID)
 		}
-		_ = s.db.WithContext(ctx).Delete(&userRefreshTokenRow{}, "user_id = ?", user.UserID)
-		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.UserID)
+		_ = s.db.WithContext(ctx).Delete(&userRefreshTokenRow{}, "user_id = ?", user.ID)
+		_ = s.db.WithContext(ctx).Delete(&userRow{}, "user_id = ?", user.ID)
 	})
 	return user
 }
@@ -52,10 +51,10 @@ func TestSetUserDisabled(t *testing.T) {
 		t.Fatal("a new account should not be disabled")
 	}
 	now := time.Now().Unix()
-	if err := s.SetUserDisabled(ctx, user.UserID, &now); err != nil {
+	if err := s.SetUserDisabled(ctx, user.ID, &now); err != nil {
 		t.Fatalf("SetUserDisabled: %v", err)
 	}
-	got, err := s.GetUser(ctx, user.UserID)
+	got, err := s.GetUser(ctx, user.ID)
 	if err != nil || got == nil || !got.Disabled() {
 		t.Fatalf("after disable: %+v, %v", got, err)
 	}
@@ -63,19 +62,19 @@ func TestSetUserDisabled(t *testing.T) {
 	// Disabling twice is not an error. Under MySQL's default client flags an
 	// update to the value a row already holds affects no rows, which is why
 	// the store has to tell that apart from a missing account.
-	if err := s.SetUserDisabled(ctx, user.UserID, got.DisabledAt); err != nil {
+	if err := s.SetUserDisabled(ctx, user.ID, got.DisabledAt); err != nil {
 		t.Errorf("disabling an already disabled account: %v", err)
 	}
 
-	if err := s.SetUserDisabled(ctx, user.UserID, nil); err != nil {
+	if err := s.SetUserDisabled(ctx, user.ID, nil); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
-	got, err = s.GetUser(ctx, user.UserID)
+	got, err = s.GetUser(ctx, user.ID)
 	if err != nil || got == nil || got.Disabled() {
 		t.Fatalf("after enable: %+v, %v", got, err)
 	}
 
-	if err := s.SetUserDisabled(ctx, util.NewPrefixedID(util.PrefixUser), &now); !errors.Is(err, model.ErrUserNotFound) {
+	if err := s.SetUserDisabled(ctx, testPublicID(t), &now); !errors.Is(err, model.ErrUserNotFound) {
 		t.Errorf("disabling an unknown account = %v, want ErrUserNotFound", err)
 	}
 }
@@ -88,7 +87,7 @@ func TestListUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}
-	if total != 1 || len(users) != 1 || users[0].UserID != user.UserID {
+	if total != 1 || len(users) != 1 || users[0].ID != user.ID {
 		t.Fatalf("searching for an exact email returned %d of %d: %+v", len(users), total, users)
 	}
 
@@ -119,7 +118,7 @@ func TestRevokeUserSessionsAndCount(t *testing.T) {
 
 	for _, sessionID := range []string{"as_one", "as_two"} {
 		if _, _, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{
-			UserID: user.UserID, SessionID: sessionID, Platform: "portal", TTL: time.Hour,
+			UserID: user.ID, SessionID: sessionID, Platform: "portal", TTL: time.Hour,
 		}); err != nil {
 			t.Fatalf("CreateRefreshToken: %v", err)
 		}
@@ -127,26 +126,26 @@ func TestRevokeUserSessionsAndCount(t *testing.T) {
 	// A second token in an existing chain, as rotation leaves during the grace
 	// window. It must not read as a third session.
 	if _, _, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{
-		UserID: user.UserID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
+		UserID: user.ID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
 	}); err != nil {
 		t.Fatalf("CreateRefreshToken: %v", err)
 	}
 
-	count, err := s.CountUserSessions(ctx, user.UserID, now)
+	count, err := s.CountUserSessions(ctx, user.ID, now)
 	if err != nil || count != 2 {
 		t.Fatalf("CountUserSessions = %d, %v; want 2", count, err)
 	}
 
-	revoked, err := s.RevokeUserSessions(ctx, user.UserID, now)
+	revoked, err := s.RevokeUserSessions(ctx, user.ID, now)
 	if err != nil || revoked != 3 {
 		t.Fatalf("RevokeUserSessions = %d, %v; want 3 tokens", revoked, err)
 	}
-	count, err = s.CountUserSessions(ctx, user.UserID, now)
+	count, err = s.CountUserSessions(ctx, user.ID, now)
 	if err != nil || count != 0 {
 		t.Fatalf("after revoke CountUserSessions = %d, %v; want 0", count, err)
 	}
 	// Revoking again retires nothing rather than failing.
-	if revoked, err := s.RevokeUserSessions(ctx, user.UserID, now); err != nil || revoked != 0 {
+	if revoked, err := s.RevokeUserSessions(ctx, user.ID, now); err != nil || revoked != 0 {
 		t.Errorf("second revoke = %d, %v; want 0, nil", revoked, err)
 	}
 }

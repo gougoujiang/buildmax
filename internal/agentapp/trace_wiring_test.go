@@ -16,6 +16,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
+
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 type traceScriptClient struct {
@@ -97,8 +99,8 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
-	if !strings.HasPrefix(result.TraceID, "rt_") {
-		t.Fatalf("TraceID = %q, want rt_ prefix", result.TraceID)
+	if _, ok := util.ParsePublicID(result.TraceID); !ok {
+		t.Fatalf("TraceID = %q, want a canonical public ID", result.TraceID)
 	}
 
 	records := readTrace(t, sess.ID, result.TraceID)

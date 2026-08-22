@@ -15,7 +15,7 @@ import (
 // catalog entry the alias resolved to: a team is granted aliases, and the
 // operator's routing behind one is not the team's business.
 type LLMCallSummary struct {
-	LLMCallID string `json:"llm_call_id"`
+	ID string `json:"id"`
 	// UserID is the run's owner. A task run is somebody's work even though no
 	// person was at the keyboard when it called a model.
 	UserID    *string `json:"user_id,omitempty"`
@@ -86,7 +86,7 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 
 func toLLMCallSummary(call model.LLMCall) LLMCallSummary {
 	return LLMCallSummary{
-		LLMCallID:        call.LLMCallID,
+		ID:               call.ID,
 		UserID:           call.UserID,
 		TaskID:           call.TaskID,
 		Surface:          call.Surface,

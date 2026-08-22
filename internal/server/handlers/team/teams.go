@@ -38,7 +38,7 @@ type createTeamRequest struct {
 
 func teamToResponse(team model.Team) teamResponse {
 	return teamResponse{
-		ID:                team.TeamID,
+		ID:                team.ID,
 		Name:              team.Name,
 		PersonalForUserID: team.PersonalForUserID,
 		CreatedBy:         team.CreatedBy,
@@ -164,7 +164,7 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "add_team_member", "user_id", userID, "team_id", teamID)
 		return
 	}
-	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditTeamMemberAdded, "user", user.UserID, member.Role)
+	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditTeamMemberAdded, "user", user.ID, member.Role)
 	httputil.WriteJSON(w, http.StatusCreated, teamMemberToResponse(*member, user))
 }
 

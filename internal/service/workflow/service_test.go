@@ -14,7 +14,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 	svc := &Service{
 		Workflows: &mock.MockWorkflowStore{},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	workflow, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
@@ -26,7 +26,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
-	if workflow.WorkflowID == "" {
+	if workflow.ID == "" {
 		t.Fatal("expected workflow id")
 	}
 	if workflow.Status != model.WorkflowStatusDraft {
@@ -37,7 +37,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
-			WorkflowID:  "w_1",
+			ID:          "w_1",
 			TeamID:      "tm_1",
 			Name:        "WF",
 			Definition:  `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
@@ -48,8 +48,8 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
-			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
+			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
+			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
 	}
 	svc := &Service{
@@ -92,7 +92,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal first step: %v", err)
 	}
-	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.WorkflowRunID)
+	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
-			WorkflowID: "w_1",
+			ID:         "w_1",
 			TeamID:     "tm_1",
 			Name:       "WF",
 			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
@@ -118,8 +118,8 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Description: "collects", Instructions: "collect carefully", Revision: 1},
-			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Description: "summarizes", Instructions: "summarize carefully", Revision: 2},
+			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Description: "collects", Instructions: "collect carefully", Revision: 1},
+			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Description: "summarizes", Instructions: "summarize carefully", Revision: 2},
 		},
 	}
 	svc := &Service{
@@ -151,7 +151,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 
 	// Editing the agent after the run started must not change a step still pending.
 	for i := range agentStore.Agents {
-		if agentStore.Agents[i].AgentID == "a_2" {
+		if agentStore.Agents[i].ID == "a_2" {
 			agentStore.Agents[i].Name = "Renamed"
 			agentStore.Agents[i].Instructions = "rewritten mid-run"
 		}
@@ -168,7 +168,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
 	}
 
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.WorkflowRunID)
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
+		Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
 	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
@@ -206,7 +206,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 
 	second := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
 	updated, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
-		TeamID: "tm_1", UserID: "u2", WorkflowID: created.WorkflowID, Definition: &second,
+		TeamID: "tm_1", UserID: "u2", WorkflowID: created.ID, Definition: &second,
 	})
 	if err != nil {
 		t.Fatalf("UpdateWorkflow: %v", err)
@@ -217,12 +217,12 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 
 	// Saving the same content again is not a revision.
 	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
-		TeamID: "tm_1", UserID: "u2", WorkflowID: created.WorkflowID, Definition: &second,
+		TeamID: "tm_1", UserID: "u2", WorkflowID: created.ID, Definition: &second,
 	}); err != nil {
 		t.Fatalf("UpdateWorkflow no-op: %v", err)
 	}
 
-	revisions, total, err := svc.ListWorkflowRevisions(context.Background(), "tm_1", created.WorkflowID, 0, 0)
+	revisions, total, err := svc.ListWorkflowRevisions(context.Background(), "tm_1", created.ID, 0, 0)
 	if err != nil {
 		t.Fatalf("ListWorkflowRevisions: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
+		Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
 	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
@@ -252,19 +252,19 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	}
 	published := model.WorkflowStatusPublished
 	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
-		TeamID: "tm_1", UserID: "u1", WorkflowID: created.WorkflowID, Status: &published,
+		TeamID: "tm_1", UserID: "u1", WorkflowID: created.ID, Status: &published,
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 	second := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect more data"}]}`
 	if _, err := svc.UpdateWorkflow(context.Background(), UpdateWorkflowCmd{
-		TeamID: "tm_1", UserID: "u1", WorkflowID: created.WorkflowID, Definition: &second,
+		TeamID: "tm_1", UserID: "u1", WorkflowID: created.ID, Definition: &second,
 	}); err != nil {
 		t.Fatalf("UpdateWorkflow: %v", err)
 	}
 
 	restored, err := svc.RestoreWorkflowRevision(context.Background(), RestoreWorkflowRevisionCmd{
-		TeamID: "tm_1", UserID: "u3", WorkflowID: created.WorkflowID, Revision: 1,
+		TeamID: "tm_1", UserID: "u3", WorkflowID: created.ID, Revision: 1,
 	})
 	if err != nil {
 		t.Fatalf("RestoreWorkflowRevision: %v", err)
@@ -281,7 +281,7 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	}
 
 	if _, err := svc.RestoreWorkflowRevision(context.Background(), RestoreWorkflowRevisionCmd{
-		TeamID: "tm_1", UserID: "u3", WorkflowID: created.WorkflowID, Revision: 99,
+		TeamID: "tm_1", UserID: "u3", WorkflowID: created.ID, Revision: 99,
 	}); err != ErrWorkflowRevisionNotFound {
 		t.Fatalf("restore of missing revision err = %v, want ErrWorkflowRevisionNotFound", err)
 	}
@@ -294,7 +294,7 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 	definition := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
-			WorkflowID: "w_1",
+			ID:         "w_1",
 			TeamID:     "tm_1",
 			Name:       "WF",
 			Definition: definition,
@@ -305,8 +305,8 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect carefully", Revision: 1},
-			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize carefully", Revision: 1},
+			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect carefully", Revision: 1},
+			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize carefully", Revision: 1},
 		},
 	}
 	svc := &Service{
@@ -339,7 +339,7 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
 	}
-	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.WorkflowRunID)
+	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
@@ -369,11 +369,11 @@ func TestPublishedWorkflowsUsingAgent(t *testing.T) {
 	other := `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_2","prompt":"p"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{
-			{WorkflowID: "w_pub", TeamID: "tm_1", Name: "Published", Definition: using, Status: model.WorkflowStatusPublished},
-			{WorkflowID: "w_draft", TeamID: "tm_1", Name: "Draft", Definition: using, Status: model.WorkflowStatusDraft},
-			{WorkflowID: "w_arch", TeamID: "tm_1", Name: "Archived", Definition: using, Status: model.WorkflowStatusArchived},
-			{WorkflowID: "w_other", TeamID: "tm_1", Name: "Other agent", Definition: other, Status: model.WorkflowStatusPublished},
-			{WorkflowID: "w_broken", TeamID: "tm_1", Name: "Broken", Definition: "not json", Status: model.WorkflowStatusPublished},
+			{ID: "w_pub", TeamID: "tm_1", Name: "Published", Definition: using, Status: model.WorkflowStatusPublished},
+			{ID: "w_draft", TeamID: "tm_1", Name: "Draft", Definition: using, Status: model.WorkflowStatusDraft},
+			{ID: "w_arch", TeamID: "tm_1", Name: "Archived", Definition: using, Status: model.WorkflowStatusArchived},
+			{ID: "w_other", TeamID: "tm_1", Name: "Other agent", Definition: other, Status: model.WorkflowStatusPublished},
+			{ID: "w_broken", TeamID: "tm_1", Name: "Broken", Definition: "not json", Status: model.WorkflowStatusPublished},
 		},
 	}
 	svc := &Service{Workflows: workflowStore}
@@ -381,14 +381,14 @@ func TestPublishedWorkflowsUsingAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PublishedWorkflowsUsingAgent: %v", err)
 	}
-	if len(found) != 1 || found[0].WorkflowID != "w_pub" {
+	if len(found) != 1 || found[0].ID != "w_pub" {
 		t.Fatalf("found = %v, want only w_pub — a draft or archived workflow cannot run, and a broken one never could", found)
 	}
 }
 
 func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"}},
+		Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"}},
 	}
 	svc := &Service{Agents: agentStore}
 	agent, err := svc.stepAgent(context.Background(), "tm_1", "a_1", model.WorkflowStepRun{})
@@ -410,7 +410,7 @@ func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
 func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
-			WorkflowID: "w_1",
+			ID:         "w_1",
 			TeamID:     "tm_1",
 			Name:       "WF",
 			Definition: `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`,
@@ -419,8 +419,8 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 	}
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{AgentID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
-			{AgentID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
+			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
+			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
 	}
 	svc := &Service{
@@ -445,7 +445,7 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
 	}
 
-	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.WorkflowRunID)
+	updatedSteps, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
@@ -455,7 +455,7 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 	if updatedSteps[1].Status != model.WorkflowStepRunStatusBlocked {
 		t.Errorf("step[1] status = %q, want blocked — a canceled step must not start the next one", updatedSteps[1].Status)
 	}
-	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.WorkflowRunID)
+	updatedRun, err := workflowStore.GetWorkflowRun(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("GetWorkflowRun: %v", err)
 	}

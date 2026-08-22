@@ -16,7 +16,7 @@ import (
 const refreshTestSecret = "test-jwt-secret"
 
 func refreshTestUser() *model.User {
-	return &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	return &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 }
 
 // newAuthTestMux wires a handler that can log in, refresh, and log out, and

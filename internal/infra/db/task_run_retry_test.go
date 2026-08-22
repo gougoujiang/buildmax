@@ -6,20 +6,19 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-const retryTestUser = "retry-store-user"
-
 // A retry is only distinguishable from any other run by what it stores, so the
 // lineage has to survive the round trip: without it, a repeated run is
 // indistinguishable from a follow-up that happened to be asked the same thing.
 func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	s, ctx := newTestStore(t)
+	retryTestUser := newTestUser(t, s, "retry-store")
 
 	conv, err := s.CreateConversation(ctx, retryTestUser, "portal", retryTestUser)
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
-		ConversationID: conv.ConversationID,
+		ConversationID: conv.ID,
 		Input:          "input",
 		CreatedBy:      retryTestUser,
 	})
@@ -27,9 +26,9 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.TaskID)
-		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ConversationID)
+		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
+		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "conversation_id = ?", conv.ID)
 	})
 	if task.LastRunID == nil {
 		t.Fatal("CreateTask should create the first run")
@@ -45,7 +44,7 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	}
 
 	retry, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
-		TaskID:           task.TaskID,
+		TaskID:           task.ID,
 		Input:            "input",
 		CreatedBy:        retryTestUser,
 		CreatedByType:    model.RunCreatedByTypeUser,
@@ -56,7 +55,7 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 		t.Fatalf("CreateTaskRun: %v", err)
 	}
 
-	stored, err := s.GetTaskRun(ctx, retry.TaskRunID)
+	stored, err := s.GetTaskRun(ctx, retry.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun: %v", err)
 	}

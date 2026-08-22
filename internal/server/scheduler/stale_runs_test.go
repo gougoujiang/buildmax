@@ -59,8 +59,8 @@ func newStaleFixture(stale ...model.TaskRun) (*fakeStaleStore, *StaleRunReaper) 
 // finish.
 func TestReaperClosesAbandonedRuns(t *testing.T) {
 	store, reaper := newStaleFixture(
-		model.TaskRun{TaskRunID: "r_1", Status: string(model.RunStatusRunning)},
-		model.TaskRun{TaskRunID: "r_2", Status: string(model.RunStatusScheduled)},
+		model.TaskRun{ID: "r_1", Status: string(model.RunStatusRunning)},
+		model.TaskRun{ID: "r_2", Status: string(model.RunStatusScheduled)},
 	)
 
 	now := time.Unix(1_800_000_000, 0)
@@ -96,7 +96,7 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 // cancel having done nothing.
 func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 	store := &fakeStaleStore{
-		canceled: []model.TaskRun{{TaskRunID: "r_1", Status: string(model.RunStatusRunning)}},
+		canceled: []model.TaskRun{{ID: "r_1", Status: string(model.RunStatusRunning)}},
 	}
 	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
 
@@ -128,7 +128,7 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 // different questions and one being unavailable is no reason to skip the other.
 func TestReaperSweepsAbandonedRunsWhenTheCancelQueryFails(t *testing.T) {
 	store := &fakeStaleStore{
-		stale:         []model.TaskRun{{TaskRunID: "r_1", Status: string(model.RunStatusRunning)}},
+		stale:         []model.TaskRun{{ID: "r_1", Status: string(model.RunStatusRunning)}},
 		cancelListErr: errors.New("database is away"),
 	}
 	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
@@ -156,7 +156,7 @@ func TestReaperCutoffIsTheTimeoutAgo(t *testing.T) {
 // nothing that the next tick cannot recover.
 func TestReaperSurvivesFailures(t *testing.T) {
 	t.Run("the query fails", func(t *testing.T) {
-		store, reaper := newStaleFixture(model.TaskRun{TaskRunID: "r_1"})
+		store, reaper := newStaleFixture(model.TaskRun{ID: "r_1"})
 		store.listErr = errors.New("database is away")
 		reaper.Sweep(context.Background(), time.Now())
 		if len(store.failed) != 0 {
@@ -165,7 +165,7 @@ func TestReaperSurvivesFailures(t *testing.T) {
 	})
 
 	t.Run("the update fails", func(t *testing.T) {
-		store, reaper := newStaleFixture(model.TaskRun{TaskRunID: "r_1"})
+		store, reaper := newStaleFixture(model.TaskRun{ID: "r_1"})
 		store.updateErr = errors.New("database is away")
 		reaper.Sweep(context.Background(), time.Now())
 		if len(store.synced) != 0 {

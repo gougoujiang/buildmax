@@ -67,7 +67,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 func (h *Handler) refuseDisabled(w http.ResponseWriter, r *http.Request, user *model.User, handler string) bool {
 	if user != nil && user.Disabled() {
 		slog.InfoContext(r.Context(), "refused a disabled account",
-			"handler", handler, "user_id", user.UserID, "remote", r.RemoteAddr)
+			"handler", handler, "user_id", user.ID, "remote", r.RemoteAddr)
 	}
 	return h.guard().RejectDisabled(w, user)
 }

@@ -140,8 +140,8 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
       ) : (
         <ul className="settings-webhook__key-list">
           {keys.map((k) => (
-            <li key={k.key_id} className="settings-webhook__key-item">
-              <span className="settings-webhook__key-name">{k.name || k.key_id}</span>
+            <li key={k.id} className="settings-webhook__key-item">
+              <span className="settings-webhook__key-name">{k.name || k.id}</span>
               <span className="settings-webhook__key-meta">
                 {new Date(k.created_at * 1000).toLocaleString()}
               </span>
@@ -149,12 +149,12 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
                 type="button"
                 className={cn(
                   "settings-webhook__btn settings-webhook__btn--danger",
-                  revokingId === k.key_id && "settings-webhook__btn--busy"
+                  revokingId === k.id && "settings-webhook__btn--busy"
                 )}
-                onClick={() => handleRevoke(k.key_id)}
+                onClick={() => handleRevoke(k.id)}
                 disabled={revokingId !== null}
               >
-                {revokingId === k.key_id ? "Revoking…" : "Revoke"}
+                {revokingId === k.id ? "Revoking…" : "Revoke"}
               </button>
             </li>
           ))}

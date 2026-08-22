@@ -157,8 +157,8 @@ func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.Serv
 	t.Helper()
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
-			{TeamID: matrixOther, Name: "Other", CreatedBy: matrixOutside},
+			{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
+			{ID: matrixOther, Name: "Other", CreatedBy: matrixOutside},
 		},
 		Members: []model.TeamMember{
 			{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},

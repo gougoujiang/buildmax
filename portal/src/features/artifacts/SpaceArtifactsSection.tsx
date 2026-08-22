@@ -116,10 +116,10 @@ export function SpaceArtifactsSection({
 
   async function onDownload(artifact: ApiArtifact) {
     if (!token) return
-    setBusyId(artifact.artifact_id)
+    setBusyId(artifact.id)
     setError(null)
     try {
-      await downloadAuthenticated(artifactContentUrl(artifact.artifact_id), token, artifact.filename)
+      await downloadAuthenticated(artifactContentUrl(artifact.id), token, artifact.filename)
     } catch (err) {
       setError(getErrorMessage(err, "Download failed"))
     } finally {
@@ -129,11 +129,11 @@ export function SpaceArtifactsSection({
 
   async function onDelete(artifact: ApiArtifact) {
     if (!token) return
-    setBusyId(artifact.artifact_id)
+    setBusyId(artifact.id)
     setError(null)
     try {
-      await deleteArtifact(artifact.artifact_id, token)
-      setItems((prev) => prev.filter((a) => a.artifact_id !== artifact.artifact_id))
+      await deleteArtifact(artifact.id, token)
+      setItems((prev) => prev.filter((a) => a.id !== artifact.id))
       setTotal((prev) => Math.max(0, prev - 1))
     } catch (err) {
       setError(getErrorMessage(err, "Delete failed"))
@@ -181,7 +181,7 @@ export function SpaceArtifactsSection({
       {items.length > 0 ? (
         <ul className="artifact-list">
           {items.map((artifact) => (
-            <li key={artifact.artifact_id} className="artifact-row">
+            <li key={artifact.id} className="artifact-row">
               <div className="artifact-row__main">
                 <span className="artifact-row__name">{artifact.title || artifact.filename}</span>
                 <span className="artifact-row__meta">
@@ -189,7 +189,7 @@ export function SpaceArtifactsSection({
                 </span>
               </div>
               <div className="artifact-row__meta">
-                <code className="artifact-row__id">{artifact.artifact_id}</code>
+                <code className="artifact-row__id">{artifact.id}</code>
                 <time>{formatTime(artifact.created_at)}</time>
               </div>
               <div className="artifact-row__actions">
@@ -208,7 +208,7 @@ export function SpaceArtifactsSection({
                   type="button"
                   className="page-activity__action-btn"
                   onClick={() => onDownload(artifact)}
-                  disabled={busyId === artifact.artifact_id}
+                  disabled={busyId === artifact.id}
                 >
                   Download
                 </button>
@@ -217,7 +217,7 @@ export function SpaceArtifactsSection({
                     type="button"
                     className="page-activity__action-btn"
                     onClick={() => onDelete(artifact)}
-                    disabled={busyId === artifact.artifact_id}
+                    disabled={busyId === artifact.id}
                   >
                     Delete
                   </button>

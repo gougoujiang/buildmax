@@ -15,13 +15,12 @@ import "context"
 // Artifact, because a reference someone saved must not quietly come to mean
 // something else.
 type Artifact struct {
-	ID         uint   `json:"-"`
-	ArtifactID string `json:"artifact_id"`
-	TeamID     string `json:"team_id"`
-	Filename   string `json:"filename"`
-	MediaType  string `json:"media_type"`
-	SizeBytes  int64  `json:"size_bytes"`
-	SHA256     string `json:"sha256"`
+	ID        string `json:"id"`
+	TeamID    string `json:"team_id"`
+	Filename  string `json:"filename"`
+	MediaType string `json:"media_type"`
+	SizeBytes int64  `json:"size_bytes"`
+	SHA256    string `json:"sha256"`
 	// StorageKey is where the object store put the bytes. It is never
 	// serialized: an API response, tool output, trace, or audit event that
 	// carried it would leak deployment layout and outlive the layout's freedom
@@ -109,7 +108,6 @@ type ArtifactStore interface {
 
 // TaskRunArtifact is one output file (artifact) for a task run.
 type TaskRunArtifact struct {
-	ID           uint   `json:"-"`
 	TaskRunID    string `json:"task_run_id"`
 	RelativePath string `json:"relative_path"`
 }

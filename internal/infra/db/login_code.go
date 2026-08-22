@@ -12,9 +12,9 @@ import (
 )
 
 type loginCodeRow struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	ID        uint64 `gorm:"primaryKey;autoIncrement"`
 	CodeHash  string `gorm:"type:varchar(128);uniqueIndex;not null"`
-	UserID    string `gorm:"type:varchar(64);not null;index"`
+	UserID    uint64 `gorm:"column:user_id;not null;index"`
 	ExpiresAt int64  `gorm:"not null;index"`
 	UsedAt    *int64
 	CreatedAt int64 `gorm:"autoCreateTime"`
@@ -48,11 +48,15 @@ func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Dur
 	if _, err := rand.Read(b); err != nil {
 		return "", 0, err
 	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if err != nil {
+		return "", 0, err
+	}
 	plaintext := loginCodePrefix + hex.EncodeToString(b)
 	expiresAt := time.Now().Add(ttl).Unix()
 	row := loginCodeRow{
 		CodeHash:  hashLoginCode(plaintext),
-		UserID:    userID,
+		UserID:    userKey,
 		ExpiresAt: expiresAt,
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
@@ -73,9 +77,18 @@ func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext, userID string, 
 	if plaintext == "" || userID == "" {
 		return false, nil
 	}
+	// An unknown account is not an error here: it matches no code, which is the
+	// same refusal a wrong code gets and takes the same work.
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, model.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
 	res := s.db.WithContext(ctx).Model(&loginCodeRow{}).
 		Where("code_hash = ? AND user_id = ? AND used_at IS NULL AND expires_at > ?",
-			hashLoginCode(plaintext), userID, now).
+			hashLoginCode(plaintext), userKey, now).
 		Update("used_at", now)
 	if res.Error != nil {
 		return false, res.Error

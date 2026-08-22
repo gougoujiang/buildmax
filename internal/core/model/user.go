@@ -5,8 +5,7 @@ import "context"
 // User is the user model. JSON uses snake_case per project convention.
 // Internal numeric ID is retained for compatibility but is not part of the public API.
 type User struct {
-	ID                uint    `json:"-"`
-	UserID            string  `json:"user_id"`
+	ID                string  `json:"id"`
 	Email             string  `json:"email"`
 	Name              string  `json:"name"`
 	QuotaTier         string  `json:"quota_tier,omitempty"`

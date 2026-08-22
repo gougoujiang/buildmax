@@ -89,7 +89,7 @@ func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 
 	audits := &mock.MockAuditStore{}
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{{TeamID: matrixTeam, Name: "Matrix", CreatedBy: adminTeamOwner}},
+		Teams: []model.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: adminTeamOwner}},
 		Members: []model.TeamMember{
 			{TeamID: matrixTeam, UserID: adminTeamOwner, Role: model.TeamRoleOwner},
 		},
@@ -128,7 +128,7 @@ func seedUser(t *testing.T, users *mock.MockUserStore, userID, email string) *mo
 	if users.ByEmail == nil {
 		users.ByEmail = make(map[string]*model.User)
 	}
-	u := &model.User{UserID: userID, Email: email, CreatedAt: 1}
+	u := &model.User{ID: userID, Email: email, CreatedAt: 1}
 	users.ByID[userID] = u
 	users.ByEmail[email] = u
 	return u

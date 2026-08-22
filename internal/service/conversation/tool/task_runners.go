@@ -88,7 +88,7 @@ func (r *listTasksStoreRunner) ListTasks(ctx context.Context, conversationID str
 			snippet = util.TruncateRunes(item.Title, 60)
 		}
 		ts := util.FormatUnixMinute(item.CreatedAt)
-		lines = append(lines, fmt.Sprintf("%d. %s | %s | %s | %s", i+1, item.TaskID, snippet, item.Status, ts))
+		lines = append(lines, fmt.Sprintf("%d. %s | %s | %s | %s", i+1, item.ID, snippet, item.Status, ts))
 	}
 	return strings.Join(lines, "\n"), nil
 }
@@ -115,7 +115,7 @@ func (r *getTaskStoreRunner) GetTask(ctx context.Context, conversationID, taskID
 		lastRun = *taskItem.LastRunID
 	}
 	return fmt.Sprintf("task_id: %s\ntitle: %s\ninput: %s\nstatus: %s\ncreated_at: %s\nlast_run_id: %s\n%s",
-		taskItem.TaskID, taskItem.Title, inputTrunc, taskItem.Status, util.FormatUnixMinute(taskItem.CreatedAt), lastRun, outputLine), nil
+		taskItem.ID, taskItem.Title, inputTrunc, taskItem.Status, util.FormatUnixMinute(taskItem.CreatedAt), lastRun, outputLine), nil
 }
 
 type continueTaskServiceRunner struct {
@@ -143,5 +143,5 @@ func (r *continueTaskServiceRunner) ContinueTask(ctx context.Context, conversati
 	if err != nil {
 		return "", err
 	}
-	return run.TaskRunID, nil
+	return run.ID, nil
 }

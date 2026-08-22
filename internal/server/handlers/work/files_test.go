@@ -87,7 +87,7 @@ func TestTeamScopedFilesHandlers(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:      filesTestSecret,
-		Teams:          &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamA, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}, {TeamID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamA, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: model.TeamRoleOwner}}},
+		Teams:          &mock.MockTeamStore{Teams: []model.Team{{ID: teamA, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}, {ID: teamB, Name: "Shared", CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamA, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamB, UserID: "u1", Role: model.TeamRoleOwner}}},
 		PersistStorage: persist,
 	})
 	mux := http.NewServeMux()

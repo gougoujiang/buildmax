@@ -94,13 +94,13 @@ export function AdminTeams({ token }: { token: string | null }) {
         ) : (
           <ul className="admin-list">
             {teams.map((team) => (
-              <li key={team.team_id} className="admin-list__row">
+              <li key={team.id} className="admin-list__row">
                 <button
                   type="button"
                   className="admin-list__main admin-list__main--action"
                   onClick={() => {
                     if (!token) return
-                    getAdminTeam(token, team.team_id)
+                    getAdminTeam(token, team.id)
                       .then(setSelected)
                       .catch((err) => setError(getErrorMessage(err, "Failed to load the space")))
                   }}
@@ -123,7 +123,7 @@ export function AdminTeams({ token }: { token: string | null }) {
           <div className="settings-page__section-head">
             <div>
               <h2 className="settings-page__section-title">{selected.name}</h2>
-              <p className="settings-page__section-copy">{selected.team_id}</p>
+              <p className="settings-page__section-copy">{selected.id}</p>
             </div>
             <button type="button" className="admin-button" onClick={() => setSelected(null)}>
               Close

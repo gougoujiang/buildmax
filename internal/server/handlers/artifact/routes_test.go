@@ -41,8 +41,8 @@ func newFixture(t *testing.T) *fixture {
 	svc := &artifactsvc.Service{Artifacts: store, Storage: storage}
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: teamA, Name: "A", CreatedBy: userOwner},
-			{TeamID: teamB, Name: "B", CreatedBy: userOther},
+			{ID: teamA, Name: "A", CreatedBy: userOwner},
+			{ID: teamB, Name: "B", CreatedBy: userOther},
 		},
 		Members: []model.TeamMember{
 			{TeamID: teamA, UserID: userOwner, Role: model.TeamRoleOwner},
@@ -112,16 +112,16 @@ func TestUploadThenReadByID(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
 
-	if !strings.HasPrefix(created.ArtifactID, "ar_") {
-		t.Fatalf("artifact id = %q, want an ar_ prefix", created.ArtifactID)
+	if _, ok := util.ParsePublicID(created.ID); !ok {
+		t.Fatalf("artifact id = %q, want a canonical public ID", created.ID)
 	}
 	// A different member of the same team resolves the same reference, with no
 	// team named anywhere in the URL.
-	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID, userMember, nil, "")
+	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, userMember, nil, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get status = %d, want 200", rec.Code)
 	}
-	content := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID+"/content", userMember, nil, "")
+	content := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content", userMember, nil, "")
 	if content.Code != http.StatusOK {
 		t.Fatalf("content status = %d, want 200", content.Code)
 	}
@@ -136,7 +136,7 @@ func TestResponsesNeverCarryTheStorageKey(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
 
-	stored, err := f.store.GetArtifact(t.Context(), created.ArtifactID)
+	stored, err := f.store.GetArtifact(t.Context(), created.ID)
 	if err != nil || stored == nil {
 		t.Fatalf("stored record: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestResponsesNeverCarryTheStorageKey(t *testing.T) {
 		t.Fatal("the record should have kept the key the storage reported")
 	}
 	for _, path := range []string{
-		"/api/artifacts/" + created.ArtifactID,
+		"/api/artifacts/" + created.ID,
 		"/api/teams/" + teamA + "/artifacts",
 	} {
 		body := f.do(t, http.MethodGet, path, userOwner, nil, "").Body.String()
@@ -164,7 +164,7 @@ func TestNonMemberCannotTellAnArtifactFromNothing(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
 
-	real := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID, userOther, nil, "")
+	real := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, userOther, nil, "")
 	invented := f.do(t, http.MethodGet, "/api/artifacts/ar_doesnotexist000000000", userOther, nil, "")
 
 	if real.Code != http.StatusNotFound {
@@ -177,7 +177,7 @@ func TestNonMemberCannotTellAnArtifactFromNothing(t *testing.T) {
 		t.Errorf("the two answers differ, which tells a stranger the id exists:\n real: %s\n fake: %s",
 			real.Body.String(), invented.Body.String())
 	}
-	if code := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID+"/content", userOther, nil, "").Code; code != http.StatusNotFound {
+	if code := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content", userOther, nil, "").Code; code != http.StatusNotFound {
 		t.Errorf("content for a non-member = %d, want 404", code)
 	}
 }
@@ -185,7 +185,7 @@ func TestNonMemberCannotTellAnArtifactFromNothing(t *testing.T) {
 func TestAnonymousCallerIsUnauthorized(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
-	if code := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID, "", nil, "").Code; code != http.StatusUnauthorized {
+	if code := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, "", nil, "").Code; code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", code)
 	}
 }
@@ -231,7 +231,7 @@ func TestContentDispositionFollowsTheInlineAllowlist(t *testing.T) {
 			if created.Inline != c.wantInline {
 				t.Errorf("inline = %v, want %v", created.Inline, c.wantInline)
 			}
-			rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID+"/content", userOwner, nil, "")
+			rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content", userOwner, nil, "")
 			if got := rec.Header().Get("Content-Type"); got != c.wantType {
 				t.Errorf("Content-Type = %q, want %q", got, c.wantType)
 			}
@@ -248,7 +248,7 @@ func TestContentDispositionFollowsTheInlineAllowlist(t *testing.T) {
 func TestContentDispositionCarriesBothFilenameForms(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "报告 v2.txt", "content")
-	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ArtifactID+"/content", userOwner, nil, "")
+	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content", userOwner, nil, "")
 	got := rec.Header().Get("Content-Disposition")
 	if !strings.Contains(got, `filename="`) || !strings.Contains(got, "filename*=UTF-8''") {
 		t.Errorf("Content-Disposition = %q, want an ASCII fallback and an RFC 5987 form", got)
@@ -265,16 +265,16 @@ func TestDeletePolicy(t *testing.T) {
 	mine := f.upload(t, userMember, teamA, "mine.md", "mine")
 	theirs := f.upload(t, userOwner, teamA, "theirs.md", "theirs")
 
-	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+theirs.ArtifactID, userMember, nil, "").Code; code != http.StatusForbidden {
+	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+theirs.ID, userMember, nil, "").Code; code != http.StatusForbidden {
 		t.Errorf("a member deleting someone else's artifact got %d, want 403", code)
 	}
-	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+mine.ArtifactID, userMember, nil, "").Code; code != http.StatusNoContent {
+	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+mine.ID, userMember, nil, "").Code; code != http.StatusNoContent {
 		t.Errorf("a member deleting their own artifact got %d, want 204", code)
 	}
-	if code := f.do(t, http.MethodGet, "/api/artifacts/"+mine.ArtifactID, userMember, nil, "").Code; code != http.StatusNotFound {
+	if code := f.do(t, http.MethodGet, "/api/artifacts/"+mine.ID, userMember, nil, "").Code; code != http.StatusNotFound {
 		t.Errorf("a deleted artifact is still readable: %d", code)
 	}
-	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+theirs.ArtifactID, userOwner, nil, "").Code; code != http.StatusNoContent {
+	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+theirs.ID, userOwner, nil, "").Code; code != http.StatusNoContent {
 		t.Errorf("an owner deleting any team artifact got %d, want 204", code)
 	}
 }
@@ -282,7 +282,7 @@ func TestDeletePolicy(t *testing.T) {
 func TestDeleteByNonMemberIsNotFound(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "hello")
-	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+created.ArtifactID, userOther, nil, "").Code; code != http.StatusNotFound {
+	if code := f.do(t, http.MethodDelete, "/api/artifacts/"+created.ID, userOther, nil, "").Code; code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
 }
@@ -369,8 +369,8 @@ func TestUploadToDefaultTeamUsesThePersonalTeam(t *testing.T) {
 	personal := "tm_personal"
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: personal, Name: "Mine", PersonalForUserID: util.Ptr(userOwner), CreatedBy: userOwner},
-			{TeamID: teamA, Name: "A", CreatedBy: userOwner},
+			{ID: personal, Name: "Mine", PersonalForUserID: util.Ptr(userOwner), CreatedBy: userOwner},
+			{ID: teamA, Name: "A", CreatedBy: userOwner},
 		},
 		Members: []model.TeamMember{
 			{TeamID: personal, UserID: userOwner, Role: model.TeamRoleOwner},

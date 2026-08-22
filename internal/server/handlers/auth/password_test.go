@@ -24,7 +24,7 @@ func hashFor(t *testing.T, plaintext string) string {
 // newPasswordMux wires a handler where u1 signs in with testPassword.
 func newPasswordMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockPasswordStore) {
 	t.Helper()
-	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	passwords := &mock.MockPasswordStore{Hashes: map[string]string{"u1": hashFor(t, testPassword)}}
 	if cfg.Users == nil {
 		cfg.Users = &mock.MockUserStore{
@@ -68,14 +68,14 @@ func TestPasswordLoginIssuesASession(t *testing.T) {
 // Every failure answers the same way. Telling an unknown address apart from a
 // wrong password turns the login form into a way to ask who has an account.
 func TestPasswordLoginFailuresAreIndistinguishable(t *testing.T) {
-	noPassword := &model.User{UserID: "u2", Email: "nopass@b.c"}
+	noPassword := &model.User{ID: "u2", Email: "nopass@b.c"}
 	mux, _ := newPasswordMux(t, Config{
 		Users: &mock.MockUserStore{
 			ByEmail: map[string]*model.User{
-				"a@b.c":      {UserID: "u1", Email: "a@b.c", Name: "Alice"},
+				"a@b.c":      {ID: "u1", Email: "a@b.c", Name: "Alice"},
 				"nopass@b.c": noPassword,
 			},
-			ByID: map[string]*model.User{"u1": {UserID: "u1", Email: "a@b.c"}, "u2": noPassword},
+			ByID: map[string]*model.User{"u1": {ID: "u1", Email: "a@b.c"}, "u2": noPassword},
 		},
 	})
 
@@ -143,7 +143,7 @@ func TestSetPasswordRequiresTheCurrentOneWhenThereIsOne(t *testing.T) {
 // which is the strongest proof this deployment has, and there is no current
 // password to present.
 func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
-	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	passwords := &mock.MockPasswordStore{}
 	mux := http.NewServeMux()
 	New(Config{

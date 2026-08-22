@@ -216,7 +216,7 @@ func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, 
 		Input:            previous.Input,
 		CreatedByType:    model.RunCreatedByTypeUser,
 		TriggerSource:    model.RunTriggerSourceTaskRetry,
-		RetryOfTaskRunID: &previous.TaskRunID,
+		RetryOfTaskRunID: &previous.ID,
 	})
 	if err != nil {
 		return nil, err
@@ -249,7 +249,7 @@ func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*
 		runID = *task.LastRunID
 	}
 	return &StartBackgroundTaskResult{
-		TaskID: task.TaskID,
+		TaskID: task.ID,
 		RunID:  runID,
 	}, nil
 }

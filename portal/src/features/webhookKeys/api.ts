@@ -7,14 +7,14 @@ import {
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 
 export interface WebhookKeyMeta {
-  key_id: string
+  id: string
   name: string
   created_at: number
 }
 
 export interface CreateWebhookKeyResponse {
   key: string
-  key_id: string
+  id: string
 }
 
 export interface ListWebhookKeysResponse {

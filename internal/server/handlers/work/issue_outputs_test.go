@@ -49,12 +49,12 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 	issues := &mock.MockIssueStore{
 		Issues: []model.Issue{
 			{
-				IssueID: "i_1", UserID: "u1", TeamID: personalTeamID,
+				ID: "i_1", UserID: "u1", TeamID: personalTeamID,
 				Title: "I", Status: model.IssueStatusInProgress,
 				CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100,
 			},
 			{
-				IssueID: "i_other", UserID: "u2", TeamID: otherTeamID,
+				ID: "i_other", UserID: "u2", TeamID: otherTeamID,
 				Title: "Other", Status: model.IssueStatusTodo,
 				CreatedBy: "u2", CreatedAt: 50, UpdatedAt: 50,
 			},
@@ -62,8 +62,8 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 	}
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
-			{TeamID: otherTeamID, Name: "Other", CreatedBy: "u2"},
+			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
+			{ID: otherTeamID, Name: "Other", CreatedBy: "u2"},
 		},
 		Members: []model.TeamMember{
 			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner},
@@ -130,7 +130,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 	taskID := "t_a"
 	runID := "r_a"
 	fx.tasks.List = []model.Task{{
-		TaskID:         taskID,
+		ID:             taskID,
 		ConversationID: "c_1",
 		TeamID:         fx.personalID,
 		IssueID:        util.Ptr("i_1"),
@@ -189,7 +189,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	// Assign issue to workflow so the issue flow endpoint resolves the workflow.
 	wfID := "w_1"
 	fx.workflows.Workflows = []model.Workflow{{
-		WorkflowID: wfID, TeamID: fx.personalID, Name: "WF",
+		ID: wfID, TeamID: fx.personalID, Name: "WF",
 		Definition: `{"steps":[]}`, Status: model.WorkflowStatusPublished,
 	}}
 	// Patch the issue's assignee_kind/id via the underlying store directly.
@@ -201,19 +201,19 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	// For this test we don't actually need the workflow to resolve; the
 	// step provenance comes from ListWorkflowRunsByIssue / ListWorkflowStepRuns.
 	fx.workflows.Runs = []model.WorkflowRun{{
-		WorkflowRunID: workflowRunID, WorkflowID: wfID,
+		ID: workflowRunID, WorkflowID: wfID,
 		IssueID: util.Ptr("i_1"), ConversationID: "c_1",
 		Status: model.WorkflowRunStatusSucceeded, CreatedBy: "u1", CreatedAt: 300,
 	}}
 	fx.workflows.StepRuns = []model.WorkflowStepRun{{
-		StepRunID: stepRunID, WorkflowRunID: workflowRunID,
+		ID: stepRunID, WorkflowRunID: workflowRunID,
 		StepID: stepID, StepIndex: 0, StepType: model.WorkflowStepTypeAgentTask,
 		Status: model.WorkflowStepRunStatusSucceeded,
 		TaskID: &taskID, TaskRunID: &runID, CreatedAt: 305,
 	}}
 
 	fx.tasks.List = []model.Task{{
-		TaskID:         taskID,
+		ID:             taskID,
 		ConversationID: "c_1",
 		TeamID:         fx.personalID,
 		IssueID:        util.Ptr("i_1"),
@@ -259,7 +259,7 @@ func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 	taskID := "t_a"
 	runID := "r_a"
 	fx.tasks.List = []model.Task{{
-		TaskID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED",
 		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
 	}}
@@ -286,7 +286,7 @@ func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
 	taskID := "t_other"
 	runID := "r_other"
 	fx.tasks.List = []model.Task{{
-		TaskID: taskID, ConversationID: "c_other", TeamID: fx.otherTeamID,
+		ID: taskID, ConversationID: "c_other", TeamID: fx.otherTeamID,
 		IssueID: util.Ptr("i_other"), Status: "SUCCEEDED",
 		CreatedBy: "u2", CreatedAt: 200, LastRunID: &runID,
 	}}
@@ -328,11 +328,11 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	taskID := "t_pub"
 	runID := "r_pub"
 	fx.tasks.List = []model.Task{{
-		TaskID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{{TaskRunID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 200}}
+	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 200}}
 	if _, err := fx.published.CreateArtifact(context.Background(), model.CreateArtifactInput{
 		TeamID: fx.personalID, ArtifactID: "ar_published", Filename: "report.pdf",
 		MediaType: "application/pdf", SizeBytes: 2048,
@@ -377,11 +377,11 @@ func TestIssueFlowOutputs_NoArtifactStore(t *testing.T) {
 	fx.published = nil
 	runID := "r_none"
 	fx.tasks.List = []model.Task{{
-		TaskID: "t_none", ConversationID: "c_1", TeamID: fx.personalID,
+		ID: "t_none", ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{{TaskRunID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: 200}}
+	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: 200}}
 	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
@@ -401,13 +401,13 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 	taskID := "t_retry"
 	firstRun, secondRun := "r_first", "r_second"
 	fx.tasks.List = []model.Task{{
-		TaskID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: 200, LastRunID: &secondRun,
 	}}
 	fx.taskRuns.Runs = []model.TaskRun{
-		{TaskRunID: firstRun, TaskID: taskID, Status: "FAILED", CreatedAt: 200},
-		{TaskRunID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 300},
+		{ID: firstRun, TaskID: taskID, Status: "FAILED", CreatedAt: 200},
+		{ID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 300},
 	}
 	for _, c := range []struct{ id, run, name string }{
 		{"ar_from_first", firstRun, "draft.pdf"},

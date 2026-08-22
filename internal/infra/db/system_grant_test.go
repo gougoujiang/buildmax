@@ -8,7 +8,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // The store is the only implementation the server wires in, so a signature
@@ -36,8 +35,7 @@ func openGrantStore(t *testing.T) (*Store, context.Context) {
 // that guards the last grant tracks it throughout.
 func TestSystemGrantLifecycle(t *testing.T) {
 	s, ctx := openGrantStore(t)
-	userID := util.NewPrefixedID(util.PrefixUser)
-	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&systemGrantRow{}, "user_id = ?", userID).Error })
+	userID := newTestUser(t, s, "grant")
 
 	before, err := s.CountActiveSystemGrants(ctx, model.SystemRoleAdmin)
 	if err != nil {
@@ -48,7 +46,7 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GrantSystemRole: %v", err)
 	}
-	if grant.SystemGrantID == "" || grant.RevokedAt != nil || !grant.Active() {
+	if grant.ID == "" || grant.RevokedAt != nil || !grant.Active() {
 		t.Fatalf("new grant should be active with an id: %+v", grant)
 	}
 
@@ -93,8 +91,8 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-grant after revoke: %v", err)
 	}
-	if regrant.SystemGrantID == grant.SystemGrantID {
-		t.Errorf("re-grant reused the retired row's id %q", regrant.SystemGrantID)
+	if regrant.ID == grant.ID {
+		t.Errorf("re-grant reused the retired row's id %q", regrant.ID)
 	}
 
 	all, err := s.ListSystemGrants(ctx, true)
@@ -132,8 +130,7 @@ func TestSystemGrantLifecycle(t *testing.T) {
 // store that took any string would make the column a way to invent authority.
 func TestGrantSystemRoleRejectsUnknownRole(t *testing.T) {
 	s, ctx := openGrantStore(t)
-	userID := util.NewPrefixedID(util.PrefixUser)
-	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&systemGrantRow{}, "user_id = ?", userID).Error })
+	userID := newTestUser(t, s, "grant")
 
 	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", model.AuditActorOperator, 100); !errors.Is(err, model.ErrSystemRoleUnknown) {
 		t.Fatalf("GrantSystemRole(system_observer) err = %v, want ErrSystemRoleUnknown", err)
@@ -149,7 +146,7 @@ func TestGrantSystemRoleRejectsUnknownRole(t *testing.T) {
 // empty rather than an error.
 func TestActiveSystemRolesIsEmptyForOrdinaryUsers(t *testing.T) {
 	s, ctx := openGrantStore(t)
-	roles, err := s.ActiveSystemRoles(ctx, util.NewPrefixedID(util.PrefixUser))
+	roles, err := s.ActiveSystemRoles(ctx, testPublicID(t))
 	if err != nil {
 		t.Fatalf("ActiveSystemRoles: %v", err)
 	}

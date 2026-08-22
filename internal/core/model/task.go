@@ -61,8 +61,7 @@ const (
 
 // Task holds the user-visible state for a background task.
 type Task struct {
-	ID                    uint    `json:"-"`
-	TaskID                string  `json:"task_id"`
+	ID                    string  `json:"id"`
 	ConversationID        string  `json:"conversation_id"`
 	TeamID                string  `json:"team_id,omitempty"`
 	IssueID               *string `json:"issue_id,omitempty"`
@@ -84,8 +83,7 @@ type Task struct {
 
 // TaskRun is one execution (initial or follow-up) of a task.
 type TaskRun struct {
-	ID               uint    `json:"-"`
-	TaskRunID        string  `json:"task_run_id"`
+	ID               string  `json:"id"`
 	TaskID           string  `json:"task_id"`
 	Input            string  `json:"input"`
 	CreatedBy        string  `json:"created_by,omitempty"`

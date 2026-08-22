@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // seedAuditEvents writes n events for one actor at the given timestamps and
@@ -54,8 +53,8 @@ func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID 
 // resolution so ties are ordinary rather than exotic.
 func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := util.NewPrefixedID(util.PrefixUser)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{500, 500, 500, 400})
@@ -71,7 +70,7 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 			break
 		}
 		for _, e := range page {
-			seen = append(seen, e.AuditEventID)
+			seen = append(seen, e.ID)
 		}
 		last := page[len(page)-1]
 		cursor = model.AuditCursor{CreatedAt: last.CreatedAt, ID: last.ID}
@@ -94,8 +93,8 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 // screen they took it from.
 func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := util.NewPrefixedID(util.PrefixUser)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{100, 200, 300})
@@ -119,11 +118,19 @@ func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 // nothing at or after it, and never more than one batch at a time.
 func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := util.NewPrefixedID(util.PrefixUser)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	now := time.Now().Unix()
+	// Retention is deployment-wide, so the counts below are over the whole
+	// table and cannot tolerate a row this test did not write -- a sign-in from
+	// a stack sharing this database, or an earlier run that was interrupted
+	// before its cleanup. Everything the prune would reach is removed first,
+	// which is what makes an absolute count mean anything here.
+	if err := s.db.WithContext(ctx).Where("created_at < ?", now-100).Delete(&auditEventRow{}).Error; err != nil {
+		t.Fatalf("clear events older than the cutoff: %v", err)
+	}
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{now - 400, now - 300, now - 200, now - 50})
 
 	oldest, err := s.OldestAuditEventAt(ctx)
@@ -167,8 +174,8 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 // "everything is expired".
 func TestPruneAuditEventsIgnoresAZeroCutoff(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := util.NewPrefixedID(util.PrefixUser)
-	teamID := util.NewPrefixedID(util.PrefixTeam)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{100})

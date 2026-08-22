@@ -16,8 +16,7 @@ const (
 // Team is the ownership and collaboration boundary for working resources.
 // A user's default personal team is represented by personal_for_user_id.
 type Team struct {
-	ID                uint    `json:"-"`
-	TeamID            string  `json:"team_id"`
+	ID                string  `json:"id"`
 	Name              string  `json:"name"`
 	PersonalForUserID *string `json:"personal_for_user_id,omitempty"`
 	QuotaTier         string  `json:"quota_tier,omitempty"`
@@ -28,7 +27,6 @@ type Team struct {
 
 // TeamMember is one user's membership in a team.
 type TeamMember struct {
-	ID        uint   `json:"-"`
 	TeamID    string `json:"team_id"`
 	UserID    string `json:"user_id"`
 	Role      string `json:"role"`

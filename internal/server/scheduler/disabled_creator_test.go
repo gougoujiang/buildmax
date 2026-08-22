@@ -29,7 +29,7 @@ func TestSchedulerDoesNotDispatchForADisabledAccount(t *testing.T) {
 	users := &mock.MockUserStore{}
 	disabledAt := int64(1)
 	users.ByID = map[string]*model.User{
-		"u_disabled": {UserID: "u_disabled", Email: "gone@example.com", DisabledAt: &disabledAt},
+		"u_disabled": {ID: "u_disabled", Email: "gone@example.com", DisabledAt: &disabledAt},
 	}
 	runner := &recordingRunner{}
 
@@ -67,7 +67,7 @@ func TestSchedulerDispatchesForAnEnabledAccount(t *testing.T) {
 		users model.UserStore
 	}{
 		{"enabled account", &mock.MockUserStore{ByID: map[string]*model.User{
-			"u_active": {UserID: "u_active", Email: "here@example.com"},
+			"u_active": {ID: "u_active", Email: "here@example.com"},
 		}}},
 		{"no user store", nil},
 	} {

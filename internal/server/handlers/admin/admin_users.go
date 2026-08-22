@@ -18,7 +18,7 @@ import (
 // the surface where that would matter most — see the secret assertion in
 // system_authz_matrix_test.go.
 type AdminUser struct {
-	UserID            string  `json:"user_id"`
+	ID                string  `json:"id"`
 	Email             string  `json:"email"`
 	Name              string  `json:"name,omitempty"`
 	QuotaTier         string  `json:"quota_tier,omitempty"`
@@ -31,7 +31,7 @@ type AdminUser struct {
 
 func toAdminUser(u model.User) AdminUser {
 	return AdminUser{
-		UserID:            u.UserID,
+		ID:                u.ID,
 		Email:             u.Email,
 		Name:              u.Name,
 		QuotaTier:         u.QuotaTier,
@@ -120,36 +120,36 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Team names and roles, not team contents. An administrator learns that the
 	// account can reach a team, never what is in it.
 	if h.cfg.Teams != nil {
-		teams, err := h.cfg.Teams.ListTeamsByUser(r.Context(), user.UserID)
+		teams, err := h.cfg.Teams.ListTeamsByUser(r.Context(), user.ID)
 		if err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "user_id", user.UserID)
+			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "user_id", user.ID)
 			return
 		}
 		for _, team := range teams {
 			role := ""
-			members, err := h.cfg.Teams.ListTeamMembers(r.Context(), team.TeamID)
+			members, err := h.cfg.Teams.ListTeamMembers(r.Context(), team.ID)
 			if err != nil {
-				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "team_id", team.TeamID)
+				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "team_id", team.ID)
 				return
 			}
 			for _, m := range members {
-				if m.UserID == user.UserID {
+				if m.UserID == user.ID {
 					role = m.Role
 					break
 				}
 			}
-			detail.Teams = append(detail.Teams, AdminUserTeam{TeamID: team.TeamID, Name: team.Name, Role: role})
+			detail.Teams = append(detail.Teams, AdminUserTeam{TeamID: team.ID, Name: team.Name, Role: role})
 		}
 	}
 	if h.cfg.RefreshTokens != nil {
-		count, err := h.cfg.RefreshTokens.CountUserSessions(r.Context(), user.UserID, time.Now().Unix())
+		count, err := h.cfg.RefreshTokens.CountUserSessions(r.Context(), user.ID, time.Now().Unix())
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "sessions")
 			return
 		}
 		detail.SessionCount = count
 	}
-	roles, err := h.cfg.Grants.ActiveSystemRoles(r.Context(), user.UserID)
+	roles, err := h.cfg.Grants.ActiveSystemRoles(r.Context(), user.ID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "roles")
 		return
@@ -192,7 +192,7 @@ func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request)
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_create_user")
 		return
 	}
-	h.recordAdminUserAction(r, actorID, model.AuditUserCreated, user.UserID, "")
+	h.recordAdminUserAction(r, actorID, model.AuditUserCreated, user.ID, "")
 	httputil.WriteJSON(w, http.StatusCreated, toAdminUser(*user))
 }
 
@@ -216,12 +216,12 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusConflict, "the account is disabled; enable it before issuing a code")
 		return
 	}
-	code, expiresAt, err := h.cfg.LoginCodes.CreateLoginCode(r.Context(), user.UserID, model.LoginCodeTTLDefault)
+	code, expiresAt, err := h.cfg.LoginCodes.CreateLoginCode(r.Context(), user.ID, model.LoginCodeTTLDefault)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_login_code", "user_id", user.UserID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_login_code", "user_id", user.ID)
 		return
 	}
-	h.recordAdminUserAction(r, actorID, model.AuditLoginCodeIssued, user.UserID, "")
+	h.recordAdminUserAction(r, actorID, model.AuditLoginCodeIssued, user.ID, "")
 	// The code itself is never recorded, here or in the trail. The event says
 	// one was issued; the plaintext exists in this response and nowhere else.
 	httputil.WriteJSON(w, http.StatusOK, AdminLoginCodeResponse{Code: code, ExpiresAt: expiresAt})
@@ -242,7 +242,7 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 		// mid-request and cannot undo it, because the next call is refused
 		// too. The recovery would be the operator command, for a mistake that
 		// is easy to make and pointless to allow.
-		if disable && user.UserID == actorID {
+		if disable && user.ID == actorID {
 			httputil.WriteJSONError(w, http.StatusConflict, "an administrator cannot disable their own account")
 			return
 		}
@@ -254,12 +254,12 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 			disabledAt = &now
 			action = model.AuditUserDisabled
 		}
-		if err := h.cfg.Users.SetUserDisabled(r.Context(), user.UserID, disabledAt); err != nil {
+		if err := h.cfg.Users.SetUserDisabled(r.Context(), user.ID, disabledAt); err != nil {
 			if errors.Is(err, model.ErrUserNotFound) {
 				httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
 				return
 			}
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", user.UserID)
+			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", user.ID)
 			return
 		}
 
@@ -268,16 +268,16 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 			// The stored half of every login, retired now rather than left to
 			// expire. The access token cannot be revoked at all; what stops it
 			// is requireActiveUser refusing on the next request.
-			n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.UserID, time.Now().Unix())
+			n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().Unix())
 			if err != nil {
 				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
 				return
 			}
 			revoked = n
 		}
-		h.recordAdminUserAction(r, actorID, action, user.UserID, "")
+		h.recordAdminUserAction(r, actorID, action, user.ID, "")
 
-		updated, err := h.cfg.Users.GetUser(r.Context(), user.UserID)
+		updated, err := h.cfg.Users.GetUser(r.Context(), user.ID)
 		if err != nil || updated == nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "reload")
 			return
@@ -302,12 +302,12 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.UserID, time.Now().Unix())
+	n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().Unix())
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_sessions", "user_id", user.UserID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_sessions", "user_id", user.ID)
 		return
 	}
-	h.recordAdminUserAction(r, actorID, model.AuditSessionsRevoked, user.UserID, "")
+	h.recordAdminUserAction(r, actorID, model.AuditSessionsRevoked, user.ID, "")
 	httputil.WriteJSON(w, http.StatusOK, AdminSessionsRevokedResponse{Revoked: n})
 }
 

@@ -20,14 +20,13 @@ var _ model.PluginStore = (*Store)(nil)
 // and their digest are still exactly what was published.
 func TestToPluginReleaseSurvivesADamagedDocument(t *testing.T) {
 	row := &pluginReleaseRow{
-		PluginReleaseID: "plr_test",
-		PluginName:      "code-review",
-		Version:         "1.2.0",
-		Digest:          "sha256:abc",
-		Inspection:      "{not json",
-		Source:          "{also not json",
+		PluginName: "code-review",
+		Version:    "1.2.0",
+		Digest:     "sha256:abc",
+		Inspection: "{not json",
+		Source:     "{also not json",
 	}
-	got := toPluginRelease(row)
+	got := toPluginRelease(&pluginReleaseReadRow{Row: *row})
 	if got.Version != "1.2.0" || got.Digest != "sha256:abc" {
 		t.Errorf("release identity lost: %+v", got)
 	}
@@ -52,7 +51,7 @@ func TestToPluginReleaseDecodesDocuments(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := toPluginRelease(&pluginReleaseRow{Inspection: string(inspection), Source: string(source)})
+	got := toPluginRelease(&pluginReleaseReadRow{Row: pluginReleaseRow{Inspection: string(inspection), Source: string(source)}})
 	if len(got.Inspection.Skills) != 1 || got.Inspection.MCP[0].Executable != "npx" {
 		t.Errorf("inspection = %+v", got.Inspection)
 	}
@@ -97,7 +96,7 @@ func makeCatalogEntry(t *testing.T, s *Store, ctx context.Context, name string) 
 	_ = s.db.WithContext(ctx).Delete(&pluginReleaseRow{}, "plugin_name = ?", name)
 	_ = s.db.WithContext(ctx).Delete(&pluginRow{}, "name = ?", name)
 	entry, err := s.CreatePlugin(ctx, model.CreatePluginInput{
-		Name: name, DisplayName: "Code Review", Description: "Reviews.", CreatedBy: "u_test",
+		Name: name, DisplayName: "Code Review", Description: "Reviews.", CreatedBy: newTestUser(t, s, "plugin"),
 	})
 	if err != nil {
 		t.Fatalf("CreatePlugin: %v", err)
@@ -113,11 +112,11 @@ func TestPluginCatalogLifecycle(t *testing.T) {
 	s, ctx := newPluginStore(t)
 	const name = "store-test-code-review"
 	entry := makeCatalogEntry(t, s, ctx, name)
-	if entry.PluginID == "" || entry.Name != name {
+	if entry.Name != name {
 		t.Fatalf("entry = %+v", entry)
 	}
 
-	if _, err := s.CreatePlugin(ctx, model.CreatePluginInput{Name: name, CreatedBy: "u_test"}); !errors.Is(err, model.ErrPluginNameTaken) {
+	if _, err := s.CreatePlugin(ctx, model.CreatePluginInput{Name: name, CreatedBy: newTestUser(t, s, "plugin")}); !errors.Is(err, model.ErrPluginNameTaken) {
 		t.Errorf("duplicate name: err = %v, want ErrPluginNameTaken", err)
 	}
 	if got, err := s.GetPlugin(ctx, "store-test-absent"); err != nil || got != nil {
@@ -146,7 +145,7 @@ func TestPluginCatalogLifecycle(t *testing.T) {
 	}
 	// Archiving hides and refuses, it does not delete.
 	if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
-		PluginName: name, Version: "1.0.0", Digest: "sha256:a", ObjectKey: "k", PublishedBy: "u_test",
+		PluginName: name, Version: "1.0.0", Digest: "sha256:a", ObjectKey: "k", PublishedBy: newTestUser(t, s, "publisher"),
 	}); !errors.Is(err, model.ErrPluginArchived) {
 		t.Errorf("publishing to an archived entry: err = %v, want ErrPluginArchived", err)
 	}
@@ -169,13 +168,13 @@ func TestPluginReleaseIsImmutable(t *testing.T) {
 		SizeBytes:          4096,
 		Inspection:         model.PluginInspection{Skills: []string{"review"}, EnvRefs: []string{"GITHUB_TOKEN"}},
 		Source:             model.PluginReleaseSource{RemoteURL: "git@example.com:x.git", Commit: "abc123"},
-		PublishedBy:        "u_test",
+		PublishedBy:        newTestUser(t, s, "publisher"),
 	}
 	rel, err := s.CreatePluginRelease(ctx, in)
 	if err != nil {
 		t.Fatalf("CreatePluginRelease: %v", err)
 	}
-	if rel.PluginReleaseID == "" || rel.PluginName != name {
+	if rel.PluginName != name {
 		t.Fatalf("release = %+v", rel)
 	}
 
@@ -184,7 +183,7 @@ func TestPluginReleaseIsImmutable(t *testing.T) {
 		t.Errorf("republishing: err = %v, want ErrPluginVersionExists", err)
 	}
 	if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
-		PluginName: "store-test-absent", Version: "1.0.0", Digest: "sha256:a", PublishedBy: "u_test",
+		PluginName: "store-test-absent", Version: "1.0.0", Digest: "sha256:a", PublishedBy: newTestUser(t, s, "publisher"),
 	}); !errors.Is(err, model.ErrNotFound) {
 		t.Errorf("publishing to a missing entry: err = %v, want ErrNotFound", err)
 	}
@@ -210,36 +209,37 @@ func TestPluginReleaseYank(t *testing.T) {
 	makeCatalogEntry(t, s, ctx, name)
 	for _, v := range []string{"1.0.0", "1.1.0"} {
 		if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
-			PluginName: name, Version: v, Digest: "sha256:" + v, ObjectKey: v, PublishedBy: "u_test",
+			PluginName: name, Version: v, Digest: "sha256:" + v, ObjectKey: v, PublishedBy: newTestUser(t, s, "publisher"),
 		}); err != nil {
 			t.Fatalf("publish %s: %v", v, err)
 		}
 	}
 
-	if err := s.YankPluginRelease(ctx, name, "1.1.0", "u_admin", "broken hook"); err != nil {
+	admin := newTestUser(t, s, "yanker")
+	if err := s.YankPluginRelease(ctx, name, "1.1.0", admin, "broken hook"); err != nil {
 		t.Fatalf("YankPluginRelease: %v", err)
 	}
 	got, err := s.GetPluginRelease(ctx, name, "1.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Yanked() || got.YankedBy != "u_admin" || got.YankedReason != "broken hook" {
+	if !got.Yanked() || got.YankedBy != admin || got.YankedReason != "broken hook" {
 		t.Errorf("yanked release = %+v", got)
 	}
 
 	// Yanking again keeps the first withdrawal, which is the fact a past
 	// installation is explained by.
-	if err := s.YankPluginRelease(ctx, name, "1.1.0", "u_other", "again"); err != nil {
+	if err := s.YankPluginRelease(ctx, name, "1.1.0", newTestUser(t, s, "yanker2"), "again"); err != nil {
 		t.Errorf("yanking twice should not error: %v", err)
 	}
 	again, err := s.GetPluginRelease(ctx, name, "1.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.YankedBy != "u_admin" || again.YankedAt != got.YankedAt {
+	if again.YankedBy != admin || again.YankedAt != got.YankedAt {
 		t.Errorf("second yank rewrote the record: %+v", again)
 	}
-	if err := s.YankPluginRelease(ctx, name, "9.9.9", "u_admin", ""); !errors.Is(err, model.ErrNotFound) {
+	if err := s.YankPluginRelease(ctx, name, "9.9.9", admin, ""); !errors.Is(err, model.ErrNotFound) {
 		t.Errorf("yanking a missing release: err = %v, want ErrNotFound", err)
 	}
 

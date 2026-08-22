@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -16,19 +15,22 @@ import (
 // metadata only — no prompts, tool payloads, or generated content.
 type llmCallRow struct {
 	ID           uint    `gorm:"primaryKey;autoIncrement"`
-	LLMCallID    string  `gorm:"type:varchar(64);uniqueIndex;not null"`
+	PublicID     []byte  `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_llm_call_public_id;not null"`
 	ClientCallID *string `gorm:"type:varchar(128);uniqueIndex:idx_llm_call_client,priority:2"`
 
 	// The composite unique index leads with team_id, so team-scoped lookups do
 	// not need a second index on this column.
-	TeamID    string  `gorm:"type:varchar(64);not null;uniqueIndex:idx_llm_call_client,priority:1"`
-	UserID    *string `gorm:"type:varchar(64);index"`
-	TaskRunID *string `gorm:"type:varchar(64);index"`
+	TeamID    uint64  `gorm:"column:team_id;not null;uniqueIndex:idx_llm_call_client,priority:1"`
+	UserID    *uint64 `gorm:"column:user_id;index"`
+	TaskRunID *uint64 `gorm:"column:task_run_id;index"`
 
+	// SessionID names a file under a run's BUILDMAX_HOME, not a row.
 	Surface   string  `gorm:"type:varchar(32)"`
 	SessionID *string `gorm:"type:varchar(64)"`
-	TaskID    *string `gorm:"type:varchar(64);index"`
+	TaskID    *uint64 `gorm:"column:task_id;index"`
 
+	// Alias and TargetID name a catalog entry whose namespace may be owned by
+	// configuration rather than by llm_model, so neither becomes a reference.
 	Alias         string `gorm:"type:varchar(64)"`
 	TargetID      string `gorm:"type:varchar(64);not null"`
 	ProviderType  string `gorm:"type:varchar(32);not null"`
@@ -54,55 +56,82 @@ type llmCallRow struct {
 
 func (llmCallRow) TableName() string { return "llm_call" }
 
-func toLLMCall(row *llmCallRow) *model.LLMCall {
+// llmCallReadRow is the row plus the handles its references resolve to.
+type llmCallReadRow struct {
+	Row             llmCallRow `gorm:"embedded"`
+	TeamPublicID    []byte     `gorm:"column:team_public_id"`
+	UserPublicID    []byte     `gorm:"column:user_public_id"`
+	TaskPublicID    []byte     `gorm:"column:task_public_id"`
+	TaskRunPublicID []byte     `gorm:"column:task_run_public_id"`
+}
+
+func (s *Store) llmCallSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&llmCallRow{}).
+		Select("llm_call.*, t.public_id AS team_public_id, u.public_id AS user_public_id, " +
+			"tk.public_id AS task_public_id, r.public_id AS task_run_public_id").
+		Joins("INNER JOIN team t ON t.id = llm_call.team_id").
+		Joins("LEFT JOIN `user` u ON u.id = llm_call.user_id").
+		Joins("LEFT JOIN task tk ON tk.id = llm_call.task_id").
+		Joins("LEFT JOIN task_run r ON r.id = llm_call.task_run_id")
+}
+
+func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 	if row == nil {
 		return nil
 	}
-	return &model.LLMCall{
-		ID:                row.ID,
-		LLMCallID:         row.LLMCallID,
-		ClientCallID:      row.ClientCallID,
-		TeamID:            row.TeamID,
-		UserID:            row.UserID,
-		TaskRunID:         row.TaskRunID,
-		Surface:           row.Surface,
-		SessionID:         row.SessionID,
-		TaskID:            row.TaskID,
-		Alias:             row.Alias,
-		TargetID:          row.TargetID,
-		ProviderType:      row.ProviderType,
-		UpstreamModel:     row.UpstreamModel,
-		Streaming:         row.Streaming,
-		AcceptedAt:        row.AcceptedAt,
-		UpstreamStartedAt: row.UpstreamStartedAt,
-		FirstDeltaAt:      row.FirstDeltaAt,
-		CompletedAt:       row.CompletedAt,
-		Status:            row.Status,
-		ErrorClass:        row.ErrorClass,
-		Attempts:          row.Attempts,
-		PromptTokens:      row.PromptTokens,
-		CompletionTokens:  row.CompletionTokens,
-		TotalTokens:       row.TotalTokens,
-		CacheReadTokens:   row.CacheReadTokens,
-		CacheWriteTokens:  row.CacheWriteTokens,
-		UsageSource:       row.UsageSource,
+	out := &model.LLMCall{
+		ID:                util.FormatPublicID(row.Row.PublicID),
+		ClientCallID:      row.Row.ClientCallID,
+		TeamID:            util.FormatPublicID(row.TeamPublicID),
+		Surface:           row.Row.Surface,
+		SessionID:         row.Row.SessionID,
+		Alias:             row.Row.Alias,
+		TargetID:          row.Row.TargetID,
+		ProviderType:      row.Row.ProviderType,
+		UpstreamModel:     row.Row.UpstreamModel,
+		Streaming:         row.Row.Streaming,
+		AcceptedAt:        row.Row.AcceptedAt,
+		UpstreamStartedAt: row.Row.UpstreamStartedAt,
+		FirstDeltaAt:      row.Row.FirstDeltaAt,
+		CompletedAt:       row.Row.CompletedAt,
+		Status:            row.Row.Status,
+		ErrorClass:        row.Row.ErrorClass,
+		Attempts:          row.Row.Attempts,
+		PromptTokens:      row.Row.PromptTokens,
+		CompletionTokens:  row.Row.CompletionTokens,
+		TotalTokens:       row.Row.TotalTokens,
+		CacheReadTokens:   row.Row.CacheReadTokens,
+		CacheWriteTokens:  row.Row.CacheWriteTokens,
+		UsageSource:       row.Row.UsageSource,
 	}
+	if row.Row.UserID != nil {
+		user := util.FormatPublicID(row.UserPublicID)
+		out.UserID = &user
+	}
+	if row.Row.TaskID != nil {
+		task := util.FormatPublicID(row.TaskPublicID)
+		out.TaskID = &task
+	}
+	if row.Row.TaskRunID != nil {
+		run := util.FormatPublicID(row.TaskRunPublicID)
+		out.TaskRunID = &run
+	}
+	return out
 }
 
-func toLLMCallRow(call *model.LLMCall) *llmCallRow {
+// llmCallValues carries every column that is a value rather than a reference.
+//
+// It is separate from reference resolution so the mapping stays testable
+// without a database: a column added to the model and forgotten here is the
+// failure this split exists to keep catching.
+func llmCallValues(call *model.LLMCall) *llmCallRow {
 	if call == nil {
 		return nil
 	}
 	return &llmCallRow{
-		ID:                call.ID,
-		LLMCallID:         call.LLMCallID,
 		ClientCallID:      call.ClientCallID,
-		TeamID:            call.TeamID,
-		UserID:            call.UserID,
-		TaskRunID:         call.TaskRunID,
 		Surface:           call.Surface,
 		SessionID:         call.SessionID,
-		TaskID:            call.TaskID,
 		Alias:             call.Alias,
 		TargetID:          call.TargetID,
 		ProviderType:      call.ProviderType,
@@ -124,6 +153,34 @@ func toLLMCallRow(call *model.LLMCall) *llmCallRow {
 	}
 }
 
+// toLLMCallRow resolves the call's references. It reports an error rather than
+// dropping one: the ledger is an accounting record, and a call attributed to
+// nothing is worse than a refused write.
+func (s *Store) toLLMCallRow(ctx context.Context, call *model.LLMCall) (*llmCallRow, error) {
+	teamKey, err := lookupKey(ctx, s.db, "team", call.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	userKey, err := optionalKey(ctx, s.db, "user", call.UserID)
+	if err != nil {
+		return nil, err
+	}
+	taskKey, err := optionalKey(ctx, s.db, "task", call.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	runKey, err := optionalKey(ctx, s.db, "task_run", call.TaskRunID)
+	if err != nil {
+		return nil, err
+	}
+	row := llmCallValues(call)
+	row.TeamID = teamKey
+	row.UserID = userKey
+	row.TaskID = taskKey
+	row.TaskRunID = runKey
+	return row, nil
+}
+
 // OpenLLMCall records an accepted call before the upstream request starts, so a
 // call that never returns still leaves evidence that it was attempted.
 func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LLMCall, error) {
@@ -131,7 +188,6 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 		return nil, errors.New("llm call is required")
 	}
 	stored := *call
-	stored.LLMCallID = util.NewPrefixedID(util.PrefixLLMCall)
 	if stored.AcceptedAt == 0 {
 		stored.AcceptedAt = time.Now().Unix()
 	}
@@ -141,29 +197,25 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 	if stored.UsageSource == "" {
 		stored.UsageSource = model.LLMUsageSourceUnavailable
 	}
-	row := toLLMCallRow(&stored)
-	if err := s.db.WithContext(ctx).Create(row).Error; err != nil {
+	row, err := s.toLLMCallRow(ctx, &stored)
+	if err != nil {
+		return nil, err
+	}
+	if err := createWithPublicID(ctx, s.db, "uq_llm_call_public_id",
+		func(b []byte) { row.PublicID = b }, row); err != nil {
 		if isDuplicateKey(err) {
 			return nil, model.ErrDuplicateLLMCall
 		}
 		return nil, err
 	}
-	return toLLMCall(row), nil
+	return toLLMCall(&llmCallReadRow{
+		Row:             *row,
+		TeamPublicID:    mustParsePublicID(stored.TeamID),
+		UserPublicID:    optionalRaw(stored.UserID),
+		TaskPublicID:    optionalRaw(stored.TaskID),
+		TaskRunPublicID: optionalRaw(stored.TaskRunID),
+	}), nil
 }
-
-// isDuplicateKey reports whether the error is a unique-constraint violation.
-// Checking the constraint rather than looking before inserting is what closes
-// the window between two concurrent requests carrying the same client call ID.
-func isDuplicateKey(err error) bool {
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return true
-	}
-	var mysqlErr *mysqldriver.MySQLError
-	return errors.As(err, &mysqlErr) && mysqlErr.Number == mysqlDuplicateEntry
-}
-
-// mysqlDuplicateEntry is ER_DUP_ENTRY.
-const mysqlDuplicateEntry = 1062
 
 // CompleteLLMCall writes the terminal outcome of an open call. Usage is left as
 // recorded when the outcome carries none, so an unavailable count is never
@@ -193,15 +245,23 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome m
 		updates["cache_write_tokens"] = usage.CacheWriteTokens
 		updates["usage_source"] = source
 	}
+	raw, ok := util.ParsePublicID(llmCallID)
+	if !ok {
+		return model.ErrNotFound
+	}
 	return s.db.WithContext(ctx).Model(&llmCallRow{}).
-		Where("llm_call_id = ?", llmCallID).
+		Where("public_id = ?", raw).
 		Updates(updates).Error
 }
 
 // GetLLMCall returns one call by ID, or (nil, nil) when not found.
 func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*model.LLMCall, error) {
-	var row llmCallRow
-	err := s.db.WithContext(ctx).Where("llm_call_id = ?", llmCallID).First(&row).Error
+	raw, ok := util.ParsePublicID(llmCallID)
+	if !ok {
+		return nil, nil
+	}
+	var row llmCallReadRow
+	err := s.llmCallSelect(ctx).Where("llm_call.public_id = ?", raw).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -217,10 +277,17 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, teamID, clientCallID s
 	if teamID == "" || clientCallID == "" {
 		return nil, nil
 	}
-	var row llmCallRow
-	err := s.db.WithContext(ctx).
-		Where("team_id = ? AND client_call_id = ?", teamID, clientCallID).
-		First(&row).Error
+	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var row llmCallReadRow
+	err = s.llmCallSelect(ctx).
+		Where("llm_call.team_id = ? AND llm_call.client_call_id = ?", teamKey, clientCallID).
+		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -236,10 +303,24 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, teamID, clientCallID s
 // the team afterwards would still have read another team's row first, and the
 // difference matters for a table that records what each team spent.
 func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, teamID, taskRunID string) ([]model.LLMCall, error) {
-	var rows []llmCallRow
-	err := s.db.WithContext(ctx).
-		Where("team_id = ? AND task_run_id = ?", teamID, taskRunID).
-		Order("accepted_at ASC").
+	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rows []llmCallReadRow
+	err = s.llmCallSelect(ctx).
+		Where("llm_call.team_id = ? AND llm_call.task_run_id = ?", teamKey, runKey).
+		Order("llm_call.accepted_at ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err

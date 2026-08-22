@@ -39,7 +39,7 @@ func newFakeMarketplace(t *testing.T) *fakeMarketplace {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/plugins/{plugin_name}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, pluginwire.PluginResponse{
-			Plugin:   model.Plugin{PluginID: "pl_test", Name: r.PathValue("plugin_name")},
+			Plugin:   model.Plugin{Name: r.PathValue("plugin_name")},
 			Releases: m.releases,
 		})
 	})
@@ -86,7 +86,7 @@ func (m *fakeMarketplace) publish(t *testing.T, name, version string, opts ...fu
 	m.packages[version] = buf.Bytes()
 
 	release := model.PluginRelease{
-		PluginID: "pl_test", PluginName: name, Version: version,
+		PluginName: name, Version: version,
 		Digest: digest, SizeBytes: int64(buf.Len()), PublishedBy: "u_admin",
 		Inspection: model.PluginInspection{Skills: []string{"review"}},
 	}

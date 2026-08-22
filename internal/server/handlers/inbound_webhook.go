@@ -77,7 +77,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "create_conversation")
 		return
 	}
-	result, err := h.cfg.WebhookEngine.Process(r.Context(), conv.ConversationID, "", turn)
+	result, err := h.cfg.WebhookEngine.Process(r.Context(), conv.ID, "", turn)
 	if err != nil {
 		if errors.Is(err, model.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "task has a run already in progress")

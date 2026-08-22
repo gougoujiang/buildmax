@@ -8,19 +8,23 @@ import (
 )
 
 // Both revision tables are the same query shape: append-only rows keyed by an
-// owner column and a revision number, newest first. Only the row type and the
-// column name differ, so they are parameters rather than two copies.
+// owner column and a revision number, newest first. Only the row type, the
+// column name, and the join set differ, so they are parameters rather than two
+// copies.
 //
-// ownerCol reaches a WHERE clause as text, so it must stay a constant from this
-// package and never a value from a request.
+// table and ownerCol reach a query as text, so both must stay constants from
+// this package and never values from a request. Both are qualified inside: the
+// read joins for the handles it returns, and an unqualified `revision` is
+// ambiguous once the owner table -- which has a revision of its own -- is in
+// the query.
 
-func listRevisions[R any](ctx context.Context, db *gorm.DB, ownerCol, ownerID string, limit, offset int) ([]R, int, error) {
+func listRevisions[R any](ctx context.Context, db, sel *gorm.DB, table, ownerCol string, ownerKey uint64, limit, offset int) ([]R, int, error) {
 	limit, offset = capPage(limit, offset)
 	var total int64
-	if err := db.WithContext(ctx).Model(new(R)).Where(ownerCol+" = ?", ownerID).Count(&total).Error; err != nil {
+	if err := db.WithContext(ctx).Table(table).Where(ownerCol+" = ?", ownerKey).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	q := db.WithContext(ctx).Where(ownerCol+" = ?", ownerID).Order("revision DESC")
+	q := sel.Where(table+"."+ownerCol+" = ?", ownerKey).Order(table + ".revision DESC")
 	if limit > 0 {
 		q = q.Limit(limit)
 	}
@@ -36,9 +40,9 @@ func listRevisions[R any](ctx context.Context, db *gorm.DB, ownerCol, ownerID st
 
 // getRevision returns (nil, nil) when there is no such revision, which is how
 // both stores already reported it.
-func getRevision[R any](ctx context.Context, db *gorm.DB, ownerCol, ownerID string, revision int) (*R, error) {
+func getRevision[R any](sel *gorm.DB, table, ownerCol string, ownerKey uint64, revision int) (*R, error) {
 	var row R
-	err := db.WithContext(ctx).Where(ownerCol+" = ? AND revision = ?", ownerID, revision).First(&row).Error
+	err := sel.Where(table+"."+ownerCol+" = ? AND "+table+".revision = ?", ownerKey, revision).Take(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

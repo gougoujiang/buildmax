@@ -1,0 +1,87 @@
+package db
+
+import (
+	"context"
+	"errors"
+	"os"
+	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
+)
+
+// TestLookupKeyRefusesAMalformedHandleWithoutQuerying is the cheap half of the
+// oracle rule: text that was never a public ID is answered as not-found before
+// a query runs, so a malformed identifier cannot be told from a well-formed
+// unknown one by how long the answer takes or by what the error says.
+//
+// The nil database is the assertion. A query would panic.
+func TestLookupKeyRefusesAMalformedHandleWithoutQuerying(t *testing.T) {
+	for _, bad := range []string{"", "t_9f3k2m8x1qwe7rt4zy", "not a public id", "IVYOH5QCFU6YPFKHYED!"} {
+		if _, err := lookupKey(context.Background(), nil, "task", bad); !errors.Is(err, model.ErrNotFound) {
+			t.Errorf("lookupKey(%q) = %v, want ErrNotFound", bad, err)
+		}
+	}
+}
+
+// TestAForeignHandleIsIndistinguishableFromAnUnknownOne is the other half, and
+// it needs a database because the two answers must come from the same code
+// path.
+//
+// A team-scoped read is constrained by both the handle and the team, so a
+// caller holding a real identifier for somebody else's row learns exactly what
+// a caller holding a made-up one learns. Without that, a well-formed public ID
+// becomes a way to ask whether a row exists in a team you cannot see.
+func TestAForeignHandleIsIndistinguishableFromAnUnknownOne(t *testing.T) {
+	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
+	if dsn == "" {
+		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
+	}
+	ctx := context.Background()
+	s, err := New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	owner := newTestUser(t, s, "oracle-owner")
+	stranger := newTestUser(t, s, "oracle-stranger")
+	ownerTeam := newTestTeam(t, s, owner)
+	strangerTeam := newTestTeam(t, s, stranger)
+
+	conv, err := s.CreateConversationInTeam(ctx, ownerTeam, owner, "portal", owner)
+	if err != nil {
+		t.Fatalf("CreateConversationInTeam: %v", err)
+	}
+	issue, err := s.CreateIssueInTeam(ctx, ownerTeam, owner, model.CreateIssueInput{Title: "private"})
+	if err != nil {
+		t.Fatalf("CreateIssueInTeam: %v", err)
+	}
+	unknown, err := util.NewPublicID()
+	if err != nil {
+		t.Fatalf("NewPublicID: %v", err)
+	}
+
+	// Listing another team's issue by its real handle, and by one that names
+	// nothing, must produce the same answer.
+	real, realTotal, err := s.ListIssuesByTeam(ctx, strangerTeam, model.ListIssuesFilter{ParentIssueID: issue.ID}, 10, 0)
+	if err != nil {
+		t.Fatalf("ListIssuesByTeam(foreign parent): %v", err)
+	}
+	made, madeTotal, err := s.ListIssuesByTeam(ctx, strangerTeam, model.ListIssuesFilter{ParentIssueID: unknown}, 10, 0)
+	if err != nil {
+		t.Fatalf("ListIssuesByTeam(unknown parent): %v", err)
+	}
+	if len(real) != len(made) || realTotal != madeTotal {
+		t.Errorf("a foreign handle answered %d/%d and an unknown one %d/%d; the two must be one answer",
+			len(real), realTotal, len(made), madeTotal)
+	}
+
+	// The same for a conversation the stranger has no claim to.
+	if got, _, err := s.ListConversationsByTeam(ctx, strangerTeam, 10, 0); err != nil || len(got) != 0 {
+		t.Errorf("stranger's team listed %d conversations (err %v); the owner's is not theirs", len(got), err)
+	}
+	if got, err := s.ListTasksByConversation(ctx, conv.ID, "desc"); err != nil || len(got) != 0 {
+		t.Errorf("a conversation with no tasks listed %d (err %v)", len(got), err)
+	}
+}

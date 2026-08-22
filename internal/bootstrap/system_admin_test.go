@@ -71,7 +71,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 	if err := runAdminGrant(ctx, []string{user.Email}, &granted, store); err != nil {
 		t.Fatalf("runAdminGrant: %v", err)
 	}
-	roles, err := store.ActiveSystemRoles(ctx, user.UserID)
+	roles, err := store.ActiveSystemRoles(ctx, user.ID)
 	if err != nil || len(roles) != 1 || roles[0] != model.SystemRoleAdmin {
 		t.Fatalf("ActiveSystemRoles = %v, %v; want [%s]", roles, err, model.SystemRoleAdmin)
 	}
@@ -90,7 +90,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 	if event.Action != model.AuditSystemAdminGranted ||
 		event.ActorType != model.AuditActorSystem ||
 		event.ActorID != model.AuditActorOperator ||
-		event.TargetID != user.UserID ||
+		event.TargetID != user.ID ||
 		event.TeamID != "" {
 		t.Errorf("grant event wrong: %+v", event)
 	}
@@ -106,7 +106,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 	if err := runAdminRevoke(ctx, []string{user.Email}, &revoked, store); err != nil {
 		t.Fatalf("runAdminRevoke: %v", err)
 	}
-	roles, err = store.ActiveSystemRoles(ctx, user.UserID)
+	roles, err = store.ActiveSystemRoles(ctx, user.ID)
 	if err != nil || len(roles) != 0 {
 		t.Fatalf("after revoke ActiveSystemRoles = %v, %v; want empty", roles, err)
 	}

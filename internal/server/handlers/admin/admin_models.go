@@ -46,7 +46,7 @@ func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request)
 	for _, m := range models {
 		row := AdminModel{LLMModel: m, Aliases: []string{}}
 		for alias, target := range h.cfg.Deployment.ModelAliases {
-			if target == m.LLMModelID {
+			if target == m.ID {
 				row.Aliases = append(row.Aliases, alias)
 			}
 		}

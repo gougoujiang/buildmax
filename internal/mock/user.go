@@ -60,14 +60,14 @@ func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuota
 	}
 	m.NextUserID++
 	u := &model.User{
-		UserID:    fmt.Sprintf("mock-u-%d", m.NextUserID),
+		ID:        fmt.Sprintf("mock-u-%d", m.NextUserID),
 		Email:     email,
 		QuotaTier: defaultQuotaTier,
 		Name:      "",
 		CreatedAt: time.Now().Unix(),
 	}
 	m.ByEmail[email] = u
-	m.ByID[u.UserID] = u
+	m.ByID[u.ID] = u
 	return u, nil
 }
 
@@ -93,7 +93,7 @@ func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset
 		if all[i].CreatedAt != all[j].CreatedAt {
 			return all[i].CreatedAt > all[j].CreatedAt
 		}
-		return all[i].UserID > all[j].UserID
+		return all[i].ID > all[j].ID
 	})
 	page, total := paginate(all, limit, offset)
 	return page, total, nil

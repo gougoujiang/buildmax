@@ -72,7 +72,7 @@ func TestOperatorAccountCommandsAreRecorded(t *testing.T) {
 		if e.ActorType != model.AuditActorSystem || e.ActorID != model.AuditActorOperator {
 			t.Errorf("event %d should name the operator binary: %+v", i, e)
 		}
-		if e.TargetType != "user" || e.TargetID != user.UserID {
+		if e.TargetType != "user" || e.TargetID != user.ID {
 			t.Errorf("event %d should name the account: %+v", i, e)
 		}
 		// The trail says a thing happened, never what it became: no password,

@@ -14,9 +14,9 @@ import (
 // a worker reports back to the model are decoded; the storage key is not among
 // them and never leaves the server.
 type ArtifactResponse struct {
-	ArtifactID string `json:"artifact_id"`
-	Filename   string `json:"filename"`
-	SizeBytes  int64  `json:"size_bytes"`
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	SizeBytes int64  `json:"size_bytes"`
 }
 
 // ArtifactPublisher publishes a run's chosen file through the worker API.
@@ -53,10 +53,10 @@ func (p *ArtifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 		return tool.PublishedArtifact{}, err
 	}
 	return tool.PublishedArtifact{
-		ArtifactID: out.ArtifactID,
+		ArtifactID: out.ID,
 		Filename:   out.Filename,
 		SizeBytes:  out.SizeBytes,
-		URL:        ArtifactURL(p.ServerBaseURL, out.ArtifactID),
+		URL:        ArtifactURL(p.ServerBaseURL, out.ID),
 	}, nil
 }
 

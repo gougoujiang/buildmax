@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
@@ -15,14 +16,17 @@ import (
 // contents, and credentials leak in when a column will take anything. A new
 // product behavior earns a new column.
 type artifactRow struct {
-	ID            uint   `gorm:"primaryKey;autoIncrement"`
-	ArtifactID    string `gorm:"column:artifact_id;type:varchar(64);uniqueIndex;not null"`
-	TeamID        string `gorm:"column:team_id;type:varchar(64);not null;index:idx_artifact_team_created,priority:1"`
-	Filename      string `gorm:"type:varchar(512);not null"`
-	MediaType     string `gorm:"column:media_type;type:varchar(255)"`
-	SizeBytes     int64  `gorm:"column:size_bytes;not null"`
-	SHA256        string `gorm:"column:sha256;type:varchar(64);not null"`
-	StorageKey    string `gorm:"column:storage_key;type:varchar(1024);not null"`
+	ID         uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID   []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_artifact_public_id;not null"`
+	TeamID     uint64 `gorm:"column:team_id;not null;index:idx_artifact_team_created,priority:1"`
+	Filename   string `gorm:"type:varchar(512);not null"`
+	MediaType  string `gorm:"column:media_type;type:varchar(255)"`
+	SizeBytes  int64  `gorm:"column:size_bytes;not null"`
+	SHA256     string `gorm:"column:sha256;type:varchar(64);not null"`
+	StorageKey string `gorm:"column:storage_key;type:varchar(1024);not null"`
+	// The creator and the source stay opaque handles under their type columns:
+	// an artifact can come from a run, a conversation, or an upload, and the
+	// producer can be a worker rather than a user.
 	CreatedByType string `gorm:"column:created_by_type;type:varchar(32);not null"`
 	CreatedByID   string `gorm:"column:created_by_id;type:varchar(64)"`
 	SourceType    string `gorm:"column:source_type;type:varchar(32);not null"`
@@ -35,31 +39,42 @@ type artifactRow struct {
 
 func (artifactRow) TableName() string { return "artifact" }
 
-func toArtifact(row *artifactRow) *model.Artifact {
+// artifactReadRow is the row plus its team's handle.
+type artifactReadRow struct {
+	Row          artifactRow `gorm:"embedded"`
+	TeamPublicID []byte      `gorm:"column:team_public_id"`
+}
+
+func (s *Store) artifactSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&artifactRow{}).
+		Select("artifact.*, t.public_id AS team_public_id").
+		Joins("INNER JOIN team t ON t.id = artifact.team_id")
+}
+
+func toArtifact(row *artifactReadRow) *model.Artifact {
 	if row == nil {
 		return nil
 	}
 	return &model.Artifact{
-		ID:            row.ID,
-		ArtifactID:    row.ArtifactID,
-		TeamID:        row.TeamID,
-		Filename:      row.Filename,
-		MediaType:     row.MediaType,
-		SizeBytes:     row.SizeBytes,
-		SHA256:        row.SHA256,
-		StorageKey:    row.StorageKey,
-		CreatedByType: row.CreatedByType,
-		CreatedByID:   row.CreatedByID,
-		SourceType:    row.SourceType,
-		SourceID:      row.SourceID,
-		Title:         row.Title,
-		DeletedAt:     row.DeletedAt,
-		ExpiresAt:     row.ExpiresAt,
-		CreatedAt:     row.CreatedAt,
+		ID:            util.FormatPublicID(row.Row.PublicID),
+		TeamID:        util.FormatPublicID(row.TeamPublicID),
+		Filename:      row.Row.Filename,
+		MediaType:     row.Row.MediaType,
+		SizeBytes:     row.Row.SizeBytes,
+		SHA256:        row.Row.SHA256,
+		StorageKey:    row.Row.StorageKey,
+		CreatedByType: row.Row.CreatedByType,
+		CreatedByID:   row.Row.CreatedByID,
+		SourceType:    row.Row.SourceType,
+		SourceID:      row.Row.SourceID,
+		Title:         row.Row.Title,
+		DeletedAt:     row.Row.DeletedAt,
+		ExpiresAt:     row.Row.ExpiresAt,
+		CreatedAt:     row.Row.CreatedAt,
 	}
 }
 
-func toArtifacts(rows []artifactRow) []model.Artifact {
+func toArtifacts(rows []artifactReadRow) []model.Artifact {
 	out := make([]model.Artifact, len(rows))
 	for i := range rows {
 		out[i] = *toArtifact(&rows[i])
@@ -70,9 +85,17 @@ func toArtifacts(rows []artifactRow) []model.Artifact {
 // CreateArtifact records one artifact. The ID is supplied by the caller, which
 // reserved it before streaming so the storage key could be derived from it.
 func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput) (*model.Artifact, error) {
+	teamKey, err := lookupKey(ctx, s.db, "team", in.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	raw, ok := util.ParsePublicID(in.ArtifactID)
+	if !ok {
+		return nil, model.ErrNotFound
+	}
 	row := artifactRow{
-		ArtifactID:    in.ArtifactID,
-		TeamID:        in.TeamID,
+		PublicID:      raw,
+		TeamID:        teamKey,
 		Filename:      in.Filename,
 		MediaType:     in.MediaType,
 		SizeBytes:     in.SizeBytes,
@@ -88,14 +111,18 @@ func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return nil, err
 	}
-	return toArtifact(&row), nil
+	return toArtifact(&artifactReadRow{Row: row, TeamPublicID: mustParsePublicID(in.TeamID)}), nil
 }
 
 // GetArtifact returns the artifact including a tombstoned one; the caller
 // decides what a deleted artifact means for its route.
 func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*model.Artifact, error) {
-	var row artifactRow
-	err := s.db.WithContext(ctx).Where("artifact_id = ?", artifactID).First(&row).Error
+	raw, ok := util.ParsePublicID(artifactID)
+	if !ok {
+		return nil, nil
+	}
+	var row artifactReadRow
+	err := s.artifactSelect(ctx).Where("artifact.public_id = ?", raw).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -108,15 +135,21 @@ func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*model.Arti
 // ListArtifactsByTeam returns the team's live artifacts, newest first.
 func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Artifact, int, error) {
 	limit, offset = capPage(limit, offset)
-	scope := func(q *gorm.DB) *gorm.DB {
-		return q.Where("team_id = ? AND deleted_at IS NULL", teamID)
+	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
 	}
-	var total int64
-	if err := scope(s.db.WithContext(ctx).Model(&artifactRow{})).Count(&total).Error; err != nil {
+	if err != nil {
 		return nil, 0, err
 	}
-	var list []artifactRow
-	q := scope(s.db.WithContext(ctx)).Order("created_at DESC, id DESC")
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&artifactRow{}).
+		Where("team_id = ? AND deleted_at IS NULL", teamKey).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []artifactReadRow
+	q := s.artifactSelect(ctx).Where("artifact.team_id = ? AND artifact.deleted_at IS NULL", teamKey).
+		Order("artifact.created_at DESC, artifact.id DESC")
 	if limit > 0 {
 		q = q.Limit(limit).Offset(offset)
 	}
@@ -134,17 +167,17 @@ func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (
 	if len(sourceIDs) == 0 {
 		return map[string][]model.Artifact{}, nil
 	}
-	var list []artifactRow
-	err := s.db.WithContext(ctx).
-		Where("source_id IN ? AND deleted_at IS NULL", sourceIDs).
-		Order("created_at DESC, id DESC").
+	var list []artifactReadRow
+	err := s.artifactSelect(ctx).
+		Where("artifact.source_id IN ? AND artifact.deleted_at IS NULL", sourceIDs).
+		Order("artifact.created_at DESC, artifact.id DESC").
 		Find(&list).Error
 	if err != nil {
 		return nil, err
 	}
 	out := make(map[string][]model.Artifact, len(sourceIDs))
 	for i := range list {
-		out[list[i].SourceID] = append(out[list[i].SourceID], *toArtifact(&list[i]))
+		out[list[i].Row.SourceID] = append(out[list[i].Row.SourceID], *toArtifact(&list[i]))
 	}
 	return out, nil
 }
@@ -156,8 +189,12 @@ func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (
 // The update is conditional on the row still being live, so two concurrent
 // deletes produce one audit-worthy change and one no-op rather than two.
 func (s *Store) SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt int64) (bool, error) {
+	raw, ok := util.ParsePublicID(artifactID)
+	if !ok {
+		return false, nil
+	}
 	res := s.db.WithContext(ctx).Model(&artifactRow{}).
-		Where("artifact_id = ? AND deleted_at IS NULL", artifactID).
+		Where("public_id = ? AND deleted_at IS NULL", raw).
 		Update("deleted_at", deletedAt)
 	if res.Error != nil {
 		return false, res.Error

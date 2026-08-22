@@ -15,7 +15,7 @@ way, see [../../design/product-vision.md](../../design/product-vision.md) and
 
 There is no `.sql` file describing the current schema. The source of truth is
 the set of unexported `xxxRow` structs in `internal/infra/db`, and their GORM
-tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 22 of
+tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 28 of
 them at server startup, so the running database is whatever those structs say.
 
 The CLI and Desktop surfaces do not use this database at all. Sessions, traces,
@@ -26,24 +26,42 @@ and settings are files under `<BUILDMAX_HOME>`; see
 
 These hold for every table. They are not repeated in the per-table sections.
 
-**Two identifiers per row.** `id` is an auto-increment `uint` primary key that
-never leaves the process — the Go structs tag it `json:"-"`. The public
-identifier is a separate `varchar(64)` column named after the entity
-(`task_id`, `issue_id`, …) carrying a prefixed ID from `NewPrefixedID` in
-`internal/util/id.go`: `u_` user, `tm_` team, `i_` issue, `a_` agent, `w_`
-workflow, `wr_` workflow run, `wsr_` workflow step run, `c_` conversation,
-`cm_` conversation message, `ic_` issue comment, `t_` task, `r_` task run, `whk_` webhook key, `lc_`
-LLM call, `lm_` LLM model, `as_` auth session. Every API path, foreign reference, and log line uses
-the prefixed ID. Join on it, not on `id`.
+**Two identifiers, one role each.** `id` is an auto-increment
+`bigint unsigned` primary key. It is the relational key: every reference in
+this document joins on it, and it never leaves `internal/infra/db`. `public_id`
+is the handle every boundary sees — an API path, a JWT claim, a log line, an
+object key — and it is `binary(12)` holding 96 bits of crypto-random data,
+written as 20 lowercase base32 characters (`ivyoh5qcfu6ypfkhyedq`). The store
+translates between them: a read rooted at a handle resolves it once through the
+unique index and is numeric after that. Why, and which tables have a handle at
+all, is in
+[../../design/entity-identity.md](../../design/entity-identity.md).
 
-**Session IDs are the exception.** `task.session_id` and `task_run.session_id`
-are `varchar(36)` UUIDs, not prefixed IDs, and they point at a session file
-under the run's `BUILDMAX_HOME` rather than at any table.
+**Not every row has a handle.** A join row, a revision, and a catalog record
+are addressed by something else: `team_member` by its pair, `agent_revision`
+and `workflow_revision` by parent plus revision number, `plugin` by name, and
+`plugin_release` by name plus version. Those tables have no `public_id`.
+
+**Some references stay text.** A column ending in `_id` is a `bigint unsigned`
+reference unless it is polymorphic, externally owned, or a value rather than a
+reference — an audit actor whose type column admits an operator, an assignee
+that may be a person or an agent or a workflow, a provider's tool-call ID, an
+agent session that names a file. Each one is called out in its table below, and
+the full list with its reasons is in `internal/architecture`, where a test
+fails when a reference is added as text without one.
+
+**Session IDs are not handles.** `task.session_id` and `task_run.session_id`
+are `varchar(36)` UUIDs pointing at a session file under the run's
+`BUILDMAX_HOME` rather than at any table. `user_refresh_token.session_id` is a
+different thing again: an `as_`-prefixed login chain, carried as a claim in
+every access token issued under it.
 
 **No database-level foreign keys.** No row struct declares a GORM relation, so
 `AutoMigrate` emits no `FOREIGN KEY` constraints. Every reference described in
 this document is a plain indexed column that application code is responsible
-for keeping consistent. Deleting a parent row does not cascade.
+for keeping consistent. Deleting a parent row does not cascade. Numeric
+references did not change that: adding constraints is a separate decision that
+needs deletion semantics specified first.
 
 **Timestamps are Unix seconds in `bigint` columns**, never `DATETIME` and never
 milliseconds. Columns tagged `autoCreateTime` / `autoUpdateTime` are filled by
@@ -135,7 +153,7 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Auto-increment primary key, internal |
-| `user_id` | `varchar(64)` | no | Public ID, `u_` prefix, unique |
+| `public_id` | `binary(12)` | no | Public handle, unique |
 | `email` | `varchar(255)` | no | Unique; the login identifier |
 | `name` | `varchar(255)` | yes | Display name |
 | `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
@@ -146,7 +164,7 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | `disabled_at` | `bigint` | yes | Non-`NULL` means every credential this account holds is refused |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `user_id`; unique `email`.
+Indexes: PK `id`; unique `email`; unique `public_id`.
 
 `disabled_at` is read on every authenticated request, which is why it is a
 column on this row rather than a side table: the check has to be one
@@ -172,15 +190,15 @@ The ownership and authorization boundary for every Portal resource.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `team_id` | `varchar(64)` | no | Public ID, `tm_` prefix, unique |
+| `public_id` | `binary(12)` | no | Public handle, unique |
 | `name` | `varchar(255)` | no | Display name |
-| `personal_for_user_id` | `varchar(64)` | yes | Set on a user's personal team; unique, so a user has at most one |
+| `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; unique `team_id`; unique `personal_for_user_id`.
+Indexes: PK `id`; unique `personal_for_user_id`; unique `public_id`.
 
 Every user gets a personal team named `My Space`
 (`model.DefaultPersonalTeamName`). It is a real team row, not a special case in
@@ -212,13 +230,12 @@ The membership join table, and the row every authorization check looks for.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `team_id` | `varchar(64)` | no | `team.team_id` |
-| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `team_id` | `bigint unsigned` | no | `team.id` |
+| `user_id` | `bigint unsigned` | no | `user.id` |
 | `role` | `varchar(32)` | no | `owner`, `admin`, or `member` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique composite `uq_team_member_team_user` on
-(`team_id`, `user_id`).
+Indexes: PK `id`; unique `uq_team_member_team_user` on (`team_id`, `user_id`).
 
 Roles are `model.TeamRoleOwner` / `TeamRoleAdmin` / `TeamRoleMember`. Team
 approvals and an audit log are designed but not implemented; do not read this
@@ -234,16 +251,15 @@ operation of the deployment rather than access to its contents — see
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `system_grant_id` | `varchar(64)` | no | Public ID, `sg_` prefix, unique |
-| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | `user.id` |
 | `role` | `varchar(32)` | no | `system_admin` is the only value this build accepts |
-| `granted_by` | `varchar(64)` | no | `user.user_id`, or `buildmax-server` when the operator command made the grant — the same string the matching audit event carries |
+| `granted_by` | `varchar(64)` | no | Opaque: a user's handle, or `buildmax-server` when the operator command made the grant — the same string the matching audit event carries |
 | `granted_at` | `bigint` | no | Unix seconds |
 | `revoked_at` | `bigint` | yes | `NULL` while the grant is in force |
 
-Indexes: PK `id`; unique `system_grant_id`; unique composite
-`idx_system_grant_live` on (`user_id`, `role`, `revoked_at`); index `user_id`;
-index `granted_at`.
+Indexes: PK `id`; index `granted_at`; unique `idx_system_grant_live` on
+(`user_id`, `role`, `revoked_at`); index `user_id`; unique `public_id`.
 
 Nothing deletes from this table. Revoking sets `revoked_at`, so the row stays
 as the record that the authority existed and when it ended. The unique index
@@ -263,12 +279,12 @@ Single-use email login codes. Rows are consumed, not deleted on use.
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `code_hash` | `varchar(128)` | no | Hash of the emailed code, unique — the plaintext is never stored |
-| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `user_id` | `bigint unsigned` | no | `user.id` |
 | `expires_at` | `bigint` | no | Unix seconds; default TTL is one hour (`model.LoginCodeTTLDefault`) |
 | `used_at` | `bigint` | yes | Non-`NULL` means already redeemed; a second attempt fails |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `code_hash`; index `user_id`; index `expires_at`.
+Indexes: PK `id`; unique `code_hash`; index `expires_at`; index `user_id`.
 
 ### `user_refresh_token`
 
@@ -285,7 +301,7 @@ retires the chain however many times it has been renewed.
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `token_hash` | `varchar(128)` | no | Hash of the token, unique — the plaintext is returned once and never stored |
-| `user_id` | `varchar(64)` | no | `user.user_id` |
+| `user_id` | `bigint unsigned` | no | `user.id` |
 | `session_id` | `varchar(64)` | no | `as_` prefix; one login chain, preserved across every rotation |
 | `platform` | `varchar(32)` | yes | Which surface logged in — a label for the reader, not enforced |
 | `expires_at` | `bigint` | no | Unix seconds; default TTL is 30 days (`model.RefreshTokenTTLDefault`) |
@@ -294,8 +310,8 @@ retires the chain however many times it has been renewed.
 | `replaced_by` | `varchar(128)` | yes | Hash of the token issued in exchange; lets an operator walk a chain back to its login |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `token_hash`; index `user_id`; index `session_id`;
-index `expires_at`.
+Indexes: PK `id`; index `expires_at`; index `session_id`; unique `token_hash`;
+index `user_id`.
 
 A token presented after it was already exchanged means two holders, so the
 store revokes the whole session rather than guessing which one is legitimate.
@@ -312,13 +328,13 @@ API keys for the inbound webhook surface documented in
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `key_id` | `varchar(64)` | no | Public ID, `whk_` prefix, unique |
-| `user_id` | `varchar(64)` | no | `user.user_id` — keys are user-scoped, not team-scoped |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | `user.id` — keys are user-scoped, not team-scoped |
 | `key_hash` | `varchar(128)` | no | Unique; the secret is shown once at creation and never again |
 | `name` | `varchar(255)` | yes | Human label |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `key_id`; unique `key_hash`; index `user_id`.
+Indexes: PK `id`; unique `key_hash`; index `user_id`; unique `public_id`.
 
 ### `quota_tier`
 
@@ -328,9 +344,9 @@ This is the one table whose primary key is not `id`.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `tier_name` | `varchar(64)` | no | Primary key |
-| `max_runs_per_period` | `int` | no | Task runs allowed per window |
-| `max_tokens_per_period` | `int` | no | Prompt plus completion tokens per window |
-| `period_days` | `int` | no | Window length |
+| `max_runs_per_period` | `bigint` | no | Task runs allowed per window |
+| `max_tokens_per_period` | `bigint` | no | Prompt plus completion tokens per window |
+| `period_days` | `bigint` | no | Window length |
 
 Indexes: PK `tier_name`.
 
@@ -354,18 +370,17 @@ record that can be edited is not evidence.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `audit_event_id` | `varchar(64)` | no | Public ID, `ae_` prefix, unique |
-| `team_id` | `varchar(64)` | yes | Empty for actions with no team, such as a login |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `team_id` | `bigint unsigned` | yes | Empty for actions with no team, such as a login |
 | `created_at` | `bigint` | no | Unix seconds |
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
 | `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `team.member_added`, `llm_model.created`, `access.denied`, … |
-| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on |
+| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on. Opaque: the type admits a permission name and a model alias as well as a row |
 | `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model alias |
 
-Indexes: PK `id`; unique `audit_event_id`; composite (`team_id`, `created_at`)
-because reading is always "this team, newest first"; index `actor_id`; index
-`action`.
+Indexes: PK `id`; index `action`; index `actor_id`; index `idx_audit_team_time`
+on (`team_id`, `created_at`); unique `public_id`.
 
 Action strings are persisted and therefore permanent: renaming one rewrites
 history for every reader that filters on it. They are declared in
@@ -411,21 +426,21 @@ The primary user-facing work object.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `issue_id` | `varchar(64)` | no | Public ID, `i_` prefix, unique |
-| `user_id` | `varchar(64)` | no | Owning user |
-| `team_id` | `varchar(64)` | yes | Owning team; the authorization key |
-| `parent_issue_id` | `varchar(64)` | yes | `issue.issue_id` of the parent; `NULL` for a top-level issue |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | Owning user |
+| `team_id` | `bigint unsigned` | yes | Owning team; the authorization key |
+| `parent_issue_id` | `bigint unsigned` | yes | `issue.id` of the parent; `NULL` for a top-level issue |
 | `title` | `varchar(255)` | no | |
 | `description` | `text` | no | |
 | `status` | `varchar(32)` | no | `todo`, `in_progress`, `done` |
 | `assignee_kind` | `varchar(32)` | yes | `person`, `agent`, or `workflow` |
 | `assignee_id` | `varchar(64)` | yes | Interpreted according to `assignee_kind`: a `user_id`, `agent_id`, or `workflow_id` |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; unique `issue_id`; index `user_id`; index `team_id`; index
-`parent_issue_id`.
+Indexes: PK `id`; index `parent_issue_id`; index `idx_issue_team_updated` on
+(`team_id`, `updated_at`); index `user_id`; unique `public_id`.
 
 The `assignee_kind` / `assignee_id` pair is a polymorphic reference — no index
 or constraint ties it to a specific table, so validation lives in
@@ -447,20 +462,21 @@ One statement about an issue, addressed to people.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `issue_comment_id` | `varchar(64)` | no | Public ID, `ic_` prefix, unique |
-| `issue_id` | `varchar(64)` | no | `issue.issue_id` |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `issue_id` | `bigint unsigned` | no | `issue.id` |
 | `author_kind` | `varchar(16)` | no | `user`, `agent`, or `system` |
 | `author_id` | `varchar(64)` | no | `user_id` or `agent_id`; empty for `system` |
 | `body` | `text` | no | Markdown source, stored raw; capped at 16 KiB by the service |
-| `source_task_id` | `varchar(64)` | yes | Set on an agent comment |
-| `source_task_run_id` | `varchar(64)` | yes | Set on an agent comment |
+| `source_task_id` | `bigint unsigned` | yes | Set on an agent comment |
+| `source_task_run_id` | `bigint unsigned` | yes | Set on an agent comment |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `edited_at` | `bigint` | yes | `NULL` until the body is changed |
 
-Indexes: PK `id`; unique `issue_comment_id`; index `issue_id`.
+Indexes: PK `id`; index `idx_issue_comment_issue_created` on (`issue_id`,
+`created_at`); unique `public_id`.
 
-Ordering is by `created_at`, then `id` — a thread reads oldest first, and
-prefixed IDs are random rather than time-ordered.
+Ordering is by `created_at`, then `id` — a thread reads oldest first, and a
+public handle is random rather than time-ordered.
 
 The row carries **no `team_id`**. A comment's team is its issue's team, and
 every handler already loads the issue to authorize; denormalizing the
@@ -480,18 +496,18 @@ under.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `agent_id` | `varchar(64)` | no | Public ID, `a_` prefix, unique |
-| `user_id` | `varchar(64)` | no | Owning user |
-| `team_id` | `varchar(64)` | yes | Owning team |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | Owning user |
+| `team_id` | `bigint unsigned` | yes | Owning team |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
-| `revision` | `int` | no | Number of the `agent_revision` row holding this content; starts at 1 |
+| `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `deleted_at` | `bigint` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `agent_id`; index `user_id`; index `team_id`; index
-`deleted_at`.
+Indexes: PK `id`; index `deleted_at`; index `team_id`; index `user_id`; unique
+`public_id`.
 
 Deletion is a stamp on `deleted_at`, not a `DELETE`. Tasks, workflow step runs,
 and revisions all name an agent by ID, so removing the row turned every one of
@@ -519,16 +535,15 @@ deleted.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `agent_revision_id` | `varchar(64)` | no | Public ID, `arv_` prefix, unique |
-| `agent_id` | `varchar(64)` | no | `agent.agent_id` |
-| `revision` | `int` | no | 1 for the first recorded content, then one higher per change |
+| `agent_id` | `bigint unsigned` | no | `agent.id` |
+| `revision` | `bigint` | no | 1 for the first recorded content, then one higher per change |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | |
 | `instructions` | `text` | yes | |
-| `created_by` | `varchar(64)` | no | The user who wrote this revision, not necessarily the agent's owner |
+| `created_by` | `bigint unsigned` | no | The user who wrote this revision, not necessarily the agent's owner |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `agent_revision_id`; unique (`agent_id`, `revision`).
+Indexes: PK `id`; unique `idx_agent_revision` on (`agent_id`, `revision`).
 
 The revision is written in the same transaction as the agent row it describes,
 and the unique (`agent_id`, `revision`) index makes a concurrent second write
@@ -555,15 +570,17 @@ the user.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `conversation_id` | `varchar(64)` | no | Public ID, `c_` prefix, unique |
-| `user_id` | `varchar(64)` | no | Owning user |
-| `team_id` | `varchar(64)` | yes | Owning team |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `user_id` | `bigint unsigned` | no | Owning user |
+| `team_id` | `bigint unsigned` | yes | Owning team |
 | `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, or `webhook` |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `conversation_id`; index `user_id`; index `team_id`.
+Indexes: PK `id`; index `idx_conversation_team_created` on (`team_id`,
+`created_at`); index `idx_conversation_user_created` on (`user_id`,
+`created_at`); unique `public_id`.
 
 Channel constants are in `internal/service/conversation/channel/types.go`.
 `system` exists as a constant but is not in `ValidChannels`, so it cannot be
@@ -576,8 +593,8 @@ One message in a Tier 1 conversation, including tool traffic.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `conversation_message_id` | `varchar(64)` | no | Public ID, `cm_` prefix, unique |
-| `conversation_id` | `varchar(64)` | no | `conversation.conversation_id` |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `conversation_id` | `bigint unsigned` | no | `conversation.id` |
 | `role` | `varchar(16)` | no | LLM message role |
 | `content` | `text` | no | |
 | `channel` | `varchar(32)` | yes | Overrides the conversation channel for this message |
@@ -587,7 +604,8 @@ One message in a Tier 1 conversation, including tool traffic.
 | `parts` | `mediumtext` | yes | Non-text content on the message, such as an image a tool returned; `content` stays the text describing it. The Go field is `PartsJSON` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `conversation_message_id`; index `conversation_id`.
+Indexes: PK `id`; index `idx_conversation_message_conversation` on
+(`conversation_id`, `created_at`); unique `public_id`.
 
 Ordering is by `created_at`, then `id`. Prefixed IDs are random, not
 time-ordered, so never sort by `conversation_message_id`.
@@ -612,27 +630,28 @@ The durable unit of background work. One task, many attempts.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `task_id` | `varchar(64)` | no | Public ID, `t_` prefix, unique |
-| `conversation_id` | `varchar(64)` | no | The Tier 1 conversation that owns the result |
-| `team_id` | `varchar(64)` | yes | Owning team; used by quota aggregation |
-| `issue_id` | `varchar(64)` | yes | The issue this task advances, if any |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `conversation_id` | `bigint unsigned` | no | The Tier 1 conversation that owns the result |
+| `team_id` | `bigint unsigned` | yes | Owning team; used by quota aggregation |
+| `issue_id` | `bigint unsigned` | yes | The issue this task advances, if any |
 | `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED` |
 | `input` | `text` | no | The prompt |
 | `title` | `varchar(256)` | yes | LLM-generated |
-| `title_prompt_tokens` | `int` | yes | Tokens spent generating the title — counted against quota |
-| `title_completion_tokens` | `int` | yes | Same |
+| `title_prompt_tokens` | `bigint` | yes | Tokens spent generating the title — counted against quota |
+| `title_completion_tokens` | `bigint` | yes | Same |
 | `output` | `text` | yes | Result of the latest successful run |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `started_at` | `bigint` | yes | First run start |
 | `ended_at` | `bigint` | yes | Terminal-status time |
 | `error_message` | `text` | yes | |
 | `session_id` | `varchar(36)` | yes | UUID of the agent session file, not a table reference |
-| `last_run_id` | `varchar(64)` | yes | `task_run.task_run_id` of the most recent attempt |
-| `agent_id` | `varchar(64)` | yes | `agent.agent_id` this task runs as |
+| `last_run_id` | `bigint unsigned` | yes | `task_run.id` of the most recent attempt |
+| `agent_id` | `bigint unsigned` | yes | `agent.id` this task runs as |
 
-Indexes: PK `id`; unique `task_id`; index `conversation_id`; index `team_id`;
-index `issue_id`; index `last_run_id`; index `agent_id`.
+Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
+index `last_run_id`; index `idx_task_team_created` on (`team_id`,
+`created_at`); unique `public_id`.
 
 Status values are `model.RunStatus` — uppercase, and shared with `task_run`.
 
@@ -643,10 +662,10 @@ One execution attempt. This is the row quota and token accounting read.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `task_run_id` | `varchar(64)` | no | Public ID, `r_` prefix, unique |
-| `task_id` | `varchar(64)` | no | `task.task_id` |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `task_id` | `bigint unsigned` | no | `task.id` |
 | `input` | `text` | no | Prompt for this attempt; a rerun may differ from the task's |
-| `created_by` | `varchar(64)` | yes | `user.user_id`, empty for system-triggered runs |
+| `created_by` | `varchar(64)` | yes | `user.id`, empty for system-triggered runs |
 | `created_by_type` | `varchar(32)` | yes | `user`, `webhook`, or `system` |
 | `trigger_source` | `varchar(64)` | yes | `task_create`, `task_rerun`, `portal_conversation`, `portal_task_create`, `portal_task_rerun`, `issue_agent_run`, `workflow_step`, `webhook` |
 | `status` | `varchar(32)` | no | Same `model.RunStatus` values as `task` |
@@ -658,16 +677,17 @@ One execution attempt. This is the row quota and token accounting read.
 | `worker_type` | `varchar(32)` | yes | Reserved; see below |
 | `k8s_job_name` | `varchar(128)` | yes | Reserved; see below |
 | `k8s_job_created_at` | `bigint` | yes | Reserved; see below |
-| `prompt_tokens` | `int` | yes | Quota input |
-| `completion_tokens` | `int` | yes | Quota input |
+| `prompt_tokens` | `bigint` | yes | Quota input |
+| `completion_tokens` | `bigint` | yes | Quota input |
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
 | `cancel_requested_at` | `bigint` | yes | When someone asked this run to stop; `NULL` when nobody has |
-| `cancel_requested_by` | `varchar(64)` | yes | `user.user_id` of whoever asked |
-| `retry_of_task_run_id` | `varchar(64)` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
+| `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
+| `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `task_run_id`; index `task_id`; index `created_by`;
-index `cancel_requested_at`; index `retry_of_task_run_id`.
+Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
+`retry_of_task_run_id`; index `idx_task_run_task_created` on (`task_id`,
+`created_at`); unique `public_id`.
 
 `retry_of_task_run_id` points at the run a retry repeats, one link per row: a
 retry of a retry names the run it repeated, not the first of the chain. It is
@@ -705,13 +725,13 @@ Files a run produced, by path. Contents live in object storage
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `task_run_id` | `varchar(64)` | no | `task_run.task_run_id` |
+| `task_run_id` | `bigint unsigned` | no | `task_run.id` |
 | `relative_path` | `varchar(512)` | no | Path relative to the run directory |
 
-Indexes: PK `id`; unique composite `uq_task_run_artifact_run_path` on
-(`task_run_id`, `relative_path`).
+Indexes: PK `id`; unique `uq_task_run_artifact_run_path` on (`task_run_id`,
+`relative_path`).
 
-This table has no public prefixed ID and no timestamps — it is a set, and the
+This table has no public handle and no timestamps — it is a set, and the
 composite unique index makes re-recording the same artifact idempotent. It
 replaced the older `artifact` / `artifact_item` pair and the `task_run_output_file`
 table; both migrations are in `internal/infra/db/migration.go`.
@@ -733,8 +753,8 @@ a legacy `task_run_id` column before touching either table. See
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `artifact_id` | `varchar(64)` | no | Public ID, `ar_` prefix, unique |
-| `team_id` | `varchar(64)` | no | Owning team; the authorization boundary |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `team_id` | `bigint unsigned` | no | Owning team; the authorization boundary |
 | `filename` | `varchar(512)` | no | One path element; directories are stripped |
 | `media_type` | `varchar(255)` | yes | Derived from the extension, never from the uploader |
 | `size_bytes` | `bigint` | no | Measured while streaming |
@@ -747,10 +767,11 @@ a legacy `task_run_id` column before touching either table. See
 | `title` | `varchar(255)` | yes | Display label |
 | `deleted_at` | `bigint` | yes | Tombstone; set means hidden and unreadable |
 | `expires_at` | `bigint` | yes | Retention hook |
-| `created_at` | `bigint` | no | Unix seconds |
+| `created_at` | `bigint` | yes | Unix seconds |
 
-Indexes: PK `id`; unique `artifact_id`; `idx_artifact_team_created`
-(`team_id`, `created_at`); `source_id`; `deleted_at`; `expires_at`.
+Indexes: PK `id`; index `deleted_at`; index `expires_at`; index `source_id`;
+index `idx_artifact_team_created` on (`team_id`, `created_at`); unique
+`public_id`.
 
 There is deliberately no free-form metadata column. Durable metadata is where
 prompts, file contents, and credentials leak in when a column will take
@@ -770,18 +791,18 @@ definition into one step run per step, and each agent step delegates to a task.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `workflow_id` | `varchar(64)` | no | Public ID, `w_` prefix, unique |
-| `team_id` | `varchar(64)` | no | Owning team — required, unlike most tables |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `team_id` | `bigint unsigned` | no | Owning team — required, unlike most tables |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | no | |
 | `definition` | `longtext` | no | JSON step list; `longtext`, not `text`, because plans can be large |
 | `status` | `varchar(32)` | no | `draft` (default), `published`, `archived` |
-| `revision` | `int` | no | Number of the `workflow_revision` row holding this content; starts at 1 |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `revision` | `bigint` | no | Number of the `workflow_revision` row holding this content; starts at 1 |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; unique `workflow_id`; index `team_id`.
+Indexes: PK `id`; index `team_id`; unique `public_id`.
 
 `definition` is opaque to the database. Editing a published workflow does not
 retroactively change runs already expanded from it.
@@ -795,18 +816,16 @@ seeded first revision for workflows that predate the table.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `workflow_revision_id` | `varchar(64)` | no | Public ID, `wrv_` prefix, unique |
-| `workflow_id` | `varchar(64)` | no | `workflow.workflow_id` |
-| `revision` | `int` | no | 1 for the first recorded content, then one higher per change |
+| `workflow_id` | `bigint unsigned` | no | `workflow.id` |
+| `revision` | `bigint` | no | 1 for the first recorded content, then one higher per change |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | no | |
 | `definition` | `longtext` | no | |
 | `status` | `varchar(32)` | no | The lifecycle state this revision was written with |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `workflow_revision_id`; unique (`workflow_id`,
-`revision`).
+Indexes: PK `id`; unique `idx_workflow_revision` on (`workflow_id`, `revision`).
 
 `status` is recorded because publishing is what lets a workflow run, so the
 record of who published which definition belongs in history. It is not restored:
@@ -819,20 +838,21 @@ revision cannot unpublish a workflow teams are running.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `workflow_run_id` | `varchar(64)` | no | Public ID, `wr_` prefix, unique |
-| `workflow_id` | `varchar(64)` | no | `workflow.workflow_id` |
-| `workflow_revision` | `int` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
-| `issue_id` | `varchar(64)` | yes | Issue this run advances |
-| `conversation_id` | `varchar(64)` | no | Tier 1 conversation that reports progress |
+| `public_id` | `binary(12)` | no | Public handle, unique |
+| `workflow_id` | `bigint unsigned` | no | `workflow.id` |
+| `workflow_revision` | `bigint` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
+| `issue_id` | `bigint unsigned` | yes | Issue this run advances |
+| `conversation_id` | `bigint unsigned` | no | Tier 1 conversation that reports progress |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `started_at` | `bigint` | yes | |
 | `ended_at` | `bigint` | yes | |
 | `error_message` | `text` | yes | |
 
-Indexes: PK `id`; unique `workflow_run_id`; index `workflow_id`; index
-`issue_id`; index `conversation_id`.
+Indexes: PK `id`; index `conversation_id`; index `issue_id`; index
+`idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); unique
+`public_id`.
 
 ### `workflow_step_run`
 
@@ -841,28 +861,29 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `workflow_step_run_id` | `varchar(64)` | no | Public ID, `wsr_` prefix, unique. The Go field is `StepRunID` |
-| `workflow_run_id` | `varchar(64)` | no | `workflow_run.workflow_run_id` |
-| `step_id` | `varchar(128)` | no | Step identifier from the workflow definition, not a prefixed ID |
-| `step_index` | `int` | no | Position in the linear plan; the execution order |
+| `public_id` | `binary(12)` | no | Public handle, unique. The Go field is `StepRunID` |
+| `workflow_run_id` | `bigint unsigned` | no | `workflow_run.id` |
+| `step_id` | `varchar(128)` | no | Step identifier authored in the workflow definition, not a reference to a row |
+| `step_index` | `bigint` | no | Position in the linear plan; the execution order |
 | `step_type` | `varchar(32)` | no | `agent_task` |
-| `target_agent_id` | `varchar(64)` | yes | `agent.agent_id` to run the step as |
+| `target_agent_id` | `bigint unsigned` | yes | `agent.id` to run the step as |
 | `agent_name` | `varchar(255)` | no | Agent name captured when the run started; empty on rows written before step runs snapshotted their agent |
 | `agent_description` | `text` | no | Agent description captured when the run started |
 | `agent_instructions` | `longtext` | no | Agent instructions captured when the run started |
-| `agent_revision` | `int` | no | The `agent_revision.revision` the snapshot came from; 0 when it predates revisions |
+| `agent_revision` | `bigint` | no | The `agent_revision.revision` the snapshot came from; 0 when it predates revisions |
 | `prompt` | `text` | no | Rendered prompt for this step |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled`, `blocked` |
-| `task_id` | `varchar(64)` | yes | The Tier 2 task this step created |
-| `task_run_id` | `varchar(64)` | yes | The specific attempt |
+| `task_id` | `bigint unsigned` | yes | The Tier 2 task this step created |
+| `task_run_id` | `bigint unsigned` | yes | The specific attempt |
 | `output_summary` | `text` | yes | First 500 runes of the step output, for display; it is not passed to the next step |
 | `error_message` | `text` | yes | |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 | `started_at` | `bigint` | yes | |
 | `ended_at` | `bigint` | yes | |
 
-Indexes: PK `id`; unique `workflow_step_run_id`; index `workflow_run_id`; index
-`target_agent_id`; index `task_id`; index `task_run_id`.
+Indexes: PK `id`; index `idx_step_run_run_index` on (`workflow_run_id`,
+`step_index`); index `target_agent_id`; index `task_id`; index `task_run_id`;
+unique `public_id`.
 
 The three `agent_*` columns pin the agent definition for the whole run. Steps are
 dispatched one at a time as the previous task run reaches a terminal state, so
@@ -890,24 +911,24 @@ on the machine that holds the database credentials.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `llm_model_id` | `varchar(64)` | no | Public ID, `lm_` prefix, unique |
+| `public_id` | `binary(12)` | no | Public handle, unique |
 | `name` | `varchar(128)` | no | Operator-facing catalog name, unique |
 | `provider_type` | `varchar(32)` | no | Wire protocol: `openai_compatible`, `openai`, or `anthropic` |
 | `api_url` | `varchar(512)` | no | Upstream base URL |
 | `api_key` | `varchar(512)` | no | **Provider credential in plaintext** — see below |
 | `model` | `varchar(128)` | no | Upstream model identifier |
-| `context_window` | `int` | no | Default `0`, meaning unspecified |
-| `call_timeout` | `int` | no | Seconds; default `0`, meaning unspecified |
-| `max_tokens` | `int` | no | Cap on one response; default `0`, meaning the client default |
+| `context_window` | `bigint` | no | Default `0`, meaning unspecified |
+| `call_timeout` | `bigint` | no | Seconds; default `0`, meaning unspecified |
+| `max_tokens` | `bigint` | no | Cap on one response; default `0`, meaning the client default |
 | `reasoning` | `varchar(16)` | no | Effort level: empty or `off`, `low`, `medium`, `high` |
-| `prompt_cache` | `bool` | no | Default `false`; cache the stable prefix of a request |
-| `vision` | `bool` | no | Default `false`; the upstream accepts image input |
+| `prompt_cache` | `tinyint(1)` | no | Default `false`; cache the stable prefix of a request |
+| `vision` | `tinyint(1)` | no | Default `false`; the upstream accepts image input |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
-| `enabled` | `bool` | no | Default `true` |
+| `enabled` | `tinyint(1)` | no | Default `true` |
 | `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; unique `llm_model_id`; unique `name`; index `created_at`.
+Indexes: PK `id`; index `created_at`; unique `name`; unique `public_id`.
 
 `api_key` is read by exactly one query — the one that constructs a provider
 client — and never appears in a listing, an API response, or an error message.
@@ -928,36 +949,36 @@ One managed inference call. The metering and debugging record.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `llm_call_id` | `varchar(64)` | no | Public ID, `lc_` prefix, unique |
+| `public_id` | `binary(12)` | no | Public handle, unique |
 | `client_call_id` | `varchar(128)` | yes | Caller's idempotency key; part of the composite unique index |
-| `team_id` | `varchar(64)` | no | Billed team; leads the composite unique index |
-| `user_id` | `varchar(64)` | yes | |
-| `task_run_id` | `varchar(64)` | yes | Attributes the call to a Tier 2 run |
+| `team_id` | `bigint unsigned` | no | Billed team; leads the composite unique index |
+| `user_id` | `bigint unsigned` | yes | |
+| `task_run_id` | `bigint unsigned` | yes | Attributes the call to a Tier 2 run |
 | `surface` | `varchar(32)` | yes | `server`, `cli`, `desktop`, `worker` |
 | `session_id` | `varchar(64)` | yes | |
-| `task_id` | `varchar(64)` | yes | |
+| `task_id` | `bigint unsigned` | yes | |
 | `alias` | `varchar(64)` | yes | The stable alias the caller asked for |
-| `target_id` | `varchar(64)` | no | Catalog entry the alias resolved to — `llm_model.llm_model_id` |
+| `target_id` | `varchar(64)` | no | Catalog entry the alias resolved to — `llm_model.id` |
 | `provider_type` | `varchar(32)` | no | Denormalized from the catalog at call time |
 | `upstream_model` | `varchar(128)` | no | Denormalized from the catalog at call time |
-| `streaming` | `bool` | no | Default `false` |
+| `streaming` | `tinyint(1)` | no | Default `false` |
 | `accepted_at` | `bigint` | no | When the gateway accepted the request; indexed |
 | `upstream_started_at` | `bigint` | yes | |
 | `first_delta_at` | `bigint` | yes | Time to first token, on streaming calls |
 | `completed_at` | `bigint` | yes | |
 | `status` | `varchar(16)` | no | `ACCEPTED`, `SUCCEEDED`, `FAILED`, `CANCELED`; indexed |
 | `error_class` | `varchar(64)` | yes | Stable BuildMax error code, not the upstream message |
-| `attempts` | `int` | no | Default `0` |
-| `prompt_tokens` | `int` | yes | |
-| `completion_tokens` | `int` | yes | |
-| `total_tokens` | `int` | yes | |
-| `cache_read_tokens` | `int` | yes | Part of the prompt served from the provider's cache |
-| `cache_write_tokens` | `int` | yes | Part of the prompt written into it |
+| `attempts` | `bigint` | no | Default `0` |
+| `prompt_tokens` | `bigint` | yes | |
+| `completion_tokens` | `bigint` | yes | |
+| `total_tokens` | `bigint` | yes | |
+| `cache_read_tokens` | `bigint` | yes | Part of the prompt served from the provider's cache |
+| `cache_write_tokens` | `bigint` | yes | Part of the prompt written into it |
 | `usage_source` | `varchar(16)` | yes | `reported`, `estimated`, or `unavailable` |
 
-Indexes: PK `id`; unique `llm_call_id`; unique composite `idx_llm_call_client`
-on (`team_id`, `client_call_id`); index `user_id`; index `task_run_id`; index
-`task_id`; index `accepted_at`; index `status`.
+Indexes: PK `id`; index `accepted_at`; unique `idx_llm_call_client` on
+(`team_id`, `client_call_id`); index `status`; index `task_id`; index
+`task_run_id`; index `user_id`; unique `public_id`.
 
 The composite unique index leads with `team_id`, which both scopes idempotency
 per team and serves team-scoped lookups — so there is deliberately no second
@@ -991,17 +1012,15 @@ One catalog entry — the stable identity releases are published under.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `plugin_id` | `varchar(64)` | no | Public ID, `pl_` prefix, unique |
 | `name` | `varchar(128)` | no | The manifest name, unique; every route addresses the plugin by it |
 | `display_name` | `varchar(255)` | no | Default `''` |
 | `description` | `varchar(1024)` | no | Default `''` |
 | `archived_at` | `bigint` | no | Default `0`; non-zero hides the entry and refuses new releases |
-| `created_by` | `varchar(64)` | no | `user.user_id` |
+| `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
 | `updated_at` | `bigint` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; unique `plugin_id`; unique `name`; index `archived_at`;
-index `created_at`.
+Indexes: PK `id`; index `archived_at`; index `created_at`; unique `name`.
 
 Archiving never deletes. A copy someone already installed keeps working, and
 the record still explains where that copy came from.
@@ -1013,8 +1032,7 @@ One immutable published version.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `plugin_release_id` | `varchar(64)` | no | Public ID, `plr_` prefix, unique |
-| `plugin_id` | `varchar(64)` | no | `plugin.plugin_id`, indexed |
+| `plugin_id` | `bigint unsigned` | no | `plugin.id`, indexed |
 | `plugin_name` | `varchar(128)` | no | Denormalised so a release reads without a join |
 | `version` | `varchar(64)` | no | Semantic version from the packed manifest |
 | `min_buildmax_version` | `varchar(64)` | no | Default `''`; default install selection filters on it |
@@ -1023,15 +1041,15 @@ One immutable published version.
 | `size_bytes` | `bigint` | no | Default `0` |
 | `inspection` | `text` | yes | JSON: the sanitized capability report |
 | `source` | `text` | yes | JSON: the publisher's claim about the checkout the bytes came from |
-| `published_by` | `varchar(64)` | no | `user.user_id` |
+| `published_by` | `bigint unsigned` | no | `user.id` |
 | `published_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
 | `yanked_at` | `bigint` | no | Default `0`; non-zero withdraws it from default selection |
-| `yanked_by` | `varchar(64)` | no | Default `''` |
+| `yanked_by` | `bigint unsigned` | yes | Default `''` |
 | `yanked_reason` | `varchar(512)` | no | Default `''` |
 
-Indexes: PK `id`; unique `plugin_release_id`; unique
-(`plugin_name`, `version`); index `plugin_id`; index `digest`; index
-`published_at`; index `yanked_at`.
+Indexes: PK `id`; index `digest`; index `plugin_id`; index `published_at`;
+index `yanked_at`; unique `ux_plugin_release_version` on (`plugin_name`,
+`version`).
 
 The unique index over (`plugin_name`, `version`) is what makes a version
 immutable, and it is the guard rather than a preceding read: two publishes
@@ -1073,8 +1091,11 @@ the next server start adds it. Give it a type tag; an untagged `string` becomes
 **Adding a table.** Add the row struct with a `TableName()` method returning a
 singular name, register it in the `AutoMigrate` call in `store.go`, define the
 repository interface in `internal/core/model`, and implement it in
-`internal/infra/db`. If the entity is user-facing, add an ID prefix constant to
-`internal/util/id.go`. Then add it to this document.
+`internal/infra/db`. Decide whether the row needs a handle: give it a
+`public_id binary(12)` with a `uq_<table>_public_id` unique index when another
+process must name it, and nothing when a parent plus a natural key already
+addresses it. References to other tables are `bigint unsigned`; the tests in
+`internal/architecture` fail otherwise. Then add it to this document.
 
 **Removing, renaming, or retyping.** `AutoMigrate` will not do it, so it needs
 an entry in the `migrations` list in `internal/infra/db/migration.go`. Each

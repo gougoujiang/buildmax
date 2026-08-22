@@ -84,8 +84,8 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	cmd := llmgateway.CompleteRequest{
 		TeamID:       claims.TeamID,
 		UserID:       &userID,
-		TaskRunID:    &run.TaskRunID,
-		TaskID:       &task.TaskID,
+		TaskRunID:    &run.ID,
+		TaskID:       &task.ID,
 		ClientCallID: req.CallID,
 		Alias:        req.Model,
 		Messages:     messages,

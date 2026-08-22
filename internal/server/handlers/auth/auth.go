@@ -203,20 +203,24 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Every login opens its own session. Signing in from a second machine
 	// therefore does not disturb the first, and revoking one leaves the other
 	// alone — which is the whole point of tracking sessions rather than users.
-	sessionID := util.NewPrefixedID(util.PrefixAuthSession)
-	accessToken, refreshToken, expiresIn, err := h.issueTokenPair(r.Context(), user.UserID, platform, sessionID, now)
+	sessionID, err := util.NewPublicID()
+	if err != nil {
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "session_id")
+		return
+	}
+	accessToken, refreshToken, expiresIn, err := h.issueTokenPair(r.Context(), user.ID, platform, sessionID, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "issue_token_pair")
 		return
 	}
-	if err := h.cfg.Users.UpdateLoginMeta(r.Context(), user.UserID, now.Unix(), platform); err != nil {
-		slog.Error("update login meta failed", "err", err, "handler", "login", "user_id", user.UserID)
+	if err := h.cfg.Users.UpdateLoginMeta(r.Context(), user.ID, now.Unix(), platform); err != nil {
+		slog.Error("update login meta failed", "err", err, "handler", "login", "user_id", user.ID)
 	}
 	// Recorded after the login succeeds, so the trail holds sessions that were
 	// actually issued rather than attempts. A login has no team.
 	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
 		ActorType:  model.AuditActorUser,
-		ActorID:    user.UserID,
+		ActorID:    user.ID,
 		Action:     model.AuditUserLogin,
 		TargetType: "platform",
 		TargetID:   platform,
@@ -231,7 +235,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    expiresIn,
-		User:         LoginUser{ID: user.UserID, Email: user.Email, Name: user.Name},
+		User:         LoginUser{ID: user.ID, Email: user.Email, Name: user.Name},
 	})
 }
 
@@ -313,7 +317,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ttl := h.accessTokenTTL()
-	accessToken, err := access.Mint(h.cfg.JWTSecret, user.UserID, rotated.SessionID, now, ttl)
+	accessToken, err := access.Mint(h.cfg.JWTSecret, user.ID, rotated.SessionID, now, ttl)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh", "sign_token")
 		return
@@ -468,7 +472,7 @@ func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req Log
 
 	var hash string
 	if user != nil {
-		hash, err = h.cfg.Passwords.PasswordHash(r.Context(), user.UserID)
+		hash, err = h.cfg.Passwords.PasswordHash(r.Context(), user.ID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "password_hash")
 			return nil, false
@@ -520,14 +524,14 @@ func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req Lo
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}
-	redeemed, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, user.UserID, time.Now().Unix())
+	redeemed, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, user.ID, time.Now().Unix())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "stage", "consume_login_code")
 		return nil, false
 	}
 	if !redeemed {
 		slog.InfoContext(r.Context(), "login code rejected",
-			"reason", "unknown, spent, expired, or issued to another account", "user_id", user.UserID)
+			"reason", "unknown, spent, expired, or issued to another account", "user_id", user.ID)
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}

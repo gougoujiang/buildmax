@@ -19,7 +19,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	teamID := "tm_personal_u1"
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []model.Workflow{{
-			WorkflowID:  "w_1",
+			ID:          "w_1",
 			TeamID:      teamID,
 			Name:        "WF",
 			Description: "desc",
@@ -31,16 +31,16 @@ func TestWorkflowHandlers(t *testing.T) {
 		}},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
+		Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+		Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
 		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamID, UserID: "u2", Role: model.TeamRoleMember}, {TeamID: teamID, UserID: "u3", Role: model.TeamRoleAdmin}},
 	}
 	taskStore := &mock.MockTaskStore{}
 	issueStore := &mock.MockIssueStore{
 		Issues: []model.Issue{{
-			IssueID:      "i_1",
+			ID:           "i_1",
 			UserID:       "u1",
 			TeamID:       teamID,
 			Title:        "Issue",

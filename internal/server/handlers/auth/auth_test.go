@@ -15,8 +15,8 @@ import (
 
 func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"
-	userExists := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
-	otherUser := &model.User{UserID: "u2", Email: "someone@else.com", Name: "Bob"}
+	userExists := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
+	otherUser := &model.User{ID: "u2", Email: "someone@else.com", Name: "Bob"}
 
 	// Login needs a verifier. A login code store is one, and is how a real
 	// deployment recovers an account; password login has its own test file.
@@ -228,8 +228,8 @@ func TestLoginHandler(t *testing.T) {
 // retry with the right address — the obvious next thing to try — failed too,
 // and the only way out was for an operator to issue another code.
 func TestWrongEmailLeavesTheCodeSpendable(t *testing.T) {
-	alice := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
-	bob := &model.User{UserID: "u2", Email: "b@b.c", Name: "Bob"}
+	alice := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
+	bob := &model.User{ID: "u2", Email: "b@b.c", Name: "Bob"}
 	codes := &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 	}}
@@ -266,7 +266,7 @@ func TestWrongEmailLeavesTheCodeSpendable(t *testing.T) {
 }
 
 func TestOtpRequestHandler(t *testing.T) {
-	userExists := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	userExists := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 
 	tests := []struct {
 		name        string
@@ -388,7 +388,7 @@ func TestOtpRequestHandler(t *testing.T) {
 // pre-marked code is rejected; this proves the handler is what marks it, by
 // replaying the exact request that just succeeded.
 func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
-	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	codes := &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
 	}}
@@ -419,7 +419,7 @@ func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 // A database that is down is not a wrong code. Answering 401 would tell someone
 // their code was rejected when it was never read.
 func TestLoginHandlerStoreErrorIsNotARejection(t *testing.T) {
-	user := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	mux := http.NewServeMux()
 	New(Config{
 		Users:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": user}},

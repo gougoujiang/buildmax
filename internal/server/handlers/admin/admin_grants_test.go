@@ -15,7 +15,7 @@ import (
 func TestGrantRoundTripThroughTheAPI(t *testing.T) {
 	f := newDisableFixture(t)
 
-	created := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.UserID+`"}`)
+	created := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.ID+`"}`)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("grant got %d: %s", created.Code, created.Body.String())
 	}
@@ -32,19 +32,19 @@ func TestGrantRoundTripThroughTheAPI(t *testing.T) {
 
 	// The new administrator can reach the area immediately: the check is a
 	// live read, not something resolved when their token was signed.
-	if got := f.do(t, "GET", "/api/admin/me", f.target.UserID, "").Code; got != http.StatusOK {
+	if got := f.do(t, "GET", "/api/admin/me", f.target.ID, "").Code; got != http.StatusOK {
 		t.Errorf("the new administrator got %d on /me, want 200", got)
 	}
 
 	// Granting twice is a conflict rather than a second row.
-	if got := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.UserID+`"}`).Code; got != http.StatusConflict {
+	if got := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.ID+`"}`).Code; got != http.StatusConflict {
 		t.Errorf("re-grant got %d, want 409", got)
 	}
 
-	if got := f.do(t, "DELETE", "/api/admin/grants/"+f.target.UserID, adminUser, "").Code; got != http.StatusNoContent {
+	if got := f.do(t, "DELETE", "/api/admin/grants/"+f.target.ID, adminUser, "").Code; got != http.StatusNoContent {
 		t.Errorf("revoke got %d, want 204", got)
 	}
-	if got := f.do(t, "GET", "/api/admin/me", f.target.UserID, "").Code; got != http.StatusForbidden {
+	if got := f.do(t, "GET", "/api/admin/me", f.target.ID, "").Code; got != http.StatusForbidden {
 		t.Errorf("a revoked administrator got %d, want 403", got)
 	}
 
@@ -66,7 +66,7 @@ func TestGrantRoundTripThroughTheAPI(t *testing.T) {
 			t.Errorf("a grant made through the API names the administrator: %+v", e)
 		}
 	}
-	if denied := f.audits.Events[2]; denied.ActorID != f.target.UserID {
+	if denied := f.audits.Events[2]; denied.ActorID != f.target.ID {
 		t.Errorf("the denial should name whoever was refused, got %+v", denied)
 	}
 }
@@ -102,7 +102,7 @@ func TestGrantToAnUnknownAccountIsRefused(t *testing.T) {
 	if got := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"u_nobody"}`).Code; got != http.StatusNotFound {
 		t.Errorf("got %d, want 404", got)
 	}
-	if got := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.UserID+`","role":"system_observer"}`).Code; got != http.StatusBadRequest {
+	if got := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.ID+`","role":"system_observer"}`).Code; got != http.StatusBadRequest {
 		t.Errorf("an undefined role got %d, want 400", got)
 	}
 }

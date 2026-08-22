@@ -23,7 +23,7 @@ func TestIssueHandlers(t *testing.T) {
 	store := &mock.MockIssueStore{
 		Issues: []model.Issue{
 			{
-				IssueID:      "i_1",
+				ID:           "i_1",
 				UserID:       "u1",
 				TeamID:       personalTeamID,
 				Title:        "Initial issue",
@@ -38,16 +38,16 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	agents := &mock.MockAgentStore{
-		Agents: []model.Agent{{AgentID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
+		Agents: []model.Agent{{ID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
 	workflows := &mock.MockWorkflowStore{
-		Workflows: []model.Workflow{{WorkflowID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: model.WorkflowStatusPublished}},
+		Workflows: []model.Workflow{{ID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: model.WorkflowStatusPublished}},
 	}
 	tasks := &mock.MockTaskStore{}
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
-			{TeamID: otherTeamID, Name: "Other", CreatedBy: "u2"},
+			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
+			{ID: otherTeamID, Name: "Other", CreatedBy: "u2"},
 		},
 		Members: []model.TeamMember{
 			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner},

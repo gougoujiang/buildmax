@@ -92,13 +92,13 @@ func (h *Handler) aggregateIssueOutputs(
 		}
 		source := outputSourceResponse{
 			SourceType:     "task_run",
-			TaskID:         t.TaskID,
+			TaskID:         t.ID,
 			TaskRunID:      taskRunID,
 			ConversationID: t.ConversationID,
 		}
-		if step, ok := stepsByTaskID[t.TaskID]; ok {
+		if step, ok := stepsByTaskID[t.ID]; ok {
 			source.WorkflowRunID = util.Ptr(step.WorkflowRunID)
-			source.WorkflowStepRunID = util.Ptr(step.StepRunID)
+			source.WorkflowStepRunID = util.Ptr(step.ID)
 			source.WorkflowStepID = util.Ptr(step.StepID)
 		}
 
@@ -164,8 +164,8 @@ func (h *Handler) artifactOutputs(
 	taskIDs := make([]string, 0, len(agentTasks))
 	tasksByID := make(map[string]model.Task, len(agentTasks))
 	for _, t := range agentTasks {
-		taskIDs = append(taskIDs, t.TaskID)
-		tasksByID[t.TaskID] = t
+		taskIDs = append(taskIDs, t.ID)
+		tasksByID[t.ID] = t
 	}
 	runsByTask, err := h.runIDsByTask(ctx, taskIDs)
 	if err != nil {
@@ -190,13 +190,13 @@ func (h *Handler) artifactOutputs(
 		t := runToTask[runID]
 		source := outputSourceResponse{
 			SourceType:     "task_run",
-			TaskID:         t.TaskID,
+			TaskID:         t.ID,
 			TaskRunID:      runID,
 			ConversationID: t.ConversationID,
 		}
-		if step, ok := stepsByTaskID[t.TaskID]; ok {
+		if step, ok := stepsByTaskID[t.ID]; ok {
 			source.WorkflowRunID = util.Ptr(step.WorkflowRunID)
-			source.WorkflowStepRunID = util.Ptr(step.StepRunID)
+			source.WorkflowStepRunID = util.Ptr(step.ID)
 			source.WorkflowStepID = util.Ptr(step.StepID)
 		}
 		for i := range artifacts {
@@ -206,10 +206,10 @@ func (h *Handler) artifactOutputs(
 				title = a.Filename
 			}
 			out = append(out, issueOutputResponse{
-				ID:         a.ArtifactID,
+				ID:         a.ID,
 				Title:      title,
 				Kind:       "artifact",
-				ArtifactID: a.ArtifactID,
+				ArtifactID: a.ID,
 				Filename:   a.Filename,
 				MediaType:  a.MediaType,
 				SizeBytes:  a.SizeBytes,
@@ -256,7 +256,7 @@ func (h *Handler) readArtifactPreview(ctx context.Context, t model.Task, taskRun
 	data, err := h.cfg.RunOutputStorage.GetResult(ctx, blob.RunRef{
 		CreatedBy:      t.CreatedBy,
 		ConversationID: t.ConversationID,
-		TaskID:         t.TaskID,
+		TaskID:         t.ID,
 		TaskRunID:      taskRunID,
 	})
 	if err != nil {

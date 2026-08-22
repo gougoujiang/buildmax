@@ -24,7 +24,7 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 func TestUpdateIssue_InvalidStatus(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1"}},
+			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1"}},
 		},
 	}
 	status := "blocked"
@@ -42,7 +42,7 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 func TestUpdateIssue_AssignToPerson(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
+			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Teams: &mock.MockTeamStore{Members: []model.TeamMember{{TeamID: "tm_1", UserID: "u1", Role: model.TeamRoleOwner}}},
 	}
@@ -66,10 +66,10 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
+			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{AgentID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	kind := model.IssueAssigneeAgent
@@ -92,10 +92,10 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
+			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{AgentID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
+			Agents: []model.Agent{{ID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
 		},
 	}
 	kind := model.IssueAssigneeAgent
@@ -115,10 +115,10 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
+			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Workflows: &mock.MockWorkflowStore{
-			Workflows: []model.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusPublished}},
+			Workflows: []model.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusPublished}},
 		},
 	}
 	kind := model.IssueAssigneeWorkflow
@@ -141,10 +141,10 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []model.Issue{{IssueID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
+			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Workflows: &mock.MockWorkflowStore{
-			Workflows: []model.Workflow{{WorkflowID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusDraft}},
+			Workflows: []model.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusDraft}},
 		},
 	}
 	kind := model.IssueAssigneeWorkflow

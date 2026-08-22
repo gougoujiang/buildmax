@@ -225,7 +225,7 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 // runToken is this run's managed-gateway credential, or "" when the deployment
 // mints none.
 func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
-	jobName := util.WorkerJobNameForTaskRun(run.TaskRunID)
+	jobName := util.WorkerJobNameForTaskRun(run.ID)
 	now := metav1.Now()
 	createdAtUnix := now.Unix()
 
@@ -248,7 +248,7 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken stri
 							Name:            "worker",
 							Image:           r.image,
 							Command:         []string{"buildmax-worker"},
-							Args:            []string{"--task-run-id", run.TaskRunID},
+							Args:            []string{"--task-run-id", run.ID},
 							Env:             r.podEnv(runToken),
 							VolumeMounts:    mounts,
 							SecurityContext: containerSecurityContext(),
@@ -261,10 +261,10 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken stri
 	}
 
 	if err := r.client.CreateJob(ctx, r.namespace, job); err != nil {
-		componentLog().Warn("failed to create k8s Job", "task_run_id", run.TaskRunID, "job_name", jobName, "err", err)
+		componentLog().Warn("failed to create k8s Job", "task_run_id", run.ID, "job_name", jobName, "err", err)
 		return "", nil, nil, err
 	}
-	componentLog().Info("created k8s Job", "task_run_id", run.TaskRunID, "job_name", jobName, "namespace", r.namespace)
+	componentLog().Info("created k8s Job", "task_run_id", run.ID, "job_name", jobName, "namespace", r.namespace)
 	return "k8s_job", &jobName, &createdAtUnix, nil
 }
 

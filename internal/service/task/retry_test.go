@@ -13,7 +13,7 @@ import (
 // retryFixture builds a task whose last run finished in the given status.
 func retryFixture(status string) (*Service, *mock.MockTaskRunStore) {
 	previous := model.TaskRun{
-		TaskRunID:     "tr_1",
+		ID:            "tr_1",
 		TaskID:        "t_1",
 		Input:         "review the migration plan",
 		Status:        status,
@@ -21,7 +21,7 @@ func retryFixture(status string) (*Service, *mock.MockTaskRunStore) {
 	}
 	runs := &mock.MockTaskRunStore{Runs: []model.TaskRun{previous}}
 	tasks := &mock.MockTaskStore{List: []model.Task{{
-		TaskID:    "t_1",
+		ID:        "t_1",
 		TeamID:    "tm_1",
 		Status:    status,
 		Input:     "the task's original input",
@@ -39,8 +39,8 @@ func TestRetryRunRepeatsTheLastRunsInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetryRun: %v", err)
 	}
-	if result.RetriedRun.TaskRunID != "tr_1" {
-		t.Errorf("retried run = %q, want tr_1", result.RetriedRun.TaskRunID)
+	if result.RetriedRun.ID != "tr_1" {
+		t.Errorf("retried run = %q, want tr_1", result.RetriedRun.ID)
 	}
 	if result.Run.Input != "review the migration plan" {
 		t.Errorf("input = %q, want the previous run's input", result.Run.Input)
@@ -86,7 +86,7 @@ func TestRetryRunAcceptsASucceededRun(t *testing.T) {
 func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
 	svc, runs := retryFixture(string(model.RunStatusSucceeded))
 	runs.Runs = append(runs.Runs, model.TaskRun{
-		TaskRunID: "tr_2", TaskID: "t_1", Input: "follow-up", Status: string(model.RunStatusRunning),
+		ID: "tr_2", TaskID: "t_1", Input: "follow-up", Status: string(model.RunStatusRunning),
 	})
 
 	_, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"})
@@ -101,7 +101,7 @@ func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
 // A task that has never run has nothing to repeat.
 func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 	svc := &Service{
-		Tasks:    &mock.MockTaskStore{List: []model.Task{{TaskID: "t_1", TeamID: "tm_1", Status: "PENDING"}}},
+		Tasks:    &mock.MockTaskStore{List: []model.Task{{ID: "t_1", TeamID: "tm_1", Status: "PENDING"}}},
 		TaskRuns: &mock.MockTaskRunStore{},
 	}
 
@@ -117,7 +117,7 @@ func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 func TestRetryRunRefusesAWorkflowStepTask(t *testing.T) {
 	svc, runs := retryFixture(string(model.RunStatusFailed))
 	svc.WorkflowSteps = &mock.MockWorkflowStore{StepRuns: []model.WorkflowStepRun{{
-		StepRunID:     "wsr_1",
+		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr("t_1"),
 		Status:        model.WorkflowStepRunStatusFailed,

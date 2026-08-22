@@ -31,25 +31,16 @@ func TestMigrationsAreWellFormed(t *testing.T) {
 	}
 }
 
-// TestMigrationIDsAreStable is the append-only guard. These IDs are recorded in
-// every deployed database; renaming one makes that migration run a second time
-// on every existing install, and reordering changes what an upgraded database
-// gets relative to a fresh one. Adding an entry to the end is the only edit
-// this test should ever need.
-func TestMigrationIDsAreStable(t *testing.T) {
-	want := []string{
-		"0001_artifact_tables_to_task_run_artifact",
-		"0002_task_run_output_file_to_task_run_artifact",
-		"0003_seed_first_agent_and_workflow_revision",
-	}
-	if len(migrations) < len(want) {
-		t.Fatalf("migrations shrank to %d; entries are append-only", len(migrations))
-	}
-	for i, id := range want {
-		if migrations[i].ID != id {
-			t.Errorf("migration %d = %q, want %q — existing IDs and their order are permanent",
-				i, migrations[i].ID, id)
-		}
+// TestMigrationsRestartedAtTheIdentityCutover pins that the list is empty.
+//
+// It replaces an append-only guard that named the three entries every deployed
+// database had recorded. The identity cutover reset all of them, so those IDs
+// are no longer permanent facts about anything and the guard had nothing left
+// to protect. The first entry appended after this is permanent again, and this
+// test is what a contributor edits when they add it.
+func TestMigrationsRestartedAtTheIdentityCutover(t *testing.T) {
+	if len(migrations) != 0 {
+		t.Fatalf("migrations = %d entries; add the new IDs to this test so they become permanent", len(migrations))
 	}
 }
 

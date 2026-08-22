@@ -201,7 +201,7 @@ internal/
 ├── mock/               Test-only in-memory stores
 ├── testsupport/        Test-only helpers that must not ship (JWT signing)
 │   └── mockllm/        Scripted model replies over the three LLM wire protocols
-└── util/               ID generation, prefixed IDs, workspace path resolution,
+└── util/               Public ID codec, prefixed IDs, workspace path resolution,
                         small string and time helpers
 ```
 

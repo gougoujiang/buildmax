@@ -108,7 +108,7 @@ type createWorkflowRunRequest struct {
 
 func workflowToResponse(workflow model.Workflow) workflowResponse {
 	return workflowResponse{
-		ID:          workflow.WorkflowID,
+		ID:          workflow.ID,
 		TeamID:      workflow.TeamID,
 		Name:        workflow.Name,
 		Description: workflow.Description,
@@ -123,7 +123,6 @@ func workflowToResponse(workflow model.Workflow) workflowResponse {
 
 func workflowRevisionToResponse(rev model.WorkflowRevision) workflowRevisionResponse {
 	return workflowRevisionResponse{
-		ID:          rev.WorkflowRevisionID,
 		WorkflowID:  rev.WorkflowID,
 		Revision:    rev.Revision,
 		Name:        rev.Name,
@@ -137,7 +136,7 @@ func workflowRevisionToResponse(rev model.WorkflowRevision) workflowRevisionResp
 
 func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
 	return workflowRunResponse{
-		ID:               run.WorkflowRunID,
+		ID:               run.ID,
 		WorkflowID:       run.WorkflowID,
 		WorkflowRevision: run.WorkflowRevision,
 		IssueID:          run.IssueID,
@@ -153,7 +152,7 @@ func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
 
 func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunResponse {
 	return workflowStepRunResponse{
-		ID:                step.StepRunID,
+		ID:                step.ID,
 		WorkflowRunID:     step.WorkflowRunID,
 		StepID:            step.StepID,
 		StepIndex:         step.StepIndex,

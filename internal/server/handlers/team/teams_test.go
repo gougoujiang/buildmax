@@ -20,8 +20,8 @@ func TestTeamHandlers(t *testing.T) {
 	sharedTeamID := "tm_shared"
 	teamStore := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100},
-			{TeamID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: 200, UpdatedAt: 200},
+			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100},
+			{ID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: 200, UpdatedAt: 200},
 		},
 		Members: []model.TeamMember{
 			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: 100},
@@ -31,14 +31,14 @@ func TestTeamHandlers(t *testing.T) {
 	}
 	userStore := &mock.MockUserStore{
 		ByEmail: map[string]*model.User{
-			"u1@example.com": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
-			"u2@example.com": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
-			"u3@example.com": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},
+			"u1@example.com": {ID: "u1", Email: "u1@example.com", Name: "Alice"},
+			"u2@example.com": {ID: "u2", Email: "u2@example.com", Name: "Bob"},
+			"u3@example.com": {ID: "u3", Email: "u3@example.com", Name: "Carol"},
 		},
 		ByID: map[string]*model.User{
-			"u1": {UserID: "u1", Email: "u1@example.com", Name: "Alice"},
-			"u2": {UserID: "u2", Email: "u2@example.com", Name: "Bob"},
-			"u3": {UserID: "u3", Email: "u3@example.com", Name: "Carol"},
+			"u1": {ID: "u1", Email: "u1@example.com", Name: "Alice"},
+			"u2": {ID: "u2", Email: "u2@example.com", Name: "Bob"},
+			"u3": {ID: "u3", Email: "u3@example.com", Name: "Carol"},
 		},
 	}
 	h := New(Config{

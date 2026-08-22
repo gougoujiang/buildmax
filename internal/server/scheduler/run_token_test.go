@@ -25,7 +25,7 @@ func (r *recordingRunner) Run(_ context.Context, run model.TaskRun, runToken str
 	defer r.mu.Unlock()
 	r.calls++
 	r.token = runToken
-	r.runIDs = append(r.runIDs, run.TaskRunID)
+	r.runIDs = append(r.runIDs, run.ID)
 	return "local_process", nil, nil, nil
 }
 
@@ -111,7 +111,7 @@ func TestRunTokenFailureStopsDispatch(t *testing.T) {
 	}{
 		{
 			name:    "the minter refuses",
-			task:    &model.Task{TaskID: "t_test", TeamID: "tm_test", CreatedBy: "u_test"},
+			task:    &model.Task{ID: "t_test", TeamID: "tm_test", CreatedBy: "u_test"},
 			mint:    func(authtoken.RunClaims) (string, error) { return "", mintFailed },
 			wantMsg: mintFailed.Error(),
 		},

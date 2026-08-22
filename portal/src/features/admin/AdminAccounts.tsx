@@ -85,7 +85,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
       const result = await run()
       setNotice(done(result))
       load(query)
-      if (selected) openDetail(selected.user_id)
+      if (selected) openDetail(selected.id)
     } catch (err) {
       setError(getErrorMessage(err, "The action did not complete"))
     } finally {
@@ -152,11 +152,11 @@ export function AdminAccounts({ token }: { token: string | null }) {
             {users.map((user) => {
               const state = accountState(user)
               return (
-                <li key={user.user_id} className="admin-list__row">
+                <li key={user.id} className="admin-list__row">
                   <button
                     type="button"
                     className="admin-list__main admin-list__main--action"
-                    onClick={() => openDetail(user.user_id)}
+                    onClick={() => openDetail(user.id)}
                   >
                     {user.email}
                   </button>
@@ -219,7 +219,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
             <div>
               <h2 className="settings-page__section-title">{selected.email}</h2>
               <p className="settings-page__section-copy">
-                {selected.user_id} · created {whenever(selected.created_at)} ·{" "}
+                {selected.id} · created {whenever(selected.created_at)} ·{" "}
                 {selected.session_count} live session
                 {selected.session_count === 1 ? "" : "s"}
               </p>
@@ -276,7 +276,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                 )
                   return
                 act(
-                  () => issueAdminLoginCode(token!, selected.user_id),
+                  () => issueAdminLoginCode(token!, selected.id),
                   (res) => {
                     setLoginCode(res.code)
                     return `Code issued, valid until ${whenever(res.expires_at)}.`
@@ -301,7 +301,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                 )
                   return
                 act(
-                  () => revokeAdminUserSessions(token!, selected.user_id),
+                  () => revokeAdminUserSessions(token!, selected.id),
                   (res) => `Revoked ${res.revoked} session token${res.revoked === 1 ? "" : "s"}.`,
                 )
               }}
@@ -316,7 +316,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                 disabled={busy}
                 onClick={() =>
                   act(
-                    () => setAdminUserDisabled(token!, selected.user_id, false),
+                    () => setAdminUserDisabled(token!, selected.id, false),
                     (user) => `${user.email} can sign in again.`,
                   )
                 }
@@ -331,7 +331,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                 onClick={() => {
                   if (!confirmDisable(selected)) return
                   act(
-                    () => setAdminUserDisabled(token!, selected.user_id, true),
+                    () => setAdminUserDisabled(token!, selected.id, true),
                     (user) =>
                       `${user.email} is disabled. ${user.sessions_revoked} session token` +
                       `${user.sessions_revoked === 1 ? "" : "s"} revoked.`,

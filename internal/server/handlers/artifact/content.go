@@ -60,7 +60,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 		if httputil.WriteServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "artifact_content", "artifact_id", rec.ArtifactID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "artifact_content", "artifact_id", rec.ID)
 		return
 	}
 	defer func() { _ = body.Close() }()
@@ -69,7 +69,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if _, err := io.Copy(w, body); err != nil {
 		// The status line is already sent, so there is nothing to tell the
 		// client. Logged because a truncated download is otherwise invisible.
-		slog.Warn("artifact content stream ended early", "err", err, "artifact_id", rec.ArtifactID)
+		slog.Warn("artifact content stream ended early", "err", err, "artifact_id", rec.ID)
 	}
 }
 

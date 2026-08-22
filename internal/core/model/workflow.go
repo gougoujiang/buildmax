@@ -25,8 +25,7 @@ const (
 
 // Workflow is a reusable team-scoped execution plan.
 type Workflow struct {
-	ID          uint   `json:"-"`
-	WorkflowID  string `json:"workflow_id"`
+	ID          string `json:"id"`
 	TeamID      string `json:"team_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -46,23 +45,20 @@ type Workflow struct {
 // Revisions are append-only: an edit adds one, nothing rewrites or deletes one,
 // and restoring an older revision is itself an edit that appends a new one.
 type WorkflowRevision struct {
-	ID                 uint   `json:"-"`
-	WorkflowRevisionID string `json:"workflow_revision_id"`
-	WorkflowID         string `json:"workflow_id"`
-	Revision           int    `json:"revision"`
-	Name               string `json:"name"`
-	Description        string `json:"description"`
-	Definition         string `json:"definition"`
-	Status             string `json:"status"`
-	CreatedBy          string `json:"created_by"`
-	CreatedAt          int64  `json:"created_at"`
+	WorkflowID  string `json:"workflow_id"`
+	Revision    int    `json:"revision"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Definition  string `json:"definition"`
+	Status      string `json:"status"`
+	CreatedBy   string `json:"created_by"`
+	CreatedAt   int64  `json:"created_at"`
 }
 
 // WorkflowRun is one execution attempt of a workflow.
 type WorkflowRun struct {
-	ID            uint   `json:"-"`
-	WorkflowRunID string `json:"workflow_run_id"`
-	WorkflowID    string `json:"workflow_id"`
+	ID         string `json:"id"`
+	WorkflowID string `json:"workflow_id"`
 	// WorkflowRevision is the workflow revision this run expanded. It is 0 for
 	// runs started before workflows recorded revisions.
 	WorkflowRevision int     `json:"workflow_revision,omitempty"`
@@ -78,8 +74,7 @@ type WorkflowRun struct {
 
 // WorkflowStepRun is one durable step execution record under a workflow run.
 type WorkflowStepRun struct {
-	ID            uint    `json:"-"`
-	StepRunID     string  `json:"workflow_step_run_id"`
+	ID            string  `json:"id"`
 	WorkflowRunID string  `json:"workflow_run_id"`
 	StepID        string  `json:"step_id"`
 	StepIndex     int     `json:"step_index"`

@@ -167,13 +167,13 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return errors.New("runtime: paths, persist, runOutputStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, task, run)
-	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.TaskID, TaskRunID: run.TaskRunID}
+	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.ID, TaskRunID: run.ID}
 
 	if err := prepareRunWorkspace(ctx, input.Persist, task, run, dirs); err != nil {
 		if runCanceled(ctx) {
 			return reportCanceledRun(ctx, scope, RunResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input)
 		}
-		reportRunFailure(ctx, run.TaskRunID, err, "", input.Updater)
+		reportRunFailure(ctx, run.ID, err, "", input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
@@ -185,8 +185,8 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-		componentLog().Error("run failed", "task_run_id", run.TaskRunID, "err", err, "output_len", len(result.OutputStr))
-		reportRunFailure(ctx, run.TaskRunID, err, result.TracePath, input.Updater)
+		componentLog().Error("run failed", "task_run_id", run.ID, "err", err, "output_len", len(result.OutputStr))
+		reportRunFailure(ctx, run.ID, err, result.TracePath, input.Updater)
 		return err
 	}
 
@@ -194,7 +194,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, input.RunOutputStorage, input.Updater); err != nil {
 		return err
 	}
-	componentLog().Info("run succeeded", "task_run_id", run.TaskRunID)
+	componentLog().Info("run succeeded", "task_run_id", run.ID)
 	return nil
 }
 
@@ -235,10 +235,10 @@ func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, di
 
 func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) runDirs {
 	return runDirs{
-		runDir:       paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.TaskID, run.TaskRunID),
-		runHome:      paths.RuntimeTaskRunHomeDir(task.CreatedBy, task.ConversationID, task.TaskID, run.TaskRunID),
-		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.CreatedBy, task.ConversationID, task.TaskID, run.TaskRunID),
-		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.CreatedBy, task.ConversationID, task.TaskID, run.TaskRunID),
+		runDir:       paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
+		runHome:      paths.RuntimeTaskRunHomeDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
+		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
+		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
 	}
 }
 
@@ -248,11 +248,11 @@ func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task 
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
 	if err := persist.MaterializeToDir(ctx, task.TeamID, dirs.runHome); err != nil {
-		componentLog().Error("failed to materialize team files", "task_run_id", run.TaskRunID, "team_id", task.TeamID, "err", err)
+		componentLog().Error("failed to materialize team files", "task_run_id", run.ID, "team_id", task.TeamID, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
-		componentLog().Error("failed to prepare run AGENTS.md", "task_run_id", run.TaskRunID, "err", err)
+		componentLog().Error("failed to prepare run AGENTS.md", "task_run_id", run.ID, "err", err)
 		return err
 	}
 	return nil
@@ -264,7 +264,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 		effectiveSessionID = *task.SessionID
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
-		artifactPublisher(input.WorkerAPI, run.TaskRunID))
+		artifactPublisher(input.WorkerAPI, run.ID))
 	result := RunResult{
 		EndTime:          time.Now().Unix(),
 		OutputStr:        string(agentRun.output),
@@ -300,14 +300,14 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 }
 
 func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *model.TaskRun, runGlobalDir string, persist blob.RunStorage) {
-	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.TaskRunID {
+	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.ID {
 		return
 	}
 	relPath := "sessions/" + *task.SessionID + ".json"
 	data, err := persist.GetRunGlobal(ctx, blob.RunObjectRef{
 		CreatedBy:      task.CreatedBy,
 		ConversationID: task.ConversationID,
-		TaskID:         task.TaskID,
+		TaskID:         task.ID,
 		TaskRunID:      *task.LastRunID,
 		RelPath:        relPath,
 	})
@@ -337,7 +337,7 @@ type agentRunOutput struct {
 func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
-		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.TaskRunID}
+		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
 	}
 
 	var out agentapp.RunResult
@@ -352,7 +352,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 			Policy:                 agentapp.NewNonInteractivePolicy(),
 			ModelEntries:           modelEntries,
 			ManagedToken:           managed.tokenFunc(),
-			ManagedTaskRunID:       managedRunScope(managed, run.TaskRunID),
+			ManagedTaskRunID:       managedRunScope(managed, run.ID),
 			Surface:                managedSurface,
 			AdditionalSystemPrompt: additionalSystemPrompt,
 			ArtifactPublisher:      publisher,
@@ -373,8 +373,8 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		// tail is the part of the reply the reader has not seen yet.
 		flushCtx, cancelFlush := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
 		defer cancelFlush()
-		if flushErr := streamSender.Flush(flushCtx, run.TaskRunID); flushErr != nil {
-			componentLog().Warn("stream flush failed", "task_run_id", run.TaskRunID, "err", flushErr)
+		if flushErr := streamSender.Flush(flushCtx, run.ID); flushErr != nil {
+			componentLog().Warn("stream flush failed", "task_run_id", run.ID, "err", flushErr)
 		}
 	}
 	// RunPrompt carries the trace path out on its error paths too, so a failed

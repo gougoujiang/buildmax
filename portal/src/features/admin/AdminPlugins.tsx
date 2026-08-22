@@ -87,7 +87,7 @@ export function AdminPlugins({ token }: { token: string | null }) {
             {plugins.map((entry) => {
               const archived = Boolean(entry.archived_at)
               return (
-                <li key={entry.plugin_id} className="admin-list__row">
+                <li key={entry.name} className="admin-list__row">
                   <span className="admin-list__main">
                     {entry.display_name || entry.name}
                     <span className="admin-list__meta"> · {entry.name}</span>
@@ -196,7 +196,7 @@ function PluginReleases({
           {releases.map((release) => {
             const yanked = Boolean(release.yanked_at)
             return (
-              <li key={release.plugin_release_id} className="admin-list__row">
+              <li key={`${release.plugin_name}@${release.version}`} className="admin-list__row">
                 <span className="admin-list__main">
                   {release.version}
                   <span className="admin-list__meta"> · {contributionSummary(release)}</span>

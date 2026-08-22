@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -310,7 +311,7 @@ func (m *Manager) StartCommand(spec CommandSpec, prov Provenance) (Job, error) {
 
 	rec := &record{
 		job: Job{
-			ID:         util.NewPrefixedID(util.PrefixJob),
+			ID:         newJobID(),
 			Kind:       KindCommand,
 			Command:    spec.Command,
 			State:      StateRunning,
@@ -362,7 +363,7 @@ func (m *Manager) StartSubagent(spec SubagentSpec, prov Provenance, run func(con
 
 	rec := &record{
 		job: Job{
-			ID:         util.NewPrefixedID(util.PrefixJob),
+			ID:         newJobID(),
 			Kind:       KindSubagent,
 			Command:    spec.Description,
 			State:      StateRunning,
@@ -438,7 +439,7 @@ func (m *Manager) StartMonitor(spec MonitorSpec, prov Provenance) (Job, error) {
 
 	rec := &record{
 		job: Job{
-			ID:         util.NewPrefixedID(util.PrefixJob),
+			ID:         newJobID(),
 			Kind:       KindMonitor,
 			Command:    spec.Command,
 			State:      StateRunning,
@@ -770,4 +771,24 @@ func (m *Manager) Close(ctx context.Context) error {
 		s.shut()
 	}
 	return err
+}
+
+// jobIDPrefix keeps background jobs readable where they are read.
+//
+// A job ID reaches the model as a bare string inside tool output — "job:
+// jb_ivyoh5qcfu6ypfkhyedq" beside a command line and a file path — which is the
+// one case a type prefix earns: a route, a JSON field, and a column say what
+// they name, and free prose does not. Server entities carry none for exactly
+// that reason; see docs/design/entity-identity.md.
+const jobIDPrefix = "jb_"
+
+// newJobID mints a job identifier. A job lives for one process and is never
+// persisted, so entropy failure costs a readable name and nothing else: the
+// caller would rather run the job.
+func newJobID() string {
+	id, err := util.NewPublicID()
+	if err != nil {
+		return jobIDPrefix + strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return jobIDPrefix + id
 }

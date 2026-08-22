@@ -71,7 +71,7 @@ func (s *Service) CreateEntry(ctx context.Context, in CreateEntryInput) (*model.
 	if err != nil {
 		return nil, err
 	}
-	s.record(ctx, in.ActorID, model.AuditPluginCreated, entry.Name, entry.PluginID, "")
+	s.record(ctx, in.ActorID, model.AuditPluginCreated, entry.Name, entry.Name, "")
 	return entry, nil
 }
 
@@ -82,7 +82,7 @@ func (s *Service) UpdateEntry(ctx context.Context, name string, in model.UpdateP
 	if err != nil {
 		return nil, err
 	}
-	s.record(ctx, actorID, model.AuditPluginUpdated, entry.Name, entry.PluginID, "")
+	s.record(ctx, actorID, model.AuditPluginUpdated, entry.Name, entry.Name, "")
 	return entry, nil
 }
 
@@ -106,7 +106,7 @@ func (s *Service) SetArchived(ctx context.Context, name string, archived bool, a
 	if archived {
 		action = model.AuditPluginArchived
 	}
-	s.record(ctx, actorID, action, entry.Name, entry.PluginID, "")
+	s.record(ctx, actorID, action, entry.Name, entry.Name, "")
 	return nil
 }
 
@@ -161,7 +161,7 @@ func (s *Service) Yank(ctx context.Context, name, version, actorID, reason strin
 	if err := s.Catalog.YankPluginRelease(ctx, name, version, actorID, reason); err != nil {
 		return err
 	}
-	s.record(ctx, actorID, model.AuditPluginYanked, name, release.PluginReleaseID,
+	s.record(ctx, actorID, model.AuditPluginYanked, name, releaseTarget(name, version),
 		releaseDetail(name, version, release.Digest))
 	return nil
 }
@@ -247,7 +247,7 @@ func (s *Service) Publish(ctx context.Context, in PublishInput) (*model.PluginRe
 	if err != nil {
 		return nil, err
 	}
-	s.record(ctx, in.ActorID, model.AuditPluginPublished, entry.Name, release.PluginReleaseID,
+	s.record(ctx, in.ActorID, model.AuditPluginPublished, entry.Name, releaseTarget(entry.Name, release.Version),
 		releaseDetail(entry.Name, release.Version, release.Digest))
 	return release, nil
 }
@@ -310,6 +310,11 @@ func releaseDetail(name, version, digest string) string {
 	}
 	return fmt.Sprintf("%s@%s %s", name, version, short)
 }
+
+// releaseTarget names one release for the audit trail. A release has no handle
+// of its own: name plus version is what every route and every install addresses
+// it by, and it is immutable, which is what an audit record needs.
+func releaseTarget(name, version string) string { return name + "@" + version }
 
 func (s *Service) record(ctx context.Context, actorID, action, name, targetID, detail string) {
 	if detail == "" {

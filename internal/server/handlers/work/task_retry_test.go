@@ -27,7 +27,7 @@ const (
 func retryFixture(t *testing.T, run model.TaskRun, workflows *mock.MockWorkflowStore) (*http.ServeMux, *mock.MockTaskRunStore) {
 	t.Helper()
 	target := model.Task{
-		TaskID:         retryTaskID,
+		ID:             retryTaskID,
 		ConversationID: retryConv,
 		TeamID:         retryTeam,
 		Status:         run.Status,
@@ -35,22 +35,22 @@ func retryFixture(t *testing.T, run model.TaskRun, workflows *mock.MockWorkflowS
 		CreatedBy:      retryUser,
 	}
 	var runs *mock.MockTaskRunStore
-	if run.TaskRunID == "" {
+	if run.ID == "" {
 		runs = &mock.MockTaskRunStore{TaskList: []model.Task{target}}
 	} else {
-		target.LastRunID = util.Ptr(run.TaskRunID)
+		target.LastRunID = util.Ptr(run.ID)
 		runs = &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{target}}
 	}
 	cfg := Config{
 		JWTSecret: retrySecret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{TeamID: retryTeam, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
+			Teams:   []model.Team{{ID: retryTeam, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
 			Members: []model.TeamMember{{TeamID: retryTeam, UserID: retryUser, Role: model.TeamRoleOwner}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{target}},
 		TaskRuns: runs,
 		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
-			{ConversationID: retryConv, UserID: retryUser, TeamID: retryTeam, Channel: "portal", CreatedBy: retryUser},
+			{ID: retryConv, UserID: retryUser, TeamID: retryTeam, Channel: "portal", CreatedBy: retryUser},
 		}},
 	}
 	if workflows != nil {
@@ -75,10 +75,10 @@ func postRetry(t *testing.T, mux *http.ServeMux) *httptest.ResponseRecorder {
 // says which run it repeats.
 func TestRetryTaskRepeatsTheRunWithItsOwnInput(t *testing.T) {
 	mux, runs := retryFixture(t, model.TaskRun{
-		TaskRunID: retryRunID,
-		TaskID:    retryTaskID,
-		Input:     "review the migration plan",
-		Status:    string(model.RunStatusFailed),
+		ID:     retryRunID,
+		TaskID: retryTaskID,
+		Input:  "review the migration plan",
+		Status: string(model.RunStatusFailed),
 	}, nil)
 
 	rec := postRetry(t, mux)
@@ -129,10 +129,10 @@ func TestRetryTaskWithoutAFinishedRunConflicts(t *testing.T) {
 // claiming there is nothing to repeat.
 func TestRetryTaskWhileARunIsInFlightConflicts(t *testing.T) {
 	mux, runs := retryFixture(t, model.TaskRun{
-		TaskRunID: retryRunID,
-		TaskID:    retryTaskID,
-		Input:     "review the migration plan",
-		Status:    string(model.RunStatusRunning),
+		ID:     retryRunID,
+		TaskID: retryTaskID,
+		Input:  "review the migration plan",
+		Status: string(model.RunStatusRunning),
 	}, nil)
 
 	rec := postRetry(t, mux)
@@ -153,12 +153,12 @@ func TestRetryTaskWhileARunIsInFlightConflicts(t *testing.T) {
 // for a step that is already settled.
 func TestRetryTaskRefusesAWorkflowStep(t *testing.T) {
 	mux, runs := retryFixture(t, model.TaskRun{
-		TaskRunID: retryRunID,
-		TaskID:    retryTaskID,
-		Input:     "review the migration plan",
-		Status:    string(model.RunStatusFailed),
+		ID:     retryRunID,
+		TaskID: retryTaskID,
+		Input:  "review the migration plan",
+		Status: string(model.RunStatusFailed),
 	}, &mock.MockWorkflowStore{StepRuns: []model.WorkflowStepRun{{
-		StepRunID:     "wsr_1",
+		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr(retryTaskID),
 		Status:        model.WorkflowStepRunStatusFailed,

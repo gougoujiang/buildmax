@@ -262,9 +262,9 @@ func (wc *Conn) handleConversationCreate(ctx context.Context, p ConversationCrea
 		wc.sendEvent(TypeConversationError, ConversationError{Error: "failed to create conversation"})
 		return
 	}
-	componentLog().Info("conversation created", "user_id", wc.userID, "conversation_id", conv.ConversationID)
-	wc.sendEvent(TypeConversationCreated, ConversationCreated{ConversationID: conv.ConversationID})
-	wc.runConversationTurn(ctx, conv.ConversationID, p.Message, channel)
+	componentLog().Info("conversation created", "user_id", wc.userID, "conversation_id", conv.ID)
+	wc.sendEvent(TypeConversationCreated, ConversationCreated{ConversationID: conv.ID})
+	wc.runConversationTurn(ctx, conv.ID, p.Message, channel)
 }
 
 func (wc *Conn) handleConversationMessage(ctx context.Context, p ConversationMessage) {

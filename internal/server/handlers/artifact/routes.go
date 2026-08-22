@@ -17,7 +17,7 @@ const notFoundMessage = "artifact not found"
 // cannot publish it by accident — the storage key in particular must never
 // leave the server.
 type ArtifactResponse struct {
-	ArtifactID    string `json:"artifact_id"`
+	ID            string `json:"id"`
 	TeamID        string `json:"team_id"`
 	Filename      string `json:"filename"`
 	MediaType     string `json:"media_type"`
@@ -45,7 +45,7 @@ type artifactListResponse struct {
 // answers with the same shape.
 func ToResponse(a *model.Artifact) ArtifactResponse {
 	out := ArtifactResponse{
-		ArtifactID:    a.ArtifactID,
+		ID:            a.ID,
 		TeamID:        a.TeamID,
 		Filename:      a.Filename,
 		MediaType:     a.MediaType,
@@ -183,7 +183,7 @@ func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) 
 		if httputil.WriteServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "delete_artifact", "artifact_id", rec.ArtifactID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "delete_artifact", "artifact_id", rec.ID)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

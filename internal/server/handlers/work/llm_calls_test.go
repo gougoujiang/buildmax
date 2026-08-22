@@ -21,11 +21,11 @@ func llmCallsFixture(ledger *llmStubLedger) Config {
 		JWTSecret: llmTestSecret,
 		Teams:     llmTestTeamStore(),
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{TaskRunID: "r_1", TaskID: "t_1", Status: string(model.RunStatusSucceeded), CreatedAt: 1}},
-			TaskList: []model.Task{{TaskID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusSucceeded), CreatedAt: 1}},
+			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: 1}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
+			Conversations: []model.Conversation{{ID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
 		},
 		LLMCalls: ledger,
 	}
@@ -46,7 +46,7 @@ func getLLMCalls(t *testing.T, cfg Config, teamID, taskRunID string, auth bool) 
 
 func stagedCall() model.LLMCall {
 	return model.LLMCall{
-		LLMCallID:     "lc_1",
+		ID:            "lc_1",
 		TeamID:        llmTestTeam,
 		UserID:        ptr(llmTestUser),
 		TaskRunID:     ptr("r_1"),
@@ -79,7 +79,7 @@ func TestListTaskRunLLMCalls(t *testing.T) {
 		t.Fatalf("returned %d calls, want 1", len(out))
 	}
 	call := out[0]
-	if call.LLMCallID != "lc_1" || call.Alias != "default" || call.Surface != "worker" {
+	if call.ID != "lc_1" || call.Alias != "default" || call.Surface != "worker" {
 		t.Errorf("call = %+v", call)
 	}
 	if call.UserID == nil || *call.UserID != llmTestUser {

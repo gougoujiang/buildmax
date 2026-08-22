@@ -28,7 +28,7 @@ const (
 func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockTaskRunStore) {
 	t.Helper()
 	task := model.Task{
-		TaskID:         cancelTaskID,
+		ID:             cancelTaskID,
 		ConversationID: cancelConv,
 		TeamID:         cancelTeam,
 		Status:         run.Status,
@@ -38,13 +38,13 @@ func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockT
 	h := New(Config{
 		JWTSecret: cancelSecret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{TeamID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
+			Teams:   []model.Team{{ID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
 			Members: []model.TeamMember{{TeamID: cancelTeam, UserID: cancelUser, Role: model.TeamRoleOwner}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
 		TaskRuns: runs,
 		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
-			{ConversationID: cancelConv, UserID: cancelUser, TeamID: cancelTeam, Channel: "portal", CreatedBy: cancelUser},
+			{ID: cancelConv, UserID: cancelUser, TeamID: cancelTeam, Channel: "portal", CreatedBy: cancelUser},
 		}},
 	})
 	mux := http.NewServeMux()
@@ -74,7 +74,7 @@ func decodeCancel(t *testing.T, rec *httptest.ResponseRecorder) cancelTaskRespon
 // it, so there is nothing to wait for and nothing that could still report.
 func TestCancelTaskFinishesAnUndispatchedRun(t *testing.T) {
 	mux, runs := cancelFixture(t, model.TaskRun{
-		TaskRunID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusPending),
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusPending),
 	})
 
 	rec := postCancel(t, mux)
@@ -110,7 +110,7 @@ func TestCancelTaskFinishesAnUndispatchedRun(t *testing.T) {
 // still executing.
 func TestCancelTaskRequestsStopForARunningRun(t *testing.T) {
 	mux, runs := cancelFixture(t, model.TaskRun{
-		TaskRunID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusRunning),
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusRunning),
 	})
 
 	rec := postCancel(t, mux)
@@ -137,7 +137,7 @@ func TestCancelTaskRequestsStopForARunningRun(t *testing.T) {
 // the worker reacts. The second must not read as an error.
 func TestCancelTaskIsIdempotentWhileTheRunIsStopping(t *testing.T) {
 	mux, runs := cancelFixture(t, model.TaskRun{
-		TaskRunID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusRunning),
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusRunning),
 	})
 
 	first := postCancel(t, mux)
@@ -157,7 +157,7 @@ func TestCancelTaskIsIdempotentWhileTheRunIsStopping(t *testing.T) {
 
 func TestCancelTaskRefusesAFinishedRun(t *testing.T) {
 	mux, _ := cancelFixture(t, model.TaskRun{
-		TaskRunID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusSucceeded),
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusSucceeded),
 	})
 
 	rec := postCancel(t, mux)
@@ -173,7 +173,7 @@ func TestCancelTaskRefusesAFinishedRun(t *testing.T) {
 // The run belongs to a different task, so this task has nothing in flight.
 func TestCancelTaskRefusesWhenTheTaskHasNoActiveRun(t *testing.T) {
 	mux, _ := cancelFixture(t, model.TaskRun{
-		TaskRunID: cancelOtherID, TaskID: "t_somebody_else", Status: string(model.RunStatusRunning),
+		ID: cancelOtherID, TaskID: "t_somebody_else", Status: string(model.RunStatusRunning),
 	})
 
 	rec := postCancel(t, mux)

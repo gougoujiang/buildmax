@@ -195,8 +195,8 @@ inspect their help and use them only when the task authorizes that effect.
 - Preserve unrelated work in a dirty worktree. Never reset or overwrite another
   contributor's changes to make checks pass.
 - Persisted JSON uses explicit `snake_case` tags. Database table names are
-  singular. Entity IDs use `NewPrefixedID` from `internal/util` and the
-  documented prefix convention.
+  singular. A server entity's public identifier uses `NewPublicID` from
+  `internal/util`; see [`docs/design/entity-identity.md`](docs/design/entity-identity.md).
 - Tool output is written for the LLM and must be meaningful on success and
   failure.
 - Keep code comments short. Comment the background and the decision — why this

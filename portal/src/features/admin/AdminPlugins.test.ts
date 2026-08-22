@@ -4,8 +4,6 @@ import type { ApiPluginRelease } from "../../lib/api/types"
 
 function release(inspection: ApiPluginRelease["inspection"]): ApiPluginRelease {
   return {
-    plugin_release_id: "plr_1",
-    plugin_id: "pl_1",
     plugin_name: "code-review",
     version: "1.0.0",
     digest: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

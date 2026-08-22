@@ -11,10 +11,10 @@ import (
 )
 
 type agentRow struct {
-	ID           uint   `gorm:"primaryKey;autoIncrement"`
-	AgentID      string `gorm:"type:varchar(64);uniqueIndex;not null"`
-	UserID       string `gorm:"type:varchar(64);not null;index"`
-	TeamID       string `gorm:"type:varchar(64);index"`
+	ID           uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID     []byte `gorm:"column:public_id;type:binary(12);uniqueIndex:uq_agent_public_id;not null"`
+	UserID       uint64 `gorm:"column:user_id;not null;index"`
+	TeamID       uint64 `gorm:"column:team_id;index"`
 	Name         string `gorm:"type:varchar(255);not null"`
 	Description  string `gorm:"type:text"`
 	Instructions string `gorm:"type:text"`
@@ -25,59 +25,88 @@ type agentRow struct {
 
 func (agentRow) TableName() string { return "agent" }
 
+// agentReadRow is the row plus the handles its references resolve to.
+type agentReadRow struct {
+	Row          agentRow `gorm:"embedded"`
+	UserPublicID []byte   `gorm:"column:user_public_id"`
+	TeamPublicID []byte   `gorm:"column:team_public_id"`
+}
+
+func (s *Store) agentSelect(ctx context.Context) *gorm.DB {
+	return agentSelectTx(s.db.WithContext(ctx))
+}
+
+func agentSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&agentRow{}).
+		Select("agent.*, u.public_id AS user_public_id, t.public_id AS team_public_id").
+		Joins("INNER JOIN `user` u ON u.id = agent.user_id").
+		Joins("LEFT JOIN team t ON t.id = agent.team_id")
+}
+
 // agentRevisionRow is one recorded version of an agent definition. Rows are
 // appended, never updated or deleted, and they outlive the agent: deleting an
 // agent leaves its history in place.
 type agentRevisionRow struct {
-	ID              uint   `gorm:"primaryKey;autoIncrement"`
-	AgentRevisionID string `gorm:"column:agent_revision_id;type:varchar(64);uniqueIndex;not null"`
-	AgentID         string `gorm:"column:agent_id;type:varchar(64);not null;index:idx_agent_revision,unique,priority:1"`
-	Revision        int    `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
-	Name            string `gorm:"type:varchar(255);not null"`
-	Description     string `gorm:"type:text"`
-	Instructions    string `gorm:"type:text"`
-	CreatedBy       string `gorm:"column:created_by;type:varchar(64);not null"`
-	CreatedAt       int64  `gorm:"autoCreateTime"`
+	ID           uint64 `gorm:"primaryKey;autoIncrement"`
+	AgentID      uint64 `gorm:"column:agent_id;not null;index:idx_agent_revision,unique,priority:1"`
+	Revision     int    `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
+	Name         string `gorm:"type:varchar(255);not null"`
+	Description  string `gorm:"type:text"`
+	Instructions string `gorm:"type:text"`
+	CreatedBy    uint64 `gorm:"column:created_by;not null"`
+	CreatedAt    int64  `gorm:"autoCreateTime"`
 }
 
 func (agentRevisionRow) TableName() string { return "agent_revision" }
 
-func toAgent(row *agentRow) *model.Agent {
+// agentRevisionReadRow is the row plus the handles its references resolve to.
+// The revision itself has none: it is addressed by its agent plus its number.
+type agentRevisionReadRow struct {
+	Row               agentRevisionRow `gorm:"embedded"`
+	AgentPublicID     []byte           `gorm:"column:agent_public_id"`
+	CreatedByPublicID []byte           `gorm:"column:created_by_public_id"`
+}
+
+func (s *Store) agentRevisionSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&agentRevisionRow{}).
+		Select("agent_revision.*, a.public_id AS agent_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN agent a ON a.id = agent_revision.agent_id").
+		Joins("INNER JOIN `user` cb ON cb.id = agent_revision.created_by")
+}
+
+func toAgent(row *agentReadRow) *model.Agent {
 	if row == nil {
 		return nil
 	}
 	return &model.Agent{
-		ID:           row.ID,
-		AgentID:      row.AgentID,
-		UserID:       row.UserID,
-		TeamID:       row.TeamID,
-		Name:         row.Name,
-		Description:  row.Description,
-		Instructions: row.Instructions,
-		Revision:     row.Revision,
-		DeletedAt:    row.DeletedAt,
-		CreatedAt:    row.CreatedAt,
+		ID:           util.FormatPublicID(row.Row.PublicID),
+		UserID:       util.FormatPublicID(row.UserPublicID),
+		TeamID:       util.FormatPublicID(row.TeamPublicID),
+		Name:         row.Row.Name,
+		Description:  row.Row.Description,
+		Instructions: row.Row.Instructions,
+		Revision:     row.Row.Revision,
+		DeletedAt:    row.Row.DeletedAt,
+		CreatedAt:    row.Row.CreatedAt,
 	}
 }
 
-func toAgentRevision(row *agentRevisionRow) *model.AgentRevision {
+func toAgentRevision(row *agentRevisionReadRow) *model.AgentRevision {
 	if row == nil {
 		return nil
 	}
 	return &model.AgentRevision{
-		ID:              row.ID,
-		AgentRevisionID: row.AgentRevisionID,
-		AgentID:         row.AgentID,
-		Revision:        row.Revision,
-		Name:            row.Name,
-		Description:     row.Description,
-		Instructions:    row.Instructions,
-		CreatedBy:       row.CreatedBy,
-		CreatedAt:       row.CreatedAt,
+		AgentID:      util.FormatPublicID(row.AgentPublicID),
+		Revision:     row.Row.Revision,
+		Name:         row.Row.Name,
+		Description:  row.Row.Description,
+		Instructions: row.Row.Instructions,
+		CreatedBy:    util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:    row.Row.CreatedAt,
 	}
 }
 
-func toAgentRevisions(rows []agentRevisionRow) []model.AgentRevision {
+func toAgentRevisions(rows []agentRevisionReadRow) []model.AgentRevision {
 	out := make([]model.AgentRevision, len(rows))
 	for i := range rows {
 		out[i] = *toAgentRevision(&rows[i])
@@ -85,7 +114,7 @@ func toAgentRevisions(rows []agentRevisionRow) []model.AgentRevision {
 	return out
 }
 
-func toAgents(rows []agentRow) []model.Agent {
+func toAgents(rows []agentReadRow) []model.Agent {
 	out := make([]model.Agent, len(rows))
 	for i := range rows {
 		out[i] = *toAgent(&rows[i])
@@ -93,46 +122,35 @@ func toAgents(rows []agentRow) []model.Agent {
 	return out
 }
 
-func toAgentRow(m *model.Agent) *agentRow {
-	if m == nil {
-		return nil
-	}
-	return &agentRow{
-		ID:           m.ID,
-		AgentID:      m.AgentID,
-		UserID:       m.UserID,
-		TeamID:       m.TeamID,
-		Name:         m.Name,
-		Description:  m.Description,
-		Instructions: m.Instructions,
-		Revision:     m.Revision,
-		DeletedAt:    m.DeletedAt,
-		CreatedAt:    m.CreatedAt,
-	}
-}
-
 // appendAgentRevision records a's current content as its revision. It runs in
 // the same transaction as the write it describes, so history cannot drift from
 // the row: the unique (agent_id, revision) index makes a concurrent second
 // write fail rather than record two different definitions under one number.
-func appendAgentRevision(tx *gorm.DB, a *model.Agent, createdBy string) error {
+func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *model.Agent, createdBy string) error {
+	creator, err := lookupKey(ctx, tx, "user", createdBy)
+	if err != nil {
+		return err
+	}
 	return tx.Create(&agentRevisionRow{
-		AgentRevisionID: util.NewPrefixedID(util.PrefixAgentRevision),
-		AgentID:         a.AgentID,
-		Revision:        a.Revision,
-		Name:            a.Name,
-		Description:     a.Description,
-		Instructions:    a.Instructions,
-		CreatedBy:       createdBy,
-		CreatedAt:       time.Now().Unix(),
+		AgentID:      agentKey,
+		Revision:     a.Revision,
+		Name:         a.Name,
+		Description:  a.Description,
+		Instructions: a.Instructions,
+		CreatedBy:    creator,
+		CreatedAt:    time.Now().Unix(),
 	}).Error
 }
 
 // GetAgent returns the live agent by agent_id, or (nil, nil) when there is none.
 // A deleted agent reads as not found here; see GetAgentIncludingDeleted.
 func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, error) {
-	var a agentRow
-	err := s.db.WithContext(ctx).Where("agent_id = ? AND deleted_at IS NULL", agentID).First(&a).Error
+	raw, ok := util.ParsePublicID(agentID)
+	if !ok {
+		return nil, nil
+	}
+	var a agentReadRow
+	err := s.agentSelect(ctx).Where("agent.public_id = ? AND agent.deleted_at IS NULL", raw).Take(&a).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -145,8 +163,12 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, err
 // GetAgentIncludingDeleted returns the agent whether or not it was deleted. It
 // answers "what did this record refer to", not "what may I use".
 func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*model.Agent, error) {
-	var a agentRow
-	err := s.db.WithContext(ctx).Where("agent_id = ?", agentID).First(&a).Error
+	raw, ok := util.ParsePublicID(agentID)
+	if !ok {
+		return nil, nil
+	}
+	var a agentReadRow
+	err := s.agentSelect(ctx).Where("agent.public_id = ?", raw).Take(&a).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -158,15 +180,25 @@ func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*
 
 // ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Agent, error) {
-	var list []agentRow
-	err := s.db.WithContext(ctx).Where("user_id = ? AND deleted_at IS NULL", userID).Order("created_at ASC").Find(&list).Error
+	raw, ok := util.ParsePublicID(userID)
+	if !ok {
+		return nil, nil
+	}
+	var list []agentReadRow
+	err := s.agentSelect(ctx).Where("u.public_id = ? AND agent.deleted_at IS NULL", raw).
+		Order("agent.created_at ASC").Find(&list).Error
 	return toAgents(list), err
 }
 
 // ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
 func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Agent, error) {
-	var list []agentRow
-	err := s.db.WithContext(ctx).Where("team_id = ? AND deleted_at IS NULL", teamID).Order("created_at ASC").Find(&list).Error
+	raw, ok := util.ParsePublicID(teamID)
+	if !ok {
+		return nil, nil
+	}
+	var list []agentReadRow
+	err := s.agentSelect(ctx).Where("t.public_id = ? AND agent.deleted_at IS NULL", raw).
+		Order("agent.created_at ASC").Find(&list).Error
 	return toAgents(list), err
 }
 
@@ -182,7 +214,6 @@ func (s *Store) CreateAgent(ctx context.Context, userID, name, description, inst
 // CreateAgentInTeam inserts a new team-scoped agent and returns it.
 func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
 	a := &model.Agent{
-		AgentID:      util.NewPrefixedID(util.PrefixAgent),
 		UserID:       userID,
 		TeamID:       teamID,
 		Name:         name,
@@ -191,15 +222,36 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 		Revision:     1,
 		CreatedAt:    time.Now().Unix(),
 	}
+	row := &agentRow{
+		Name:         name,
+		Description:  description,
+		Instructions: instructions,
+		Revision:     1,
+		CreatedAt:    a.CreatedAt,
+	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(toAgentRow(a)).Error; err != nil {
+		userKey, err := lookupKey(ctx, tx, "user", userID)
+		if err != nil {
 			return err
 		}
-		return appendAgentRevision(tx, a, userID)
+		row.UserID = userKey
+		if teamID != "" {
+			teamKey, err := lookupKey(ctx, tx, "team", teamID)
+			if err != nil {
+				return err
+			}
+			row.TeamID = teamKey
+		}
+		if err := createWithPublicID(ctx, tx, "uq_agent_public_id",
+			func(b []byte) { row.PublicID = b }, row); err != nil {
+			return err
+		}
+		return appendAgentRevision(ctx, tx, row.ID, a, userID)
 	})
 	if err != nil {
 		return nil, err
 	}
+	a.ID = util.FormatPublicID(row.PublicID)
 	return a, nil
 }
 
@@ -240,10 +292,26 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name
 	updated.Instructions = instructions
 	updated.Revision = nextRevision(a.Revision)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(toAgentRow(&updated)).Error; err != nil {
+		// Addressed by its handle rather than by saving a row built from the
+		// model: the model carries no row key, so Save would see a zero primary
+		// key and insert a second agent instead of updating this one.
+		agentKey, err := lookupKey(ctx, tx, "agent", updated.ID)
+		if err != nil {
 			return err
 		}
-		return appendAgentRevision(tx, &updated, updatedBy)
+		res := tx.Model(&agentRow{}).Where("id = ?", agentKey).Updates(map[string]any{
+			"name":         updated.Name,
+			"description":  updated.Description,
+			"instructions": updated.Instructions,
+			"revision":     updated.Revision,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return model.ErrNotFound
+		}
+		return appendAgentRevision(ctx, tx, agentKey, &updated, updatedBy)
 	})
 	if err != nil {
 		return nil, err
@@ -254,7 +322,15 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name
 // ListAgentRevisions returns an agent's revisions, newest first.
 func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
 	limit, offset = capPage(limit, offset)
-	rows, total, err := listRevisions[agentRevisionRow](ctx, s.db, "agent_id", agentID, limit, offset)
+	agentKey, err := lookupKey(ctx, s.db, "agent", agentID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, total, err := listRevisions[agentRevisionReadRow](ctx, s.db, s.agentRevisionSelect(ctx),
+		"agent_revision", "agent_id", agentKey, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -263,7 +339,15 @@ func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, o
 
 // GetAgentRevision returns one revision, or (nil, nil) when there is no such revision.
 func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision int) (*model.AgentRevision, error) {
-	row, err := getRevision[agentRevisionRow](ctx, s.db, "agent_id", agentID, revision)
+	agentKey, err := lookupKey(ctx, s.db, "agent", agentID)
+	if errors.Is(err, model.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	row, err := getRevision[agentRevisionReadRow](s.agentRevisionSelect(ctx),
+		"agent_revision", "agent_id", agentKey, revision)
 	if err != nil || row == nil {
 		return nil, err
 	}
@@ -280,7 +364,7 @@ func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	if a == nil || a.UserID != userID {
 		return model.ErrNotFound
 	}
-	return s.markAgentDeleted(ctx, a.AgentID)
+	return s.markAgentDeleted(ctx, a.ID)
 }
 
 // DeleteAgentInTeam marks the agent deleted if it exists and belongs to the team.
@@ -292,7 +376,7 @@ func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) e
 	if a == nil || a.TeamID != teamID {
 		return model.ErrNotFound
 	}
-	return s.markAgentDeleted(ctx, a.AgentID)
+	return s.markAgentDeleted(ctx, a.ID)
 }
 
 // markAgentDeleted stamps deleted_at instead of removing the row.

@@ -31,10 +31,10 @@ type TaskRunLLM struct {
 
 // TaskRunRun is the run portion of the GET response.
 type TaskRunRun struct {
-	TaskRunID string `json:"task_run_id"`
-	TaskID    string `json:"task_id"`
-	Input     string `json:"input"`
-	Status    string `json:"status"`
+	ID     string `json:"id"`
+	TaskID string `json:"task_id"`
+	Input  string `json:"input"`
+	Status string `json:"status"`
 	// CancelRequested is true once someone has asked this run to stop. The
 	// worker polls for it and is what actually stops: the server records the
 	// intent, the run's own process ends it. Absent means no request, so a
@@ -45,7 +45,7 @@ type TaskRunRun struct {
 
 // TaskRunTask is the task portion of the GET response.
 type TaskRunTask struct {
-	TaskID         string  `json:"task_id"`
+	ID             string  `json:"id"`
 	ConversationID string  `json:"conversation_id"`
 	TeamID         string  `json:"team_id"`
 	UserID         string  `json:"user_id"`

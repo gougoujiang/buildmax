@@ -31,7 +31,7 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
     setError(null)
     setText(null)
     setObjectUrl(null)
-    fetchArtifactPreview(artifact.artifact_id, token)
+    fetchArtifactPreview(artifact.id, token)
       .then((res) => {
         if (cancelled) {
           if (res.objectUrl) URL.revokeObjectURL(res.objectUrl)

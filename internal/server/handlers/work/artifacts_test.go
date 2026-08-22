@@ -24,12 +24,12 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockTasks := &mock.MockTaskStore{
 		List: []model.Task{
-			{TaskID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
+			{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockLister := &mock.MockRunOutputLister{
@@ -48,7 +48,7 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:     secret,
-		Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
 		Tasks:         mockTasks,
 		Conversations: mockConversations,
 		RunOutputs:    mockLister,
@@ -77,12 +77,12 @@ func TestListArtifactItemsHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []model.Task{{TaskID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: 1}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &mock.MockRunOutputLister{
 		OutputFiles: map[string][]model.TaskRunArtifact{
@@ -92,7 +92,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:     secret,
-		Teams:         &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
 		TaskRuns:      mockTaskRun,
 		RunOutputs:    mockLister,
 		Conversations: mockConversations,
@@ -122,12 +122,12 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ConversationID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{TaskRunID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []model.Task{{TaskID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 1}},
+		TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
 	}
 	mockLister := &mock.MockRunOutputLister{
 		OutputFiles: map[string][]model.TaskRunArtifact{
@@ -146,7 +146,7 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:        secret,
-		Teams:            &mock.MockTeamStore{Teams: []model.Team{{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Teams:            &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
 		TaskRuns:         mockTaskRun,
 		RunOutputs:       mockLister,
 		RunOutputStorage: runOutputStorage,

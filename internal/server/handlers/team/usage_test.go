@@ -21,7 +21,7 @@ func TestUsageHandler(t *testing.T) {
 	teamID := "tm_personal_u1"
 	teamStore := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().Unix()},
+			{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().Unix()},
 		},
 		Members: []model.TeamMember{
 			{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner, CreatedAt: time.Now().Unix()},

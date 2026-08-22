@@ -100,14 +100,14 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 	}
 	return &WorkerTaskRun{
 		Run: &model.TaskRun{
-			TaskRunID: got.Run.TaskRunID,
+			ID:        got.Run.ID,
 			TaskID:    got.Run.TaskID,
 			Input:     got.Run.Input,
 			Status:    got.Run.Status,
 			CreatedAt: got.Run.CreatedAt,
 		},
 		Task: &model.Task{
-			TaskID:         got.Task.TaskID,
+			ID:             got.Task.ID,
 			ConversationID: got.Task.ConversationID,
 			TeamID:         got.Task.TeamID,
 			CreatedBy:      got.Task.UserID,

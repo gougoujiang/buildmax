@@ -12,8 +12,8 @@ type createWebhookKeyRequest struct {
 }
 
 type createWebhookKeyResponse struct {
-	Key   string `json:"key"`
-	KeyID string `json:"key_id"`
+	Key string `json:"key"`
+	ID  string `json:"id"`
 }
 
 type listWebhookKeysResponse struct {
@@ -21,7 +21,7 @@ type listWebhookKeysResponse struct {
 }
 
 type webhookKeyMetaResponse struct {
-	KeyID     string `json:"key_id"`
+	ID        string `json:"id"`
 	Name      string `json:"name,omitempty"`
 	CreatedAt int64  `json:"created_at"`
 }
@@ -41,7 +41,7 @@ func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_webhook_key", "user_id", userID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, createWebhookKeyResponse{Key: plaintextKey, KeyID: keyID})
+	httputil.WriteJSON(w, http.StatusCreated, createWebhookKeyResponse{Key: plaintextKey, ID: keyID})
 }
 
 func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +56,7 @@ func (h *Handler) listWebhookKeysHandler(w http.ResponseWriter, r *http.Request)
 	}
 	out := make([]webhookKeyMetaResponse, len(list))
 	for i := range list {
-		out[i] = webhookKeyMetaResponse{KeyID: list[i].KeyID, Name: list[i].Name, CreatedAt: list[i].CreatedAt}
+		out[i] = webhookKeyMetaResponse{ID: list[i].KeyID, Name: list[i].Name, CreatedAt: list[i].CreatedAt}
 	}
 	httputil.WriteJSON(w, http.StatusOK, listWebhookKeysResponse{Keys: out})
 }

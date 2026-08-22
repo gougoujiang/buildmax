@@ -20,11 +20,11 @@ func auditSearchMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 
 	audits := &mock.MockAuditStore{Events: []model.AuditEvent{
 		// Deployment-scoped: no team-scoped reader can ever see these.
-		{AuditEventID: "ae_1", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditUserLogin, CreatedAt: 100},
-		{AuditEventID: "ae_2", ActorType: model.AuditActorSystem, ActorID: model.AuditActorOperator, Action: model.AuditSystemAdminGranted, TargetID: "u_bob", CreatedAt: 200},
+		{ID: "ae_1", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditUserLogin, CreatedAt: 100},
+		{ID: "ae_2", ActorType: model.AuditActorSystem, ActorID: model.AuditActorOperator, Action: model.AuditSystemAdminGranted, TargetID: "u_bob", CreatedAt: 200},
 		// Team-scoped, in two different teams.
-		{AuditEventID: "ae_3", TeamID: "tm_one", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditTeamMemberAdded, CreatedAt: 300},
-		{AuditEventID: "ae_4", TeamID: "tm_two", ActorType: model.AuditActorUser, ActorID: "u_carol", Action: model.AuditAccessDenied, CreatedAt: 400},
+		{ID: "ae_3", TeamID: "tm_one", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditTeamMemberAdded, CreatedAt: 300},
+		{ID: "ae_4", TeamID: "tm_two", ActorType: model.AuditActorUser, ActorID: "u_carol", Action: model.AuditAccessDenied, CreatedAt: 400},
 	}}
 
 	h := New(Config{
@@ -70,7 +70,7 @@ func TestAdminAuditSearchSeesWhatTheTeamRouteCannot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAuditEvents: %v", err)
 	}
-	if len(teamOnly) != 1 || teamOnly[0].AuditEventID != "ae_3" {
+	if len(teamOnly) != 1 || teamOnly[0].ID != "ae_3" {
 		t.Errorf("the team-scoped read should see only its own team: %+v", teamOnly)
 	}
 }
@@ -101,7 +101,7 @@ func TestAdminAuditSearchFilters(t *testing.T) {
 			}
 			ids := make(map[string]bool, len(got.Events))
 			for _, e := range got.Events {
-				ids[e.AuditEventID] = true
+				ids[e.ID] = true
 			}
 			for _, want := range tc.want {
 				if !ids[want] {

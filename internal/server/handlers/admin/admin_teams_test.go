@@ -26,7 +26,7 @@ func TestAdminTeamsList(t *testing.T) {
 	}
 	byID := map[string]AdminTeam{}
 	for _, team := range out.Teams {
-		byID[team.TeamID] = team
+		byID[team.ID] = team
 	}
 	if got := byID["tm_shared"]; got.MemberCount != 2 || got.Personal || got.QuotaTier != "free_trial" {
 		t.Errorf("shared team = %+v", got)
@@ -102,8 +102,8 @@ func adminTeamsMux(t *testing.T) *http.ServeMux {
 	personalOf := "u_alice"
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: 200},
-			{TeamID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: 100},
+			{ID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: 200},
+			{ID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: 100},
 		},
 		Members: []model.TeamMember{
 			{TeamID: "tm_shared", UserID: "u_alice", Role: model.TeamRoleOwner},

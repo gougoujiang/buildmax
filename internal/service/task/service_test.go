@@ -11,7 +11,7 @@ import (
 func TestCreateRun_PersistsProvenance(t *testing.T) {
 	taskStore := &mock.MockTaskStore{
 		List: []model.Task{{
-			TaskID: "t_1",
+			ID:     "t_1",
 			TeamID: "tm_1",
 			Status: "SUCCEEDED",
 		}},

@@ -508,10 +508,11 @@ type SessionSignal struct {
 }
 ```
 
-If this becomes a database entity, its table name, public ID, and ordinary
-relationships must follow repository conventions and coordinate with the open
-[entity identity and relational keys](entity-identity-and-relational-keys.md)
-proposal. This paper does not select an ID prefix.
+If this becomes a database entity, its table name, public handle, and ordinary
+relationships must follow the
+[entity identity design](../design/entity-identity.md): a `bigint` row key, a
+`binary(12)` `public_id` where another process must name the row, and numeric
+references. There is no ID prefix to select — entity prefixes are gone.
 
 ### 10.3 Signal state
 

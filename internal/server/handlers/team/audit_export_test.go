@@ -22,8 +22,8 @@ func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID s
 	t.Helper()
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{TeamID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
-			{TeamID: matrixOther, Name: "Other", CreatedBy: matrixOutside},
+			{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
+			{ID: matrixOther, Name: "Other", CreatedBy: matrixOutside},
 		},
 		Members: []model.TeamMember{
 			{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
@@ -50,9 +50,9 @@ func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID s
 // exportBody runs an admin export and returns the raw response.
 func TestTeamAuditExportStaysInsideTheTeam(t *testing.T) {
 	audits := &mock.MockAuditStore{Events: []model.AuditEvent{
-		{AuditEventID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: 100},
-		{AuditEventID: "ae_2", TeamID: matrixOther, ActorType: model.AuditActorUser, ActorID: "u_elsewhere", Action: model.AuditTeamMemberAdded, CreatedAt: 200},
-		{AuditEventID: "ae_3", ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditUserLogin, CreatedAt: 300},
+		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: 100},
+		{ID: "ae_2", TeamID: matrixOther, ActorType: model.AuditActorUser, ActorID: "u_elsewhere", Action: model.AuditTeamMemberAdded, CreatedAt: 200},
+		{ID: "ae_3", ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditUserLogin, CreatedAt: 300},
 	}}
 	rec := teamAuditExport(t, audits, matrixTeam, matrixOwner)
 	if rec.Code != http.StatusOK {
