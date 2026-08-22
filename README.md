@@ -108,8 +108,9 @@ The Go in `go.mod` and git are enough for `./make doctor`, `./make build cli`,
 that builds a frontend needs the Node in `.node-version` as well: `./make build`,
 `./make check ci`, and `./make run portal`. On Windows use `make.bat` with the
 same commands — both forward to the Go task runner in `cmd/mk`. `./make help`
-shows the common contributor path; `./make help all` shows advanced, deployment,
-and release commands. None of build, test, check, or lint needs a model API
+shows the common contributor path, `./make help all` shows advanced, deployment,
+and release commands, and `./make help <command>` — or `<command> --help` —
+shows one command's arguments and examples. None of build, test, check, or lint needs a model API
 key.
 
 Two directories in the tree are fixtures rather than product code:

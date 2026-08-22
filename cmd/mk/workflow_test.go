@@ -27,8 +27,11 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdDoctor([]string{"frontend"}); err == nil {
 		t.Fatal("cmdDoctor accepted an unknown scope")
 	}
-	if err := cmdHelp([]string{"release"}); err == nil {
-		t.Fatal("cmdHelp accepted an unknown view")
+	if err := cmdHelp([]string{"nonsense"}); err == nil {
+		t.Fatal("cmdHelp accepted an unknown topic")
+	}
+	if err := cmdHelp([]string{"test", "race"}); err == nil {
+		t.Fatal("cmdHelp accepted two topics")
 	}
 	if err := cmdRelease(nil); err == nil {
 		t.Fatal("cmdRelease accepted a missing action")
@@ -121,6 +124,76 @@ func TestFullHelpOmitsLegacyCommands(t *testing.T) {
 				t.Errorf("legacy command %q appears in full help", row.name)
 			}
 		}
+	}
+}
+
+// TestEveryCommandHasAHelpTopic keeps `help <command>` complete. A command the
+// tables list but no topic covers answers its own --help with an error, which
+// is the state this table replaced.
+func TestEveryCommandHasAHelpTopic(t *testing.T) {
+	for _, name := range helpCommandNames() {
+		if _, ok := lookupHelpTopic(name); !ok {
+			t.Errorf("help lists %q, which has no page of its own", name)
+		}
+	}
+	listed := make(map[string]bool)
+	for _, name := range helpCommandNames() {
+		listed[name] = true
+	}
+	// help is the one topic the tables carry as `help <command>` rather than as
+	// a section row of its own, so it is checked by name.
+	listed["help"] = true
+	for _, topic := range helpTopics() {
+		if !listed[topic.name] {
+			t.Errorf("topic %q is not listed by any help table, so nothing points at it", topic.name)
+		}
+		if topic.usage == "" || topic.summary == "" {
+			t.Errorf("topic %q has no usage line or no summary", topic.name)
+		}
+		if first := strings.Fields(topic.usage)[0]; first != topic.name {
+			t.Errorf("topic %q has usage %q, which starts with a different command", topic.name, topic.usage)
+		}
+		for _, example := range topic.examples {
+			if first := strings.Fields(example)[0]; first != topic.name {
+				t.Errorf("topic %q has example %q, which runs a different command", topic.name, example)
+			}
+		}
+	}
+}
+
+// TestHelpFlagsReachHelpRatherThanTheCommand pins the routing: the flag must be
+// answered before the command runs, or `build --help` builds the tree.
+func TestHelpFlagsReachHelpRatherThanTheCommand(t *testing.T) {
+	for _, arg := range []string{"help", "-h", "--help"} {
+		if !isHelpFlag(arg) {
+			t.Errorf("isHelpFlag(%q) = false; the command would run instead", arg)
+		}
+	}
+	for _, arg := range []string{"cli", "race", "-run", "all", "--helpful"} {
+		if isHelpFlag(arg) {
+			t.Errorf("isHelpFlag(%q) = true; a real argument would be swallowed", arg)
+		}
+	}
+}
+
+// TestUsageErrorNamesTheArgumentsTheCommandAccepts pins that a bad argument is
+// answered with the command's own list rather than with a bare usage line, and
+// that the list comes from the same topic help prints.
+func TestUsageErrorNamesTheArgumentsTheCommandAccepts(t *testing.T) {
+	err := usageErrorf("check", "unknown check scope: %s", "bogus")
+	if err == nil {
+		t.Fatal("usageErrorf returned no error")
+	}
+	message := err.Error()
+	for _, want := range []string{"unknown check scope: bogus", "usage: " + mk() + " check", "portal", mk() + " help check"} {
+		if !strings.Contains(message, want) {
+			t.Errorf("usage error %q does not mention %q", message, want)
+		}
+	}
+	// A command with no topic still reports what went wrong rather than an
+	// empty error.
+	if got := usageErrorf("nonsense", "broken").Error(); got != "broken" {
+		t.Errorf("usageErrorf without a topic = %q; want the leading line alone", got)
 	}
 }
 

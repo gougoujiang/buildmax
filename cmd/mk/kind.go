@@ -38,7 +38,7 @@ func captureKind(args ...string) (string, error) {
 
 func cmdKind(args []string) error {
 	if len(args) == 0 || len(args) > 2 {
-		return errors.New("usage: ./make kind <up|images|smoke [managed]|status|logs|down>")
+		return usageErrorf("kind", "kind needs an action")
 	}
 	switch args[0] {
 	case "up":
@@ -61,7 +61,7 @@ func cmdKind(args []string) error {
 	case "down":
 		return kindDown()
 	default:
-		return fmt.Errorf("unknown kind command %q (want up, images, smoke, status, logs, or down)", args[0])
+		return usageErrorf("kind", "unknown kind action: %s", args[0])
 	}
 }
 
