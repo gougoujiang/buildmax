@@ -16,7 +16,7 @@ func cmdCheck(args []string) error {
 		scope = args[0]
 	}
 	if len(args) > 1 {
-		return fmt.Errorf("usage: %s check [go|portal|desktop|docs|all|ci]", mk())
+		return usageErrorf("check", "check takes at most one scope")
 	}
 
 	checks := map[string]func() error{
@@ -37,7 +37,7 @@ func cmdCheck(args []string) error {
 	}
 	check, ok := checks[scope]
 	if !ok {
-		return fmt.Errorf("unknown check scope %q; use go, portal, desktop, docs, all, or ci", scope)
+		return usageErrorf("check", "unknown check scope: %s", scope)
 	}
 	return runCheck(scope, check)
 }

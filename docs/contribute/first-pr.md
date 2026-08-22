@@ -3,7 +3,9 @@
 > **Audience:** new contributors · **Status:** current
 
 The shortest complete path from a clone to an open pull request. It needs Go and
-git, takes about fifteen minutes, and **does not need a model API key**.
+git, and **does not need a model API key**. The first build downloads roughly
+700 MB of Go dependencies; after that every command here finishes in under a
+minute, including the full test suite and the pre-pull-request gate.
 
 ## 1. Clone And Build
 
@@ -16,8 +18,9 @@ cd buildmax
 
 On Windows, use `make.bat build cli`. `./make` is not GNU make — it is a
 one-line shim around the Go task runner in `cmd/mk`, so every platform runs the
-same task code. `./make help` shows the common contributor path; use
-`./make help all` for deployment and release commands.
+same task code. `./make help` shows the common contributor path, `./make help all`
+covers deployment and release commands, and `./make help <command>` explains one
+command in full.
 
 The binary lands in `bin/buildmax`. `./make build cli` skips the server, worker,
 and frontends, which is all you need for a first change.
@@ -32,12 +35,17 @@ This runs `go test ./...` with `BUILDMAX_HOME=./testing-sandbox`, so it writes
 to a gitignored directory in the repo instead of your real `~/.buildmax`. A
 clean run here means your toolchain is set up correctly.
 
-If you plan to touch Go code, also run what CI runs:
+If you plan to touch Go code, run the Go gate before you open the pull request:
 
 ```bash
-./make lint
-./make test race
+./make check go
 ```
+
+That is one command for every Go step CI runs: formatting, `go mod tidy`
+cleanliness, build, vet, the race suite, and lint. It reports unformatted files
+rather than fixing them — `./make fmt` is the fix. Running `./make test` alone
+leaves those out, and formatting is the easiest way to arrive at a red CI on an
+otherwise good change.
 
 ## 3. Pick Something Small
 
@@ -65,8 +73,13 @@ Where code lives: [repo-layout.md](repo-layout.md). How a subsystem works:
 ```bash
 git switch -c short-topic-name
 # edit, then:
-./make test
+./make test ./internal/tool   # one package while iterating
+./make test                   # the whole suite before you push
 ```
+
+Package patterns come before `go test` flags — write
+`./make test ./internal/tool -run TestX`, not the other way round. A package
+after a flag is refused rather than quietly widening the run to `./...`.
 
 Match the surrounding code. The rules that are not visible in the diff —
 `snake_case` persisted JSON, singular table names, prefixed entity IDs,
@@ -80,9 +93,15 @@ update when.
 ## 5. Commit And Open The Pull Request
 
 ```bash
+./make check ci
 git commit -m "Fix the workspace path in the sandbox guide"
 git push -u origin short-topic-name
 ```
+
+`./make check ci` is everything a pull request runs except the Windows job — the
+Go gate above, both frontend suites, the documentation checks, and the
+repository-wide scans. It needs the pinned Node; without it, run
+`./make check go` and let CI cover the other half.
 
 A commit subject is a single imperative line. No tooling trailers, no
 "Generated with …" footer. Add a changelog entry — a new file under
@@ -107,6 +126,9 @@ build, vet, golangci-lint, govulncheck, the test suite with `-race`, the three
 frontend builds and both frontend test suites, a secret scan over git history,
 dependency license checks, and Markdown lint. None of it needs credentials, so
 it runs the same way on a fork.
+
+`./make check ci` runs all of it locally except the Windows job, which needs a
+Windows machine; it cross-compiles for Windows instead.
 
 ## If You Get Stuck
 

@@ -16,6 +16,7 @@ import (
 func TestLoginHandler(t *testing.T) {
 	secret := "test-jwt-secret"
 	userExists := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	otherUser := &model.User{UserID: "u2", Email: "someone@else.com", Name: "Bob"}
 
 	// Login needs a verifier. A login code store is one, and is how a real
 	// deployment recovers an account; password login has its own test file.
@@ -35,7 +36,7 @@ func TestLoginHandler(t *testing.T) {
 	}{
 		{
 			name:      "missing credential returns 400",
-			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 				"code-1": {UserID: "u1", ExpiresAt: farFuture},
 			}},
@@ -83,7 +84,7 @@ func TestLoginHandler(t *testing.T) {
 		// Single-use codes: the recovery path, and how a new account is claimed.
 		{
 			name:      "valid single-use code returns 200 and token",
-			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 				"code-1": {UserID: "u1", ExpiresAt: farFuture},
 			}},
@@ -94,7 +95,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:      "expired code is rejected",
-			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 				"code-1": {UserID: "u1", ExpiresAt: 1},
 			}},
@@ -106,7 +107,7 @@ func TestLoginHandler(t *testing.T) {
 		},
 		{
 			name:      "already spent code is rejected",
-			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 				"code-1": {UserID: "u1", ExpiresAt: farFuture, Used: true},
 			}},
@@ -118,8 +119,11 @@ func TestLoginHandler(t *testing.T) {
 		{
 			// The code names the user, so a mismatched email means the code was
 			// pasted into the wrong browser. It must not sign anyone in.
-			name:      "code submitted with someone else's email is rejected",
-			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			name: "code submitted with another account's email is rejected",
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{
+				"a@b.c":            userExists,
+				"someone@else.com": otherUser,
+			}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 				"code-1": {UserID: "u1", ExpiresAt: farFuture},
 			}},
@@ -129,8 +133,33 @@ func TestLoginHandler(t *testing.T) {
 			wantBodyNotHas: "token",
 		},
 		{
+			name:      "an address with no account is refused like a bad code",
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
+			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+				"code-1": {UserID: "u1", ExpiresAt: farFuture},
+			}},
+			jwtSecret:      secret,
+			body:           `{"email":"nobody@b.c","otp":"code-1"}`,
+			wantStatus:     http.StatusUnauthorized,
+			wantBodyHas:    "invalid otp",
+			wantBodyNotHas: "token",
+		},
+		{
+			// Both fields arrive by paste. A code copied out of a terminal
+			// carries the indentation of the line it was printed on.
+			name:      "whitespace around the pasted email and code is ignored",
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
+			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+				"code-1": {UserID: "u1", ExpiresAt: farFuture},
+			}},
+			jwtSecret:   secret,
+			body:        `{"email":" a@b.c ","otp":"  code-1\n"}`,
+			wantStatus:  http.StatusOK,
+			wantBodyHas: "token",
+		},
+		{
 			name:      "email case does not matter",
-			userStore: &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 				"code-1": {UserID: "u1", ExpiresAt: farFuture},
 			}},
@@ -143,7 +172,7 @@ func TestLoginHandler(t *testing.T) {
 			// With a code store wired, login is configured — an unknown code is
 			// a rejection, not "this server cannot log anyone in".
 			name:           "unknown code returns 401 rather than 503",
-			userStore:      &mock.MockUserStore{ByID: map[string]*model.User{"u1": userExists}},
+			userStore:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{},
 			jwtSecret:      secret,
 			body:           `{"email":"a@b.c","otp":"nope"}`,
@@ -190,6 +219,49 @@ func TestLoginHandler(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWrongEmailLeavesTheCodeSpendable is the bug this order was changed for.
+//
+// A code submitted with the wrong address used to be redeemed anyway, so the
+// retry with the right address — the obvious next thing to try — failed too,
+// and the only way out was for an operator to issue another code.
+func TestWrongEmailLeavesTheCodeSpendable(t *testing.T) {
+	alice := &model.User{UserID: "u1", Email: "a@b.c", Name: "Alice"}
+	bob := &model.User{UserID: "u2", Email: "b@b.c", Name: "Bob"}
+	codes := &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
+		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	}}
+	mux := http.NewServeMux()
+	New(Config{
+		Users:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": alice, "b@b.c": bob}},
+		LoginCodes: codes,
+		JWTSecret:  "test-jwt-secret",
+	}).Register(mux)
+
+	post := func(body string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if got := post(`{"email":"b@b.c","otp":"code-1"}`); got != http.StatusUnauthorized {
+		t.Fatalf("wrong address status = %d, want %d", got, http.StatusUnauthorized)
+	}
+	if codes.Codes["code-1"].Used {
+		t.Error("the code was spent by an attempt that signed nobody in")
+	}
+	if got := post(`{"email":"a@b.c","otp":"code-1"}`); got != http.StatusOK {
+		t.Fatalf("retry with the right address status = %d, want %d", got, http.StatusOK)
+	}
+	if !codes.Codes["code-1"].Used {
+		t.Error("a successful sign-in left the code spendable")
+	}
+	if got := post(`{"email":"a@b.c","otp":"code-1"}`); got != http.StatusUnauthorized {
+		t.Errorf("second use of the code status = %d, want %d", got, http.StatusUnauthorized)
 	}
 }
 
@@ -322,7 +394,7 @@ func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 	}}
 	mux := http.NewServeMux()
 	New(Config{
-		Users:      &mock.MockUserStore{ByID: map[string]*model.User{"u1": user}},
+		Users:      &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": user}},
 		LoginCodes: codes,
 		JWTSecret:  "test-jwt-secret",
 	}).Register(mux)

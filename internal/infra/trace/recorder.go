@@ -25,6 +25,10 @@ type Meta struct {
 	Workspace  string
 	Model      string
 	IsSubagent bool
+	// ParentRunID names the immediate trace run that started this one. It is
+	// empty for a top-level run and deliberately stays optional so trace
+	// recording remains fail-open when no parent trace was created.
+	ParentRunID string
 	// Sandbox is the execution boundary resolved for this run. Nil is recorded
 	// as unsandboxed rather than unknown — see boundaryRecord.
 	Sandbox *agent.SandboxInfo
@@ -86,6 +90,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		Workspace:    meta.Workspace,
 		Model:        meta.Model,
 		IsSubagent:   meta.IsSubagent,
+		ParentRunID:  meta.ParentRunID,
 		TraceVersion: traceVersion,
 	})
 	r.write(boundaryRecord(meta.Sandbox))

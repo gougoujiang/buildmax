@@ -24,11 +24,15 @@ type Record struct {
 	Type string `json:"type"`
 
 	// run_start
-	RunID        string `json:"run_id,omitempty"`
-	SessionID    string `json:"session_id,omitempty"`
-	Workspace    string `json:"workspace,omitempty"`
-	Model        string `json:"model,omitempty"`
-	IsSubagent   bool   `json:"is_subagent,omitempty"`
+	RunID      string `json:"run_id,omitempty"`
+	SessionID  string `json:"session_id,omitempty"`
+	Workspace  string `json:"workspace,omitempty"`
+	Model      string `json:"model,omitempty"`
+	IsSubagent bool   `json:"is_subagent,omitempty"`
+	// ParentRunID is the immediate trace run that delegated this subagent.
+	// Top-level runs leave it absent: an empty value would look like a broken
+	// link rather than a run that has no parent.
+	ParentRunID  string `json:"parent_run_id,omitempty"`
 	TraceVersion int    `json:"trace_version,omitempty"`
 
 	// sandbox_boundary

@@ -688,6 +688,28 @@ type RunPromptOpts struct {
 	Pending agent.PendingInput
 }
 
+// traceRunContext is the trace identity a running tool inherits when it starts
+// a subagent. It is context-local rather than held on AgentApp because one app
+// can run several sessions concurrently, each with its own parent run.
+type traceRunContext struct {
+	runID     string
+	modelName string
+}
+
+type traceRunContextKey struct{}
+
+func withTraceRunContext(ctx context.Context, runID, modelName string) context.Context {
+	if runID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, traceRunContextKey{}, traceRunContext{runID: runID, modelName: modelName})
+}
+
+func traceRunFromContext(ctx context.Context) traceRunContext {
+	traceRun, _ := ctx.Value(traceRunContextKey{}).(traceRunContext)
+	return traceRun
+}
+
 func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt string, opts RunPromptOpts) (RunResult, error) {
 	sess, modelName, client, err := a.resolveRunContext(sess)
 	if err != nil {
@@ -724,6 +746,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 			Plugins:      a.plugins.Provenance(ctx),
 		})
 		defer recorder.Close()
+		ctx = withTraceRunContext(ctx, recorder.RunID(), modelName)
 	}
 
 	// Give hooks a chance to inspect / reject the prompt before it enters
@@ -1005,7 +1028,7 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	agentTypes := BuildAgentTypes(registry, a.subagentsRegistry.Definitions())
 	runner, err := tools.NewDefaultSubAgentRunner(client, a.policy, func(modelName string) (cllm.LLMClient, error) {
 		return a.llmClients.Get(modelName)
-	}, tools.WithSubAgentHooks(a.hooks))
+	}, tools.WithSubAgentHooks(a.hooks), tools.WithSubAgentTraceFactory(a.newSubAgentTrace))
 	if err == nil {
 		taskTool, err := tools.NewTask(runner, agentTypes)
 		if err == nil {
@@ -1013,6 +1036,33 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 		}
 	}
 	return registry, nil
+}
+
+// newSubAgentTrace opens a child trace linked to the immediate parent run.
+// When the parent trace is unavailable, no child trace is created either: a
+// trace with a missing link would misrepresent the relationship, and tracing
+// must never become a reason for a subagent to fail.
+func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts tools.SubAgentRunOpts) tools.SubAgentTrace {
+	parent := traceRunFromContext(ctx)
+	if parent.runID == "" {
+		return nil
+	}
+	modelName := parent.modelName
+	if opts.Model != "" {
+		modelName = opts.Model
+	}
+	return trace.NewRecorder(config.TracesDir(), trace.Meta{
+		RunID:       util.NewPrefixedID("rt"),
+		ParentRunID: parent.runID,
+		SessionID:   sessionID,
+		Workspace:   a.workspaceRoot,
+		Model:       modelName,
+		IsSubagent:  true,
+		Sandbox:     a.sandboxInfo(),
+		PromptLayers: []agent.PromptLayer{
+			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
+		},
+	})
 }
 
 func (a *AgentApp) toolRegistry(modelName string, client cllm.LLMClient) (cllm.ToolRegistry, error) {

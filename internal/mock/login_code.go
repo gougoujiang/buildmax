@@ -31,16 +31,17 @@ func (m *MockLoginCodeStore) CreateLoginCode(_ context.Context, userID string, t
 	return plaintext, expiresAt, nil
 }
 
-// ConsumeLoginCode mirrors the real store: unknown, spent, and expired codes are
-// all reported the same way, as no user rather than as an error.
-func (m *MockLoginCodeStore) ConsumeLoginCode(_ context.Context, plaintext string, now int64) (string, error) {
+// ConsumeLoginCode mirrors the real store: unknown, spent, expired, and
+// somebody else's codes are all reported the same way, as not redeemed rather
+// than as an error, and only a match is marked used.
+func (m *MockLoginCodeStore) ConsumeLoginCode(_ context.Context, plaintext, userID string, now int64) (bool, error) {
 	if m.ConsumeErr != nil {
-		return "", m.ConsumeErr
+		return false, m.ConsumeErr
 	}
 	code, ok := m.Codes[plaintext]
-	if !ok || code.Used || code.ExpiresAt <= now {
-		return "", nil
+	if !ok || code.Used || code.ExpiresAt <= now || code.UserID != userID {
+		return false, nil
 	}
 	code.Used = true
-	return code.UserID, nil
+	return true, nil
 }

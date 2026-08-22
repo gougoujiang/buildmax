@@ -30,11 +30,25 @@ type SubAgentRunner interface {
 	RunSubAgent(ctx context.Context, opts SubAgentRunOpts, prompt string) (reply string, err error)
 }
 
+// SubAgentTrace receives the event stream for one subagent run. It is kept as
+// a small interface so this package stays below infra: agentapp supplies the
+// durable trace implementation without making the tool layer know where or
+// how traces are stored.
+type SubAgentTrace interface {
+	Record(coreagent.Event)
+	Close() error
+}
+
+// SubAgentTraceFactory opens a trace for a subagent after its private session
+// exists. Returning nil disables only this trace; the subagent must still run.
+type SubAgentTraceFactory func(ctx context.Context, sessionID string, opts SubAgentRunOpts) SubAgentTrace
+
 type defaultSubAgentRunner struct {
 	client        llm.LLMClient
 	policy        coreagent.ToolPolicy
 	hooks         coreagent.HookRunner
 	modelResolver func(string) (llm.LLMClient, error) // nil = always use client
+	traceFactory  SubAgentTraceFactory
 }
 
 // SubAgentRunnerOption configures a SubAgentRunner.
@@ -44,6 +58,12 @@ type SubAgentRunnerOption func(*defaultSubAgentRunner)
 // PreToolUse / PostToolUse / lifecycle hooks as the parent agent. Nil disables hooks.
 func WithSubAgentHooks(h coreagent.HookRunner) SubAgentRunnerOption {
 	return func(r *defaultSubAgentRunner) { r.hooks = h }
+}
+
+// WithSubAgentTraceFactory attaches durable trace creation at the assembly
+// layer. A nil factory leaves subagent execution unchanged.
+func WithSubAgentTraceFactory(factory SubAgentTraceFactory) SubAgentRunnerOption {
+	return func(r *defaultSubAgentRunner) { r.traceFactory = factory }
 }
 
 // NewDefaultSubAgentRunner returns a SubAgentRunner backed by the given LLM client.
@@ -104,6 +124,14 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		})
 	}
 
+	var eventSink func(coreagent.Event)
+	if r.traceFactory != nil {
+		if trace := r.traceFactory(ctx, sess.ID, opts); trace != nil {
+			defer func() { _ = trace.Close() }()
+			eventSink = trace.Record
+		}
+	}
+
 	reply, _, err := coreagent.RunLoop(ctx, coreagent.RunLoopOpts{
 		LLMClient:    client,
 		SystemPrompt: opts.SystemPrompt,
@@ -115,6 +143,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		SessionID:    sess.ID,
 		IsSubagent:   true,
 		AgentType:    opts.Description,
+		EventSink:    eventSink,
 	})
 	if err != nil {
 		return "", err

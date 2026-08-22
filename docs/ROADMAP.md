@@ -250,8 +250,9 @@ at the end:
    than as unknown. Portal reads it beside the run's trace, artifacts, spend,
    and failure cause. Still open from this step, and tracked in
    [design/durable-run-trace.md](design/durable-run-trace.md): per-command
-   boundary decisions and violations, hook and file-change events, subagent
-   `parent_run_id` linkage, and retention of the traces directory.
+   boundary decisions and violations, hook and file-change events, and
+   retention of the traces directory. Subagent traces now carry an immediate
+   `parent_run_id` link.
 2. Shrink what a task run can reach — **done for credentials, open for egress**.
    `config.WorkerNeedsEnv` now decides what a worker is given: `k8s.WorkerEnvFromEnviron`
    builds the Job pod's environment from the `BUILDMAX_*` variables that pass it
@@ -276,10 +277,12 @@ at the end:
    deliberately forward-only: every migration is additive and a rollback is a
    rollback of the binary, which the schema it left behind must keep serving —
    so there is no down path to write, but the compatibility rule has to hold in
-   review. Still open: the readiness probe reads the object store without ever
-   writing to it, so a bucket that refuses writes reports ready and then fails
-   every run, and readiness does not check worker launch mode, worker token, or
-   the LLM configuration the conversation paths need.
+   review. The production storage contract requires read, write, and list access,
+   but BuildMax still has no explicit deployment-initialization check that proves
+   those permissions against the operator's actual bucket and identity. That is
+   deliberately not a `/readyz` responsibility: readiness remains a read-only
+   dependency-availability check. It also does not check worker launch mode,
+   worker token, or the LLM configuration the conversation paths need.
 4. Minimum team governance — **done, with one gap named**. The role and team
    authorization matrix is covered end to end by tests, the audit trail records
    sign-in, configuration, model, and credential actions, and deployment

@@ -118,8 +118,11 @@ lists what is worth putting in it.
 ```
 
 `./make help` shows the common contributor path; `./make help all` groups the
-advanced, deployment, and release commands. To add or change a command, edit
-`cmd/mk` rather than the shims.
+advanced, deployment, and release commands; `./make help <command>`, which
+`<command> --help` also reaches, shows that command's arguments, examples, and
+caveats. To add or change a command, edit `cmd/mk` rather than the shims — a new
+command belongs in the help tables and needs a page of its own, which a test
+enforces.
 
 `doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
 defaults. `install`, `release`, `compose`, `kind`, and publication tasks

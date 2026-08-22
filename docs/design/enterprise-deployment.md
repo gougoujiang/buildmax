@@ -146,11 +146,17 @@ Still open:
 - worker launch mode valid
 - worker token configured
 - LLM config available for conversation title/runtime paths where required
-- storage bucket/prefix **writable** — the probe only reads
 
-The last one is the notable gap: a storage backend that accepts reads but
-refuses writes reports ready and then fails every run. Closing it means writing
-a probe object on an interval, which needs a retention answer first.
+Storage write permission is a **deployment-initialization** concern, not a
+readiness concern. The production reference requires read, write, and list
+access on the dedicated bucket/prefix, while `/readyz` deliberately verifies
+only read-only dependency availability. Writing from every readiness interval
+would make the kubelet probe own objects and their retention policy.
+
+The remaining gap is an explicit deployment-validation step that proves the
+configured workload identity can write and list in the operator's actual bucket
+before accepting work. The kind smoke proves that path against its development
+MinIO instance; it does not validate an adapted production manifest.
 
 ### 4.4 Worker End-To-End Path Needs A Single Verification
 

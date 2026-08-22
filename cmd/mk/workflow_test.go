@@ -16,14 +16,22 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdTest([]string{"fast"}); err == nil {
 		t.Fatal("cmdTest accepted an unknown mode")
 	}
+	// Silently widening to ./... is worse than refusing: the run still passes,
+	// so the ordering mistake is only visible in the minutes it took.
+	if err := cmdTest([]string{"-run", "TestFileValue", "./cmd/mk"}); err == nil {
+		t.Fatal("cmdTest accepted a package after a flag")
+	}
 	if err := cmdCheck([]string{"unknown"}); err == nil {
 		t.Fatal("cmdCheck accepted an unknown scope")
 	}
 	if err := cmdDoctor([]string{"frontend"}); err == nil {
 		t.Fatal("cmdDoctor accepted an unknown scope")
 	}
-	if err := cmdHelp([]string{"release"}); err == nil {
-		t.Fatal("cmdHelp accepted an unknown view")
+	if err := cmdHelp([]string{"nonsense"}); err == nil {
+		t.Fatal("cmdHelp accepted an unknown topic")
+	}
+	if err := cmdHelp([]string{"test", "race"}); err == nil {
+		t.Fatal("cmdHelp accepted two topics")
 	}
 	if err := cmdRelease(nil); err == nil {
 		t.Fatal("cmdRelease accepted a missing action")
@@ -116,6 +124,76 @@ func TestFullHelpOmitsLegacyCommands(t *testing.T) {
 				t.Errorf("legacy command %q appears in full help", row.name)
 			}
 		}
+	}
+}
+
+// TestEveryCommandHasAHelpTopic keeps `help <command>` complete. A command the
+// tables list but no topic covers answers its own --help with an error, which
+// is the state this table replaced.
+func TestEveryCommandHasAHelpTopic(t *testing.T) {
+	for _, name := range helpCommandNames() {
+		if _, ok := lookupHelpTopic(name); !ok {
+			t.Errorf("help lists %q, which has no page of its own", name)
+		}
+	}
+	listed := make(map[string]bool)
+	for _, name := range helpCommandNames() {
+		listed[name] = true
+	}
+	// help is the one topic the tables carry as `help <command>` rather than as
+	// a section row of its own, so it is checked by name.
+	listed["help"] = true
+	for _, topic := range helpTopics() {
+		if !listed[topic.name] {
+			t.Errorf("topic %q is not listed by any help table, so nothing points at it", topic.name)
+		}
+		if topic.usage == "" || topic.summary == "" {
+			t.Errorf("topic %q has no usage line or no summary", topic.name)
+		}
+		if first := strings.Fields(topic.usage)[0]; first != topic.name {
+			t.Errorf("topic %q has usage %q, which starts with a different command", topic.name, topic.usage)
+		}
+		for _, example := range topic.examples {
+			if first := strings.Fields(example)[0]; first != topic.name {
+				t.Errorf("topic %q has example %q, which runs a different command", topic.name, example)
+			}
+		}
+	}
+}
+
+// TestHelpFlagsReachHelpRatherThanTheCommand pins the routing: the flag must be
+// answered before the command runs, or `build --help` builds the tree.
+func TestHelpFlagsReachHelpRatherThanTheCommand(t *testing.T) {
+	for _, arg := range []string{"help", "-h", "--help"} {
+		if !isHelpFlag(arg) {
+			t.Errorf("isHelpFlag(%q) = false; the command would run instead", arg)
+		}
+	}
+	for _, arg := range []string{"cli", "race", "-run", "all", "--helpful"} {
+		if isHelpFlag(arg) {
+			t.Errorf("isHelpFlag(%q) = true; a real argument would be swallowed", arg)
+		}
+	}
+}
+
+// TestUsageErrorNamesTheArgumentsTheCommandAccepts pins that a bad argument is
+// answered with the command's own list rather than with a bare usage line, and
+// that the list comes from the same topic help prints.
+func TestUsageErrorNamesTheArgumentsTheCommandAccepts(t *testing.T) {
+	err := usageErrorf("check", "unknown check scope: %s", "bogus")
+	if err == nil {
+		t.Fatal("usageErrorf returned no error")
+	}
+	message := err.Error()
+	for _, want := range []string{"unknown check scope: bogus", "usage: " + mk() + " check", "portal", mk() + " help check"} {
+		if !strings.Contains(message, want) {
+			t.Errorf("usage error %q does not mention %q", message, want)
+		}
+	}
+	// A command with no topic still reports what went wrong rather than an
+	// empty error.
+	if got := usageErrorf("nonsense", "broken").Error(); got != "broken" {
+		t.Errorf("usageErrorf without a topic = %q; want the leading line alone", got)
 	}
 }
 
@@ -504,5 +582,94 @@ func TestEveryCommandPackageIsGitIgnored(t *testing.T) {
 			t.Errorf(".gitignore has no %q; a bare `go build ./cmd/%s` leaves that binary in the repository root",
 				want, entry.Name())
 		}
+	}
+}
+
+func TestPackageAfterFlagLeavesFlagValuesAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		flags []string
+		want  string
+	}{
+		{name: "a package after a flag", flags: []string{"-run", "TestX", "./cmd/mk"}, want: "./cmd/mk"},
+		{name: "a subtest pattern is a flag value", flags: []string{"-run", "Test/Sub"}},
+		{name: "a bare word is a flag value", flags: []string{"-run", "internal/util"}},
+		{name: "nothing after -args belongs to go test", flags: []string{"-args", "./fixture"}},
+		{name: "no flags at all", flags: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, found := packageAfterFlag(tt.flags)
+			if found != (tt.want != "") {
+				t.Fatalf("packageAfterFlag(%q) found = %v; want %v", tt.flags, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Errorf("packageAfterFlag(%q) = %q; want %q", tt.flags, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnknownCommandSuggestsTheClosestName(t *testing.T) {
+	tests := []struct {
+		typo string
+		want string
+	}{
+		{typo: "buidl", want: "build"},
+		{typo: "tset", want: "test"},
+		{typo: "cehck", want: "check"},
+		{typo: "doctro", want: "doctor"},
+		{typo: "zzzzzzzz"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.typo, func(t *testing.T) {
+			got, found := nearestCommand(tt.typo)
+			if found != (tt.want != "") {
+				t.Fatalf("nearestCommand(%q) found = %v; want %v", tt.typo, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Errorf("nearestCommand(%q) = %q; want %q", tt.typo, got, tt.want)
+			}
+		})
+	}
+	// A suggestion is only useful if it names something dispatch accepts. The
+	// candidates come from the help tables, so the two have to agree; the switch
+	// is read rather than exercised because running every command would build,
+	// clean, and lint the tree to assert a spelling.
+	body, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	for _, name := range helpCommandNames() {
+		if !strings.Contains(string(body), fmt.Sprintf("case %q", name)) {
+			t.Errorf("help lists %q, which dispatch does not know", name)
+		}
+	}
+}
+
+// Tools that have not noticed they are talking to a pipe write colour escapes
+// and extra lines. Doctor is the first command a new contributor runs, so its
+// report is the last place that should print raw escape codes.
+func TestOneLineKeepsTheFirstLineWithoutEscapes(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "plain", value: "go version go1.26.6 darwin/arm64", want: "go version go1.26.6 darwin/arm64"},
+		{
+			name:  "wails follows the version with a sponsor banner",
+			value: "v2.14.0\n\x1b[31;107m \u2665  \x1b[0m \x1b[92mIf Wails is useful, please consider sponsoring\x1b[0m\nhttps://example.invalid",
+			want:  "v2.14.0",
+		},
+		{name: "colour around the version itself", value: "\x1b[92mv1.2.3\x1b[0m", want: "v1.2.3"},
+		{name: "long output is still capped", value: strings.Repeat("x", 200), want: strings.Repeat("x", 117) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := oneLine(tt.value); got != tt.want {
+				t.Errorf("oneLine() = %q; want %q", got, tt.want)
+			}
+		})
 	}
 }

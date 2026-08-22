@@ -12,7 +12,7 @@ const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.14.0"
 
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
-		return fmt.Errorf("usage: %s build [cli]", mk())
+		return usageErrorf("build", "build takes at most one target")
 	}
 	target := "all"
 	if len(args) > 0 && args[0] != "" {
@@ -23,10 +23,7 @@ func cmdBuild(args []string) error {
 	case "cli":
 		return buildGo("cli", cliBinary, "./cmd/buildmax")
 	default:
-		fmt.Printf("Usage: %s build [cli]\n", mk())
-		fmt.Println("  build      Build all local binaries, gui, Portal, and the desktop app")
-		fmt.Printf("  build cli  Build only %s\n", exe(cliBinary))
-		return fmt.Errorf("unknown build target: %s", target)
+		return usageErrorf("build", "unknown build target: %s", target)
 	}
 
 	if err := buildGo("cli", cliBinary, "./cmd/buildmax"); err != nil {
@@ -190,7 +187,10 @@ func cmdTest(args []string) error {
 	}
 	packages, flags := splitTestTargets(args)
 	if len(flags) > 0 && !strings.HasPrefix(flags[0], "-") {
-		return fmt.Errorf("usage: %s test [race] [packages] [go test flags]\n  %q is neither a package pattern nor a flag", mk(), flags[0])
+		return usageErrorf("test", "%q is neither a package pattern nor a flag", flags[0])
+	}
+	if stray, found := packageAfterFlag(flags); found {
+		return usageErrorf("test", "%q is a package pattern but comes after a flag, so the run widens to ./...; put packages first", stray)
 	}
 	if _, err := useSandboxHome(); err != nil {
 		return err
@@ -222,6 +222,25 @@ func splitTestTargets(args []string) (packages, flags []string) {
 		}
 	}
 	return args, nil
+}
+
+// packageAfterFlag finds a package pattern that arrived too late to be one.
+// `go test` reads a single pattern list, so a package written after a flag is
+// not a narrower run: packages stays empty, the run widens to ./..., and the
+// contributor waits for the whole tree believing they narrowed it. Only a
+// `./`-prefixed argument is reported, because a bare word or a subtest pattern
+// like `Test/Sub` is far more likely to be a flag's value, and the scan stops
+// at `-args`, after which everything belongs to the test binary.
+func packageAfterFlag(flags []string) (string, bool) {
+	for _, flag := range flags {
+		if flag == "-args" || flag == "--args" {
+			return "", false
+		}
+		if strings.HasPrefix(flag, "./") {
+			return flag, true
+		}
+	}
+	return "", false
 }
 
 // looksLikePackage recognises what a Go package pattern can be. Every form is a

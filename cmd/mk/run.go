@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"regexp"
+	"time"
 )
 
 func cmdRun(args []string) error {
@@ -13,7 +16,7 @@ func cmdRun(args []string) error {
 	}
 	switch sub {
 	case "server":
-		return runLocalBinary(serverBinary, "Starting server (Ctrl+C to stop)...", nil)
+		return runServer()
 	case "cli":
 		return runLocalBinary(cliBinary, "Starting CLI...", args[1:])
 	case "desktop":
@@ -21,17 +24,80 @@ func cmdRun(args []string) error {
 	case "portal":
 		return runPortal()
 	default:
-		m := mk()
-		fmt.Printf("Usage: %s run <subcommand>\n", m)
-		fmt.Printf("  server   Run %s  (BUILDMAX_HOME=./%s)\n", exe(serverBinary), sandboxDir)
-		fmt.Printf("  cli      Run %s         (BUILDMAX_HOME=./%s)\n", exe(cliBinary), sandboxDir)
-		fmt.Printf("  desktop  Run %s (BUILDMAX_HOME=./%s)\n", exe(desktopBinary), sandboxDir)
-		fmt.Println("  portal   Start the Portal dev server (Vite)")
 		if sub == "" {
-			return fmt.Errorf("run needs a subcommand")
+			return usageErrorf("run", "run needs a target")
 		}
-		return fmt.Errorf("unknown run subcommand: %s", sub)
+		return usageErrorf("run", "unknown run target: %s", sub)
 	}
+}
+
+// runServer preflights the database before starting the server.
+//
+// The server needs MySQL, and the usual local one is the cluster's, forwarded
+// by `mk kind forward`. Without the preflight the failure is a dial error from deep
+// inside the server, which says what did not connect but not which of the two
+// commands is missing.
+func runServer() error {
+	sandbox, err := seedSandboxConfig()
+	if err != nil {
+		return err
+	}
+	if err := checkServerDatabase(sandbox); err != nil {
+		return err
+	}
+	return runLocalBinary(serverBinary, "Starting server (Ctrl+C to stop)...", nil)
+}
+
+// checkServerDatabase fails when the sandbox server.yaml points at a database
+// on this machine that nothing is answering for.
+//
+// A remote database is left alone: this can only tell a contributor how to
+// start the local one, and a dial from here proves nothing about a host the
+// server may reach differently.
+func checkServerDatabase(sandbox string) error {
+	body, err := os.ReadFile(filepath.Join(sandbox, "server.yaml"))
+	if err != nil {
+		// No server.yaml is not a database problem; the server reports its own
+		// missing configuration better than a guess here would.
+		return nil
+	}
+	host, port := serverDatabaseAddress(string(body))
+	if !isLocalHost(host) {
+		return nil
+	}
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, port), 500*time.Millisecond)
+	if dialErr == nil {
+		_ = conn.Close()
+		return nil
+	}
+	return fmt.Errorf("no database is answering at %s, and %s needs one\n  Start the development MySQL with %s kind up, then forward it with %s kind forward in another terminal\n  Or point database.host in %s at a database you already run",
+		net.JoinHostPort(host, port), mk()+" run server", mk(), mk(), filepath.Join(sandbox, "server.yaml"))
+}
+
+// serverDatabaseAddress reads database.host and database.port out of
+// server.yaml. mk parses configuration textually everywhere rather than take a
+// YAML dependency for the few keys it reads.
+func serverDatabaseAddress(body string) (string, string) {
+	host, port := "localhost", "3306"
+	block := regexp.MustCompile(`(?ms)^database:\s*$(.*?)(?:^\S|\z)`).FindStringSubmatch(body)
+	if block == nil {
+		return host, port
+	}
+	if match := regexp.MustCompile(`(?m)^\s+host:\s*"?([^"\s#]+)"?`).FindStringSubmatch(block[1]); match != nil {
+		host = match[1]
+	}
+	if match := regexp.MustCompile(`(?m)^\s+port:\s*"?(\d+)"?`).FindStringSubmatch(block[1]); match != nil {
+		port = match[1]
+	}
+	return host, port
+}
+
+func isLocalHost(host string) bool {
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "0.0.0.0":
+		return true
+	}
+	return false
 }
 
 // runLocalBinary starts one of the built binaries against testing-sandbox, so a

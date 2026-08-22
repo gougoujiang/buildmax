@@ -129,7 +129,8 @@ Coverage against the full §3.3 target (✅ = in phase 1):
 - approval decisions — partial: only `tool_denied` (reason `hook`/`user`)
 - hook execution — ❌ needs dedicated hook events
 - file changes — ❌ needs file-change events
-- subagent parent/child relationships — ❌ `parent_run_id` linkage deferred
+- subagent parent/child relationships — ✅ each subagent trace carries its
+  immediate parent's `parent_run_id`
 - sandbox mode and boundary decisions — partial: a `sandbox_boundary` record is
   written for every run with the resolved enabled/mode/backend and the source
   chain, including an explicit `sandboxed: false` when nothing confined the run.

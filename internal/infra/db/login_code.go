@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-
-	"gorm.io/gorm"
 )
 
 type loginCodeRow struct {
@@ -68,33 +66,21 @@ func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Dur
 // The redemption is a conditional UPDATE rather than a read-then-write: two
 // requests racing with the same code both match the row, and only the one whose
 // UPDATE reports a changed row is allowed to proceed.
-func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext string, now int64) (string, error) {
-	if plaintext == "" {
-		return "", nil
+//
+// user_id is part of that condition, so a code submitted with somebody else's
+// address matches nothing, changes nothing, and stays spendable.
+func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext, userID string, now int64) (bool, error) {
+	if plaintext == "" || userID == "" {
+		return false, nil
 	}
-	hash := hashLoginCode(plaintext)
-	var userID string
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&loginCodeRow{}).
-			Where("code_hash = ? AND used_at IS NULL AND expires_at > ?", hash, now).
-			Update("used_at", now)
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected == 0 {
-			return nil // unknown, spent, or expired — indistinguishable on purpose
-		}
-		var row loginCodeRow
-		if err := tx.Where("code_hash = ?", hash).First(&row).Error; err != nil {
-			return err
-		}
-		userID = row.UserID
-		return nil
-	})
-	if err != nil {
-		return "", err
+	res := s.db.WithContext(ctx).Model(&loginCodeRow{}).
+		Where("code_hash = ? AND user_id = ? AND used_at IS NULL AND expires_at > ?",
+			hashLoginCode(plaintext), userID, now).
+		Update("used_at", now)
+	if res.Error != nil {
+		return false, res.Error
 	}
-	return userID, nil
+	return res.RowsAffected == 1, nil
 }
 
 // DeleteExpiredLoginCodes removes codes that can no longer be redeemed. Spent

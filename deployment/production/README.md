@@ -64,6 +64,15 @@ projected identity is not.
 
 Lifecycle rules are yours to set. BuildMax never deletes run state or artifacts.
 
+Before accepting production traffic, validate this contract from the adapted
+deployment with the same workload identity the server and workers will use. The
+validation must prove read, write, and list access to the configured prefix.
+This is deployment initialization rather than a `/readyz` check: readiness
+intentionally performs only read-only dependency availability checks. The
+repository's kind smoke covers this for its development MinIO instance; an
+explicit validation command for an operator-managed bucket is not implemented
+yet.
+
 ### Ingress and TLS
 
 The manifest assumes one origin serves both the Portal and the API, which is

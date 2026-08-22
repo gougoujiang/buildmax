@@ -18,7 +18,8 @@ type Store struct {
 }
 
 // New opens a MySQL connection with the given DSN and brings the schema up to
-// date in three steps, in this order:
+// date. When the DSN names a database the server does not have, it is created
+// first (see ensureDatabase), and then, in this order:
 //
 //  1. AutoMigrate over every row struct, which owns additive DDL — new tables,
 //     new columns, new indexes. The row structs are the schema.
@@ -37,6 +38,13 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 		IgnoreRecordNotFoundError: true,
 	})
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: gormLogger})
+	if err != nil && missingDatabase(err) {
+		// The schema, not just the tables: see ensureDatabase.
+		if createErr := ensureDatabase(ctx, dsn); createErr != nil {
+			return nil, fmt.Errorf("open mysql: %w (creating the database failed too: %v)", err, createErr)
+		}
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: gormLogger})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
