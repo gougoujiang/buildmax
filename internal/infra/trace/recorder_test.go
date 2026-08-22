@@ -50,9 +50,10 @@ func TestRecorder_WritesRunStartEventsAndEnd(t *testing.T) {
 
 	path := filepath.Join(dir, "c_sess1", "rt_test01.jsonl")
 	recs := readRecords(t, path)
-	// run_start, sandbox_boundary, prompt_layers, llm_start, tool_end, run_end (delta dropped)
-	if len(recs) != 6 {
-		t.Fatalf("got %d records, want 6: %+v", len(recs), recs)
+	// run_start, sandbox_boundary, prompt_layers, plugins, llm_start, tool_end,
+	// run_end (delta dropped)
+	if len(recs) != 7 {
+		t.Fatalf("got %d records, want 7: %+v", len(recs), recs)
 	}
 	if recs[0].Type != "run_start" || recs[0].RunID != "rt_test01" || recs[0].TraceVersion != traceVersion {
 		t.Errorf("bad run_start: %+v", recs[0])
@@ -130,7 +131,7 @@ func TestRecordRunEnd_Synthetic(t *testing.T) {
 	rec.RecordRunEnd("blocked by hook: nope")
 	rec.Close()
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_block.jsonl"))
-	if len(recs) != 4 || recs[3].Type != "run_end" || recs[3].Error != "blocked by hook: nope" {
+	if len(recs) != 5 || recs[4].Type != "run_end" || recs[4].Error != "blocked by hook: nope" {
 		t.Errorf("synthetic run_end wrong: %+v", recs)
 	}
 }
@@ -169,8 +170,9 @@ func TestRecorder_BoundaryReportsUnsandboxedRun(t *testing.T) {
 			rec.Close()
 
 			recs := readRecords(t, filepath.Join(dir, "s", "rt_b.jsonl"))
-			if len(recs) != 3 {
-				t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers: %+v", len(recs), recs)
+			if len(recs) != 4 {
+				t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + plugins: %+v",
+					len(recs), recs)
 			}
 			got := recs[1]
 			if got.Type != "sandbox_boundary" {

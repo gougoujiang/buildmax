@@ -1,8 +1,11 @@
 package agentapp
 
 import (
+	"context"
+
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/gougoujiang/buildmax/internal/infra/git"
 )
 
 // PluginSnapshot is the plugin inventory one runtime resolved when it was
@@ -23,6 +26,20 @@ type PluginSnapshot struct {
 	// Shadowed lists plugin definitions a higher layer replaced, so a plugin is
 	// not shown as fully active when part of it never loads.
 	Shadowed []plugin.Shadowed
+
+	// base holds the per-plugin facts that cannot change while this runtime
+	// lives, so a run pays only for the ones that can.
+	base []pluginBase
+}
+
+// pluginBase is one plugin's fixed identity and source.
+type pluginBase struct {
+	name      string
+	path      string
+	source    config.PluginSource
+	isRepo    bool
+	remoteURL string
+	state     config.PluginState
 }
 
 // Loadable returns the plugins that contributed to this runtime.
@@ -63,4 +80,65 @@ func discoverPlugins() PluginSnapshot {
 		})
 	}
 	return snap
+}
+
+// resolveBase classifies each loaded plugin and reads the source facts that do
+// not change under a live runtime.
+//
+// Classification is where §4.2's "unmanaged repository plugin" is settled: a
+// directory nothing recorded is a repository when it holds a checkout and a
+// local directory otherwise. It is decided by looking, not persisted, because
+// the directory is the source of truth and writing state on every assembly
+// would be surprising.
+func (s *PluginSnapshot) resolveBase(ctx context.Context) {
+	for _, p := range s.Loadable() {
+		b := pluginBase{name: p.Name(), path: p.Path, source: p.State.Source, state: p.State}
+		b.isRepo = git.IsRepository(p.Path)
+		if b.source == config.PluginSourceUnknown {
+			if b.isRepo {
+				b.source = config.PluginSourceRepository
+			} else {
+				b.source = config.PluginSourceLocal
+			}
+		}
+		if b.source == config.PluginSourceRepository {
+			b.remoteURL = p.State.RepositoryURL
+			if b.remoteURL == "" {
+				b.remoteURL = git.ReadRemoteURL(ctx, p.Path)
+			}
+		}
+		s.base = append(s.base, b)
+	}
+}
+
+// Provenance is the inventory to record for one run.
+//
+// A repository's commit and dirty flag are read here rather than reused from
+// assembly: a working tree can change a file between the two, and saying which
+// input was still mutable is the record's whole purpose. Everything else is
+// already fixed. A read that fails leaves the entry without a commit rather
+// than failing the run.
+func (s PluginSnapshot) Provenance(ctx context.Context) []plugin.Provenance {
+	if len(s.base) == 0 {
+		return nil
+	}
+	out := make([]plugin.Provenance, 0, len(s.base))
+	for _, b := range s.base {
+		rec := plugin.Provenance{Name: b.name, Source: string(b.source)}
+		switch b.source {
+		case config.PluginSourceMarketplace:
+			rec.MarketplaceServer = b.state.MarketplaceServer
+			rec.CatalogID = b.state.CatalogID
+			rec.Version = b.state.ReleaseVersion
+			rec.Digest = b.state.Digest
+		case config.PluginSourceRepository:
+			rec.RemoteURL = b.remoteURL
+			if st, err := git.ReadStatus(ctx, b.path); err == nil {
+				dirty := st.Dirty
+				rec.Commit, rec.Branch, rec.Dirty = st.Commit, st.Branch, &dirty
+			}
+		}
+		out = append(out, rec)
+	}
+	return out
 }

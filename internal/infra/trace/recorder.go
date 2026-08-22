@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // defaultMaxRecords guards a runaway loop: once this many event records are
@@ -29,6 +30,8 @@ type Meta struct {
 	Sandbox *agent.SandboxInfo
 	// PromptLayers are the system-prompt layers this run loaded, in order.
 	PromptLayers []agent.PromptLayer
+	// Plugins is the plugin inventory active for this run.
+	Plugins []plugin.Provenance
 }
 
 // Recorder appends trace records for one run to a JSONL file. All methods are
@@ -87,6 +90,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 	})
 	r.write(boundaryRecord(meta.Sandbox))
 	r.write(layersRecord(meta.PromptLayers))
+	r.write(pluginsRecord(meta.Plugins))
 	return r
 }
 

@@ -1,7 +1,9 @@
 package agentapp
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -229,5 +231,118 @@ func TestSnapshotGathersMCPFindings(t *testing.T) {
 	}
 	if len(app.MCPStatus().Servers) != 0 {
 		t.Errorf("a collided server must not be started: %+v", app.MCPStatus().Servers)
+	}
+}
+
+func runGitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// A directory nothing recorded is classified by looking: a checkout is a
+// repository plugin, anything else is local.
+func TestProvenanceClassifiesUnrecordedDirectories(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	repoDir := installPlugin(t, home, "cloned", map[string]string{"plugin.yaml": "name: cloned\n"})
+	installPlugin(t, home, "copied", map[string]string{"plugin.yaml": "name: copied\n"})
+	runGitIn(t, repoDir, "init")
+	runGitIn(t, repoDir, "config", "user.email", "test@example.com")
+	runGitIn(t, repoDir, "config", "user.name", "Test User")
+	runGitIn(t, repoDir, "add", ".")
+	runGitIn(t, repoDir, "commit", "-m", "initial")
+	runGitIn(t, repoDir, "remote", "add", "origin", "git@code.example.com:agents/cloned.git")
+
+	app := newTestApp(t, t.TempDir())
+	byName := map[string]plugin.Provenance{}
+	for _, p := range app.Plugins().Provenance(context.Background()) {
+		byName[p.Name] = p
+	}
+
+	cloned := byName["cloned"]
+	if cloned.Source != string(config.PluginSourceRepository) {
+		t.Errorf("cloned source = %q, want repository", cloned.Source)
+	}
+	if len(cloned.Commit) != 40 {
+		t.Errorf("cloned commit = %q, want a full hash", cloned.Commit)
+	}
+	if cloned.RemoteURL != "git@code.example.com:agents/cloned.git" {
+		t.Errorf("cloned remote = %q", cloned.RemoteURL)
+	}
+	// A clean checkout must record false rather than omit the flag: silence
+	// would read as "nobody looked".
+	if cloned.Dirty == nil || *cloned.Dirty {
+		t.Errorf("cloned dirty = %v, want a present false", cloned.Dirty)
+	}
+
+	copied := byName["copied"]
+	if copied.Source != string(config.PluginSourceLocal) {
+		t.Errorf("copied source = %q, want local", copied.Source)
+	}
+	if copied.Commit != "" || copied.Dirty != nil {
+		t.Errorf("a local directory has no checkout facts: %+v", copied)
+	}
+}
+
+// The trace's job is to say which input was still mutable, so an edit made
+// after assembly must show up in the next run's record.
+func TestProvenanceRereadsDirtyStatePerRun(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	repoDir := installPlugin(t, home, "cloned", map[string]string{
+		"plugin.yaml":         "name: cloned\n",
+		"skills/one/SKILL.md": "# one\n\nFirst skill.\n",
+	})
+	runGitIn(t, repoDir, "init")
+	runGitIn(t, repoDir, "config", "user.email", "test@example.com")
+	runGitIn(t, repoDir, "config", "user.name", "Test User")
+	runGitIn(t, repoDir, "add", ".")
+	runGitIn(t, repoDir, "commit", "-m", "initial")
+
+	app := newTestApp(t, t.TempDir())
+	if p := app.Plugins().Provenance(context.Background())[0]; p.Dirty == nil || *p.Dirty {
+		t.Fatalf("should start clean: %+v", p)
+	}
+
+	if err := os.WriteFile(filepath.Join(repoDir, "skills", "one", "SKILL.md"),
+		[]byte("# one\n\nEdited.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if p := app.Plugins().Provenance(context.Background())[0]; p.Dirty == nil || !*p.Dirty {
+		t.Errorf("an edit after assembly should be visible: %+v", p)
+	}
+}
+
+func TestProvenanceReportsMarketplaceRelease(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	installPlugin(t, home, "code-review", map[string]string{"plugin.yaml": "name: code-review\n"})
+	if err := config.UpdatePluginStates(filepath.Join(home, "plugins"), func(s *config.PluginStates) error {
+		s.Set("code-review", config.PluginState{
+			Source:            config.PluginSourceMarketplace,
+			MarketplaceServer: "https://buildmax.example.com",
+			CatalogID:         "pl_00000000000000000000",
+			ReleaseVersion:    "1.2.0",
+			Digest:            "sha256:abc",
+		})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app := newTestApp(t, t.TempDir())
+	got := app.Plugins().Provenance(context.Background())
+	if len(got) != 1 {
+		t.Fatalf("got %d records, want 1", len(got))
+	}
+	p := got[0]
+	if p.Version != "1.2.0" || p.Digest != "sha256:abc" || p.CatalogID != "pl_00000000000000000000" {
+		t.Errorf("release identity missing: %+v", p)
+	}
+	if p.Commit != "" || p.Dirty != nil {
+		t.Errorf("a release has no working tree: %+v", p)
 	}
 }

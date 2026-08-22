@@ -79,6 +79,16 @@ omitted.
 {"ts":"…","type":"sandbox_boundary","sandboxed":false,"backend":"none",
  "sandbox_mode":"auto_allow","sources":["default:worker","policy"]}
 
+// plugins — synthesized at construction, for the same reason: naming what the
+// run loaded from outside the workspace, and for a repository plugin whether
+// that input could still change under it. Bounded metadata only, never package
+// content. See design/plugin-marketplace.md §10.
+{"ts":"…","type":"plugins","plugins":[
+  {"name":"code-review","source":"repository","remote_url":"git@…",
+   "commit":"…","branch":"main","dirty":false},
+  {"name":"release","source":"marketplace","version":"1.2.0",
+   "digest":"sha256:…"}]}
+
 // iter_start  (EventIterStart)
 {"ts":"…","type":"iter_start","iter":1}
 
@@ -168,7 +178,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   │
   ├─ trace.NewRecorder(TracesDir, meta{run_id, session_id, workspace, model})
   │     └─ writes run_start,           (nil + warn on error → fail open)
-  │        then sandbox_boundary
+  │        then sandbox_boundary, prompt_layers, plugins
   │
   ├─ sink := tee(recorder.Record, eventSink)   // recorder first, then caller
   │

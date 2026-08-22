@@ -243,6 +243,7 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	// Resolved once, here: every layer below reads the same inventory, and a
 	// plugin installed later must not change a runtime already assembled.
 	pluginSnapshot := discoverPlugins()
+	pluginSnapshot.resolveBase(context.Background())
 	loadedPlugins := pluginSnapshot.Loadable()
 
 	wsHooks, err := config.LoadWorkspaceHooks(workspaceRoot)
@@ -719,6 +720,7 @@ func (a *AgentApp) RunPrompt(ctx context.Context, sess *SessionContext, prompt s
 			Model:        modelName,
 			Sandbox:      a.sandboxInfo(),
 			PromptLayers: promptLayers,
+			Plugins:      a.plugins.Provenance(ctx),
 		})
 		defer recorder.Close()
 	}

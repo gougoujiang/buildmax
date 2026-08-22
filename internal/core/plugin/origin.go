@@ -52,3 +52,28 @@ type Shadowed struct {
 	Winner Origin
 	Loser  Origin
 }
+
+// Provenance is the bounded metadata a run records about one plugin: enough to
+// identify what was loaded, and nothing from inside the package.
+//
+// A repository plugin is identified by its checkout, a Marketplace plugin by
+// the release it came from. Neither half carries configuration values, prompts,
+// or secrets.
+type Provenance struct {
+	Name   string `json:"name"`
+	Source string `json:"source,omitempty"`
+
+	RemoteURL string `json:"remote_url,omitempty"`
+	Commit    string `json:"commit,omitempty"`
+	Branch    string `json:"branch,omitempty"`
+	// Dirty is a pointer so a clean checkout records false rather than
+	// omitting the field: an absent flag reads as "nobody looked", and a
+	// reader resolving that silence in the run's favour would credit it with
+	// an immutable input it did not have.
+	Dirty *bool `json:"dirty,omitempty"`
+
+	MarketplaceServer string `json:"marketplace_server,omitempty"`
+	CatalogID         string `json:"catalog_id,omitempty"`
+	Version           string `json:"version,omitempty"`
+	Digest            string `json:"digest,omitempty"`
+}
