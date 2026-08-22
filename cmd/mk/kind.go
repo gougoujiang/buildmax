@@ -6,7 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -20,6 +24,8 @@ const (
 	// inspects, and deletes a cluster; a PATH install cannot promise that.
 	// The first run builds it in a few seconds, then the Go build cache serves it.
 	kindPkg = "sigs.k8s.io/kind@v0.31.0"
+
+	kindConfigPath = "deployment/dev-kind/kind-config.yaml"
 )
 
 func runKind(args ...string) error {
@@ -90,8 +96,14 @@ func kindUp() error {
 		return err
 	}
 	if !exists {
+		// Before the cluster, not after: creating one is the step that publishes
+		// the ports, and everything expensive comes later. A conflict found here
+		// costs a second; found by the ingress, it costs an image build first.
+		if err := checkKindHostPorts(cluster); err != nil {
+			return err
+		}
 		fmt.Printf("Creating kind cluster %q...\n", cluster)
-		if err := runKind("create", "cluster", "--name", cluster, "--config", "deployment/dev-kind/kind-config.yaml"); err != nil {
+		if err := runKind("create", "cluster", "--name", cluster, "--config", kindConfigPath); err != nil {
 			return err
 		}
 		// kind makes the new cluster globally current. Every command below uses
@@ -307,6 +319,36 @@ func kindDown() error {
 		return nil
 	}
 	return runKind("delete", "cluster", "--name", cluster)
+}
+
+// checkKindHostPorts fails when something already holds a port the new cluster
+// would publish.
+//
+// The ports are read from the cluster config rather than repeated here, so the
+// preflight cannot drift from the mapping it is checking for.
+func checkKindHostPorts(cluster string) error {
+	config, err := os.ReadFile(kindConfigPath)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", kindConfigPath, err)
+	}
+	var busy []string
+	for _, match := range regexp.MustCompile(`(?m)^\s*hostPort:\s*(\d+)`).FindAllStringSubmatch(string(config), -1) {
+		// Dial rather than bind. A probe that binds proves nothing here: every
+		// listener that matters sets SO_REUSEADDR, and so does net.Listen, so on
+		// macOS the probe succeeds against a port that is very much in use. What
+		// this needs to know is whether something answers, which is a connection.
+		conn, dialErr := net.DialTimeout("tcp", "127.0.0.1:"+match[1], 300*time.Millisecond)
+		if dialErr != nil {
+			continue
+		}
+		_ = conn.Close()
+		busy = append(busy, match[1])
+	}
+	if len(busy) == 0 {
+		return nil
+	}
+	return fmt.Errorf("host port %s already in use, and kind cluster %q publishes it\n  Stop what is listening, or run another cluster with BUILDMAX_KIND_CLUSTER=<name> after changing the hostPort in %s",
+		strings.Join(busy, " and "), cluster, kindConfigPath)
 }
 
 func kindClusterExists(name string) (bool, error) {
